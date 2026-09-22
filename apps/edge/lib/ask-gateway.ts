@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ASK_MODEL } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
+import { logger, errField } from "./log.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 const DAY_MS = 24 * 3600 * 1000;
@@ -29,6 +30,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /** Ask's tokens in the last day, this workspace. Read failures count as zero, never as a refusal. */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
+  const L = logger({ tenant: tenantId });
   try {
     const { data, error } = await db
       .from("events")
@@ -44,7 +46,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: s
       return sum + num(d.input_tokens) + num(d.output_tokens);
     }, 0);
   } catch (e) {
-    console.error("ask_budget_read_failed", e instanceof Error ? e.message : e);
+    L.error("ask_budget_read_failed", { error: errField(e) });
     return 0;
   }
 }
@@ -53,12 +55,19 @@ export async function recordAskUsage(
   db: SupabaseClient<Database>,
   tenantId: string,
   userId: string,
-  data: AskUsage & { model: string; latency_ms: number; stop_reason: string | null; stream: boolean; purpose: GatewayPurpose },
+  data: AskUsage & {
+    model: string;
+    latency_ms: number;
+    stop_reason: string | null;
+    stream: boolean;
+    purpose: GatewayPurpose;
+  },
 ): Promise<void> {
+  const L = logger({ tenant: tenantId });
   try {
     await emitEvent(db, tenantId, ASK_USAGE_KIND, "usage", "user", userId, data as unknown as Json);
   } catch (e) {
-    console.error("ask_usage_write_failed", e instanceof Error ? e.message : e);
+    L.error("ask_usage_write_failed", { error: errField(e) });
   }
 }
 
@@ -75,7 +84,12 @@ export function teeUsage(
   upstream: ReadableStream<Uint8Array>,
   onDone: (usage: AskUsage, stopReason: string | null) => Promise<void> | void,
 ): ReadableStream<Uint8Array> {
-  const usage: AskUsage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  const usage: AskUsage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+  };
   let stopReason: string | null = null;
   let carry = "";
   const decoder = new TextDecoder();
@@ -87,8 +101,17 @@ export function teeUsage(
       if (!line.startsWith("data:")) continue;
       const raw = line.slice(5).trim();
       if (!raw || raw === "[DONE]") continue;
-      let ev: { type?: string; message?: { usage?: Record<string, unknown> }; usage?: Record<string, unknown>; delta?: { stop_reason?: string } };
-      try { ev = JSON.parse(raw); } catch { continue; }
+      let ev: {
+        type?: string;
+        message?: { usage?: Record<string, unknown> };
+        usage?: Record<string, unknown>;
+        delta?: { stop_reason?: string };
+      };
+      try {
+        ev = JSON.parse(raw);
+      } catch {
+        continue;
+      }
       if (ev.type === "message_start" && ev.message?.usage) {
         const u = ev.message.usage;
         usage.input_tokens = num(u.input_tokens);
@@ -129,7 +152,10 @@ export interface GatewayRequest {
   tools?: unknown[];
   tool_choice?: unknown;
   temperature?: number;
-  output_config?: { effort?: "low" | "medium" | "high"; format?: { type: "json_schema"; schema: Record<string, unknown> } };
+  output_config?: {
+    effort?: "low" | "medium" | "high";
+    format?: { type: "json_schema"; schema: Record<string, unknown> };
+  };
 }
 
 const EFFORTS = new Set(["low", "medium", "high"]);
@@ -142,8 +168,11 @@ const FORMAT_MAX = 8_000;
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
   const f = raw as { type?: unknown; schema?: unknown } | null;
-  if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema)) return "bad";
-  return JSON.stringify(f.schema).length > FORMAT_MAX ? "bad" : { type: "json_schema", schema: f.schema as Record<string, unknown> };
+  if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema))
+    return "bad";
+  return JSON.stringify(f.schema).length > FORMAT_MAX
+    ? "bad"
+    : { type: "json_schema", schema: f.schema as Record<string, unknown> };
 }
 
 /** The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. */
@@ -171,7 +200,10 @@ export function validateGatewayRequest(
   if (r.system !== undefined && typeof r.system !== "string" && !Array.isArray(r.system)) {
     return { ok: false, error: "system: a string or blocks" };
   }
-  const oc = r.output_config && typeof r.output_config === "object" ? (r.output_config as { effort?: unknown; format?: unknown }) : null;
+  const oc =
+    r.output_config && typeof r.output_config === "object"
+      ? (r.output_config as { effort?: unknown; format?: unknown })
+      : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as "low" | "medium" | "high") : null;
   // Ask's own turn answers in prose and names no format; the two lead purposes
   // answer as records, so theirs is passed through to the model.

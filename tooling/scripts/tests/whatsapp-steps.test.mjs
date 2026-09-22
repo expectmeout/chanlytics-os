@@ -30,10 +30,18 @@ test("age: fresh inside ten minutes, late inside two hours, stale beyond — and
 
 test("thread: a human has it, the day is spent, or the receptionist may answer", () => {
   assert.equal(threadVerdict({ pausedUntil: NOW + 1, replies: [] }, 20, NOW), "paused");
-  assert.equal(threadVerdict({ pausedUntil: NOW, replies: [] }, 20, NOW), "ok", "the pause has ended at the very moment");
+  assert.equal(
+    threadVerdict({ pausedUntil: NOW, replies: [] }, 20, NOW),
+    "ok",
+    "the pause has ended at the very moment",
+  );
   assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(20).fill(NOW) }, 20, NOW), "ratecap");
   assert.equal(threadVerdict({ pausedUntil: 0, replies: new Array(19).fill(NOW) }, 20, NOW), "ok");
-  assert.equal(threadVerdict({ pausedUntil: NOW + 1, replies: new Array(30).fill(NOW) }, 20, NOW), "paused", "the pause is decided first");
+  assert.equal(
+    threadVerdict({ pausedUntil: NOW + 1, replies: new Array(30).fill(NOW) }, 20, NOW),
+    "paused",
+    "the pause is decided first",
+  );
 });
 
 test("the hold: veto always waits in its window; auto waits only below the dial; the dial off means no wait", () => {
@@ -44,7 +52,10 @@ test("the hold: veto always waits in its window; auto waits only below the dial;
   const sure = holdPlan("auto", limits, { confidence: 0.9 });
   assert.deepEqual([sure.delayMs, sure.heldForConfidence, sure.source], [0, false, "veto_window"]);
   const unsure = holdPlan("auto", limits, { confidence: 0.4 });
-  assert.deepEqual([unsure.delayMs, unsure.heldForConfidence, unsure.source, unsure.minConfidence], [90_000, true, "low_confidence", 0.7]);
+  assert.deepEqual(
+    [unsure.delayMs, unsure.heldForConfidence, unsure.source, unsure.minConfidence],
+    [90_000, true, "low_confidence", 0.7],
+  );
   const noMeta = holdPlan("auto", limits, undefined);
   assert.equal(noMeta.heldForConfidence, false, "no confidence on record is not low confidence");
   const dialOff = holdPlan("auto", { reply_delay_ms: 90_000 }, { confidence: 0.1 });
@@ -52,30 +63,66 @@ test("the hold: veto always waits in its window; auto waits only below the dial;
 });
 
 test("layer two: a price blocks the send; under ask a link is taken back and an answer is replaced; compliance keeps its words; nothing else is touched", () => {
-  const base = { escalate: false, escalationReason: "human_token", brainCfg, policy: { booking: { mode: "ask" }, faq: { mode: "ask" } } };
+  const base = {
+    escalate: false,
+    escalationReason: "human_token",
+    brainCfg,
+    policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
+  };
   const price = layerTwo({ ...base, replyText: "A blowout is $45 today.", intent: "pricing" });
   assert.equal(price.priceBlocked, true);
   assert.match(price.replyText, /Pricing is quoted at your consult/);
-  assert.equal(price.escalationReason, "policy_ask", "the ask class still applies after the price block; the words are the price block's");
+  assert.equal(
+    price.escalationReason,
+    "policy_ask",
+    "the ask class still applies after the price block; the words are the price block's",
+  );
   assert.equal(price.escalate, true);
   const link = layerTwo({ ...base, replyText: `Book here: ${brainCfg.booking_link}`, intent: "booking" });
-  assert.deepEqual([link.askClass, link.complied, link.escalate, link.escalationReason], ["booking", false, true, "policy_ask"]);
+  assert.deepEqual(
+    [link.askClass, link.complied, link.escalate, link.escalationReason],
+    ["booking", false, true, "policy_ask"],
+  );
   assert.match(link.replyText, /confirm your booking with you shortly/);
-  const complied = layerTwo({ ...base, replyText: "A member of our team will confirm your booking shortly.", escalate: true, intent: "booking" });
-  assert.deepEqual([complied.complied, complied.replyText], [true, "A member of our team will confirm your booking shortly."]);
+  const complied = layerTwo({
+    ...base,
+    replyText: "A member of our team will confirm your booking shortly.",
+    escalate: true,
+    intent: "booking",
+  });
+  assert.deepEqual(
+    [complied.complied, complied.replyText],
+    [true, "A member of our team will confirm your booking shortly."],
+  );
   const answered = layerTwo({ ...base, replyText: "We open at 9 and do balayage.", intent: "services" });
   assert.deepEqual([answered.askClass, answered.complied, answered.escalationReason], ["faq", false, "policy_ask"]);
   assert.match(answered.replyText, /get back to you with the details shortly/);
-  const handedOff = layerTwo({ ...base, replyText: "Let me get a colleague to answer that.", escalate: true, intent: "pricing" });
+  const handedOff = layerTwo({
+    ...base,
+    replyText: "Let me get a colleague to answer that.",
+    escalate: true,
+    intent: "pricing",
+  });
   assert.deepEqual([handedOff.complied, handedOff.replyText], [true, "Let me get a colleague to answer that."]);
-  const plain = layerTwo({ ...base, policy: { booking: { mode: "auto" }, faq: { mode: "auto" } }, replyText: `Book here: ${brainCfg.booking_link}`, intent: "booking" });
-  assert.deepEqual([plain.askClass, plain.complied, plain.escalate, plain.escalationReason, plain.priceBlocked], [null, null, false, "human_token", false]);
+  const plain = layerTwo({
+    ...base,
+    policy: { booking: { mode: "auto" }, faq: { mode: "auto" } },
+    replyText: `Book here: ${brainCfg.booking_link}`,
+    intent: "booking",
+  });
+  assert.deepEqual(
+    [plain.askClass, plain.complied, plain.escalate, plain.escalationReason, plain.priceBlocked],
+    [null, null, false, "human_token", false],
+  );
   assert.equal(plain.replyText, `Book here: ${brainCfg.booking_link}`);
 });
 
 test("a held thread says why, to the Inbox and to the alert, and a broken config is named as a mistake", () => {
   const person = holdCopy({ brainCfg, personMode: "never", replyMode: "never", configBroken: false });
-  assert.deepEqual([person.personHold, person.reason, person.botText, person.why], [true, "person_hold", "(held — you handle this person yourself)", "this person is set to never"]);
+  assert.deepEqual(
+    [person.personHold, person.reason, person.botText, person.why],
+    [true, "person_hold", "(held — you handle this person yourself)", "this person is set to never"],
+  );
   assert.match(person.details, /You set the receptionist to 'never' for this person/);
   const policy = holdCopy({ brainCfg, personMode: null, replyMode: "ask", configBroken: false });
   assert.deepEqual([policy.personHold, policy.reason, policy.why], [false, "policy_block", "reply mode ask"]);
@@ -91,16 +138,41 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  for (const s of ["export async function handleInbound(", "const { ageMs, verdict: age } = ageVerdict(m.timestamp);", "const gate = threadVerdict(thread, maxRepliesDay);", "const plan = holdPlan(replyMode, replyLimits, brainMeta);", "const two = layerTwo({", "const hold = holdCopy({"]) assert.ok(inbound.includes(s), s);
-  assert.ok(!inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("), "the words are checked in one place");
+  for (const s of [
+    "export async function handleInbound(",
+    "const { ageMs, verdict: age } = ageVerdict(m.timestamp);",
+    "const gate = threadVerdict(thread, maxRepliesDay);",
+    "const plan = holdPlan(replyMode, replyLimits, brainMeta);",
+    "const two = layerTwo({",
+    "const hold = holdCopy({",
+  ])
+    assert.ok(inbound.includes(s), s);
+  assert.ok(
+    !inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("),
+    "the words are checked in one place",
+  );
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
-  for (const s of ["export async function pgIngest(", "export async function pgSafe<T>(", "export function pgSink(", "export async function queueReply(", "export async function pgThread("]) assert.ok(persist.includes(s), s);
+  for (const s of [
+    "export async function pgIngest(",
+    "export async function pgSafe<T>(",
+    "export function pgSink(",
+    "export async function queueReply(",
+    "export async function pgThread(",
+  ])
+    assert.ok(persist.includes(s), s);
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
-  for (const s of ["export async function alertStaff(", "export async function alertUnroutable("]) assert.ok(alerts.includes(s), s);
+  for (const s of ["export async function alertStaff(", "export async function alertUnroutable("])
+    assert.ok(alerts.includes(s), s);
   assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");
   // The tenant's credentials or none: waCfgFor answers null for a tenant with
   // nothing in the vault, and the door refuses rather than sending on the
   // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
   // deliver.test.mjs runs the door).
-  assert.ok(inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") && inbound.includes("const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: \"system\") => sink.deliver(from, wire(text), meta, purpose, kind);"), "the customer is texted on the tenant's credentials, through the door, or not at all");
+  assert.ok(
+    inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") &&
+      /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
+        inbound,
+      ),
+    "the customer is texted on the tenant's credentials, through the door, or not at all",
+  );
 });

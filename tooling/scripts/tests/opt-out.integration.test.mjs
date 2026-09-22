@@ -55,11 +55,19 @@ after(async () => {
 
 async function ingest(body, optOut = false, optIn = false) {
   const { data, error } = await db.rpc("ingest_inbound", {
-    p_tenant_id: tenantId, p_channel: "whatsapp", p_identity_external_id: ext,
-    p_phone_e164: phone, p_wa_profile_name: "Opt-out probe",
-    p_message_external_id: `${ext}-${++seq}`, p_type: "text", p_body: body,
-    p_channel_ts: new Date().toISOString(), p_media: null, p_meta: {},
-    p_opt_out: optOut, p_opt_in: optIn,
+    p_tenant_id: tenantId,
+    p_channel: "whatsapp",
+    p_identity_external_id: ext,
+    p_phone_e164: phone,
+    p_wa_profile_name: "Opt-out probe",
+    p_message_external_id: `${ext}-${++seq}`,
+    p_type: "text",
+    p_body: body,
+    p_channel_ts: new Date().toISOString(),
+    p_media: null,
+    p_meta: {},
+    p_opt_out: optOut,
+    p_opt_in: optIn,
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   contactId ??= data.contact_id;
@@ -130,8 +138,7 @@ test("resolveOutboundTarget refuses to invent a contact when create is false", {
   const t = await resolveOutboundTarget(db, { tenantId, phoneE164: stranger, create: false });
   assert.equal(t, null, "a stranger's number must not resolve to a sendable target");
 
-  const { data: leaked } = await db
-    .from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", stranger);
+  const { data: leaked } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", stranger);
   assert.equal(leaked.length, 0, "a refused lookup must not create a contact row");
 });
 
@@ -180,9 +187,7 @@ test("resolveOutboundTarget refuses a number that cannot be a phone number", { s
 });
 
 test("resolveOutboundTarget reports an opt-out rather than hiding it", { skip }, async () => {
-  await db.from("contacts")
-    .update({ consent: "opted_out", dnc: true })
-    .eq("id", contactId);
+  await db.from("contacts").update({ consent: "opted_out", dnc: true }).eq("id", contactId);
   const t = await resolveOutboundTarget(db, { tenantId, phoneE164: phone, create: true });
   assert.equal(t.consent, "opted_out");
   assert.equal(t.dnc, true);
@@ -194,8 +199,11 @@ test("'opt_out' is an accepted escalation reason", { skip }, async () => {
   // The edge raises this one; a CHECK violation would make the escalation fail
   // silently inside pgSafe and the owner would never be told.
   const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId, conversation_id: conversationId,
-    reason: "opt_out", details: "probe", state: "open",
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    reason: "opt_out",
+    details: "probe",
+    state: "open",
   });
   assert.equal(error, null, error?.message);
 });

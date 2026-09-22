@@ -20,9 +20,24 @@ export const GET = read({
     const people = await everyone(ctx, member.tenantId);
     const { name, timezone } = await tenantFacts(ctx.supabase, member.tenantId);
     const now = new Date();
-    console.log(JSON.stringify({ level: "info", event: "export.people", user: ctx.userId, tenant: member.tenantId, rows: people.length }));
+    console.log(
+      JSON.stringify({
+        level: "info",
+        event: "export.people",
+        user: ctx.userId,
+        tenant: member.tenantId,
+        rows: people.length,
+      }),
+    );
     // On the ledger, as erasure is: who took a copy of everyone, and when.
-    await recordDecision(ctx, member.tenantId, "workspace", member.tenantId, "export", { what: "people", rows: people.length });
-    return attachment(`people-${safeName(name)}-${dateTag(now, timezone)}.csv`, peopleCsv(people, timezone), "text/csv");
+    await recordDecision(ctx, member.tenantId, "workspace", member.tenantId, "export", {
+      what: "people",
+      rows: people.length,
+    });
+    return attachment(
+      `people-${safeName(name)}-${dateTag(now, timezone)}.csv`,
+      peopleCsv(people, timezone),
+      "text/csv",
+    );
   },
 });

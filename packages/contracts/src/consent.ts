@@ -28,8 +28,7 @@ export function isOptedOutContact(c: ConsentBearing): boolean {
 }
 
 /** The customer-facing reason, used wherever a refusal is explained. */
-export const OPT_OUT_REFUSAL =
-  "This customer asked to stop receiving messages. They can text START to opt back in.";
+export const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
 
 /* -------------------------------------------------------------------------- *
  * Two questions, two answers.
@@ -96,12 +95,16 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
   // messages and nothing else -- an informational campaign, filed that way
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
   // go out under a consent the carriers were never told about.
-  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  sms_carries_no_promotions:
+    "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
   // Email's three, at the wire (deliver.ts). Replies only until promotions by
   // email are a release of their own; a suppression is a fact about the address.
-  email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
-  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  email_marketing_disabled:
+    "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_suppressed:
+    "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
+  recipient_changed:
+    "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
 };
 
 /**
@@ -142,9 +145,15 @@ export interface ConsentChange {
 }
 
 /** An events row of kind contact.consent_changed, as the doors write it (00043, 00013, 00095, 00110). */
-export function consentChangeOf(e: { id: string; subject_id: string | null; created_at: string; data: unknown }): ConsentChange {
+export function consentChangeOf(e: {
+  id: string;
+  subject_id: string | null;
+  created_at: string;
+  data: unknown;
+}): ConsentChange {
   const d = (e.data ?? {}) as Record<string, unknown>;
-  const str = (k: string): string | null => (typeof d[k] === "string" && (d[k] as string) !== "" ? (d[k] as string) : null);
+  const str = (k: string): string | null =>
+    typeof d[k] === "string" && (d[k] as string) !== "" ? (d[k] as string) : null;
   return {
     id: e.id,
     contact_id: e.subject_id,

@@ -11,7 +11,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
+import {
+  stateOf,
+  whyNotAHandoff,
+  whyNotAPhone,
+  samePhone,
+  handoffE164,
+  formatPhoneDisplay,
+} from "@chanlytics/contracts";
 import * as C from "@chanlytics/contracts";
 
 const TID = "t-studio";
@@ -19,21 +26,46 @@ const TID = "t-studio";
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: { appendChild() {} },
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/admin/workspace", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/admin/workspace",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" }],
@@ -45,7 +77,10 @@ globalThis.window = {
 // Hooks are kept per component, by the component's place in the tree and its type (see settings-honest.test.mjs).
 let cells = new Map();
 let frames = [];
-const slot = () => { const f = frames[frames.length - 1]; return `${f.key}#${f.hook++}`; };
+const slot = () => {
+  const f = frames[frames.length - 1];
+  return `${f.key}#${f.hook++}`;
+};
 const toasts = [];
 const saved = [];
 globalThis.Icon = "Icon";
@@ -62,24 +97,59 @@ globalThis.React = {
       const name = type.name || "anon";
       parent.kids[name] = (parent.kids[name] || 0) + 1;
       frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try { node.rendered = type(props); } finally { frames.pop(); }
+      try {
+        node.rendered = type(props);
+      } finally {
+        frames.pop();
+      }
     }
     return node;
   },
   useState: (init) => {
     const k = slot();
     if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [cells.get(k), (v) => { cells.set(k, typeof v === "function" ? v(cells.get(k)) : v); }];
+    return [
+      cells.get(k),
+      (v) => {
+        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
+      },
+    ];
   },
-  useReducer: (red, init) => { const k = slot(); if (!cells.has(k)) cells.set(k, init); return [cells.get(k), (a) => { cells.set(k, red(cells.get(k), a)); }]; },
-  useRef: (init) => { const k = slot(); if (!cells.has(k)) cells.set(k, { current: init }); return cells.get(k); },
-  useMemo: (fn) => { slot(); return fn(); },
-  useCallback: (fn) => { slot(); return fn; },
+  useReducer: (red, init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, init);
+    return [
+      cells.get(k),
+      (a) => {
+        cells.set(k, red(cells.get(k), a));
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = slot();
+    if (!cells.has(k)) cells.set(k, { current: init });
+    return cells.get(k);
+  },
+  useMemo: (fn) => {
+    slot();
+    return fn();
+  },
+  useCallback: (fn) => {
+    slot();
+    return fn;
+  },
   useId: () => `id-${slot()}`,
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     const cell = { deps, cleanup: undefined };
     cells.set(k, cell);
@@ -109,12 +179,22 @@ Object.assign(globalThis.window, {
   __phoneDisplay: formatPhoneDisplay,
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
     words: (me) => ({ name: me.display_name || me.email, email: me.email }),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
-  __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
+  __saveSettings: (config, version, accepted) => {
+    saved.push({ config, version });
+    accepted();
+    return Promise.resolve({ ok: true });
+  },
+  __receptionistDefaults: () => ({
+    system_prompt: "You answer for Northside Studio.",
+    fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" },
+  }),
   __instructionsDraft: C.instructionsDraft,
   __instructionsMax: C.INSTRUCTIONS_MAX,
   __fallbackMessages: C.fallbackMessages,
@@ -122,11 +202,18 @@ Object.assign(globalThis.window, {
   __unknownDetails: C.unknownDetails,
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
   __SETTINGS: {
-    role: "owner", version: 5,
+    role: "owner",
+    version: 5,
     config: {
       brain: {
-        business_name: "Northside Studio", booking_link: "https://book.example/northside", system_prompt: "You answer for Northside Studio.",
-        profile: { website: "https://northside.example", notes: [{ title: "Parking", text: "Behind the building." }], booking_rules: { lead_hours: 2 } },
+        business_name: "Northside Studio",
+        booking_link: "https://book.example/northside",
+        system_prompt: "You answer for Northside Studio.",
+        profile: {
+          website: "https://northside.example",
+          notes: [{ title: "Parking", text: "Behind the building." }],
+          booking_rules: { lead_hours: 2 },
+        },
       },
     },
   },
@@ -140,18 +227,32 @@ Object.assign(globalThis.window, {
     },
     conflicts: [],
   },
-  __TEAM: [], __TEAM_INVITES: [],
+  __TEAM: [],
+  __TEAM_INVITES: [],
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const all = (tree, pred) => { const out = []; const seen = new Set(); walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => {
+    if (!seen.has(n) && pred(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -161,24 +262,42 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return textOf(n.props?.children);
 };
-const classed = (tree, cls) => find(tree, (n) => String(n.props?.className || "").split(" ").includes(cls));
+const classed = (tree, cls) =>
+  find(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes(cls),
+  );
 const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
 const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const type = (node, value) => node.props.onChange({ target: { value } });
 const fresh = () => {
-  cells = new Map(); toasts.length = 0; saved.length = 0;
+  cells = new Map();
+  toasts.length = 0;
+  saved.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   // A pane the stub never unmounts leaves its answer chained onto the rail's question; React's cleanup would put back
   // what it found there, which is the record kit's. And no fold is open.
   globalThis.window.__settingsUnsaved = kitUnsaved;
   globalThis.window.__recordFolds.reset();
 };
-const draw = (tab, went = []) => { frames = [{ key: "root", hook: 0, kids: {} }]; return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) }); };
+const draw = (tab, went = []) => {
+  frames = [{ key: "root", hook: 0, kids: {} }];
+  return globalThis.window.SettingsPage({ tab, onTab: (id) => went.push(id) });
+};
 const again = draw;
-const openEditor = (went = []) => { fresh(); press(buttonSaying(draw("workspace", went), "Edit")); return again("workspace", went); };
+const openEditor = (went = []) => {
+  fresh();
+  press(buttonSaying(draw("workspace", went), "Edit"));
+  return again("workspace", went);
+};
 const saveButton = (tree) => buttonSaying(classed(tree, "set-editor-foot"), "Save");
-const railRow = (tree, label) => find(tree, (n) => n.type === "button" && String(n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label);
+const railRow = (tree, label) =>
+  find(
+    tree,
+    (n) => n.type === "button" && String(n.props.className || "").includes("set-nav-row") && textOf(n).trim() === label,
+  );
 
 /* ------------------------------ what is wrong, where ------------------------------ */
 
@@ -217,7 +336,10 @@ test("REGRESSION (S22): every check is said at once, each under its own box -- t
   for (const id of ["biz-name-problem", "biz-website-problem", "biz-feed-problem", "biz-note-0-problem"]) {
     assert.ok(byTestId(tree, id), `REGRESSION: ${id} was not said`);
   }
-  assert.match(textOf(byTestId(tree, "biz-name-problem")), /The receptionist needs a business name before it can answer anyone\./);
+  assert.match(
+    textOf(byTestId(tree, "biz-name-problem")),
+    /The receptionist needs a business name before it can answer anyone\./,
+  );
   assert.match(textOf(byTestId(tree, "biz-note-0-problem")), /both a title and the text/);
   assert.match(textOf(byTestId(tree, "biz-feed-problem")), /https:\/\/ or webcal:\/\//);
   assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 4 fields need a look.");
@@ -232,7 +354,11 @@ test("REGRESSION (S22): an out-of-range booking rule is said, not dropped -- 500
   tree = again("workspace");
   press(saveButton(tree));
   tree = again("workspace");
-  assert.match(textOf(byTestId(tree, "biz-lead-problem")), /0 to 168 hours/, "REGRESSION: the rule was dropped silently");
+  assert.match(
+    textOf(byTestId(tree, "biz-lead-problem")),
+    /0 to 168 hours/,
+    "REGRESSION: the rule was dropped silently",
+  );
   assert.match(textOf(byTestId(tree, "biz-slot-problem")), /15 to 240 minutes/);
   assert.equal(labelled(tree, "input", "Least notice in hours").props["aria-invalid"], true);
   assert.equal(saved.length, 0, "REGRESSION: saved, with the rule left out");
@@ -251,7 +377,11 @@ test("REGRESSION (S22): Cancel with unsaved changes asks first -- it threw them 
   press(byTestId(tree, "biz-cancel-no"));
   tree = again("workspace");
   assert.equal(byTestId(tree, "biz-cancel-confirm"), null);
-  assert.equal(labelled(tree, "input", "Website").props.value, "https://northside.example/new", "keeping on editing keeps the edit");
+  assert.equal(
+    labelled(tree, "input", "Website").props.value,
+    "https://northside.example/new",
+    "keeping on editing keeps the edit",
+  );
   press(buttonSaying(classed(tree, "set-editor-foot"), "Cancel"));
   tree = again("workspace");
   press(byTestId(tree, "biz-cancel-yes"));
@@ -297,30 +427,49 @@ test("the rail asks about the editor's changes and about an open fold's, whichev
   // what it found when it goes. Neither replaces the other's.
   const folds = globalThis.window.__recordFolds;
   // Press Team on the rail of a tree drawn with `went`; say whether the rail asked first, and where it went.
-  const pressTeam = (tree, went) => { press(railRow(tree, "Team")); return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] }; };
+  const pressTeam = (tree, went) => {
+    press(railRow(tree, "Team"));
+    return { asked: !!byTestId(again("workspace", went), "set-leave-confirm"), went: [...went] };
+  };
 
   let went = [];
   let tree = openEditor(went);
   type(labelled(tree, "input", "Website"), "https://northside.example/new");
   assert.equal(folds.open(), null);
-  assert.deepEqual(pressTeam(again("workspace", went), went), { asked: true, went: [] }, "the editor's changes, and no fold open: the rail still asks");
+  assert.deepEqual(
+    pressTeam(again("workspace", went), went),
+    { asked: true, went: [] },
+    "the editor's changes, and no fold open: the rail still asks",
+  );
 
   fresh();
   went = [];
   folds.request("hours", { dirty: () => true });
   tree = draw("workspace", went);
   assert.equal(labelled(tree, "input", "Website"), null, "no editor is open");
-  assert.deepEqual(pressTeam(tree, went), { asked: true, went: [] }, "a fold holding changes, and no editor: the rail asks");
+  assert.deepEqual(
+    pressTeam(tree, went),
+    { asked: true, went: [] },
+    "a fold holding changes, and no editor: the rail asks",
+  );
 
   fresh();
   went = [];
   folds.request("hours", { dirty: () => false });
-  assert.deepEqual(pressTeam(draw("workspace", went), went), { asked: false, went: ["team"] }, "neither holding changes: a tab is just a tab");
+  assert.deepEqual(
+    pressTeam(draw("workspace", went), went),
+    { asked: false, went: ["team"] },
+    "neither holding changes: a tab is just a tab",
+  );
 
   went = [];
   tree = openEditor(went);
   folds.request("hours", { dirty: () => true });
-  assert.deepEqual(pressTeam(tree, went), { asked: true, went: [] }, "the editor open and unchanged, a fold holding changes: the editor's answer carries the fold's");
+  assert.deepEqual(
+    pressTeam(tree, went),
+    { asked: true, went: [] },
+    "the editor open and unchanged, a fold holding changes: the editor's answer carries the fold's",
+  );
 });
 
 test("REGRESSION (S22): leaving the page with unsaved changes asks the browser to ask -- a reload lost them silently", () => {
@@ -329,7 +478,13 @@ test("REGRESSION (S22): leaving the page with unsaved changes asks the browser t
   type(labelled(tree, "input", "Website"), "https://northside.example/new");
   tree = again("workspace");
   assert.equal(listeners.beforeunload?.size ?? 0, 1, "REGRESSION: a reload dropped the edit without a word");
-  const ev = { returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  const ev = {
+    returnValue: undefined,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   for (const fn of listeners.beforeunload) fn(ev);
   assert.ok(ev.prevented, "the browser is asked to confirm");
   assert.equal(ev.returnValue, "");
@@ -343,12 +498,19 @@ test("REGRESSION (S22): leaving the page with unsaved changes asks the browser t
 // box nobody had touched, the text was stored twice, and an emptied box filled itself again from the copy left behind.
 // These build the saved brain with the real defaults from contracts, not the stub above.
 const BRAIN0 = globalThis.window.__SETTINGS.config.brain;
-const LEGACY = "You are the WhatsApp assistant for Northside Studio. Ask for Rosa at the front desk about gift cards. ".repeat(110).trim();
+const LEGACY = "You are the WhatsApp assistant for Northside Studio. Ask for Rosa at the front desk about gift cards. "
+  .repeat(110)
+  .trim();
 const withBrain = (patch, run) => {
   const before = { settings: globalThis.window.__SETTINGS, defaults: globalThis.window.__receptionistDefaults };
   globalThis.window.__receptionistDefaults = C.newReceptionistDefaults;
-  globalThis.window.__SETTINGS = { ...before.settings, config: { ...before.settings.config, brain: { ...BRAIN0, ...patch } } };
-  try { run(); } finally {
+  globalThis.window.__SETTINGS = {
+    ...before.settings,
+    config: { ...before.settings.config, brain: { ...BRAIN0, ...patch } },
+  };
+  try {
+    run();
+  } finally {
     globalThis.window.__SETTINGS = before.settings;
     globalThis.window.__receptionistDefaults = before.defaults;
   }
@@ -356,39 +518,55 @@ const withBrain = (patch, run) => {
 const instructionsBox = (tree) => labelled(tree, "textarea", "Extra instructions");
 const baselineFor = (name) => C.newReceptionistDefaults(name, "", "").system_prompt;
 
-test("REGRESSION (S4): a prompt written before this form saves whole -- past 8,000 characters every save failed on a box nobody touched", () => withBrain({ system_prompt: LEGACY }, () => {
-  let tree = openEditor();
-  assert.equal(instructionsBox(tree).props.value, LEGACY, "the box shows what the receptionist follows");
-  type(labelled(tree, "input", "Website"), "https://northside.example/new");
-  tree = again("workspace");
-  press(saveButton(tree));
-  assert.equal(saved.length, 1, "sent");
-  const next = saved[0].config;
-  const parsed = C.TenantConfigWriteSchema.safeParse(next);
-  assert.ok(parsed.success, `REGRESSION: the server refuses the save -- ${parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
-  assert.equal(next.brain.profile.extra_instructions, LEGACY, "carried whole, never cut");
-  assert.equal(next.brain.system_prompt, baselineFor("Northside Studio"), "REGRESSION: stored twice -- the prompt also stayed where it was");
-}));
+test("REGRESSION (S4): a prompt written before this form saves whole -- past 8,000 characters every save failed on a box nobody touched", () =>
+  withBrain({ system_prompt: LEGACY }, () => {
+    let tree = openEditor();
+    assert.equal(instructionsBox(tree).props.value, LEGACY, "the box shows what the receptionist follows");
+    type(labelled(tree, "input", "Website"), "https://northside.example/new");
+    tree = again("workspace");
+    press(saveButton(tree));
+    assert.equal(saved.length, 1, "sent");
+    const next = saved[0].config;
+    const parsed = C.TenantConfigWriteSchema.safeParse(next);
+    assert.ok(
+      parsed.success,
+      `REGRESSION: the server refuses the save -- ${parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+    );
+    assert.equal(next.brain.profile.extra_instructions, LEGACY, "carried whole, never cut");
+    assert.equal(
+      next.brain.system_prompt,
+      baselineFor("Northside Studio"),
+      "REGRESSION: stored twice -- the prompt also stayed where it was",
+    );
+  }));
 
-test("REGRESSION (S4): an emptied box stays empty -- the old prompt came back into it on the next open, and the receptionist kept following it", () => withBrain({ system_prompt: LEGACY }, () => {
-  let tree = openEditor();
-  type(instructionsBox(tree), "");
-  tree = again("workspace");
-  press(saveButton(tree));
-  assert.equal(saved.length, 1);
-  const next = saved[0].config;
-  assert.equal(next.brain.profile.extra_instructions, undefined, "emptied is removed, not stored as nothing");
-  assert.ok(!C.resolveSystemPrompt(next.brain, "whatsapp").includes("Ask for Rosa"), "REGRESSION: the receptionist still follows the text the owner deleted");
-  // The page re-reads what was saved, and the owner opens the form again.
-  globalThis.window.__SETTINGS = { ...globalThis.window.__SETTINGS, config: next };
-  tree = openEditor();
-  assert.equal(instructionsBox(tree).props.value, "", "REGRESSION: the deleted text is back in the box");
-}));
+test("REGRESSION (S4): an emptied box stays empty -- the old prompt came back into it on the next open, and the receptionist kept following it", () =>
+  withBrain({ system_prompt: LEGACY }, () => {
+    let tree = openEditor();
+    type(instructionsBox(tree), "");
+    tree = again("workspace");
+    press(saveButton(tree));
+    assert.equal(saved.length, 1);
+    const next = saved[0].config;
+    assert.equal(next.brain.profile.extra_instructions, undefined, "emptied is removed, not stored as nothing");
+    assert.ok(
+      !C.resolveSystemPrompt(next.brain, "whatsapp").includes("Ask for Rosa"),
+      "REGRESSION: the receptionist still follows the text the owner deleted",
+    );
+    // The page re-reads what was saved, and the owner opens the form again.
+    globalThis.window.__SETTINGS = { ...globalThis.window.__SETTINGS, config: next };
+    tree = openEditor();
+    assert.equal(instructionsBox(tree).props.value, "", "REGRESSION: the deleted text is back in the box");
+  }));
 
 test("REGRESSION (S4): the product's own opening lines are not put in the owner's box -- a new workspace found them there as if it had written them", () => {
   withBrain({ system_prompt: baselineFor("Northside Studio") }, () => {
     const tree = openEditor();
-    assert.equal(instructionsBox(tree).props.value, "", "REGRESSION: the baseline opened as the owner's own instructions");
+    assert.equal(
+      instructionsBox(tree).props.value,
+      "",
+      "REGRESSION: the baseline opened as the owner's own instructions",
+    );
     assert.equal(byTestId(tree, "biz-extra-carried"), null, "and nothing says it was carried over");
   });
   // Written under the business's earlier name it is still the product's, and a save writes it under the name it has now.
@@ -397,14 +575,18 @@ test("REGRESSION (S4): the product's own opening lines are not put in the owner'
     assert.equal(instructionsBox(tree).props.value, "");
     press(saveButton(tree));
     assert.equal(saved.at(-1)?.config.brain.system_prompt, baselineFor("Northside Studio"));
-    assert.equal(saved.at(-1)?.config.brain.profile.extra_instructions, undefined, "REGRESSION: saving copied the baseline into the owner's instructions");
+    assert.equal(
+      saved.at(-1)?.config.brain.profile.extra_instructions,
+      undefined,
+      "REGRESSION: saving copied the baseline into the owner's instructions",
+    );
   });
 });
 
 test("REGRESSION (S4): the owner's own words stay theirs, and a prompt carried in says where it came from", () => {
   withBrain({ system_prompt: LEGACY }, () => {
     const note = byTestId(openEditor(), "biz-extra-carried");
-    assert.ok(note, "REGRESSION: text nobody here wrote sat under \"written in your own words\"");
+    assert.ok(note, 'REGRESSION: text nobody here wrote sat under "written in your own words"');
     assert.match(textOf(note), /before this form/);
   });
   withBrain({ system_prompt: LEGACY, profile: { ...BRAIN0.profile, extra_instructions: "Ask for Rosa." } }, () => {
@@ -414,29 +596,34 @@ test("REGRESSION (S4): the owner's own words stay theirs, and a prompt carried i
   });
 });
 
-test("REGRESSION (S4): past the most the receptionist takes, the box says so under itself -- the server refused the whole save in a toast", () => withBrain({}, () => {
-  let tree = openEditor();
-  type(instructionsBox(tree), "x".repeat(16_500));
-  tree = again("workspace");
-  assert.match(textOf(byTestId(tree, "biz-extra-count")), /16,500 of 20,000 characters/, "near the most, the box counts");
-  type(instructionsBox(tree), "x".repeat(20_001));
-  tree = again("workspace");
-  press(saveButton(tree));
-  tree = again("workspace");
-  const problem = byTestId(tree, "biz-extra-problem");
-  assert.ok(problem, "REGRESSION: nothing said where the problem is");
-  assert.match(textOf(problem), /At most 20,000 characters — this is 20,001\./);
-  assert.equal(byTestId(tree, "biz-extra-count"), null, "the problem says it; the count steps aside");
-  const box = instructionsBox(tree);
-  assert.equal(box.props["aria-invalid"], true);
-  assert.equal(box.props["aria-describedby"], "biz-extra-problem");
-  assert.equal(saved.length, 0, "nothing is sent");
-  assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 1 field needs a look.");
-  type(box, "Ask for Rosa.");
-  tree = again("workspace");
-  assert.equal(byTestId(tree, "biz-extra-problem"), null, "and the sentence goes when the box changes");
-  assert.equal(byTestId(tree, "biz-extra-count"), null, "a short text is not counted");
-}));
+test("REGRESSION (S4): past the most the receptionist takes, the box says so under itself -- the server refused the whole save in a toast", () =>
+  withBrain({}, () => {
+    let tree = openEditor();
+    type(instructionsBox(tree), "x".repeat(16_500));
+    tree = again("workspace");
+    assert.match(
+      textOf(byTestId(tree, "biz-extra-count")),
+      /16,500 of 20,000 characters/,
+      "near the most, the box counts",
+    );
+    type(instructionsBox(tree), "x".repeat(20_001));
+    tree = again("workspace");
+    press(saveButton(tree));
+    tree = again("workspace");
+    const problem = byTestId(tree, "biz-extra-problem");
+    assert.ok(problem, "REGRESSION: nothing said where the problem is");
+    assert.match(textOf(problem), /At most 20,000 characters — this is 20,001\./);
+    assert.equal(byTestId(tree, "biz-extra-count"), null, "the problem says it; the count steps aside");
+    const box = instructionsBox(tree);
+    assert.equal(box.props["aria-invalid"], true);
+    assert.equal(box.props["aria-describedby"], "biz-extra-problem");
+    assert.equal(saved.length, 0, "nothing is sent");
+    assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 1 field needs a look.");
+    type(box, "Ask for Rosa.");
+    tree = again("workspace");
+    assert.equal(byTestId(tree, "biz-extra-problem"), null, "and the sentence goes when the box changes");
+    assert.equal(byTestId(tree, "biz-extra-count"), null, "a short text is not counted");
+  }));
 
 /* ------------------------------ when it can't answer (S5) ------------------------------ */
 
@@ -453,69 +640,109 @@ const STORED = {
 };
 const messageBox = (tree, label) => labelled(tree, "textarea", label);
 
-test("REGRESSION (S5): the messages sent in the business's name are on the form as stored, and saved as changed -- no page showed them", () => withBrain({ fallbacks: STORED }, () => {
-  let tree = openEditor();
-  assert.equal(messageBox(tree, HOLDING)?.props.value, STORED.error, "REGRESSION: the holding message is not on the form");
-  assert.equal(messageBox(tree, UNREADABLE)?.props.value, STORED.non_text);
-  assert.equal(messageBox(tree, NO_MODEL)?.props.value, STORED.greeting);
-  type(messageBox(tree, HOLDING), "Sorry — {business} will reply here soon.");
-  tree = again("workspace");
-  assert.equal(listeners.beforeunload?.size ?? 0, 1, "an edited message is an unsaved change, asked about before it is thrown away");
-  press(saveButton(tree));
-  assert.equal(saved.length, 1);
-  assert.deepEqual(saved[0].config.brain.fallbacks, { ...STORED, error: "Sorry — {business} will reply here soon." });
-  const parsed = C.TenantConfigWriteSchema.safeParse(saved[0].config);
-  assert.ok(parsed.success, parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
-}));
+test("REGRESSION (S5): the messages sent in the business's name are on the form as stored, and saved as changed -- no page showed them", () =>
+  withBrain({ fallbacks: STORED }, () => {
+    let tree = openEditor();
+    assert.equal(
+      messageBox(tree, HOLDING)?.props.value,
+      STORED.error,
+      "REGRESSION: the holding message is not on the form",
+    );
+    assert.equal(messageBox(tree, UNREADABLE)?.props.value, STORED.non_text);
+    assert.equal(messageBox(tree, NO_MODEL)?.props.value, STORED.greeting);
+    type(messageBox(tree, HOLDING), "Sorry — {business} will reply here soon.");
+    tree = again("workspace");
+    assert.equal(
+      listeners.beforeunload?.size ?? 0,
+      1,
+      "an edited message is an unsaved change, asked about before it is thrown away",
+    );
+    press(saveButton(tree));
+    assert.equal(saved.length, 1);
+    assert.deepEqual(saved[0].config.brain.fallbacks, { ...STORED, error: "Sorry — {business} will reply here soon." });
+    const parsed = C.TenantConfigWriteSchema.safeParse(saved[0].config);
+    assert.ok(
+      parsed.success,
+      parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+    );
+  }));
 
-test("REGRESSION (S5): a new workspace's messages name its details instead of copying them -- one set up before its line told customers \"call us at .\"", () => withBrain({ business_name: undefined, booking_link: undefined, system_prompt: undefined, fallbacks: undefined }, () => {
-  let tree = openEditor();
-  type(labelled(tree, "input", "Business name"), "Northside Studio");
-  tree = again("workspace");
-  type(labelled(tree, "input", "Booking link"), "https://book.example/northside");
-  tree = again("workspace");
-  press(saveButton(tree));
-  assert.equal(saved.length, 1, `saved -- ${JSON.stringify(toasts.at(-1)?.msg ?? null)}`);
-  const brain = saved[0].config.brain;
-  assert.deepEqual(brain.fallbacks, C.FALLBACK_DEFAULTS, "REGRESSION: the product's wording copied the details in instead of naming them");
-  const read = C.fallbackMessages(brain, { channels: [] });
-  assert.ok(!read.non_text.includes("call us at ."), `REGRESSION: ${read.non_text}`);
-  assert.ok(read.greeting.includes("Northside Studio") && read.greeting.includes("https://book.example/northside"));
-}));
+test('REGRESSION (S5): a new workspace\'s messages name its details instead of copying them -- one set up before its line told customers "call us at ."', () =>
+  withBrain(
+    { business_name: undefined, booking_link: undefined, system_prompt: undefined, fallbacks: undefined },
+    () => {
+      let tree = openEditor();
+      type(labelled(tree, "input", "Business name"), "Northside Studio");
+      tree = again("workspace");
+      type(labelled(tree, "input", "Booking link"), "https://book.example/northside");
+      tree = again("workspace");
+      press(saveButton(tree));
+      assert.equal(saved.length, 1, `saved -- ${JSON.stringify(toasts.at(-1)?.msg ?? null)}`);
+      const brain = saved[0].config.brain;
+      assert.deepEqual(
+        brain.fallbacks,
+        C.FALLBACK_DEFAULTS,
+        "REGRESSION: the product's wording copied the details in instead of naming them",
+      );
+      const read = C.fallbackMessages(brain, { channels: [] });
+      assert.ok(!read.non_text.includes("call us at ."), `REGRESSION: ${read.non_text}`);
+      assert.ok(read.greeting.includes("Northside Studio") && read.greeting.includes("https://book.example/northside"));
+    },
+  ));
 
-test("REGRESSION (S5): a message says under itself what stops it -- empty, too long, or a name nothing fills in", () => withBrain({ fallbacks: STORED }, () => {
-  let tree = openEditor();
-  type(messageBox(tree, HOLDING), "");
-  tree = again("workspace");
-  type(messageBox(tree, UNREADABLE), "Call us at {phone number}.");
-  tree = again("workspace");
-  type(messageBox(tree, NO_MODEL), "x".repeat(2001));
-  tree = again("workspace");
-  press(saveButton(tree));
-  tree = again("workspace");
-  assert.match(textOf(byTestId(tree, "biz-fallback-error-problem")), /Write this message, or use the default wording\./);
-  assert.match(textOf(byTestId(tree, "biz-fallback-non_text-problem")), /\{phone number\} would be sent as written/);
-  assert.match(textOf(byTestId(tree, "biz-fallback-greeting-problem")), /At most 2,000 characters — this is 2,001\./);
-  assert.equal(messageBox(tree, HOLDING).props["aria-invalid"], true);
-  assert.equal(messageBox(tree, HOLDING).props["aria-describedby"], "biz-fallback-error-problem");
-  assert.equal(saved.length, 0, "nothing is sent");
-  assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 3 fields need a look.");
-  type(messageBox(tree, HOLDING), "Sorry.");
-  tree = again("workspace");
-  assert.equal(byTestId(tree, "biz-fallback-error-problem"), null, "and a message's sentence goes when it changes");
-}));
+test("REGRESSION (S5): a message says under itself what stops it -- empty, too long, or a name nothing fills in", () =>
+  withBrain({ fallbacks: STORED }, () => {
+    let tree = openEditor();
+    type(messageBox(tree, HOLDING), "");
+    tree = again("workspace");
+    type(messageBox(tree, UNREADABLE), "Call us at {phone number}.");
+    tree = again("workspace");
+    type(messageBox(tree, NO_MODEL), "x".repeat(2001));
+    tree = again("workspace");
+    press(saveButton(tree));
+    tree = again("workspace");
+    assert.match(
+      textOf(byTestId(tree, "biz-fallback-error-problem")),
+      /Write this message, or use the default wording\./,
+    );
+    assert.match(textOf(byTestId(tree, "biz-fallback-non_text-problem")), /\{phone number\} would be sent as written/);
+    assert.match(textOf(byTestId(tree, "biz-fallback-greeting-problem")), /At most 2,000 characters — this is 2,001\./);
+    assert.equal(messageBox(tree, HOLDING).props["aria-invalid"], true);
+    assert.equal(messageBox(tree, HOLDING).props["aria-describedby"], "biz-fallback-error-problem");
+    assert.equal(saved.length, 0, "nothing is sent");
+    assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 3 fields need a look.");
+    type(messageBox(tree, HOLDING), "Sorry.");
+    tree = again("workspace");
+    assert.equal(byTestId(tree, "biz-fallback-error-problem"), null, "and a message's sentence goes when it changes");
+  }));
 
-test("each message shows what a customer reads now, points at a link written out, and offers the default wording back", () => withBrain({ fallbacks: { ...STORED, error: "Sorry — {business} will reply. Book at https://book.example/northside" } }, () => {
-  let tree = openEditor();
-  assert.match(textOf(byTestId(tree, "biz-fallback-error-preview")), /Sorry — Northside Studio will reply\./);
-  type(labelled(tree, "input", "Business name"), "Northside Hair");
-  tree = again("workspace");
-  assert.match(textOf(byTestId(tree, "biz-fallback-error-preview")), /Northside Hair/, "it follows the form as it is typed");
-  assert.match(textOf(byTestId(tree, "biz-fallback-error-written")), /\{booking link\}/, "a link written out is pointed at");
-  assert.match(textOf(byTestId(tree, "biz-fallback-non_text-written")), /\{phone\}/, "and so is a number");
-  assert.equal(byTestId(tree, "biz-fallback-greeting-preview"), null, "a message naming nothing reads as written");
-  press(byTestId(tree, "biz-fallback-greeting-default"));
-  tree = again("workspace");
-  assert.equal(messageBox(tree, NO_MODEL).props.value, C.FALLBACK_DEFAULTS.greeting);
-  assert.equal(byTestId(tree, "biz-fallback-greeting-default"), null, "the default wording has nothing to go back to");
-}));
+test("each message shows what a customer reads now, points at a link written out, and offers the default wording back", () =>
+  withBrain(
+    { fallbacks: { ...STORED, error: "Sorry — {business} will reply. Book at https://book.example/northside" } },
+    () => {
+      let tree = openEditor();
+      assert.match(textOf(byTestId(tree, "biz-fallback-error-preview")), /Sorry — Northside Studio will reply\./);
+      type(labelled(tree, "input", "Business name"), "Northside Hair");
+      tree = again("workspace");
+      assert.match(
+        textOf(byTestId(tree, "biz-fallback-error-preview")),
+        /Northside Hair/,
+        "it follows the form as it is typed",
+      );
+      assert.match(
+        textOf(byTestId(tree, "biz-fallback-error-written")),
+        /\{booking link\}/,
+        "a link written out is pointed at",
+      );
+      assert.match(textOf(byTestId(tree, "biz-fallback-non_text-written")), /\{phone\}/, "and so is a number");
+      assert.equal(byTestId(tree, "biz-fallback-greeting-preview"), null, "a message naming nothing reads as written");
+      press(byTestId(tree, "biz-fallback-greeting-default"));
+      tree = again("workspace");
+      assert.equal(messageBox(tree, NO_MODEL).props.value, C.FALLBACK_DEFAULTS.greeting);
+      assert.equal(
+        byTestId(tree, "biz-fallback-greeting-default"),
+        null,
+        "the default wording has nothing to go back to",
+      );
+    },
+  ));

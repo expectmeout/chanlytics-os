@@ -53,7 +53,12 @@ export function reviewsRequest(token: string, parent: string, pageToken?: string
 }
 
 export function replyRequest(token: string, reviewName: string, comment: string): PlacesRequest {
-  return { url: `${GBP_V4_BASE}/${reviewName}/reply`, method: "PUT", headers: { ...bearer(token, true), "Content-Type": "application/json" }, body: JSON.stringify({ comment }) };
+  return {
+    url: `${GBP_V4_BASE}/${reviewName}/reply`,
+    method: "PUT",
+    headers: { ...bearer(token, true), "Content-Type": "application/json" },
+    body: JSON.stringify({ comment }),
+  };
 }
 
 export function deleteReplyRequest(token: string, reviewName: string): PlacesRequest & { method: "DELETE" } {
@@ -103,25 +108,50 @@ export interface GbpReviewsPage {
 export function parseAccounts(json: unknown): { accounts: GbpAccount[]; next: string | null } {
   const o = obj(json);
   const list = Array.isArray(o?.accounts) ? o!.accounts : [];
-  const accounts = list.map((a) => obj(a)).filter((a): a is Obj => !!a).map((a) => ({ name: str(a.name) ?? "", title: str(a.accountName) ?? str(obj(a.organizationInfo)?.registeredDomain) ?? str(a.name) ?? "", type: str(a.type) })).filter((a) => a.name.startsWith("accounts/"));
+  const accounts = list
+    .map((a) => obj(a))
+    .filter((a): a is Obj => !!a)
+    .map((a) => ({
+      name: str(a.name) ?? "",
+      title: str(a.accountName) ?? str(obj(a.organizationInfo)?.registeredDomain) ?? str(a.name) ?? "",
+      type: str(a.type),
+    }))
+    .filter((a) => a.name.startsWith("accounts/"));
   return { accounts, next: str(o?.nextPageToken) };
 }
 
 function oneLineAddress(a: unknown): string | null {
   const o = obj(a);
   if (!o) return null;
-  const lines = Array.isArray(o.addressLines) ? o.addressLines.filter((l): l is string => typeof l === "string" && !!l.trim()) : [];
-  const parts = [...lines, str(o.locality), [str(o.administrativeArea), str(o.postalCode)].filter(Boolean).join(" ")].filter((p): p is string => !!p);
+  const lines = Array.isArray(o.addressLines)
+    ? o.addressLines.filter((l): l is string => typeof l === "string" && !!l.trim())
+    : [];
+  const parts = [
+    ...lines,
+    str(o.locality),
+    [str(o.administrativeArea), str(o.postalCode)].filter(Boolean).join(" "),
+  ].filter((p): p is string => !!p);
   return parts.length ? parts.join(", ") : null;
 }
 
 export function parseLocations(json: unknown): { locations: GbpLocation[]; next: string | null } {
   const o = obj(json);
   const list = Array.isArray(o?.locations) ? o!.locations : [];
-  const locations = list.map((l) => obj(l)).filter((l): l is Obj => !!l).map((l) => {
-    const meta = obj(l.metadata);
-    return { name: str(l.name) ?? "", title: str(l.title) ?? "", address: oneLineAddress(l.storefrontAddress), place_id: str(meta?.placeId), maps_uri: str(meta?.mapsUri), new_review_uri: str(meta?.newReviewUri) };
-  }).filter((l) => l.name.startsWith("locations/"));
+  const locations = list
+    .map((l) => obj(l))
+    .filter((l): l is Obj => !!l)
+    .map((l) => {
+      const meta = obj(l.metadata);
+      return {
+        name: str(l.name) ?? "",
+        title: str(l.title) ?? "",
+        address: oneLineAddress(l.storefrontAddress),
+        place_id: str(meta?.placeId),
+        maps_uri: str(meta?.mapsUri),
+        new_review_uri: str(meta?.newReviewUri),
+      };
+    })
+    .filter((l) => l.name.startsWith("locations/"));
   return { locations, next: str(o?.nextPageToken) };
 }
 
@@ -135,26 +165,30 @@ export function starRatingNumber(v: unknown): number | null {
 export function parseReviewsPage(json: unknown): GbpReviewsPage {
   const o = obj(json);
   const list = Array.isArray(o?.reviews) ? o!.reviews : [];
-  const reviews = list.map((r) => obj(r)).filter((r): r is Obj => !!r).map((r): GbpReview | null => {
-    const name = str(r.name);
-    const id = str(r.reviewId) ?? (name ? name.split("/").pop() ?? null : null);
-    if (!name || !id) return null;
-    const who = obj(r.reviewer);
-    const reply = obj(r.reviewReply);
-    return {
-      name,
-      review_id: id,
-      rating: starRatingNumber(r.starRating),
-      author: who?.isAnonymous === true ? null : str(who?.displayName),
-      author_photo_uri: str(who?.profilePhotoUrl),
-      anonymous: who?.isAnonymous === true,
-      text: str(r.comment),
-      created_at: str(r.createTime),
-      updated_at: str(r.updateTime),
-      reply_text: str(reply?.comment),
-      replied_at: str(reply?.updateTime),
-    };
-  }).filter((r): r is GbpReview => r !== null);
+  const reviews = list
+    .map((r) => obj(r))
+    .filter((r): r is Obj => !!r)
+    .map((r): GbpReview | null => {
+      const name = str(r.name);
+      const id = str(r.reviewId) ?? (name ? (name.split("/").pop() ?? null) : null);
+      if (!name || !id) return null;
+      const who = obj(r.reviewer);
+      const reply = obj(r.reviewReply);
+      return {
+        name,
+        review_id: id,
+        rating: starRatingNumber(r.starRating),
+        author: who?.isAnonymous === true ? null : str(who?.displayName),
+        author_photo_uri: str(who?.profilePhotoUrl),
+        anonymous: who?.isAnonymous === true,
+        text: str(r.comment),
+        created_at: str(r.createTime),
+        updated_at: str(r.updateTime),
+        reply_text: str(reply?.comment),
+        replied_at: str(reply?.updateTime),
+      };
+    })
+    .filter((r): r is GbpReview => r !== null);
   const avg = typeof o?.averageRating === "number" ? o!.averageRating : null;
   const total = typeof o?.totalReviewCount === "number" ? o!.totalReviewCount : null;
   return { reviews, average_rating: avg, total_count: total, next_page_token: str(o?.nextPageToken) };
@@ -168,7 +202,9 @@ function refusal(status: number, body: string): PlacesError {
     const m = str(e?.message);
     const s = str(e?.status);
     if (m) message = s ? `${s}: ${m}` : m;
-  } catch { /* the status is the message */ }
+  } catch {
+    /* the status is the message */
+  }
   return new PlacesError(status, message);
 }
 
@@ -208,7 +244,12 @@ export async function listLocations(http: PlacesHttp, token: string, accountName
 }
 
 /** The newest pages of reviews, up to `maxPages`; the rating and the count as Google reports them beside. */
-export async function listReviews(http: PlacesHttp, token: string, parent: string, maxPages = GBP_REVIEWS_MAX_PAGES): Promise<GbpReviewsPage> {
+export async function listReviews(
+  http: PlacesHttp,
+  token: string,
+  parent: string,
+  maxPages = GBP_REVIEWS_MAX_PAGES,
+): Promise<GbpReviewsPage> {
   const all: GbpReview[] = [];
   let page: string | null = null;
   let avg: number | null = null;
@@ -216,14 +257,22 @@ export async function listReviews(http: PlacesHttp, token: string, parent: strin
   for (let i = 0; i < Math.max(1, maxPages); i++) {
     const r = parseReviewsPage(await call(http, reviewsRequest(token, parent, page)));
     all.push(...r.reviews);
-    if (i === 0) { avg = r.average_rating; total = r.total_count; }
+    if (i === 0) {
+      avg = r.average_rating;
+      total = r.total_count;
+    }
     page = r.next_page_token;
     if (!page) break;
   }
   return { reviews: all, average_rating: avg, total_count: total, next_page_token: page };
 }
 
-export async function replyToReview(http: PlacesHttp, token: string, reviewName: string, comment: string): Promise<{ reply_text: string | null; replied_at: string | null }> {
+export async function replyToReview(
+  http: PlacesHttp,
+  token: string,
+  reviewName: string,
+  comment: string,
+): Promise<{ reply_text: string | null; replied_at: string | null }> {
   const o = obj(await call(http, replyRequest(token, reviewName, comment)));
   return { reply_text: str(o?.comment) ?? comment, replied_at: str(o?.updateTime) ?? new Date().toISOString() };
 }
@@ -232,5 +281,12 @@ export async function replyToReview(http: PlacesHttp, token: string, reviewName:
 export const GBP_REPLY_MAX = 4096;
 
 export function cleanReply(text: unknown): string {
-  return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
+  return typeof text === "string"
+    ? text
+        .replace(/\r\n?/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n[ \t]+/g, "\n")
+        .trim()
+        .slice(0, GBP_REPLY_MAX)
+    : "";
 }

@@ -14,7 +14,10 @@ import { listPolicies, setPolicyMode } from "@chanlytics/db";
 /** GET /api/v1/policies — the workspace autonomy matrix (E3). */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ policies: await listPolicies(ctx.supabase, member.tenantId), role: member.role }),
+  handle: async ({ ctx, member }) => ({
+    policies: await listPolicies(ctx.supabase, member.tenantId),
+    role: member.role,
+  }),
 });
 
 /**
@@ -30,9 +33,15 @@ export const PUT = write({
   role: "operator",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as
-      | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number; maxTokensDay?: number; maxRepliesDay?: number; pauseHours?: number }
-      | null;
+    const body = (await req.json().catch(() => null)) as {
+      class?: string;
+      mode?: string;
+      replyDelayMs?: number;
+      minConfidence?: number;
+      maxTokensDay?: number;
+      maxRepliesDay?: number;
+      pauseHours?: number;
+    } | null;
     const cls = body?.class ?? "";
     if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
     // A delay edit carries no mode: the row keeps the one it has. Requiring the
@@ -55,15 +64,21 @@ export const PUT = write({
     //
     // Only the REPLY class can be vetoed. The others have no draft to hold.
     if (mode === "veto" && cls !== "reply") {
-      throw new AppError("validation", "Only replies can be held for review — the other classes have no draft to hold.");
+      throw new AppError(
+        "validation",
+        "Only replies can be held for review — the other classes have no draft to hold.",
+      );
     }
     // A switch nothing enforces is a switch that lies: each class offers only
     // the modes the runtime honours for it. Booking and service questions are
     // answered by the receptionist or by a person; there is no "never".
     if (!POLICY_CLASS_MODES[cls as PolicyClass].includes(mode as PolicyMode)) {
-      throw new AppError("validation", cls === "booking" || cls === "faq"
-        ? "Bookings and service questions are answered by the receptionist or by you — there is no \"never\"."
-        : `The ${cls} row cannot be set to ${mode}.`);
+      throw new AppError(
+        "validation",
+        cls === "booking" || cls === "faq"
+          ? 'Bookings and service questions are answered by the receptionist or by you — there is no "never".'
+          : `The ${cls} row cannot be set to ${mode}.`,
+      );
     }
 
     // The wait, in ms. Clamped at the boundary as well as in the reader: a value
@@ -95,7 +110,10 @@ export const PUT = write({
     if (body?.maxTokensDay !== undefined) {
       const t = Number(body.maxTokensDay);
       if (!Number.isFinite(t) || t < 0 || t > 5_000_000 || (t > 0 && t < 1000)) {
-        throw new AppError("validation", "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.");
+        throw new AppError(
+          "validation",
+          "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.",
+        );
       }
       if (cls !== "reply") throw new AppError("validation", "The token budget only applies to the reply policy.");
       limits.max_llm_tokens_day = Math.round(t);
@@ -107,13 +125,15 @@ export const PUT = write({
     // allows; same boundary rule as the others.
     if (body?.maxRepliesDay !== undefined) {
       const n = Number(body.maxRepliesDay);
-      if (!Number.isInteger(n) || n < 1 || n > 200) throw new AppError("validation", "The reply cap is a whole number from 1 to 200.");
+      if (!Number.isInteger(n) || n < 1 || n > 200)
+        throw new AppError("validation", "The reply cap is a whole number from 1 to 200.");
       if (cls !== "reply") throw new AppError("validation", "The reply cap only applies to the reply policy.");
       limits.max_replies_day = n;
     }
     if (body?.pauseHours !== undefined) {
       const h = Number(body.pauseHours);
-      if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", "The pause is a whole number of hours from 1 to 168.");
+      if (!Number.isInteger(h) || h < 1 || h > 168)
+        throw new AppError("validation", "The pause is a whole number of hours from 1 to 168.");
       if (cls !== "reply") throw new AppError("validation", "The pause only applies to the reply policy.");
       limits.pause_hours = h;
     }
@@ -124,14 +144,19 @@ export const PUT = write({
       // class, the mode, which limits moved -- never their values -- who, and
       // whether a card was tapped. Best effort, as the settings audit is: a
       // ledger row that failed to write must not fail the change that landed.
-      await ctx.supabase.from("events").insert({
-        tenant_id: member.tenantId,
-        kind: "policy.changed",
-        category: "system",
-        subject_type: "workspace",
-        subject_id: member.tenantId,
-        data: { class: cls, mode, fields: Object.keys(limits), by: ctx.userId, ...(ctx.via ? { via: ctx.via } : {}) },
-      }).then(({ error }) => { if (error) console.error("policy_event_failed", error.message); });
+      await ctx.supabase
+        .from("events")
+        .insert({
+          tenant_id: member.tenantId,
+          kind: "policy.changed",
+          category: "system",
+          subject_type: "workspace",
+          subject_id: member.tenantId,
+          data: { class: cls, mode, fields: Object.keys(limits), by: ctx.userId, ...(ctx.via ? { via: ctx.via } : {}) },
+        })
+        .then(({ error }) => {
+          if (error) console.error("policy_event_failed", error.message);
+        });
       return { policy: row };
     } catch (e) {
       if (e instanceof AppError) throw e;

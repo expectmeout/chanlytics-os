@@ -28,7 +28,12 @@ export const POST = write({
     const what = input.what;
     const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what });
     if (error) throw new AppError("conflict", error.message, 409);
-    const already = !!(data && typeof data === "object" && !Array.isArray(data) && (data as { already?: unknown }).already === true);
+    const already = !!(
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data) &&
+      (data as { already?: unknown }).already === true
+    );
     const told = already ? false : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null);
     return { request: data, told };
   },

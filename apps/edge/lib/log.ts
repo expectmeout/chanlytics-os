@@ -20,8 +20,12 @@
 
 export type LogLevel = "info" | "warn" | "error";
 
-/** Fields carried by every line from one logical unit of work. */
-export type LogContext = Record<string, string | number | boolean | null | undefined>;
+/**
+ * Fields carried by every line from one logical unit of work. Anything JSON
+ * can carry: a provider's error list or a usage object rides as it is, rather
+ * than being flattened by hand at every site.
+ */
+export type LogContext = Record<string, unknown>;
 
 function emit(level: LogLevel, event: string, fields: LogContext): void {
   // Undefined keys are dropped rather than serialised as null: a field that is

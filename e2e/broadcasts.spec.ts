@@ -1,5 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { EVERYONE_LABEL, compareTemplates, groupTemplates, sendableTemplates, templateSlots } from "../packages/contracts/src/index";
+import {
+  EVERYONE_LABEL,
+  compareTemplates,
+  groupTemplates,
+  sendableTemplates,
+  templateSlots,
+} from "../packages/contracts/src/index";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 
@@ -19,7 +25,14 @@ const INVENTED = ["credits", "Booked from broadcasts", "April win-back", "Sereni
 /** The finished runs the ledger shows before "All N sent" (broadcasts-real.jsx, `recent`). */
 const LATEST_SHOWN = 5;
 
-type TemplateRow = { name: string; language: string; channel: string; meta_status: string; variables: unknown; blocked?: string | null };
+type TemplateRow = {
+  name: string;
+  language: string;
+  channel: string;
+  meta_status: string;
+  variables: unknown;
+  blocked?: string | null;
+};
 
 /** The composer is its own screen: New broadcast opens it in place of the ledger. */
 async function openComposer(page: Page) {
@@ -36,7 +49,9 @@ test.describe("Broadcasts on a real workspace", () => {
     await signIn(page);
   });
 
-  test("renders the real page from the workspace's rows, templates and audiences, and never invents a number", async ({ page }) => {
+  test("renders the real page from the workspace's rows, templates and audiences, and never invents a number", async ({
+    page,
+  }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("broadcasts-real");
@@ -51,12 +66,16 @@ test.describe("Broadcasts on a real workspace", () => {
     expect(tpl.status()).toBe(200);
     expect(cfg.status()).toBe(200);
     const broadcasts = (await bc.json()).data.broadcasts as { state: string }[];
-    const approved = ((await tpl.json()).data.templates as TemplateRow[]).filter((t) => t.channel === "whatsapp" && t.meta_status === "approved");
+    const approved = ((await tpl.json()).data.templates as TemplateRow[]).filter(
+      (t) => t.channel === "whatsapp" && t.meta_status === "approved",
+    );
     const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
 
     // The ledger: every run still to go out, then the latest that went.
     // Open = still to go out: scheduled, sending, or a playbook run held for a person (the page's own rule).
-    const open = broadcasts.filter((b) => b.state === "scheduled" || b.state === "sending" || b.state === "pending_approval").length;
+    const open = broadcasts.filter(
+      (b) => b.state === "scheduled" || b.state === "sending" || b.state === "pending_approval",
+    ).length;
     await expect(real.getByTestId("bc-new")).toBeVisible();
     await expect(real.getByTestId("bc-open")).toHaveCount(open);
     await expect(real.getByTestId("bc-history")).toHaveCount(Math.min(broadcasts.length - open, LATEST_SHOWN));

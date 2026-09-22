@@ -31,14 +31,41 @@ const T1 = "77777777-7777-4777-8777-777777777771";
 const USER = "u1";
 // The membership and playbook rows outbound-routes.test.mjs runs the route over.
 const tables = () => ({
-  memberships: [{ user_id: USER, tenant_id: B, role: "operator", tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" }],
-  playbooks: [{
-    id: K2, tenant_id: B, name: "Win-back", trigger: "quiet_30", template_id: T1, template_name: "winback_offer", template_language: "en_US", params: [], policy_class: "reengage", state: "running",
-    run_hour: 10, cap_per_run: 50, gap_days: 30, cadence_days: 0, last_run_for: null, last_run_at: null, created_at: "2026-09-01T00:00:00Z",
-  }],
-  decisions: [], broadcasts: [], broadcast_recipients: [],
+  memberships: [
+    { user_id: USER, tenant_id: B, role: "operator", tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" },
+  ],
+  playbooks: [
+    {
+      id: K2,
+      tenant_id: B,
+      name: "Win-back",
+      trigger: "quiet_30",
+      template_id: T1,
+      template_name: "winback_offer",
+      template_language: "en_US",
+      params: [],
+      policy_class: "reengage",
+      state: "running",
+      run_hour: 10,
+      cap_per_run: 50,
+      gap_days: 30,
+      cadence_days: 0,
+      last_run_for: null,
+      last_run_at: null,
+      created_at: "2026-09-01T00:00:00Z",
+    },
+  ],
+  decisions: [],
+  broadcasts: [],
+  broadcast_recipients: [],
 });
-const press = () => run.POST.run(new Request("http://localhost/api/v1/x", { method: "POST" }), { supabase: fakeDb(tables(), {}, {}), userId: USER, email: "ada@example.com", params: { id: K2 } });
+const press = () =>
+  run.POST.run(new Request("http://localhost/api/v1/x", { method: "POST" }), {
+    supabase: fakeDb(tables(), {}, {}),
+    userId: USER,
+    email: "ada@example.com",
+    params: { id: K2 },
+  });
 
 /** The edge: what it answers to one run now, and every call it received. */
 const edge = { calls: [], answer: null };
@@ -48,12 +75,41 @@ globalThis.fetch = async (url, init) => {
 };
 
 test("REGRESSION (C7): the route hands back when a run really goes, as the edge said -- it returned the outcome and none of the time", async () => {
-  edge.answer = { ok: true, outcome: "sent", broadcast_id: B1, eligible: 2, mode: "ask", state: "scheduled", scheduled_for: "2026-09-16T13:00:00.000Z", moved_from: "2026-09-16T03:00:00.000Z" };
+  edge.answer = {
+    ok: true,
+    outcome: "sent",
+    broadcast_id: B1,
+    eligible: 2,
+    mode: "ask",
+    state: "scheduled",
+    scheduled_for: "2026-09-16T13:00:00.000Z",
+    moved_from: "2026-09-16T03:00:00.000Z",
+  };
   const out = await press();
-  assert.deepEqual(edge.calls.at(-1), { url: "https://edge.example/api/admin/playbooks-run", body: { tenant_id: B, playbook_id: K2, user_id: USER } }, "the edge was asked for this playbook, as this person");
-  assert.deepEqual(out, { id: K2, outcome: "sent", eligible: 2, broadcast_id: B1, name: "Win-back", scheduled_for: "2026-09-16T13:00:00.000Z", moved_from: "2026-09-16T03:00:00.000Z" }, "REGRESSION: no time came back");
+  assert.deepEqual(
+    edge.calls.at(-1),
+    { url: "https://edge.example/api/admin/playbooks-run", body: { tenant_id: B, playbook_id: K2, user_id: USER } },
+    "the edge was asked for this playbook, as this person",
+  );
+  assert.deepEqual(
+    out,
+    {
+      id: K2,
+      outcome: "sent",
+      eligible: 2,
+      broadcast_id: B1,
+      name: "Win-back",
+      scheduled_for: "2026-09-16T13:00:00.000Z",
+      moved_from: "2026-09-16T03:00:00.000Z",
+    },
+    "REGRESSION: no time came back",
+  );
 
   edge.answer = { ok: true, outcome: "held", broadcast_id: B1, eligible: 2, mode: "ask", state: "pending_approval" };
   const held = await press();
-  assert.deepEqual([held.outcome, held.scheduled_for, held.moved_from], ["held", null, null], "a run left waiting has no time to give, and none is made up");
+  assert.deepEqual(
+    [held.outcome, held.scheduled_for, held.moved_from],
+    ["held", null, null],
+    "a run left waiting has no time to give, and none is made up",
+  );
 });

@@ -34,11 +34,7 @@ test("a day-old 'ongoing' row is emphatically not live", () => {
 
 test("only 'ongoing' can be live, however fresh the row", () => {
   for (const status of ["ended", "registered", "error"]) {
-    assert.equal(
-      isLiveCall({ status, updated_at: agoMs(1000) }, NOW),
-      false,
-      `${status} must never render as live`,
-    );
+    assert.equal(isLiveCall({ status, updated_at: agoMs(1000) }, NOW), false, `${status} must never render as live`);
   }
 });
 
@@ -64,12 +60,27 @@ test("no evidence at all is not live", () => {
 
 test("the viewmodel the Live surface would read uses the rule, not the flag", () => {
   const base = {
-    id: "c1", retell_call_id: "r1", direction: "inbound", call_type: "phone_call",
-    from_e164: "+13475550101", from_raw: null, to_e164: "+13085550000",
-    started_at: agoMs(60_000), ended_at: null, duration_ms: null,
-    disconnection_reason: null, sentiment: null, call_successful: null,
-    in_voicemail: null, summary: null, transcript_object: null, recording: null,
-    conversation_id: null, contact_id: null, message_id: null, contact: null,
+    id: "c1",
+    retell_call_id: "r1",
+    direction: "inbound",
+    call_type: "phone_call",
+    from_e164: "+13475550101",
+    from_raw: null,
+    to_e164: "+13085550000",
+    started_at: agoMs(60_000),
+    ended_at: null,
+    duration_ms: null,
+    disconnection_reason: null,
+    sentiment: null,
+    call_successful: null,
+    in_voicemail: null,
+    summary: null,
+    transcript_object: null,
+    recording: null,
+    conversation_id: null,
+    contact_id: null,
+    message_id: null,
+    contact: null,
   };
   // `live` is a conditional spread — present as true, or absent. The mockup
   // reads it for truthiness, so assert that rather than a literal false.

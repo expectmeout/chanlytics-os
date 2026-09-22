@@ -15,6 +15,9 @@ import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { createTemplate, mapCategory, mapStatus, type MetaTemplateComponent } from "../../../lib/meta-templates.js";
 import type { Json } from "../../../lib/packages/db.js";
+import { logger } from "../../../lib/log.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[a-z0-9_]{1,512}$/;
@@ -23,8 +26,14 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whatsapp/templates-create");
   if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => null)) as {
-    tenant_id?: unknown; user_id?: unknown; name?: unknown; language?: unknown; category?: unknown;
-    components?: unknown; body?: unknown; examples?: unknown;
+    tenant_id?: unknown;
+    user_id?: unknown;
+    name?: unknown;
+    language?: unknown;
+    category?: unknown;
+    components?: unknown;
+    body?: unknown;
+    examples?: unknown;
   } | null;
   const ws = workspaceFor(auth, body?.tenant_id);
   if (!ws.ok) return ws.response;
@@ -38,7 +47,13 @@ export async function POST(request: Request): Promise<Response> {
   const text = typeof body?.body === "string" ? body.body : null;
   const examples = Array.isArray(body?.examples) ? (body.examples as unknown[]).map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
-  const labels = Array.isArray((body as { labels?: unknown })?.labels) ? ((body as { labels: unknown[] }).labels).map((l) => String(l ?? "").trim().slice(0, 40)) : [];
+  const labels = Array.isArray((body as { labels?: unknown })?.labels)
+    ? (body as { labels: unknown[] }).labels.map((l) =>
+        String(l ?? "")
+          .trim()
+          .slice(0, 40),
+      )
+    : [];
   if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant" });
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return json(400, { ok: false, error: "bad_template" });
@@ -61,13 +76,22 @@ export async function POST(request: Request): Promise<Response> {
 
   const made = await createTemplate(creds.accessToken, ch.waba_id, { name, language, category, components });
   if (!made.ok) {
-    console.error("wa_template_create_failed", JSON.stringify({ tenant_id: tenantId, name, status: made.status, error: made.error.slice(0, 300) }));
+    L.error("wa_template_create_failed", {
+      tenant_id: tenantId,
+      name,
+      status: made.status,
+      error: made.error.slice(0, 300),
+    });
     return json(502, { ok: false, error: "meta_refused", detail: made.error });
   }
 
   const status = mapStatus(made.data.status);
   const positions = [...new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
-  const variables = positions.map((n) => ({ position: n, label: labels[n - 1] || `Value ${n}`, example: examples[n - 1] ?? null }));
+  const variables = positions.map((n) => ({
+    position: n,
+    label: labels[n - 1] || `Value ${n}`,
+    example: examples[n - 1] ?? null,
+  }));
   const row = {
     tenant_id: tenantId,
     channel: "whatsapp",
@@ -90,6 +114,6 @@ export async function POST(request: Request): Promise<Response> {
     .select("id")
     .single();
   if (error || !saved) return json(500, { ok: false, error: "write_failed", detail: error?.message });
-  console.log("wa_template_created", JSON.stringify({ tenant_id: tenantId, name, language, status, meta_id: made.data.id }));
+  L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
 }

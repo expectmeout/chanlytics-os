@@ -25,14 +25,15 @@ export const GET = read({
   scope: account,
   handle: async ({ ctx, req: _req }) => {
     const { supabase, userId, email } = ctx;
-    let { data, error } = await supabase
-      .from("tenants")
-      .select("id, slug, name, status, timezone")
-      .order("name");
+    let { data, error } = await supabase.from("tenants").select("id, slug, name, status, timezone").order("name");
     if (error) throw new Error(error.message);
     // The name this person gave (profiles, 00068) rides with the identity, so
     // the chrome shows a person rather than the workspace standing in for one.
-    const { data: profile } = await supabase.from("profiles").select("display_name").eq("user_id", userId).maybeSingle();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", userId)
+      .maybeSingle();
     // The name they gave us wins; the name they gave Google (full_name on the
     // auth user) stands in until they do. Never anything made from the email.
     const displayName = profile?.display_name || providerNameOf(ctx.metadata);
@@ -91,7 +92,19 @@ export const GET = read({
       // And the sign-up posture, because the create screen is this person's door
       // and it asks the invite code -- or shows the list -- accordingly. Read here
       // so the bridge makes no request of its own for it.
-      return { workspaces: [], activeWorkspaceId: null, pending: pendingWorkspaceOf(ctx.metadata), posture: signupPosture(process.env.SIGNUP_CODE), user: { id: userId, email: email ?? null, role: null, display_name: displayName, platform_admin: platformAdmin } };
+      return {
+        workspaces: [],
+        activeWorkspaceId: null,
+        pending: pendingWorkspaceOf(ctx.metadata),
+        posture: signupPosture(process.env.SIGNUP_CODE),
+        user: {
+          id: userId,
+          email: email ?? null,
+          role: null,
+          display_name: displayName,
+          platform_admin: platformAdmin,
+        },
+      };
     }
 
     const preferred = new URL(_req.url).searchParams.get("workspace");
@@ -114,7 +127,13 @@ export const GET = read({
       // Which workspace everything else on this page is scoped to. The client
       // echoes it back as ?workspace= so a reload lands where it left off.
       activeWorkspaceId: active.tenantId,
-      user: { id: userId, email: email ?? null, role: active.role, display_name: displayName, platform_admin: platformAdmin },
+      user: {
+        id: userId,
+        email: email ?? null,
+        role: active.role,
+        display_name: displayName,
+        platform_admin: platformAdmin,
+      },
     };
   },
 });

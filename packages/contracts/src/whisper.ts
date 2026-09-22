@@ -125,7 +125,10 @@ const PLATFORM = "from the Chanlytics platform";
 export function injectedTurn(content: string | null | undefined): { speaker: "whisper" | "platform"; text: string } {
   const c = (content ?? "").replace(/\r\n/g, "\n");
   if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
-  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = c
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
   return { speaker: "whisper", text: c.trim() };
 }

@@ -18,14 +18,21 @@ const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
 
 test("the waiting state says the greeting is playing and words follow the first exchange", () => {
   assert.ok(page.includes("It opens with the greeting; the phone provider sends the words after the first exchange"));
-  assert.ok(!page.includes("Nothing has been said yet"), "REGRESSION: told the owner nothing had been said while the greeting played");
+  assert.ok(
+    !page.includes("Nothing has been said yet"),
+    "REGRESSION: told the owner nothing had been said while the greeting played",
+  );
 });
 
 test("the whisper box sits directly under the transcript or the waiting state, above the spacer", () => {
   const whisper = page.indexOf("{c.live && <LrWhisper c={c} />}");
   const spacer = page.indexOf('{!(c.live && c.transcript.length) && <div className="lm-spacer" />}');
   assert.ok(whisper > 0 && spacer > whisper, "the spacer comes AFTER the whisper");
-  assert.equal((page.match(/className="lm-spacer"/g) ?? []).length, 1, "no spacer inside the waiting state pushing the box below the fold");
+  assert.equal(
+    (page.match(/className="lm-spacer"/g) ?? []).length,
+    1,
+    "no spacer inside the waiting state pushing the box below the fold",
+  );
 });
 
 test("while a call is live the page re-reads every 8 s beside the realtime channel", () => {

@@ -14,25 +14,52 @@ import assert from "node:assert/strict";
 
 const TID = "t-salon";
 const CACHE = "chanlytics.surfaces.v1";
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 /** This member's views as the server holds them (a read always answers with these), every view saved to it, and while `held`, a save's reply waits for it. */
 const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [], held: null };
 globalThis.window = {
-  location: { pathname: "/w/salon", search: "", hash: "#/clients", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/salon",
+    search: "",
+    hash: "#/clients",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   sessionStorage: globalThis.sessionStorage,
   localStorage: globalThis.localStorage,
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: TID,
   fetch: async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
-    if (u.pathname === "/api/v1/contacts") return json(200, { ok: true, data: { people: [], page: { q: null, offset: 0, limit: 1000, total: 0, has_more: false }, calendar: { state: "none", source: "your calendar" }, booking_link: null } });
+    if (u.pathname === "/api/v1/contacts")
+      return json(200, {
+        ok: true,
+        data: {
+          people: [],
+          page: { q: null, offset: 0, limit: 1000, total: 0, has_more: false },
+          calendar: { state: "none", source: "your calendar" },
+          booking_link: null,
+        },
+      });
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists: [] } });
     if (u.pathname === "/api/v1/views") return json(200, { ok: true, data: { views: server.views } });
     if (u.pathname === "/api/v1/views/people" && init.method === "PUT") {
@@ -44,14 +71,24 @@ globalThis.window = {
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   },
 };
-const quietly = async (fn) => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+const quietly = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
 const { peopleOverride } = await quietly(() => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
 const { saveView } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
-const { snapshotSurface, hydrateSurfaceCache, clearSurfaceCache } = await import("../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+const { snapshotSurface, hydrateSurfaceCache, clearSurfaceCache } =
+  await import("../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 
 const HIDDEN = { sortBy: "last", sortDir: "desc", columns: { came_from: false } };
 /** The People view in the tab's cache, as a reload would paint it. */
-const cachedPeopleView = () => JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null")?.surfaces?.people?.__PEOPLE?.views?.people;
+const cachedPeopleView = () =>
+  JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null")?.surfaces?.people?.__PEOPLE?.views?.people;
 /** People read as the runner reads it, over an empty cache; with `cachedFor`, then cached as the runner caches a read, under that workspace. */
 const peopleRead = async ({ cachedFor = null } = {}) => {
   clearSurfaceCache();
@@ -68,11 +105,19 @@ test("REGRESSION: straight after F5 a save made while the load read is out survi
   hydrateSurfaceCache();
   const reading = peopleOverride.apply();
   const saving = saveView("people", HIDDEN);
-  assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "People mounted again before the read lands (Back) has the view");
+  assert.deepEqual(
+    globalThis.window.__PEOPLE.views.people,
+    HIDDEN,
+    "People mounted again before the read lands (Back) has the view",
+  );
   assert.deepEqual(cachedPeopleView(), HIDDEN, "and so does a second F5");
   await saving;
   await reading;
-  assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "REGRESSION: the read landed with the server's older view, and it stood");
+  assert.deepEqual(
+    globalThis.window.__PEOPLE.views.people,
+    HIDDEN,
+    "REGRESSION: the read landed with the server's older view, and it stood",
+  );
   snapshotSurface(peopleOverride.key, peopleOverride.globals, TID);
   assert.deepEqual(cachedPeopleView(), HIDDEN, "and the runner caches what the read left");
 });
@@ -114,7 +159,9 @@ test("a save still waiting on its reply when a read of People begins is not undo
   await peopleRead();
   const LISTS = { sortBy: "name", sortDir: "asc", columns: { lists: true } };
   let reply;
-  server.held = new Promise((r) => { reply = r; });
+  server.held = new Promise((r) => {
+    reply = r;
+  });
   try {
     const saving = saveView("people", LISTS);
     const reading = peopleOverride.apply();
@@ -124,7 +171,11 @@ test("a save still waiting on its reply when a read of People begins is not undo
   } finally {
     server.held = null;
   }
-  assert.deepEqual(globalThis.window.__PEOPLE.views.people, LISTS, "the read began while the save waited, so the save stands");
+  assert.deepEqual(
+    globalThis.window.__PEOPLE.views.people,
+    LISTS,
+    "the read began while the save waited, so the save stands",
+  );
 });
 
 test("with no workspace active, a save writes nothing into the cache -- not even into an entry that carries no workspace", async () => {
@@ -149,8 +200,14 @@ test("signing out clears what the pages kept in the tab -- a view's place, a hal
   tm.keepPlace("leads", "clients/leads", { q: "nail", top: 380 });
   tm.keepDraft("leads-find", { words: "dentists in Queens" });
   // And the two slots Leads kept before the store, which a tab open across the deploy still holds.
-  globalThis.sessionStorage.setItem("chanlytics.leads.place.v1", JSON.stringify({ "salon|clients/leads": { q: "nail", top: 380 } }));
-  globalThis.sessionStorage.setItem("chanlytics.leads.finder.v1", JSON.stringify({ ws: "salon|", words: "dentists in Queens" }));
+  globalThis.sessionStorage.setItem(
+    "chanlytics.leads.place.v1",
+    JSON.stringify({ "salon|clients/leads": { q: "nail", top: 380 } }),
+  );
+  globalThis.sessionStorage.setItem(
+    "chanlytics.leads.finder.v1",
+    JSON.stringify({ ws: "salon|", words: "dentists in Queens" }),
+  );
   globalThis.sessionStorage.setItem("something.else", "kept");
   clearSurfaceCache();
   assert.equal(tm.place("leads", "clients/leads"), null);
@@ -165,25 +222,43 @@ test("a cache that would be too big sheds its biggest surfaces until it fits, ra
   clearSurfaceCache();
   const big = (n) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, words: "x".repeat(2000) })) });
   globalThis.window.__TODAY_PROBE = { small: true };
-  globalThis.window.__PEOPLE_PROBE = big(120);   // ~240 KB
-  globalThis.window.__LEADS_PROBE = big(1000);   // ~2 MB: over the line on its own
+  globalThis.window.__PEOPLE_PROBE = big(120); // ~240 KB
+  globalThis.window.__LEADS_PROBE = big(1000); // ~2 MB: over the line on its own
   snapshotSurface("today", ["__TODAY_PROBE"], TID);
   snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
   snapshotSurface("leads", ["__LEADS_PROBE"], TID);
   const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null");
   assert.ok(kept, "REGRESSION: the whole cache was removed, and every page booted cold");
-  assert.deepEqual(Object.keys(kept.surfaces).sort(), ["people", "today"], "the surface that did not fit is the one left out");
+  assert.deepEqual(
+    Object.keys(kept.surfaces).sort(),
+    ["people", "today"],
+    "the surface that did not fit is the one left out",
+  );
   assert.ok(globalThis.sessionStorage.getItem(CACHE).length < 2_000_000);
-  delete globalThis.window.__TODAY_PROBE; delete globalThis.window.__PEOPLE_PROBE; delete globalThis.window.__LEADS_PROBE;
+  delete globalThis.window.__TODAY_PROBE;
+  delete globalThis.window.__PEOPLE_PROBE;
+  delete globalThis.window.__LEADS_PROBE;
   clearSurfaceCache();
 });
 
 test("a surface may say what of itself the cache holds: Leads keeps its first hundred rows, which is all an instant paint needs", () => {
   clearSurfaceCache();
-  globalThis.window.__LEADS_PROBE = { rows: Array.from({ length: 500 }, (_, i) => ({ id: `l${i}` })), next: { key: "k", id: "l499" }, offered: 12, view: { list: "all" } };
-  snapshotSurface("leads", ["__LEADS_PROBE"], TID, (snap) => ({ ...snap, __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 } }));
+  globalThis.window.__LEADS_PROBE = {
+    rows: Array.from({ length: 500 }, (_, i) => ({ id: `l${i}` })),
+    next: { key: "k", id: "l499" },
+    offered: 12,
+    view: { list: "all" },
+  };
+  snapshotSurface("leads", ["__LEADS_PROBE"], TID, (snap) => ({
+    ...snap,
+    __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 },
+  }));
   const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces.leads.__LEADS_PROBE;
-  assert.deepEqual([kept.rows.length, kept.next, kept.offered, kept.view], [100, null, 0, { list: "all" }], "the first hundred, no page after them and nothing offered: the read that follows says the rest");
+  assert.deepEqual(
+    [kept.rows.length, kept.next, kept.offered, kept.view],
+    [100, null, 0, { list: "all" }],
+    "the first hundred, no page after them and nothing offered: the read that follows says the rest",
+  );
   assert.equal(globalThis.window.__LEADS_PROBE.rows.length, 500, "and the page's own rows are untouched");
   delete globalThis.window.__LEADS_PROBE;
   clearSurfaceCache();

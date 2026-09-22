@@ -31,18 +31,39 @@ const { isThreadUnknown } = await import(pathToFileURL(path.join(ROOT, "apps/edg
 
 const T = "11111111-1111-1111-1111-111111111111";
 const C = "22222222-2222-2222-2222-222222222222";
-const ing = (over = {}) => ({ message_id: "m1", conversation_id: C, contact_id: "k1", is_new: true, paused_until: null, ...over });
+const ing = (over = {}) => ({
+  message_id: "m1",
+  conversation_id: C,
+  contact_id: "k1",
+  is_new: true,
+  paused_until: null,
+  ...over,
+});
 const at = (minutesAgo) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
-const row = (over) => ({ tenant_id: T, conversation_id: C, direction: "outbound", sender: "ai", status: "sent", type: "text", body: "…", channel: "whatsapp", channel_ts: null, meta: {}, ...over });
+const row = (over) => ({
+  tenant_id: T,
+  conversation_id: C,
+  direction: "outbound",
+  sender: "ai",
+  status: "sent",
+  type: "text",
+  body: "…",
+  channel: "whatsapp",
+  channel_ts: null,
+  meta: {},
+  ...over,
+});
 
 /** A database whose every read fails — an outage, not an empty conversation. */
 const brokenDb = () => ({
   from() {
-    const proxy = new Proxy({}, {
-      get: (_t, k) => (k === "then"
-        ? (res, rej) => Promise.reject(new Error("connect ECONNREFUSED")).then(res, rej)
-        : () => proxy),
-    });
+    const proxy = new Proxy(
+      {},
+      {
+        get: (_t, k) =>
+          k === "then" ? (res, rej) => Promise.reject(new Error("connect ECONNREFUSED")).then(res, rej) : () => proxy,
+      },
+    );
     return proxy;
   },
 });
@@ -59,13 +80,25 @@ test("a first-time customer is BLANK, not unknown", async () => {
 });
 
 test("a conversation with rows comes back as the memory the gates read", async () => {
-  const db = fakeDb({ messages: [
-    row({ id: "u1", created_at: at(30), direction: "inbound", sender: "customer", status: "received", body: "do you take walk-ins?" }),
-    row({ id: "a1", created_at: at(29), body: "We open at 9" }),
-  ] });
+  const db = fakeDb({
+    messages: [
+      row({
+        id: "u1",
+        created_at: at(30),
+        direction: "inbound",
+        sender: "customer",
+        status: "received",
+        body: "do you take walk-ins?",
+      }),
+      row({ id: "a1", created_at: at(29), body: "We open at 9" }),
+    ],
+  });
   const t = await pgThread(db, T, ing({ paused_until: new Date(Date.parse(at(-60))).toISOString() }));
   assert.equal(isThreadUnknown(t), false);
-  assert.deepEqual(t.history.map((h) => h.role), ["user", "assistant"]);
+  assert.deepEqual(
+    t.history.map((h) => h.role),
+    ["user", "assistant"],
+  );
   assert.equal(t.replies.length, 1, "the answer spent one of the day's replies");
   assert.equal(t.repliedBefore, true, "something of ours has reached this person");
   assert.ok(t.pausedUntil > Date.now(), "the pause on the row IS the pause");

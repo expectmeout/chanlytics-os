@@ -156,7 +156,9 @@ export function replyWindow(
   now = new Date(),
 ): WaWindow {
   // Only WhatsApp has a window: a text and an email may be answered whenever.
-  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+  return replyChannel === "sms" || replyChannel === "email"
+    ? { open: true, closesAtIso: null }
+    : waWindow(lastWaInboundAtIso, now);
 }
 
 /**
@@ -247,7 +249,13 @@ export const PAUSE_HOURS_DEFAULT = 24;
  * says what it does and what its default is, and the value a dial shows is the
  * stored one, or the default when nothing is stored.
  */
-export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): { sub: string; replies: string; pause: string; cap: number; hours: number } {
+export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): {
+  sub: string;
+  replies: string;
+  pause: string;
+  cap: number;
+  hours: number;
+} {
   const stored = (v: unknown): number | null => {
     const n = Number(v);
     return v !== undefined && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
@@ -269,10 +277,7 @@ export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours
  * already written. A configuration mistake should degrade the experience by
  * seconds, never strand someone.
  */
-export function replyDelayMs(
-  mode: string | null | undefined,
-  limits?: { reply_delay_ms?: number } | null,
-): number {
+export function replyDelayMs(mode: string | null | undefined, limits?: { reply_delay_ms?: number } | null): number {
   // 'auto' answers immediately — that is what it means. Every other mode either
   // holds for a human or never speaks, and neither reaches a send.
   if (mode !== "veto") return 0;

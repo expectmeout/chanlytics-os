@@ -11,7 +11,10 @@ export function verifyRetellSignature(
   if (!m) return false;
   const [, ts, digest] = m;
   if (Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
-  const expected = crypto.createHmac("sha256", apiKey).update(rawBody + ts).digest("hex");
+  const expected = crypto
+    .createHmac("sha256", apiKey)
+    .update(rawBody + ts)
+    .digest("hex");
   const a = Buffer.from(digest.toLowerCase());
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);

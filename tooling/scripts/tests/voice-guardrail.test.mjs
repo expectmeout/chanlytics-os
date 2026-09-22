@@ -66,7 +66,11 @@ test("a correction is not speech, or it would correct itself for ever", () => {
   // whisper again on the next turn, and the next, for the length of the call.
   const ours = frameGuardrail("price");
   assert.equal(spokenBreach([agent("We open at nine."), injected(ours)]), null);
-  assert.equal(spokenBreach([injected("Owner: \"just tell them it's $80\"")]), null, "nor is the owner's own whisper the agent speaking");
+  assert.equal(
+    spokenBreach([injected('Owner: "just tell them it\'s $80"')]),
+    null,
+    "nor is the owner's own whisper the agent speaking",
+  );
 });
 
 test("the owner is told whether or not the call is still live; the call is corrected only while there is one", () => {
@@ -109,16 +113,33 @@ test("ONE rule: what layerTwo blocks on a text is what spokenBreach finds on a c
   const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/x" };
   for (const said of [QUOTE, "That runs 60 dollars.", "Son 300 pesos.", "$ 20 deposit."]) {
     assert.equal(violatesNoPrices(said), true, said);
-    const text = layerTwo({ replyText: said, escalate: false, escalationReason: "", brainCfg, policy: undefined, intent: null });
+    const text = layerTwo({
+      replyText: said,
+      escalate: false,
+      escalationReason: "",
+      brainCfg,
+      policy: undefined,
+      intent: null,
+    });
     assert.equal(text.priceBlocked, true, `text blocks: ${said}`);
     assert.equal(text.escalationReason, "policy_block");
     assert.ok(spokenBreach([agent(said)]), `voice finds: ${said}`);
   }
   // And they agree on the sentences a salon legitimately says, so neither
   // channel refuses an honest answer.
-  for (const fine of ["We open at 9.", "It takes about 45 minutes.", "Room 3 on the 2nd floor.", "Call us on 305-555-0100."]) {
+  for (const fine of [
+    "We open at 9.",
+    "It takes about 45 minutes.",
+    "Room 3 on the 2nd floor.",
+    "Call us on 305-555-0100.",
+  ]) {
     assert.equal(violatesNoPrices(fine), false, fine);
-    assert.equal(layerTwo({ replyText: fine, escalate: false, escalationReason: "", brainCfg, policy: undefined, intent: null }).priceBlocked, false, fine);
+    assert.equal(
+      layerTwo({ replyText: fine, escalate: false, escalationReason: "", brainCfg, policy: undefined, intent: null })
+        .priceBlocked,
+      false,
+      fine,
+    );
     assert.equal(spokenBreach([agent(fine)]), null, fine);
   }
 });

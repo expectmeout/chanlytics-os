@@ -1,10 +1,19 @@
 import { z } from "zod";
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, offersYesRefusal, ownMessageRefusal } from "@chanlytics/contracts";
+import {
+  AppError,
+  CONSENT_RESET_SOURCE,
+  CONSENT_SOURCES,
+  CONSENT_STATES,
+  offersYesRefusal,
+  ownMessageRefusal,
+} from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 
 const Body = z.object({
-  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
+  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
+    message: "Consent must be one of: opted_in, opted_out, unknown.",
+  }),
   source: z.string().optional(),
   note: z.string().optional(),
   message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
@@ -50,7 +59,10 @@ export const PUT = write({
     const consent = body.consent;
     const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
     if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
-      throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+      throw new AppError(
+        "validation",
+        "Say how they told you: in person, on the phone, on a form, or in their own message.",
+      );
     }
     // A yes to OFFERS is written or it is not recorded. The database refuses a spoken
     // one as well (00100); asking here first hands the person a sentence instead of
@@ -79,7 +91,11 @@ export const PUT = write({
     // The ledger row says who recorded it and how, and names the purpose — so one
     // query over `events` answers "what has this person agreed to, and when".
     const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
-      purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,
+      purpose: "marketing",
+      consent,
+      source,
+      note,
+      previous: contact.marketing_consent ?? null,
       ...(messageId ? { message_id: messageId } : {}),
     });
     return {

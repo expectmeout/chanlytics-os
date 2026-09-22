@@ -7,13 +7,31 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, roleGate } from "@chanlytics/contracts";
+import {
+  setupSteps,
+  forwardingCodes,
+  forwardingTestOpen,
+  CARRIERS,
+  FORWARDING_MODES,
+  CARRIER_WORDS,
+  MODE_WORDS,
+  formatPhoneDisplay,
+  roleGate,
+} from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
 
 const dto = {
-  business: { name: "Harbor Nails", hours: true, services: 4, bookingLink: true, address: true, handoff: "+13055550199", broken: false },
+  business: {
+    name: "Harbor Nails",
+    hours: true,
+    services: 4,
+    bookingLink: true,
+    address: true,
+    handoff: "+13055550199",
+    broken: false,
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
     voice: { present: true, active: true, number: "+13055550101", lastInboundAt: ago(3) },
@@ -23,7 +41,30 @@ const dto = {
   team: { members: 1, invitesOpen: 0, alertEmails: 1 },
   consent: { yes: 0, offers: 0 },
   requests: { line: null },
-  lines: { rows: [{ id: "l1", e164: "+13055550101", kind: "chanlytics", provider: "twilio", area_code: 305, voice_state: "answering", sms_state: "none", reg_mock: false, whatsapp_state: "none", port_state: "none", forwarding_state: "none", step: null, last_error: null, state_since: ago(48), created_at: ago(72) }], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+  lines: {
+    rows: [
+      {
+        id: "l1",
+        e164: "+13055550101",
+        kind: "chanlytics",
+        provider: "twilio",
+        area_code: 305,
+        voice_state: "answering",
+        sms_state: "none",
+        reg_mock: false,
+        whatsapp_state: "none",
+        port_state: "none",
+        forwarding_state: "none",
+        step: null,
+        last_error: null,
+        state_since: ago(48),
+        created_at: ago(72),
+      },
+    ],
+    ready: true,
+    provider: "twilio",
+    costs: { local_number_month_usd: 1.15 },
+  },
   activations: [],
 };
 const vm = setupSteps({ ...dto, later: [] }, NOW);
@@ -33,38 +74,111 @@ test("the contract: a tested, unactivated receptionist offers Activate and says 
   assert.equal(r.state, "ready");
   assert.deepEqual(r.verb, { label: "Activate", to: "verb:activate:voice" });
   assert.ok(r.details.includes("Tested — activate it to say it is yours"), r.details.join(" | "));
-  const live = setupSteps({ ...dto, activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }], later: [] }, NOW).rows.find((x) => x.id === "receptionist");
+  const live = setupSteps(
+    {
+      ...dto,
+      activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }],
+      later: [],
+    },
+    NOW,
+  ).rows.find((x) => x.id === "receptionist");
   assert.equal(live.verb.label, "Call it", "activated: the verb goes back to trying it");
   assert.ok(live.details.some((d) => /^Activated /.test(d)));
 });
 
 /* ---- the page itself, rendered without a browser ---- */
-const calls = { activate: [], deactivate: [], refresh: 0, flash: [], nav: [], search: [], buy: [], fwSet: [], fwTest: [], find: [], link: [] };
+const calls = {
+  activate: [],
+  deactivate: [],
+  refresh: 0,
+  flash: [],
+  nav: [],
+  search: [],
+  buy: [],
+  fwSet: [],
+  fwTest: [],
+  find: [],
+  link: [],
+};
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
   location: { origin: "https://app.chanlytics.com", hash: "#/admin/setup" },
   __SETUP: { dto, role: "owner", vm, fetchedAt: NOW },
   __setup: {
-    activate: async (kind) => { calls.activate.push(kind); return { ok: true, message: "" }; },
-    deactivate: async (kind) => { calls.deactivate.push(kind); return { ok: true, message: "" }; },
-    refresh: async () => { calls.refresh += 1; },
+    activate: async (kind) => {
+      calls.activate.push(kind);
+      return { ok: true, message: "" };
+    },
+    deactivate: async (kind) => {
+      calls.deactivate.push(kind);
+      return { ok: true, message: "" };
+    },
+    refresh: async () => {
+      calls.refresh += 1;
+    },
     lines: {
-      search: async (area) => { calls.search.push(area); return { ok: true, numbers: [{ e164: "+13055550142", friendly: "(305) 555-0142", locality: "Miami", region: "FL" }, { e164: "+13055550143", friendly: "(305) 555-0143", locality: "Miami", region: "FL" }], message: "" }; },
-      buy: async (number, area) => { calls.buy.push([number, area]); return { ok: true, queued: true, message: "" }; },
+      search: async (area) => {
+        calls.search.push(area);
+        return {
+          ok: true,
+          numbers: [
+            { e164: "+13055550142", friendly: "(305) 555-0142", locality: "Miami", region: "FL" },
+            { e164: "+13055550143", friendly: "(305) 555-0143", locality: "Miami", region: "FL" },
+          ],
+          message: "",
+        };
+      },
+      buy: async (number, area) => {
+        calls.buy.push([number, area]);
+        return { ok: true, queued: true, message: "" };
+      },
       retry: async () => ({ ok: true, queued: true, message: "" }),
     },
     forwarding: {
-      set: async (o) => { calls.fwSet.push(o); return { ok: true, message: "" }; },
-      test: async (id) => { calls.fwTest.push(id); return { ok: true, message: "" }; },
+      set: async (o) => {
+        calls.fwSet.push(o);
+        return { ok: true, message: "" };
+      },
+      test: async (id) => {
+        calls.fwTest.push(id);
+        return { ok: true, message: "" };
+      },
     },
   },
   __billing: {},
   __google: {
-    find: async (words) => { calls.find.push(words ?? null); return { ok: true, candidates: [{ place_id: "ChIJ-harbor", name: "Harbor Nails", address: "12 Bay St, Miami", maps_uri: "https://maps.example/harbor" }], query: words ?? "Harbor Nails 12 Bay St", fromFacts: !words }; },
-    link: async (placeId) => { calls.link.push(placeId); return { ok: true, read: true, message: "" }; },
+    find: async (words) => {
+      calls.find.push(words ?? null);
+      return {
+        ok: true,
+        candidates: [
+          {
+            place_id: "ChIJ-harbor",
+            name: "Harbor Nails",
+            address: "12 Bay St, Miami",
+            maps_uri: "https://maps.example/harbor",
+          },
+        ],
+        query: words ?? "Harbor Nails 12 Bay St",
+        fromFacts: !words,
+      };
+    },
+    link: async (placeId) => {
+      calls.link.push(placeId);
+      return { ok: true, read: true, message: "" };
+    },
   },
-  __forwarding: { codes: forwardingCodes, testOpen: forwardingTestOpen, carriers: CARRIERS, modes: FORWARDING_MODES, carrierWords: CARRIER_WORDS, modeWords: MODE_WORDS, display: formatPhoneDisplay, ago: () => "a minute ago" },
+  __forwarding: {
+    codes: forwardingCodes,
+    testOpen: forwardingTestOpen,
+    carriers: CARRIERS,
+    modes: FORWARDING_MODES,
+    carrierWords: CARRIER_WORDS,
+    modeWords: MODE_WORDS,
+    display: formatPhoneDisplay,
+    ago: () => "a minute ago",
+  },
   __DEMO_MODE: false,
   usePPToast: () => [null, (m) => calls.flash.push(m)],
   appNavigate: (to) => calls.nav.push(to),
@@ -73,7 +187,11 @@ globalThis.window = {
   removeEventListener() {},
 };
 // The failed card is the shared FailedRead (data-bits.jsx), drawn for real so the Retry inside it can be pressed.
-globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.document ??= {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
@@ -87,7 +205,9 @@ const Page = globalThis.window.PaneSetup;
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
-const fresh = () => { cells = []; };
+const fresh = () => {
+  cells = [];
+};
 function mount() {
   let seq = 0;
   Object.assign(globalThis.React, {
@@ -100,25 +220,57 @@ function mount() {
       if (typeof type === "function") node.rendered = type(props);
       return node;
     },
-    useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+    useMemo: (fn) => {
+      const k = seq++;
+      if (!(k in cells)) cells[k] = fn();
+      return cells[k];
+    },
     useState: (init) => {
       const k = seq++;
       if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
-      return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }];
+      return [
+        cells[k],
+        (v) => {
+          cells[k] = typeof v === "function" ? v(cells[k]) : v;
+        },
+      ];
     },
     useReducer: (red, init) => {
       const k = seq++;
       if (!(k in cells)) cells[k] = init;
-      return [cells[k], (a) => { cells[k] = red(cells[k], a); }];
+      return [
+        cells[k],
+        (a) => {
+          cells[k] = red(cells[k], a);
+        },
+      ];
     },
     // An effect runs once per component, on its first mount, as React runs it on arrival.
-    useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+    useEffect: (fn) => {
+      const k = seq++;
+      if (!(k in cells)) {
+        cells[k] = true;
+        fn();
+      }
+    },
   });
   seq = 0;
   return Page();
 }
-const byTestId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
-const allByTestId = (tree, id) => { const hits = []; walk(tree, (n) => { if (n.props?.["data-testid"] === id) hits.push(n); }); return hits; };
+const byTestId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
+const allByTestId = (tree, id) => {
+  const hits = [];
+  walk(tree, (n) => {
+    if (n.props?.["data-testid"] === id) hits.push(n);
+  });
+  return hits;
+};
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -130,7 +282,9 @@ const walk = (n, fn) => {
 test("the page: the row's Activate reaches the bridge with the capability's name, and the owner is told", async () => {
   const tree = mount();
   let cta = null;
-  walk(tree, (n) => { if (!cta && n.props?.cta?.label === "Activate") cta = n.props.cta; });
+  walk(tree, (n) => {
+    if (!cta && n.props?.cta?.label === "Activate") cta = n.props.cta;
+  });
   assert.ok(cta, "a row offers Activate");
   await cta.onClick();
   assert.deepEqual(calls.activate, ["voice"]);
@@ -140,11 +294,16 @@ test("the page: the row's Activate reaches the bridge with the capability's name
 
 test("REGRESSION (S15): an operator sees Activate gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
-  Object.assign(globalThis.window, { ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" }, __roleGate: roleGate });
+  Object.assign(globalThis.window, {
+    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
+    __roleGate: roleGate,
+  });
   try {
     const tree = mount();
     let row = null;
-    walk(tree, (n) => { if (!row && n.props?.cta?.label === "Activate") row = n.props; });
+    walk(tree, (n) => {
+      if (!row && n.props?.cta?.label === "Activate") row = n.props;
+    });
     assert.ok(row, "a row offers Activate");
     assert.ok(row.cta.gate, "REGRESSION: the verb was offered as if it would work");
     assert.equal(row.cta.gate["data-tip"], "Only an owner can activate a capability.");
@@ -156,7 +315,11 @@ test("REGRESSION (S15): an operator sees Activate gated before the press, with t
     await row.cta.onClick();
     await tick();
     assert.equal(calls.activate.length, before.activate, "nothing reached the bridge");
-    assert.equal(calls.flash.length, before.flash, "REGRESSION: 'Only an owner can activate a capability.' arrived as a toast after the press");
+    assert.equal(
+      calls.flash.length,
+      before.flash,
+      "REGRESSION: 'Only an owner can activate a capability.' arrived as a toast after the press",
+    );
     assert.equal(calls.nav.length, before.nav);
   } finally {
     delete globalThis.window.ST_STORE;
@@ -167,21 +330,41 @@ test("REGRESSION (S15): an operator sees Activate gated before the press, with t
 test("the page: a row that dials is not itself a dial; an activated row offers to withdraw the activation, it reaches the bridge, and the words never claim the receptionist stops", async () => {
   const before = calls.deactivate.length;
   const flashed = calls.flash.length;
-  globalThis.window.__SETUP = { dto, role: "owner", vm: setupSteps({ ...dto, activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }], later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto,
+    role: "owner",
+    vm: setupSteps(
+      {
+        ...dto,
+        activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }],
+        later: [],
+      },
+      NOW,
+    ),
+    fetchedAt: NOW,
+  };
   const tree = mount();
   let row = null;
-  walk(tree, (n) => { if (!row && n.props?.testid === "setup-row-receptionist") row = n.props; });
+  walk(tree, (n) => {
+    if (!row && n.props?.testid === "setup-row-receptionist") row = n.props;
+  });
   assert.ok(row, "the receptionist row");
   assert.equal(row.cta.label, "Call it");
   assert.equal(row.onOpen, undefined, "the row itself does not dial; only its button does");
-  assert.equal(row.also.label, "Withdraw activation", "REGRESSION: 'Switch off' promised the receptionist would stop, and an activation gates nothing at runtime");
+  assert.equal(
+    row.also.label,
+    "Withdraw activation",
+    "REGRESSION: 'Switch off' promised the receptionist would stop, and an activation gates nothing at runtime",
+  );
   await row.also.onClick();
   assert.deepEqual(calls.deactivate.slice(before), ["voice"]);
   const said = String(calls.flash[flashed].msg.props.children.join(""));
   assert.ok(!said.includes("Switched off"), said);
   assert.ok(said.startsWith("Activation withdrawn"), said);
   let nav = null;
-  walk(tree, (n) => { if (!nav && n.props?.testid === "setup-row-team") nav = n.props; });
+  walk(tree, (n) => {
+    if (!nav && n.props?.testid === "setup-row-team") nav = n.props;
+  });
   assert.equal(typeof nav.onOpen, "function", "a row that navigates is a click target");
   globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
 });
@@ -190,7 +373,9 @@ test("the page: a failed read draws a card with a retry, and the retry reads aga
   globalThis.window.__SETUP = null;
   const tree = mount();
   let retry = null;
-  walk(tree, (n) => { if (!retry && n.props?.["data-testid"] === "setup-retry") retry = n.props; });
+  walk(tree, (n) => {
+    if (!retry && n.props?.["data-testid"] === "setup-retry") retry = n.props;
+  });
   assert.ok(retry, "a retry on the failed card");
   await retry.onClick();
   assert.equal(calls.refresh, 1);
@@ -200,16 +385,37 @@ test("the page: a failed read draws a card with a retry, and the retry reads aga
 /* ---- the chooser: find numbers in an area code, pick one, get it ---- */
 const noLine = {
   ...dto,
-  channels: { ...dto.channels, voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null } },
+  channels: {
+    ...dto.channels,
+    voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+  },
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
-  billing: { ready: false, mode: "direct", status: "active", trial_end: null, current_period_end: null, trial_days: 14 },
+  billing: {
+    ready: false,
+    mode: "direct",
+    status: "active",
+    trial_end: null,
+    current_period_end: null,
+    trial_days: 14,
+  },
 };
 
 test("the page: the chooser finds numbers in an area code, a pick opens the confirm, and Get this number reaches the bridge with the number and the area", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: noLine,
+    role: "owner",
+    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   let tree = mount();
-  const lineRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-line") r = n.props; }); return r; })();
+  const lineRow = (() => {
+    let r = null;
+    walk(tree, (n) => {
+      if (!r && n.props?.testid === "setup-row-line") r = n.props;
+    });
+    return r;
+  })();
   assert.equal(lineRow.cta.label, "Get a line");
   await lineRow.cta.onClick();
   tree = mount();
@@ -236,7 +442,13 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
   fresh();
   globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
   let tree = mount();
-  const keepRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-keep") r = n.props; }); return r; })();
+  const keepRow = (() => {
+    let r = null;
+    walk(tree, (n) => {
+      if (!r && n.props?.testid === "setup-row-keep") r = n.props;
+    });
+    return r;
+  })();
   assert.equal(keepRow.cta.label, "Set up forwarding");
   await keepRow.cta.onClick();
   tree = mount();
@@ -252,26 +464,86 @@ test("the page: the forwarding card saves the number, the carrier and the mode t
 
   // Saved: the row carries the forwarded line, and the card shows the carrier's code and the test.
   fresh();
-  const saved = { ...dto, lines: { ...dto.lines, rows: [...dto.lines.rows, { id: "f1", e164: "+13055550100", kind: "forwarded", provider: "carrier", area_code: 305, voice_state: "none", sms_state: "none", reg_mock: false, whatsapp_state: "none", port_state: "none", forwarding_state: "instructed", step: null, last_error: null, state_since: ago(1), created_at: ago(1), forwarding: { carrier: "att", mode: "always", destination_e164: "+13055550101", test_from: null, test_started_at: null, test_until: null, verified_at: null } }] } };
-  globalThis.window.__SETUP = { dto: saved, role: "owner", vm: setupSteps({ ...saved, later: [] }, NOW), fetchedAt: NOW };
+  const saved = {
+    ...dto,
+    lines: {
+      ...dto.lines,
+      rows: [
+        ...dto.lines.rows,
+        {
+          id: "f1",
+          e164: "+13055550100",
+          kind: "forwarded",
+          provider: "carrier",
+          area_code: 305,
+          voice_state: "none",
+          sms_state: "none",
+          reg_mock: false,
+          whatsapp_state: "none",
+          port_state: "none",
+          forwarding_state: "instructed",
+          step: null,
+          last_error: null,
+          state_since: ago(1),
+          created_at: ago(1),
+          forwarding: {
+            carrier: "att",
+            mode: "always",
+            destination_e164: "+13055550101",
+            test_from: null,
+            test_started_at: null,
+            test_until: null,
+            verified_at: null,
+          },
+        },
+      ],
+    },
+  };
+  globalThis.window.__SETUP = {
+    dto: saved,
+    role: "owner",
+    vm: setupSteps({ ...saved, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   tree = mount();
-  const row2 = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-keep") r = n.props; }); return r; })();
+  const row2 = (() => {
+    let r = null;
+    walk(tree, (n) => {
+      if (!r && n.props?.testid === "setup-row-keep") r = n.props;
+    });
+    return r;
+  })();
   assert.equal(row2.cta.label, "Test it");
   await row2.cta.onClick();
   assert.deepEqual(calls.fwTest, ["f1"], "Test it on the row opens the window through the bridge");
   tree = mount();
   const code = byTestId(tree, "setup-fw-code");
   assert.ok(code, "the card shows the code once a line is saved");
-  assert.equal(byTestId(tree, "setup-fw-dial").props.href, forwardingCodes("att", "always", "+13055550101").on.tel, "the carrier's own code, to dial");
+  assert.equal(
+    byTestId(tree, "setup-fw-dial").props.href,
+    forwardingCodes("att", "always", "+13055550101").on.tel,
+    "the carrier's own code, to dial",
+  );
 });
 
 /* ---- the listing finder: Google is asked with the facts on record, and one tap links ---- */
 test("the page: the finder asks Google with the facts on record on arrival, and This is it links the listing through the bridge", async () => {
   fresh();
   const google = { ...dto, google: { ready: true, places: true, listing: null } };
-  globalThis.window.__SETUP = { dto: google, role: "owner", vm: setupSteps({ ...google, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: google,
+    role: "owner",
+    vm: setupSteps({ ...google, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   let tree = mount();
-  const gRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-google") r = n.props; }); return r; })();
+  const gRow = (() => {
+    let r = null;
+    walk(tree, (n) => {
+      if (!r && n.props?.testid === "setup-row-google") r = n.props;
+    });
+    return r;
+  })();
   assert.ok(gRow, "the Google row is drawn when Places is ready");
   assert.equal(gRow.cta.label, "Find it");
   await gRow.cta.onClick();
@@ -294,10 +566,21 @@ test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its 
   let release = null;
   const sent = [];
   const was = globalThis.window.__setup.activate;
-  globalThis.window.__setup.activate = (kind) => { sent.push(kind); return new Promise((r) => { release = () => r({ ok: true, message: "" }); }); };
+  globalThis.window.__setup.activate = (kind) => {
+    sent.push(kind);
+    return new Promise((r) => {
+      release = () => r({ ok: true, message: "" });
+    });
+  };
   try {
     let tree = mount();
-    const row = () => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-receptionist") r = n.props; }); return r; };
+    const row = () => {
+      let r = null;
+      walk(tree, (n) => {
+        if (!r && n.props?.testid === "setup-row-receptionist") r = n.props;
+      });
+      return r;
+    };
     assert.equal(row().cta.label, "Activate");
     const first = row().cta.onClick();
     tree = mount();
@@ -315,10 +598,17 @@ test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its 
 
 test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area code and an empty search wore the green check", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: noLine,
+    role: "owner",
+    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   let tree = mount();
   let lineRow = null;
-  walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+  walk(tree, (n) => {
+    if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
+  });
   await lineRow.cta.onClick();
   tree = mount();
   byTestId(tree, "setup-area").props.onChange({ target: { value: "30" } });
@@ -328,7 +618,10 @@ test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area co
   assert.match(String(calls.flash[before]?.msg?.props?.children), /Three digits/);
   assert.equal(calls.flash[before].tone, "warn", "REGRESSION: 'Three digits, like 305.' wore the green check");
   const search = globalThis.window.__setup.lines.search;
-  globalThis.window.__setup.lines.search = async (area) => { calls.search.push(area); return { ok: true, numbers: [] }; };
+  globalThis.window.__setup.lines.search = async (area) => {
+    calls.search.push(area);
+    return { ok: true, numbers: [] };
+  };
   try {
     byTestId(tree, "setup-area").props.onChange({ target: { value: "999" } });
     tree = mount();
@@ -343,16 +636,40 @@ test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area co
 
 test("a retry says it is under way in the info tone, not with the green check of a line that answers", async () => {
   fresh();
-  const retryVm = { ...vm, next: null, rows: [{ id: "line", icon: "phone", title: "Your line", sentence: "Setting up stopped.", stateWords: "Stopped", details: [], state: "attention", required: true, later: false, verb: { label: "Retry", to: "verb:retry-line:l1" }, undo: null }] };
+  const retryVm = {
+    ...vm,
+    next: null,
+    rows: [
+      {
+        id: "line",
+        icon: "phone",
+        title: "Your line",
+        sentence: "Setting up stopped.",
+        stateWords: "Stopped",
+        details: [],
+        state: "attention",
+        required: true,
+        later: false,
+        verb: { label: "Retry", to: "verb:retry-line:l1" },
+        undo: null,
+      },
+    ],
+  };
   globalThis.window.__SETUP = { dto, role: "owner", vm: retryVm, fetchedAt: NOW };
   try {
     const tree = mount();
     let row = null;
-    walk(tree, (n) => { if (!row && n.props?.testid === "setup-row-line") row = n.props; });
+    walk(tree, (n) => {
+      if (!row && n.props?.testid === "setup-row-line") row = n.props;
+    });
     const before = calls.flash.length;
     await row.cta.onClick();
     assert.match(String(calls.flash[before].msg.props.children), /Retrying/);
-    assert.equal(calls.flash[before].tone, "info", "REGRESSION: 'Retrying' wore the green check before anything answered");
+    assert.equal(
+      calls.flash[before].tone,
+      "info",
+      "REGRESSION: 'Retrying' wore the green check before anything answered",
+    );
   } finally {
     globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
   }
@@ -360,12 +677,22 @@ test("a retry says it is under way in the info tone, not with the green check of
 
 test("REGRESSION (the gate): Enter in the area code is the gated button's press, not a way around it -- it searched for a role that may not", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: noLine,
+    role: "owner",
+    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   let tree = mount();
   let lineRow = null;
-  walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+  walk(tree, (n) => {
+    if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
+  });
   await lineRow.cta.onClick();
-  Object.assign(globalThis.window, { ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" }, __roleGate: roleGate });
+  Object.assign(globalThis.window, {
+    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
+    __roleGate: roleGate,
+  });
   const searched = calls.search.length;
   try {
     tree = mount();
@@ -385,13 +712,23 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
 
 test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask us filed a line request", async () => {
   fresh();
-  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: noLine,
+    role: "owner",
+    vm: setupSteps({ ...noLine, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   const asked = [];
-  globalThis.window.__setup.request = async (what) => { asked.push(what); return { ok: true, already: false, message: "" }; };
+  globalThis.window.__setup.request = async (what) => {
+    asked.push(what);
+    return { ok: true, already: false, message: "" };
+  };
   try {
     let tree = mount();
     let lineRow = null;
-    walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+    walk(tree, (n) => {
+      if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
+    });
     await lineRow.cta.onClick();
     tree = mount();
     byTestId(tree, "setup-path-bring").props.onClick();
@@ -409,13 +746,23 @@ test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask 
 test("REGRESSION (S8): a broken configuration's row asks for a repair, and says so -- its only verb opened Business, which cannot repair it", async () => {
   fresh();
   const broken = { ...dto, business: { ...dto.business, broken: true } };
-  globalThis.window.__SETUP = { dto: broken, role: "owner", vm: setupSteps({ ...broken, later: [] }, NOW), fetchedAt: NOW };
+  globalThis.window.__SETUP = {
+    dto: broken,
+    role: "owner",
+    vm: setupSteps({ ...broken, later: [] }, NOW),
+    fetchedAt: NOW,
+  };
   const asked = [];
-  globalThis.window.__setup.request = async (what) => { asked.push(what); return { ok: true, already: false, message: "" }; };
+  globalThis.window.__setup.request = async (what) => {
+    asked.push(what);
+    return { ok: true, already: false, message: "" };
+  };
   try {
     const tree = mount();
     let facts = null;
-    walk(tree, (n) => { if (!facts && n.props?.testid === "setup-row-facts") facts = n.props; });
+    walk(tree, (n) => {
+      if (!facts && n.props?.testid === "setup-row-facts") facts = n.props;
+    });
     assert.equal(facts.cta.label, "Ask for a repair");
     const before = { flash: calls.flash.length, nav: calls.nav.length };
     await facts.cta.onClick();

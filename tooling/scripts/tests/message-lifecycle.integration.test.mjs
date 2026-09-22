@@ -42,14 +42,20 @@ before(async () => {
   // target it with on_conflict (that is the bug this suite caught in shipped code).
   const { data: c, error: cErr } = await db
     .from("contacts")
-    .insert({ tenant_id: tenantId, phone_e164: `+1999556${String(Date.now()).slice(-4)}`, display_name: "Lifecycle probe" })
-    .select("id").single();
+    .insert({
+      tenant_id: tenantId,
+      phone_e164: `+1999556${String(Date.now()).slice(-4)}`,
+      display_name: "Lifecycle probe",
+    })
+    .select("id")
+    .single();
   if (cErr) throw new Error(`fixture contact: ${cErr.message}`);
   contactId = c.id;
   const { data: conv, error: vErr } = await db
     .from("conversations")
     .upsert({ tenant_id: tenantId, contact_id: contactId }, { onConflict: "tenant_id,contact_id" })
-    .select("id").single();
+    .select("id")
+    .single();
   if (vErr) throw new Error(`fixture conversation: ${vErr.message}`);
   conversationId = conv.id;
 });
@@ -66,11 +72,18 @@ async function newMessage(status) {
   const { data, error } = await db
     .from("messages")
     .insert({
-      tenant_id: tenantId, conversation_id: conversationId, contact_id: contactId,
-      channel: "whatsapp", direction: "outbound", sender: "human",
-      type: "text", body: "lifecycle probe", status,
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      contact_id: contactId,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: "lifecycle probe",
+      status,
     })
-    .select("id").single();
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
   made.push(data.id);
   return data.id;
@@ -78,8 +91,7 @@ async function newMessage(status) {
 
 test("a queued message can still be canceled", { skip }, async () => {
   const id = await newMessage("queued");
-  const { data, error } = await db.from("messages")
-    .update({ status: "canceled" }).eq("id", id).select("id");
+  const { data, error } = await db.from("messages").update({ status: "canceled" }).eq("id", id).select("id");
   assert.equal(error, null, error?.message);
   assert.equal(data.length, 1, "the honest undo must keep working");
 });
@@ -87,8 +99,7 @@ test("a queued message can still be canceled", { skip }, async () => {
 test("a SENT message can never be canceled", { skip }, async () => {
   // THE REGRESSION. Before 00015 this succeeded.
   const id = await newMessage("sent");
-  const { error } = await db.from("messages")
-    .update({ status: "canceled" }).eq("id", id).select("id");
+  const { error } = await db.from("messages").update({ status: "canceled" }).eq("id", id).select("id");
   assert.ok(error, "sent -> canceled was accepted");
   assert.match(error.message, /already sent cannot be canceled/);
 });
@@ -96,16 +107,14 @@ test("a SENT message can never be canceled", { skip }, async () => {
 test("a delivered message can never be canceled either", { skip }, async () => {
   const id = await newMessage("sent");
   await db.from("messages").update({ status: "delivered" }).eq("id", id);
-  const { error } = await db.from("messages")
-    .update({ status: "canceled" }).eq("id", id).select("id");
+  const { error } = await db.from("messages").update({ status: "canceled" }).eq("id", id).select("id");
   assert.ok(error, "delivered -> canceled was accepted");
 });
 
 test("sent -> failed stays legal — Meta reports failures after accepting", { skip }, async () => {
   // The fix must not break the real delivery-receipt path.
   const id = await newMessage("sent");
-  const { error } = await db.from("messages")
-    .update({ status: "failed" }).eq("id", id).select("id");
+  const { error } = await db.from("messages").update({ status: "failed" }).eq("id", id).select("id");
   assert.equal(error, null, error?.message);
 });
 
@@ -127,8 +136,12 @@ test("a conditional update is how a race is detected, not an error", { skip }, a
   // exception — which is exactly why both call sites must count rows.
   const id = await newMessage("queued");
   await db.from("messages").update({ status: "sent" }).eq("id", id); // the job won
-  const { data, error } = await db.from("messages")
-    .update({ status: "canceled" }).eq("id", id).eq("status", "queued").select("id");
+  const { data, error } = await db
+    .from("messages")
+    .update({ status: "canceled" })
+    .eq("id", id)
+    .eq("status", "queued")
+    .select("id");
   assert.equal(error, null, "a lost race must not raise");
   assert.equal(data.length, 0, "the loser must see zero rows affected");
 });

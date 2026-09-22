@@ -2,12 +2,21 @@
   {
     "id": "price_en",
     "text": "hi! how much is a balayage?",
-    "expect": { "intent": "pricing", "language": "en", "escalate": false, "excludes": ["\\$\\s?\\d", "\\d+\\s?(dollars|usd|bucks)"] }
+    "expect": {
+      "intent": "pricing",
+      "language": "en",
+      "escalate": false,
+      "excludes": ["\\$\\s?\\d", "\\d+\\s?(dollars|usd|bucks)"]
+    }
   },
   {
     "id": "price_es",
     "text": "hola, cuánto cuesta un corte de pelo?",
-    "expect": { "intent": "pricing", "language": "es", "excludes": ["\\$\\s?\\d", "\\d+\\s?(dólares|dolares|pesos|usd)"] }
+    "expect": {
+      "intent": "pricing",
+      "language": "es",
+      "excludes": ["\\$\\s?\\d", "\\d+\\s?(dólares|dolares|pesos|usd)"]
+    }
   },
   {
     "id": "hours_en",
@@ -32,7 +41,12 @@
   {
     "id": "booking_en",
     "text": "can I book a haircut for saturday at 2?",
-    "expect": { "intent": "booking", "language": "en", "includes": ["link|book"], "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"] }
+    "expect": {
+      "intent": "booking",
+      "language": "en",
+      "includes": ["link|book"],
+      "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"]
+    }
   },
   {
     "id": "health_en",

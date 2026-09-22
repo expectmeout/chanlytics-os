@@ -24,14 +24,32 @@ export const FILLER_FEED_PATH = "/api/v1/calendar/filler.ics";
 
 /** The filler's people, by the last two digits of their fictional number (filler.mjs). */
 const PEOPLE: ReadonlyArray<readonly [string, string]> = [
-  ["Daniela Reyes", "01"], ["Marcus Bell", "02"], ["Priya Nair", "03"], ["Sofia Alvarez", "04"],
-  ["Carlos Mendez", "05"], ["Emily Chen", "06"], ["Jasmine Okafor", "07"], ["Laura Gómez", "08"],
-  ["Nina Petrova", "09"], ["Olivia Brooks", "10"], ["Hannah Kim", "11"], ["Rosa Delgado", "12"],
-  ["Ava Thompson", "13"], ["Zoe Martin", "14"], ["Grace Liu", "15"], ["Tom Baker", "16"],
+  ["Daniela Reyes", "01"],
+  ["Marcus Bell", "02"],
+  ["Priya Nair", "03"],
+  ["Sofia Alvarez", "04"],
+  ["Carlos Mendez", "05"],
+  ["Emily Chen", "06"],
+  ["Jasmine Okafor", "07"],
+  ["Laura Gómez", "08"],
+  ["Nina Petrova", "09"],
+  ["Olivia Brooks", "10"],
+  ["Hannah Kim", "11"],
+  ["Rosa Delgado", "12"],
+  ["Ava Thompson", "13"],
+  ["Zoe Martin", "14"],
+  ["Grace Liu", "15"],
+  ["Tom Baker", "16"],
 ];
 const SERVICES: ReadonlyArray<readonly [string, number]> = [
-  ["Cut", 45], ["Gloss", 60], ["Color", 90], ["Color treatment", 90], ["Gel manicure", 60],
-  ["Consultation", 30], ["Cut and blow-dry", 60], ["Treatment", 120],
+  ["Cut", 45],
+  ["Gloss", 60],
+  ["Color", 90],
+  ["Color treatment", 90],
+  ["Gel manicure", 60],
+  ["Consultation", 30],
+  ["Cut and blow-dry", 60],
+  ["Treatment", 120],
 ];
 /** A working day's slots, minutes after midnight: 9:30 to 6, the hours the page shows. */
 const SLOTS = [570, 630, 690, 750, 840, 900, 960, 1020];
@@ -42,12 +60,24 @@ const ical = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replac
 
 /** A zone this deployment's Intl can read; anything else is not one. */
 export function zoneOk(tz: string): boolean {
-  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The feed's text for the week from `nowMs`, in `tz`. */
 export function fillerCalendar(nowMs: number, tz: string): string {
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Chanlytics//Filler calendar//EN", "CALSCALE:GREGORIAN", "X-WR-CALNAME:Filler appointments", `X-WR-TIMEZONE:${tz}`];
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Chanlytics//Filler calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "X-WR-CALNAME:Filler appointments",
+    `X-WR-TIMEZONE:${tz}`,
+  ];
   for (let ahead = 0; ahead < DAYS_AHEAD; ahead++) {
     const d = dayPlusInZone(tz, nowMs, ahead);
     // dayPlusInZone spells the weekday one way for today (the formatter's "Sun") and another for the days
@@ -84,7 +114,11 @@ export function fillerCalendar(nowMs: number, tz: string): string {
  */
 export function fillerFeedFor(url: string, nowMs = Date.now()): string | null {
   let u: URL;
-  try { u = new URL(url); } catch { return null; }
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
   if (u.pathname !== FILLER_FEED_PATH) return null;
   const asked = u.searchParams.get("tz") ?? "";
   return fillerCalendar(nowMs, asked && zoneOk(asked) ? asked : "America/New_York");

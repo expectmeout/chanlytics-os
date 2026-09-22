@@ -26,7 +26,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSystemPrompt, describeNow, pausedVoiceFacts, parseTenantConfigResult } from "@chanlytics/contracts";
-import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, GREETING_DEFAULT, greetingFor, desiredVoiceShell } from "@chanlytics/channels";
+import {
+  FACTS_UNAVAILABLE,
+  CALLER_UNKNOWN,
+  GREETING_DEFAULT,
+  greetingFor,
+  desiredVoiceShell,
+} from "@chanlytics/channels";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -63,17 +69,56 @@ const fresh = () => {
 };
 
 const voiceChannel = (w, over = {}) => ({
-  id: `ch-${w.agent}`, tenant_id: w.tenant, kind: "voice", external_id: w.agent,
-  number_e164: "+13055550100", credentials_ref: null, config: {}, status: "active", ...over,
+  id: `ch-${w.agent}`,
+  tenant_id: w.tenant,
+  kind: "voice",
+  external_id: w.agent,
+  number_e164: "+13055550100",
+  credentials_ref: null,
+  config: {},
+  status: "active",
+  ...over,
 });
 const contact = (w) => ({
-  id: P1, tenant_id: w.tenant, phone_e164: CALLER, display_name: "Rosa", wa_profile_name: null,
-  last_seen_at: ago(3600_000), consent: "opted_in", dnc: false, notes: null, erased_at: null,
+  id: P1,
+  tenant_id: w.tenant,
+  phone_e164: CALLER,
+  display_name: "Rosa",
+  wa_profile_name: null,
+  last_seen_at: ago(3600_000),
+  consent: "opted_in",
+  dnc: false,
+  notes: null,
+  erased_at: null,
 });
 const conversation = (w) => ({ id: C1, tenant_id: w.tenant, contact_id: P1 });
 const history = (w) => [
-  { id: "m1", tenant_id: w.tenant, conversation_id: C1, body: "Are you open Saturday?", sender: "customer", direction: "inbound", type: "text", status: "received", created_at: ago(7200_000), channel_ts: ago(7200_000), meta: null },
-  { id: "m2", tenant_id: w.tenant, conversation_id: C1, body: "Yes, 9 to 5.", sender: "ai", direction: "outbound", type: "text", status: "sent", created_at: ago(7000_000), channel_ts: ago(7000_000), meta: null },
+  {
+    id: "m1",
+    tenant_id: w.tenant,
+    conversation_id: C1,
+    body: "Are you open Saturday?",
+    sender: "customer",
+    direction: "inbound",
+    type: "text",
+    status: "received",
+    created_at: ago(7200_000),
+    channel_ts: ago(7200_000),
+    meta: null,
+  },
+  {
+    id: "m2",
+    tenant_id: w.tenant,
+    conversation_id: C1,
+    body: "Yes, 9 to 5.",
+    sender: "ai",
+    direction: "outbound",
+    type: "text",
+    status: "sent",
+    created_at: ago(7000_000),
+    channel_ts: ago(7000_000),
+    meta: null,
+  },
 ];
 
 /** The world as it is when everything is in order, unless a case says otherwise. */
@@ -100,14 +145,24 @@ function calendar({ openings = null, visits = null } = {}) {
   return {
     asked,
     port: {
-      openings: async (rt, now) => { asked.openings.push({ tenant: rt.tenantId, now }); return openings; },
-      visits: async (rt, who, now) => { asked.visits.push({ tenant: rt.tenantId, who, now }); return visits; },
+      openings: async (rt, now) => {
+        asked.openings.push({ tenant: rt.tenantId, now });
+        return openings;
+      },
+      visits: async (rt, who, now) => {
+        asked.visits.push({ tenant: rt.tenantId, who, now });
+        return visits;
+      },
     },
   };
 }
 
 /** What the runtime knows for this workspace, as the loader builds it from these rows. */
-const knownOf = (w, channels = [voiceChannel(w)]) => ({ workspace: { name: "Harbor", timezone: TZ }, channels, listing: null });
+const knownOf = (w, channels = [voiceChannel(w)]) => ({
+  workspace: { name: "Harbor", timezone: TZ },
+  channels,
+  listing: null,
+});
 /** The facts as the text receptionist's composer writes them, on the one clock, with the openings after the day. */
 const factsOf = (w, openings) =>
   `${resolveSystemPrompt(brain, "voice", TZ, NOW, {}, knownOf(w))}\n\n${describeNow(TZ, NOW, brain.profile?.closures)}${openings ? `\n\n${openings}` : ""}`;
@@ -117,20 +172,40 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   const cal = calendar({ openings: OPENINGS, visits: VISITS });
   const r = await planCallStart({ agentId: w.agent, from: "+16465550123", db: world(w), now: NOW, calendar: cal.port });
   assert.deepEqual([r.facts, r.memory, r.alert, r.error], ["composed", "known", false, null]);
-  assert.equal(r.variables.business_facts, factsOf(w, OPENINGS), "the same composer the text receptionist uses, byte for byte, on one clock");
+  assert.equal(
+    r.variables.business_facts,
+    factsOf(w, OPENINGS),
+    "the same composer the text receptionist uses, byte for byte, on one clock",
+  );
   assert.equal(r.variables.greeting, greetingFor("Harbor Moving"));
-  assert.ok(r.variables.greeting.includes("Harbor Moving") && r.variables.greeting.includes("may be recorded") && r.variables.greeting.includes("automated assistant"));
+  assert.ok(
+    r.variables.greeting.includes("Harbor Moving") &&
+      r.variables.greeting.includes("may be recorded") &&
+      r.variables.greeting.includes("automated assistant"),
+  );
   assert.equal(r.variables.handoff_number, "+13055550199");
-  assert.deepEqual(r.variables.caller_context.split("\n"), [
-    "Name on record: Rosa. Returning contact. Last in touch today.",
-    VISITS,
-    "Recent interactions on this number (calls and messages):",
-    "Customer: Are you open Saturday?",
-    "Business: Yes, 9 to 5.",
-  ], "who they are, when they are booked, and what was said -- in the order it happened");
-  assert.deepEqual(cal.asked.visits.map((c) => c.who), [{ phone: CALLER, name: "Rosa" }], "asked about who they are, on the number they called from");
+  assert.deepEqual(
+    r.variables.caller_context.split("\n"),
+    [
+      "Name on record: Rosa. Returning contact. Last in touch today.",
+      VISITS,
+      "Recent interactions on this number (calls and messages):",
+      "Customer: Are you open Saturday?",
+      "Business: Yes, 9 to 5.",
+    ],
+    "who they are, when they are booked, and what was said -- in the order it happened",
+  );
+  assert.deepEqual(
+    cal.asked.visits.map((c) => c.who),
+    [{ phone: CALLER, name: "Rosa" }],
+    "asked about who they are, on the number they called from",
+  );
   assert.deepEqual(cal.asked.openings, [{ tenant: w.tenant, now: NOW }], "the openings on the same clock as the day");
-  assert.deepEqual(Object.keys(r.variables), ["caller_context", "business_facts", "handoff_number", "greeting"], "the four variables the shell's prompt reads, and nothing else");
+  assert.deepEqual(
+    Object.keys(r.variables),
+    ["caller_context", "business_facts", "handoff_number", "greeting"],
+    "the four variables the shell's prompt reads, and nothing else",
+  );
 });
 
 test("no caller ID: the facts are owed to every call, and the memory is nobody's", async () => {
@@ -138,14 +213,24 @@ test("no caller ID: the facts are owed to every call, and the memory is nobody's
   const cal = calendar({ openings: OPENINGS, visits: VISITS });
   const r = await planCallStart({ agentId: w.agent, from: "", db: world(w), now: NOW, calendar: cal.port });
   assert.deepEqual([r.facts, r.memory, r.alert, r.error], ["composed", "none", false, null]);
-  assert.equal(r.variables.business_facts, factsOf(w, OPENINGS), "REGRESSION: the whole lookup once sat inside `if (from)`");
+  assert.equal(
+    r.variables.business_facts,
+    factsOf(w, OPENINGS),
+    "REGRESSION: the whole lookup once sat inside `if (from)`",
+  );
   assert.equal(r.variables.caller_context, CALLER_UNKNOWN);
   assert.equal(cal.asked.visits.length, 0, "nobody to look up");
 });
 
 test("a number nobody has on file is told as new, in the words the text receptionist uses for the same person", async () => {
   const w = fresh();
-  const r = await planCallStart({ agentId: w.agent, from: "+16465550999", db: world(w), now: NOW, calendar: calendar().port });
+  const r = await planCallStart({
+    agentId: w.agent,
+    from: "+16465550999",
+    db: world(w),
+    now: NOW,
+    calendar: calendar().port,
+  });
   assert.deepEqual([r.facts, r.memory, r.error], ["composed", "new", null]);
   assert.equal(r.variables.caller_context, "New contact — no prior history on record.");
 });
@@ -153,7 +238,13 @@ test("a number nobody has on file is told as new, in the words the text receptio
 test("billing stopped: the take-a-message script replaces the prompt and nothing is added to it, and the calendar is not read for it", async () => {
   const w = fresh();
   const cal = calendar({ openings: OPENINGS });
-  const r = await planCallStart({ agentId: w.agent, from: CALLER, db: world(w, { status: "paused" }), now: NOW, calendar: cal.port });
+  const r = await planCallStart({
+    agentId: w.agent,
+    from: CALLER,
+    db: world(w, { status: "paused" }),
+    now: NOW,
+    calendar: cal.port,
+  });
   assert.deepEqual([r.facts, r.memory, r.alert, r.error], ["paused", "known", false, null]);
   assert.equal(r.variables.business_facts, pausedVoiceFacts("Harbor Moving"));
   assert.equal(cal.asked.openings.length, 0, "no open times are offered by a receptionist that cannot book");
@@ -171,13 +262,23 @@ test("an agent nobody routes: no facts, no memory, a greeting that names nobody,
     { caller_context: CALLER_UNKNOWN, business_facts: FACTS_UNAVAILABLE, greeting: GREETING_DEFAULT },
     "exactly what the shell would have said on its own, and no handoff key at all",
   );
-  assert.deepEqual(db.seen.filter((s) => s.op === "select").map((s) => s.table), ["tenant_channels"], "the routing answer, and nothing about anyone's memory or facts");
+  assert.deepEqual(
+    db.seen.filter((s) => s.op === "select").map((s) => s.table),
+    ["tenant_channels"],
+    "the routing answer, and nothing about anyone's memory or facts",
+  );
   assert.equal(cal.asked.openings.length + cal.asked.visits.length, 0);
 });
 
 test("a call with no agent on it is unrouted too, and the platform is told", async () => {
   const w = fresh();
-  const r = await planCallStart({ agentId: undefined, from: CALLER, db: world(w), now: NOW, calendar: calendar().port });
+  const r = await planCallStart({
+    agentId: undefined,
+    from: CALLER,
+    db: world(w),
+    now: NOW,
+    calendar: calendar().port,
+  });
   assert.deepEqual([r.facts, r.memory, r.alert], ["unrouted", "none", true]);
 });
 
@@ -191,10 +292,20 @@ test("the database did not answer about the channel: unreadable, not switched of
 });
 
 test("no database at all: unreadable, and nobody is paged for a deployment that persists nothing", async () => {
-  const r = await planCallStart({ agentId: "agent_without_a_database", from: CALLER, db: null, now: NOW, calendar: calendar().port });
+  const r = await planCallStart({
+    agentId: "agent_without_a_database",
+    from: CALLER,
+    db: null,
+    now: NOW,
+    calendar: calendar().port,
+  });
   assert.deepEqual([r.facts, r.memory, r.alert], ["unreadable", "none", false]);
   assert.match(r.error, /no database/);
-  assert.deepEqual(r.variables, { caller_context: CALLER_UNKNOWN, business_facts: FACTS_UNAVAILABLE, greeting: GREETING_DEFAULT });
+  assert.deepEqual(r.variables, {
+    caller_context: CALLER_UNKNOWN,
+    business_facts: FACTS_UNAVAILABLE,
+    greeting: GREETING_DEFAULT,
+  });
 });
 
 test("REGRESSION: a contact table that will not answer costs the caller their recognition, not the business its hours", async () => {
@@ -212,20 +323,37 @@ test("REGRESSION: a contact table that will not answer costs the caller their re
 
 test("routed and read, and no persona: told there are no facts rather than told nothing; a config that does not parse says so", async () => {
   const a = fresh();
-  const none = await planCallStart({ agentId: a.agent, from: CALLER, db: world(a, { config: {} }), now: NOW, calendar: calendar().port });
+  const none = await planCallStart({
+    agentId: a.agent,
+    from: CALLER,
+    db: world(a, { config: {} }),
+    now: NOW,
+    calendar: calendar().port,
+  });
   assert.deepEqual([none.facts, none.memory, none.alert, none.error], ["missing", "known", false, null]);
   assert.equal(none.variables.business_facts, FACTS_UNAVAILABLE);
   assert.equal(none.variables.greeting, GREETING_DEFAULT, "no name to greet with");
   assert.ok(!("handoff_number" in none.variables), "no line to dial, and not an empty one either");
   const b = fresh();
-  const broken = await planCallStart({ agentId: b.agent, from: CALLER, db: world(b, { config: { brain: { business_name: "" } } }), now: NOW, calendar: calendar().port });
+  const broken = await planCallStart({
+    agentId: b.agent,
+    from: CALLER,
+    db: world(b, { config: { brain: { business_name: "" } } }),
+    now: NOW,
+    calendar: calendar().port,
+  });
   assert.deepEqual([broken.facts, broken.error], ["missing", "the workspace's config does not parse"]);
   assert.equal(broken.variables.business_facts, FACTS_UNAVAILABLE);
 });
 
 test("a throw after the facts were composed keeps them: the caller gets what was read, and the log gets the error", async () => {
   const w = fresh();
-  const port = { openings: async () => OPENINGS, visits: async () => { throw new Error("feed exploded"); } };
+  const port = {
+    openings: async () => OPENINGS,
+    visits: async () => {
+      throw new Error("feed exploded");
+    },
+  };
   const r = await planCallStart({ agentId: w.agent, from: CALLER, db: world(w), now: NOW, calendar: port });
   assert.deepEqual([r.facts, r.memory, r.error], ["composed", "none", "feed exploded"]);
   assert.equal(r.variables.business_facts, factsOf(w, OPENINGS));
@@ -243,7 +371,10 @@ test("the shell's defaults are the judgement's fallbacks, one constant each: a c
   assert.ok(FACTS_UNAVAILABLE.length > 80, "a terse fallback is one the agent will talk over");
   assert.match(FACTS_UNAVAILABLE, /do not state/i, "it must forbid inventing the facts it lacks");
   for (const g of [greetingFor("Aurora Nails"), greetingFor(null)]) {
-    assert.ok(g.includes("may be recorded") && g.includes("automated assistant"), "both disclosures are the product's promises, not a dashboard setting");
+    assert.ok(
+      g.includes("may be recorded") && g.includes("automated assistant"),
+      "both disclosures are the product's promises, not a dashboard setting",
+    );
   }
   assert.ok(greetingFor("Aurora Nails").includes("Aurora Nails"));
   assert.ok(!/\{\{|\bnull\b|undefined/.test(greetingFor(null)), "no placeholder or stray value is read aloud");

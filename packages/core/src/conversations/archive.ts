@@ -4,7 +4,10 @@ import type { Thread, ThreadPorts } from "./ports";
 export type ArchivePorts = Pick<ThreadPorts, "archive" | "record" | "resolveEscalation">;
 
 /** Archive: close the thread (a state, never a deletion — P3). A later inbound reopens it. */
-export async function archive(ports: ArchivePorts, cmd: { conv: Pick<Thread, "id" | "tenant_id" | "paused_until" | "phone_e164"> }): Promise<{ state: "archived"; decision_id: string }> {
+export async function archive(
+  ports: ArchivePorts,
+  cmd: { conv: Pick<Thread, "id" | "tenant_id" | "paused_until" | "phone_e164"> },
+): Promise<{ state: "archived"; decision_id: string }> {
   const { conv } = cmd;
   // Closing a thread releases it completely, and the same UPDATE clears the
   // pause. The second store this used to release first, and put back when the

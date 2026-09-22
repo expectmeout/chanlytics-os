@@ -5,11 +5,11 @@
 Where this system is today, layer by layer, and what is between here and done.
 
 Measured against the tree on **13 September 2026**, first at `6a1725d` and re-measured at
-`9cda33d` after the day's work (see *What moved on 13 September*, below). Every count in
+`9cda33d` after the day's work (see _What moved on 13 September_, below). Every count in
 this document was taken from the code, not from a plan — the plan documents in
 `docs/plans/` describe intent at the moment they were written and several of
 them shipped without being re-ticked, so their checkboxes are the one signal
-here that is *not* trusted. Where a number is a judgement rather than a count,
+here that is _not_ trusted. Where a number is a judgement rather than a count,
 it says so.
 
 There was no system map before this one. The closest things were the four-row
@@ -30,7 +30,7 @@ sends the booking link, and hands over what it should not decide; an operator
 watches and takes over. Booking itself happens in the tool behind the link --
 the receptionist never confirms a slot, and there is no appointments table for
 it to confirm one into. That is the product, and "100% in all layers" means
-*that* product complete, safe and observable.
+_that_ product complete, safe and observable.
 
 **The mockup** is the ported HTML artifact in `apps/dashboard/src/legacy` —
 28,061 lines of JSX across 69 files, 50 pages. It contains an entire second
@@ -43,7 +43,7 @@ promised to anyone. From `apps/dashboard/src/legacy/CLAUDE.md:3-7`:
 > every real workspace. Ruben's decision: most of it is revisited **when the
 > product is at 100%**; none of those features is built before then.
 
-So the mockup's unbuilt half is not distance-to-100%. It is *after* 100%, by an
+So the mockup's unbuilt half is not distance-to-100%. It is _after_ 100%, by an
 explicit decision recorded in three places (`legacy/CLAUDE.md`,
 `surface-registry.ts:36-41`, `legacy-bridge/manifest.ts:56-60`). This map counts
 it separately and never folds it into the gap.
@@ -52,17 +52,17 @@ it separately and never folds it into the gap.
 
 ## The scoreboard
 
-| Layer | Where it is today | What 100% means | Distance |
-|---|---|---|---|
-| **Channels** | WhatsApp live with real customers. SMS code-complete, blocked on a carrier. Voice inbound-only. Email declared in the enum, absent in code. | Two channels a customer can actually reach, both observable. | **The largest gap in the system**, and mostly not ours to close |
-| **Edge runtime** | 41 endpoints, all shipped. 4 retired but still deployed. | — | Complete for the receptionist product |
-| **Shared packages** | 4 packages, `dist` committed and drift-guarded in CI. | — | Complete |
-| **Schema & tenancy** | 118 migrations, 42 tables, RLS on all 42, 91 functions. | — | Complete; 4 consistency nits |
-| **App plane (`/api/v1`)** | 124 handlers, every one declaring scope / role / rate / spend. 0 undeclared. | — | Complete |
-| **Operator surfaces** | 22 real, 6 deferred by decision, 2 retired, 1 fall-through default. | Every surface a paying customer can reach shows real data or says it is not built. | Complete — *and never walked end to end* |
-| **Quality & CI** | 250 test files, 2,027 tests, 0 failing. Two required checks. | The live path is executed, not read as text; a green PR means something. | **Was the second-largest gap; mostly closed** |
-| **Observability** | 17 clocks registered and judged; deadman, sweeps, operator paging. | — | Complete; 4 alerts lack a consequence |
-| **Commercial** | Stripe live end to end. Signup, onboarding, back office shipped. | — | One dead end: the waitlist |
+| Layer                     | Where it is today                                                                                                                           | What 100% means                                                                    | Distance                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **Channels**              | WhatsApp live with real customers. SMS code-complete, blocked on a carrier. Voice inbound-only. Email declared in the enum, absent in code. | Two channels a customer can actually reach, both observable.                       | **The largest gap in the system**, and mostly not ours to close |
+| **Edge runtime**          | 41 endpoints, all shipped. 4 retired but still deployed.                                                                                    | —                                                                                  | Complete for the receptionist product                           |
+| **Shared packages**       | 4 packages, `dist` committed and drift-guarded in CI.                                                                                       | —                                                                                  | Complete                                                        |
+| **Schema & tenancy**      | 118 migrations, 42 tables, RLS on all 42, 91 functions.                                                                                     | —                                                                                  | Complete; 4 consistency nits                                    |
+| **App plane (`/api/v1`)** | 124 handlers, every one declaring scope / role / rate / spend. 0 undeclared.                                                                | —                                                                                  | Complete                                                        |
+| **Operator surfaces**     | 22 real, 6 deferred by decision, 2 retired, 1 fall-through default.                                                                         | Every surface a paying customer can reach shows real data or says it is not built. | Complete — _and never walked end to end_                        |
+| **Quality & CI**          | 250 test files, 2,027 tests, 0 failing. Two required checks.                                                                                | The live path is executed, not read as text; a green PR means something.           | **Was the second-largest gap; mostly closed**                   |
+| **Observability**         | 17 clocks registered and judged; deadman, sweeps, operator paging.                                                                          | —                                                                                  | Complete; 4 alerts lack a consequence                           |
+| **Commercial**            | Stripe live end to end. Signup, onboarding, back office shipped.                                                                            | —                                                                                  | One dead end: the waitlist                                      |
 
 ---
 
@@ -70,18 +70,18 @@ it separately and never folds it into the gap.
 
 The only layer where the honest answer is "one of four".
 
-| Channel | State | What is actually missing |
-|---|---|---|
-| **WhatsApp** | **Live.** One real salon, real customers, real number. | Nothing |
-| **SMS** | **Code-complete, carrier-blocked.** Ingress, signature verification, consent/STOP handling, footer, held-line behaviour, A2P registration and refiling are all built and executed by tests (`sms-ingress.test.mjs` runs the real planner over an in-memory database). | A carrier verdict. The campaign has been refused five times and there is no sixth verdict. `lines.sms_state` carries `otp_waiting` (sole-proprietor) and `hosting` (hosted SMS) as declared-but-unbuilt escape routes — `00066_lines.sql:26` says so in the CHECK itself. |
-| **Voice** | **Inbound only.** Four Retell endpoints: inbound routing, the function bridge, availability, and the webhook. Whisper, hand-over and end-call all work from the dashboard. | No outbound calling anywhere in the tree (`create-phone-call` appears nowhere). Booking write-back from a voice call goes through the same path as text, but no e2e ever walks it. |
-| **Email** | **Declared, absent.** `MESSAGE_CHANNELS` and the `tenant_channels.kind` CHECK both list `email`; no edge code implements it. | Everything. This is a channel the schema promises and the product does not have. |
+| Channel      | State                                                                                                                                                                                                                                                                 | What is actually missing                                                                                                                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **WhatsApp** | **Live.** One real salon, real customers, real number.                                                                                                                                                                                                                | Nothing                                                                                                                                                                                                                                                                   |
+| **SMS**      | **Code-complete, carrier-blocked.** Ingress, signature verification, consent/STOP handling, footer, held-line behaviour, A2P registration and refiling are all built and executed by tests (`sms-ingress.test.mjs` runs the real planner over an in-memory database). | A carrier verdict. The campaign has been refused five times and there is no sixth verdict. `lines.sms_state` carries `otp_waiting` (sole-proprietor) and `hosting` (hosted SMS) as declared-but-unbuilt escape routes — `00066_lines.sql:26` says so in the CHECK itself. |
+| **Voice**    | **Inbound only.** Four Retell endpoints: inbound routing, the function bridge, availability, and the webhook. Whisper, hand-over and end-call all work from the dashboard.                                                                                            | No outbound calling anywhere in the tree (`create-phone-call` appears nowhere). Booking write-back from a voice call goes through the same path as text, but no e2e ever walks it.                                                                                        |
+| **Email**    | **Declared, absent.** `MESSAGE_CHANNELS` and the `tenant_channels.kind` CHECK both list `email`; no edge code implements it.                                                                                                                                          | Everything. This is a channel the schema promises and the product does not have.                                                                                                                                                                                          |
 
 The webhook door for voice deserves one precise sentence, because it is easy to
 state wrongly in both directions: **the Retell signature is verified**
 (`verifyRetellSignature`, over both the raw and re-stringified body, because
 Retell's own em-dash handling made one form fail). But a valid signature is not
-the *only* way in — a correct shared key also opens it — and if
+the _only_ way in — a correct shared key also opens it — and if
 `RETELL_WEBHOOK_KEY` is unset the edge falls back to `RETELL_API_KEY`, which is
 not the badged key, so every signature fails and the shared key becomes the only
 door in practice. The endpoint warns about exactly this on every request.
@@ -105,7 +105,7 @@ Blob code; `jobs/fire.ts`, the QStash responder, went on 16 September;
 `admin/backfill-calls.ts` and its driver were deleted on 14 September.
 
 The admin doors share one lock. `EDGE_CALL_SECRET` — the per-workspace,
-per-person, one-minute token — is *optional*: `apps/dashboard/src/server/edge.ts:24`
+per-person, one-minute token — is _optional_: `apps/dashboard/src/server/edge.ts:24`
 accepts `EDGE_CALL_SECRET || DIAG_KEY`, and `admin-auth.ts:6` says the shared key
 still works "while `EDGE_CALL_SECRET` is being rolled out." Until that variable
 is set in production, one shared secret opens all 22.
@@ -133,14 +133,14 @@ catches it locally. This is guarded properly.
 
 118 migrations, replayed from zero on a fresh Postgres in `database.yml`.
 
-| | Count |
-|---|---|
-| Tables | 42 |
-| With RLS enabled | **42 — all of them** |
-| With at least one policy | 36 |
-| Deny-all by design (RLS, no policy) | 6 |
-| `create policy` statements | 72 |
-| Functions | 91 |
+|                                     | Count                |
+| ----------------------------------- | -------------------- |
+| Tables                              | 42                   |
+| With RLS enabled                    | **42 — all of them** |
+| With at least one policy            | 36                   |
+| Deny-all by design (RLS, no policy) | 6                    |
+| `create policy` statements          | 72                   |
+| Functions                           | 91                   |
 
 **The floor holds.** No policy targets `anon`. None uses `using (true)`. No
 table is granted to `anon`. Every tenant-table policy scopes on `memberships`,
@@ -171,7 +171,7 @@ Four consistency nits, none of them a live leak:
    the 25th creates the month-after-next's partition. A `DEFAULT` partition
    catches overflow so a lapsed precreate degrades ingest instead of aborting it
    — but once rows for month M land in `events_default`, creating M's own
-   partition *raises*, and the cron then fails every month until a human moves
+   partition _raises_, and the cron then fails every month until a human moves
    the rows out. `sweep-health.ts:73` names this exact failure. Detection is
    indirect (a 35-day silence on `cron.job_run_details`), and nothing alerts on
    `events_default` row count. Separately, **there is no partition-level purge** —
@@ -182,7 +182,7 @@ Four consistency nits, none of them a live leak:
 `docs/plans/2026-09-09-the-system-it-should-be.md` still shows Phase 3 with five
 open boxes; that phase was rewritten as
 `docs/plans/2026-09-10-the-route-definition.md`, which is 13 of 13 shipped. The
-rewrite explicitly decided *against* a workspace cookie — "selection stays per
+rewrite explicitly decided _against_ a workspace cookie — "selection stays per
 tab; there is no cookie" — so the absence of a `chanlytics_ws` cookie and a
 `workspaces/select` route is the design, not a gap.
 
@@ -213,19 +213,19 @@ marked `demo` renders the honest "not in this release" card outside an explicit
 demo session. A test fails CI if the shell declares a route this table does not
 classify, so a fabrication cannot ship by forgetting.
 
-| | Count | |
-|---|---|---|
-| **Real** — fed by live data through the SurfaceData seam | **22** | today, inbox, conversations, clients, segments, reports, live, calendar, outbound, broadcasts, messages, and 11 admin panes including the back office |
-| **Retired** — the feature was folded into another surface | 2 | `leads`, `pipeline` → People. The booking is the conversion, and People shows who booked. Not pending work. |
-| **Fall-through default** | 1 | `admin`, so an unlisted pane inherits the honest default rather than shipping unclassified |
-| **Deferred to after 100%** | **6** | `shared`, `tasks`, `fleet`, `store`, `studio`, `content` |
+|                                                           | Count  |                                                                                                                                                       |
+| --------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Real** — fed by live data through the SurfaceData seam  | **22** | today, inbox, conversations, clients, segments, reports, live, calendar, outbound, broadcasts, messages, and 11 admin panes including the back office |
+| **Retired** — the feature was folded into another surface | 2      | `leads`, `pipeline` → People. The booking is the conversion, and People shows who booked. Not pending work.                                           |
+| **Fall-through default**                                  | 1      | `admin`, so an unlisted pane inherits the honest default rather than shipping unclassified                                                            |
+| **Deferred to after 100%**                                | **6**  | `shared`, `tasks`, `fleet`, `store`, `studio`, `content`                                                                                              |
 
 Those 22 real surfaces are fed by 11 distinct SurfaceData overrides, and the
 registry test pins that every real row has one and every override has a row.
 
 **Against the receptionist finish line the surface layer is complete: 22 of 22.**
 Against the mockup it is 22 of 28. The six deferred surfaces are unbuilt at
-*every* layer — no half-finished route, no orphan table, no dead component. That
+_every_ layer — no half-finished route, no orphan table, no dead component. That
 is worth stating plainly, because a partially-built feature is a liability and
 none of these is one.
 
@@ -247,21 +247,21 @@ This is the layer where the numbers look best and the reality is weakest.
 
 **The reality.** 1,039 of those assertions are `readCode`/`readRaw` source scans
 — they read a file as text and assert a string is in it. A source scan proves the
-code still *says* something; it does not prove the code *does* anything. The
+code still _says_ something; it does not prove the code _does_ anything. The
 repo knows this and fights it with a ratchet (`source-scan-baseline.json`, a
 per-file count that may only fall), which is the right mechanism. But the
 distribution is the problem:
 
-| Layer | Execution coverage |
-|---|---|
-| `apps/dashboard/app/api/v1` | **Best.** 82 of 106 route modules imported and invoked against a fake database |
-| `apps/dashboard/src/server` | Good — 29 of 45 executed |
-| `apps/edge/lib` | Good — 31 of 52 executed |
-| `packages/contracts` | Good — invoked by 152 test files through its entry point |
-| the legacy-bridge | Weak — 12 of 39 executed; the two most-pinned modules in the whole repo (`surface-data.ts`, `LegacyApp.tsx`) are text-only, and this is the exact seam every "fabricated data" bug has lived in |
+| Layer                        | Execution coverage                                                                                                                                                                                                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/dashboard/app/api/v1`  | **Best.** 82 of 106 route modules imported and invoked against a fake database                                                                                                                                                                                                           |
+| `apps/dashboard/src/server`  | Good — 29 of 45 executed                                                                                                                                                                                                                                                                 |
+| `apps/edge/lib`              | Good — 31 of 52 executed                                                                                                                                                                                                                                                                 |
+| `packages/contracts`         | Good — invoked by 152 test files through its entry point                                                                                                                                                                                                                                 |
+| the legacy-bridge            | Weak — 12 of 39 executed; the two most-pinned modules in the whole repo (`surface-data.ts`, `LegacyApp.tsx`) are text-only, and this is the exact seam every "fabricated data" bug has lived in                                                                                          |
 | **`apps/edge/api` handlers** | **Was the worst layer; now among the best.** 41 handlers; **30 execute** (was 5). 8 are still pinned by text — `whatsapp.ts`, `inbound-sms.ts`, `jobs/tick.ts`, `retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`'s `POST`, and two retired doors. 3 are touched by nothing. |
 
-That last row *was* the finding: on the morning of 13 September the path a real
+That last row _was_ the finding: on the morning of 13 September the path a real
 customer's message travels was the least-executed layer in the system. By that
 evening 30 of the 41 handlers ran under test — the Retell webhook, the lines
 door, all eight cron sweeps and seventeen back-office doors — and the eight
@@ -286,7 +286,7 @@ are written and their briefs are ready.
   flipped, a red migrations replay does not block a merge.
 - ~~**`packages/db/src/database.types.ts` is the one unguarded generated
   artifact.**~~ **Closed 13 September** (`97f803f`). `ci.yml:61-63` was a
-  *comment describing a freshness check that was never implemented*; the check
+  _comment describing a freshness check that was never implemented_; the check
   now exists — `tooling/scripts/check-db-types.mjs`, run in `database.yml`
   against the database the migrations replay, ignoring exactly one line
   (`PostgrestVersion`, which the generator reads off the running PostgREST) and
@@ -296,7 +296,7 @@ are written and their briefs are ready.
   assumption that the linked project and the local stack differ only in its
   value. They differ more than that: the local generator writes no
   `__InternalSupabase` block at all, and `00002` creates a year of
-  `events_yYYYYmMM` partitions *around the day the migrations run*, so the same
+  `events_yYYYYmMM` partitions _around the day the migrations run_, so the same
   migrations replayed in another month produce different tables and the check
   would have gone red every month for no schema reason. Both are now ignored as
   environment rather than schema, and the check is green on
@@ -313,7 +313,7 @@ One thing here is genuinely well-built and should not be lost:
 `REQUIRE_SERVICE_CREDENTIALS=1` is the anti-hollow-run flag, and it makes three
 separate guards bite (the node suite, the browser suite, and a skip ceiling). It
 exists because the nightly once reported success four mornings running while
-executing 24 of 128 specs. It is deliberately *not* keyed on `CI`, because GitHub
+executing 24 of 128 specs. It is deliberately _not_ keyed on `CI`, because GitHub
 sets `CI=true` for the credential-free PR job too.
 
 **Uncovered in e2e**, and the first name on the list is the one that matters:
@@ -334,7 +334,7 @@ customer is waiting and nobody has answered; `pageOperator` gives platform-level
 conditions durable per-key suppression so one condition is one page, not fifty.
 
 Four registered alerts fire without a sentence saying what a human should
-*do* about them. That is a documentation gap in the alert body, not a missing
+_do_ about them. That is a documentation gap in the alert body, not a missing
 alarm.
 
 There are zero real `TODO`/`FIXME` markers in the repository.
@@ -366,14 +366,14 @@ reviewers caught, among other things, a pin whose replacement was vacuous, a
 guard that was not load-bearing, and a production seam whose default branch —
 the one production actually takes — nothing exercised.
 
-| | Before | After |
-|---|---|---|
-| `apps/edge/api` handlers executing under test | 5 of 41 | **30 of 41** |
-| Source-text pins on those handlers | 100 | **19** (8 handlers, all uncommissioned or retired) |
-| Tests in the suite | 1,854 | **2,027** |
-| Source-scan reads across the suite | 1,039 | **960** |
-| Generated artifacts with no freshness check | 1 | **0** |
-| Policies applying to `PUBLIC` | 9 | **0** (after `db push`) |
+|                                               | Before  | After                                              |
+| --------------------------------------------- | ------- | -------------------------------------------------- |
+| `apps/edge/api` handlers executing under test | 5 of 41 | **30 of 41**                                       |
+| Source-text pins on those handlers            | 100     | **19** (8 handlers, all uncommissioned or retired) |
+| Tests in the suite                            | 1,854   | **2,027**                                          |
+| Source-scan reads across the suite            | 1,039   | **960**                                            |
+| Generated artifacts with no freshness check   | 1       | **0**                                              |
+| Policies applying to `PUBLIC`                 | 9       | **0** (after `db push`)                            |
 
 Two things found along the way that are not yet fixed, both recorded rather
 than quietly absorbed: five admin doors answer a `null` JSON body with a 500
@@ -386,19 +386,19 @@ read throws), and a pre-existing test had a clock bomb that began failing at
 Ordered by what actually stands between the product and done. Effort figures are
 estimates.
 
-| # | What | Why it is here | Effort |
-|---|---|---|---|
-| 1 | **Walk gate 9** — signup → first answered call, on production, as a new user with a phone in hand | The only launch gate with an empty state cell. Nine gates were defined; eight shipped. Nobody has ever walked the real product with fresh eyes, and its own PRD calls it "the highest-information hour available before launch." Everything below this list may be reordered by what that hour finds. | ~1 day |
-| 2 | **The SMS carrier verdict** | The single largest functional gap, and mostly not ours to close. Five refusals, no sixth verdict. Every line of code behind it is written and tested. | Blocked externally |
-| 3 | **Execute the edge handlers** | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep; six of eight sessions done that day** — the Retell webhook, the lines door, all eight crons and seventeen back-office doors now execute (41 pins deleted). **Left:** the WhatsApp door, the SMS door + job tick, and the two other Retell doors — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md`, tasks A, B and D. | ~3 days left |
-| 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); first CI run green on #460. | done |
-| 5 | **An e2e spec for the conversation thread** | The product's central surface has no browser test. Reply, take-over, escalation resolution, the message lifecycle. | 2–3 days |
-| 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Built 14 Sep:** the check reports on every pull request and replays only when the database could have changed (plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`, tasks 1 to 3). **Left:** the setting that makes it required, which is Ruben's. | the setting |
-| 7 | **Automate the `events` partition** | It can wedge permanently and self-perpetuatingly, with up to 35 days of detection lag, and the remediation is manual. Alert on `events_default` row count; add a partition-level purge. | 1–2 days |
-| 8 | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints | One shared key currently opens 22 admin doors; four deployed doors have no caller. | ~half day |
-| 9 | **Drain the waitlist** | People are joining a list nothing reads. | 1–2 days |
-| 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00` — nine clauses, not eight); replayed green in CI and applied to production the same day, as `00120` after a renumber. | ~2 hours |
-| 11 | **Add `next build` to CI** | A build failure should not first appear on Vercel. **Done 14 Sep** for the dashboard, as the last step of the required Typecheck job; `apps/edge` is still built by Vercel alone. | done |
+| #   | What                                                                                              | Why it is here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Effort             |
+| --- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 1   | **Walk gate 9** — signup → first answered call, on production, as a new user with a phone in hand | The only launch gate with an empty state cell. Nine gates were defined; eight shipped. Nobody has ever walked the real product with fresh eyes, and its own PRD calls it "the highest-information hour available before launch." Everything below this list may be reordered by what that hour finds.                                                                                                                                                                                                                                                                                                                                                                                                           | ~1 day             |
+| 2   | **The SMS carrier verdict**                                                                       | The single largest functional gap, and mostly not ours to close. Five refusals, no sixth verdict. Every line of code behind it is written and tested.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Blocked externally |
+| 3   | **Execute the edge handlers**                                                                     | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep; six of eight sessions done that day** — the Retell webhook, the lines door, all eight crons and seventeen back-office doors now execute (41 pins deleted). **Left:** the WhatsApp door, the SMS door + job tick, and the two other Retell doors — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md`, tasks A, B and D. | ~3 days left       |
+| 4   | **Guard `database.types.ts`**                                                                     | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); first CI run green on #460.                                                                                                                                                                                                                                                                                                                                                                                                                                                                | done               |
+| 5   | **An e2e spec for the conversation thread**                                                       | The product's central surface has no browser test. Reply, take-over, escalation resolution, the message lifecycle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 2–3 days           |
+| 6   | **Make `database.yml` a required check**                                                          | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Built 14 Sep:** the check reports on every pull request and replays only when the database could have changed (plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`, tasks 1 to 3). **Left:** the setting that makes it required, which is Ruben's.                                                                                                                                                                                                                                                                                                                             | the setting        |
+| 7   | **Automate the `events` partition**                                                               | It can wedge permanently and self-perpetuatingly, with up to 35 days of detection lag, and the remediation is manual. Alert on `events_default` row count; add a partition-level purge.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 1–2 days           |
+| 8   | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints                                     | One shared key currently opens 22 admin doors; four deployed doors have no caller.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ~half day          |
+| 9   | **Drain the waitlist**                                                                            | People are joining a list nothing reads.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 1–2 days           |
+| 10  | **The four `revoke` migrations and the eight `TO authenticated` clauses**                         | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00` — nine clauses, not eight); replayed green in CI and applied to production the same day, as `00120` after a renumber.                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ~2 hours           |
+| 11  | **Add `next build` to CI**                                                                        | A build failure should not first appear on Vercel. **Done 14 Sep** for the dashboard, as the last step of the required Typecheck job; `apps/edge` is still built by Vercel alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | done               |
 
 Not on this list, deliberately: outbound calling, email as a channel, and the six
 mockup surfaces. All three are real work; none of them is between here and the
@@ -419,7 +419,7 @@ receptionist product being complete.
 - **The mockup's unbuilt half.** Six surfaces, deferred by a recorded decision to
   after 100%. Counting them as debt would report the product as permanently
   incomplete against a target nobody set.
-- **Test *count*.** 1,913 passing tests is not 1,913 proofs. Where it matters,
+- **Test _count_.** 1,913 passing tests is not 1,913 proofs. Where it matters,
   this map counts what executes.
 
 ## Keeping this map true

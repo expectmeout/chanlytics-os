@@ -11,7 +11,9 @@
 export type ReviewReplyMode = "auto" | "ask" | "never";
 
 /** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft on request, nothing posted alone. */
-export function reviewReplyModeOf(rows: ReadonlyArray<{ class: string; mode: string }> | null | undefined): ReviewReplyMode {
+export function reviewReplyModeOf(
+  rows: ReadonlyArray<{ class: string; mode: string }> | null | undefined,
+): ReviewReplyMode {
   const m = rows?.find((r) => r.class === "reviews")?.mode;
   return m === "auto" || m === "never" ? m : "ask";
 }
@@ -80,7 +82,9 @@ export function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswe
     "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
     "",
     "Answer with the reply text only.",
-  ].filter((l): l is string => l !== null).join("\n");
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
 
   const name = firstName(review.author);
   const text = (review.text ?? "").replace(/\s+/g, " ").trim();
@@ -89,7 +93,9 @@ export function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswe
     `From: ${name ? review.author!.trim() : "a customer who did not give a name"}`,
     review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
     text ? `Review: "${text}"` : "The review has no words, only the stars.",
-  ].filter((l): l is string => l !== null).join("\n");
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
   return { system, user };
 }
 
@@ -122,7 +128,12 @@ export interface ReviewOnRecord {
  * older than two weeks. Newest first, capped; the rest wait for the next
  * hour, which finds them still unreplied.
  */
-export function autoReplyCandidates<T extends ReviewOnRecord>(rows: readonly T[], connectedAt: string | null, nowMs: number, cap = REVIEW_AUTO_REPLIES_PER_SYNC): T[] {
+export function autoReplyCandidates<T extends ReviewOnRecord>(
+  rows: readonly T[],
+  connectedAt: string | null,
+  nowMs: number,
+  cap = REVIEW_AUTO_REPLIES_PER_SYNC,
+): T[] {
   const connected = connectedAt ? Date.parse(connectedAt) : NaN;
   if (Number.isNaN(connected)) return [];
   return rows
@@ -135,14 +146,21 @@ export function autoReplyCandidates<T extends ReviewOnRecord>(rows: readonly T[]
 }
 
 /** The bell after the receptionist answered: one review by name, several by count. */
-export function autoReplyBell(answered: ReadonlyArray<{ author: string | null; text: string }>): { title: string; body: string } | null {
+export function autoReplyBell(
+  answered: ReadonlyArray<{ author: string | null; text: string }>,
+): { title: string; body: string } | null {
   if (!answered.length) return null;
   if (answered.length === 1) {
     const who = (answered[0].author ?? "").trim();
     return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
   }
   const names = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
-  return { title: `Replied to ${answered.length} reviews on Google`, body: names.length ? `Under the reviews from ${names.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports." };
+  return {
+    title: `Replied to ${answered.length} reviews on Google`,
+    body: names.length
+      ? `Under the reviews from ${names.join(", ")}. Each reply is on Reports.`
+      : "Each reply is on Reports.",
+  };
 }
 
 /** What the Reports card says beside the source of its reviews, when replies can go out from here. */

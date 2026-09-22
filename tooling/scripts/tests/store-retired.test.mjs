@@ -63,7 +63,8 @@ function sourceFiles(roots) {
 const read = (f) => (f.endsWith(".json") ? readRaw(f) : readCode(f));
 
 /** What the store, its flags and its job kind would look like if any came back. */
-const GONE = /@vercel\/blob|lib\/store\.js|\.\.\/store\.js|blob_thread_erase|PG_READS|PG_WRITES|PG_DEDUPE|BLOB_SHADOW|BLOB_READ_WRITE_TOKEN/;
+const GONE =
+  /@vercel\/blob|lib\/store\.js|\.\.\/store\.js|blob_thread_erase|PG_READS|PG_WRITES|PG_DEDUPE|BLOB_SHADOW|BLOB_READ_WRITE_TOKEN/;
 
 test("the store is gone: no module, no dependency, no importer, no flag", () => {
   for (const gone of [
@@ -77,8 +78,9 @@ test("the store is gone: no module, no dependency, no importer, no flag", () => 
   // The SDK, the importers, the job kind and the four levers, in one sweep:
   // a variable nothing reads is still a lie in the manifest and a value
   // somebody will go looking for, so they go with the code that read them.
-  const offenders = sourceFiles(["apps/edge", "apps/dashboard/app", "apps/dashboard/src/server", "packages"])
-    .filter((f) => GONE.test(read(f)));
+  const offenders = sourceFiles(["apps/edge", "apps/dashboard/app", "apps/dashboard/src/server", "packages"]).filter(
+    (f) => GONE.test(read(f)),
+  );
   assert.deepEqual(offenders, [], "the posture is the code now, not an env flip");
 });
 
@@ -93,16 +95,41 @@ test("the manifest documents no lever either", () => {
 });
 
 test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
-  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"]);
+  assert.deepEqual(
+    [...JOB_KINDS],
+    [
+      "outbound_send",
+      "broadcast_send",
+      "line_provision",
+      "email_ingest",
+      "lead_round_start",
+      "lead_collect",
+      "lead_check",
+    ],
+  );
   const handlers = readCode("packages/jobs/src/handlers.ts");
-  for (const k of JOB_KINDS) assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
-  for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire", "blob_thread_erase"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
+  for (const k of JOB_KINDS)
+    assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
+  for (const dead of [
+    "veto_fire",
+    "media_fetch",
+    "rollup_daily",
+    "report_weekly",
+    "snooze_wake",
+    "pause_expire",
+    "blob_thread_erase",
+  ])
+    assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
   // door in SQL that inserts the job itself (the lead finder's, 00140).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
   const migrations = path.join(ROOT, "supabase/migrations");
-  const sql = fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).map((f) => fs.readFileSync(path.join(migrations, f), "utf8")).join("\n");
+  const sql = fs
+    .readdirSync(migrations)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => fs.readFileSync(path.join(migrations, f), "utf8"))
+    .join("\n");
   for (const k of JOB_KINDS) {
     const named = new RegExp(`(schedule(?:Job)?\\([^;]*"${k}"|kind: "${k}")`, "s");
     const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");

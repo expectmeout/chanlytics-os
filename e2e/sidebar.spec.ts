@@ -68,7 +68,10 @@ test.describe("sidebar on a real workspace", () => {
       await page.keyboard.press("Escape");
       await expect(page.getByTestId("shortcuts-sheet")).toHaveCount(0);
     } finally {
-      await page.evaluate((p) => { if (p === null) localStorage.removeItem("chanlytics-os-prefs"); else localStorage.setItem("chanlytics-os-prefs", p); }, prefsBefore);
+      await page.evaluate((p) => {
+        if (p === null) localStorage.removeItem("chanlytics-os-prefs");
+        else localStorage.setItem("chanlytics-os-prefs", p);
+      }, prefsBefore);
     }
   });
 
@@ -79,7 +82,9 @@ test.describe("sidebar on a real workspace", () => {
    * workspace -- where demoOnly items are filtered out and a node render of the
    * rail cannot see that filtering.
    */
-  test("the Inbox is one door: Conversations and Live are its views, and the rail lights one item", async ({ page }) => {
+  test("the Inbox is one door: Conversations and Live are its views, and the rail lights one item", async ({
+    page,
+  }) => {
     await signIn(page);
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
@@ -94,7 +99,11 @@ test.describe("sidebar on a real workspace", () => {
       await expect(rail.locator(".nav-item", { hasText: place })).toHaveCount(1);
     }
 
-    for (const [hash, tab] of [["/#/inbox", "Needs you"], ["/#/conversations", "Conversations"], ["/#/live", "Live"]] as const) {
+    for (const [hash, tab] of [
+      ["/#/inbox", "Needs you"],
+      ["/#/conversations", "Conversations"],
+      ["/#/live", "Live"],
+    ] as const) {
       await page.goto(hash);
       await page.waitForLoadState("networkidle");
       const strip = page.locator(".stabs");

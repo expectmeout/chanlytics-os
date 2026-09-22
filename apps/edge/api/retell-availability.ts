@@ -16,7 +16,18 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/packages/contracts.js";
+import {
+  describeOpenings,
+  filterOpenings,
+  offerFor,
+  offerLead,
+  policyAskClass,
+  type ConsultRules,
+  type ServiceLike,
+  type ServiceOffer,
+} from "../lib/packages/contracts.js";
+import { env } from "../lib/env.js";
+import { logger } from "../lib/log.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
@@ -63,38 +74,47 @@ export async function POST(request: Request): Promise<Response> {
   // The third Retell door, guarded like the other two (retell-fn, retell-inbound)
   // and the webhook: an unset or empty secret matches nothing, so an empty
   // header never opens it because the configured secret is empty too.
-  const secret = process.env.RETELL_FN_SECRET;
+  const secret = env.RETELL_FN_SECRET;
   if (!secret || request.headers.get("x-fn-secret") !== secret) {
     return json(401, { ok: false, error: "bad_secret" });
   }
   let body: { call?: { call_id?: string; agent_id?: string }; args?: { day?: unknown; service?: unknown } } = {};
-  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* fall through with empty body */
+  }
   const call = body.call ?? {};
   const args = body.args ?? {};
-  const log = (event: string, extra: Record<string, unknown> = {}) =>
-    console.log(event, JSON.stringify({ call_id: call.call_id, agent_id: call.agent_id, ...extra }));
+  const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
 
   const db = pg();
   const routed = db && call.agent_id ? await resolveChannel(db, "voice", call.agent_id) : null;
   if (!db || !routed) {
-    log("retell_availability_unrouted");
+    L.info("retell_availability_unrouted");
     return json(200, { result: CANNOT_SEE });
   }
   const rt = await loadTenantRuntime(db, routed);
   if (policyAskClass(rt.policy, "booking") === "booking") {
-    log("retell_availability_booking_held", { tenant: routed.tenantId });
+    L.info("retell_availability_booking_held", { tenant: routed.tenantId });
     return json(200, { result: BOOKING_HELD });
   }
   if (!rt.calendar?.ical_url) {
-    log("retell_availability_no_calendar", { tenant: routed.tenantId });
+    L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
     return json(200, { result: NO_CALENDAR });
   }
   const data = await openingsData(rt);
   if (!data) {
-    log("retell_availability_unavailable", { tenant: routed.tenantId });
+    L.info("retell_availability_unavailable", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEE });
   }
   const answer = availabilityAnswer(data, rt.brain?.profile, args);
-  log("retell_availability", { tenant: routed.tenantId, day: answer.day, service: answer.offer?.service.name ?? null, consultation: answer.offer?.consultation ?? false, days: answer.days });
+  L.info("retell_availability", {
+    tenant: routed.tenantId,
+    day: answer.day,
+    service: answer.offer?.service.name ?? null,
+    consultation: answer.offer?.consultation ?? false,
+    days: answer.days,
+  });
   return json(200, { result: answer.result });
 }

@@ -27,9 +27,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
-  clients: "real",  // People · Clients; Leads / Deal board / Lists stay demo
-  reports: "real",  // the receptionist's numbers; the share link stays demo
-  live: "real",     // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
+  clients: "real", // People · Clients; Leads / Deal board / Lists stay demo
+  reports: "real", // the receptionist's numbers; the share link stays demo
+  live: "real", // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
@@ -40,35 +40,35 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // revisited when the product is at 100%, and none of those features is built
   // before then. Nothing here is a promise to a customer or an operator.
   // Lifted 18 Sep 2026 (Ruben): a scope of People at clients/leads, fed by the leads surface.
-  leads: "real",     // the route itself still redirects (SURFACE_RETIRED): the scope is clients/leads
-  segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
-  pipeline: "demo",  // retired into People, like leads
-  calendar: "real",  // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
-  shared: "demo",   // the read-only report viewer — a share link over invented numbers
+  leads: "real", // the route itself still redirects (SURFACE_RETIRED): the scope is clients/leads
+  segments: "real", // People › Lists: the lists kept by hand and the computed ones, with their people
+  pipeline: "demo", // retired into People, like leads
+  calendar: "real", // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
+  shared: "demo", // the read-only report viewer — a share link over invented numbers
   tasks: "demo",
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  outbound: "real",   // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
+  outbound: "real", // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
   content: "demo",
-  broadcasts: "real",  // one approved template to the people who said yes; SMS and email stay not available
-  messages: "real",    // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
-  admin: "demo",    // the page itself: every pane below is classified, and a
-                    // pane nobody has listed inherits this honest default
-  "admin/setup": "real",      // read from the workspace: contracts/setup.ts over /api/v1/setup
-  "admin/profile": "real",    // you: name, the address you signed in with, your role
+  broadcasts: "real", // one approved template to the people who said yes; SMS and email stay not available
+  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
+  admin: "demo", // the page itself: every pane below is classified, and a
+  // pane nobody has listed inherits this honest default
+  "admin/setup": "real", // read from the workspace: contracts/setup.ts over /api/v1/setup
+  "admin/profile": "real", // you: name, the address you signed in with, your role
   "admin/workspace": "real",
-  "admin/team": "real",       // split out of workspace: the people, their roles, invites
-  "admin/autonomy": "real",   // the policies table, live for the reply row
-  "admin/notifications": "real",  // who is alerted, from tenant_config
-  "admin/integrations": "real",   // the channels in tenant_channels, read-only
+  "admin/team": "real", // split out of workspace: the people, their roles, invites
+  "admin/autonomy": "real", // the policies table, live for the reply row
+  "admin/notifications": "real", // who is alerted, from tenant_config
+  "admin/integrations": "real", // the channels in tenant_channels, read-only
   // Billing is real on every workspace (billing-real.jsx). Memory is not built,
   // and says so IN the pane: falling through to the page's "demo" replaced all
   // of Settings with a bare card; the pane keeps the nav and states what exists
   // instead (settings.jsx PaneSoon).
   "admin/billing": "real",
   "admin/memory": "real",
-  "admin/activity": "real",   // both ledgers, from GET /activity, owners only
+  "admin/activity": "real", // both ledgers, from GET /activity, owners only
   // The back office (gate 5, #300): every workspace sorted by who needs a
   // person, read from the guarded platform routes. It was never listed here,
   // so its tab fell through to the page's "demo" and a platform admin who

@@ -29,12 +29,24 @@ const Body = z
       ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
     }
     if (b.translate) {
-      if (!b.translate.id === !b.translate.starter) ctx.addIssue({ code: "custom", path: ["translate"], message: "Say which template to write in another language." });
-      if (b.language === undefined) ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
+      if (!b.translate.id === !b.translate.starter)
+        ctx.addIssue({
+          code: "custom",
+          path: ["translate"],
+          message: "Say which template to write in another language.",
+        });
+      if (b.language === undefined)
+        ctx.addIssue({ code: "custom", path: ["language"], message: "Pick a language from the list." });
       return;
     }
-    if (!b.brief || b.brief.length < 4) ctx.addIssue({ code: "custom", path: ["brief"], message: "Say what you want to tell customers — one line is enough." });
-    if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(b.category)) ctx.addIssue({ code: "custom", path: ["category"], message: "A template is marketing or utility." });
+    if (!b.brief || b.brief.length < 4)
+      ctx.addIssue({
+        code: "custom",
+        path: ["brief"],
+        message: "Say what you want to tell customers — one line is enough.",
+      });
+    if (!(TEMPLATE_CATEGORIES as readonly (string | undefined)[]).includes(b.category))
+      ctx.addIssue({ code: "custom", path: ["category"], message: "A template is marketing or utility." });
   });
 
 /**
@@ -56,16 +68,32 @@ export const POST = write({
   handle: async ({ ctx, member, input }) => {
     if (input.translate) {
       const language = input.language as string;
-      const ref: SourceRef = input.translate.id ? { id: input.translate.id } : { starter: input.translate.starter as string, from: input.translate.from ?? null };
+      const ref: SourceRef = input.translate.id
+        ? { id: input.translate.id }
+        : { starter: input.translate.starter as string, from: input.translate.from ?? null };
       const src = await translationSource(ctx, member.tenantId, ref, language);
       if (!src.ok) throw new AppError(src.code, src.message);
       const t = await translateTemplate(ctx, member.tenantId, { source: src.source, language });
-      if (!t.ok) throw new AppError(t.reason === "refused" ? "upstream_anthropic" : "validation", t.message, t.reason === "refused" ? 502 : 422);
+      if (!t.ok)
+        throw new AppError(
+          t.reason === "refused" ? "upstream_anthropic" : "validation",
+          t.message,
+          t.reason === "refused" ? 502 : 422,
+        );
       return { draft: t.draft };
     }
     const language = input.language ?? "en_US";
-    const r = await draftTemplate(ctx, member.tenantId, { brief: input.brief as string, category: input.category as "marketing" | "utility", language });
-    if (!r.ok) throw new AppError(r.reason === "refused" ? "upstream_anthropic" : "validation", r.message, r.reason === "refused" ? 502 : 422);
+    const r = await draftTemplate(ctx, member.tenantId, {
+      brief: input.brief as string,
+      category: input.category as "marketing" | "utility",
+      language,
+    });
+    if (!r.ok)
+      throw new AppError(
+        r.reason === "refused" ? "upstream_anthropic" : "validation",
+        r.message,
+        r.reason === "refused" ? 502 : 422,
+      );
     return { draft: r.draft };
   },
 });

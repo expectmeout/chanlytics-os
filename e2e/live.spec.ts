@@ -14,7 +14,17 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
  * card rows at the Inbox's width, not a table, and no second list of the calls
  * Conversations › Calls already holds.
  */
-const INVENTED = ["Selena Cho", "Aisha Khan", "Maya Rodriguez", "Serenity Spa", "Phone Rep", "Live Listen", "Take Over", "End Call", "Take-overs"];
+const INVENTED = [
+  "Selena Cho",
+  "Aisha Khan",
+  "Maya Rodriguez",
+  "Serenity Spa",
+  "Phone Rep",
+  "Live Listen",
+  "Take Over",
+  "End Call",
+  "Take-overs",
+];
 
 test.describe("Live on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -65,7 +75,9 @@ test.describe("Live on a real workspace", () => {
     }
   });
 
-  test("Live's list is the Inbox's width: switching the Inbox's views does not move the list's edge", async ({ page }) => {
+  test("Live's list is the Inbox's width: switching the Inbox's views does not move the list's edge", async ({
+    page,
+  }) => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
     const inboxList = await page.locator(".ix-list").first().boundingBox();

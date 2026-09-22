@@ -126,13 +126,16 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
   const empty = !legal || !f.street.trim() || !f.city.trim();
 
   const identity: BusinessPageVM["identity"] = [];
-  if (legal) identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
+  if (legal)
+    identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
   const where = addressLine(f);
   if (where) identity.push({ label: "Address", value: where });
   const phone = formatPhoneDisplay(f.publicPhoneE164);
   if (phone) identity.push({ label: "Phone", value: phone, href: `tel:${f.publicPhoneE164}` });
-  if (f.contactEmail.trim()) identity.push({ label: "Email", value: f.contactEmail.trim(), href: `mailto:${f.contactEmail.trim()}` });
-  if (f.websiteUrl && f.websiteUrl.trim()) identity.push({ label: "Website", value: f.websiteUrl.trim(), href: f.websiteUrl.trim() });
+  if (f.contactEmail.trim())
+    identity.push({ label: "Email", value: f.contactEmail.trim(), href: `mailto:${f.contactEmail.trim()}` });
+  if (f.websiteUrl && f.websiteUrl.trim())
+    identity.push({ label: "Website", value: f.websiteUrl.trim(), href: f.websiteUrl.trim() });
 
   return {
     title: known || "This business",
@@ -142,10 +145,13 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
     identity,
     services: f.services.slice(0, 40).map((s) => ({
       name: s.name,
-      detail: [
-        typeof s.durationMin === "number" && s.durationMin > 0 ? `${s.durationMin} min` : null,
-        (s.priceNote ?? "").trim() || null,
-      ].filter(Boolean).join(" · ") || null,
+      detail:
+        [
+          typeof s.durationMin === "number" && s.durationMin > 0 ? `${s.durationMin} min` : null,
+          (s.priceNote ?? "").trim() || null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
     })),
     smsLead: smsConsentSentence(known || "This business"),
     smsClauses: SMS_CLAUSES,
@@ -196,8 +202,14 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
     title: `Text messaging terms: ${known}`,
     lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
     items: [
-      { label: "The program", text: `${known} texts customers who asked for it: replies to what they write, and confirmations and reminders about their own appointments. No offers or promotions are sent by text.` },
-      { label: "How you join", text: `By texting START to ${known}'s number from your own phone, by writing to ${known} first, or by ticking and signing the box on its sign-up form. Consent is not a condition of any purchase.` },
+      {
+        label: "The program",
+        text: `${known} texts customers who asked for it: replies to what they write, and confirmations and reminders about their own appointments. No offers or promotions are sent by text.`,
+      },
+      {
+        label: "How you join",
+        text: `By texting START to ${known}'s number from your own phone, by writing to ${known} first, or by ticking and signing the box on its sign-up form. Consent is not a condition of any purchase.`,
+      },
       { label: "Message frequency", text: "Message frequency varies." },
       { label: "Cost", text: "Message and data rates may apply." },
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
@@ -218,14 +230,22 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
 export function businessPageMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
   const vm = f ? businessPageVM(f) : null;
   if (!vm || vm.empty) return notFoundPageMetadata();
-  return { title: vm.title, description: `${vm.title} — who we are, what we do, and our text-message terms.`, robots: { index: true, follow: true } };
+  return {
+    title: vm.title,
+    description: `${vm.title} — who we are, what we do, and our text-message terms.`,
+    robots: { index: true, follow: true },
+  };
 }
 
 /** The program's terms, by the same rule: named for the business customers know, or Not found and unindexed. */
 export function textingTermsMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
   if (!f || textingTermsVM(f).empty) return notFoundPageMetadata();
   const name = businessPageVM(f).title;
-  return { title: `Text messaging terms: ${name}`, description: `The terms of the text messages ${name} sends.`, robots: { index: true, follow: true } };
+  return {
+    title: `Text messaging terms: ${name}`,
+    description: `The terms of the text messages ${name} sends.`,
+    robots: { index: true, follow: true },
+  };
 }
 
 /* -------------------------------------------------------------------------- *
@@ -271,7 +291,11 @@ export interface PreflightProblem {
 }
 
 /** Loose enough that "Melany's Salon" and "Melanys Salon LLC" are the same business. */
-const loose = (s: string) => s.toLowerCase().replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+const loose = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
 
 export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   const out: PreflightProblem[] = [];

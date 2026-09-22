@@ -12,8 +12,16 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
-import { apifyClient, leadJudge, LEAD_JUDGE_DEFAULT_MODEL, type ApifyClient, type LeadJudge, type LeadJudgeClient } from "./packages/channels.js";
+import {
+  apifyClient,
+  leadJudge,
+  LEAD_JUDGE_DEFAULT_MODEL,
+  type ApifyClient,
+  type LeadJudge,
+  type LeadJudgeClient,
+} from "./packages/channels.js";
 import { JUDGE_TIMEOUT_MS } from "./packages/core.js";
+import { env } from "./env.js";
 
 const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 
@@ -28,23 +36,23 @@ export interface LeadWires {
 
 /** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else EDGE_ORIGIN, else the address the edge has always had. */
 export function leadWebhookBase(): string {
-  const o = process.env.LEAD_WEBHOOK_BASE || process.env.EDGE_ORIGIN;
+  const o = env.LEAD_WEBHOOK_BASE || env.EDGE_ORIGIN;
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_ORIGIN;
 }
 
 export async function leadWebhookToken(runRowId: string): Promise<string> {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("lead webhook: no key to derive a token from");
   return createHmac("sha256", key).update(`lead-webhook:${runRowId}`).digest("base64url");
 }
 
 /** One constant (PRD decision 3), overridable by the env to another Claude model; anything else is the default. */
-export function leadJudgeModel(v: string | undefined = process.env.LEAD_JUDGE_MODEL): string {
+export function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
   return v && /^claude-[a-z0-9.-]+$/.test(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
 }
 
 /** The server-side fallback (decision 14): on unless the env says off. */
-export function leadJudgeFallbacks(v: string | undefined = process.env.LEAD_JUDGE_FALLBACKS): boolean {
+export function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): boolean {
   return !(v === "off" || v === "0" || v === "false");
 }
 
@@ -52,7 +60,8 @@ export function leadJudgeFallbacks(v: string | undefined = process.env.LEAD_JUDG
 // No retry of the SDK's own: a second try doubles the window the runner's
 // JUDGE_MARGIN_MS guards, and a slow answer is the ledger's retry to make, not
 // the client's inside a job that is about to be killed.
-const realJudgeClient = (): LeadJudgeClient => new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
+const realJudgeClient = (): LeadJudgeClient =>
+  new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
 let judgeClientFor: () => LeadJudgeClient = realJudgeClient;
 /** Tests hand in their own; null restores the real one. */
 export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {
@@ -60,8 +69,8 @@ export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {
 }
 
 export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
-  const token = process.env.APIFY_TOKEN;
-  if (!token || !process.env.ANTHROPIC_API_KEY) return undefined;
+  const token = env.APIFY_TOKEN;
+  if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
     apify: apifyClient(fetchImpl, token),
     judge: leadJudge(judgeClientFor(), leadJudgeModel(), leadJudgeFallbacks()),
@@ -85,7 +94,10 @@ async function pageText(fetchImpl: typeof fetch, url: string, timeoutMs: number)
     const res = await fetchImpl(url, {
       signal: stop,
       redirect: "follow",
-      headers: { accept: "text/html,application/xhtml+xml", "user-agent": "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)" },
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)",
+      },
     });
     if (!res.ok) return null;
     if (!(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;

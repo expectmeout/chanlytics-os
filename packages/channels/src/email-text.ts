@@ -22,6 +22,8 @@ export function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string 
       { selector: "img", format: "skip" },
       { selector: "a", options: { hideLinkHrefIfSameAsText: true } },
     ],
-  }).replace(/\n{3,}/g, "\n\n").trim();
+  })
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return converted || null;
 }

@@ -32,7 +32,9 @@ export const dynamic = "force-dynamic";
 function Emphasised({ text }: { text: string }) {
   return (
     <>
-      {text.split(/(\bHELP\b|\bSTOP\b)/).map((part, i) => (part === "HELP" || part === "STOP" ? <b key={i}>{part}</b> : <span key={i}>{part}</span>))}
+      {text
+        .split(/(\bHELP\b|\bSTOP\b)/)
+        .map((part, i) => (part === "HELP" || part === "STOP" ? <b key={i}>{part}</b> : <span key={i}>{part}</span>))}
     </>
   );
 }
@@ -56,10 +58,13 @@ export default async function TextingTermsPage({ params }: { params: Promise<{ s
         ))}
       </ul>
       <p>
-        Privacy policy: <a href={vm.privacyUrl} data-testid="bt-privacy">{vm.privacyUrl}</a>. These messages are sent for the business named
-        above by a receptionist operated by Chanlytics (RJ Capital LLC, 193 Jamaica Ave, Brooklyn, NY 11207,{" "}
-        <a href="tel:+19175746416">+1 (917) 574-6416</a>); what Chanlytics holds as their processor is in the{" "}
-        <a href="/privacy">Chanlytics privacy policy</a>.
+        Privacy policy:{" "}
+        <a href={vm.privacyUrl} data-testid="bt-privacy">
+          {vm.privacyUrl}
+        </a>
+        . These messages are sent for the business named above by a receptionist operated by Chanlytics (RJ Capital LLC,
+        193 Jamaica Ave, Brooklyn, NY 11207, <a href="tel:+19175746416">+1 (917) 574-6416</a>); what Chanlytics holds as
+        their processor is in the <a href="/privacy">Chanlytics privacy policy</a>.
       </p>
     </main>
   );

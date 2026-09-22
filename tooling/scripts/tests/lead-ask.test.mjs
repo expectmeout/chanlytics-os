@@ -101,7 +101,16 @@ const viewRow = (over = {}) => ({
 const world = () => ({
   lead_searches_view: [
     viewRow(),
-    viewRow({ id: SEARCH2, name: "Independent pharmacies near 78704", created_at: "2026-09-19T09:00:00Z", state: "running", ending: null, counted: 12, qualified: 12, review: 3 }),
+    viewRow({
+      id: SEARCH2,
+      name: "Independent pharmacies near 78704",
+      created_at: "2026-09-19T09:00:00Z",
+      state: "running",
+      ending: null,
+      counted: 12,
+      qualified: 12,
+      review: 3,
+    }),
   ],
   tenants: [{ id: A, name: "Zilker Strength", timezone: "America/Chicago", slug: "harbor" }],
   lead_counters: [
@@ -117,9 +126,16 @@ const DOORS = {
 };
 
 const toolContext = ({ role = "owner", tables = world(), rpcs = DOORS } = {}) =>
-  newToolContext({ supabase: fakeDb(tables, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} }, A, role, "America/Chicago", NOW);
+  newToolContext(
+    { supabase: fakeDb(tables, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} },
+    A,
+    role,
+    "America/Chicago",
+    NOW,
+  );
 
-const envelope = (data) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+const envelope = (data) =>
+  new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
 
 /** A tab whose fetch answers the routes a lead card reaches, and keeps what left it. */
 function fakeClient(answers) {
@@ -139,14 +155,27 @@ function fakeClient(answers) {
   });
   return { client, calls };
 }
-const win = { location: { hash: "" }, dispatchEvent: () => true, setTimeout: (fn) => { fn(); return 1; } };
+const win = {
+  location: { hash: "" },
+  dispatchEvent: () => true,
+  setTimeout: (fn) => {
+    fn();
+    return 1;
+  },
+};
 
 test("propose_lead_search makes a plan card for an owner; the model's plan is completed and checked, never trusted", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", MODEL_INPUT);
   assert.equal(out.isError, false);
-  assert.deepEqual([out.proposal.kind, out.proposal.needs, out.proposal.title], ["lead_search", "owner", "Find 200 personal trainers"]);
-  assert.equal(out.proposal.summary, "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: chain gyms.");
+  assert.deepEqual(
+    [out.proposal.kind, out.proposal.needs, out.proposal.title],
+    ["lead_search", "owner", "Find 200 personal trainers"],
+  );
+  assert.equal(
+    out.proposal.summary,
+    "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: chain gyms.",
+  );
   assert.equal(out.proposal.payload.plan.version, 1);
   assert.match(JSON.parse(out.result).note, /Nothing has happened yet/);
   // The plan is the schema's own, not the model's words passed through.
@@ -161,15 +190,41 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
 test("what a model writes and the plan means the same thing: a Title-Case key, a packed city, a bracketed country", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", {
-    ...MODEL_INPUT, category_key: "Wedding-Venue", city: "Miami, FL", region: "Miami", country: "United States (US)",
-    who: "wedding venues", who_one: "wedding venue", terms: ["wedding venue", "event space"],
+    ...MODEL_INPUT,
+    category_key: "Wedding-Venue",
+    city: "Miami, FL",
+    region: "Miami",
+    country: "United States (US)",
+    who: "wedding venues",
+    who_one: "wedding venue",
+    terms: ["wedding venue", "event space"],
   });
   assert.equal(out.isError, false, out.result);
-  assert.deepEqual([out.proposal.payload.plan.area.label, out.proposal.payload.plan.area.state, out.proposal.payload.plan.area.query], ["Miami, FL", "FL", "Miami, FL, USA"]);
-  assert.equal(out.proposal.payload.facts.priorOf, "wedding_venue", "the key it asked the prior for is the plan's own shape, not the model's Title-Case");
-  const stateInCity = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, city: "Florida", region: "Miami" });
-  assert.equal(stateInCity.proposal.payload.plan.area.label, "Miami, FL", "the two fields swapped still name one place");
-  const abroad = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, country: "Canada", region: "ON", city: "Toronto" });
+  assert.deepEqual(
+    [out.proposal.payload.plan.area.label, out.proposal.payload.plan.area.state, out.proposal.payload.plan.area.query],
+    ["Miami, FL", "FL", "Miami, FL, USA"],
+  );
+  assert.equal(
+    out.proposal.payload.facts.priorOf,
+    "wedding_venue",
+    "the key it asked the prior for is the plan's own shape, not the model's Title-Case",
+  );
+  const stateInCity = await buildProposal(t, "propose_lead_search", {
+    ...MODEL_INPUT,
+    city: "Florida",
+    region: "Miami",
+  });
+  assert.equal(
+    stateInCity.proposal.payload.plan.area.label,
+    "Miami, FL",
+    "the two fields swapped still name one place",
+  );
+  const abroad = await buildProposal(t, "propose_lead_search", {
+    ...MODEL_INPUT,
+    country: "Canada",
+    region: "ON",
+    city: "Toronto",
+  });
   assert.equal(abroad.isError, true, "and a country that is not the US is still a refusal in words");
 });
 
@@ -188,12 +243,33 @@ test("the card carries the facts under the sentence: what a search would skip, w
   });
   // The turn's own moment, never the server's: the month and the day it renews
   // are the business's (lead_month).
-  const nextYear = newToolContext({ supabase: fakeDb(world(), {}, DOORS), userId: "u1", email: "ada@example.com", params: {} }, A, "owner", "America/Chicago", new Date("2026-12-20T15:00:00Z"));
+  const nextYear = newToolContext(
+    { supabase: fakeDb(world(), {}, DOORS), userId: "u1", email: "ada@example.com", params: {} },
+    A,
+    "owner",
+    "America/Chicago",
+    new Date("2026-12-20T15:00:00Z"),
+  );
   const december = await buildProposal(nextYear, "propose_lead_search", MODEL_INPUT);
   assert.equal(december.proposal.payload.facts.renewsOn, "Jan 1, 2027");
-  assert.equal(december.proposal.payload.facts.leadsLeft, 500, "a month with no counter of its own has the whole allowance");
+  assert.equal(
+    december.proposal.payload.facts.leadsLeft,
+    500,
+    "a month with no counter of its own has the whole allowance",
+  );
   // A kind nobody has searched carries no prior, and the card says so itself.
-  const fresh = newToolContext({ supabase: fakeDb(world(), {}, { ...DOORS, lead_niche_prior: () => null }), userId: "u1", email: "ada@example.com", params: {} }, A, "owner", "America/Chicago", NOW);
+  const fresh = newToolContext(
+    {
+      supabase: fakeDb(world(), {}, { ...DOORS, lead_niche_prior: () => null }),
+      userId: "u1",
+      email: "ada@example.com",
+      params: {},
+    },
+    A,
+    "owner",
+    "America/Chicago",
+    NOW,
+  );
   const unknown = await buildProposal(fresh, "propose_lead_search", MODEL_INPUT);
   assert.deepEqual([unknown.proposal.payload.facts.prior, unknown.proposal.payload.facts.priorOf], [null, null]);
 });
@@ -203,7 +279,11 @@ test("the planner's refusals are words for the model to say, and no card", async
   const out = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, country: "CA", region: "ON" });
   assert.deepEqual([out.proposal, out.isError], [null, true]);
   assert.match(JSON.parse(out.result).error, /I can only find businesses in the US for now/);
-  const op = await buildProposal(toolContext({ role: "operator", tables: world() }), "propose_lead_search", MODEL_INPUT);
+  const op = await buildProposal(
+    toolContext({ role: "operator", tables: world() }),
+    "propose_lead_search",
+    MODEL_INPUT,
+  );
   assert.match(JSON.parse(op.result).error, /only an owner can start a lead search/);
   const people = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, looking_for: "people" });
   assert.match(JSON.parse(people.result).error, /I find businesses, not people at home/);
@@ -213,22 +293,63 @@ test("the planner's refusals are words for the model to say, and no card", async
 });
 
 test("list_lead_searches says what was asked, in the owner's words, and how each ended", async () => {
-  const s = JSON.parse((await runTool(toolContext({ role: "viewer", tables: world() }), { name: "list_lead_searches", input: {} })).result);
-  assert.deepEqual(Object.keys(s.searches[0]).sort(), ["asked", "asked_on", "counted", "ending", "id", "name", "qualified", "review", "state"]);
+  const s = JSON.parse(
+    (await runTool(toolContext({ role: "viewer", tables: world() }), { name: "list_lead_searches", input: {} })).result,
+  );
+  assert.deepEqual(Object.keys(s.searches[0]).sort(), [
+    "asked",
+    "asked_on",
+    "counted",
+    "ending",
+    "id",
+    "name",
+    "qualified",
+    "review",
+    "state",
+  ]);
   assert.ok(s.searches.every((x) => Object.values(x).every((v) => typeof v !== "string" || v.length <= 120)));
   // Newest first, the ending in words, and a round still going has none.
-  assert.deepEqual(s.searches.map((x) => x.id), [SEARCH2, SEARCH]);
+  assert.deepEqual(
+    s.searches.map((x) => x.id),
+    [SEARCH2, SEARCH],
+  );
   assert.equal(s.searches[1].ending, LEAD_ENDING_WORDS.target_reached);
   assert.equal(s.searches[0].ending, null);
   assert.equal(s.searches[0].state, "running");
 });
 
 test("the card commits to POST lead-searches marked as Ask's, and its undo stops the search", async () => {
-  const { client, calls } = fakeClient({ "POST /api/v1/lead-searches": { search_id: SEARCH, round_id: ROUND }, [`POST /api/v1/lead-searches/${SEARCH}/stop`]: { ok: true } });
-  const done = await commitProposal(win, { id: "p1", kind: "lead_search", needs: "owner", title: "Find 200 personal trainers", summary: "…", payload: { plan: PLAN }, undo: "Stop the search" }, client);
-  assert.deepEqual([done.ok, done.receipt, done.undo], [true, "Finding 200 personal trainers. It carries on if you leave; Leads shows it.", { search_id: SEARCH }]);
+  const { client, calls } = fakeClient({
+    "POST /api/v1/lead-searches": { search_id: SEARCH, round_id: ROUND },
+    [`POST /api/v1/lead-searches/${SEARCH}/stop`]: { ok: true },
+  });
+  const done = await commitProposal(
+    win,
+    {
+      id: "p1",
+      kind: "lead_search",
+      needs: "owner",
+      title: "Find 200 personal trainers",
+      summary: "…",
+      payload: { plan: PLAN },
+      undo: "Stop the search",
+    },
+    client,
+  );
+  assert.deepEqual(
+    [done.ok, done.receipt, done.undo],
+    [true, "Finding 200 personal trainers. It carries on if you leave; Leads shows it.", { search_id: SEARCH }],
+  );
   assert.equal(calls[0].headers["x-via"], "ask");
   assert.deepEqual(calls[0].body, PLAN, "the plan the owner approved is what is posted");
-  const undone = await undoProposal(win, { kind: "lead_search" }, { state: "done", receipt: done.receipt, atMs: Date.now(), undo: done.undo }, client);
-  assert.deepEqual([undone.ok, undone.receipt], [true, "Stopping. Whatever it found is kept, and the emails already found are still checked."]);
+  const undone = await undoProposal(
+    win,
+    { kind: "lead_search" },
+    { state: "done", receipt: done.receipt, atMs: Date.now(), undo: done.undo },
+    client,
+  );
+  assert.deepEqual(
+    [undone.ok, undone.receipt],
+    [true, "Stopping. Whatever it found is kept, and the emails already found are still checked."],
+  );
 });

@@ -87,18 +87,28 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
       p_note: null,
     };
     // The proof (00110): where it came from, which message, what they wrote.
-    const evidence = { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null };
+    const evidence = {
+      channel: p.channel,
+      message_external_id: p.messageExternalId,
+      words: (p.body ?? "").slice(0, 80) || null,
+    };
     let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence } as never);
     // A database that has not been given 00110 yet has no p_evidence, and
     // PostgREST refuses the call by naming the parameters it could not match.
     // The answer is recorded without its proof rather than not at all; any
     // other refusal is reported below as before.
-    if (mErr && /p_evidence/.test(mErr.message)) ({ error: mErr } = await db.rpc("set_marketing_consent", args as never));
+    if (mErr && /p_evidence/.test(mErr.message))
+      ({ error: mErr } = await db.rpc("set_marketing_consent", args as never));
     if (mErr) {
-      console.error(JSON.stringify({
-        level: "error", event: "marketing_consent_write_failed",
-        tenant_id: p.tenantId, contact_id: out.contact_id, error: mErr.message,
-      }));
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "marketing_consent_write_failed",
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          error: mErr.message,
+        }),
+      );
     }
   }
   return out;
@@ -162,9 +172,7 @@ export async function recordOutbound(
   // stamped either way.
   const status = p.status ?? "sent";
   await Promise.all([
-    db.from("conversations")
-      .update({ last_message_at: new Date().toISOString() })
-      .eq("id", p.conversationId),
+    db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", p.conversationId),
     status === "sent"
       ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
       : Promise.resolve(),
@@ -347,11 +355,7 @@ export async function recordStatusByExternalId(
 ): Promise<void> {
   const patch: { status: typeof status; error?: Json } = { status };
   if (errorDetail) patch.error = errorDetail;
-  const { error } = await db
-    .from("messages")
-    .update(patch)
-    .eq("tenant_id", tenantId)
-    .eq("external_id", externalId);
+  const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
   // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
   if (error && !/monotone|terminal/.test(error.message)) {
     console.error("record_status_failed", externalId, error.message);
@@ -364,7 +368,13 @@ export async function recordStatusByExternalId(
  *  receptionist answers over the person who just replied. */
 export async function recordEchoAndPause(
   db: Db,
-  p: { tenantId: string; customerPhoneDigits: string; body: string | null; externalId: string | null; pausedUntilIso: string },
+  p: {
+    tenantId: string;
+    customerPhoneDigits: string;
+    body: string | null;
+    externalId: string | null;
+    pausedUntilIso: string;
+  },
 ): Promise<void> {
   const phone = `+${p.customerPhoneDigits.replace(/^\+/, "")}`;
   // Was an .upsert on the PARTIAL unique index, which PostgREST cannot target —
@@ -391,7 +401,10 @@ export async function recordEchoAndPause(
     .upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" })
     .select("id")
     .single();
-  if (verr || !conv) { console.error("record_echo_conv_failed", verr?.message); return; }
+  if (verr || !conv) {
+    console.error("record_echo_conv_failed", verr?.message);
+    return;
+  }
   const { error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
     conversation_id: conv.id,

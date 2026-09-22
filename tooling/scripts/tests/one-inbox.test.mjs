@@ -27,11 +27,43 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.window = {
@@ -46,7 +78,9 @@ globalThis.window = {
   __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -60,12 +94,21 @@ await import("../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const findAll = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const findAll = (tree, pred) => {
+  const out = [];
+  walk(tree, (n) => {
+    if (pred(n)) out.push(n);
+  });
+  return out;
+};
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);
@@ -110,15 +153,32 @@ test("the nav is seven places, and Conversations is not one of them", () => {
 
 test("every conversation route highlights the Inbox -- its views never light a place of their own", () => {
   for (const at of ["inbox", "conversations", "live", "calls", "chats", "email"]) {
-    const lit = nav(at).filter((i) => i.active).map((i) => i.label);
+    const lit = nav(at)
+      .filter((i) => i.active)
+      .map((i) => i.label);
     assert.deepEqual(lit, ["Inbox"], `at ${at}: one item lit, and it is the Inbox`);
   }
 });
 
 test("the other merged surfaces keep their own item", () => {
-  assert.deepEqual(nav("clients").filter((i) => i.active).map((i) => i.label), ["People"]);
-  assert.deepEqual(nav("broadcasts").filter((i) => i.active).map((i) => i.label), ["Campaigns"]);
-  assert.deepEqual(nav("calendar").filter((i) => i.active).map((i) => i.label), ["Calendar"]);
+  assert.deepEqual(
+    nav("clients")
+      .filter((i) => i.active)
+      .map((i) => i.label),
+    ["People"],
+  );
+  assert.deepEqual(
+    nav("broadcasts")
+      .filter((i) => i.active)
+      .map((i) => i.label),
+    ["Campaigns"],
+  );
+  assert.deepEqual(
+    nav("calendar")
+      .filter((i) => i.active)
+      .map((i) => i.label),
+    ["Calendar"],
+  );
 });
 
 /* ------------------------------- the tab strip ------------------------------- */
@@ -126,21 +186,45 @@ test("the other merged surfaces keep their own item", () => {
 test("the Inbox strip offers the three views, and says which one you are on", () => {
   win.INBOX_DATA = { THREADS: [] };
   const labels = ["Needs you", "Conversations", "Live"];
-  assert.deepEqual(strip("inbox").map((t) => t.label), labels);
-  assert.deepEqual(strip("inbox").filter((t) => t.active).map((t) => t.label), ["Needs you"]);
-  assert.deepEqual(strip("conversations").filter((t) => t.active).map((t) => t.label), ["Conversations"]);
-  assert.deepEqual(strip("live").filter((t) => t.active).map((t) => t.label), ["Live"]);
+  assert.deepEqual(
+    strip("inbox").map((t) => t.label),
+    labels,
+  );
+  assert.deepEqual(
+    strip("inbox")
+      .filter((t) => t.active)
+      .map((t) => t.label),
+    ["Needs you"],
+  );
+  assert.deepEqual(
+    strip("conversations")
+      .filter((t) => t.active)
+      .map((t) => t.label),
+    ["Conversations"],
+  );
+  assert.deepEqual(
+    strip("live")
+      .filter((t) => t.active)
+      .map((t) => t.label),
+    ["Live"],
+  );
   // A channel filter is the page's own control (conversations.jsx `.cv-filters`), never a second copy up here.
-  assert.deepEqual(strip("conversations", "phone").map((t) => t.label), labels, "the strip does not change with the channel");
+  assert.deepEqual(
+    strip("conversations", "phone").map((t) => t.label),
+    labels,
+    "the strip does not change with the channel",
+  );
 });
 
 test("the strip's badge is the count that already exists, not a second reading of it", () => {
   win.ixWaitsOnYou = (t) => !!t.needsYou;
-  win.INBOX_DATA = { THREADS: [
-    { id: "c1", real: true, needsYou: true },
-    { id: "c2", real: true, needsYou: true },
-    { id: "c3", real: true, needsYou: false },
-  ] };
+  win.INBOX_DATA = {
+    THREADS: [
+      { id: "c1", real: true, needsYou: true },
+      { id: "c2", real: true, needsYou: true },
+      { id: "c3", real: true, needsYou: false },
+    ],
+  };
   assert.equal(win.sbNeedsCount(), 2, "the fixture holds two that wait on you");
   assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
   win.INBOX_DATA = { THREADS: [{ id: "c3", real: true, needsYou: false }] };

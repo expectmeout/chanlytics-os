@@ -10,7 +10,10 @@ const Query = z.object({
   // value comes back as 22P02, which is not an AppError, so withRoute renders a
   // client's typo as a 500 "Something went wrong" -- the exact failure
   // requireUuid exists to prevent for ids.
-  before: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "before must be a timestamp.").optional(),
+  before: z
+    .string()
+    .refine((s) => !Number.isNaN(Date.parse(s)), "before must be a timestamp.")
+    .optional(),
 });
 
 /**

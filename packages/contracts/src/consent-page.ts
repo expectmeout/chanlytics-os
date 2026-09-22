@@ -209,7 +209,9 @@ function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
  * paper form is the version a customer signs, so it may not drift from the page a
  * reviewer reads.
  */
-function askWords(name: string): Record<SendPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
+function askWords(
+  name: string,
+): Record<SendPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
   return {
     conversational: {
       title: "Messages about your visit",
@@ -255,10 +257,14 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
   const empty = conversation.length === 0 && offers.length === 0;
   const words = askWords(name);
 
-  const asks: ConsentAsk[] = empty ? [] : [
-    ...(conversation.length ? [{ purpose: "conversational" as const, ...words.conversational, ways: conversation }] : []),
-    ...(offers.length ? [{ purpose: "marketing" as const, ...words.marketing, ways: offers }] : []),
-  ];
+  const asks: ConsentAsk[] = empty
+    ? []
+    : [
+        ...(conversation.length
+          ? [{ purpose: "conversational" as const, ...words.conversational, ways: conversation }]
+          : []),
+        ...(offers.length ? [{ purpose: "marketing" as const, ...words.marketing, ways: offers }] : []),
+      ];
 
   return {
     title: `Text messages from ${name}`,
@@ -321,20 +327,37 @@ export interface ConsentFormVM {
  * Unlike the page it needs no number: a business can take signed forms before its
  * line is approved for texting.
  */
-export function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null }): ConsentFormVM {
+export function consentFormVM(
+  f: Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null },
+): ConsentFormVM {
   const name = f.businessName.trim() || "This business";
   const words = askWords(name);
   // The offers box is WhatsApp's, like the offers ask on the page: a business
   // without WhatsApp has one box, and its texting line carries no promotions.
   const sections: ConsentFormSection[] = [
-    { purpose: "conversational", ...words.conversational, box: `Yes, text me about my appointments with ${name}.`, sign: "Signature for this box" },
-    ...(f.whatsappE164 ? [{ purpose: "marketing" as const, ...words.marketing, box: `Yes, send me offers and news from ${name} on WhatsApp.`, sign: "Signature for this box" }] : []),
+    {
+      purpose: "conversational",
+      ...words.conversational,
+      box: `Yes, text me about my appointments with ${name}.`,
+      sign: "Signature for this box",
+    },
+    ...(f.whatsappE164
+      ? [
+          {
+            purpose: "marketing" as const,
+            ...words.marketing,
+            box: `Yes, send me offers and news from ${name} on WhatsApp.`,
+            sign: "Signature for this box",
+          },
+        ]
+      : []),
   ];
   return {
     title: `Text messages from ${name}`,
-    lead: sections.length > 1
-      ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other."
-      : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
+    lead:
+      sections.length > 1
+        ? "Two separate boxes. Tick and sign only the ones you want: signing one does not sign you up for the other, and either one can be had without the other."
+        : "One box. Tick and sign it if you want messages about your appointments: a reply when you write, and reminders and confirmations.",
     fields: ["Name", "Mobile number"],
     sections,
     terms: bothTerms(name),
@@ -355,7 +378,9 @@ export function consentPageMetadata(f: ConsentPageFacts | null): PublicPageMetad
 export function consentFormMetadata(
   f: (Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null }) | null,
 ): PublicPageMetadata {
-  return f ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+  return f
+    ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } }
+    : notFoundPageMetadata();
 }
 
 /**
@@ -402,7 +427,10 @@ export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
     business: name,
     headline: "Get our offers and news on WhatsApp",
     how: `Scan with your phone's camera: WhatsApp opens with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
-    byHand: qrLink && number ? `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number}.` : null,
+    byHand:
+      qrLink && number
+        ? `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number}.`
+        : null,
     terms: [...askWords(name).marketing.terms, ...bothTerms(name)],
     operator: `Messages are sent for ${name} by a receptionist operated by Chanlytics (RJ Capital LLC).`,
     qrLink,
@@ -414,5 +442,7 @@ export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
 
 /** The desk sign's tab: the sheet it is and whose it is, or Not found. Never indexed, like the page it prints from. */
 export function deskSignMetadata(f: ConsentPageFacts | null): PublicPageMetadata {
-  return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+  return f
+    ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } }
+    : notFoundPageMetadata();
 }

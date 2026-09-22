@@ -27,7 +27,11 @@ test("how long it runs, in the words the day's rows use", () => {
 
 test("which day, as a person asks it", () => {
   const TODAY = "2026-09-20";
-  assert.equal(W.crWhen({ today: true, key: TODAY }, TODAY), "Today", "the board says which day is today; no second clock is consulted");
+  assert.equal(
+    W.crWhen({ today: true, key: TODAY }, TODAY),
+    "Today",
+    "the board says which day is today; no second clock is consulted",
+  );
   assert.equal(W.crWhen({ today: false, key: "2026-09-21" }, TODAY), "Tomorrow");
   assert.equal(W.crWhen({ today: false, key: "2026-09-19" }, TODAY), "Yesterday");
   // Further out, the date itself is the clearer thing to read.
@@ -37,20 +41,35 @@ test("which day, as a person asks it", () => {
   assert.equal(W.crWhen({ today: false, key: "2026-10-01" }, "2026-09-30"), "Tomorrow");
   assert.equal(W.crWhen({ today: false, key: "2027-01-01" }, "2026-12-31"), "Tomorrow");
   assert.equal(W.crWhen({ today: false, key: "2026-12-31" }, "2027-01-01"), "Yesterday");
-  assert.equal(W.crWhen({ today: false, key: "2026-09-21" }, null), null, "without the board's today, nothing relative is claimed");
+  assert.equal(
+    W.crWhen({ today: false, key: "2026-09-21" }, null),
+    null,
+    "without the board's today, nothing relative is claimed",
+  );
 });
 
 test("the notes are shown only when they say something the panel has not", () => {
   const person = { name: "Priya Nair" };
   const contacts = { phones: ["+1 917 555 0103"], e164: ["+19175550103"], emails: [] };
   // What a booking tool wrote, and what the two lines above already say.
-  assert.equal(W.crNotesWorth("Priya Nair · +1 917 555 0103", person, contacts), null, "the name and the number are both above");
+  assert.equal(
+    W.crNotesWorth("Priya Nair · +1 917 555 0103", person, contacts),
+    null,
+    "the name and the number are both above",
+  );
   assert.equal(W.crNotesWorth("Priya Nair", person, contacts), null);
   assert.equal(W.crNotesWorth("+1 917 555 0103", person, contacts), null);
   // The same number written another way is the same number.
-  assert.equal(W.crNotesWorth("Priya Nair (917) 555-0103", person, contacts), null, "a number is its digits, however it is punctuated");
+  assert.equal(
+    W.crNotesWorth("Priya Nair (917) 555-0103", person, contacts),
+    null,
+    "a number is its digits, however it is punctuated",
+  );
   // Anything an owner has not read yet stays.
-  assert.equal(W.crNotesWorth("Priya Nair · +1 917 555 0103 · allergic to ammonia", person, contacts), "Priya Nair · +1 917 555 0103 · allergic to ammonia");
+  assert.equal(
+    W.crNotesWorth("Priya Nair · +1 917 555 0103 · allergic to ammonia", person, contacts),
+    "Priya Nair · +1 917 555 0103 · allergic to ammonia",
+  );
   assert.equal(W.crNotesWorth("Deposit paid", person, contacts), "Deposit paid");
   // Nothing to say, and nobody matched: the notes stand on their own.
   assert.equal(W.crNotesWorth(null, person, contacts), null);

@@ -33,7 +33,14 @@ test("Retell's not_connected is its own status, not 'ended'", () => {
   const n = normalizeCall({ call_id: "c1", call_status: "not_connected", from_number: "+13475550101" });
   assert.equal(n.status, "not_connected");
   // The other four are unchanged, and an unknown value still defaults to ended.
-  for (const [given, want] of [["registered", "registered"], ["ongoing", "ongoing"], ["error", "error"], ["ended", "ended"], [undefined, "ended"], ["something_new", "ended"]]) {
+  for (const [given, want] of [
+    ["registered", "registered"],
+    ["ongoing", "ongoing"],
+    ["error", "error"],
+    ["ended", "ended"],
+    [undefined, "ended"],
+    ["something_new", "ended"],
+  ]) {
     assert.equal(normalizeCall({ call_id: "c", call_status: given }).status, want, String(given));
   }
 });
@@ -41,7 +48,7 @@ test("Retell's not_connected is its own status, not 'ended'", () => {
 test("a live transcript keeps the spoken turns and drops the tool calls", () => {
   const items = [
     { role: "agent", content: "Melany's, this is the booking line." },
-    { role: "tool_call_invocation", content: "" , tool_call_id: "t1", name: "check_availability" },
+    { role: "tool_call_invocation", content: "", tool_call_id: "t1", name: "check_availability" },
     { role: "tool_call_result", content: "{}", tool_call_id: "t1" },
     { role: "user", content: "Do you have Saturday?", words: [{ word: "Do", start: 3.1, end: 3.3 }] },
   ];
@@ -51,30 +58,49 @@ test("a live transcript keeps the spoken turns and drops the tool calls", () => 
   ]);
   assert.equal(liveTurns([]), null);
   assert.equal(liveTurns(undefined), null);
-  assert.equal(liveTurns([{ role: "tool_call_invocation", content: "" }]), null, "nothing spoken yet is null, so the upsert keeps the row's own");
+  assert.equal(
+    liveTurns([{ role: "tool_call_invocation", content: "" }]),
+    null,
+    "nothing spoken yet is null, so the upsert keeps the row's own",
+  );
 });
 
 test("the final transcript_object outranks the live turns when both are present", () => {
   const n = normalizeCall({
-    call_id: "c1", call_status: "ended",
+    call_id: "c1",
+    call_status: "ended",
     transcript_object: [{ role: "agent", content: "final" }],
     transcript_with_tool_calls: [{ role: "agent", content: "partial" }],
   });
   assert.deepEqual(n.transcriptObject, [{ role: "agent", content: "final" }]);
-  const live = normalizeCall({ call_id: "c2", call_status: "ongoing", transcript_with_tool_calls: [{ role: "user", content: "hi" }] });
+  const live = normalizeCall({
+    call_id: "c2",
+    call_status: "ongoing",
+    transcript_with_tool_calls: [{ role: "user", content: "hi" }],
+  });
   assert.deepEqual(live.transcriptObject, [{ role: "user", content: "hi" }]);
 });
 
 test("the recording fetch is bounded: a stalled provider rejects, a refusal returns null", async () => {
   const server = http.createServer((req, res) => {
-    if (req.url === "/refuse") { res.statusCode = 404; res.end("no"); return; }
+    if (req.url === "/refuse") {
+      res.statusCode = 404;
+      res.end("no");
+      return;
+    }
     // /stall: never answer
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address();
   try {
-    await assert.rejects(fetchRecording(`http://127.0.0.1:${port}/stall`, { timeoutMs: 80 }), (e) => e.name === "TimeoutError");
-    assert.deepEqual(await fetchRecording(`http://127.0.0.1:${port}/refuse`, { timeoutMs: 2000 }), { ok: false, status: 404 });
+    await assert.rejects(
+      fetchRecording(`http://127.0.0.1:${port}/stall`, { timeoutMs: 80 }),
+      (e) => e.name === "TimeoutError",
+    );
+    assert.deepEqual(await fetchRecording(`http://127.0.0.1:${port}/refuse`, { timeoutMs: 2000 }), {
+      ok: false,
+      status: 404,
+    });
   } finally {
     server.closeAllConnections?.();
     await new Promise((r) => server.close(r));
@@ -84,12 +110,27 @@ test("the recording fetch is bounded: a stalled provider rejects, a refusal retu
 /* ------------------------------ the viewmodel ----------------------------- */
 
 const base = {
-  id: "k1", retell_call_id: "r1", direction: "inbound", call_type: "phone_call",
-  from_e164: "+13475550101", from_raw: null, to_e164: "+13083368109",
-  started_at: agoIso(120_000), ended_at: null, duration_ms: null,
-  disconnection_reason: null, sentiment: null, call_successful: null,
-  in_voicemail: null, summary: null, transcript_object: null, recording: null,
-  conversation_id: null, contact_id: null, message_id: null, contact: null,
+  id: "k1",
+  retell_call_id: "r1",
+  direction: "inbound",
+  call_type: "phone_call",
+  from_e164: "+13475550101",
+  from_raw: null,
+  to_e164: "+13083368109",
+  started_at: agoIso(120_000),
+  ended_at: null,
+  duration_ms: null,
+  disconnection_reason: null,
+  sentiment: null,
+  call_successful: null,
+  in_voicemail: null,
+  summary: null,
+  transcript_object: null,
+  recording: null,
+  conversation_id: null,
+  contact_id: null,
+  message_id: null,
+  contact: null,
 };
 
 test("a dial that never connected is 'missed', says so, and claims no recording state", () => {
@@ -102,11 +143,18 @@ test("a dial that never connected is 'missed', says so, and claims no recording 
 });
 
 test("a recording the copy gave up on is 'failed', not 'still processing' forever", () => {
-  const vm = toCallVM({ ...base, status: "ended", duration_ms: 65_000, recording: { fetch_state: "failed" } }, ZONE, NOW);
+  const vm = toCallVM(
+    { ...base, status: "ended", duration_ms: 65_000, recording: { fetch_state: "failed" } },
+    ZONE,
+    NOW,
+  );
   assert.equal(vm.recordingState, "failed");
   assert.ok(vm.summary.bullets.some((b) => /couldn't be saved/.test(b)));
   assert.equal(vm.recordingUrl, undefined);
-  assert.equal(toCallVM({ ...base, status: "ended", recording: { fetch_state: "pending" } }, ZONE, NOW).recordingState, "pending");
+  assert.equal(
+    toCallVM({ ...base, status: "ended", recording: { fetch_state: "pending" } }, ZONE, NOW).recordingState,
+    "pending",
+  );
 });
 
 test("a live call carries its start as `ts`, which is what the viewer's clock runs from", () => {
@@ -121,12 +169,39 @@ test("a live call carries its start as `ts`, which is what the viewer's clock ru
 const metrics = (over = {}) => ({
   workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
-  window: { days: 1, since: "2026-09-04T04:00:00+00:00", since_local: "2026-09-04T00:00:00", now_local: "2026-09-04T11:00:00" },
-  now: { escalations_open: 0, oldest_open_escalation_at: null, threads_needing_human: 0, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: null, last_outbound_at: null },
+  window: {
+    days: 1,
+    since: "2026-09-04T04:00:00+00:00",
+    since_local: "2026-09-04T00:00:00",
+    now_local: "2026-09-04T11:00:00",
+  },
+  now: {
+    escalations_open: 0,
+    oldest_open_escalation_at: null,
+    threads_needing_human: 0,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: null,
+    last_outbound_at: null,
+  },
   period: {
-    messages_in: 0, messages_out_ai: 0, messages_out_you: 0, conversations_active: 0, answered_by_ai: 0, answered_by_you: 0,
-    unanswered_in_window: 0, median_reply_seconds_ai: null, send_failures: 0, escalations_new: 0, escalation_reasons: {},
-    calls: 1, call_seconds: 0, call_sentiments: {}, calls_voicemail: 0, new_contacts: 0, ...over,
+    messages_in: 0,
+    messages_out_ai: 0,
+    messages_out_you: 0,
+    conversations_active: 0,
+    answered_by_ai: 0,
+    answered_by_you: 0,
+    unanswered_in_window: 0,
+    median_reply_seconds_ai: null,
+    send_failures: 0,
+    escalations_new: 0,
+    escalation_reasons: {},
+    calls: 1,
+    call_seconds: 0,
+    call_sentiments: {},
+    calls_voicemail: 0,
+    new_contacts: 0,
+    ...over,
   },
 });
 

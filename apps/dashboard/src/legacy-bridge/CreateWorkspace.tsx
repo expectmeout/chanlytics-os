@@ -51,10 +51,22 @@ function browserZone(): string {
 const ZONES = (() => {
   const here = browserZone();
   const common = [
-    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-    "America/Phoenix", "America/Anchorage", "Pacific/Honolulu", "America/Toronto",
-    "Europe/London", "Europe/Madrid", "Europe/Paris", "Europe/Berlin",
-    "America/Mexico_City", "America/Bogota", "America/Sao_Paulo", "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Phoenix",
+    "America/Anchorage",
+    "Pacific/Honolulu",
+    "America/Toronto",
+    "Europe/London",
+    "Europe/Madrid",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "America/Mexico_City",
+    "America/Bogota",
+    "America/Sao_Paulo",
+    "UTC",
   ];
   return [here, ...common.filter((z) => z !== here)];
 })();
@@ -84,7 +96,9 @@ export default function CreateWorkspace({
   const [timezone, setTimezone] = useState(initial?.timezone || browserZone());
   // A zone sign-up kept that the short list does not carry is still the one
   // they chose, so it heads the list rather than vanishing into it.
-  const [zones] = useState(() => (initial?.timezone && !ZONES.includes(initial.timezone) ? [initial.timezone, ...ZONES] : ZONES));
+  const [zones] = useState(() =>
+    initial?.timezone && !ZONES.includes(initial.timezone) ? [initial.timezone, ...ZONES] : ZONES,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // THE DOOR, for a first workspace: the invite code when sign-up is by
@@ -107,7 +121,9 @@ export default function CreateWorkspace({
     }
     setBusy(true);
     setError(null);
-    const r = await api()("POST workspaces/create", { body: { name: trimmed, timezone, ...(door === "invite" ? { code: code.trim() } : {}) } });
+    const r = await api()("POST workspaces/create", {
+      body: { name: trimmed, timezone, ...(door === "invite" ? { code: code.trim() } : {}) },
+    });
     if (!r.ok) {
       // The server's message is written for a person to read — "Unknown
       // timezone: Mars/Olympus", "This account already owns 10 workspaces" —
@@ -140,7 +156,12 @@ export default function CreateWorkspace({
   // the app's own menu.
   const leave = another ? null : (
     <p className="cw-legal">
-      <button className="cw-link" type="button" onClick={() => window.__shell?.signOut()} data-testid="create-workspace-signout">
+      <button
+        className="cw-link"
+        type="button"
+        onClick={() => window.__shell?.signOut()}
+        data-testid="create-workspace-signout"
+      >
         Sign out
       </button>
       <span aria-hidden="true">·</span>
@@ -158,7 +179,9 @@ export default function CreateWorkspace({
         <form className="cw-card" onSubmit={join}>
           <h1 className="cw-title">{SIGNUP_WORDS.waitlistTitle}</h1>
           {joined ? (
-            <p className="cw-lede" role="status" data-testid="create-workspace-joined">{joined}</p>
+            <p className="cw-lede" role="status" data-testid="create-workspace-joined">
+              {joined}
+            </p>
           ) : (
             <>
               <p className="cw-lede">{SIGNUP_WORDS.waitlistLead}</p>
@@ -175,7 +198,11 @@ export default function CreateWorkspace({
                 />
                 {email && <span className="cw-hint">{SIGNUP_WORDS.waitlistWriteTo(email)}</span>}
               </label>
-              {error && <div className="cw-error" role="alert">{error}</div>}
+              {error && (
+                <div className="cw-error" role="alert">
+                  {error}
+                </div>
+              )}
               <button className="cw-submit" type="submit" disabled={busy} data-testid="create-workspace-join">
                 {busy ? "Joining…" : SIGNUP_WORDS.waitlistCta}
               </button>
@@ -192,9 +219,29 @@ export default function CreateWorkspace({
       <form className="cw-card" onSubmit={submit}>
         <h1 className="cw-title">{another ? "New workspace" : "Create your workspace"}</h1>
         <p className="cw-lede">
-          {another
-            ? <>Another business, another workspace: its own receptionist, conversations and team. You become its owner{email ? <> as <b>{email}</b></> : null}.</>
-            : <>One business, one workspace. It holds your receptionist, your conversations and your team{email ? <> — signed in as <b>{email}</b></> : null}.</>}
+          {another ? (
+            <>
+              Another business, another workspace: its own receptionist, conversations and team. You become its owner
+              {email ? (
+                <>
+                  {" "}
+                  as <b>{email}</b>
+                </>
+              ) : null}
+              .
+            </>
+          ) : (
+            <>
+              One business, one workspace. It holds your receptionist, your conversations and your team
+              {email ? (
+                <>
+                  {" "}
+                  — signed in as <b>{email}</b>
+                </>
+              ) : null}
+              .
+            </>
+          )}
         </p>
 
         <label className="cw-field">
@@ -219,7 +266,9 @@ export default function CreateWorkspace({
             aria-label="Timezone"
           >
             {zones.map((z) => (
-              <option key={z} value={z}>{z.replace(/_/g, " ")}</option>
+              <option key={z} value={z}>
+                {z.replace(/_/g, " ")}
+              </option>
             ))}
           </select>
           {/* Not a formality: this is the clock the receptionist answers
@@ -243,21 +292,31 @@ export default function CreateWorkspace({
           </label>
         )}
 
-        {error && <div className="cw-error" role="alert">{error}</div>}
+        {error && (
+          <div className="cw-error" role="alert">
+            {error}
+          </div>
+        )}
 
         <button className="cw-submit" type="submit" disabled={busy}>
           {busy ? "Creating…" : "Create workspace"}
         </button>
         {onCancel && (
-          <button className="cw-back" type="button" onClick={onCancel} disabled={busy} data-testid="create-workspace-back">
+          <button
+            className="cw-back"
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            data-testid="create-workspace-back"
+          >
             Back
           </button>
         )}
 
         {!another && (
           <p className="cw-foot">
-            Been invited to a workspace? Ask whoever invited you to send it again — an
-            invitation is accepted the first time you sign in.
+            Been invited to a workspace? Ask whoever invited you to send it again — an invitation is accepted the first
+            time you sign in.
           </p>
         )}
         {leave}

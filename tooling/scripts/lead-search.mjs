@@ -38,7 +38,14 @@
 import fs from "node:fs";
 import { createChunks } from "@supabase/ssr/dist/main/utils/chunker.js";
 
-const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => (a.startsWith("--") ? [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true] : [])).filter((x) => x.length));
+const args = Object.fromEntries(
+  process.argv
+    .slice(2)
+    .map((a, i, all) =>
+      a.startsWith("--") ? [a.slice(2), all[i + 1] && !all[i + 1].startsWith("--") ? all[i + 1] : true] : [],
+    )
+    .filter((x) => x.length),
+);
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
@@ -85,7 +92,9 @@ export function score(members, labels, costUsd, roundQualified) {
     byKind.set(label.category_key, k);
   }
   const all = [...byKind.values()].reduce((a, k) => ({ n: a.n + k.n, right: a.right + k.right }), { n: 0, right: 0 });
-  const precision = Object.fromEntries([...byKind.entries()].map(([kind, k]) => [kind, { n: k.n, ...wilson(k.right, k.n) }]));
+  const precision = Object.fromEntries(
+    [...byKind.entries()].map(([kind, k]) => [kind, { n: k.n, ...wilson(k.right, k.n) }]),
+  );
   return {
     labelled: seen,
     qualified,
@@ -94,30 +103,51 @@ export function score(members, labels, costUsd, roundQualified) {
     // (renamed so the two can't be confused; see the file's own docstring).
     labelled_qualified_share: seen ? qualified / seen : null,
     review_share: seen ? review / seen : null,
-    cost_per_qualified_usd: typeof costUsd === "number" && roundQualified ? Math.round((costUsd / roundQualified) * 10_000) / 10_000 : null,
+    cost_per_qualified_usd:
+      typeof costUsd === "number" && roundQualified ? Math.round((costUsd / roundQualified) * 10_000) / 10_000 : null,
     passes: all.n > 0 && all.right / all.n >= 0.95 && wilson(all.right, all.n).lo >= 0.9,
   };
 }
 
 async function mint() {
   for (const [k, v] of Object.entries({ URL_, KEY, ANON, EMAIL })) if (!v) throw new Error(`missing env for ${k}`);
-  const gen = await fetch(`${URL_}/auth/v1/admin/generate_link`, { method: "POST", headers: { "content-type": "application/json", apikey: KEY, authorization: `Bearer ${KEY}` }, body: JSON.stringify({ type: "magiclink", email: EMAIL }) });
+  const gen = await fetch(`${URL_}/auth/v1/admin/generate_link`, {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: KEY, authorization: `Bearer ${KEY}` },
+    body: JSON.stringify({ type: "magiclink", email: EMAIL }),
+  });
   if (!gen.ok) throw new Error(`could not mint a session link (${gen.status}): ${await gen.text()}`);
   const body = await gen.json();
   const tokenHash = body.hashed_token ?? body.properties?.hashed_token;
   if (!tokenHash) throw new Error("generate_link returned no hashed_token");
-  const ver = await fetch(`${URL_}/auth/v1/verify`, { method: "POST", headers: { "content-type": "application/json", apikey: ANON }, body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }) });
+  const ver = await fetch(`${URL_}/auth/v1/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: ANON },
+    body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+  });
   if (!ver.ok) throw new Error(`could not verify the minted token (${ver.status}): ${await ver.text()}`);
   const session = await ver.json();
   const ref = new URL(URL_).hostname.split(".")[0];
-  const value = "base64-" + Buffer.from(JSON.stringify(session), "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return createChunks(`sb-${ref}-auth-token`, value).map((c) => `${c.name}=${c.value}`).join("; ");
+  const value =
+    "base64-" +
+    Buffer.from(JSON.stringify(session), "utf8")
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  return createChunks(`sb-${ref}-auth-token`, value)
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
 }
 
 function api(cookie) {
   return async (method, path, body) => {
     const url = `${BASE}/api/v1/${path}${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(WORKSPACE)}`;
-    const res = await fetch(url, { method, headers: { cookie, origin: new URL(BASE).origin, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const res = await fetch(url, {
+      method,
+      headers: { cookie, origin: new URL(BASE).origin, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.ok === false) {
       const err = new Error(`${method} ${path}: ${res.status} ${json.error?.code ?? ""} ${json.error?.message ?? ""}`);
@@ -133,7 +163,10 @@ async function membersOf(call, searchId, cls) {
   const out = [];
   let after = null;
   for (;;) {
-    const rows = await call("GET", `leads?search=${searchId}&class=${cls}&limit=500${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    const rows = await call(
+      "GET",
+      `leads?search=${searchId}&class=${cls}&limit=500${after ? `&after=${encodeURIComponent(after)}` : ""}`,
+    );
     if (!Array.isArray(rows) || !rows.length) return out;
     out.push(...rows);
     if (rows.length < 500) return out;
@@ -141,7 +174,11 @@ async function membersOf(call, searchId, cls) {
   }
 }
 async function allMembers(call, searchId) {
-  return [...(await membersOf(call, searchId, "qualified")), ...(await membersOf(call, searchId, "review")), ...(await membersOf(call, searchId, "excluded"))];
+  return [
+    ...(await membersOf(call, searchId, "qualified")),
+    ...(await membersOf(call, searchId, "review")),
+    ...(await membersOf(call, searchId, "excluded")),
+  ];
 }
 
 /** The line a watched round prints. Its question is said only while the round is waiting on it: 00140 stores the question and never clears it, so an answered round still carries the one it asked. */
@@ -183,7 +220,22 @@ async function main() {
       row = (await call("GET", `lead-searches/${searchId}`)).search;
     }
   }
-  console.log(JSON.stringify({ state: row.state, ending: row.ending, qualified: row.qualified, review: row.review, excluded: row.excluded, counted: row.counted, judge_tokens: row.judge_tokens, cost_usd: row.cost_usd ?? null }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        state: row.state,
+        ending: row.ending,
+        qualified: row.qualified,
+        review: row.review,
+        excluded: row.excluded,
+        counted: row.counted,
+        judge_tokens: row.judge_tokens,
+        cost_usd: row.cost_usd ?? null,
+      },
+      null,
+      2,
+    ),
+  );
   if (args.label) {
     const labels = JSON.parse(fs.readFileSync(String(args.label), "utf8"));
     const members = await allMembers(call, searchId);

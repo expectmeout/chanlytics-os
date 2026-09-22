@@ -19,9 +19,10 @@ const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
 // workflow replays the migrations on this machine, where seed.sql removes
 // edge_base_url on purpose (so a local sweep never posts to production) and
 // the deadman trigger has nowhere to send; those two answer only live.
-const liveOnly = !skip && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-  ? "a replayed database has no edge to answer (seed.sql removes edge_base_url on purpose)"
-  : false;
+const liveOnly =
+  !skip && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+    ? "a replayed database has no edge to answer (seed.sql removes edge_base_url on purpose)"
+    : false;
 const db = skip ? null : createClient(URL_, KEY, { auth: { persistSession: false } });
 
 test("sweep_health() names every watched sweep and every schedule exists", { skip }, async () => {
@@ -36,7 +37,30 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // which 00097 had registered with sweep_status and never here. 00107 made
   // the register data and added the six clocks nobody had typed in: the
   // monthly partition precreate and the five nightly purges.
-  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "leads", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_leads", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
+  assert.deepEqual(
+    data.map((r) => r.sweep),
+    [
+      "calendar",
+      "calls",
+      "deadman",
+      "google",
+      "health",
+      "jobs",
+      "leads",
+      "lines",
+      "partitions",
+      "pauses",
+      "playbooks",
+      "purge_ask",
+      "purge_cron_history",
+      "purge_events",
+      "purge_leads",
+      "purge_notifications",
+      "purge_rate_hits",
+      "registration",
+      "snoozes",
+    ],
+  );
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -78,7 +102,27 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.match(error.message, /not registered/);
   const { data } = await db.from("sweep_status").select("sweep");
   // Seventeen: every clock has a row now, the ones that run inside Postgres included.
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "leads", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_leads", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
+  assert.deepEqual(data.map((r) => r.sweep).sort(), [
+    "calendar",
+    "calls",
+    "deadman",
+    "google",
+    "health",
+    "jobs",
+    "leads",
+    "lines",
+    "partitions",
+    "pauses",
+    "playbooks",
+    "purge_ask",
+    "purge_cron_history",
+    "purge_events",
+    "purge_leads",
+    "purge_notifications",
+    "purge_rate_hits",
+    "registration",
+    "snoozes",
+  ]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
@@ -88,14 +132,27 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
   assert.equal(error, null, error?.message);
   const byName = new Map(data.map((j) => [j.jobname, j]));
   for (const n of [
-    "deadman-sweep", "call-reconcile", "expire-stale-pauses", "sweep-health", "purge-cron-history",
+    "deadman-sweep",
+    "call-reconcile",
+    "expire-stale-pauses",
+    "sweep-health",
+    "purge-cron-history",
     // Added with 00086, which is what made their absence something the
     // watchdog would report rather than something nobody would ever see.
-    "registration-sweep", "calendar-people-sweep", "google-listings-sweep", "playbooks-sweep", "wake-stale-snoozes",
+    "registration-sweep",
+    "calendar-people-sweep",
+    "google-listings-sweep",
+    "playbooks-sweep",
+    "wake-stale-snoozes",
     // 00098: the ledger's heartbeat, and the lines sweep 00097 left unwatched.
-    "jobs-tick", "lines-sweep",
+    "jobs-tick",
+    "lines-sweep",
     // 00107: the six clocks nobody watched, registered as data and judged on their runs.
-    "events-partition-precreate", "purge-events", "purge-ask", "purge-notifications", "purge-rate-hits",
+    "events-partition-precreate",
+    "purge-events",
+    "purge-ask",
+    "purge-notifications",
+    "purge-rate-hits",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);
@@ -107,7 +164,11 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
 
 test("the cron-history purge exists and is callable, without deleting anything", { skip }, async () => {
   // Proved without removing a row: nothing here is 9,999 days old.
-  const { data, error } = await db.rpc("purge_cron_history", { p_keep: "9999 days", p_keep_per_job: 30, p_keep_frequent: "9999 days" });
+  const { data, error } = await db.rpc("purge_cron_history", {
+    p_keep: "9999 days",
+    p_keep_per_job: 30,
+    p_keep_frequent: "9999 days",
+  });
   assert.equal(error, null, error?.message);
   assert.equal(data, 0);
 });

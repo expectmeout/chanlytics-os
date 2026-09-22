@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import { MAX_ROWS } from "./paged.js";
+import { logger, errField } from "./log.js";
 
 const DAY_MS = 24 * 3600 * 1000;
 /** More rows than any workspace writes in a day; a bound, not a target. */
@@ -59,7 +60,12 @@ function num(v: unknown): number {
  * `id` breaks ties, which offset paging needs and `created_at` alone, not
  * being unique, cannot give.
  */
-async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): AsyncGenerator<UsageRow[]> {
+async function* usagePages(
+  db: SupabaseClient<Database>,
+  tenantId: string | null,
+  since: string,
+  cap = ROW_CAP,
+): AsyncGenerator<UsageRow[]> {
   const until = new Date().toISOString();
   for (let from = 0; from < cap; from += MAX_ROWS) {
     const size = Math.min(MAX_ROWS, cap - from);
@@ -81,10 +87,15 @@ async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null
   }
   // Reached only by exhausting the bound. Silence here is the defect this file
   // was fixed for, one cap further out.
-  console.error(JSON.stringify({ level: "error", event: "usage_read_capped", tenant: tenantId, cap }));
+  logger().error("usage_read_capped", { tenant: tenantId, cap });
 }
 
-async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): Promise<UsageRow[]> {
+async function usageRows(
+  db: SupabaseClient<Database>,
+  tenantId: string | null,
+  since: string,
+  cap = ROW_CAP,
+): Promise<UsageRow[]> {
   const all: UsageRow[] = [];
   for await (const page of usagePages(db, tenantId, since, cap)) all.push(...page);
   return all;
@@ -106,7 +117,12 @@ async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, 
  * replaced. Summing in the database, over the same events, is what would make
  * it one round trip again, and is the right next change here.
  */
-export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: string, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
+export async function tokensLast24h(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  stopAt = Number.POSITIVE_INFINITY,
+): Promise<number> {
+  const L = logger({ tenant: tenantId });
   try {
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
@@ -115,7 +131,7 @@ export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: stri
     }
     return sum;
   } catch (e) {
-    console.error("budget_read_failed", e instanceof Error ? e.message : e);
+    L.error("budget_read_failed", { error: errField(e) });
     return 0;
   }
 }
@@ -133,16 +149,22 @@ export interface BrainSummary {
 }
 
 /** The last 24 hours across the platform (or one workspace when named). */
-export async function brainSummary(db: SupabaseClient<Database>, tenantId: string | null = null): Promise<BrainSummary> {
+export async function brainSummary(
+  db: SupabaseClient<Database>,
+  tenantId: string | null = null,
+): Promise<BrainSummary> {
   const rows = await usageRows(db, tenantId, new Date(Date.now() - DAY_MS).toISOString(), SUMMARY_ROW_CAP);
   const withConf = rows.filter((r) => typeof r.data?.confidence === "number");
   const withMs = rows.filter((r) => typeof r.data?.latency_ms === "number");
-  const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null);
+  const avg = (xs: number[]) =>
+    xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
   return {
     replies: rows.length,
     with_record: rows.filter((r) => typeof r.data?.intent === "string").length,
     avg_confidence: avg(withConf.map((r) => num(r.data?.confidence))),
-    avg_latency_ms: withMs.length ? Math.round(withMs.reduce((a, r) => a + num(r.data?.latency_ms), 0) / withMs.length) : null,
+    avg_latency_ms: withMs.length
+      ? Math.round(withMs.reduce((a, r) => a + num(r.data?.latency_ms), 0) / withMs.length)
+      : null,
     held_low_confidence: rows.filter((r) => r.data?.held === "low_confidence").length,
     held_veto: rows.filter((r) => r.data?.held === "veto_window").length,
     escalated: rows.filter((r) => r.data?.escalate === true).length,

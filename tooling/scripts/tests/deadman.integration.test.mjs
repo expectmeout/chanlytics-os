@@ -39,13 +39,24 @@ before(async () => {
   if (!smoke) throw new Error(`no tenant with slug ${SMOKE_SLUG}: refusing to write fixtures into a real workspace`);
   tenantId = smoke.id;
 
-  const { data: c } = await db.from("contacts")
-    .insert({ tenant_id: tenantId, phone_e164: `+1999558${String(Date.now()).slice(-4)}`, display_name: "Deadman probe" })
-    .select("id").single();
+  const { data: c } = await db
+    .from("contacts")
+    .insert({
+      tenant_id: tenantId,
+      phone_e164: `+1999558${String(Date.now()).slice(-4)}`,
+      display_name: "Deadman probe",
+    })
+    .select("id")
+    .single();
   contactId = c.id;
-  const { data: v } = await db.from("conversations")
-    .upsert({ tenant_id: tenantId, contact_id: contactId, state: "needs_human" }, { onConflict: "tenant_id,contact_id" })
-    .select("id").single();
+  const { data: v } = await db
+    .from("conversations")
+    .upsert(
+      { tenant_id: tenantId, contact_id: contactId, state: "needs_human" },
+      { onConflict: "tenant_id,contact_id" },
+    )
+    .select("id")
+    .single();
   conversationId = v.id;
 });
 
@@ -58,9 +69,17 @@ after(async () => {
 });
 
 test("a FRESH escalation is not a candidate", { skip }, async () => {
-  const { data, error } = await db.from("escalations")
-    .insert({ tenant_id: tenantId, conversation_id: conversationId, reason: "human_token", details: "probe", state: "open" })
-    .select("id").single();
+  const { data, error } = await db
+    .from("escalations")
+    .insert({
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      reason: "human_token",
+      details: "probe",
+      state: "open",
+    })
+    .select("id")
+    .single();
   assert.equal(error, null, error?.message);
   escalationId = data.id;
 
@@ -74,7 +93,8 @@ test("a FRESH escalation is not a candidate", { skip }, async () => {
 
 test("an escalation open past the threshold IS a candidate, with what the alert needs", { skip }, async () => {
   // Age it rather than wait two hours.
-  await db.from("escalations")
+  await db
+    .from("escalations")
     .update({ created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() })
     .eq("id", escalationId);
 
@@ -106,13 +126,18 @@ test("marking is idempotent — a flagged escalation stops being a candidate", {
 });
 
 test("a RESOLVED escalation is never a candidate", { skip }, async () => {
-  const { data: e2 } = await db.from("escalations")
+  const { data: e2 } = await db
+    .from("escalations")
     .insert({
-      tenant_id: tenantId, conversation_id: conversationId, reason: "manual",
-      details: "resolved probe", state: "resolved",
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      reason: "manual",
+      details: "resolved probe",
+      state: "resolved",
       created_at: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
     })
-    .select("id").single();
+    .select("id")
+    .single();
   const { data: cands } = await db.rpc("deadman_candidates", { p_older_than: "2 hours" });
   assert.equal(
     (cands ?? []).some((c) => c.escalation_id === e2.id),

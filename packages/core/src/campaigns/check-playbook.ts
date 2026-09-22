@@ -1,4 +1,14 @@
-import { AppError, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, playbookName, triggerOf, type ParamSpec, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import {
+  AppError,
+  PLAYBOOK_DEFAULTS,
+  PLAYBOOK_HOURS,
+  PLAYBOOK_NAME_MAX,
+  playbookName,
+  triggerOf,
+  type ParamSpec,
+  type PlaybookPolicyClass,
+  type PlaybookTrigger,
+} from "@chanlytics/contracts";
 import { templateValues } from "./template-values";
 import type { TemplateValuesPorts } from "./ports";
 
@@ -20,7 +30,8 @@ export interface PlaybookInput {
 function int(v: unknown, fallback: number, min: number, max: number, what: string): number {
   if (v === undefined || v === null || v === "") return fallback;
   const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isInteger(n) || n < min || n > max) throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
+  if (!Number.isInteger(n) || n < min || n > max)
+    throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
 }
 
@@ -30,12 +41,23 @@ function int(v: unknown, fallback: number, min: number, max: number, what: strin
  * whole numbers. A playbook can never name a template a broadcast could not
  * send or a slot the workspace cannot fill.
  */
-export async function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput> {
+export async function checkPlaybook(
+  ports: TemplateValuesPorts,
+  body: Record<string, unknown> | null,
+): Promise<PlaybookInput> {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
-  if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
+  if (!trig)
+    throw new AppError(
+      "validation",
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.",
+    );
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: trig.kind === "visit" });
+  const { template: tpl, specs } = await templateValues(ports, {
+    templateId,
+    params: body?.params,
+    visits: trig.kind === "visit",
+  });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
     name: name || playbookName(trig, tpl).slice(0, PLAYBOOK_NAME_MAX),

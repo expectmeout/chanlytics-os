@@ -10,7 +10,17 @@ export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
 
 /** Stripe's subscription statuses, plus 'none' before one exists. */
-export const BILLING_STATUSES = ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused"] as const;
+export const BILLING_STATUSES = [
+  "none",
+  "incomplete",
+  "incomplete_expired",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused",
+] as const;
 export type BillingStatus = (typeof BILLING_STATUSES)[number];
 
 /** The trial a new workspace gets at Checkout, in days. */
@@ -81,7 +91,13 @@ export interface BillingInvoiceDto {
 
 /** What Stripe's word means for the receptionist: on, or paused. incomplete is the minutes between Checkout and the first payment; never a pause. */
 export function receptionistOn(status: BillingStatus): boolean {
-  return status === "trialing" || status === "active" || status === "past_due" || status === "incomplete" || status === "none";
+  return (
+    status === "trialing" ||
+    status === "active" ||
+    status === "past_due" ||
+    status === "incomplete" ||
+    status === "none"
+  );
 }
 
 /**
@@ -122,9 +138,7 @@ export function receptionistOn(status: BillingStatus): boolean {
  * Two rows deciding the same thing from the same facts, disagreeing. One
  * predicate, read by both.
  */
-export function billingDoorOpen<T extends { mode: BillingMode; ready: boolean }>(
-  b: T | null | undefined,
-): b is T {
+export function billingDoorOpen<T extends { mode: BillingMode; ready: boolean }>(b: T | null | undefined): b is T {
   return !!b && b.mode === "stripe" && b.ready;
 }
 
@@ -147,7 +161,10 @@ export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
  * something they were not doing. Two forms, because the sentences need both:
  * `before` follows "before", `can` follows "can".
  */
-export interface SpendWords { before: string; can: string }
+export interface SpendWords {
+  before: string;
+  can: string;
+}
 /** The default, and what every lines route keeps saying. */
 export const SPEND_NUMBER: SpendWords = { before: "buying a number", can: "buy a number" };
 /** The lead finder: a search spends on someone else's account, not on a number. */
@@ -159,7 +176,11 @@ export const SPEND_LEADS: SpendWords = { before: "finding leads", can: "find lea
  * A refusal at the moment somebody is trying to give you money has to say what
  * to do about it, so this is a sentence and a destination rather than a code.
  */
-export function whyCannotSpend(mode: BillingMode, status: BillingStatus, doing: SpendWords = SPEND_NUMBER): string | null {
+export function whyCannotSpend(
+  mode: BillingMode,
+  status: BillingStatus,
+  doing: SpendWords = SPEND_NUMBER,
+): string | null {
   if (maySpend(mode, status)) return null;
   if (status === "none") return `Add a card before ${doing.before} — nothing is charged until your trial ends.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
@@ -208,7 +229,11 @@ export interface BillingPlan {
  * status is copied verbatim; the switch follows receptionistOn; a bell
  * rings only when the receptionist's state changes, never on every update.
  */
-export function planBilling(before: { mode: BillingMode; status: BillingStatus; tenant_status: string }, sub: SubscriptionFacts, nowMs: number): BillingPlan {
+export function planBilling(
+  before: { mode: BillingMode; status: BillingStatus; tenant_status: string },
+  sub: SubscriptionFacts,
+  nowMs: number,
+): BillingPlan {
   const row: BillingPlan["row"] = {
     stripe_subscription_id: sub.id,
     status: sub.status,
@@ -224,19 +249,24 @@ export function planBilling(before: { mode: BillingMode; status: BillingStatus; 
   const tenantStatus = wanted && wanted !== before.tenant_status ? wanted : null;
   const wasOn = receptionistOn(before.status);
   const isOn = receptionistOn(sub.status);
-  const switched: BillingPlan["switched"] = before.mode === "stripe" && wasOn !== isOn ? (isOn ? "resumed" : "paused") : null;
+  const switched: BillingPlan["switched"] =
+    before.mode === "stripe" && wasOn !== isOn ? (isOn ? "resumed" : "paused") : null;
   let bell: BillingBell | null = null;
   if (switched === "paused") {
     bell = {
       title: "Your receptionist is paused",
-      body: sub.status === "paused"
-        ? "The trial ended without a card on file. Messages still land in the Inbox; nothing is answered until you resume from Billing."
-        : "The subscription ended. Messages still land in the Inbox; nothing is answered until you resume from Billing.",
+      body:
+        sub.status === "paused"
+          ? "The trial ended without a card on file. Messages still land in the Inbox; nothing is answered until you resume from Billing."
+          : "The subscription ended. Messages still land in the Inbox; nothing is answered until you resume from Billing.",
     };
   } else if (switched === "resumed") {
     bell = { title: "Your receptionist is back", body: "Billing is in order; the receptionist answers again." };
   } else if (before.status !== "trialing" && sub.status === "trialing") {
-    bell = { title: "Your trial has started", body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.` };
+    bell = {
+      title: "Your trial has started",
+      body: `${trialWords(sub.trial_end, nowMs)}. Cancel any time from Billing.`,
+    };
   }
   return { row, tenantStatus, switched, bell };
 }
@@ -277,8 +307,11 @@ export function trialWords(trialEnd: string | null | undefined, nowMs: number): 
 /** "$49.00 a month" from Stripe's own figures; "" when the price is not readable. */
 export function priceWords(p: BillingPriceDto | null | undefined): string {
   if (!p || p.unit_amount === null) return "";
-  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(p.unit_amount / 100);
-  const per = p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
+  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: p.currency.toUpperCase() }).format(
+    p.unit_amount / 100,
+  );
+  const per =
+    p.interval === "year" ? "a year" : p.interval === "week" ? "a week" : p.interval === "day" ? "a day" : "a month";
   return `${amount} ${per}`;
 }
 
@@ -287,7 +320,8 @@ export function priceWords(p: BillingPriceDto | null | undefined): string {
  * said "Card on file" and Setup "The card on file is charged when the trial ends", and nothing said that a real card is
  * refused and no money moves. Setup lists it as a detail; the pane ends it with a full stop.
  */
-export const BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
+export const BILLING_TEST_MODE_CLAUSE =
+  "Billing is in test mode, so only Stripe's test cards work and no real money moves";
 
 export interface BillingVM {
   mode: BillingMode;
@@ -310,37 +344,126 @@ export interface BillingVM {
 
 export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   const a = dto.account;
-  const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} · ` : ""}${priceWords(dto.price)}` : "";
-  const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
+  const plan = priceWords(dto.price)
+    ? `${dto.price?.product_name ? `${dto.price.product_name} · ` : ""}${priceWords(dto.price)}`
+    : "";
+  const card =
+    a?.card_brand && a.card_last4
+      ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}`
+      : null;
   if (!a || a.mode === "direct") {
-    return { mode: "direct", status: a?.status ?? "active", headline: "Direct arrangement", detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.", tone: "", plan, card: null, actions: { checkout: false, portal: false, resume: false }, paused: false, testMode: null };
+    return {
+      mode: "direct",
+      status: a?.status ?? "active",
+      headline: "Direct arrangement",
+      detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.",
+      tone: "",
+      plan,
+      card: null,
+      actions: { checkout: false, portal: false, resume: false },
+      paused: false,
+      testMode: null,
+    };
   }
   const s = a.status;
   // On test keys, said in every state: each of them talks about a card or a charge.
-  const base = { mode: "stripe" as const, status: s, plan, card, testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null };
+  const base = {
+    mode: "stripe" as const,
+    status: s,
+    plan,
+    card,
+    testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null,
+  };
   switch (s) {
     case "none":
-      return { ...base, headline: "No subscription yet", detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
+      return {
+        ...base,
+        headline: "No subscription yet",
+        detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.",
+        tone: "warn",
+        actions: { checkout: dto.ready, portal: false, resume: false },
+        paused: false,
+      };
     case "trialing":
       // Cancelled during the trial: Stripe keeps the subscription trialing and sets cancel_at to the trial's end.
       if (a.cancel_at || a.cancel_at_period_end) {
-        return { ...base, headline: "On trial, ending", detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`, tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
+        return {
+          ...base,
+          headline: "On trial, ending",
+          detail: `Cancelled: the receptionist answers until ${dayWords(a.cancel_at ?? a.trial_end) || "the trial ends"}, then stops, and nothing is charged. Undo it from Manage billing before then to keep it.`,
+          tone: "warn",
+          actions: { checkout: false, portal: true, resume: false },
+          paused: false,
+        };
       }
-      return { ...base, headline: "On trial", detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      return {
+        ...base,
+        headline: "On trial",
+        detail: `${trialWords(a.trial_end, nowMs)}${card ? `, then ${plan || "the plan"} on ${card}` : ""}.`,
+        tone: "ok",
+        actions: { checkout: false, portal: true, resume: false },
+        paused: false,
+      };
     case "active":
-      return { ...base, headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed", detail: a.cancel_at || a.cancel_at_period_end ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.` : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`, tone: "ok", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      return {
+        ...base,
+        headline: a.cancel_at_period_end || a.cancel_at ? "Subscribed, ending" : "Subscribed",
+        detail:
+          a.cancel_at || a.cancel_at_period_end
+            ? `Ends ${dayWords(a.cancel_at ?? a.current_period_end)}; the receptionist answers until then.`
+            : `Next invoice ${dayWords(a.current_period_end) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
+        tone: "ok",
+        actions: { checkout: false, portal: true, resume: false },
+        paused: false,
+      };
     case "past_due":
-      return { ...base, headline: "Payment failed", detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`, tone: "danger", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      return {
+        ...base,
+        headline: "Payment failed",
+        detail: `${a.last_payment_failed_at ? `The last charge failed ${agoWords(Date.parse(a.last_payment_failed_at), nowMs)}. ` : ""}Stripe retries for a few days; update the card in Manage billing to keep the receptionist answering.`,
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: false },
+        paused: false,
+      };
     case "incomplete":
-      return { ...base, headline: "Finishing checkout", detail: "The first payment is still being confirmed. This page updates by itself.", tone: "warn", actions: { checkout: false, portal: true, resume: false }, paused: false };
+      return {
+        ...base,
+        headline: "Finishing checkout",
+        detail: "The first payment is still being confirmed. This page updates by itself.",
+        tone: "warn",
+        actions: { checkout: false, portal: true, resume: false },
+        paused: false,
+      };
     case "paused":
-      return { ...base, headline: "Paused", detail: "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.", tone: "danger", actions: { checkout: false, portal: true, resume: true }, paused: true };
+      return {
+        ...base,
+        headline: "Paused",
+        detail:
+          "The trial ended without a card on file. Add one in Manage billing, then resume; messages keep landing in the Inbox meanwhile.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true },
+        paused: true,
+      };
     case "unpaid":
-      return { ...base, headline: "Paused", detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.", tone: "danger", actions: { checkout: false, portal: true, resume: true }, paused: true };
+      return {
+        ...base,
+        headline: "Paused",
+        detail: "Payment could not be collected after several tries. Update the card in Manage billing, then resume.",
+        tone: "danger",
+        actions: { checkout: false, portal: true, resume: true },
+        paused: true,
+      };
     case "canceled":
     case "incomplete_expired":
     default:
-      return { ...base, headline: "Subscription ended", detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
+      return {
+        ...base,
+        headline: "Subscription ended",
+        detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.",
+        tone: "danger",
+        actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false },
+        paused: true,
+      };
   }
 }
 
@@ -350,7 +473,9 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
  * S20). What the headline does not say is whether the receptionist is answering, and that is receptionistOn's.
  */
 export function billingPill(vm: Pick<BillingVM, "status">): { words: string; tone: "ok" | "danger" } {
-  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+  return receptionistOn(vm.status)
+    ? { words: "Receptionist answering", tone: "ok" }
+    : { words: "Receptionist paused", tone: "danger" };
 }
 
 /** An invoice's status in an owner's words. A word Stripe adds later is shown as Stripe says it; none, as a dash. */
@@ -363,7 +488,9 @@ export const INVOICE_STATUS_WORDS: Record<string, string> = {
 };
 export function invoiceStatusWords(status: string | null | undefined): string {
   if (!status) return "—";
-  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] as string : status;
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status)
+    ? (INVOICE_STATUS_WORDS[status] as string)
+    : status;
 }
 
 /** The Setup row's facts: enough to say the state and the one next step. */
@@ -391,14 +518,29 @@ export const CHECKOUT_OUTCOME_WORDS: Record<string, string> = {
 /** "$49.00" from cents and a currency, as Stripe states them. */
 export function moneyWords(amountCents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(amountCents / 100);
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(
+      amountCents / 100,
+    );
   } catch {
     return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }
 }
 
 /** The row as the pages read it, from whatever the database returned; a word the enum does not know reads as none. */
-export function billingAccountDto(r: { mode?: string | null; status?: string | null; price_id?: string | null; current_period_end?: string | null; trial_end?: string | null; cancel_at?: string | null; cancel_at_period_end?: boolean | null; card_brand?: string | null; card_last4?: string | null; last_payment_failed_at?: string | null; last_paid_at?: string | null; updated_at: string }): BillingAccountDto {
+export function billingAccountDto(r: {
+  mode?: string | null;
+  status?: string | null;
+  price_id?: string | null;
+  current_period_end?: string | null;
+  trial_end?: string | null;
+  cancel_at?: string | null;
+  cancel_at_period_end?: boolean | null;
+  card_brand?: string | null;
+  card_last4?: string | null;
+  last_payment_failed_at?: string | null;
+  last_paid_at?: string | null;
+  updated_at: string;
+}): BillingAccountDto {
   return {
     mode: r.mode === "direct" ? "direct" : "stripe",
     status: (BILLING_STATUSES as readonly string[]).includes(r.status ?? "") ? (r.status as BillingStatus) : "none",

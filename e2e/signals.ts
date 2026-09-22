@@ -87,10 +87,15 @@ export async function expectLeaksWellFormed(page: Page): Promise<LeakRow[]> {
  * same three people twice.
  */
 export async function expectNoQueueRepeat(page: Page): Promise<void> {
-  const queued = (await page.getByTestId("today-queue").locator(".cl-attn-who").allInnerTexts()).map((n) => n.trim()).filter(Boolean);
+  const queued = (await page.getByTestId("today-queue").locator(".cl-attn-who").allInnerTexts())
+    .map((n) => n.trim())
+    .filter(Boolean);
   const away = (await page.getByTestId("today-away").locator(".ta-title").allInnerTexts()).map((t) => t.trim());
   for (const who of queued) {
-    expect(away.filter((t) => t.includes(who)), `${who} is in the queue and again under While you were away`).toEqual([]);
+    expect(
+      away.filter((t) => t.includes(who)),
+      `${who} is in the queue and again under While you were away`,
+    ).toEqual([]);
   }
 }
 
@@ -112,10 +117,15 @@ export async function expectAwayAddsUp(page: Page): Promise<void> {
     const empty = away.getByTestId("today-away-empty");
     await expect(empty).toBeVisible();
     await expect(away.locator(".tq-foot")).toHaveCount(0);
-    expect((await empty.innerText()).includes("All caught up"), `head ${head} with "${await empty.innerText()}"`).toBe(head === 0);
+    expect((await empty.innerText()).includes("All caught up"), `head ${head} with "${await empty.innerText()}"`).toBe(
+      head === 0,
+    );
     return;
   }
-  const shown = (await rows.evaluateAll((els) => els.map((r) => Number(r.getAttribute("data-count") ?? "1")))).reduce((a, n) => a + n, 0);
+  const shown = (await rows.evaluateAll((els) => els.map((r) => Number(r.getAttribute("data-count") ?? "1")))).reduce(
+    (a, n) => a + n,
+    0,
+  );
   const foot = away.locator(".tq-foot");
   const more = (await foot.count()) ? Number(/(\d+) more/.exec(await foot.innerText())?.[1] ?? "0") : 0;
   expect(head, `head ${head} = ${shown} on screen + ${more} more`).toBe(shown + more);
@@ -123,7 +133,9 @@ export async function expectAwayAddsUp(page: Page): Promise<void> {
 
 /** A warning is never listed below good news, whatever the two rows' clocks say. */
 export async function expectWarningsFirst(page: Page): Promise<void> {
-  const tones = await page.getByTestId("today-away-row").evaluateAll((rows) => rows.map((r) => (r.classList.contains("warn") ? "warn" : "other")));
+  const tones = await page
+    .getByTestId("today-away-row")
+    .evaluateAll((rows) => rows.map((r) => (r.classList.contains("warn") ? "warn" : "other")));
   const firstOther = tones.indexOf("other");
   if (firstOther === -1) return;
   expect(tones.slice(firstOther), `a warning sits below good news: ${tones.join(",")}`).not.toContain("warn");
@@ -179,5 +191,7 @@ export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
 export async function expectRowUnchangedAfterUndo(page: Page, name: string, before: string): Promise<void> {
   const row = page.locator(".cl-table tbody tr", { hasText: name });
   await expect(row).toHaveCount(1);
-  await expect.poll(async () => (await row.innerText()).trim(), { message: `${name} came back changed` }).toBe(before.trim());
+  await expect
+    .poll(async () => (await row.innerText()).trim(), { message: `${name} came back changed` })
+    .toBe(before.trim());
 }

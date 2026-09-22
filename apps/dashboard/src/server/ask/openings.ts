@@ -57,10 +57,21 @@ export interface FeedRead {
 }
 
 class FeedRefused extends Error {
-  constructor(readonly reason: FeedFailure, readonly status: number | null = null) { super(reason); }
+  constructor(
+    readonly reason: FeedFailure,
+    readonly status: number | null = null,
+  ) {
+    super(reason);
+  }
 }
 
-const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.reason, status: e.status, checkedAt: e.checkedAt });
+const asRead = (e: FeedEntry): FeedRead => ({
+  text: e.text,
+  at: e.at,
+  reason: e.reason,
+  status: e.status,
+  checkedAt: e.checkedAt,
+});
 
 /**
  * The feed's text and when it was read: fresh within the cache, else the
@@ -141,7 +152,11 @@ export async function openingsFor(
   now = new Date(),
 ): Promise<OpeningsResult> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
-  const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  const { data: row, error } = await ctx.supabase
+    .from("tenant_config")
+    .select("config")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   const cfg = parseTenantConfig(row?.config ?? null);
   const url = cfg?.calendar?.ical_url;
@@ -149,18 +164,36 @@ export async function openingsFor(
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
   const offer = offerFor(profile?.services, profile?.booking_rules, by.service);
   const service = offer?.service ?? null;
-  if (!url || !profile) return { state: "no_calendar", text: "No calendar feed is connected, so openings cannot be read.", tz: timezone, days: [], service };
+  if (!url || !profile)
+    return {
+      state: "no_calendar",
+      text: "No calendar feed is connected, so openings cannot be read.",
+      tz: timezone,
+      days: [],
+      service,
+    };
   const text = await fetchFeed(tenantId, url);
-  if (text === null) return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
+  if (text === null)
+    return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   let openings: Opening[];
   let daysAhead: number;
   try {
     const rules = profile.booking_rules ?? null;
     daysAhead = rules?.max_days_ahead ?? 14;
     const feed = parseIcs(text, timezone, { horizon: offeringHorizon(now, daysAhead) });
-    openings = freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: feed.busy, rules, now });
+    openings = freeWindows({
+      hours: profile.hours,
+      closures: profile.closures,
+      tz: timezone,
+      busy: feed.busy,
+      rules,
+      now,
+    });
   } catch (e) {
-    console.error("ask_openings_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
+    console.error(
+      "ask_openings_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });
@@ -169,7 +202,11 @@ export async function openingsFor(
     state: "ok",
     text: `${offerLead(offer)}${described}`,
     tz: timezone,
-    days: picked.slice(0, 5).map((o) => ({ key: o.key, label: o.label, windows: o.windows.slice(0, 6).map((w) => fmtWindow(w.start, w.end, timezone)) })),
+    days: picked.slice(0, 5).map((o) => ({
+      key: o.key,
+      label: o.label,
+      windows: o.windows.slice(0, 6).map((w) => fmtWindow(w.start, w.end, timezone)),
+    })),
     service,
   };
 }

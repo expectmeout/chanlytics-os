@@ -30,8 +30,18 @@ const SPECS = fs.readdirSync(path.join(ROOT, "e2e")).filter((f) => f.endsWith(".
 test("every direct request in the e2e suite names a workspace", () => {
   const offenders = [];
   for (const f of SPECS) {
-    for (const line of readCode(`e2e/${f}`).split("\n")) {
-      if (!/page\.request\.(get|post|patch|put|delete)\(/.test(line)) continue;
+    const src = readCode(`e2e/${f}`);
+    // Prettier can print one request over several lines, so each call is judged by
+    // its whole argument list rather than by the line it happens to start on.
+    for (const m of src.matchAll(/page\.request\.(get|post|patch|put|delete)\(/g)) {
+      let depth = 0;
+      let end = m.index + m[0].length - 1;
+      while (end < src.length) {
+        if (src[end] === "(") depth++;
+        else if (src[end] === ")" && --depth === 0) break;
+        end++;
+      }
+      const line = src.slice(m.index, end + 1).replace(/\s+/g, " ");
       if (line.includes("workspace=") || line.includes("scoped(") || line.includes("apiGet(")) continue;
       // Reads refuse ambiguity too since plan 3.4. The account scope is the
       // exception by design: /workspaces answers "where am I" and /signup has

@@ -36,7 +36,10 @@ test.describe("The bell on a real workspace", () => {
     // The kept rows come from the route, with this person's marks on each.
     const res = await apiGet(page, "/api/v1/notifications");
     expect(res.status()).toBe(200);
-    const data = (await res.json()).data as { notifications: Array<{ id: string; kind: string; title: string; read: boolean; dismissed: boolean }>; seen_at: string | null };
+    const data = (await res.json()).data as {
+      notifications: Array<{ id: string; kind: string; title: string; read: boolean; dismissed: boolean }>;
+      seen_at: string | null;
+    };
     expect(Array.isArray(data.notifications)).toBe(true);
     for (const n of data.notifications) expect(typeof n.title).toBe("string");
     await expect(page.getByTestId("notif-alerts")).toBeVisible();

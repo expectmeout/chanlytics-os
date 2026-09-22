@@ -49,9 +49,15 @@ function readSets() {
   const [cmd, pre] = CLI.endsWith(".js") ? [process.execPath, [CLI]] : [CLI, []];
   let out;
   try {
-    out = execFileSync(cmd, [...pre, "db", "query", SQL, "-o", "json"], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    out = execFileSync(cmd, [...pre, "db", "query", SQL, "-o", "json"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   } catch (e) {
-    console.error(`gen-schema-sets: could not query the local database with "${CLI}". Is \`supabase start\` running? ${e instanceof Error ? e.message : e}`);
+    console.error(
+      `gen-schema-sets: could not query the local database with "${CLI}". Is \`supabase start\` running? ${e instanceof Error ? e.message : e}`,
+    );
     process.exit(2);
   }
   const at = [out.indexOf("{"), out.indexOf("[")].filter((i) => i >= 0).sort((x, y) => x - y)[0];
@@ -70,7 +76,9 @@ function readSets() {
   // A database this small is not the one the migrations build: refuse rather
   // than write a file that would make every assertion fail for the wrong reason.
   if (sets.size < 20) {
-    console.error(`gen-schema-sets: found only ${sets.size} sets -- is this the database \`supabase start\` built from supabase/migrations?`);
+    console.error(
+      `gen-schema-sets: found only ${sets.size} sets -- is this the database \`supabase start\` built from supabase/migrations?`,
+    );
     process.exit(2);
   }
   return sets;
@@ -84,7 +92,12 @@ function render(sets) {
     const rows = [];
     let row = "";
     for (const q of quoted) {
-      if (row && (row + ", " + q).length > 100) { rows.push(row + ","); row = q; } else { row = row ? `${row}, ${q}` : q; }
+      if (row && (row + ", " + q).length > 100) {
+        rows.push(row + ",");
+        row = q;
+      } else {
+        row = row ? `${row}, ${q}` : q;
+      }
     }
     rows.push(row + ",");
     return `  ${JSON.stringify(key)}: [\n${rows.map((r) => `    ${r}`).join("\n")}\n  ],`;
@@ -109,7 +122,9 @@ const next = render(readSets());
 const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8").replace(/\r\n/g, "\n") : "";
 if (CHECK) {
   if (current === next) {
-    console.log(`schema-sets.generated.ts is current (${next.split("\n").filter((l) => /^ {2}"/.test(l)).length} sets).`);
+    console.log(
+      `schema-sets.generated.ts is current (${next.split("\n").filter((l) => /^ {2}"/.test(l)).length} sets).`,
+    );
     process.exit(0);
   }
   const keys = (s) => new Set([...s.matchAll(/^ {2}"([^"]+)"/gm)].map((m) => m[1]));

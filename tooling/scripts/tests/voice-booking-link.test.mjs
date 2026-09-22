@@ -38,28 +38,48 @@ const brain = {
   system_prompt: "x".repeat(50),
   fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
-const profile = { hours: { mon: { open: "09:00", close: "17:00" } }, services: [{ name: "Gel manicure", duration_min: 45 }] };
+const profile = {
+  hours: { mon: { open: "09:00", close: "17:00" } },
+  services: [{ name: "Gel manicure", duration_min: 45 }],
+};
 const voice = composeSystemPrompt(brain, profile, "voice");
 const booking = voice.split("\n").find((l) => l.startsWith("Booking:")) ?? "";
 
 test("on the phone the booking link goes to the caller's WhatsApp, on the number they are calling from, and is never promised as a text", () => {
   assert.ok(booking.includes("use send_booking_link"), voice);
   assert.ok(booking.includes("to the caller's WhatsApp, on the number they are calling from"), booking);
-  assert.ok(booking.includes("do not ask them for a number unless they want it sent somewhere else"), "the number they are calling from is still the default");
-  assert.ok(booking.includes("only arrives if that number has WhatsApp"), "a number with no WhatsApp receives nothing, and the agent knows it");
-  assert.doesNotMatch(voice, TEXTS_THE_LINK, "REGRESSION: the prompt said the tool texts the link; it sends a WhatsApp message");
+  assert.ok(
+    booking.includes("do not ask them for a number unless they want it sent somewhere else"),
+    "the number they are calling from is still the default",
+  );
+  assert.ok(
+    booking.includes("only arrives if that number has WhatsApp"),
+    "a number with no WhatsApp receives nothing, and the agent knows it",
+  );
+  assert.doesNotMatch(
+    voice,
+    TEXTS_THE_LINK,
+    "REGRESSION: the prompt said the tool texts the link; it sends a WhatsApp message",
+  );
 });
 
 test("a caller the link cannot reach -- the send failed, or there is no WhatsApp on their number -- is given the business's number and a follow-up", () => {
   assert.ok(
-    booking.includes("If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up."),
+    booking.includes(
+      "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.",
+    ),
     booking,
   );
   assert.ok(voice.includes("Phone: (305) 555-0100"), "the number it is told to give is in the prompt");
 });
 
 test("speaking aloud, the agent offers to send the link to the caller's WhatsApp rather than reading the URL", () => {
-  assert.ok(voice.includes("never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."), voice);
+  assert.ok(
+    voice.includes(
+      "never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.",
+    ),
+    voice,
+  );
 });
 
 test("with no facts to read, the shell's fallback offers the link on WhatsApp, as the tool it offers says", () => {
@@ -73,19 +93,38 @@ test("with no facts to read, the shell's fallback offers the link on WhatsApp, a
 test("the availability tool offers the link on WhatsApp when there is no calendar, and when it cannot see one", async () => {
   const T = "dddddddd-0000-4000-8000-000000000001";
   const AGENT = "agent_voice_booking_link";
-  setPg(fakeDb({
-    tenants: [{ id: T, name: "Harbor Nails", timezone: "America/New_York", status: "active" }],
-    tenant_channels: [{ id: "voice-1", tenant_id: T, kind: "voice", external_id: AGENT, number_e164: "+13055550100", status: "active", credentials_ref: null, config: {} }],
-    tenant_config: [{ tenant_id: T, config: {} }],
-    policies: [],
-    google_listings: [],
-  }, {}, { runtime_stamp: () => "stamp-1" }));
+  setPg(
+    fakeDb(
+      {
+        tenants: [{ id: T, name: "Harbor Nails", timezone: "America/New_York", status: "active" }],
+        tenant_channels: [
+          {
+            id: "voice-1",
+            tenant_id: T,
+            kind: "voice",
+            external_id: AGENT,
+            number_e164: "+13055550100",
+            status: "active",
+            credentials_ref: null,
+            config: {},
+          },
+        ],
+        tenant_config: [{ tenant_id: T, config: {} }],
+        policies: [],
+        google_listings: [],
+      },
+      {},
+      { runtime_stamp: () => "stamp-1" },
+    ),
+  );
   const ask = async (agentId) => {
-    const res = await availability.POST(new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
-      body: JSON.stringify({ call: { call_id: "call_1", agent_id: agentId }, args: {} }),
-    }));
+    const res = await availability.POST(
+      new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+        body: JSON.stringify({ call: { call_id: "call_1", agent_id: agentId }, args: {} }),
+      }),
+    );
     assert.equal(res.status, 200, "the agent speaks the result, so a refusal is still a 200");
     return (await res.json()).result;
   };
@@ -95,7 +134,10 @@ test("the availability tool offers the link on WhatsApp when there is no calenda
     const blind = await ask("agent_nobody_routes");
     assert.match(none, /no calendar to check/i, "the world is the one intended");
     assert.match(blind, /can't see the calendar/i, "the world is the one intended");
-    for (const [why, said] of [["no calendar", none], ["cannot see it", blind]]) {
+    for (const [why, said] of [
+      ["no calendar", none],
+      ["cannot see it", blind],
+    ]) {
       assert.doesNotMatch(said, TEXTS_THE_LINK, `${why} -- REGRESSION: it offered to text the link`);
       assert.ok(said.includes("send the booking link to the caller's WhatsApp"), `${why}: ${said}`);
     }

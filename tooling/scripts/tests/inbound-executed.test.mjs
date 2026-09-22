@@ -28,11 +28,15 @@ const { handleInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
 
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
-const NOTIFICATIONS = () => ({ escalation_emails: ["owner@riverside.example"], from: "Riverside Studio <hello@platform.test>" });
+const NOTIFICATIONS = () => ({
+  escalation_emails: ["owner@riverside.example"],
+  from: "Riverside Studio <hello@platform.test>",
+});
 const BRAIN = () => ({
   business_name: "Harbor Nails",
   booking_link: "https://booking.example/riverside",
-  system_prompt: "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  system_prompt:
+    "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
   fallbacks: {
     greeting: GREETING,
     error: "Thanks for writing to Harbor Nails! A member of the team will reply here soon.",
@@ -40,7 +44,15 @@ const BRAIN = () => ({
   },
 });
 const FROM = "13055550100";
-const routed = { channelId: "c1", tenantId: "t1", kind: "whatsapp", externalId: "p1", numberE164: "+13055550199", credentialsRef: null, config: {} };
+const routed = {
+  channelId: "c1",
+  tenantId: "t1",
+  kind: "whatsapp",
+  externalId: "p1",
+  numberE164: "+13055550199",
+  credentialsRef: null,
+  config: {},
+};
 const runtime = (over = {}) => ({
   tenantId: "t1",
   brain: BRAIN(),
@@ -54,16 +66,40 @@ const runtime = (over = {}) => ({
   configBroken: false,
   ...over,
 });
-const text = (body, id = "wamid.1", from = FROM) => ({ from, id, type: "text", timestamp: String(Math.floor(Date.now() / 1000)), text: { body } });
+const text = (body, id = "wamid.1", from = FROM) => ({
+  from,
+  id,
+  type: "text",
+  timestamp: String(Math.floor(Date.now() / 1000)),
+  text: { body },
+});
 const value = { metadata: { phone_number_id: "p1" }, contacts: [{ wa_id: FROM, profile: { name: "Dana" } }] };
-const ingested = (n) => ({ message_id: "m-in", conversation_id: "conv1", contact_id: "k1", is_new: true, consent: n.optOut ? "opted_out" : "unknown", dnc: !!n.optOut, paused_until: null });
+const ingested = (n) => ({
+  message_id: "m-in",
+  conversation_id: "conv1",
+  contact_id: "k1",
+  is_new: true,
+  consent: n.optOut ? "opted_out" : "unknown",
+  dnc: !!n.optOut,
+  paused_until: null,
+});
 
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   // The rows, as Postgres would hold them for this one conversation.
   const memory = { history: [], replies: [], pausedUntil: 0, repliedBefore: false };
   const delivered = new Set();
-  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, media: 0, purposes: [] };
+  const seen = {
+    sent: [],
+    escalations: [],
+    alerts: [],
+    pages: [],
+    pauses: [],
+    processed: 0,
+    unreachable: 0,
+    media: 0,
+    purposes: [],
+  };
   const rt = over.rt ?? runtime();
   const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
   const ports = {
@@ -75,9 +111,15 @@ function world(over = {}) {
     persist: {
       // What readThreadState returns for the conversation the ingest named,
       // or an UNKNOWN thread when there is nothing to read it against.
-      thread: async (_db, _tenant, ing) => (ing && !over.unreadable
-        ? structuredClone({ history: memory.history, pausedUntil: memory.pausedUntil, replies: memory.replies, repliedBefore: memory.repliedBefore })
-        : { history: [], pausedUntil: -1, replies: [], unknown: true }),
+      thread: async (_db, _tenant, ing) =>
+        ing && !over.unreadable
+          ? structuredClone({
+              history: memory.history,
+              pausedUntil: memory.pausedUntil,
+              replies: memory.replies,
+              repliedBefore: memory.repliedBefore,
+            })
+          : { history: [], pausedUntil: -1, replies: [], unknown: true },
       // Persist first, with the atomic is_new claim that IS the redelivery
       // gate. Bound per run, where the message id is known.
       ingest: recordIngest,
@@ -97,23 +139,50 @@ function world(over = {}) {
           }
           return out;
         },
-        processed: async () => { seen.processed += 1; },
+        processed: async () => {
+          seen.processed += 1;
+        },
         allowlistSkip: async () => {},
-        unreachableSender: async () => { seen.unreachable += 1; },
+        unreachableSender: async () => {
+          seen.unreachable += 1;
+        },
         vetoFallback: async () => {},
-        pause: async (iso) => { seen.pauses.push(iso); memory.pausedUntil = Date.parse(iso); },
+        pause: async (iso) => {
+          seen.pauses.push(iso);
+          memory.pausedUntil = Date.parse(iso);
+        },
         usage: async () => {},
-        escalate: async (reason, details) => { seen.escalations.push({ reason, details }); return "opened"; },
-        media: async () => { seen.media += 1; return over.media ?? null; },
+        escalate: async (reason, details) => {
+          seen.escalations.push({ reason, details });
+          return "opened";
+        },
+        media: async () => {
+          seen.media += 1;
+          return over.media ?? null;
+        },
       }),
       queueReply: async () => false,
     },
     alertStaff: async (thread, userText, botText, reason, ctx) => {
-      seen.alerts.push({ thread, userText, botText, reason, pauseHours: ctx.pausedHours ?? null, route: ctx.route, who: ctx.who, channel: ctx.channel });
+      seen.alerts.push({
+        thread,
+        userText,
+        botText,
+        reason,
+        pauseHours: ctx.pausedHours ?? null,
+        route: ctx.route,
+        who: ctx.who,
+        channel: ctx.channel,
+      });
     },
-    page: async (_ports, key, subject, body) => { seen.pages.push({ key, subject, body }); return "sent"; },
+    page: async (_ports, key, subject, body) => {
+      seen.pages.push({ key, subject, body });
+      return "sent";
+    },
     sender: () => async () => ({ ok: true, wamid: "x", status: 200 }),
-    brain: async () => { throw new Error("the model must not be reached in this test"); },
+    brain: async () => {
+      throw new Error("the model must not be reached in this test");
+    },
     env: { allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
   };
   const run = async (m, extra = {}) => {
@@ -126,7 +195,13 @@ function world(over = {}) {
     if (isNew && body) memory.history.push({ role: "user", content: body });
     ports.persist.ingest = async (db, tenant, n, channel) => {
       const rec = await recordIngest(db, tenant, n, channel);
-      return rec && { ...rec, is_new: rec.is_new === false ? false : isNew, paused_until: memory.pausedUntil ? new Date(memory.pausedUntil).toISOString() : null };
+      return (
+        rec && {
+          ...rec,
+          is_new: rec.is_new === false ? false : isNew,
+          paused_until: memory.pausedUntil ? new Date(memory.pausedUntil).toISOString() : null,
+        }
+      );
     };
     return handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, { ...ports, ...extra });
   };
@@ -137,7 +212,9 @@ function world(over = {}) {
 test("no model key: the workspace's greeting leaves labelled a fallback, the thread goes to a person, the platform is paged once", async () => {
   const w = world();
   await w.run(text("hi, do you have time tomorrow?"));
-  assert.deepEqual(w.seen.sent, [{ to: FROM, body: GREETING, meta: { ack: true, fallback: "no_model" }, channel: "whatsapp" }]);
+  assert.deepEqual(w.seen.sent, [
+    { to: FROM, body: GREETING, meta: { ack: true, fallback: "no_model" }, channel: "whatsapp" },
+  ]);
   assert.equal(w.seen.escalations.length, 1);
   assert.equal(w.seen.escalations[0].reason, "brain_error");
   assert.match(w.seen.escalations[0].details, /no model key/);
@@ -146,12 +223,18 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
   assert.equal(w.seen.alerts[0].reason, "no model");
   assert.equal(w.seen.alerts[0].who, "Dana");
   assert.equal(w.seen.alerts[0].route, "inbox/th-conv1");
-  assert.deepEqual(w.seen.pages.map((p) => p.key), ["brain_unavailable"]);
+  assert.deepEqual(
+    w.seen.pages.map((p) => p.key),
+    ["brain_unavailable"],
+  );
   assert.equal(w.seen.pauses.length, 1, "the thread is handed over for the pause window");
   assert.equal(w.seen.processed, 1);
   const t = w.thread();
   assert.ok(t.pausedUntil > Date.now(), "the memory says a person has it");
-  assert.deepEqual(t.history.map((h) => h.role), ["user", "assistant"]);
+  assert.deepEqual(
+    t.history.map((h) => h.role),
+    ["user", "assistant"],
+  );
   // Labelled an acknowledgement, so it does not spend the cap that exists to
   // stop loops -- the same rule that keeps three photos in a morning from
   // silencing the receptionist for the day (reply-cap.test.mjs).
@@ -161,17 +244,29 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
 test("a hold that cannot be written: the veto window sends now and says so; the confidence floor sends nothing and hands the thread to a person", async () => {
   const sure = { intent: "hours", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
   const unsure = { ...sure, confidence: 0.3 };
-  const model = (meta) => ({ brain: async () => ({ generateReply: async () => ({ text: "We open at 9.", escalate: false, meta }) }) });
+  const model = (meta) => ({
+    brain: async () => ({ generateReply: async () => ({ text: "We open at 9.", escalate: false, meta }) }),
+  });
   // queueReply answers false in this world: no hold can be written.
-  const veto = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "veto", limits: { reply_delay_ms: 60_000 } } } }) });
+  const veto = world({
+    env: { modelKey: "sk-test" },
+    rt: runtime({ policy: { reply: { mode: "veto", limits: { reply_delay_ms: 60_000 } } } }),
+  });
   await veto.run(text("when do you open?"), model(sure));
   assert.equal(veto.seen.sent.length, 1, "the veto window is a comfort: the reply goes now rather than late");
   assert.equal(veto.seen.escalations.length, 0);
   assert.equal(veto.seen.processed, 1);
 
-  const floor = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }) });
+  const floor = world({
+    env: { modelKey: "sk-test" },
+    rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }),
+  });
   await floor.run(text("when do you open?"), model(unsure));
-  assert.equal(floor.seen.sent.length, 0, "the floor is a policy: a reply the model is not sure of never sends itself, whatever the database did");
+  assert.equal(
+    floor.seen.sent.length,
+    0,
+    "the floor is a policy: a reply the model is not sure of never sends itself, whatever the database did",
+  );
   assert.equal(floor.seen.escalations.length, 1);
   assert.equal(floor.seen.escalations[0].reason, "policy_block");
   assert.match(floor.seen.escalations[0].details, /not sure enough/);
@@ -183,10 +278,17 @@ test("a hold that cannot be written: the veto window sends now and says so; the 
   assert.equal(floor.seen.processed, 1, "marked handled: the redelivery gate holds");
   const t = floor.thread();
   assert.ok(t.pausedUntil > Date.now());
-  assert.deepEqual(t.history.map((h) => h.role), ["user"], "the unsent words are not remembered as said");
+  assert.deepEqual(
+    t.history.map((h) => h.role),
+    ["user"],
+    "the unsent words are not remembered as said",
+  );
 
   // Sure enough under the same floor: the reply goes (the hold was never asked for).
-  const fine = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }) });
+  const fine = world({
+    env: { modelKey: "sk-test" },
+    rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }),
+  });
   await fine.run(text("when do you open?"), model(sure));
   assert.equal(fine.seen.sent.length, 1);
 });
@@ -198,7 +300,11 @@ test("the same customer's next text inside the pause is recorded and not answere
   assert.equal(w.seen.sent.length, 1, "nothing more left");
   assert.equal(w.seen.escalations.length, 1, "no second escalation");
   assert.equal(w.seen.processed, 2, "but the message is handled");
-  assert.deepEqual(w.thread().history.map((h) => h.role), ["user", "assistant", "user"], "and remembered");
+  assert.deepEqual(
+    w.thread().history.map((h) => h.role),
+    ["user", "assistant", "user"],
+    "and remembered",
+  );
 });
 
 test("a redelivered message id is a duplicate: nothing happens twice", async () => {
@@ -219,8 +325,15 @@ test("a short code is a sender, never a person: recorded, marked handled, nothin
 });
 
 test("an ingest the database refuses is not swallowed: IngestFailed surfaces and a copy reaches the mailbox", async () => {
-  const w = world({ ingest: async () => { throw new IngestFailed("connection reset"); } });
-  await assert.rejects(() => w.run(text("hi")), (e) => e instanceof IngestFailed);
+  const w = world({
+    ingest: async () => {
+      throw new IngestFailed("connection reset");
+    },
+  });
+  await assert.rejects(
+    () => w.run(text("hi")),
+    (e) => e instanceof IngestFailed,
+  );
   assert.equal(w.seen.alerts.length, 1);
   assert.equal(w.seen.alerts[0].reason, "message not recorded");
   assert.equal(w.seen.sent.length, 0, "nothing is said to a customer whose words were not kept");
@@ -230,7 +343,10 @@ test("STOP records the opt-out, escalates once, answers nothing, and keeps no se
   const w = world();
   await w.run(text("STOP"));
   assert.equal(w.seen.sent.length, 0);
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["opt_out"]);
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+  );
   assert.equal(w.seen.alerts[0].reason, "opt-out");
   assert.equal(w.seen.processed, 1);
   // The answer lives in `contacts.consent` and nowhere else. It used to be
@@ -239,7 +355,11 @@ test("STOP records the opt-out, escalates once, answers nothing, and keeps no se
   // is a case that can no longer arise: a thread that cannot be read never
   // reaches the consent gate, it goes to a person.
   assert.equal("optedOut" in w.thread(), false, "no second copy to go stale");
-  assert.deepEqual(w.thread().history.map((h) => h.content), ["STOP"], "the words are on record; nothing was said back");
+  assert.deepEqual(
+    w.thread().history.map((h) => h.content),
+    ["STOP"],
+    "the words are on record; nothing was said back",
+  );
 });
 
 test("a memory that cannot be read hands the conversation to a person, and answers nothing", async () => {
@@ -255,7 +375,10 @@ test("a memory that cannot be read hands the conversation to a person, and answe
   const w = world({ unreadable: true });
   await w.run(text("hi, is my 3pm still on?"));
   assert.equal(w.seen.sent.length, 0, "nothing is said from a history nobody could read");
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["state_unavailable"]);
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["state_unavailable"],
+  );
   assert.match(w.seen.escalations[0].details, /could not read this thread's history/);
   assert.equal(w.seen.alerts.length, 1, "and a person is told, by name of the thread");
   assert.equal(w.seen.alerts[0].reason, "state unavailable");
@@ -282,13 +405,19 @@ test("START is confirmed in the campaign's own words without the model, and YES 
   const w = world();
   await w.run(text("START"));
   const visit = optInConfirmation("Harbor Nails", "conversational");
-  assert.deepEqual(w.seen.sent, [{ to: FROM, body: visit, meta: { ack: true, confirmation: "conversational" }, channel: "whatsapp" }]);
+  assert.deepEqual(w.seen.sent, [
+    { to: FROM, body: visit, meta: { ack: true, confirmation: "conversational" }, channel: "whatsapp" },
+  ]);
   assert.match(visit, /^Harbor Nails: /);
   assert.match(visit, /appointments/);
   assert.doesNotMatch(visit, /offer/i);
   assert.equal(w.seen.escalations.length, 0, "a yes is not a problem for a person");
   assert.equal(w.seen.processed, 1);
-  assert.deepEqual(w.thread().history.map((h) => h.role), ["user", "assistant"], "and the memory holds it");
+  assert.deepEqual(
+    w.thread().history.map((h) => h.role),
+    ["user", "assistant"],
+    "and the memory holds it",
+  );
 
   await w.run(text("YES OFFERS", "wamid.2"));
   const offers = optInConfirmation("Harbor Nails", "marketing");
@@ -333,10 +462,20 @@ test("a handoff names the wire the customer wrote on, and promises a pause only 
   assert.equal(paged.seen.pauses.length, 1);
 
   const sms = world({
-    carrier: { channel: "sms", send: async () => ({ ok: true, wamid: "s1", status: 200 }), body: (t) => t, held: null, consent: null },
+    carrier: {
+      channel: "sms",
+      send: async () => ({ ok: true, wamid: "s1", status: 200 }),
+      body: (t) => t,
+      held: null,
+      consent: null,
+    },
   });
   await sms.run(text("are you open?"));
-  assert.equal(sms.seen.alerts[0].channel, "sms", "a text is not a WhatsApp message, and the owner opens the thread this names");
+  assert.equal(
+    sms.seen.alerts[0].channel,
+    "sms",
+    "a text is not a WhatsApp message, and the owner opens the thread this names",
+  );
 });
 
 test("a redelivered pin drop escalates and emails once, not once per redelivery", async () => {
@@ -344,7 +483,13 @@ test("a redelivered pin drop escalates and emails once, not once per redelivery"
   // used to sit BELOW this branch, so on the memory path every redelivery
   // re-opened the handoff and sent the owner another email.
   const w = world();
-  const pin = { from: FROM, id: "wamid.loc", type: "location", timestamp: String(Math.floor(Date.now() / 1000)), location: { latitude: 25.7, longitude: -80.2 } };
+  const pin = {
+    from: FROM,
+    id: "wamid.loc",
+    type: "location",
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    location: { latitude: 25.7, longitude: -80.2 },
+  };
   await w.run(pin);
   await w.run(pin);
   assert.equal(w.seen.escalations.length, 1, "one escalation for one pin drop");
@@ -356,7 +501,10 @@ test("a redelivered STOP does not open the handoff twice", async () => {
   const w = world();
   await w.run(text("STOP"));
   await w.run(text("STOP"));
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["opt_out"]);
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["opt_out"],
+  );
   assert.equal(w.seen.alerts.length, 1);
 });
 
@@ -364,8 +512,16 @@ test("an acknowledgement that did not send neither pauses the thread nor is repo
   // The outcome used to be discarded: a refusal or a failure at the wire still
   // paused the receptionist for a day and still told the owner the customer had
   // been acknowledged.
-  const w = world({ delivered: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: null, messageId: null } });
-  await w.run({ from: FROM, id: "wamid.vn", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a1", mime_type: "audio/ogg" } });
+  const w = world({
+    delivered: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: null, messageId: null },
+  });
+  await w.run({
+    from: FROM,
+    id: "wamid.vn",
+    type: "audio",
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    audio: { id: "a1", mime_type: "audio/ogg" },
+  });
   assert.equal(w.seen.sent.length, 1, "it was attempted");
   assert.equal(w.seen.pauses.length, 0, "but nothing reached the customer, so the receptionist is not muted");
   assert.equal(w.thread().pausedUntil, 0);
@@ -378,10 +534,19 @@ test("an opt-in confirmation that did not send is not remembered as said, and so
   // The turn was pushed into the memory and persisted BEFORE the send, and the
   // outcome then dropped — so the bot believed it had named the program, the
   // frequency, the rates, HELP and STOP to somebody who heard nothing.
-  const w = world({ delivered: { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null } });
+  const w = world({
+    delivered: { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null },
+  });
   await w.run(text("START"));
-  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "only what the customer actually said");
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.deepEqual(
+    w.thread().history.map((h) => h.role),
+    ["user"],
+    "only what the customer actually said",
+  );
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["send_failed"],
+  );
   assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
   assert.equal(w.seen.processed, 1, "the message is still handled");
 });
@@ -404,7 +569,10 @@ test("the rate cap, the budget and a paused workspace all keep the customer's wo
   // before the one it never saw.
   const capped = world({ rt: runtime({ policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
   await capped.run(text("actually make it 3pm, not 2pm"));
-  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.deepEqual(
+    capped.seen.escalations.map((e) => e.reason),
+    ["rate_cap"],
+  );
   assert.equal(capped.seen.sent.length, 0);
   assert.ok(
     capped.thread().history.some((h) => h.content === "actually make it 3pm, not 2pm"),
@@ -413,7 +581,10 @@ test("the rate cap, the budget and a paused workspace all keep the customer's wo
 
   const paused = world({ rt: runtime({ paused: true }) });
   await paused.run(text("are you open?"));
-  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.deepEqual(
+    paused.seen.escalations.map((e) => e.reason),
+    ["paused"],
+  );
   assert.ok(paused.thread().history.some((h) => h.content === "are you open?"));
 });
 
@@ -433,7 +604,10 @@ test("the pilot allowlist matches however the number is written", async () => {
 });
 
 const photo = (id = "wamid.pic", caption = undefined) => ({
-  from: FROM, id, type: "image", timestamp: String(Math.floor(Date.now() / 1000)),
+  from: FROM,
+  id,
+  type: "image",
+  timestamp: String(Math.floor(Date.now() / 1000)),
   image: { id: "media-1", mime_type: "image/jpeg", ...(caption ? { caption } : {}) },
 });
 
@@ -444,12 +618,20 @@ test("a workspace that will not answer never pays to download the photo", async 
   const vision = { features: { vision: true } };
   const paused = world({ rt: runtime({ ...vision, paused: true }) });
   await paused.run(photo());
-  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.deepEqual(
+    paused.seen.escalations.map((e) => e.reason),
+    ["paused"],
+  );
   assert.equal(paused.seen.media, 0, "nothing was downloaded for a reply that was never going to happen");
 
-  const capped = world({ rt: runtime({ ...vision, policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
+  const capped = world({
+    rt: runtime({ ...vision, policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }),
+  });
   await capped.run(photo());
-  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.deepEqual(
+    capped.seen.escalations.map((e) => e.reason),
+    ["rate_cap"],
+  );
   assert.equal(capped.seen.media, 0);
 
   // And a workspace that WILL answer still gets its bytes.
@@ -466,7 +648,10 @@ test("a photo the receptionist meant to read and could not is handed over, never
   const w = world({ rt: runtime({ features: { vision: true } }), media: null });
   await w.run(photo("wamid.pic2", "is this shade too dark?"));
   assert.equal(w.seen.media, 1, "it was attempted");
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["non_text"]);
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["non_text"],
+  );
   assert.equal(w.seen.alerts[0].reason, "non-text message");
   assert.equal(w.seen.processed, 1);
   assert.equal(w.seen.sent.length, 1, "only the canned acknowledgement");
@@ -475,7 +660,13 @@ test("a photo the receptionist meant to read and could not is handed over, never
 
 test("an unreadable attachment still reaches storage, and a redelivery of it does not escalate twice", async () => {
   const w = world();
-  const note = { from: FROM, id: "wamid.vn2", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a2", mime_type: "audio/ogg" } };
+  const note = {
+    from: FROM,
+    id: "wamid.vn2",
+    type: "audio",
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    audio: { id: "a2", mime_type: "audio/ogg" },
+  };
   await w.run(note);
   assert.equal(w.seen.media, 1, "the attachment is stored even though nobody may look at it");
   await w.run(note);
@@ -502,8 +693,15 @@ test("a confirmation the door refuses reaches a person, not just the log", async
   // nothing and told nothing.
   const w = world({ delivered: { outcome: "refused", reason: "no_marketing_consent", messageId: null } });
   await w.run(text("YES OFFERS"));
-  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "nothing is remembered as said");
-  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.deepEqual(
+    w.thread().history.map((h) => h.role),
+    ["user"],
+    "nothing is remembered as said",
+  );
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["send_failed"],
+  );
   assert.match(w.seen.escalations[0].details, /no_marketing_consent/);
   assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
   assert.equal(w.seen.processed, 1);
@@ -517,27 +715,80 @@ test("a confirmation the door refuses reaches a person, not just the log", async
 test("REGRESSION (S5): a voice note's acknowledgement gives the line the receptionist answers, as it is now -- the number was baked in the day the message was written", async () => {
   const LINE = "+13055550123";
   const rt = runtime({
-    brain: { ...runtime().brain, fallbacks: { ...runtime().brain.fallbacks, non_text: "Thanks for your message! For anything urgent, call us at {phone}." } },
-    known: { workspace: { name: "Harbor Nails", timezone: null }, channels: [{ kind: "voice", number_e164: LINE, status: "active" }], listing: null },
+    brain: {
+      ...runtime().brain,
+      fallbacks: {
+        ...runtime().brain.fallbacks,
+        non_text: "Thanks for your message! For anything urgent, call us at {phone}.",
+      },
+    },
+    known: {
+      workspace: { name: "Harbor Nails", timezone: null },
+      channels: [{ kind: "voice", number_e164: LINE, status: "active" }],
+      listing: null,
+    },
   });
   const w = world({ rt });
-  await w.run({ from: FROM, id: "wamid.vn9", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a9", mime_type: "audio/ogg" } });
-  assert.deepEqual(w.seen.sent.map((s) => s.body), [`Thanks for your message! For anything urgent, call us at ${formatPhoneDisplay(LINE)}.`]);
+  await w.run({
+    from: FROM,
+    id: "wamid.vn9",
+    type: "audio",
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    audio: { id: "a9", mime_type: "audio/ogg" },
+  });
+  assert.deepEqual(
+    w.seen.sent.map((s) => s.body),
+    [`Thanks for your message! For anything urgent, call us at ${formatPhoneDisplay(LINE)}.`],
+  );
 });
 
 test("REGRESSION (S5): with no model key the greeting names the business and its booking link as they are now", async () => {
-  const rt = runtime({ brain: { ...runtime().brain, booking_link: "https://book.example/harbor", fallbacks: { ...runtime().brain.fallbacks, greeting: "Thanks for writing to {business}. Book at {booking link}." } } });
+  const rt = runtime({
+    brain: {
+      ...runtime().brain,
+      booking_link: "https://book.example/harbor",
+      fallbacks: {
+        ...runtime().brain.fallbacks,
+        greeting: "Thanks for writing to {business}. Book at {booking link}.",
+      },
+    },
+  });
   const w = world({ rt });
   await w.run(text("hi, do you have time tomorrow?"));
-  assert.deepEqual(w.seen.sent.map((s) => s.body), ["Thanks for writing to Harbor Nails. Book at https://book.example/harbor."]);
+  assert.deepEqual(
+    w.seen.sent.map((s) => s.body),
+    ["Thanks for writing to Harbor Nails. Book at https://book.example/harbor."],
+  );
 });
 
 test("REGRESSION (S5): the holding message is filled as it goes out, whether the model hands it back or fails outright", async () => {
-  const rt = runtime({ brain: { ...runtime().brain, fallbacks: { ...runtime().brain.fallbacks, error: "Sorry — {business} will reply here soon." } } });
+  const rt = runtime({
+    brain: {
+      ...runtime().brain,
+      fallbacks: { ...runtime().brain.fallbacks, error: "Sorry — {business} will reply here soon." },
+    },
+  });
   const handedBack = world({ rt, env: { modelKey: "k" } });
-  await handedBack.run(text("are you open?"), { brain: async () => ({ generateReply: async (_h, _t, _s, fallback) => ({ text: fallback, escalate: true, reason: "refusal" }) }) });
-  assert.deepEqual(handedBack.seen.sent.map((s) => s.body), ["Sorry — Harbor Nails will reply here soon."], "handed to the model filled, so what it hands back is filled");
+  await handedBack.run(text("are you open?"), {
+    brain: async () => ({
+      generateReply: async (_h, _t, _s, fallback) => ({ text: fallback, escalate: true, reason: "refusal" }),
+    }),
+  });
+  assert.deepEqual(
+    handedBack.seen.sent.map((s) => s.body),
+    ["Sorry — Harbor Nails will reply here soon."],
+    "handed to the model filled, so what it hands back is filled",
+  );
   const failed = world({ rt, env: { modelKey: "k" } });
-  await failed.run(text("are you open?", "wamid.2"), { brain: async () => ({ generateReply: async () => { throw new Error("model down"); } }) });
-  assert.deepEqual(failed.seen.sent.map((s) => s.body), ["Sorry — Harbor Nails will reply here soon."]);
+  await failed.run(text("are you open?", "wamid.2"), {
+    brain: async () => ({
+      generateReply: async () => {
+        throw new Error("model down");
+      },
+    }),
+  });
+  assert.deepEqual(
+    failed.seen.sent.map((s) => s.body),
+    ["Sorry — Harbor Nails will reply here soon."],
+  );
 });

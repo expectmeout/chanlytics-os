@@ -20,10 +20,17 @@ const job = (kind, payload, id = "job-1") => ({ id, tenant_id: TENANT, kind, pay
 
 test("a deployment without the provider's token or the model's key binds no pipeline; with both, it binds the three verbs", async () => {
   assert.equal(leadPipeline(), undefined);
-  await withEnv({ APIFY_TOKEN: "apify-token-for-this-file", ANTHROPIC_API_KEY: "anthropic-key-for-this-file", SUPABASE_SERVICE_ROLE_KEY: "service-key-for-this-file" }, async () => {
-    const p = leadPipeline();
-    assert.deepEqual(Object.keys(p).sort(), ["check", "collect", "roundStart"]);
-  });
+  await withEnv(
+    {
+      APIFY_TOKEN: "apify-token-for-this-file",
+      ANTHROPIC_API_KEY: "anthropic-key-for-this-file",
+      SUPABASE_SERVICE_ROLE_KEY: "service-key-for-this-file",
+    },
+    async () => {
+      const p = leadPipeline();
+      assert.deepEqual(Object.keys(p).sort(), ["check", "collect", "roundStart"]);
+    },
+  );
 });
 
 test("a payload that is not the ledger's shape is a bug, and says so", async () => {
@@ -47,7 +54,12 @@ test("lead_round_start through the dispatch: the rows, the claims, the provider,
 });
 
 test("lead_collect through the dispatch commits a batch; lead_check starts the checker with the addresses still waiting", async () => {
-  const plan = { ...PLAN, contact: "email", criteria: [{ key: "right_kind", text: "a place", standard: "likely", required: false }], exclusions: [] };
+  const plan = {
+    ...PLAN,
+    contact: "email",
+    criteria: [{ key: "right_kind", text: "a place", standard: "likely", required: false }],
+    exclusions: [],
+  };
   const w = leadWorld({ plan });
   const ctx = ctxFor(w, leadPipelineOver(w.wires));
   const made = w.rpcs.lead_search_create({ p_tenant_id: TENANT, p_plan: plan, p_via: "people", p_estimate_usd: 2 });
@@ -59,7 +71,8 @@ test("lead_collect through the dispatch commits a batch; lead_check starts the c
   assert.equal(w.round().target, plan.count, "the target is the plan's count once the probe passed");
   await dispatchJob(ctx(), job("lead_round_start", { round_id: made.round_id, resume: true }, "job-resume"));
   w.finishRuns();
-  for (const r of w.runs().filter((x) => x.state === "running")) await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-m-${r.id}`));
+  for (const r of w.runs().filter((x) => x.state === "running"))
+    await dispatchJob(ctx(), job("lead_collect", { run_id: r.id, seq: "p0" }, `job-m-${r.id}`));
   assert.equal(w.round().state, "checking");
   await dispatchJob(ctx(), job("lead_check", { round_id: made.round_id, batch: 0 }, "job-check"));
   const checker = w.apify.calls.filter((c) => c.op === "startRun").at(-1);

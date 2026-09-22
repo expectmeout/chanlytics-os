@@ -20,23 +20,60 @@ import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
-const rosa = { id: "p1", display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+16465550123", consent: "opted_in", dnc: false };
-const wrote = (id, body, min) => ({ id, direction: "inbound", sender: "customer", type: "text", body, media: null, meta: null, status: "received", created_at: ago(min), channel_ts: ago(min) });
+const rosa = {
+  id: "p1",
+  display_name: "Rosa Díaz",
+  wa_profile_name: null,
+  phone_e164: "+16465550123",
+  consent: "opted_in",
+  dnc: false,
+};
+const wrote = (id, body, min) => ({
+  id,
+  direction: "inbound",
+  sender: "customer",
+  type: "text",
+  body,
+  media: null,
+  meta: null,
+  status: "received",
+  created_at: ago(min),
+  channel_ts: ago(min),
+});
 const conv = (over = {}) => ({
-  id: "c1", state: "needs_human", paused_until: null, snooze_until: null,
-  assignee_user_id: null, assignee_is_me: false,
-  last_wa_inbound_at: ago(40), last_message_at: ago(40),
+  id: "c1",
+  state: "needs_human",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: ago(40),
+  last_message_at: ago(40),
   contact: rosa,
   messages: [wrote("m1", "Can I move my appointment to Friday?", 40)],
   ...over,
 });
-const asked = (over = {}) => ({ id: "e1", reason: "human_token", details: null, state: "open", created_at: ago(40), ...over });
+const asked = (over = {}) => ({
+  id: "e1",
+  reason: "human_token",
+  details: null,
+  state: "open",
+  created_at: ago(40),
+  ...over,
+});
 
 /* -------------------------------- a browser -------------------------------- */
 
 const listeners = {};
 globalThis.window = {
-  location: { pathname: "/w/melanys", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/melanys",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
@@ -46,7 +83,9 @@ globalThis.window = {
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
   __DEMO_MODE: false,
-  addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= []).push(fn);
+  },
   removeEventListener() {},
   dispatchEvent() {},
   setTimeout: () => 1,
@@ -54,8 +93,17 @@ globalThis.window = {
   setInterval: () => 1,
   clearInterval() {},
 };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const quiet = async (fn) => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const quiet = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
 
 /* ------------------- the templates read, and what it leaves ------------------- */
 
@@ -67,11 +115,16 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
     if (path === "/api/v1/templates") return json(500, { ok: false, error: { code: "internal", message: "down" } });
     if (path === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (path === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
-    if (path === "/api/v1/workspaces") return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+    if (path === "/api/v1/workspaces")
+      return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: path } });
   };
   await quiet(() => inboxOverride.apply());
-  assert.equal(globalThis.window.__TEMPLATES, null, "REGRESSION: a failed read stored [] and the page said no template was approved");
+  assert.equal(
+    globalThis.window.__TEMPLATES,
+    null,
+    "REGRESSION: a failed read stored [] and the page said no template was approved",
+  );
   assert.equal(globalThis.window.INBOX_DATA.THREADS.length, 1, "the Inbox itself still reads");
 });
 
@@ -88,17 +141,65 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = { body: { appendChild() {} }, addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }) };
+globalThis.document = {
+  body: { appendChild() {} },
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
+};
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatePill", "MoreMenu", "EmptyState", "PolicyChip", "TlMedia", "FailedRead", "Confirm", "usePPToast", "useHotkey"]) globalThis[k] = globalThis.window[k];
+for (const k of [
+  "StatePill",
+  "MoreMenu",
+  "EmptyState",
+  "PolicyChip",
+  "TlMedia",
+  "FailedRead",
+  "Confirm",
+  "usePPToast",
+  "useHotkey",
+])
+  globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
@@ -111,12 +212,21 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const find = (tree, pred) => { let hit; walk(tree, (n) => { if (hit === undefined && pred(n)) hit = n; }); return hit; };
+const find = (tree, pred) => {
+  let hit;
+  walk(tree, (n) => {
+    if (hit === undefined && pred(n)) hit = n;
+  });
+  return hit;
+};
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -129,10 +239,26 @@ const click = { stopPropagation() {}, preventDefault() {} };
 test("what changed on the open thread while you had it open, in one line -- and nothing when nothing did", () => {
   const say = globalThis.window.ixRepaintNotice;
   assert.equal(typeof say, "function", "the words are one rule that can be run");
-  const was = { id: "th-1", real: true, who: "Rosa Díaz", state: "escalated", takenOver: false, claimedByOther: false, archived: false, lastAtMs: 1000, timeline: [{ type: "msg", from: "client" }] };
+  const was = {
+    id: "th-1",
+    real: true,
+    who: "Rosa Díaz",
+    state: "escalated",
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    lastAtMs: 1000,
+    timeline: [{ type: "msg", from: "client" }],
+  };
   assert.equal(say(was, { ...was }), null);
-  assert.equal(say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "client" }] }), "Rosa Díaz wrote again");
-  assert.equal(say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "agent" }] }), "The receptionist replied");
+  assert.equal(
+    say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "client" }] }),
+    "Rosa Díaz wrote again",
+  );
+  assert.equal(
+    say(was, { ...was, lastAtMs: 2000, timeline: [...was.timeline, { type: "msg", from: "agent" }] }),
+    "The receptionist replied",
+  );
   assert.equal(say(was, { ...was, state: "done" }), "Moved to Handled");
   assert.equal(say(was, { ...was, state: "done", archived: true }), "Archived");
   assert.equal(say(was, { ...was, state: "snoozed", wake: "Tue 10:00 AM" }), "Snoozed until Tue 10:00 AM");
@@ -143,22 +269,53 @@ test("what changed on the open thread while you had it open, in one line -- and 
 test("REGRESSION: a re-read that moves the open thread out of its bucket keeps it open, says what happened, and opens nobody else in its place", () => {
   const drawn = [];
   let select = null;
-  globalThis.InboxList = (p) => { select = p.onSelectThread; return null; };
-  globalThis.InboxThread = (p) => { drawn.push({ id: p.thread ? p.thread.id : null, notice: p.notice ?? null }); return null; };
+  globalThis.InboxList = (p) => {
+    select = p.onSelectThread;
+    return null;
+  };
+  globalThis.InboxThread = (p) => {
+    drawn.push({ id: p.thread ? p.thread.id : null, notice: p.notice ?? null });
+    return null;
+  };
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  const open = { id: "th-rosa", real: true, who: "Rosa Díaz", state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const open = {
+    id: "th-rosa",
+    real: true,
+    who: "Rosa Díaz",
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    tags: [],
+    whoMeta: "",
+    lastAtMs: 1000,
+    timeline: [],
+  };
   const other = { ...open, id: "th-nina", who: "Nina Park" };
   const fresh = () => {
     cells = [];
     drawn.length = 0;
     for (const k of Object.keys(listeners)) delete listeners[k];
-    globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [other, open] };
+    globalThis.window.INBOX_DATA = {
+      INBOX_BUCKETS: [],
+      INBOX_VIEWS: [],
+      CHANNEL_LABELS: {},
+      INBOX_BASELINE: {},
+      THREADS: [other, open],
+    };
   };
-  const render = (initialThreadId = null) => { seq = 0; return globalThis.window.Inbox({ initialThreadId, showAgentRail: false }); };
+  const render = (initialThreadId = null) => {
+    seq = 0;
+    return globalThis.window.Inbox({ initialThreadId, showAgentRail: false });
+  };
   // A teammate handed Rosa back: the next read has her in Handled.
   const handBack = () => {
-    globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: [other, { ...open, state: "done", needsYou: false }] };
+    globalThis.window.INBOX_DATA = {
+      ...globalThis.window.INBOX_DATA,
+      THREADS: [other, { ...open, state: "done", needsYou: false }],
+    };
     for (const fn of listeners["surface:inbox"] ?? []) fn();
   };
 
@@ -172,7 +329,11 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
   handBack();
   render();
   assert.ok(drawn.length > before, "the pane is drawn again after the re-read");
-  assert.equal(drawn.at(-1).id, "th-rosa", "REGRESSION: Nina Park's thread opened in Rosa's place, and the reply half-written to Rosa went with the old pane");
+  assert.equal(
+    drawn.at(-1).id,
+    "th-rosa",
+    "REGRESSION: Nina Park's thread opened in Rosa's place, and the reply half-written to Rosa went with the old pane",
+  );
   assert.equal(drawn.at(-1).notice, "Moved to Handled", "and the pane says what happened");
 
   // Opened from a link: the same, not "isn't among the newest" over a thread the Inbox holds.
@@ -182,7 +343,11 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
   const linkedBefore = drawn.length;
   handBack();
   const linked = render("th-rosa");
-  assert.equal(find(linked, byTestId("inbox-missing-thread")), undefined, "REGRESSION: a thread the Inbox had just read said it was not among the newest");
+  assert.equal(
+    find(linked, byTestId("inbox-missing-thread")),
+    undefined,
+    "REGRESSION: a thread the Inbox had just read said it was not among the newest",
+  );
   assert.ok(drawn.length > linkedBefore, "the pane is drawn again after the re-read");
   assert.equal(drawn.at(-1).id, "th-rosa");
   assert.equal(drawn.at(-1).notice, "Moved to Handled");
@@ -194,43 +359,109 @@ test("REGRESSION: a thread picked from a search in another bucket opens that thr
   // opened Emily Chen -- the search spans every bucket, the pane looked only in the one on screen and fell to its first.
   const drawn = [];
   let list = null;
-  globalThis.InboxList = (p) => { list = p; return null; };
-  globalThis.InboxThread = (p) => { drawn.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxList = (p) => {
+    list = p;
+    return null;
+  };
+  globalThis.InboxThread = (p) => {
+    drawn.push(p.thread ? p.thread.id : null);
+    return null;
+  };
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  const base = { real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const base = {
+    real: true,
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    tags: [],
+    whoMeta: "",
+    lastAtMs: 1000,
+    timeline: [],
+  };
   const emily = { ...base, id: "th-emily", who: "Emily Chen" };
   const marcus = { ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false };
   cells = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
-  globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily, marcus] };
-  const render = () => { seq = 0; return globalThis.window.Inbox({ showAgentRail: false }); };
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: {},
+    THREADS: [emily, marcus],
+  };
+  const render = () => {
+    seq = 0;
+    return globalThis.window.Inbox({ showAgentRail: false });
+  };
   render();
   assert.equal(drawn.at(-1), "th-emily", "Needs you opens on its first thread");
   list.onSelectThread("th-marcus");
   render();
-  assert.equal(drawn.at(-1), "th-marcus", "REGRESSION: Emily Chen's thread opened, and a reply meant for Marcus Bell would have gone to her");
-  assert.equal(list.activeBucket, "done", "the bucket the thread lives in is the one on screen, so the list and the pane agree");
-  assert.ok(list.threads.some((t) => t.id === "th-marcus"), "and the list the bucket shows holds it");
+  assert.equal(
+    drawn.at(-1),
+    "th-marcus",
+    "REGRESSION: Emily Chen's thread opened, and a reply meant for Marcus Bell would have gone to her",
+  );
+  assert.equal(
+    list.activeBucket,
+    "done",
+    "the bucket the thread lives in is the one on screen, so the list and the pane agree",
+  );
+  assert.ok(
+    list.threads.some((t) => t.id === "th-marcus"),
+    "and the list the bucket shows holds it",
+  );
   globalThis.InboxThread = RealInboxThread;
 });
 
 test("your own act moves the open thread without a notice about it: its toast has already said so", async () => {
   const drawn = [];
   globalThis.InboxList = () => null;
-  globalThis.InboxThread = (p) => { drawn.push({ id: p.thread ? p.thread.id : null, notice: p.notice ?? null, onArchive: p.onArchive }); return null; };
+  globalThis.InboxThread = (p) => {
+    drawn.push({ id: p.thread ? p.thread.id : null, notice: p.notice ?? null, onArchive: p.onArchive });
+    return null;
+  };
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  const open = { id: "th-rosa", real: true, who: "Rosa Díaz", conversationId: "c1", state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const open = {
+    id: "th-rosa",
+    real: true,
+    who: "Rosa Díaz",
+    conversationId: "c1",
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    tags: [],
+    whoMeta: "",
+    lastAtMs: 1000,
+    timeline: [],
+  };
   const other = { ...open, id: "th-nina", who: "Nina Park", conversationId: "c2" };
   cells = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
-  globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [other, open] };
-  const render = () => { seq = 0; return globalThis.window.Inbox({ initialThreadId: "th-rosa", showAgentRail: false }); };
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: {},
+    THREADS: [other, open],
+  };
+  const render = () => {
+    seq = 0;
+    return globalThis.window.Inbox({ initialThreadId: "th-rosa", showAgentRail: false });
+  };
   render();
   // The verb's own re-read lands before it answers, the way client/api.ts refreshes after a write.
   globalThis.window.__inboxVerb = async () => {
-    globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: [other, { ...open, state: "done", needsYou: false, archived: true }] };
+    globalThis.window.INBOX_DATA = {
+      ...globalThis.window.INBOX_DATA,
+      THREADS: [other, { ...open, state: "done", needsYou: false, archived: true }],
+    };
     for (const fn of listeners["surface:inbox"] ?? []) fn();
     return { ok: true, data: {} };
   };
@@ -251,36 +482,77 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
   // the crumbs kept the name of whichever thread a link had opened; and the bucket went back to the first with work.
   const m = new Map();
   const keepStore = globalThis.window.sessionStorage;
-  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  globalThis.window.sessionStorage = {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
   const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
   installTabMemory(globalThis.window);
   const navs = [];
   globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
   let list = null;
-  globalThis.InboxList = (p) => { list = p; return null; };
+  globalThis.InboxList = (p) => {
+    list = p;
+    return null;
+  };
   const drawn = [];
-  globalThis.InboxThread = (p) => { drawn.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxThread = (p) => {
+    drawn.push(p.thread ? p.thread.id : null);
+    return null;
+  };
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  const base = { real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false, archived: false, tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const base = {
+    real: true,
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    tags: [],
+    whoMeta: "",
+    lastAtMs: 1000,
+    timeline: [],
+  };
   const emily = { ...base, id: "th-emily", who: "Emily Chen" };
   const zoe = { ...base, id: "th-zoe", who: "Zoe Martin" };
   const marcus = { ...base, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false };
-  const fresh = () => { cells = []; for (const k of Object.keys(listeners)) delete listeners[k]; globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily, zoe, marcus] }; };
-  const render = (initialThreadId = null) => { seq = 0; return globalThis.window.Inbox({ initialThreadId, showAgentRail: false }); };
+  const fresh = () => {
+    cells = [];
+    for (const k of Object.keys(listeners)) delete listeners[k];
+    globalThis.window.INBOX_DATA = {
+      INBOX_BUCKETS: [],
+      INBOX_VIEWS: [],
+      CHANNEL_LABELS: {},
+      INBOX_BASELINE: {},
+      THREADS: [emily, zoe, marcus],
+    };
+  };
+  const render = (initialThreadId = null) => {
+    seq = 0;
+    return globalThis.window.Inbox({ initialThreadId, showAgentRail: false });
+  };
   try {
-    fresh(); render();
+    fresh();
+    render();
     list.onSelectThread("th-zoe");
-    assert.deepEqual(navs.at(-1), ["inbox/th-zoe", { replace: true }], "replaced: Back leaves the Inbox rather than replaying every thread read");
+    assert.deepEqual(
+      navs.at(-1),
+      ["inbox/th-zoe", { replace: true }],
+      "replaced: Back leaves the Inbox rather than replaying every thread read",
+    );
     render();
     list.onBucketChange("done");
     assert.deepEqual(navs.at(-1), ["inbox/th-marcus", { replace: true }], "a bucket switch names the thread it opens");
     // A refresh: the address names Marcus, and the bucket he was read in comes back.
-    fresh(); render("th-marcus");
+    fresh();
+    render("th-marcus");
     assert.equal(list.activeBucket, "done");
     assert.equal(drawn.at(-1), "th-marcus");
     // The bucket is kept even when the address names no thread (a bare #/inbox after a refresh).
-    fresh(); render();
+    fresh();
+    render();
     assert.equal(list.activeBucket, "done", "REGRESSION: the Inbox went back to the first bucket with work in it");
   } finally {
     globalThis.window.sessionStorage = keepStore;
@@ -293,12 +565,31 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
 test("the words in the Inbox's search come back after a refresh, in this tab only", async () => {
   const m = new Map();
   const keepStore = globalThis.window.sessionStorage;
-  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  globalThis.window.sessionStorage = {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
   const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
   installTabMemory(globalThis.window);
   const RealList = globalThis.window.InboxList;
   const t = toInboxThreadVM(conv(), asked(), ZONE, NOW);
-  const draw = () => { cells = []; seq = 0; return RealList({ threads: [t], allThreads: [t], buckets: [], views: [], activeBucket: "escalated", onBucketChange() {}, onSelectThread() {}, selected: [], onToggleSelect() {}, onClearSelection() {} }); };
+  const draw = () => {
+    cells = [];
+    seq = 0;
+    return RealList({
+      threads: [t],
+      allThreads: [t],
+      buckets: [],
+      views: [],
+      activeBucket: "escalated",
+      onBucketChange() {},
+      onSelectThread() {},
+      selected: [],
+      onToggleSelect() {},
+      onClearSelection() {},
+    });
+  };
   const box = (tree) => find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input");
   try {
     box(draw()).props.onChange({ target: { value: "friday" } });
@@ -316,25 +607,54 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
   // too. The loading standard's G: kept per thread in the tab's one store (tab-memory.ts), never the device's.
   const m = new Map();
   const keepStore = globalThis.window.sessionStorage;
-  globalThis.window.sessionStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  globalThis.window.sessionStorage = {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
   const { installTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
   installTabMemory(globalThis.window);
   try {
-    const rosa = { id: "th-rosa", real: true, who: "Rosa Díaz", primaryChannel: "whatsapp", hasChat: true, windowOpen: true, optedOut: false };
+    const rosa = {
+      id: "th-rosa",
+      real: true,
+      who: "Rosa Díaz",
+      primaryChannel: "whatsapp",
+      hasChat: true,
+      windowOpen: true,
+      optedOut: false,
+    };
     const nina = { ...rosa, id: "th-nina", who: "Nina Park" };
     // A new mount each time, as a thread switch (the pane is keyed by thread) and a refresh both make.
-    const draw = (thread, props = {}) => { cells = []; seq = 0; return InboxComposer({ thread, reply: "", onSend() {}, ...props }); };
+    const draw = (thread, props = {}) => {
+      cells = [];
+      seq = 0;
+      return InboxComposer({ thread, reply: "", onSend() {}, ...props });
+    };
     const box = (tree) => find(tree, (n) => n.type === "textarea");
     box(draw(rosa)).props.onChange({ target: { value: "Friday at 3 works for us" } });
     assert.equal(box(draw(nina)).props.value, "", "another thread's box is its own");
-    assert.equal(box(draw(rosa)).props.value, "Friday at 3 works for us", "REGRESSION: back to Rosa, and what was written to her was gone");
+    assert.equal(
+      box(draw(rosa)).props.value,
+      "Friday at 3 works for us",
+      "REGRESSION: back to Rosa, and what was written to her was gone",
+    );
     // The receptionist's draft is its own: kept words win over it, and it is never kept as the member's.
     assert.equal(box(draw(rosa, { reply: "Yes, 3pm works." })).props.value, "Friday at 3 works for us");
     box(draw(nina, { reply: "Yes, 3pm works." })).props.onChange({ target: { value: "Yes, 3pm works." } });
-    assert.equal(globalThis.window.__tabMemory.draft("reply", "th-nina"), null, "the receptionist's words, untouched, are not a draft of yours");
+    assert.equal(
+      globalThis.window.__tabMemory.draft("reply", "th-nina"),
+      null,
+      "the receptionist's words, untouched, are not a draft of yours",
+    );
     // Sent, and the server took it: the words go.
     let accept = () => {};
-    const tree = draw(rosa, { onSend: () => new Promise((r) => { accept = r; }) });
+    const tree = draw(rosa, {
+      onSend: () =>
+        new Promise((r) => {
+          accept = r;
+        }),
+    });
     find(tree, (n) => n.type === "button" && n.props?.onClick && /Send/.test(textOf(n))).props.onClick();
     accept(true);
     await new Promise((r) => setTimeout(r, 0));
@@ -350,8 +670,20 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
 });
 
 test("REGRESSION (A15): the template send says when the list could not be read, with a way to read it again -- not that none is approved", () => {
-  const closed = { id: "th-1", real: true, who: "Rosa Díaz", primaryChannel: "whatsapp", hasChat: true, windowOpen: false, optedOut: false };
-  const draw = () => { cells = []; seq = 0; return InboxComposer({ thread: closed, reply: "" }); };
+  const closed = {
+    id: "th-1",
+    real: true,
+    who: "Rosa Díaz",
+    primaryChannel: "whatsapp",
+    hasChat: true,
+    windowOpen: false,
+    optedOut: false,
+  };
+  const draw = () => {
+    cells = [];
+    seq = 0;
+    return InboxComposer({ thread: closed, reply: "" });
+  };
   globalThis.window.__TEMPLATES = undefined;
   // Still reading: nothing yet -- never that none is approved. "Checking which templates are approved…" was the
   // machinery talking (calls you can follow).
@@ -370,7 +702,8 @@ test("REGRESSION (A15): the template send says when the list could not be read, 
 test("REGRESSION (A11): an archived thread says it was archived, not that nobody asked for you", () => {
   const vm = toInboxThreadVM(conv({ state: "archived" }), null, ZONE, NOW);
   assert.deepEqual([vm.state, vm.archived], ["done", true]);
-  cells = []; seq = 0;
+  cells = [];
+  seq = 0;
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
   const archived = textOf(find(tree, byTestId("ix-archived")));
   assert.ok(archived.startsWith("Archived"), `the pill says it: ${archived}`);
@@ -382,16 +715,25 @@ test("REGRESSION (A11): an archived thread says it was archived, not that nobody
 test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and says what it does", () => {
   const vm = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   let archived = null;
-  const props = { thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" }, onArchive: (id) => { archived = id; } };
-  cells = []; seq = 0;
+  const props = {
+    thread: vm,
+    channelLabels: { whatsapp: "WhatsApp", phone: "Phone" },
+    onArchive: (id) => {
+      archived = id;
+    },
+  };
+  cells = [];
+  seq = 0;
   let tree = InboxThread(props);
   const trigger = find(tree, (n) => n.type === "button" && n.props?.["aria-haspopup"] === "menu");
   trigger.props.onClick(click);
-  seq = 0; tree = InboxThread(props);
+  seq = 0;
+  tree = InboxThread(props);
   const item = find(tree, (n) => n.props?.role === "menuitem" && textOf(n).includes("Archive"));
   assert.ok(item, "REGRESSION: Archive lived only in the bulk bar");
   item.props.onClick(click);
-  seq = 0; tree = InboxThread(props);
+  seq = 0;
+  tree = InboxThread(props);
   const ask = find(tree, byTestId("ix-archive-confirm"));
   assert.ok(ask, "it asks first: archiving closes the request");
   assert.match(textOf(ask), /Archive Rosa Díaz's conversation\?/);

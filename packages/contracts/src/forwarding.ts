@@ -83,7 +83,10 @@ export function forwardingCodes(carrier: Carrier, mode: ForwardingMode, destinat
         notes: [
           DIAL_NOTE,
           ...(conditional
-            ? [UNANSWERED_NOTE, `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`]
+            ? [
+                UNANSWERED_NOTE,
+                `Busy too: dial *67*${n10}#. If AT&T refuses these codes, dial *92 then the number for no answer and *90 then the number for busy, or ask AT&T for your plan's codes.`,
+              ]
             : []),
         ],
       };
@@ -117,8 +120,10 @@ export interface ForwardingFacts {
   verified_at?: string | null;
 }
 
-export const isCarrier = (v: unknown): v is Carrier => typeof v === "string" && (CARRIERS as readonly string[]).includes(v);
-export const isForwardingMode = (v: unknown): v is ForwardingMode => typeof v === "string" && (FORWARDING_MODES as readonly string[]).includes(v);
+export const isCarrier = (v: unknown): v is Carrier =>
+  typeof v === "string" && (CARRIERS as readonly string[]).includes(v);
+export const isForwardingMode = (v: unknown): v is ForwardingMode =>
+  typeof v === "string" && (FORWARDING_MODES as readonly string[]).includes(v);
 
 /**
  * The verification rule: an inbound call that started inside the test

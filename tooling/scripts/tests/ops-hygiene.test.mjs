@@ -17,17 +17,31 @@ test("the events purge drops the evidence kinds and only those, past the contrac
   // retention.db.test.mjs runs the function; this holds the two texts together.
   const sql = readRaw("supabase/migrations/00038_events_purge.sql");
   const now = readRaw("supabase/migrations/00115_the_events_purge_covers_the_evidence.sql");
-  assert.ok(now.includes(`create or replace function public.purge_events(p_keep interval default '${RETENTION_DAYS.events_evidence} days')`), "the default is the contract's number");
+  assert.ok(
+    now.includes(
+      `create or replace function public.purge_events(p_keep interval default '${RETENTION_DAYS.events_evidence} days')`,
+    ),
+    "the default is the contract's number",
+  );
   for (const k of EVENT_EVIDENCE_KINDS) assert.ok(now.includes(`'${k}'`), `${k} is purged`);
-  for (const k of ["usage.voice_seconds", "usage.wa_conversation", "message.received", "contact.consent_changed"]) assert.ok(!now.includes(`'${k}'`), `${k} is the record`);
+  for (const k of ["usage.voice_seconds", "usage.wa_conversation", "message.received", "contact.consent_changed"])
+    assert.ok(!now.includes(`'${k}'`), `${k} is the record`);
   assert.ok(now.includes("and created_at < now() - p_keep;"));
   assert.ok(now.includes("security definer") && now.includes("set search_path = public"));
   assert.ok(now.includes("revoke execute on function public.purge_events(interval) from public, anon, authenticated;"));
-  assert.ok(sql.includes("select cron.unschedule('purge-events') where exists (select 1 from cron.job where jobname = 'purge-events');"), "re-runnable");
+  assert.ok(
+    sql.includes(
+      "select cron.unschedule('purge-events') where exists (select 1 from cron.job where jobname = 'purge-events');",
+    ),
+    "re-runnable",
+  );
   const m = sql.match(/cron\.schedule\('purge-events', '(\d+) (\d+) \* \* \*'/);
   assert.ok(m, "scheduled daily");
   const minute = Number(m[1]);
-  assert.ok(minute % 5 !== 0, "must not share a minute with call-reconcile (*/5), deadman (*/10) or sweep-health (:13/:43)");
+  assert.ok(
+    minute % 5 !== 0,
+    "must not share a minute with call-reconcile (*/5), deadman (*/10) or sweep-health (:13/:43)",
+  );
   assert.ok(minute !== 13 && minute !== 43);
 });
 
@@ -35,13 +49,19 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   const y = readRaw(".github/workflows/nightly-e2e.yml");
   assert.ok(y.includes('cron: "0 9 * * *"'));
   assert.ok(y.includes("workflow_dispatch:"));
-  assert.ok(y.includes("E2E_BASE_URL: https://app.chanlytics.com"), "the nightly run exercises the address people actually use");
+  assert.ok(
+    y.includes("E2E_BASE_URL: https://app.chanlytics.com"),
+    "the nightly run exercises the address people actually use",
+  );
   assert.ok(y.includes("run: pnpm e2e:install") && y.includes("run: pnpm e2e"));
   for (const s of ["E2E_SUPABASE_URL", "E2E_SUPABASE_ANON_KEY", "E2E_SERVICE_ROLE_KEY"]) {
     assert.ok(y.includes(`secrets.${s}`), s);
   }
   assert.ok(y.includes("the owner's decision"), "the rule about live secrets in CI is stated, not silently broken");
-  assert.ok(y.includes("if: failure()") && y.includes("retention-days: 7"), "a report can carry a real workspace's data");
+  assert.ok(
+    y.includes("if: failure()") && y.includes("retention-days: 7"),
+    "a report can carry a real workspace's data",
+  );
   assert.ok(y.includes("permissions:\n  contents: read"));
 });
 
@@ -63,8 +83,13 @@ test("a log line on the message path carries a phone tail, never the number or t
   // Every log call is read to its closing paren, so a field on the next line
   // counts; a value already reduced to a tail does not.
   const files = [
-    "apps/edge/api/whatsapp.ts", "apps/edge/api/inbound-sms.ts", "apps/edge/api/retell-inbound.ts", "apps/edge/lib/call-start.ts",
-    "apps/edge/lib/whatsapp/inbound.ts", "apps/edge/lib/whatsapp/persist.ts", "apps/edge/lib/sms.ts",
+    "apps/edge/api/whatsapp.ts",
+    "apps/edge/api/inbound-sms.ts",
+    "apps/edge/api/retell-inbound.ts",
+    "apps/edge/lib/call-start.ts",
+    "apps/edge/lib/whatsapp/inbound.ts",
+    "apps/edge/lib/whatsapp/persist.ts",
+    "apps/edge/lib/sms.ts",
   ];
   const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|\.child\()/g;
   const NUMBER = /[{,(]\s*(from|to|phone|phone_e164|recipient_id|e164|number)\s*[:,})]/;
@@ -73,13 +98,31 @@ test("a log line on the message path carries a phone tail, never the number or t
   for (const f of files) {
     const src = readRaw(f);
     for (const m of src.matchAll(CALL)) {
-      let depth = 0; let i = m.index + m[0].length - 1;
-      for (; i < src.length; i++) { if (src[i] === "(") depth++; else if (src[i] === ")") { depth--; if (depth === 0) break; } }
+      let depth = 0;
+      let i = m.index + m[0].length - 1;
+      for (; i < src.length; i++) {
+        if (src[i] === "(") depth++;
+        else if (src[i] === ")") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
       const call = src.slice(m.index, i + 1).replace(/phoneTail\([^)]*\)/g, "TAIL");
-      if (NUMBER.test(call) || WORDS.test(call)) offences.push(`${f}:${src.slice(0, m.index).split("\n").length} ${call.replace(/\s+/g, " ").slice(0, 120)}`);
+      if (NUMBER.test(call) || WORDS.test(call))
+        offences.push(`${f}:${src.slice(0, m.index).split("\n").length} ${call.replace(/\s+/g, " ").slice(0, 120)}`);
     }
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
-  assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes('console.log("wa_inbound", JSON.stringify({ from_tail: phoneTail(m.from), type: m.type, id: m.id }));'), "the WhatsApp inbound line: a tail, a type, an id");
-  assert.ok(readRaw("apps/edge/api/inbound-sms.ts").includes("from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)"), "the SMS logger's context: tails");
+  assert.ok(
+    readRaw("apps/edge/api/whatsapp.ts").includes(
+      'L.info("wa_inbound", { from_tail: phoneTail(m.from), type: m.type, id: m.id });',
+    ),
+    "the WhatsApp inbound line: a tail, a type, an id",
+  );
+  assert.ok(
+    readRaw("apps/edge/api/inbound-sms.ts").includes(
+      "from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)",
+    ),
+    "the SMS logger's context: tails",
+  );
 });

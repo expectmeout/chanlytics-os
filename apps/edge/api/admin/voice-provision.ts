@@ -45,6 +45,10 @@ import {
   type LiveAgentSettings,
   type VoiceProvisionRequest,
 } from "../../lib/packages/channels.js";
+import { env } from "../../lib/env.js";
+import { logger, errField } from "../../lib/log.js";
+
+const L = logger();
 
 interface Body {
   tenant_id?: string;
@@ -59,8 +63,10 @@ const E164 = /^\+[1-9]\d{6,14}$/;
 
 function requestOf(body: Body): VoiceProvisionRequest {
   const area =
-    typeof body.area_code === "number" ? body.area_code
-      : typeof body.area_code === "string" && /^\d{3}$/.test(body.area_code.trim()) ? Number(body.area_code.trim())
+    typeof body.area_code === "number"
+      ? body.area_code
+      : typeof body.area_code === "string" && /^\d{3}$/.test(body.area_code.trim())
+        ? Number(body.area_code.trim())
         : null;
   return {
     number: typeof body.number === "string" && body.number.trim() ? body.number.trim() : null,
@@ -73,14 +79,18 @@ function requestOf(body: Body): VoiceProvisionRequest {
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
-  const apiKey = process.env.RETELL_API_KEY;
-  const fnSecret = process.env.RETELL_FN_SECRET;
+  const apiKey = env.RETELL_API_KEY;
+  const fnSecret = env.RETELL_FN_SECRET;
   if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_database" });
 
   let body: Body = {};
-  try { body = JSON.parse(await request.text()); } catch { /* validated below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* validated below */
+  }
   const apply = body.apply === true;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -93,13 +103,27 @@ export async function POST(request: Request): Promise<Response> {
   const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
   if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
   if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
-  const existing = await db.from("tenant_channels").select("id, status, external_id, number_e164").eq("tenant_id", tenantId).eq("kind", "voice").order("created_at").limit(1).maybeSingle();
+  const existing = await db
+    .from("tenant_channels")
+    .select("id, status, external_id, number_e164")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "voice")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
   if (existing.error) return json(503, { ok: false, error: existing.error.message });
 
   const req = requestOf(body);
   const plan = planVoiceProvision({
     tenant: { id: tenant.data.id, name: tenant.data.name },
-    channel: existing.data ? { id: existing.data.id, status: existing.data.status, agentId: existing.data.external_id, number: existing.data.number_e164 } : null,
+    channel: existing.data
+      ? {
+          id: existing.data.id,
+          status: existing.data.status,
+          agentId: existing.data.external_id,
+          number: existing.data.number_e164,
+        }
+      : null,
     request: req,
   });
   const ends = voiceEndpoints(edgeFnUrl());
@@ -134,7 +158,11 @@ export async function POST(request: Request): Promise<Response> {
     json(status >= 500 ? 503 : 502, { ...out, ok: false, error: { step, status, detail }, result });
 
   // 1–3. The LLM, the agent, the first version published — created, reused, or adopted.
-  const made = await createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId });
+  const made = await createVoiceAgent(cfg, secrets, {
+    agentName: plan.names.agent,
+    llmId: req.llmId,
+    agentId: req.agentId,
+  });
   if (!made.ok) {
     result.llm = made.partial.llmId ? { llm_id: made.partial.llmId, version: made.partial.llmVersion } : null;
     return fail(made.step, made.status, made.detail);
@@ -148,12 +176,19 @@ export async function POST(request: Request): Promise<Response> {
   let number = req.number;
   let numberType: string | null = null;
   if (number) {
-    const w = await updatePhoneNumber(cfg, number, voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets));
+    const w = await updatePhoneNumber(
+      cfg,
+      number,
+      voiceNumberBindBody({ agentId, pinned, nickname: plan.names.nickname }, secrets),
+    );
     if (!w.ok) return fail("number", w.status, w.body);
     numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
     result.number = { phone_number: number, bound: true, pinned, type: numberType };
   } else if (req.areaCode !== null && req.areaCode !== undefined) {
-    const w = await createPhoneNumber(cfg, voiceNumberCreateBody({ areaCode: req.areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets));
+    const w = await createPhoneNumber(
+      cfg,
+      voiceNumberCreateBody({ areaCode: req.areaCode, agentId, pinned, nickname: plan.names.nickname }, secrets),
+    );
     if (!w.ok) return fail("number", w.status, w.body);
     const bought = typeof w.body?.phone_number === "string" ? w.body.phone_number : "";
     if (!E164.test(bought)) return fail("number", 502, "the provider answered without a phone number");
@@ -161,7 +196,11 @@ export async function POST(request: Request): Promise<Response> {
     numberType = typeof w.body?.phone_number_type === "string" ? w.body.phone_number_type : null;
     result.number = { phone_number: number, bought: true, area_code: req.areaCode, pinned, type: numberType };
   } else {
-    return json(200, { ...out, result, note: "agent ready; no number asked for — re-run with number or area_code, and this agent_id, to finish" });
+    return json(200, {
+      ...out,
+      result,
+      note: "agent ready; no number asked for — re-run with number or area_code, and this agent_id, to finish",
+    });
   }
 
   // 5. The row: the line exists for the product from here on.
@@ -185,7 +224,12 @@ export async function POST(request: Request): Promise<Response> {
     })
     .select("id")
     .single();
-  if (ins.error) return fail("channel", 503, `${ins.error.message} — the number ${number} is bound to ${agentId}; re-run with number and agent_id`);
+  if (ins.error)
+    return fail(
+      "channel",
+      503,
+      `${ins.error.message} — the number ${number} is bound to ${agentId}; re-run with number and agent_id`,
+    );
   result.channel = { id: ins.data.id, status: "active" };
 
   // 6. Tell the workspace, and the platform.
@@ -199,21 +243,39 @@ export async function POST(request: Request): Promise<Response> {
   });
   try {
     await emitEvent(db, tenantId, "voice.provisioned", "setup", "tenant_channel", ins.data.id, {
-      agent_id: agentId, llm_id: llmId, number, pinned, bought: !req.number, number_type: numberType,
+      agent_id: agentId,
+      llm_id: llmId,
+      number,
+      pinned,
+      bought: !req.number,
+      number_type: numberType,
     });
   } catch (e) {
-    console.error("voice_provision_event_failed", e instanceof Error ? e.message : String(e));
+    L.error("voice_provision_event_failed", { error: errField(e) });
   }
 
   // 7. Read back: a freshly provisioned line plans nothing on either converger.
   const after = await getAgentRaw(cfg, agentId);
   const engine = (after?.response_engine ?? {}) as Record<string, unknown>;
-  const llmAfter = llmId ? await getRetellLlm(cfg, llmId, typeof engine.version === "number" ? engine.version : null) : null;
+  const llmAfter = llmId
+    ? await getRetellLlm(cfg, llmId, typeof engine.version === "number" ? engine.version : null)
+    : null;
   result.after = {
-    agent: after ? planAgentSettings(after as unknown as LiveAgentSettings, { retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days }).drift : ["unreadable"],
+    agent: after
+      ? planAgentSettings(after as unknown as LiveAgentSettings, {
+          retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
+        }).drift
+      : ["unreadable"],
     shell: llmAfter ? voiceShellDrift(llmAfter).drift : ["unreadable"],
     published: after?.is_published ?? null,
   };
-  console.log("voice_provision", JSON.stringify({ tenant: tenantId, agent_id: agentId, llm_id: llmId, number, pinned, bought: !req.number }));
+  L.info("voice_provision", {
+    tenant: tenantId,
+    agent_id: agentId,
+    llm_id: llmId,
+    number,
+    pinned,
+    bought: !req.number,
+  });
   return json(200, { ...out, result });
 }

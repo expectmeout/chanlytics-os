@@ -17,12 +17,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  BusinessProfileSchema,
-  composeSystemPrompt,
-  describeNow,
-  resolveSystemPrompt,
-} from "@chanlytics/contracts";
+import { BusinessProfileSchema, composeSystemPrompt, describeNow, resolveSystemPrompt } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 const brain = {
@@ -94,7 +89,7 @@ test("the timezone has ONE home, and it is not the business profile", () => {
 test("the clock is sent as its OWN system block, uncached", () => {
   const brainSrc = readCode("apps/edge/lib/brain.ts");
   const cached = brainSrc.indexOf("cache_control");
-  const now = brainSrc.indexOf("nowNote ? [{ type: \"text\", text: nowNote }]");
+  const now = brainSrc.indexOf('nowNote ? [{ type: "text", text: nowNote }]');
   assert.ok(now > 0, "the now block must be sent");
   assert.ok(now > cached, "it belongs after the cached prompt, not inside it");
   assert.equal(

@@ -27,23 +27,73 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
   useCallback: (fn) => fn,
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+globalThis.document = {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
   __chrome: { state: stateOf },
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
-  location: { pathname: "/w/salon", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/salon",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},
@@ -55,7 +105,10 @@ globalThis.window = {
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;
 Object.assign(globalThis, { EmptyState, FailedRead, MoreMenu, StatePill });
-Object.assign(globalThis.window, { __ME: { email: "ruben@rjcapital.io", role: "owner" }, __SETTINGS: { role: "owner" } });
+Object.assign(globalThis.window, {
+  __ME: { email: "ruben@rjcapital.io", role: "owner" },
+  __SETTINGS: { role: "owner" },
+});
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
 /* ------------------------------- the rule ------------------------------- */
@@ -64,7 +117,16 @@ test("REGRESSION: a Business save keeps a booking rule the editor does not show 
   const kept = globalThis.window.settingsRulesKept;
   assert.equal(typeof kept, "function", "what a save keeps is one rule that can be run");
   assert.deepEqual(
-    kept({ slot_min: 45, lead_hours: 2, buffer_min: 10, max_days_ahead: 14, party_max: 4, consult_first: ["balayage"], notes: ["no walk-ins"], a_rule_added_later: true }),
+    kept({
+      slot_min: 45,
+      lead_hours: 2,
+      buffer_min: 10,
+      max_days_ahead: 14,
+      party_max: 4,
+      consult_first: ["balayage"],
+      notes: ["no walk-ins"],
+      a_rule_added_later: true,
+    }),
     { a_rule_added_later: true },
     "the seven keys the form edits, the slot length among them since it has a field, are the form's to write; the rest stays as stored",
   );

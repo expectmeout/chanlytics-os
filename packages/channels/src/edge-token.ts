@@ -46,8 +46,7 @@ export function signEdgeToken(
 }
 
 export type EdgeTokenVerdict =
-  | { ok: true; claims: EdgeClaims }
-  | { ok: false; reason: "malformed" | "signature" | "audience" | "expired" };
+  { ok: true; claims: EdgeClaims } | { ok: false; reason: "malformed" | "signature" | "audience" | "expired" };
 
 /** Signature first, in constant time; only a signed payload is parsed. */
 export function verifyEdgeToken(secret: string, token: string, aud: string, nowMs = Date.now()): EdgeTokenVerdict {
@@ -63,7 +62,8 @@ export function verifyEdgeToken(secret: string, token: string, aud: string, nowM
   } catch {
     return { ok: false, reason: "malformed" };
   }
-  if (!claims || typeof claims !== "object" || typeof claims.aud !== "string") return { ok: false, reason: "malformed" };
+  if (!claims || typeof claims !== "object" || typeof claims.aud !== "string")
+    return { ok: false, reason: "malformed" };
   if (claims.aud !== aud) return { ok: false, reason: "audience" };
   if (typeof claims.iat !== "number" || typeof claims.exp !== "number") return { ok: false, reason: "malformed" };
   // Expired, or minted in a future further off than the TTL itself (a wrong clock, or a forgery of the time).

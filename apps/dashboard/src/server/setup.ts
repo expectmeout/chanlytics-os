@@ -38,7 +38,15 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
-import { parseTenantConfigResult, starterByName, resolveFacts, factConflicts, channelFor, type SetupDto, type CapabilityKind } from "@chanlytics/contracts";
+import {
+  parseTenantConfigResult,
+  starterByName,
+  resolveFacts,
+  factConflicts,
+  channelFor,
+  type SetupDto,
+  type CapabilityKind,
+} from "@chanlytics/contracts";
 import { calendarWeek } from "./calendar";
 import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
@@ -59,11 +67,18 @@ import { emailSetupFor } from "./email";
 export type SetupViewer = { kind: "member" } | { kind: "back_office" };
 
 /** How many people are in the workspace and how many invitations are open -- the only two numbers Setup uses. */
-async function teamCounts(supabase: SupabaseClient<Database>, tenantId: string): Promise<{ members: number; invitesOpen: number }> {
+async function teamCounts(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<{ members: number; invitesOpen: number }> {
   const [members, invites] = await Promise.all([
     supabase.from("memberships").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
-    supabase.from("invitations").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
-      .is("accepted_at", null).is("revoked_at", null),
+    supabase
+      .from("invitations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .is("accepted_at", null)
+      .is("revoked_at", null),
   ]);
   if (members.error) throw new Error(members.error.message);
   if (invites.error) throw new Error(invites.error.message);
@@ -75,7 +90,8 @@ async function teamCounts(supabase: SupabaseClient<Database>, tenantId: string):
  * for, from setup.requested events that arrive newest first (00123).
  */
 function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unknown }> | null): SetupDto["requests"] {
-  const newest = (what: string) => (rows ?? []).find((r) => (r.data as { what?: unknown } | null)?.what === what)?.created_at ?? null;
+  const newest = (what: string) =>
+    (rows ?? []).find((r) => (r.data as { what?: unknown } | null)?.what === what)?.created_at ?? null;
   return { line: newest("line"), port: newest("port"), repair: newest("repair") };
 }
 
@@ -92,37 +108,91 @@ export async function setupDtoFor(
   viewer: SetupViewer,
   now = new Date(),
 ): Promise<SetupDto> {
-
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersSaid, offersReach, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations, email] = await Promise.all([
+  const [
+    cfgRow,
+    channels,
+    lastMsg,
+    lastCall,
+    templates,
+    calendar,
+    team,
+    yes,
+    offersSaid,
+    offersReach,
+    requested,
+    lineRows,
+    lineStatus,
+    listing,
+    google,
+    connection,
+    billingRow,
+    billingReady,
+    activations,
+    email,
+  ] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId),
-    supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
-      .order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
-    supabase.from("calls").select("started_at").eq("tenant_id", tenantId).eq("direction", "inbound")
-      .order("started_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle(),
+    supabase
+      .from("messages")
+      .select("channel_ts, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("direction", "inbound")
+      .eq("channel", "whatsapp")
+      .order("channel_ts", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("calls")
+      .select("started_at")
+      .eq("tenant_id", tenantId)
+      .eq("direction", "inbound")
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle(),
     supabase.from("templates").select("name, meta_status, hidden_at").eq("tenant_id", tenantId),
     calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, { canAct: false }).catch(() => null),
     viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId),
-    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("consent", "opted_in").is("erased_at", null),
+    supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("consent", "opted_in")
+      .is("erased_at", null),
     // The OTHER answer, counted on its own column, twice: who gave it, and who of
     // them a promotional broadcast reaches. `dnc` is excluded here and not above
     // because a do-not-contact blocks a promotion outright, and a STOP sets it
     // (00095's set_contact_consent) -- so this is `saidYesTo(r, "marketing")` in
     // SQL, the predicate of the `contacts_marketing_audience` index (00095).
-    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
-      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null),
-    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId)
+    supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("marketing_consent", "opted_in")
+      .eq("dnc", false)
+      .is("erased_at", null),
+    supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
       // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
       // the yes to offers, no do-not-contact, and a number to send to. The number was
       // missing, so this row counted people the broadcast route would not enrol --
       // and read alone, it called a yes with no number (someone who only emails, a
       // walk-in recorded without one) nobody's yes.
-      .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null).not("phone_e164", "is", null),
+      .eq("marketing_consent", "opted_in")
+      .eq("dnc", false)
+      .is("erased_at", null)
+      .not("phone_e164", "is", null),
     // What the owner has asked a person at Chanlytics for, newest first (00123: a line, a port, a repair). From the
     // events the ask records, not the bell: a bell row cannot say which thing was asked for, and the edge's own
     // "your phone line is ready" row shares its subject, so it read as a request.
-    supabase.from("events").select("created_at, data").eq("tenant_id", tenantId).eq("kind", "setup.requested")
-      .order("created_at", { ascending: false }).limit(30),
+    supabase
+      .from("events")
+      .select("created_at, data")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "setup.requested")
+      .order("created_at", { ascending: false })
+      .limit(30),
     linesFor(supabase, tenantId),
     linesStatus(),
     listingFor(supabase, tenantId),
@@ -131,7 +201,10 @@ export async function setupDtoFor(
     billingFor(supabase, tenantId),
     billingReadiness(),
     // The owner's own act, per capability (00108).
-    supabase.from("capability_activations").select("capability, activated_at, activated_by, deactivated_at").eq("tenant_id", tenantId),
+    supabase
+      .from("capability_activations")
+      .select("capability, activated_at, activated_by, deactivated_at")
+      .eq("tenant_id", tenantId),
     // Whether this deployment has email, and the workspace's mailbox when it has one. No query at all where it is off.
     emailSetupFor(supabase, tenantId),
   ]);
@@ -175,7 +248,10 @@ export async function setupDtoFor(
   const byKind = (kind: string) => channelFor(channels.data ?? [], kind);
   const wa = byKind("whatsapp");
   const voice = byKind("voice");
-  const waCfg = (wa?.config && typeof wa.config === "object" && !Array.isArray(wa.config) ? wa.config : {}) as Record<string, unknown>;
+  const waCfg = (wa?.config && typeof wa.config === "object" && !Array.isArray(wa.config) ? wa.config : {}) as Record<
+    string,
+    unknown
+  >;
 
   const approved = (templates.data ?? []).filter((t) => t.meta_status === "approved" && !t.hidden_at);
   const pending = (templates.data ?? []).filter((t) => t.meta_status === "pending" && !t.hidden_at);
@@ -183,11 +259,13 @@ export async function setupDtoFor(
   // The same resolver the prompt and the Business pane use. Setup called the
   // facts row "ready" whenever the fields were filled in, on a workspace whose
   // receptionist was publishing the number it transfers to.
-  const conflicts = factConflicts(resolveFacts(brain, {
-    workspace: null,
-    channels: channels.data ?? [],
-    listing: listing ? { name: listing.name, address: listing.address } : null,
-  }));
+  const conflicts = factConflicts(
+    resolveFacts(brain, {
+      workspace: null,
+      channels: channels.data ?? [],
+      listing: listing ? { name: listing.name, address: listing.address } : null,
+    }),
+  );
 
   const setup: SetupDto = {
     business,
@@ -217,23 +295,52 @@ export async function setupDtoFor(
     team: {
       // Either shape answers the same two questions; the member path already
       // has the roster in hand, the back office never asks for it.
-      members: "members" in team && Array.isArray(team.members) ? team.members.length : (team as { members: number }).members,
+      members:
+        "members" in team && Array.isArray(team.members) ? team.members.length : (team as { members: number }).members,
       invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     },
     consent: { yes: yes.count ?? 0, offers: offersReach.count ?? 0, offersSaidYes: offersSaid.count ?? 0 },
     requests: requestsFrom(requested.data),
-    lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },
+    lines: {
+      rows: lineRows,
+      ready: lineStatus.ready,
+      provider: lineStatus.provider,
+      costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd },
+    },
     google: {
       ready: google.places || google.profile,
       places: google.places,
-      listing: listing ? { name: listing.name, rating: listing.rating, review_count: listing.review_count, checked_at: listing.checked_at, check_error: listing.check_error } : null,
+      listing: listing
+        ? {
+            name: listing.name,
+            rating: listing.rating,
+            review_count: listing.review_count,
+            checked_at: listing.checked_at,
+            check_error: listing.check_error,
+          }
+        : null,
       connected: !!connection?.location_name,
     },
     billing: billingRow
-      ? { ready: billingReady.ready, livemode: billingReady.livemode, mode: billingRow.mode, status: billingRow.status, trial_end: billingRow.trial_end, current_period_end: billingRow.current_period_end, trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at, cancel_at_period_end: billingRow.cancel_at_period_end }
+      ? {
+          ready: billingReady.ready,
+          livemode: billingReady.livemode,
+          mode: billingRow.mode,
+          status: billingRow.status,
+          trial_end: billingRow.trial_end,
+          current_period_end: billingRow.current_period_end,
+          trial_days: billingReady.trial_days,
+          cancel_at: billingRow.cancel_at,
+          cancel_at_period_end: billingRow.cancel_at_period_end,
+        }
       : undefined,
-    activations: (activations.data ?? []).map((a) => ({ capability: a.capability as CapabilityKind, activated_at: a.activated_at, activated_by: a.activated_by, deactivated_at: a.deactivated_at })),
+    activations: (activations.data ?? []).map((a) => ({
+      capability: a.capability as CapabilityKind,
+      activated_at: a.activated_at,
+      activated_by: a.activated_by,
+      deactivated_at: a.deactivated_at,
+    })),
   };
   return setup;
 }

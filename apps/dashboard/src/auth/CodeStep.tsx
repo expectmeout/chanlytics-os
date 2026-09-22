@@ -64,13 +64,17 @@ export default function CodeStep({
   // A code is already on its way when this renders, so the wait starts now.
   useEffect(() => {
     startCooldown();
-    return () => { if (timer.current) clearInterval(timer.current); };
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+    };
   }, [startCooldown]);
 
   // autoFocus is a no-op under SSR: the node already exists in the server HTML,
   // so React hydrates it and never calls .focus(). Otherwise this screen opens
   // with a dead click into the page.
-  useEffect(() => { field.current?.focus(); }, []);
+  useEffect(() => {
+    field.current?.focus();
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

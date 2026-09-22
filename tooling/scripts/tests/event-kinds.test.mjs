@@ -34,7 +34,10 @@ function walk(dir, out = []) {
 /** kind → the files that write it. */
 function emitted() {
   const by = new Map();
-  const add = (kind, file) => { if (!by.has(kind)) by.set(kind, new Set()); by.get(kind).add(file); };
+  const add = (kind, file) => {
+    if (!by.has(kind)) by.set(kind, new Set());
+    by.get(kind).add(file);
+  };
   // SQL: each insert into events, the first dotted literal in its values.
   for (const f of fs.readdirSync(path.join(ROOT, "supabase/migrations")).filter((n) => n.endsWith(".sql"))) {
     const src = readRaw(`supabase/migrations/${f}`);
@@ -44,20 +47,39 @@ function emitted() {
     }
   }
   // TypeScript: the runtimes and the packages, never the tests or the built copies.
-  for (const dir of ["apps/edge", "apps/dashboard/src", "apps/dashboard/app", "packages/db/src", "packages/core/src", "packages/jobs/src", "packages/channels/src", "packages/contracts/src"]) {
+  for (const dir of [
+    "apps/edge",
+    "apps/dashboard/src",
+    "apps/dashboard/app",
+    "packages/db/src",
+    "packages/core/src",
+    "packages/jobs/src",
+    "packages/channels/src",
+    "packages/contracts/src",
+  ]) {
     for (const f of walk(dir)) {
       const src = readRaw(f);
-      const consts = new Map([...src.matchAll(/const ([A-Z_]+_KIND)\s*=\s*"([a-z_]+\.[a-z_]+)"/g)].map((m) => [m[1], m[2]]));
+      const consts = new Map(
+        [...src.matchAll(/const ([A-Z_]+_KIND)\s*=\s*"([a-z_]+\.[a-z_]+)"/g)].map((m) => [m[1], m[2]]),
+      );
       // Every literal inside the call, to its closing paren: a conditional that
       // picks one of three billing kinds names all three.
       for (const m of src.matchAll(/emitEvent\(/g)) {
-        let depth = 0; let i = m.index;
-        for (; i < src.length; i++) { if (src[i] === "(") depth++; else if (src[i] === ")") { depth--; if (depth === 0) break; } }
+        let depth = 0;
+        let i = m.index;
+        for (; i < src.length; i++) {
+          if (src[i] === "(") depth++;
+          else if (src[i] === ")") {
+            depth--;
+            if (depth === 0) break;
+          }
+        }
         const call = src.slice(m.index, i + 1);
         for (const lit of call.matchAll(/"([a-z_]+\.[a-z_]+)"/g)) if (KIND.test(lit[1])) add(lit[1], f);
         for (const c of call.matchAll(/\b([A-Z_]+_KIND)\b/g)) if (consts.has(c[1])) add(consts.get(c[1]), f);
       }
-      for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
+      for (const m of src.matchAll(/\.from\("events"\)\s*\.insert\(\{[\s\S]{0,400}?kind:\s*"([a-z_]+\.[a-z_]+)"/g))
+        add(m[1], f);
       for (const m of src.matchAll(/\bevent\(\s*(?:ports\.)?db,\s*d,\s*"([a-z_]+\.[a-z_]+)"/g)) add(m[1], f);
       // A verdict that names its own event kind (channels/a2p: the line's texting state).
       for (const m of src.matchAll(/\bevent:\s*"(line\.[a-z_]+)"/g)) add(m[1], f);
@@ -70,22 +92,47 @@ test("every kind the product writes is declared, and every declared kind is writ
   const by = emitted();
   const written = [...by.keys()].filter((k) => KIND.test(k));
   const undeclared = written.filter((k) => !declared.has(k) && !channelFamily.has(k)).sort();
-  assert.deepEqual(undeclared.map((k) => `${k} <- ${[...by.get(k)].join(", ")}`), [], "emitted but not in EVENT_KINDS: declare it, or stop writing it");
+  assert.deepEqual(
+    undeclared.map((k) => `${k} <- ${[...by.get(k)].join(", ")}`),
+    [],
+    "emitted but not in EVENT_KINDS: declare it, or stop writing it",
+  );
   const dead = [...declared].filter((k) => !by.has(k)).sort();
-  assert.deepEqual(dead, [], "declared but nothing writes it: a dead kind, or an emitter this lint cannot see (teach it the shape)");
+  assert.deepEqual(
+    dead,
+    [],
+    "declared but nothing writes it: a dead kind, or an emitter this lint cannot see (teach it the shape)",
+  );
   assert.ok(written.length >= 40, `the lint saw ${written.length} kinds; the product writes more than that`);
 });
 
 test("the computed family is the contracts' list, and nothing else is computed", () => {
-  assert.deepEqual([...WABA_FIELDS].sort(), ["account_review_update", "account_update", "message_template_quality_update", "message_template_status_update", "phone_number_quality_update", "template_category_update"]);
+  assert.deepEqual([...WABA_FIELDS].sort(), [
+    "account_review_update",
+    "account_update",
+    "message_template_quality_update",
+    "message_template_status_update",
+    "phone_number_quality_update",
+    "template_category_update",
+  ]);
   const waba = readRaw("apps/edge/lib/waba-events.ts");
   assert.ok(waba.includes("new Set<string>(WABA_FIELD_LIST)"), "the edge's set is the contracts' list");
   // The one template-literal emit is the channel family; any other would be a kind nobody can name.
   let computed = 0;
-  for (const dir of ["apps/edge", "apps/dashboard/src", "apps/dashboard/app", "packages/db/src", "packages/core/src", "packages/jobs/src"]) {
+  for (const dir of [
+    "apps/edge",
+    "apps/dashboard/src",
+    "apps/dashboard/app",
+    "packages/db/src",
+    "packages/core/src",
+    "packages/jobs/src",
+  ]) {
     for (const f of walk(dir)) {
       const src = readRaw(f);
-      for (const m of src.matchAll(/emitEvent\(\s*[^,]+,\s*[^,]+,\s*`([^`]*)`/g)) { computed += 1; assert.equal(m[1], "channel.${change.field}", `a computed kind in ${f}: ${m[1]}`); }
+      for (const m of src.matchAll(/emitEvent\(\s*[^,]+,\s*[^,]+,\s*`([^`]*)`/g)) {
+        computed += 1;
+        assert.equal(m[1], "channel.${change.field}", `a computed kind in ${f}: ${m[1]}`);
+      }
     }
   }
   assert.equal(computed, 1);

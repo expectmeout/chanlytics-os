@@ -36,21 +36,35 @@ function fakeDb(state) {
     from: (table) => chain(table),
     rpc: async (name) => {
       reads.push(`rpc:${name}`);
-      if (name === "runtime_stamp") return state.stampFails ? { data: null, error: { message: "down" } } : { data: state.stamp, error: null };
+      if (name === "runtime_stamp")
+        return state.stampFails ? { data: null, error: { message: "down" } } : { data: state.stamp, error: null };
       return { data: null, error: null };
     },
   };
 }
 
 test("served from the cache while the stamp agrees, reloaded the moment it changes, kept when the stamp cannot be read", async () => {
-  const state = { config: {}, policies: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], timezone: "America/New_York", stamp: "1|a|b" };
+  const state = {
+    config: {},
+    policies: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }],
+    timezone: "America/New_York",
+    stamp: "1|a|b",
+  };
   const db = fakeDb(state);
-  const routed = { tenantId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa", channelId: "ch1", kind: "whatsapp", credentialsRef: null };
+  const routed = {
+    tenantId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    channelId: "ch1",
+    kind: "whatsapp",
+    credentialsRef: null,
+  };
 
   const first = await loadTenantRuntime(db, routed);
   assert.equal(first.timezone, "America/New_York");
   assert.equal(first.policy.reply.mode, "auto");
-  assert.ok(db.reads.includes("tenant_config") && db.reads.includes("rpc:runtime_stamp"), "a cold load reads everything and takes the stamp");
+  assert.ok(
+    db.reads.includes("tenant_config") && db.reads.includes("rpc:runtime_stamp"),
+    "a cold load reads everything and takes the stamp",
+  );
 
   db.reads.length = 0;
   const second = await loadTenantRuntime(db, routed);
@@ -79,10 +93,21 @@ test("served from the cache while the stamp agrees, reloaded the moment it chang
 test("the wiring: the stamp door, its grant, and the ten-minute backstop", () => {
   const mig = readCode("supabase/migrations/00059_shared_limits_runtime_stamp.sql");
   assert.ok(mig.includes("create or replace function public.runtime_stamp(p_tenant_id uuid)"));
-  for (const s of ["from public.tenant_config c where c.tenant_id = p_tenant_id", "max(p.updated_at)::text from public.policies p where p.tenant_id = p_tenant_id", "from public.tenants t where t.id = p_tenant_id"]) assert.ok(mig.includes(s), s);
+  for (const s of [
+    "from public.tenant_config c where c.tenant_id = p_tenant_id",
+    "max(p.updated_at)::text from public.policies p where p.tenant_id = p_tenant_id",
+    "from public.tenants t where t.id = p_tenant_id",
+  ])
+    assert.ok(mig.includes(s), s);
   assert.ok(mig.includes("grant execute on function public.runtime_stamp(uuid) to service_role;"));
   const src = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(src.includes("const TTL_MS = 10 * 60 * 1000;"), "the backstop for what the stamp does not see");
-  assert.ok(src.includes("if (stamp === null || stamp === hit.stamp) return hit.v;"), "a warm cache is checked, not trusted");
-  assert.ok(src.includes("cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });"), "the stamp is stored with the load");
+  assert.ok(
+    src.includes("if (stamp === null || stamp === hit.stamp) return hit.v;"),
+    "a warm cache is checked, not trusted",
+  );
+  assert.ok(
+    src.includes("cache.set(routed.tenantId, { v: rt, exp: Date.now() + TTL_MS, stamp });"),
+    "the stamp is stored with the load",
+  );
 });

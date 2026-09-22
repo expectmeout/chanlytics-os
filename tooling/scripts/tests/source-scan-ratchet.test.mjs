@@ -83,7 +83,11 @@ test("no test file reads more source than it did yesterday", () => {
     const allowed = baseline.counts[f] ?? 0;
     if (n > allowed) worse.push(`${f}: ${n} source reads, baseline ${allowed}`);
   }
-  assert.deepEqual(worse, [], "write a behaviour test instead; if this file IS a repo-wide lint, add it to `lint` in the baseline with a reason in the PR");
+  assert.deepEqual(
+    worse,
+    [],
+    "write a behaviour test instead; if this file IS a repo-wide lint, add it to `lint` in the baseline with a reason in the PR",
+  );
 });
 
 test("the baseline is not stale", () => {
@@ -96,10 +100,17 @@ test("the baseline is not stale", () => {
   const shrank = [];
   const gone = [];
   for (const [f, n] of Object.entries(baseline.counts)) {
-    if (!known.has(f)) { gone.push(`${f} (baseline ${n})`); continue; }
+    if (!known.has(f)) {
+      gone.push(`${f} (baseline ${n})`);
+      continue;
+    }
     if ((counts[f] ?? 0) < n) shrank.push(`${f}: now ${counts[f] ?? 0}, baseline ${n}`);
   }
-  assert.deepEqual(gone, [], "these files are baselined but not in the repo — remove them: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test");
+  assert.deepEqual(
+    gone,
+    [],
+    "these files are baselined but not in the repo — remove them: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test",
+  );
   assert.deepEqual(shrank, [], "good — now lower the baseline: UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test");
 });
 
@@ -111,7 +122,10 @@ test("the exemption list names files that are repo-wide lints, and stays small",
   // in the PR, and this makes that argument compulsory rather than optional.
   assert.ok(baseline.lint.length <= 8, `the exemption list is ${baseline.lint.length}; it is meant to be a handful`);
   for (const f of baseline.lint) {
-    assert.ok(fs.existsSync(path.join(ROOT, DIR, f)), `${f} is exempted but does not exist — delete it from the baseline`);
+    assert.ok(
+      fs.existsSync(path.join(ROOT, DIR, f)),
+      `${f} is exempted but does not exist — delete it from the baseline`,
+    );
   }
   // An exempt file's count is still RECORDED, deliberately: exempt means "not
   // ratcheted", not "not measured". The number lands in the baseline diff, so

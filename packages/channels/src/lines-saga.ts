@@ -20,7 +20,15 @@ import { RETELL_ORIGINATION, isValidSipPassword, sipPassword, sipUsername, trunk
 import type { LineProvider, ProviderAccount } from "./lines";
 
 export type LineStep = SchemaSet<"lines.step">;
-export const LINE_STEPS: readonly LineStep[] = ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"];
+export const LINE_STEPS: readonly LineStep[] = [
+  "subaccount",
+  "number",
+  "trunk",
+  "agent",
+  "import",
+  "messaging",
+  "channel",
+];
 
 export type LineVoiceState = SchemaSet<"lines.voice_state">;
 
@@ -69,11 +77,19 @@ export interface LinePorts {
   };
   /** The workspace's phone receptionist: an existing agent, or a new one. */
   agent: { ensure(): Promise<{ agentId: string; llmId: string | null; pinned: boolean }> };
-  retell: { importNumber(body: Record<string, unknown>): Promise<{ ok: boolean; status: number; body: Record<string, unknown> | null }> };
+  retell: {
+    importNumber(
+      body: Record<string, unknown>,
+    ): Promise<{ ok: boolean; status: number; body: Record<string, unknown> | null }>;
+  };
   /** The tenant_channels row that routes calls back — created once per agent. */
-  channel: { ensure(o: { agentId: string; e164: string; lineId: string }): Promise<{ channelId: string; created: boolean }> };
+  channel: {
+    ensure(o: { agentId: string; e164: string; lineId: string }): Promise<{ channelId: string; created: boolean }>;
+  };
   /** The tenant_channels row that routes texts back — one per line, keyed on the number. */
-  smsChannel: { ensure(o: { e164: string; lineId: string; serviceSid: string }): Promise<{ channelId: string; created: boolean }> };
+  smsChannel: {
+    ensure(o: { e164: string; lineId: string; serviceSid: string }): Promise<{ channelId: string; created: boolean }>;
+  };
   /** With its key: the inbound-call webhook that fills the facts per call. */
   inboundWebhookUrl: string;
   /** Where the line's texts arrive (no key: the provider signs every request). */
@@ -109,7 +125,8 @@ export function retellImportBody(o: {
 export function nextLineStep(line: LineRow): LineStep | null {
   if (!line.subaccount_sid) return "subaccount";
   if (!line.number_sid) return "number";
-  if (!line.trunk_sid || !line.credential_list_sid || !line.termination_uri || line.facts.trunk_ready !== true) return "trunk";
+  if (!line.trunk_sid || !line.credential_list_sid || !line.termination_uri || line.facts.trunk_ready !== true)
+    return "trunk";
   if (!line.retell_agent_id) return "agent";
   if (line.facts.retell_imported !== true) return "import";
   if (!line.messaging_service_sid || line.facts.number_in_service !== true) return "messaging";
@@ -141,7 +158,8 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
     await ports.store.putSecrets(s);
   };
   const sub = (): ProviderAccount => {
-    if (!line.subaccount_sid || !secrets.auth_token) throw new Error("the subaccount's token is missing from the vault");
+    if (!line.subaccount_sid || !secrets.auth_token)
+      throw new Error("the subaccount's token is missing from the vault");
     return { sid: line.subaccount_sid, token: secrets.auth_token };
   };
 
@@ -167,14 +185,18 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           //
           // Idempotent now, which is the property every other step already had.
           const held = await ports.provider.ownedNumber(sub(), line.e164);
-          const bought = held ?? (await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`));
+          const bought =
+            held ?? (await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`));
           await save({ number_sid: bought.sid, e164: bought.e164 });
           break;
         }
         case "trunk": {
           const acct = sub();
           if (!line.trunk_sid) {
-            const t = await ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, domainName: trunkDomain(line.id) });
+            const t = await ports.provider.createTrunk(acct, {
+              friendlyName: `${ports.tenant.name} · Chanlytics`,
+              domainName: trunkDomain(line.id),
+            });
             await save({ trunk_sid: t.sid, termination_uri: t.domainName });
           }
           if (!line.credential_list_sid) {
@@ -193,7 +215,10 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
             await fact("credential_list_attached", true);
           }
           if (typeof line.facts.origination_sid !== "string") {
-            const o = await ports.provider.addOrigination(acct, line.trunk_sid!, { sipUrl: RETELL_ORIGINATION, friendlyName: "Retell" });
+            const o = await ports.provider.addOrigination(acct, line.trunk_sid!, {
+              sipUrl: RETELL_ORIGINATION,
+              friendlyName: "Retell",
+            });
             await fact("origination_sid", o.sid);
           }
           if (line.facts.number_attached !== true) {
@@ -209,7 +234,8 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           break;
         }
         case "import": {
-          if (!secrets.sip_username || !secrets.sip_password) throw new Error("the SIP credential is missing from the vault");
+          if (!secrets.sip_username || !secrets.sip_password)
+            throw new Error("the SIP credential is missing from the vault");
           const body = retellImportBody({
             e164: line.e164,
             terminationUri: line.termination_uri!,
@@ -222,16 +248,26 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
           });
           const r = await ports.retell.importNumber(body);
           if (!r.ok) {
-            const msg = typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
+            const msg =
+              typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
             throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
           }
-          await save({ facts: { ...line.facts, retell_imported: true, retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom" } });
+          await save({
+            facts: {
+              ...line.facts,
+              retell_imported: true,
+              retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom",
+            },
+          });
           break;
         }
         case "messaging": {
           const acct = sub();
           if (!line.messaging_service_sid) {
-            const svc = await ports.provider.createMessagingService(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, inboundUrl: ports.smsInboundUrl });
+            const svc = await ports.provider.createMessagingService(acct, {
+              friendlyName: `${ports.tenant.name} · Chanlytics`,
+              inboundUrl: ports.smsInboundUrl,
+            });
             await save({ messaging_service_sid: svc.sid });
           }
           if (line.facts.number_in_service !== true) {
@@ -246,7 +282,11 @@ export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<Sag
             await fact("channel_id", c.channelId);
           }
           if (typeof line.facts.sms_channel_id !== "string") {
-            const s = await ports.smsChannel.ensure({ e164: line.e164, lineId: line.id, serviceSid: line.messaging_service_sid! });
+            const s = await ports.smsChannel.ensure({
+              e164: line.e164,
+              lineId: line.id,
+              serviceSid: line.messaging_service_sid!,
+            });
             await fact("sms_channel_id", s.channelId);
           }
           break;

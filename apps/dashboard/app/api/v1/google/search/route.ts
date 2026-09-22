@@ -26,16 +26,42 @@ export const POST = write({
       query = [name, address].filter(Boolean).join(", ");
       fromFacts = true;
     }
-    if (query.length < 3) throw new AppError("validation", "Give the business name and where it is, like “Northside Movers, Brooklyn”.", 400);
+    if (query.length < 3)
+      throw new AppError(
+        "validation",
+        "Give the business name and where it is, like “Northside Movers, Brooklyn”.",
+        400,
+      );
     const a = await edgeGoogle({ op: "search", query }, 15_000);
     const b = a.body ?? {};
-    if (a.status === 503 && b.error === "no_places_key") throw new AppError("conflict", "Finding listings is not available here yet.", 409);
+    if (a.status === 503 && b.error === "no_places_key")
+      throw new AppError("conflict", "Finding listings is not available here yet.", 409);
     if (a.status !== 200 || b.ok !== true) {
       // Google's words (a refused key, a disabled API) are for the log; the owner hears that the search did not happen and that we know.
-      console.error("google_search_failed", JSON.stringify({ tenant: member.tenantId, status: a.status, error: typeof b.error === "string" ? b.error.slice(0, 300) : null }));
-      throw new AppError("internal", "Google could not be searched just now. Try again in a minute; if it keeps failing, Chanlytics has been told.", 502);
+      console.error(
+        "google_search_failed",
+        JSON.stringify({
+          tenant: member.tenantId,
+          status: a.status,
+          error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
+        }),
+      );
+      throw new AppError(
+        "internal",
+        "Google could not be searched just now. Try again in a minute; if it keeps failing, Chanlytics has been told.",
+        502,
+      );
     }
     const candidates = (Array.isArray(b.candidates) ? b.candidates : []) as GoogleCandidateDto[];
-    return { query, from_facts: fromFacts, candidates: candidates.map((c) => ({ place_id: c.place_id, name: c.name, address: c.address ?? null, maps_uri: c.maps_uri ?? null })) };
+    return {
+      query,
+      from_facts: fromFacts,
+      candidates: candidates.map((c) => ({
+        place_id: c.place_id,
+        name: c.name,
+        address: c.address ?? null,
+        maps_uri: c.maps_uri ?? null,
+      })),
+    };
   },
 });

@@ -34,17 +34,35 @@ const WORDS = "tell them we have a haircut special this week";
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (o = {}) => signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, { workspace: "workspace" in o ? o.workspace : A, user: "u1" });
+const token = (o = {}) =>
+  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? AUD, {
+    workspace: "workspace" in o ? o.workspace : A,
+    user: "u1",
+  });
 const knock = (body, headers = { "x-edge-token": token() }) =>
-  POST(new Request(`http://edge${AUD}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) }));
+  POST(
+    new Request(`http://edge${AUD}`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
 const answer = async (res) => [res.status, await res.json()];
 
 /** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */
 async function withEnv(vars, fn) {
   const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(vars)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-  try { return await fn(); } finally {
-    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [k, v] of Object.entries(before)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 /** Every request to the provider, captured and answered with the status given. */
@@ -52,13 +70,29 @@ function provider(status = 200) {
   const seen = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    seen.push({ url: String(url), method: init?.method, headers: init?.headers ?? {}, body: typeof init?.body === "string" ? JSON.parse(init.body) : null });
+    seen.push({
+      url: String(url),
+      method: init?.method,
+      headers: init?.headers ?? {},
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+    });
     return new Response("{}", { status });
   };
-  return { seen, restore: () => { globalThis.fetch = real; } };
+  return {
+    seen,
+    restore: () => {
+      globalThis.fetch = real;
+    },
+  };
 }
 /** A wire nothing may reach. */
-const unreachable = (why) => { const p = provider(); globalThis.fetch = async () => { throw new Error(why); }; return p; };
+const unreachable = (why) => {
+  const p = provider();
+  globalThis.fetch = async () => {
+    throw new Error(why);
+  };
+  return p;
+};
 /** The door's log lines, kept instead of printed. */
 function quiet() {
   const lines = [];
@@ -72,30 +106,69 @@ function quiet() {
 test("the door: a token for another door, a forgery and no credential are 403 with nothing sent; a bad token beside the right key is not rescued by the key; without the secret the key decides", async () => {
   const net = unreachable("a refused whisper must not reach the provider");
   try {
-    assert.deepEqual(await answer(await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ aud: "/api/admin/stop-call" }) })), [403, { ok: false, error: "token_audience" }]);
-    assert.deepEqual(await answer(await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ secret: "not-the-secret" }) })), [403, { ok: false, error: "token_signature" }]);
+    assert.deepEqual(
+      await answer(
+        await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ aud: "/api/admin/stop-call" }) }),
+      ),
+      [403, { ok: false, error: "token_audience" }],
+    );
+    assert.deepEqual(
+      await answer(
+        await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ secret: "not-the-secret" }) }),
+      ),
+      [403, { ok: false, error: "token_signature" }],
+    );
     assert.deepEqual(await answer(await knock({ call_id: CALL, text: WORDS }, {})), [403, { ok: false }]);
     await withEnv({ DIAG_KEY: "diag-key-for-this-file" }, async () => {
-      assert.deepEqual(await answer(await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": "garbage", "x-diag-key": "diag-key-for-this-file" })), [403, { ok: false, error: "token_malformed" }]);
+      assert.deepEqual(
+        await answer(
+          await knock(
+            { call_id: CALL, text: WORDS },
+            { "x-edge-token": "garbage", "x-diag-key": "diag-key-for-this-file" },
+          ),
+        ),
+        [403, { ok: false, error: "token_malformed" }],
+      );
       await withEnv({ EDGE_CALL_SECRET: undefined }, async () => {
         // The key opened the door: what follows is the door's own complaint about an empty body.
         assert.equal((await knock({}, { "x-diag-key": "diag-key-for-this-file" })).status, 400);
-        assert.deepEqual(await answer(await knock({}, { "x-diag-key": "diag-key-for-this-file-but-longer" })), [403, { ok: false }]);
+        assert.deepEqual(await answer(await knock({}, { "x-diag-key": "diag-key-for-this-file-but-longer" })), [
+          403,
+          { ok: false },
+        ]);
       });
     });
     assert.equal(net.seen.length, 0);
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
 });
 
 test("without a provider key there is nobody to whisper to, said before the body is read; a call id that is not one, no words, or more than one answer's worth are refused, with nothing sent", async () => {
   const net = unreachable("a refused whisper must not reach the provider");
   try {
-    assert.deepEqual(await answer(await withEnv({ RETELL_API_KEY: undefined }, () => knock({ call_id: CALL, text: WORDS }))), [503, { ok: false, error: "no_provider_key" }]);
-    for (const body of [{}, { call_id: "not-a-call", text: WORDS }, { call_id: "call_short", text: WORDS }, { call_id: CALL }, { call_id: CALL, text: "   " }, { call_id: CALL, text: "x".repeat(501) }]) {
-      assert.deepEqual(await answer(await knock(body)), [400, { ok: false, error: "call_id + text (1-500 chars) required" }], JSON.stringify(body));
+    assert.deepEqual(
+      await answer(await withEnv({ RETELL_API_KEY: undefined }, () => knock({ call_id: CALL, text: WORDS }))),
+      [503, { ok: false, error: "no_provider_key" }],
+    );
+    for (const body of [
+      {},
+      { call_id: "not-a-call", text: WORDS },
+      { call_id: "call_short", text: WORDS },
+      { call_id: CALL },
+      { call_id: CALL, text: "   " },
+      { call_id: CALL, text: "x".repeat(501) },
+    ]) {
+      assert.deepEqual(
+        await answer(await knock(body)),
+        [400, { ok: false, error: "call_id + text (1-500 chars) required" }],
+        JSON.stringify(body),
+      );
     }
     assert.equal(net.seen.length, 0);
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
 });
 
 /* ------------------------------- the whisper ------------------------------ */
@@ -106,26 +179,51 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
   let res;
   try {
     res = await knock({ call_id: CALL, text: `  ${WORDS}  ` });
-  } finally { log.restore(); }
+  } finally {
+    log.restore();
+  }
   try {
     assert.deepEqual(await answer(res), [200, { ok: true }]);
     assert.equal(p.seen.length, 1, "one update to the live call");
     const [req] = p.seen;
     assert.equal(req.url, `https://api.retellai.com/v2/update-live-call/${CALL}`);
     assert.equal(req.method, "PATCH");
-    assert.equal(req.headers.Authorization, `Bearer ${process.env.RETELL_API_KEY}`, "the provider key lives here, so this is where the provider is spoken to");
-    assert.deepEqual(req.body, { call_control: { additional_context: frameWhisper(WORDS), trigger_response: false } }, "framed, trimmed, and no nudge: a whisper is used when it fits");
+    assert.equal(
+      req.headers.Authorization,
+      `Bearer ${process.env.RETELL_API_KEY}`,
+      "the provider key lives here, so this is where the provider is spoken to",
+    );
+    assert.deepEqual(
+      req.body,
+      { call_control: { additional_context: frameWhisper(WORDS), trigger_response: false } },
+      "framed, trimmed, and no nudge: a whisper is used when it fits",
+    );
     const framed = req.body.call_control.additional_context;
-    assert.ok(framed.startsWith("A whisper from the business owner, who is listening to this call."), "the agent is told whose words these are");
-    assert.ok(framed.includes(`Owner: "${WORDS}"`) && framed.includes("Your standing rules still hold"), "influence, never override: a whisper is not the way around the price rule");
+    assert.ok(
+      framed.startsWith("A whisper from the business owner, who is listening to this call."),
+      "the agent is told whose words these are",
+    );
+    assert.ok(
+      framed.includes(`Owner: "${WORDS}"`) && framed.includes("Your standing rules still hold"),
+      "influence, never override: a whisper is not the way around the price rule",
+    );
     assert.notEqual(framed, WORDS, "REGRESSION: the first real whisper went in bare and lost to a direct question");
     assert.equal(whisperText(framed), WORDS, "the Live page reads the owner's words back out of the frame");
     // The log: how many characters, whose call, what the provider said -- never the words.
-    const line = log.lines.find((l) => l.startsWith("admin_whisper"));
+    const line = log.lines.find((l) => l.includes('"event":"admin_whisper"'));
     assert.ok(line, "one line");
-    assert.deepEqual(JSON.parse(line.slice("admin_whisper ".length)), { call_id: CALL, chars: WORDS.length, ok: true, status: 200 });
+    assert.deepEqual(JSON.parse(line), {
+      level: "info",
+      event: "admin_whisper",
+      call_id: CALL,
+      chars: WORDS.length,
+      ok: true,
+      status: 200,
+    });
     assert.ok(!log.lines.some((l) => l.includes("haircut")), "the words are the operator's and stay out of the log");
-  } finally { p.restore(); }
+  } finally {
+    p.restore();
+  }
 
   const nudge = provider(200);
   try {
@@ -134,15 +232,33 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
     assert.equal((await knock({ call_id: CALL, text: WORDS, trigger: "yes" })).status, 200);
     assert.equal(nudge.seen[1].body.call_control.trigger_response, false, "only a real true nudges");
     // The door checks no workspace: RLS on the dashboard's route has already proved the call is the operator's.
-    assert.equal((await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ workspace: null }) })).status, 200, "a token about no workspace opens it too");
-  } finally { nudge.restore(); }
+    assert.equal(
+      (await knock({ call_id: CALL, text: WORDS }, { "x-edge-token": token({ workspace: null }) })).status,
+      200,
+      "a token about no workspace opens it too",
+    );
+  } finally {
+    nudge.restore();
+  }
 });
 
 test("a call that just ended is a status in a sentence, not an exception in a route", async () => {
   const gone = provider(404);
   const log = quiet();
   let res;
-  try { res = await knock({ call_id: CALL, text: WORDS }); } finally { log.restore(); gone.restore(); }
+  try {
+    res = await knock({ call_id: CALL, text: WORDS });
+  } finally {
+    log.restore();
+    gone.restore();
+  }
   assert.deepEqual(await answer(res), [502, { ok: false, error: "provider_refused", status: 404 }]);
-  assert.deepEqual(JSON.parse(log.lines.find((l) => l.startsWith("admin_whisper")).slice("admin_whisper ".length)), { call_id: CALL, chars: WORDS.length, ok: false, status: 404 });
+  assert.deepEqual(JSON.parse(log.lines.find((l) => l.includes('"event":"admin_whisper"'))), {
+    level: "info",
+    event: "admin_whisper",
+    call_id: CALL,
+    chars: WORDS.length,
+    ok: false,
+    status: 404,
+  });
 });

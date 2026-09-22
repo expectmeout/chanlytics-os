@@ -46,6 +46,77 @@ const OUR_TS_RULES = {
 /** Plugin map for every TypeScript block. */
 const TS_PLUGINS = { "@typescript-eslint": tseslint.plugin };
 
+/**
+ * The boundaries between the dashboard's layers. Nothing but convention held
+ * them before: a page module could import the service-role client, a bridge
+ * file could reach into a server module, and only a failed Vercel build would
+ * have said so. Type-only imports cross freely; they carry a shape, not code.
+ *
+ *   browser code (legacy-bridge, client, yes, auth) → never the server, never
+ *                                                     the packages that hold
+ *                                                     rules or providers
+ *   server code (src/server, app/api)               → never the shell or the
+ *                                                     bridge that feeds it
+ *   the edge                                        → never the dashboard,
+ *                                                     never a UI framework
+ */
+const BROWSER_MAY_NOT_IMPORT = [
+  {
+    group: ["**/server/**", "**/server", "@/server", "@/server/**"],
+    allowTypeImports: true,
+    message: "Browser code reaches the server through the typed client (src/client/api.ts), never by importing it.",
+  },
+  {
+    group: [
+      "@chanlytics/core",
+      "@chanlytics/core/**",
+      "@chanlytics/jobs",
+      "@chanlytics/jobs/**",
+      "@chanlytics/channels",
+      "@chanlytics/channels/**",
+      "server-only",
+    ],
+    allowTypeImports: true,
+    message: "Rules and providers run on the server. The browser sees their outcomes through a route.",
+  },
+];
+
+const SERVER_MAY_NOT_IMPORT = [
+  {
+    group: [
+      "**/legacy-bridge/**",
+      "**/legacy-bridge",
+      "@/legacy-bridge",
+      "@/legacy-bridge/**",
+      "**/legacy/**",
+      "**/src/client/**",
+      "@/client/**",
+      "../client/**",
+      "../../client/**",
+    ],
+    allowTypeImports: true,
+    message:
+      "The server feeds the shell through the surface seam; it never imports the shell, the bridge or the browser client.",
+  },
+];
+
+const EDGE_MAY_NOT_IMPORT = [
+  {
+    group: [
+      "next",
+      "next/**",
+      "react",
+      "react/**",
+      "react-dom",
+      "react-dom/**",
+      "**/apps/dashboard/**",
+      "**/dashboard/**",
+    ],
+    message:
+      "The edge is Node functions a provider calls. It shares packages with the dashboard, never the dashboard itself.",
+  },
+];
+
 export default [
   {
     ignores: [
@@ -75,7 +146,31 @@ export default [
       // before the lambda froze. Without type information the base rule cannot
       // see async calls, so this is the reachable subset.
       "require-atomic-updates": "error",
+      // Every line the edge logs is one JSON object with a level, an event and
+      // whatever context is bound (lib/log.ts). A bare console call is a line
+      // no query returns and no tenant can be joined to.
+      "no-console": "error",
+      // The environment is read in one place (lib/env.ts), typed, trimmed,
+      // blank as unset. A read anywhere else is a second opinion on what a
+      // variable means.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
+          message: "Read the environment through lib/env.ts, which types every variable once.",
+        },
+      ],
+      "@typescript-eslint/no-restricted-imports": ["error", { patterns: EDGE_MAY_NOT_IMPORT }],
     },
+  },
+  // The two modules that are allowed to do what the block above forbids.
+  {
+    files: ["apps/edge/lib/log.ts"],
+    rules: { "no-console": "off" },
+  },
+  {
+    files: ["apps/edge/lib/env.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
 
   // The browser specs and their helpers: Playwright in Node, with callbacks
@@ -112,6 +207,10 @@ export default [
       "apps/dashboard/src/server/**/*.ts",
       "apps/dashboard/src/lib/**/*.ts",
       "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+      // The typed client and the sign-in screens ran without any static
+      // analysis until the boundaries below needed to see them.
+      "apps/dashboard/src/client/**/*.{ts,tsx}",
+      "apps/dashboard/src/auth/**/*.{ts,tsx}",
       // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
       "apps/dashboard/src/yes/**/*.tsx",
       // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
@@ -136,6 +235,25 @@ export default [
       // errors. Adopting those is a decision about the mockup, not a bump.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+
+  // The dashboard's layers, held apart (see BROWSER_MAY_NOT_IMPORT).
+  {
+    files: [
+      "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+      "apps/dashboard/src/client/**/*.{ts,tsx}",
+      "apps/dashboard/src/yes/**/*.tsx",
+      "apps/dashboard/src/auth/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", { patterns: BROWSER_MAY_NOT_IMPORT }],
+    },
+  },
+  {
+    files: ["apps/dashboard/src/server/**/*.ts", "apps/dashboard/app/api/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", { patterns: SERVER_MAY_NOT_IMPORT }],
     },
   },
 

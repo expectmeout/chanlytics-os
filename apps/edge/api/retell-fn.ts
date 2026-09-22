@@ -32,10 +32,28 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode, templatesFor } from "../lib/packages/db.js";
-import { bookingTemplate, inboxSlots, normalizePhone, policyAskClass, purposeOfTemplate, renderTemplate, resolveFacts, resolveParams } from "../lib/packages/contracts.js";
+import {
+  emitEvent,
+  resolveChannel,
+  resolveOutboundTarget,
+  countSentToday,
+  personReplyMode,
+  templatesFor,
+} from "../lib/packages/db.js";
+import {
+  bookingTemplate,
+  inboxSlots,
+  normalizePhone,
+  policyAskClass,
+  purposeOfTemplate,
+  renderTemplate,
+  resolveFacts,
+  resolveParams,
+} from "../lib/packages/contracts.js";
 import { deliver, whatsappSender } from "../lib/packages/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
+import { env } from "../lib/env.js";
+import { logger, errField } from "../lib/log.js";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -79,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
   // configured on the tool (Retell does not HMAC-sign these like webhooks). An
   // unset or empty secret matches nothing, as in retell-webhook.ts: an empty
   // header must never open the door because the secret is empty too.
-  const secret = process.env.RETELL_FN_SECRET;
+  const secret = env.RETELL_FN_SECRET;
   if (!secret || request.headers.get("x-fn-secret") !== secret) {
     return json(401, { ok: false, error: "bad_secret" });
   }
@@ -88,7 +106,11 @@ export async function POST(request: Request): Promise<Response> {
     call?: { call_id?: string; from_number?: string; agent_id?: string };
     args?: { phone_number?: string };
   } = {};
-  try { body = JSON.parse(raw); } catch { /* fall through with empty body */ }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    /* fall through with empty body */
+  }
   const call = body.call || {};
   const args = body.args || {};
 
@@ -108,27 +130,29 @@ export async function POST(request: Request): Promise<Response> {
   const target = asked ?? caller;
   const isCaller = !!target && target === caller;
 
-  const log = (event: string, extra: Record<string, unknown> = {}) =>
-    console.log(event, JSON.stringify({ call_id: call.call_id, agent_id: call.agent_id, ...extra }));
+  const L = logger({ call_id: call.call_id, agent_id: call.agent_id });
 
   if (!target) {
     // normalizePhone already rejects anything that cannot be a phone number,
     // which is a better test than a hand-written length check.
-    log("retell_fn_no_number");
-    return json(200, { result: "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call." });
+    L.info("retell_fn_no_number");
+    return json(200, {
+      result:
+        "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.",
+    });
   }
 
   const db = pg();
   if (!db || !call.agent_id) {
     // No routing key means no tenant, and no tenant means we do not know whose
     // business this is or whose number to send from. Silence beats guessing.
-    console.error("retell_fn_unroutable", JSON.stringify({ has_db: !!db, agent_id: call.agent_id ?? null }));
+    L.error("retell_fn_unroutable", { has_db: !!db, agent_id: call.agent_id ?? null });
     return json(200, { result: CANNOT_SEND });
   }
 
   const routed = await resolveChannel(db, "voice", call.agent_id);
   if (!routed) {
-    console.error("retell_fn_unknown_agent", call.agent_id);
+    L.error("retell_fn_unknown_agent", { agent_id: call.agent_id });
     return json(200, { result: CANNOT_SEND });
   }
 
@@ -142,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!brain) {
     // Same rule the receptionist follows: a business with no configured profile
     // does not speak in a voice we invented for it.
-    log("retell_fn_no_persona", { tenant: routed.tenantId });
+    L.info("retell_fn_no_persona", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEND });
   }
 
@@ -156,9 +180,10 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!contact) {
-      log("retell_fn_refused_third_party", { tenant: routed.tenantId });
+      L.info("retell_fn_refused_third_party", { tenant: routed.tenantId });
       return json(200, {
-        result: "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
+        result:
+          "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.",
       });
     }
 
@@ -168,7 +193,7 @@ export async function POST(request: Request): Promise<Response> {
     // never cached; a failed lookup keeps the workspace mode.
     const workspaceMode = rt.policy?.reply?.mode ?? "ask";
     const personMode = await personReplyMode(db, routed.tenantId, contact.contactId).catch((e: unknown) => {
-      console.error("retell_fn_person_mode_failed", e instanceof Error ? e.message : e);
+      L.error("retell_fn_person_mode_failed", { error: errField(e) });
       return null;
     });
     const replyMode = effectiveReplyMode({ replyMode: workspaceMode }, personMode);
@@ -186,7 +211,7 @@ export async function POST(request: Request): Promise<Response> {
     // to fix it.
     const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
     if (!booking) {
-      log("retell_fn_no_template", { tenant: routed.tenantId });
+      L.info("retell_fn_no_template", { tenant: routed.tenantId });
       return json(200, { result: NO_TEMPLATE });
     }
     // Meta's own word for what this message is, read from the row a sync wrote.
@@ -241,7 +266,12 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!gate.allowed) {
-      log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
+      L.info("retell_fn_refused", {
+        tenant: routed.tenantId,
+        reason: gate.refusal,
+        mode: replyMode,
+        person_mode: personMode,
+      });
       // A refusal a person can find afterwards. Every other refusal in the
       // product lands somewhere durable -- the door writes message.send_blocked,
       // a broadcast marks its recipient, a failed send flags the thread -- and
@@ -249,7 +279,10 @@ export async function POST(request: Request): Promise<Response> {
       // no answer. The door's own kind, naming the thread rather than a message,
       // because the gate refused before any row existed to name.
       await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
-        reason: gate.refusal, source: VOICE_SEND_SOURCE, channel: "whatsapp", call_id: call.call_id ?? null,
+        reason: gate.refusal,
+        source: VOICE_SEND_SOURCE,
+        channel: "whatsapp",
+        call_id: call.call_id ?? null,
       });
       // The caller is on the line, so the agent is told what to SAY — never
       // that a colleague is mid-thread with them, or what our policy is.
@@ -293,23 +326,28 @@ export async function POST(request: Request): Promise<Response> {
     if (out.outcome === "refused") {
       // The wire found what the gate could not see a moment ago. An erased
       // person is spoken of as one who asked us to stop, which is what they did.
-      log("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
+      L.info("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
       // This send is on WhatsApp, so email's three refusals cannot arise here; the
       // compiler cannot know that, and if one ever did, "it could not be sent" is
       // the true thing to say on a call.
       const script: OutboundRefusal =
-        out.reason === "erased" ? "opted_out"
-        : out.reason === "superseded_by_human" ? "human_has_it"
-        : out.reason === "email_marketing_disabled" || out.reason === "email_suppressed" || out.reason === "recipient_changed" ? "policy_hold"
-        : out.reason;
+        out.reason === "erased"
+          ? "opted_out"
+          : out.reason === "superseded_by_human"
+            ? "human_has_it"
+            : out.reason === "email_marketing_disabled" ||
+                out.reason === "email_suppressed" ||
+                out.reason === "recipient_changed"
+              ? "policy_hold"
+              : out.reason;
       return json(200, { result: refusalScript(script, publishedNumber) });
     }
     if (out.outcome === "failed") {
       if (out.reason === "no_credentials") {
-        log("retell_fn_no_credentials", { tenant: routed.tenantId });
+        L.info("retell_fn_no_credentials", { tenant: routed.tenantId });
         return json(200, { result: refusalScript("policy_hold", publishedNumber) });
       }
-      console.error("booking_link_send_failed", out.status, out.errorBody);
+      L.error("booking_link_send_failed", { status: out.status, body: out.errorBody });
       return json(200, {
         result: publishedNumber
           ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}.`
@@ -317,12 +355,12 @@ export async function POST(request: Request): Promise<Response> {
       });
     }
 
-    log("retell_fn_sent", { tenant: routed.tenantId, wamid: out.externalId });
+    L.info("retell_fn_sent", { tenant: routed.tenantId, wamid: out.externalId });
     return json(200, { result: "Booking link sent to their WhatsApp. Confirm they should see it momentarily." });
   } catch (e) {
     // A thrown repository call must not become a 500: the voice agent would go
     // silent mid-sentence with a customer on the line.
-    console.error("retell_fn_failed", e instanceof Error ? e.message : e);
+    L.error("retell_fn_failed", { error: errField(e) });
     return json(200, { result: CANNOT_SEND });
   }
 }

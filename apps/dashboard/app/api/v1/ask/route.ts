@@ -39,17 +39,28 @@ export const POST = write({
   role: "viewer",
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as
-      | { text?: unknown; thread_id?: unknown; scope?: unknown; surface?: unknown }
-      | null;
+    const body = (await req.json().catch(() => null)) as {
+      text?: unknown;
+      thread_id?: unknown;
+      scope?: unknown;
+      surface?: unknown;
+    } | null;
     const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text) throw new AppError("validation", "Ask something.");
-    if (text.length > ASK_MAX_CHARS) throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
-    const threadId = typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
+    if (text.length > ASK_MAX_CHARS)
+      throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
+    const threadId =
+      typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
     let scope: AskScope | null = null;
     if (body?.scope && typeof body.scope === "object") {
       const s = body.scope as Partial<AskScope>;
-      if (typeof s.kind === "string" && SCOPE_KINDS.has(s.kind) && typeof s.id === "string" && s.id && typeof s.label === "string") {
+      if (
+        typeof s.kind === "string" &&
+        SCOPE_KINDS.has(s.kind) &&
+        typeof s.id === "string" &&
+        s.id &&
+        typeof s.label === "string"
+      ) {
         scope = { kind: s.kind as AskScope["kind"], id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
       }
     }
@@ -88,12 +99,26 @@ export const POST = write({
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const send = (s: string) => {
-          try { controller.enqueue(encoder.encode(s)); } catch { /* the reader went away */ }
+          try {
+            controller.enqueue(encoder.encode(s));
+          } catch {
+            /* the reader went away */
+          }
         };
         send(line({ t: "thread", id: thread.id, title: thread.title }));
         const t0 = Date.now();
         const result = await runAskTurn({
-          ctx, tenantId, role: member.role, facts, timezone, personLabel, language, scope, surface, history, text,
+          ctx,
+          tenantId,
+          role: member.role,
+          facts,
+          timezone,
+          personLabel,
+          language,
+          scope,
+          surface,
+          history,
+          text,
           emit: (ev) => send(line(ev)),
         });
         const content = {
@@ -115,7 +140,8 @@ export const POST = write({
         try {
           saved = await appendMessage(ctx, thread.id, tenantId, "assistant", content);
           // A new thread is titled by what its first answer did.
-          if (!threadId && !result.failed) await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));
+          if (!threadId && !result.failed)
+            await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));
           else await touchThread(ctx, thread.id);
         } catch (e) {
           console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
@@ -137,14 +163,37 @@ export const POST = write({
           rounds: result.rounds,
           failed: result.failed,
         };
-        console.log(JSON.stringify({ level: "info", event: "ask_turn", tenant: tenantId, tools: result.tools, proposals: result.proposals.map((p) => p.kind), rounds: result.rounds, ms: Date.now() - t0, failed: result.failed, failure: result.failure, ungrounded: result.ungrounded, citations: result.citations.length, language: result.language }));
+        console.log(
+          JSON.stringify({
+            level: "info",
+            event: "ask_turn",
+            tenant: tenantId,
+            tools: result.tools,
+            proposals: result.proposals.map((p) => p.kind),
+            rounds: result.rounds,
+            ms: Date.now() - t0,
+            failed: result.failed,
+            failure: result.failure,
+            ungrounded: result.ungrounded,
+            citations: result.citations.length,
+            language: result.language,
+          }),
+        );
         send(line({ t: "final", message }));
-        try { controller.close(); } catch { /* already closed */ }
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
       },
     });
     return new Response(stream, {
       status: 200,
-      headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "private, no-store", "x-accel-buffering": "no" },
+      headers: {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "cache-control": "private, no-store",
+        "x-accel-buffering": "no",
+      },
     });
   },
 });

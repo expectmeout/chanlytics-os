@@ -1,4 +1,12 @@
-import { STARTER_TEMPLATES, templateSentWords, templateUnused, templateUseNote, templateUseWords, type PersonRowDto, type TemplateSentWords } from "@chanlytics/contracts";
+import {
+  STARTER_TEMPLATES,
+  templateSentWords,
+  templateUnused,
+  templateUseNote,
+  templateUseWords,
+  type PersonRowDto,
+  type TemplateSentWords,
+} from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
@@ -50,7 +58,6 @@ export interface SurfaceOverride {
   debounceMs?: number;
 }
 
-
 export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
   try {
     await o.apply();
@@ -69,7 +76,13 @@ export async function activateOverride(o: SurfaceOverride): Promise<boolean> {
  * Stashes the result for the bridge pill; Slice 1's conversations override
  * follows this exact fetch→map→dispatch pattern against CONVERSATIONS_DATA.
  */
-export interface Workspace { id: string; slug: string; name: string; status: string; timezone: string }
+export interface Workspace {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  timezone: string;
+}
 
 export interface Me {
   id: string;
@@ -100,10 +113,10 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       __SIGNUP_POSTURE?: "open" | "waitlist" | "invite";
     };
     w.__WORKSPACES = data.workspaces;
-    w.__PENDING_WORKSPACE = "pending" in data ? data.pending ?? null : null;
+    w.__PENDING_WORKSPACE = "pending" in data ? (data.pending ?? null) : null;
     // The door a first workspace meets (the invite code, or the list), from the
     // same read: the create screen asks nothing of its own.
-    w.__SIGNUP_POSTURE = "posture" in data ? data.posture ?? "open" : "open";
+    w.__SIGNUP_POSTURE = "posture" in data ? (data.posture ?? "open") : "open";
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.
@@ -200,7 +213,27 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, GET_YES_ROUTE, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, audiencePreview, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type AudiencePreview, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import {
+  BROADCAST_CHUNK,
+  BROADCAST_SCHEDULE_MAX_DAYS,
+  EVERYONE_LABEL,
+  GET_YES_ROUTE,
+  HELD_REASONS,
+  OFFERS_BY_WHATSAPP_NOTE,
+  REPLY_WINDOW_WORDS,
+  OFFERS_OPT_IN_PHRASES,
+  audiencePreview,
+  formatPhoneDisplay,
+  numberHealth,
+  optInLink,
+  toBroadcastVM,
+  purposeOfTemplate,
+  type AudienceKind,
+  type AudiencePreview,
+  type BroadcastVM,
+  type NumberHealth,
+  type SendPurpose,
+} from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -215,7 +248,13 @@ interface EscalationRow extends EscalationDto {
 
 /** The only buckets real threads can reach (Blueprint honesty rule). */
 const REAL_BUCKETS = [
-  { id: "escalated", label: "Needs you", hint: "The receptionist stopped and asked for a human", icon: "flag", accent: true },
+  {
+    id: "escalated",
+    label: "Needs you",
+    hint: "The receptionist stopped and asked for a human",
+    icon: "flag",
+    accent: true,
+  },
   { id: "done", label: "Handled", hint: "Answered by the receptionist — nothing owed", icon: "check" },
   { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
 ];
@@ -284,9 +323,7 @@ export const inboxOverride: SurfaceOverride = {
       // Additive, like calls: a template read that fails must not blank the
       // Inbox. It leaves null -- "could not read" -- which the composer says,
       // with a way to read it again; [] is the other answer, "none approved".
-      read("GET templates").catch(
-        (e: unknown) => e as Error,
-      ),
+      read("GET templates").catch((e: unknown) => e as Error),
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);
@@ -308,7 +345,10 @@ export const inboxOverride: SurfaceOverride = {
     // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
     // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.
     const extraRead: ConversationDto[] | null = missing.length
-      ? await read("GET conversations", { query: { ids: missing.slice(0, 100).join(",") } }).then((d) => d.conversations, () => null)
+      ? await read("GET conversations", { query: { ids: missing.slice(0, 100).join(",") } }).then(
+          (d) => d.conversations,
+          () => null,
+        )
       : [];
     const extra = extraRead ?? [];
     // One that could not be read is a waiting customer nobody can see: the
@@ -319,7 +359,10 @@ export const inboxOverride: SurfaceOverride = {
     const all = [...extra, ...convData.conversations];
     const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz));
     const w = window as unknown as {
-      INBOX_DATA?: Record<string, unknown> & { CHANNEL_LABELS?: Record<string, string>; INBOX_BASELINE?: Record<string, unknown> };
+      INBOX_DATA?: Record<string, unknown> & {
+        CHANNEL_LABELS?: Record<string, string>;
+        INBOX_BASELINE?: Record<string, unknown>;
+      };
     };
     const prev = w.INBOX_DATA ?? {};
     w.INBOX_DATA = {
@@ -327,7 +370,13 @@ export const inboxOverride: SurfaceOverride = {
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
-      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" },
+      CHANNEL_LABELS: {
+        ...(prev.CHANNEL_LABELS ?? {}),
+        whatsapp: "WhatsApp",
+        phone: "Phone",
+        sms: "Text",
+        email: "Email",
+      },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
     };
@@ -395,9 +444,7 @@ export const todayOverride: SurfaceOverride = {
     // claimed, so it read high exactly when someone was doing the work, and
     // then overwrote the Inbox's correct count on every Today refresh.
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
-    const needs = convData.conversations.filter(
-      (c) => threadStanding(c, openByConv.get(c.id) ?? null).needsYou,
-    ).length;
+    const needs = convData.conversations.filter((c) => threadStanding(c, openByConv.get(c.id) ?? null).needsYou).length;
     window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
   },
 };
@@ -425,7 +472,10 @@ const WRITTEN_TABS = [
  * The order is fixed rather than first-seen, so the strip does not rearrange
  * itself between two reads of the same workspace.
  */
-export function conversationTabs(hasCalls: boolean, channels: ReadonlyArray<string>): Array<{ id: string; label: string }> {
+export function conversationTabs(
+  hasCalls: boolean,
+  channels: ReadonlyArray<string>,
+): Array<{ id: string; label: string }> {
   const present = new Set(channels);
   return [
     { id: "all", label: "All" },
@@ -473,7 +523,10 @@ export const conversationsOverride: SurfaceOverride = {
       // A calls read that failed is its own state: the page says so instead
       // of listing no calls (the audit's D9 family).
       CALLS_READ: !(callsRes instanceof Error),
-      CV_CHANNELS: conversationTabs(callRows.length > 0, threads.map((t) => t.channel)),
+      CV_CHANNELS: conversationTabs(
+        callRows.length > 0,
+        threads.map((t) => t.channel),
+      ),
     };
   },
 };
@@ -501,7 +554,17 @@ export interface WorkspaceSettings {
 
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
-  globals: ["__SETTINGS", "__FACTS", "__TEAM", "__TEAM_INVITES", "__POLICIES", "__CHANNELS", "__TEMPLATES_ALL", "__TEMPLATE_USE", "__TEMPLATE_SENT"],
+  globals: [
+    "__SETTINGS",
+    "__FACTS",
+    "__TEAM",
+    "__TEAM_INVITES",
+    "__POLICIES",
+    "__CHANNELS",
+    "__TEMPLATES_ALL",
+    "__TEMPLATE_USE",
+    "__TEMPLATE_SENT",
+  ],
   events: ["surface:settings"],
   apply: async () => {
     const [cfg, team, pol, ch, tpl, zone] = await Promise.all([
@@ -521,14 +584,25 @@ export const settingsOverride: SurfaceOverride = {
       workspaceZone().catch(() => pageClock().zone()),
     ]);
     const w = window as unknown as {
-      __SETTINGS?: { config: WorkspaceSettings | null; version: number; role: string; broken: { issues: string[] } | null; prompt: PromptPreviewDto | null; updatedBy: string | null; updatedAt: string | null };
+      __SETTINGS?: {
+        config: WorkspaceSettings | null;
+        version: number;
+        role: string;
+        broken: { issues: string[] } | null;
+        prompt: PromptPreviewDto | null;
+        updatedBy: string | null;
+        updatedAt: string | null;
+      };
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: unknown[] | null;
       __TEAM_INVITES?: unknown[] | null;
       __POLICIES?: PoliciesSurface | null;
       __CHANNELS?: ChannelVM[] | null;
       __TEMPLATES_ALL?: TemplateDto[] | null;
-      __TEMPLATE_USE?: Record<string, { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }> | null;
+      __TEMPLATE_USE?: Record<
+        string,
+        { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }
+      > | null;
       __TEMPLATE_SENT?: Record<string, TemplateSentWords> | null;
     };
     // `broken` is its own state, not an empty config: the pane closes its
@@ -537,8 +611,24 @@ export const settingsOverride: SurfaceOverride = {
     // The prompt rides with the config: composed on the server from inputs the
     // browser cannot see, null when there is no receptionist to compose for.
     w.__SETTINGS = cfg.configBroken
-      ? { config: null, version: cfg.version, role: cfg.role, broken: { issues: cfg.issues ?? [] }, prompt: null, updatedBy: null, updatedAt: null }
-      : { config: cfg.config ?? {}, version: cfg.version, role: cfg.role, broken: null, prompt: cfg.prompt ?? null, updatedBy: cfg.updatedBy ?? null, updatedAt: cfg.updatedAt ?? null };
+      ? {
+          config: null,
+          version: cfg.version,
+          role: cfg.role,
+          broken: { issues: cfg.issues ?? [] },
+          prompt: null,
+          updatedBy: null,
+          updatedAt: null,
+        }
+      : {
+          config: cfg.config ?? {},
+          version: cfg.version,
+          role: cfg.role,
+          broken: null,
+          prompt: cfg.prompt ?? null,
+          updatedBy: cfg.updatedBy ?? null,
+          updatedAt: cfg.updatedAt ?? null,
+        };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing
     // trustworthy to resolve against.
@@ -570,7 +660,16 @@ export const settingsOverride: SurfaceOverride = {
       w.__TEMPLATE_USE = Object.fromEntries(
         useNames.map((name) => {
           const u = used[name] ?? { playbooks: [], broadcasts: 0, recent: [], booking: false };
-          return [name, { words: templateUseWords(u), note: templateUseNote(u), unused: templateUnused(u), playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null, running: u.playbooks.some((p) => !p.paused) }];
+          return [
+            name,
+            {
+              words: templateUseWords(u),
+              note: templateUseNote(u),
+              unused: templateUnused(u),
+              playbook: u.playbooks.length === 1 ? u.playbooks[0]!.id : null,
+              running: u.playbooks.some((p) => !p.paused),
+            },
+          ];
         }),
       );
       // How many of each went out and when the latest did, as the Sent column
@@ -579,7 +678,9 @@ export const settingsOverride: SurfaceOverride = {
       // column of "Never sent".
       const sends = tpl.sends;
       const now = Date.now();
-      w.__TEMPLATE_SENT = sends ? Object.fromEntries(names.map((name) => [name, templateSentWords(sends[name], zone, now)])) : null;
+      w.__TEMPLATE_SENT = sends
+        ? Object.fromEntries(names.map((name) => [name, templateSentWords(sends[name], zone, now)]))
+        : null;
     }
     if (pol instanceof Error) {
       w.__POLICIES = null;
@@ -587,7 +688,14 @@ export const settingsOverride: SurfaceOverride = {
     } else {
       w.__POLICIES = {
         // `limits` is a JSON column: an object when set, and anything else reads as none.
-        rows: (pol.policies ?? []).map((r) => ({ class: r.class, mode: r.mode, limits: r.limits && typeof r.limits === "object" && !Array.isArray(r.limits) ? (r.limits as Record<string, unknown>) : {} })),
+        rows: (pol.policies ?? []).map((r) => ({
+          class: r.class,
+          mode: r.mode,
+          limits:
+            r.limits && typeof r.limits === "object" && !Array.isArray(r.limits)
+              ? (r.limits as Record<string, unknown>)
+              : {},
+        })),
         role: pol.role ?? null,
       };
     }
@@ -616,12 +724,26 @@ export interface PeopleSurface {
   /** The rail's smart lists with their members — the predicates stay in
    *  contracts; the mockup only needs the ids. Each carries its group and,
    *  when it has one, the obvious next step. */
-  lists: { id: string; label: string; group: string; count: number; ids: string[]; action: { text: string; cta: string; to: string; enabled: boolean } | null }[];
+  lists: {
+    id: string;
+    label: string;
+    group: string;
+    count: number;
+    ids: string[];
+    action: { text: string; cta: string; to: string; enabled: boolean } | null;
+  }[];
   groups: { id: string; label: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
-  saved: { id: string; name: string; count: number; ids: string[]; members: string[]; action: { text: string; cta: string; to: string; enabled: boolean } }[];
+  saved: {
+    id: string;
+    name: string;
+    count: number;
+    ids: string[];
+    members: string[];
+    action: { text: string; cta: string; to: string; enabled: boolean };
+  }[];
   /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
   aggregates: PeopleAggregates;
@@ -664,7 +786,14 @@ function publishPeople(): void {
     // The outcome lists only when there is a calendar to read them from.
     lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
       const members = rows.filter(l.test);
-      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+      return {
+        id: l.id,
+        label: l.label,
+        group: l.group,
+        count: members.length,
+        ids: members.map((r) => r.id),
+        action: peopleListAction(l.id, members),
+      };
     }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
     calendar,
@@ -698,12 +827,21 @@ export function keepSavedView(page: string, view: Record<string, unknown>): () =
   keptViews.made += 1;
   keptViews.waiting += 1;
   let waiting = true;
-  const landed = () => { if (waiting) { waiting = false; keptViews.waiting -= 1; } };
+  const landed = () => {
+    if (waiting) {
+      waiting = false;
+      keptViews.waiting -= 1;
+    }
+  };
   const views = peopleLoaded ? peopleLoaded.views : (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE?.views;
   if (!views) return landed;
   views[page] = view;
   // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
-  resnapshotSurface(peopleOverride.key, peopleOverride.globals ?? [], (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
+  resnapshotSurface(
+    peopleOverride.key,
+    peopleOverride.globals ?? [],
+    (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
+  );
   return landed;
 }
 
@@ -743,7 +881,10 @@ async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; more: boo
  * says more follow.
  */
 const PEOPLE_PAGES_BOUND = 50;
-async function everyPerson(first: { people: PersonRowDto[]; page?: PeopleSurface["page"] }): Promise<{ people: PersonRowDto[]; page: PeopleSurface["page"] }> {
+async function everyPerson(first: {
+  people: PersonRowDto[];
+  page?: PeopleSurface["page"];
+}): Promise<{ people: PersonRowDto[]; page: PeopleSurface["page"] }> {
   const people = [...first.people];
   let page = first.page ?? null;
   for (let pages = 1; page?.has_more && pages < PEOPLE_PAGES_BOUND; pages++) {
@@ -797,9 +938,15 @@ export const peopleOverride: SurfaceOverride = {
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
-      views: overlapped || keptViews.made !== savesBefore ? { ...(viewsData.views ?? {}), ...keptViews.views } : viewsData.views ?? {},
+      views:
+        overlapped || keptViews.made !== savesBefore
+          ? { ...(viewsData.views ?? {}), ...keptViews.views }
+          : (viewsData.views ?? {}),
     };
-    const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<{ rows: PersonRowVM[]; more: boolean }> };
+    const w = window as unknown as {
+      __peopleMore?: () => Promise<void>;
+      __peopleSearch?: (q: string) => Promise<{ rows: PersonRowVM[]; more: boolean }>;
+    };
     w.__peopleMore = peopleMore;
     w.__peopleSearch = peopleSearch;
     publishPeople();
@@ -910,8 +1057,11 @@ export const broadcastsOverride: SurfaceOverride = {
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
     ]);
-    const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-    const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
+    const wa =
+      ch instanceof Error
+        ? null
+        : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
+    const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
     // Every page of people, not the first: the send enrols everyone, so an
@@ -920,26 +1070,55 @@ export const broadcastsOverride: SurfaceOverride = {
     const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
-    const previewFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, AudiencePreview> => ({
+    const previewFor = (
+      kind: AudienceKind,
+      id: string | null,
+      ids: Set<string> | null,
+    ): Record<SendPurpose, AudiencePreview> => ({
       conversational: audiencePreview(rows, kind, id, ids, "conversational"),
       marketing: audiencePreview(rows, kind, id, ids, "marketing"),
     });
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
       const preview = previewFor(kind, id, ids);
-      return { counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }, preview };
+      return {
+        counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
+        preview,
+      };
     };
     const audiences: AudienceOption[] = [
-      { kind: "everyone", id: null, label: EVERYONE_LABEL, ...optionFor("everyone", null, null), hint: "Everyone with a number whose yes covers the message you pick" },
+      {
+        kind: "everyone",
+        id: null,
+        label: EVERYONE_LABEL,
+        ...optionFor("everyone", null, null),
+        hint: "Everyone with a number whose yes covers the message you pick",
+      },
       // The calendar lists are audiences only when there is a calendar to read them
       // from. The three consent lists are never audiences: each is a restatement of
       // the eligibility filter this list is already crossed with, so picking one
       // would read as narrowing while changing nothing.
-      ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out" && (!l.needsCalendar || people.calendar?.state === "ok")).map((l) => ({
-        kind: "list" as const, id: l.id, label: l.label, ...optionFor("list", l.id, null), hint: `${l.label} — of those whose yes covers this message`,
+      ...PEOPLE_LISTS.filter(
+        (l) =>
+          l.id !== "opted_in" &&
+          l.id !== "offers_ok" &&
+          l.id !== "opted_out" &&
+          (!l.needsCalendar || people.calendar?.state === "ok"),
+      ).map((l) => ({
+        kind: "list" as const,
+        id: l.id,
+        label: l.label,
+        ...optionFor("list", l.id, null),
+        hint: `${l.label} — of those whose yes covers this message`,
       })),
-      ...(saved instanceof Error ? [] : saved.lists.map((s) => ({
-        kind: "saved" as const, id: s.id, label: s.name, ...optionFor("saved", null, new Set(s.ids)), hint: "A list kept by hand — of those whose yes covers this message",
-      }))),
+      ...(saved instanceof Error
+        ? []
+        : saved.lists.map((s) => ({
+            kind: "saved" as const,
+            id: s.id,
+            label: s.name,
+            ...optionFor("saved", null, new Set(s.ids)),
+            hint: "A list kept by hand — of those whose yes covers this message",
+          }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
@@ -950,16 +1129,21 @@ export const broadcastsOverride: SurfaceOverride = {
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
-      templates: tpl instanceof Error
-        ? null
-        : (tpl.templates ?? [])
-            .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-            .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
+      templates:
+        tpl instanceof Error
+          ? null
+          : (tpl.templates ?? [])
+              .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
+              .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
       audiences,
       number: {
         present: !!wa,
         display: wa?.number_e164 ? formatPhoneDisplay(wa.number_e164) : null,
-        health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
+        health: numberHealth({
+          quality: wa?.quality ?? null,
+          event: wa?.quality_event ?? null,
+          limit: wa?.messaging_limit ?? null,
+        }),
       },
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
@@ -994,7 +1178,17 @@ export interface PlaybookTotalsVM {
   /** A run waiting for a person: the broadcast to approve or skip. */
   waiting: { id: string; recipient_count: number; name: string } | null;
   /** The most recent runs, newest first; the totals above are over every run. */
-  history: { id: string; run_for: string | null; state: string; scheduled_for: string; recipient_count: number; sent: number; held: number; delivered: number; replied: number }[];
+  history: {
+    id: string;
+    run_for: string | null;
+    state: string;
+    scheduled_for: string;
+    recipient_count: number;
+    sent: number;
+    held: number;
+    delivered: number;
+    replied: number;
+  }[];
 }
 
 export interface PlaybookCardVM extends PlaybookDto {
@@ -1094,10 +1288,21 @@ export const playbooksOverride: SurfaceOverride = {
     // And everyone each moment names, with who of them no run reaches whatever the week.
     const named = (trigger: string): PlaybookNamed | null => {
       const x = pb.pools?.[trigger];
-      return x && typeof x.pool === "number" ? { pool: x.pool, noYes: x.noYes ?? 0, stopped: x.stopped ?? 0, noNumber: x.noNumber ?? 0, saidYes: x.saidYes ?? 0 } : null;
+      return x && typeof x.pool === "number"
+        ? {
+            pool: x.pool,
+            noYes: x.noYes ?? 0,
+            stopped: x.stopped ?? 0,
+            noNumber: x.noNumber ?? 0,
+            saidYes: x.saidYes ?? 0,
+          }
+        : null;
     };
-    const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
-    const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
+    const wa =
+      ch instanceof Error
+        ? null
+        : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
+    const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
@@ -1118,15 +1323,30 @@ export const playbooksOverride: SurfaceOverride = {
       timezone: tz,
       countsRead: PLAYBOOK_TRIGGERS.every((t) => !!pb.pools?.[t.id]),
       calendar: pb.calendar ?? "none",
-      triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id), named: named(t.id) })),
-      templates: tpl instanceof Error
-        ? null
-        : (tpl.templates ?? [])
-            .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
-            .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
+      triggers: PLAYBOOK_TRIGGERS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        hint: t.hint,
+        cls: t.cls,
+        list: t.list,
+        kind: t.kind,
+        candidates: pool(t.id),
+        held: held(t.id),
+        named: named(t.id),
+      })),
+      templates:
+        tpl instanceof Error
+          ? null
+          : (tpl.templates ?? [])
+              .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
+              .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
       number: {
         present: !!wa,
-        health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
+        health: numberHealth({
+          quality: wa?.quality ?? null,
+          event: wa?.quality_event ?? null,
+          limit: wa?.messaging_limit ?? null,
+        }),
       },
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
@@ -1203,7 +1423,9 @@ export const calendarOverride: SurfaceOverride = {
     // It read today's weeks first, and the page read the day's after them. Only the first read looks at the address.
     if (!calendarBooted) {
       calendarBooted = true;
-      const named = /^#\/?calendar\/(\d{4}-\d{2}-\d{2})$/.exec((typeof window !== "undefined" && window.location && window.location.hash) || "");
+      const named = /^#\/?calendar\/(\d{4}-\d{2}-\d{2})$/.exec(
+        (typeof window !== "undefined" && window.location && window.location.hash) || "",
+      );
       if (named && calendarFrom === null) {
         const w = windowFor(named[1]);
         setCalendarSpan(w.from, w.days);
@@ -1216,7 +1438,9 @@ export const calendarOverride: SurfaceOverride = {
     calendarFresh = false;
     // The window around the business's today, not the browser's (zone.ts).
     const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));
-    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days), ...(fresh ? { fresh: "1" as const } : {}) } });
+    const data = await read("GET calendar", {
+      query: { from: w.from, days: String(w.days), ...(fresh ? { fresh: "1" as const } : {}) },
+    });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;

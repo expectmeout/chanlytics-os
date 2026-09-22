@@ -56,22 +56,50 @@ test("nothing the composer must survive is rejected by the parser", () => {
 /* ----------------------------- split shifts ------------------------------- */
 
 test("a lunch break is stated, and so is the gap", () => {
-  const r = day({ wed: { intervals: [{ open: "09:30", close: "13:00" }, { open: "15:00", close: "19:00" }] } });
+  const r = day({
+    wed: {
+      intervals: [
+        { open: "09:30", close: "13:00" },
+        { open: "15:00", close: "19:00" },
+      ],
+    },
+  });
   assert.equal(r.text, "09:30–13:00 and 15:00–19:00 (closed 13:00–15:00)");
 });
 
 test("array order is not chronology", () => {
   // Read positionally, these say "closed 19:00–09:30" — a window running
   // backwards through the night, stated to customers as fact.
-  const scrambled = day({ wed: { intervals: [{ open: "15:00", close: "19:00" }, { open: "09:30", close: "13:00" }] } });
-  const ordered = day({ wed: { intervals: [{ open: "09:30", close: "13:00" }, { open: "15:00", close: "19:00" }] } });
+  const scrambled = day({
+    wed: {
+      intervals: [
+        { open: "15:00", close: "19:00" },
+        { open: "09:30", close: "13:00" },
+      ],
+    },
+  });
+  const ordered = day({
+    wed: {
+      intervals: [
+        { open: "09:30", close: "13:00" },
+        { open: "15:00", close: "19:00" },
+      ],
+    },
+  });
   assert.equal(scrambled.text, ordered.text);
 });
 
 test("touching shifts are one stretch, not a zero-length closure", () => {
   // Two stylists back to back is an ordinary day, and "closed 13:00–13:00" is
   // not a sentence anyone should read.
-  const r = day({ wed: { intervals: [{ open: "09:00", close: "13:00" }, { open: "13:00", close: "19:00" }] } });
+  const r = day({
+    wed: {
+      intervals: [
+        { open: "09:00", close: "13:00" },
+        { open: "13:00", close: "19:00" },
+      ],
+    },
+  });
   assert.equal(r.text, "09:00–19:00");
 });
 
@@ -96,10 +124,13 @@ test("a day that says something unusable is NOT closed", () => {
 /* ------------------------------- closures --------------------------------- */
 
 test("upcoming closures are stated, past ones stop being said", () => {
-  const p = text({ hours: { mon: { open: "09:00", close: "18:00" } }, closures: [
-    { date: "2026-01-01", note: "gone" },
-    { date: "2026-09-07", note: "Labor Day" },
-  ] });
+  const p = text({
+    hours: { mon: { open: "09:00", close: "18:00" } },
+    closures: [
+      { date: "2026-01-01", note: "gone" },
+      { date: "2026-09-07", note: "Labor Day" },
+    ],
+  });
   assert.ok(p.includes("Monday, September 7, 2026 — Labor Day"));
   assert.ok(!p.includes("gone"), "a date that has passed is not news");
 });
@@ -157,7 +188,6 @@ test("closures do NOT decide whether a workspace has a profile", () => {
   assert.equal(hasProfile({ closures: [{ date: "2099-01-01" }] }), false);
   assert.equal(hasProfile({ hours: { mon: { intervals: [{ open: "09:00", close: "17:00" }] } } }), true);
 });
-
 
 /* ---------------------------- the editor --------------------------------- */
 
@@ -222,7 +252,10 @@ test("the editor cannot offer a shift the write schema would refuse", () => {
 test("closing a day KEEPS its shifts, so a mis-tap costs nothing", () => {
   // The switch sits ~10px from the times and offers no undo of its own.
   assert.ok(pane.includes("const toggleDay = (d) =>"));
-  assert.ok(pane.includes("shifts: hours[d].shifts.length ? hours[d].shifts : [{ open: " + '"", close: ""' + " }]") || pane.includes("hours[d].shifts.length ? hours[d].shifts"));
+  assert.ok(
+    pane.includes("shifts: hours[d].shifts.length ? hours[d].shifts : [{ open: " + '"", close: ""' + " }]") ||
+      pane.includes("hours[d].shifts.length ? hours[d].shifts"),
+  );
   assert.ok(!pane.includes("setDay(d, { isOpen: !hours[d].isOpen })"), "the bare toggle dropped them");
 });
 

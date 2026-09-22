@@ -14,7 +14,17 @@ import { activeWorkspace, scoped, apiGet } from "./workspace";
  */
 /** A write is refused unless it comes from the app: the same-origin guard every mutating route applies. */
 const fromTheApp = { headers: { origin: new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com").origin } };
-const INVENTED = ["Two-way sync", "Apple iCal", "Utilization", "Lena", "Jay", "Swedish", "Hot stone", "At risk", "double-booking"];
+const INVENTED = [
+  "Two-way sync",
+  "Apple iCal",
+  "Utilization",
+  "Lena",
+  "Jay",
+  "Swedish",
+  "Hot stone",
+  "At risk",
+  "double-booking",
+];
 
 test.describe("Calendar on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
@@ -22,7 +32,9 @@ test.describe("Calendar on a real workspace", () => {
     await signIn(page);
   });
 
-  test("renders the real board from the workspace's hours, closures and feed, and never invents an appointment", async ({ page }) => {
+  test("renders the real board from the workspace's hours, closures and feed, and never invents an appointment", async ({
+    page,
+  }) => {
     await page.goto("/#/calendar");
     await page.waitForLoadState("networkidle");
     const board = page.getByTestId("calendar-real");
@@ -34,7 +46,10 @@ test.describe("Calendar on a real workspace", () => {
 
     const res = await apiGet(page, "/api/v1/calendar");
     expect(res.status()).toBe(200);
-    const cal = (await res.json()).data.calendar as { feed: { present: boolean; state: string }; days: Array<{ items: unknown[]; windows: unknown[] }> };
+    const cal = (await res.json()).data.calendar as {
+      feed: { present: boolean; state: string };
+      days: Array<{ items: unknown[]; windows: unknown[] }>;
+    };
     expect(JSON.stringify(cal)).not.toContain("ical_url");
 
     // Seven day columns, the legend, the feed chip in the schema's words.
@@ -42,14 +57,16 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
     await expect(board.getByTestId("cal-legend")).toBeVisible();
     // The chip is the one state pill Connections and Setup use (contracts CALENDAR_FEED_WORDS), with the detail beside it.
-    await expect(board.getByTestId("cal-feed-state")).toContainText(/^(Readable|Last good read|Could not be read|Not connected)$/);
+    await expect(board.getByTestId("cal-feed-state")).toContainText(
+      /^(Readable|Last good read|Could not be read|Not connected)$/,
+    );
 
     // The blocks and windows are exactly the route's.
     const items = cal.days.reduce((a, d) => a + d.items.length, 0);
     const windows = cal.days.reduce((a, d) => a + d.windows.length, 0);
     if (cal.feed.state === "ok") {
       expect(await board.getByTestId("cal-window").count()).toBe(windows);
-      expect(await board.getByTestId("cal-block").count() + (await board.locator(".cal-allday").count())).toBe(items);
+      expect((await board.getByTestId("cal-block").count()) + (await board.locator(".cal-allday").count())).toBe(items);
     } else {
       await expect(board.getByTestId("cal-feed-card")).toBeVisible();
       await expect(board.getByTestId("cal-block")).toHaveCount(0);
@@ -58,7 +75,9 @@ test.describe("Calendar on a real workspace", () => {
     if (!cal.feed.present) await expect(board.getByTestId("cal-feed-card")).toContainText("No calendar connected");
   });
 
-  test("switching views is instant — no read — and Today, the arrows and a date move the anchor; only a far move reads again", async ({ page }) => {
+  test("switching views is instant — no read — and Today, the arrows and a date move the anchor; only a far move reads again", async ({
+    page,
+  }) => {
     await page.goto("/#/calendar");
     await page.waitForLoadState("networkidle");
     const board = page.getByTestId("calendar-real");
@@ -67,7 +86,9 @@ test.describe("Calendar on a real workspace", () => {
 
     // The window around today is loaded once; every view is a slice of it.
     const reads: string[] = [];
-    page.on("request", (r) => { if (r.url().includes("/api/v1/calendar?") && r.method() === "GET") reads.push(r.url()); });
+    page.on("request", (r) => {
+      if (r.url().includes("/api/v1/calendar?") && r.method() === "GET") reads.push(r.url());
+    });
     await board.getByTestId("cal-view-month").click();
     await expect(board.getByTestId("cal-month")).toBeVisible();
     await expect(board.getByTestId("cal-month-cell")).toHaveCount(42);
@@ -92,7 +113,9 @@ test.describe("Calendar on a real workspace", () => {
     const far = new Date();
     far.setDate(far.getDate() + 95);
     const key = `${far.getFullYear()}-${String(far.getMonth() + 1).padStart(2, "0")}-${String(far.getDate()).padStart(2, "0")}`;
-    const req = page.waitForRequest((r) => r.url().includes("/api/v1/calendar?") && r.url().includes("days=63") && r.method() === "GET");
+    const req = page.waitForRequest(
+      (r) => r.url().includes("/api/v1/calendar?") && r.url().includes("days=63") && r.method() === "GET",
+    );
     await board.getByTestId("cal-jump").fill(key);
     const seen = await req;
     expect(seen.url()).toContain("from=");
@@ -100,28 +123,47 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-jump")).toBeVisible();
   });
 
-  test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({ page }) => {
+  test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({
+    page,
+  }) => {
     const ws = await activeWorkspace(page);
-    const before = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as Array<{ id: string; phone_e164: string | null }>;
-    const bad = await page.request.post(scoped("/api/v1/contacts", ws), { data: { phone: "not a number", source: "calendar" }, ...fromTheApp });
+    const before = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as Array<{
+      id: string;
+      phone_e164: string | null;
+    }>;
+    const bad = await page.request.post(scoped("/api/v1/contacts", ws), {
+      data: { phone: "not a number", source: "calendar" },
+      ...fromTheApp,
+    });
     expect(bad.status()).toBe(400);
     expect(((await bad.json()).error?.message ?? "") as string).toContain("phone");
     const known = before.find((p) => p.phone_e164);
     if (known) {
-      const again = await page.request.post(scoped("/api/v1/contacts", ws), { data: { phone: known.phone_e164, source: "calendar" }, ...fromTheApp });
+      const again = await page.request.post(scoped("/api/v1/contacts", ws), {
+        data: { phone: known.phone_e164, source: "calendar" },
+        ...fromTheApp,
+      });
       const body = await again.json();
       // The status and the reason, never the number: this message reaches the
       // run log, which is not the seven-day artifact the workflow confines a
       // real workspace's data to.
-      expect(again.status(), `re-adding a stored number answered ${again.status()}: ${JSON.stringify(body.error ?? {})}`).toBe(200);
+      expect(
+        again.status(),
+        `re-adding a stored number answered ${again.status()}: ${JSON.stringify(body.error ?? {})}`,
+      ).toBe(200);
       expect(body.data).toEqual({ contact_id: known.id, existed: true });
       const after = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as unknown[];
       expect(after.length, "an existing number adds nobody").toBe(before.length);
     }
   });
 
-  test("every view scrolls to its last day and to the legend, on a desktop screen and on a phone -- the views grew under a Calendar that clips, and nothing below the fold could be reached", async ({ page }) => {
-    for (const size of [{ width: 1280, height: 720 }, { width: 375, height: 812 }]) {
+  test("every view scrolls to its last day and to the legend, on a desktop screen and on a phone -- the views grew under a Calendar that clips, and nothing below the fold could be reached", async ({
+    page,
+  }) => {
+    for (const size of [
+      { width: 1280, height: 720 },
+      { width: 375, height: 812 },
+    ]) {
       await page.setViewportSize(size);
       await page.goto("/#/calendar");
       await page.waitForLoadState("networkidle");
@@ -138,7 +180,9 @@ test.describe("Calendar on a real workspace", () => {
           for (const el of [grid, body, cal]) if (el) el.scrollTop = el.scrollHeight;
           const scroller = grid ?? body ?? cal;
           const bottom = (el: Element) => el.getBoundingClientRect().bottom;
-          const days = scroller.querySelectorAll('[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]');
+          const days = scroller.querySelectorAll(
+            '[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]',
+          );
           const last = days[days.length - 1];
           const legend = cal.querySelector('[data-testid="cal-legend"]');
           const clip = Math.min(window.innerHeight, bottom(cal));

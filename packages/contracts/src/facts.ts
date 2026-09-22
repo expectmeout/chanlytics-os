@@ -124,8 +124,12 @@ export function samePhone(a: string | null | undefined, b: string | null | undef
  * than the warning is worth.
  */
 export function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
-  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
+  const x = textKey(a)
+    .replace(/\b(usa|us|united states)\b/g, "")
+    .trim();
+  const y = textKey(b)
+    .replace(/\b(usa|us|united states)\b/g, "")
+    .trim();
   if (!x || !y) return false;
   return x === y || x.startsWith(y) || y.startsWith(x);
 }
@@ -305,7 +309,12 @@ export const SOURCE_WORDS: Record<FactSource, string> = {
  */
 export function changedConfigFields(before: unknown, after: unknown): string[] {
   const top = (v: unknown): Record<string, unknown> => {
-    const cfg = (v ?? {}) as { brain?: Record<string, unknown>; calendar?: unknown; notifications?: unknown; features?: unknown };
+    const cfg = (v ?? {}) as {
+      brain?: Record<string, unknown>;
+      calendar?: unknown;
+      notifications?: unknown;
+      features?: unknown;
+    };
     const brain = cfg.brain ?? {};
     const { profile, ...rest } = brain as Record<string, unknown> & { profile?: Record<string, unknown> };
     // The profile is where most edits land, so its keys are named individually
@@ -313,7 +322,13 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
     // anything. The other sections are one key each: swapping the calendar
     // feed or the alert addresses is a change worth a trace, and until these
     // were here it left none.
-    return { ...rest, ...(profile ?? {}), calendar: cfg.calendar ?? null, notifications: cfg.notifications ?? null, features: cfg.features ?? null };
+    return {
+      ...rest,
+      ...(profile ?? {}),
+      calendar: cfg.calendar ?? null,
+      notifications: cfg.notifications ?? null,
+      features: cfg.features ?? null,
+    };
   };
   const a = top(before);
   const b = top(after);

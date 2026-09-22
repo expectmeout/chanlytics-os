@@ -1,4 +1,11 @@
-import { AppError, STARTER_TEMPLATES, starterDraft, starterText, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import {
+  AppError,
+  STARTER_TEMPLATES,
+  starterDraft,
+  starterText,
+  templateComponents,
+  validateTemplateDraft,
+} from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate, syncTemplates } from "@/server/service";
@@ -39,12 +46,17 @@ export const POST = write({
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await jsonBody(req)) as { keys?: unknown; languages?: unknown } | null;
-    const keys = Array.isArray(body?.keys) ? body.keys.filter((k): k is string => typeof k === "string") : STARTER_TEMPLATES.map((s) => s.key);
-    const languages = Array.isArray(body?.languages) ? body.languages.filter((l): l is string => typeof l === "string") : ["en_US"];
-    const wanted = STARTER_TEMPLATES
-      .filter((s) => keys.includes(s.key))
-      .flatMap((s) => languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })));
-    if (wanted.length === 0) throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
+    const keys = Array.isArray(body?.keys)
+      ? body.keys.filter((k): k is string => typeof k === "string")
+      : STARTER_TEMPLATES.map((s) => s.key);
+    const languages = Array.isArray(body?.languages)
+      ? body.languages.filter((l): l is string => typeof l === "string")
+      : ["en_US"];
+    const wanted = STARTER_TEMPLATES.filter((s) => keys.includes(s.key)).flatMap((s) =>
+      languages.filter((l) => !!s.texts[l]).map((l) => ({ s, l })),
+    );
+    if (wanted.length === 0)
+      throw new AppError("validation", "Pick at least one starter template, in English or Spanish.");
 
     const { data: rows, error } = await ctx.supabase
       .from("templates")
@@ -53,7 +65,8 @@ export const POST = write({
       .eq("channel", "whatsapp")
       .in("name", [...new Set(wanted.map((w) => w.s.name))]);
     if (error) throw new Error(error.message);
-    const onFile = (name: string, language: string) => (rows ?? []).find((r) => r.name === name && r.language === language) ?? null;
+    const onFile = (name: string, language: string) =>
+      (rows ?? []).find((r) => r.name === name && r.language === language) ?? null;
 
     const results: StarterResult[] = [];
     let synced = false;
@@ -71,7 +84,12 @@ export const POST = write({
       }
       const v = check.value;
       const r = await createTemplate(member.tenantId, ctx.userId, {
-        name: v.name, language: v.language, category: v.category, components: templateComponents(v), body: v.body, examples: v.examples,
+        name: v.name,
+        language: v.language,
+        category: v.category,
+        components: templateComponents(v),
+        body: v.body,
+        examples: v.examples,
         labels: starterText(s, l).slots.map((x) => x.label),
       });
       if (r.ok) {
@@ -92,7 +110,11 @@ export const POST = write({
           .eq("name", s.name)
           .eq("language", l)
           .maybeSingle();
-        results.push(now ? { ...base, status: "synced", meta_status: now.meta_status } : { ...base, status: "failed", meta_status: null, detail: r.detail });
+        results.push(
+          now
+            ? { ...base, status: "synced", meta_status: now.meta_status }
+            : { ...base, status: "failed", meta_status: null, detail: r.detail },
+        );
         continue;
       }
       if (r.reason in SAID) {
@@ -103,7 +125,11 @@ export const POST = write({
         // while several sat waiting for Meta under their account.
         const done = results.some((x) => x.status === "submitted" || x.status === "synced");
         if (!done) {
-          throw new AppError(r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict", SAID[r.reason], r.reason === "preview" || r.reason === "no_token" ? 502 : 409);
+          throw new AppError(
+            r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict",
+            SAID[r.reason],
+            r.reason === "preview" || r.reason === "no_token" ? 502 : 409,
+          );
         }
         results.push({ ...base, status: "failed", meta_status: null, detail: SAID[r.reason] });
         break;
@@ -111,7 +137,13 @@ export const POST = write({
       results.push({ ...base, status: "failed", meta_status: null, detail: r.detail ?? r.reason });
     }
     const count = (o: Outcome) => results.filter((x) => x.status === o).length;
-    return { results, submitted: count("submitted"), existing: count("exists"), synced: count("synced"), failed: count("failed") };
+    return {
+      results,
+      submitted: count("submitted"),
+      existing: count("exists"),
+      synced: count("synced"),
+      failed: count("failed"),
+    };
   },
 });
 

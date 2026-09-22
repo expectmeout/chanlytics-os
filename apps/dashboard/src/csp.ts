@@ -53,7 +53,12 @@ export interface CspInputs {
   reportOnly?: boolean;
 }
 
-const META = ["https://connect.facebook.net", "https://www.facebook.com", "https://web.facebook.com", "https://graph.facebook.com"];
+const META = [
+  "https://connect.facebook.net",
+  "https://www.facebook.com",
+  "https://web.facebook.com",
+  "https://graph.facebook.com",
+];
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
 
 function originOf(url: string | null | undefined): string | null {

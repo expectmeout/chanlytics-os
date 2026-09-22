@@ -14,9 +14,28 @@
  */
 import { z } from "zod";
 import {
-  LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
-  type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
+  LEAD_CLOSED_REASONS,
+  LEAD_EMAIL_STATES,
+  LEAD_ENDING_WORDS,
+  LEAD_FITS,
+  LEAD_MAX_PLACES,
+  LEAD_MEMBER_CLASSES,
+  LEAD_OPERATION_KINDS,
+  LEAD_STAGES,
+  LEAD_KIND_KEY,
+  LEAD_UNREACHABLE_KEY,
+  leadKindWord,
+  LeadSearchPlanSchema,
+  planMinutes,
+  planWho,
+  siteHost,
+  stateCode,
+  type LeadArea,
+  type LeadEmailState,
+  type LeadFit,
+  type LeadMemberClass,
+  type LeadRoundEnding,
+  type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
 import type { Tone } from "./tone";
@@ -36,21 +55,52 @@ export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS
 export const LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 export type LeadClass = LeadMemberClass;
 export const LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"] as const;
-export const LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"] as const;   // leads_page's p_sort (B widens A's three)
-export const LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"] as const;
+export const LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"] as const; // leads_page's p_sort (B widens A's three)
+export const LEAD_CALL_OUTCOMES = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number",
+] as const;
 export const LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"] as const;
 /** A's stored set has no type of its own; the word for one of its members is derived here, not a second list. */
 export type LeadStage = (typeof LEAD_STAGES)[number];
-export type { LeadEmailState, LeadFit };   // A's, re-exported so a page reads one name
-export type LeadList = (typeof LEAD_LISTS)[number]; export type LeadSort = (typeof LEAD_SORTS)[number];
-export type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number]; export type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
+export type { LeadEmailState, LeadFit }; // A's, re-exported so a page reads one name
+export type LeadList = (typeof LEAD_LISTS)[number];
+export type LeadSort = (typeof LEAD_SORTS)[number];
+export type LeadCallOutcome = (typeof LEAD_CALL_OUTCOMES)[number];
+export type LeadNotAFitWhy = (typeof LEAD_NOT_A_FIT_WHYS)[number];
 
 /** Stored values are never shown (§9.1). */
-export const LEAD_STAGE_WORDS: Record<LeadStage, string> = { ready: "Ready", nurture: "Contacted", converted: "Talking", archived: "Closed" };
-export const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], string> = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
-export const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string> = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
+export const LEAD_STAGE_WORDS: Record<LeadStage, string> = {
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  archived: "Closed",
+};
+export const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], string> = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed",
+};
+export const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string> = {
+  strong: "Strong fit",
+  look: "Worth a look",
+  long: "Long shot",
+};
 /** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
-export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string> = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string> = {
+  none: "No email",
+  checking: "Checking",
+  ok: "Checked",
+  catch_all: "Unconfirmed",
+  unknown: "Couldn't check",
+  invalid: "Bounces",
+};
 /** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
 /**
  * What each outcome means, in the app's ONE tone vocabulary (tone.ts). This used to carry two words of its own --
@@ -58,18 +108,40 @@ export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string
  * and a no-answer both fell through to the faintest grey, and a wrong number drew as if nothing had happened.
  */
 export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], Tone> = {
-  interested: "ok", call_back: "warn", voicemail: "plain", no_answer: "plain", not_interested: "danger", wrong_number: "danger",
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger",
 };
-export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string> = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string> = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number",
+};
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
-export const LEAD_LIST_WORDS: Record<LeadList, string> = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
+export const LEAD_LIST_WORDS: Record<LeadList, string> = {
+  all: "All leads",
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+};
 /** Where a lead's facts came from, in the owner's words. */
 export const LEAD_SOURCE_WORD = "Google Maps listing";
-export const LEAD_LOCKED_LINE = "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
+export const LEAD_LOCKED_LINE =
+  "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
 export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-export const LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
+export const LEAD_NO_ADDRESS =
+  "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
-export const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+export const LEAD_CONSENT_REFUSAL =
+  "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
 /* --------------------------------------------- release B, tasks 12-15 ---- */
 
 /** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
@@ -86,7 +158,11 @@ export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";
 /** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
-export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = { qualified: "Qualified", review: LEAD_REVIEW_WORD, excluded: LEAD_LEFT_OUT_WORD };
+export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = {
+  qualified: "Qualified",
+  review: LEAD_REVIEW_WORD,
+  excluded: LEAD_LEFT_OUT_WORD,
+};
 /** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -96,12 +172,28 @@ export const LEAD_CHECK_UNSURE = "Couldn't tell";
 export const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>> = {
   // Each unknown names what could not be told: four rows of "Couldn't tell" told the owner nothing.
   on_maps: { yes: "Open for business", no: "Not open for business", unknown: "Open for business: couldn't tell" },
-  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: "In the area: couldn't tell" },
-  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: "Phone on two sources: couldn't tell" },
+  in_area: {
+    yes: "In the area you asked for",
+    no: "Outside the area you asked for",
+    unknown: "In the area: couldn't tell",
+  },
+  phone_two_sources: {
+    yes: "Phone matches on two sources",
+    no: "Phone from one source only",
+    unknown: "Phone on two sources: couldn't tell",
+  },
   mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: "Mailbox: couldn't tell" },
   independent: { yes: "Not a chain", no: "Part of a chain", unknown: "Independent: couldn't tell" },
-  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: "The kind you asked for: couldn't tell" },
-  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: "Their own address: couldn't tell" },
+  right_kind: {
+    yes: "The kind you asked for",
+    no: "Not the kind you asked for",
+    unknown: "The kind you asked for: couldn't tell",
+  },
+  own_address: {
+    yes: "The business's own address",
+    no: "Not the business's own address",
+    unknown: "Their own address: couldn't tell",
+  },
 };
 /** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
 export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {
@@ -146,7 +238,9 @@ export const LEAD_LOW_SHARE_FLOOR = 0.15;
  *
  * Null when the listing published no breakdown, when it has no reviews, or when nothing is worth saying.
  */
-export function leadLowShare(dist: { one: number; two: number; three: number; four: number; five: number } | null): string | null {
+export function leadLowShare(
+  dist: { one: number; two: number; three: number; four: number; five: number } | null,
+): string | null {
   if (!dist) return null;
   const total = dist.one + dist.two + dist.three + dist.four + dist.five;
   if (total <= 0) return null;
@@ -199,7 +293,11 @@ export const LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id],
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -208,7 +306,10 @@ export const LEAD_WORDS = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" },
+  ],
   draftWriting: "Writing it…",
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
@@ -237,12 +338,15 @@ export const LEAD_WORDS = {
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
 } as const;
 
-
 /** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
 export const LEAD_SUGGEST_DAYS = 7;
 
 /** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
-export interface LeadNichePrior { places: number; matched: number; with_email: number }
+export interface LeadNichePrior {
+  places: number;
+  matched: number;
+  with_email: number;
+}
 /** Under this many judged matches the share is noise, and the line says so instead. */
 export const LEAD_PRIOR_MIN = 25;
 
@@ -289,7 +393,8 @@ export interface LeadWay {
 export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
   const live = !!(f.voice && f.voice.active && f.voice.number);
   const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
-  if (!f.whatsapp || !f.whatsapp.active) reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
+  if (!f.whatsapp || !f.whatsapp.active)
+    reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
   return [
     {
       id: "reach",
@@ -305,9 +410,10 @@ export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
       title: "Your calendar",
       line: "Anyone with an appointment is added, with their visits, so regulars aren't strangers.",
       status: f.calendar === "ok" ? "Your calendar is connected" : null,
-      doors: f.calendar === "ok"
-        ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }]
-        : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }],
+      doors:
+        f.calendar === "ok"
+          ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }]
+          : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }],
     },
     {
       id: "yours",
@@ -402,7 +508,10 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
         mark,
         title: `Found ${f.counted} ${f.name}`,
         parts: [`${f.emails} you can email`, `${f.phones} by phone`, `${f.excluded} left out`],
-        step: f.excluded > 0 ? { id: "excluded", label: `${f.excluded} left out` } : { id: "sort_fit", label: "Sort by fit" },
+        step:
+          f.excluded > 0
+            ? { id: "excluded", label: `${f.excluded} left out` }
+            : { id: "sort_fit", label: "Sort by fit" },
       };
     case "searched_everything":
       if (f.counted === 0) {
@@ -422,7 +531,12 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
     case "month_leads_used":
       return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's leads are used", yours], step: null };
     case "budget_used":
-      return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's searching is used up", yours], step: null };
+      return {
+        mark,
+        title: `Stopped at ${f.counted}`,
+        parts: ["this month's searching is used up", yours],
+        step: null,
+      };
     case "few_new_matches":
       return {
         mark,
@@ -433,14 +547,39 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
       };
     case "stopped":
       return f.checking
-        ? { mark, title: "Stopping", parts: [`checking the emails of the ${f.counted} found`, "nothing else was counted"], step: null }
-        : { mark, title: `Stopped at ${f.counted}`, parts: [yours, "nothing else was counted"], step: { id: "carry_on", label: "Carry on" } };
+        ? {
+            mark,
+            title: "Stopping",
+            parts: [`checking the emails of the ${f.counted} found`, "nothing else was counted"],
+            step: null,
+          }
+        : {
+            mark,
+            title: `Stopped at ${f.counted}`,
+            parts: [yours, "nothing else was counted"],
+            step: { id: "carry_on", label: "Carry on" },
+          };
     case "source_failed":
-      return { mark, title: `Stopped at ${f.seen}: the source stopped answering`, parts: [yours, "nothing more was counted"], step: { id: "try_again", label: "Try again" } };
+      return {
+        mark,
+        title: `Stopped at ${f.seen}: the source stopped answering`,
+        parts: [yours, "nothing more was counted"],
+        step: { id: "try_again", label: "Try again" },
+      };
     case "question_unanswered":
-      return { mark, title: "Stopped after a day without your answer", parts: [`the ${f.foundBefore} found before it asked are yours`], step: { id: "answer_now", label: "Answer now" } };
+      return {
+        mark,
+        title: "Stopped after a day without your answer",
+        parts: [`the ${f.foundBefore} found before it asked are yours`],
+        step: { id: "answer_now", label: "Answer now" },
+      };
     case "paused":
-      return { mark, title: LEAD_PAUSED_TITLE, parts: ["your leads are all here", "nothing is being counted"], step: null };
+      return {
+        mark,
+        title: LEAD_PAUSED_TITLE,
+        parts: ["your leads are all here", "nothing is being counted"],
+        step: null,
+      };
   }
 }
 
@@ -450,12 +589,20 @@ export function leadAllowanceFact(left: number): string {
 }
 
 /** What a call outcome does to the stage (§9.4). Only Interested converts; Wrong number keeps the stage. */
-export function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): { stage: LeadStage | null; closedReason: string | null; converts: boolean } {
+export function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): {
+  stage: LeadStage | null;
+  closedReason: string | null;
+  converts: boolean;
+} {
   switch (o) {
-    case "interested": return { stage: "converted", closedReason: null, converts: true };
-    case "not_interested": return { stage: "archived", closedReason: "said_no", converts: false };
-    case "wrong_number": return { stage: null, closedReason: null, converts: false };
-    default: return { stage: "nurture", closedReason: null, converts: false };
+    case "interested":
+      return { stage: "converted", closedReason: null, converts: true };
+    case "not_interested":
+      return { stage: "archived", closedReason: "said_no", converts: false };
+    case "wrong_number":
+      return { stage: null, closedReason: null, converts: false };
+    default:
+      return { stage: "nurture", closedReason: null, converts: false };
   }
 }
 
@@ -480,20 +627,39 @@ export const LeadStageInputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("stage"), stage: z.enum(["ready", "nurture", "converted"]) }),
   z.object({ kind: z.literal("not_a_fit"), why: z.enum(LEAD_NOT_A_FIT_WHYS) }),
   z.object({ kind: z.literal("said_no") }),
-  z.object({ kind: z.literal("outcome"), outcome: z.enum(LEAD_CALL_OUTCOMES), note: z.string().trim().max(280).optional() }),
+  z.object({
+    kind: z.literal("outcome"),
+    outcome: z.enum(LEAD_CALL_OUTCOMES),
+    note: z.string().trim().max(280).optional(),
+  }),
   /** "Did you send it?" Yes. */
   z.object({ kind: z.literal("emailed") }),
 ]);
 export type LeadStageInput = z.infer<typeof LeadStageInputSchema>;
 
 /** The door's arguments (lead_set_stage). The door judges what converts; this only spells the ask. */
-export function stageArgs(i: LeadStageInput): { p_stage: string | null; p_reason: string | null; p_fit_reason: string | null; p_outcome: string | null; p_note: string | null } {
+export function stageArgs(i: LeadStageInput): {
+  p_stage: string | null;
+  p_reason: string | null;
+  p_fit_reason: string | null;
+  p_outcome: string | null;
+  p_note: string | null;
+} {
   const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
   switch (i.kind) {
-    case "stage": return { ...none, p_stage: i.stage };
-    case "not_a_fit": return { ...none, p_stage: "archived", p_reason: i.why === "customer" ? "customer" : "not_a_fit", p_fit_reason: i.why };
-    case "said_no": return { ...none, p_stage: "archived", p_reason: "said_no" };
-    case "emailed": return { ...none, p_stage: "nurture", p_outcome: "emailed" };
+    case "stage":
+      return { ...none, p_stage: i.stage };
+    case "not_a_fit":
+      return {
+        ...none,
+        p_stage: "archived",
+        p_reason: i.why === "customer" ? "customer" : "not_a_fit",
+        p_fit_reason: i.why,
+      };
+    case "said_no":
+      return { ...none, p_stage: "archived", p_reason: "said_no" };
+    case "emailed":
+      return { ...none, p_stage: "nurture", p_outcome: "emailed" };
     case "outcome": {
       const m = outcomeMove(i.outcome);
       return { ...none, p_stage: m.stage, p_reason: m.closedReason, p_outcome: i.outcome, p_note: i.note ?? null };
@@ -502,7 +668,12 @@ export function stageArgs(i: LeadStageInput): { p_stage: string | null; p_reason
 }
 export const LeadsBulkSchema = z.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z.object({ by: z.literal("ids"), action: z.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z.array(z.string().uuid()).min(1).max(500), search_id: z.string().uuid().optional() }),
+  z.object({
+    by: z.literal("ids"),
+    action: z.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z.array(z.string().uuid()).min(1).max(500),
+    search_id: z.string().uuid().optional(),
+  }),
   z.object({ by: z.literal("view"), action: z.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema }),
 ]);
 export type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
@@ -540,24 +711,53 @@ export const ProposeLeadSearchSchema = z.object({
   terms: z.array(planChip(60)).min(1).max(5),
   city: z.string().trim().max(60).nullable().default(null),
   region: z.string().trim().min(2).max(40),
-  zip: z.string().regex(/^\d{5}$/).nullable().default(null),
+  zip: z
+    .string()
+    .regex(/^\d{5}$/)
+    .nullable()
+    .default(null),
   contact: z.enum(["phone", "email"]),
-  criteria: z.array(z.object({ text: planChip(120), standard: z.enum(["likely", "seen"]), required: z.boolean() })).max(6).default([]),
-  leave_out: z.array(z.object({ words: planChip(40) })).max(6).default([]),
+  criteria: z
+    .array(z.object({ text: planChip(120), standard: z.enum(["likely", "seen"]), required: z.boolean() }))
+    .max(6)
+    .default([]),
+  leave_out: z
+    .array(z.object({ words: planChip(40) }))
+    .max(6)
+    .default([]),
   asked: z.string().trim().min(1).max(400),
 });
 export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
 
 /** The card's head. The rest of what the card draws is the plan itself and the workspace's facts. */
-export interface LeadPlanView { title: string }
+export interface LeadPlanView {
+  title: string;
+}
 export type LeadPlanRefusalKind = "outside_us" | "not_businesses" | "no_card" | "not_a_plan";
 export type LeadPlanned =
   | { ok: true; plan: LeadSearchPlan; view: LeadPlanView }
   | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
 
-const US_NAMES = new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america", "the united states", "america", "the us", "the usa"]);
+const US_NAMES = new Set([
+  "us",
+  "usa",
+  "u.s.",
+  "u.s.a.",
+  "united states",
+  "united states of america",
+  "the united states",
+  "america",
+  "the us",
+  "the usa",
+]);
 /** "United States (US)" and "the U.S." are the same country as "US"; brackets and a leading "the" say nothing more. */
-const countryKey = (c: string) => c.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+const countryKey = (c: string) =>
+  c
+    .trim()
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 /**
  * Where the state is, when the model put "Miami, FL" in one field and a city
  * in the other. The tool asks for a city and its two-letter state apart, and
@@ -580,7 +780,12 @@ function placeOf(input: Pick<ProposeLeadSearch, "city" | "region">): { city: str
 }
 /** A criterion's or an exclusion's own key, from its words, so the judge's rubric and the chips name the same thing. */
 function planKey(text: string, fallback: string, taken: Set<string>): string {
-  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  const base = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40)
+    .replace(/_+$/, "");
   let key = /^[a-z]/.test(base) ? base : fallback;
   let n = 2;
   while (taken.has(key)) key = `${fallback}_${n++}`;
@@ -595,9 +800,26 @@ function planArea(input: ProposeLeadSearch): LeadArea | null {
   const place = placeOf(input);
   const state = place.state;
   if (!state) return null;
-  if (input.zip) return { kind: "zip", label: `near ${input.zip}`, state, center: null, radius_m: 8_000, zip: input.zip, query: `${input.zip}, ${state}, USA` };
+  if (input.zip)
+    return {
+      kind: "zip",
+      label: `near ${input.zip}`,
+      state,
+      center: null,
+      radius_m: 8_000,
+      zip: input.zip,
+      query: `${input.zip}, ${state}, USA`,
+    };
   const city = place.city ?? "";
-  if (city) return { kind: "city", label: `${city}, ${state}`, state, center: null, radius_m: 25_000, query: `${city}, ${state}, USA` };
+  if (city)
+    return {
+      kind: "city",
+      label: `${city}, ${state}`,
+      state,
+      center: null,
+      radius_m: 25_000,
+      query: `${city}, ${state}, USA`,
+    };
   const label = /^[A-Za-z]{2}$/.test(input.region.trim()) ? state : titleWords(input.region.trim());
   return { kind: "city", label, state, center: null, radius_m: 200_000, query: `${label}, USA` };
 }
@@ -610,9 +832,12 @@ function planArea(input: ProposeLeadSearch): LeadArea | null {
  * are the same plan.
  */
 export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
-  if (!US_NAMES.has(countryKey(input.country))) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
-  if (input.looking_for === "people") return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
-  if (input.looking_for !== "local_businesses") return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
+  if (!US_NAMES.has(countryKey(input.country)))
+    return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (input.looking_for === "people")
+    return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
+  if (input.looking_for !== "local_businesses")
+    return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
   const area = planArea(input);
   if (!area) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.region } };
   const taken = new Set<string>();
@@ -626,13 +851,29 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
     area,
     count: input.count,
     contact: input.contact,
-    criteria: input.criteria.map((c, i) => ({ key: planKey(c.text, `c${i + 1}`, taken), text: c.text, standard: c.standard, required: c.required })),
-    exclusions: input.leave_out.map((l, i) => ({ key: planKey(l.words, `x${i + 1}`, taken), text: l.words, origin: "claude" as const })),
+    criteria: input.criteria.map((c, i) => ({
+      key: planKey(c.text, `c${i + 1}`, taken),
+      text: c.text,
+      standard: c.standard,
+      required: c.required,
+    })),
+    exclusions: input.leave_out.map((l, i) => ({
+      key: planKey(l.words, `x${i + 1}`, taken),
+      text: l.words,
+      origin: "claude" as const,
+    })),
   };
   const checked = LeadSearchPlanSchema.safeParse(plan);
   if (!checked.success) {
     const issue = checked.error.issues[0];
-    return { ok: false, refusal: { kind: "not_a_plan", text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`, what: null } };
+    return {
+      ok: false,
+      refusal: {
+        kind: "not_a_plan",
+        text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`,
+        what: null,
+      },
+    };
   }
   return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
 }
@@ -651,7 +892,13 @@ export type LeadChips = Record<string, never>;
  * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
  * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
  */
-export function leadsRoute(v: { searchId?: string | null; list?: LeadList | null; cls?: LeadClass | null; chips?: Record<string, unknown>; peek?: string | null }): string {
+export function leadsRoute(v: {
+  searchId?: string | null;
+  list?: LeadList | null;
+  cls?: LeadClass | null;
+  chips?: Record<string, unknown>;
+  peek?: string | null;
+}): string {
   const parts = ["clients/leads"];
   if (v.searchId) parts.push(`s-${v.searchId}`);
   if (v.list && v.list !== "all") parts.push(`l-${v.list}`);
@@ -659,10 +906,22 @@ export function leadsRoute(v: { searchId?: string | null; list?: LeadList | null
   if (v.peek) parts.push(`p-${v.peek}`);
   return parts.join(":");
 }
-export function parseLeadsRoute(route: string): { searchId: string | null; list: LeadList; cls: LeadClass | null; chips: Record<string, unknown>; peek: string | null } | null {
+export function parseLeadsRoute(route: string): {
+  searchId: string | null;
+  list: LeadList;
+  cls: LeadClass | null;
+  chips: Record<string, unknown>;
+  peek: string | null;
+} | null {
   const [head, ...segs] = route.split(":");
   if (head !== "clients/leads" && head !== "leads") return null;
-  const out = { searchId: null as string | null, list: "all" as LeadList, cls: null as LeadClass | null, chips: {}, peek: null as string | null };
+  const out = {
+    searchId: null as string | null,
+    list: "all" as LeadList,
+    cls: null as LeadClass | null,
+    chips: {},
+    peek: null as string | null,
+  };
   for (const s of segs) {
     const dash = s.indexOf("-");
     if (dash < 1) continue;
@@ -677,15 +936,45 @@ export function parseLeadsRoute(route: string): { searchId: string | null; list:
 
 /* ------------------------------------------- what the model answers ------- */
 
-export const LEAD_DRAFT_JSON_SCHEMA = { type: "object", additionalProperties: false, required: ["subject", "body"], properties: { subject: { type: "string" }, body: { type: "string" } } } as const;
-export const LeadDraftAnswerSchema = z.object({ subject: z.string().trim().min(3).max(120), body: z.string().trim().min(20).max(2000) });
+export const LEAD_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["subject", "body"],
+  properties: { subject: { type: "string" }, body: { type: "string" } },
+} as const;
+export const LeadDraftAnswerSchema = z.object({
+  subject: z.string().trim().min(3).max(120),
+  body: z.string().trim().min(20).max(2000),
+});
 export const LEAD_SUGGEST_JSON_SCHEMA = {
-  type: "object", additionalProperties: false, required: ["line", "items"],
-  properties: { line: { type: "string" }, items: { type: "array", items: { type: "object", additionalProperties: false, required: ["words", "who_for", "category_key"], properties: { words: { type: "string" }, who_for: { type: "string" }, category_key: { type: "string" } } } } },
+  type: "object",
+  additionalProperties: false,
+  required: ["line", "items"],
+  properties: {
+    line: { type: "string" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["words", "who_for", "category_key"],
+        properties: { words: { type: "string" }, who_for: { type: "string" }, category_key: { type: "string" } },
+      },
+    },
+  },
 } as const;
 export const LeadSuggestAnswerSchema = z.object({
   line: z.string().trim().min(3).max(160),
-  items: z.array(z.object({ words: z.string().trim().min(3).max(80), who_for: z.string().trim().min(3).max(120), category_key: z.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4),
+  items: z
+    .array(
+      z.object({
+        words: z.string().trim().min(3).max(80),
+        who_for: z.string().trim().min(3).max(120),
+        category_key: z.string().regex(/^[a-z_]{2,40}$/),
+      }),
+    )
+    .min(1)
+    .max(4),
 });
 /** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
 export function leadDraftFooter(business: string, address: string): string {
@@ -698,7 +987,16 @@ export interface LeadPeekReach {
   phone: { value: string; note: string; tip: string; tel: string | null; wrong: boolean } | null;
   /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
   /** `tip` is everything the mailbox's mark says: the state where the note does not restate it, the note, the standard. */
-  email: { value: string; note: string; tip: string; standard: string | null; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
+  email: {
+    value: string;
+    note: string;
+    tip: string;
+    standard: string | null;
+    state: LeadEmailState;
+    word: string;
+    address: string | null;
+    canDraft: boolean;
+  };
   locked: { title: string; line: string };
 }
 export interface LeadPeekVM {
@@ -750,13 +1048,25 @@ export interface LeadPeekVM {
   fit: { word: string; cls: string; sentence: string };
   reach: LeadPeekReach;
   /** What was seen, then what Claude read (P2, §0.1), told apart by a hairline and by their marks: nothing read wears a plain check. */
-  groups: { how: "seen" | "read"; checks: { key: LeadCheckKey; label: string; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }[] }[];
+  groups: {
+    how: "seen" | "read";
+    checks: {
+      key: LeadCheckKey;
+      label: string;
+      answer: "yes" | "no" | "unknown";
+      source: string;
+      reason: string | null;
+    }[];
+  }[];
   others: { summary: string; picked: string | null; items: { email: string; why: string }[] } | null;
   found: { at: string; what: string }[];
   links: {
-    website: { label: string; href: string } | null; instagram: { label: string; href: string } | null;
-    facebook: { label: string; href: string } | null; linkedin: { label: string; href: string } | null;
-    tiktok: { label: string; href: string } | null; maps: { label: string; href: string } | null;
+    website: { label: string; href: string } | null;
+    instagram: { label: string; href: string } | null;
+    facebook: { label: string; href: string } | null;
+    linkedin: { label: string; href: string } | null;
+    tiktok: { label: string; href: string } | null;
+    maps: { label: string; href: string } | null;
   };
   version: number;
 }
@@ -769,14 +1079,27 @@ export interface LeadPeekVM {
  */
 export function leadTodayLine(hours: { day: string; hours: string }[], tz: string, now: Date): string | null {
   if (!hours.length) return null;
-  const dayOf = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
+  const dayOf = (d: Date) =>
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(d).toLowerCase();
   const hoursOn = (d: Date) => hours.find((x) => x.day.toLowerCase() === dayOf(d))?.hours.trim() ?? null;
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
-  const at = Number(parts.find((p) => p.type === "hour")?.value ?? 0) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
-  const clock = (hh: string, mm: string | undefined, ap: string) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const at =
+    Number(parts.find((p) => p.type === "hour")?.value ?? 0) +
+    Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  const clock = (hh: string, mm: string | undefined, ap: string) =>
+    `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
   // A night that runs past midnight belongs to the day it began: at 1 AM, a bar that opened at 5 PM "to 2 AM" is open.
   const last = hoursOn(new Date(now.getTime() - 86_400_000))?.match(CLOCK);
-  if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at < hourOf(last[4], last[5], last[6])) {
+  if (
+    last &&
+    hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) &&
+    at < hourOf(last[4], last[5], last[6])
+  ) {
     return `Open until ${clock(last[4], last[5], last[6])}`;
   }
   const text = hoursOn(now);
@@ -819,7 +1142,13 @@ export function leadHoursShort(text: string): string {
  * One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser
  * cannot draw. `hours` is the listing's own words; `short` is what a surface shows ("10–6", leadHoursShort).
  */
-export interface LeadWeekRow { day: string; hours: string; short: string; bar: { x: number; w: number } | null; today: boolean }
+export interface LeadWeekRow {
+  day: string;
+  hours: string;
+  short: string;
+  bar: { x: number; w: number } | null;
+  today: boolean;
+}
 
 /**
  * The week in one line, so the seven rows can fold away behind it: how many days they open, and the hours they keep
@@ -833,7 +1162,11 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
   for (const d of open) tally.set(d.short, (tally.get(d.short) ?? 0) + 1);
   let best = "";
   let most = 0;
-  for (const [hours, n] of tally) if (n > most) { best = hours; most = n; }
+  for (const [hours, n] of tally)
+    if (n > most) {
+      best = hours;
+      most = n;
+    }
   const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
   if (most === open.length) return `${days} · ${best}`;
   if (most * 2 >= open.length) return `${days} · ${best} most days`;
@@ -841,7 +1174,8 @@ export function leadWeekSummary(week: LeadWeekRow[]): string {
 }
 
 const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
-const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
+const hourOf = (h: string, m: string | undefined, ap: string): number =>
+  (Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
 /**
  * The week's hours as bars (D5): "9 AM to 6 PM" is a bar from 37.5% to 75% of the day, "Open 24 hours" the whole
  * day, "Closed" no bar, and a line the parser cannot read keeps its words and draws nothing. Overnight hours run to
@@ -867,7 +1201,9 @@ export function leadWeekBars(hours: { day: string; hours: string }[], tz: string
 }
 
 /** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
-export function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): { line: string; href: string | null } | null {
+export function leadWhere(
+  r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">,
+): { line: string; href: string | null } | null {
   const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
   const line = [r.street, town].filter(Boolean).join(", ");
   return line ? { line, href: r.maps_url ?? null } : null;
@@ -882,7 +1218,10 @@ export const LEAD_UNDO_MS = 24 * 60 * 60_000;
  * lives -- not the strip, where "Undo" beside "yours" read as deleting what was
  * just paid for.
  */
-export function leadUndoable(s: { round: { undo_op_id: string | null; ended_at: string | null } | null } | null, now: Date): boolean {
+export function leadUndoable(
+  s: { round: { undo_op_id: string | null; ended_at: string | null } | null } | null,
+  now: Date,
+): boolean {
   const r = s?.round;
   return !!r && !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
 }
@@ -902,7 +1241,8 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
   if (!iso) return "";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const key = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at) === key(now)) return "today";
   if (key(at) === key(new Date(now.getTime() - 86_400_000))) return "yesterday";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
@@ -912,7 +1252,8 @@ function clockIn(tz: string, iso: string | null, now: Date): string {
   if (!iso) return "—";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "—";
-  const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const day = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const clock = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at);
   if (day(at) === day(now)) return clock;
   return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}, ${clock}`;
@@ -926,28 +1267,41 @@ function clockIn(tz: string, iso: string | null, now: Date): string {
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
-  const sub = [r.category, r.price ?? null, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
-  const fitWord = m.class === "qualified"
-    ? (m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look)
-    // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
-    : m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, m.excluded_by)}`;
+  const sub =
+    [r.category, r.price ?? null, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
+  const fitWord =
+    m.class === "qualified"
+      ? m.fit
+        ? LEAD_FIT_WORDS[m.fit]
+        : LEAD_FIT_WORDS.look
+      : // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
+        m.class === "review"
+        ? LEAD_REVIEW_WORD
+        : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
   const emailNote = r.email
-    ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}`
-      : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking
-      : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`
-      : LEAD_MAILBOX_WORDS[r.email_state]
+    ? r.email_state === "ok"
+      ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, r.email_checked_at, now) || "on finding it"}`
+      : r.email_state === "checking"
+        ? LEAD_MAILBOX_WORDS.checking
+        : r.email_state === "invalid"
+          ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`
+          : LEAD_MAILBOX_WORDS[r.email_state]
     : LEAD_NO_EMAIL_LINE;
   const mailboxLabel = LEAD_MAILBOX_WORDS[r.email_state];
   // Each note ends as a sentence, so two of them read as two. A state leads its tip only where the note does not say
   // it already: "Unconfirmed." before "Their server accepts every address", never "Checked." before "Mailbox exists".
   const stop = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
   const emailTip = [
-    ...(r.email && (r.email_state === "catch_all" || r.email_state === "unknown" || r.email_state === "invalid") ? [LEAD_EMAIL_WORDS[r.email_state]] : []),
+    ...(r.email && (r.email_state === "catch_all" || r.email_state === "unknown" || r.email_state === "invalid")
+      ? [LEAD_EMAIL_WORDS[r.email_state]]
+      : []),
     emailNote,
     ...(r.email_state === "ok" ? [] : [standard]),
-  ].map(stop).join(" ");
+  ]
+    .map(stop)
+    .join(" ");
   const seen: LeadPeekVM["groups"][number]["checks"] = [];
   const read: LeadPeekVM["groups"][number]["checks"] = [];
   for (const c of m.checks) {
@@ -972,21 +1326,32 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const passed = m.checks.filter((c) => c.answer === "yes").length;
   const unsure = m.checks.filter((c) => c.answer === "unknown").length;
   const failed = m.checks.filter((c) => c.answer === "no").length;
-  const checksSummary = m.checks.length === 0 ? "" : [
-    `${passed} check${passed === 1 ? "" : "s"} passed`,
-    ...(unsure ? [`${unsure} couldn't tell`] : []),
-    ...(failed ? [`${failed} failed`] : []),
-  ].join(" · ");
+  const checksSummary =
+    m.checks.length === 0
+      ? ""
+      : [
+          `${passed} check${passed === 1 ? "" : "s"} passed`,
+          ...(unsure ? [`${unsure} couldn't tell`] : []),
+          ...(failed ? [`${failed} failed`] : []),
+        ].join(" · ");
   const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated =
     r.rating === null || r.rating === undefined
       ? null
-      : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US"), low: leadLowShare(r.reviews_dist ?? null) };
+      : {
+          score: r.rating.toFixed(1),
+          count: (r.reviews ?? 0).toLocaleString("en-US"),
+          low: leadLowShare(r.reviews_dist ?? null),
+        };
   const facts: LeadPeekVM["facts"] = [
     ...(r.category ? [{ k: "Kind", v: r.category }] : []),
     ...(r.price ? [{ k: "Price", v: r.price }] : []),
     ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.count} review${r.reviews === 1 ? "" : "s"}` }] : []),
-    ...(r.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : []),
+    ...(r.claimed === true
+      ? [{ k: "Listing", v: "Claimed by the owner" }]
+      : r.claimed === false
+        ? [{ k: "Listing", v: "Not claimed by the owner" }]
+        : []),
     ...(term && r.rank ? [{ k: "Found at", v: `#${r.rank} for “${term}”` }] : []),
     ...(r.places > 1 ? [{ k: "Other listings", v: `${r.places} listings for this business` }] : []),
   ];
@@ -994,7 +1359,12 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
+    tile: {
+      initials: initialsOf(r.business_name),
+      tint: leadTintOf(r.category),
+      image: r.image_url ?? null,
+      logo: r.logo_url ?? null,
+    },
     rated,
     slots: leadSlots(r),
     week,
@@ -1012,7 +1382,11 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     sub,
     cls: m.class,
     stage: r.stage,
-    stages: (["ready", "nurture", "converted"] as const).map((id) => ({ id, label: LEAD_STAGE_WORDS[id], on: r.stage === id })),
+    stages: (["ready", "nurture", "converted"] as const).map((id) => ({
+      id,
+      label: LEAD_STAGE_WORDS[id],
+      on: r.stage === id,
+    })),
     canStage: m.class !== "excluded",
     notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
     fit: { word: fitWord, cls: fitCls, sentence: m.reason },
@@ -1020,8 +1394,16 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       phone: r.phone
         ? {
             value: formatPhoneDisplay(r.phone) ?? r.phone,
-            note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
-            tip: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
+            note: r.phone_wrong
+              ? "You marked this number wrong."
+              : r.phone_agrees
+                ? "The same number on Google Maps and their website"
+                : "From their Google Maps listing",
+            tip: r.phone_wrong
+              ? "You marked this number wrong."
+              : r.phone_agrees
+                ? "The same number on Google Maps and their website."
+                : "From their Google Maps listing.",
             tel: r.phone_wrong ? null : `tel:${r.phone}`,
             wrong: r.phone_wrong,
           }
@@ -1048,9 +1430,18 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
     // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each
     // other, so four copies of "Sep 20, 2:02 PM" said nothing the head had not.
-    foundSummary: [term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps", dayIn(tz, r.found_at, now)].filter(Boolean).join(" · "),
+    foundSummary: [term && r.rank ? `#${r.rank} on Google Maps` : "On Google Maps", dayIn(tz, r.found_at, now)]
+      .filter(Boolean)
+      .join(" · "),
     found: [
-      { at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `Google Maps · #${r.rank} for “${term}”` : `Google Maps · searching “${term}”`) : "A Google Maps listing" },
+      {
+        at: clockIn(tz, r.found_at, now),
+        what: term
+          ? r.rank
+            ? `Google Maps · #${r.rank} for “${term}”`
+            : `Google Maps · searching “${term}”`
+          : "A Google Maps listing",
+      },
       { at: clockIn(tz, r.found_at, now), what: siteLine },
       // The mailbox's long sentence is the email row's to say; here it is the state's one word.
       { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox · ${LEAD_EMAIL_WORDS[r.email_state]}` },
@@ -1067,7 +1458,6 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   };
 }
 
-
 /** What removing a search keeps: the leads already worked. Said before the press; the number comes after it. */
 export const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
 
@@ -1075,9 +1465,14 @@ export const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to
  * A kept search, in the owner's own words (§8.10): what they asked for, the day they asked, and what the plan
  * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
  */
-export function leadSearchWords(s: { asked: string; asked_on: string; plan?: LeadSearchPlan } | null, tz: string): { askedLine: string; keepsLine: string } {
+export function leadSearchWords(
+  s: { asked: string; asked_on: string; plan?: LeadSearchPlan } | null,
+  tz: string,
+): { askedLine: string; keepsLine: string } {
   if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(
+    new Date(s.asked_on),
+  );
   // Release A spells an exclusion `exclusions[]: { key, text, origin }` and a criterion
   // `criteria[]: { key, text, standard, required }` (lead-search.ts, LeadSearchPlanSchema):
   // what is left out is the exclusions list, and its words are `text`.
@@ -1091,34 +1486,86 @@ export function leadSearchWords(s: { asked: string; asked_on: string; plan?: Lea
 
 /* ------------------------------------------------- what the doors answer -- */
 
-export interface LeadCheck { key: LeadCheckKey; how: "seen" | "read"; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }
+export interface LeadCheck {
+  key: LeadCheckKey;
+  how: "seen" | "read";
+  answer: "yes" | "no" | "unknown";
+  source: string;
+  reason: string | null;
+}
 /** The seven checks §0.1 and the interface name, four seen and three read; §9.2's "six" is the PRD's count of one screen. */
-export const LEAD_CHECK_KEYS = ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"] as const;
+export const LEAD_CHECK_KEYS = [
+  "on_maps",
+  "in_area",
+  "phone_two_sources",
+  "mailbox",
+  "independent",
+  "right_kind",
+  "own_address",
+] as const;
 export type LeadCheckKey = (typeof LEAD_CHECK_KEYS)[number];
 export interface LeadRowDto {
-  id: string; search_id: string; place_id: string; business_name: string; category: string | null;
-  city: string | null; state: string | null; street: string | null;
+  id: string;
+  search_id: string;
+  place_id: string;
+  business_name: string;
+  category: string | null;
+  city: string | null;
+  state: string | null;
+  street: string | null;
   /** `leads_page` answers it beside the city; the area cell reads "78704 · Austin, TX" from the pair. */
   postal_code?: string | null;
   /** Not the door's: `leads_page` returns the search's id, and 4.4 fills the name from the same read that loads the searches. */
   search_name?: string | null;
-  phone: string | null; phone_agrees: boolean; phone_wrong: boolean;
-  email: string | null; email_state: LeadEmailState; email_checked_at: string | null;
-  website: string | null; instagram: string | null; rating: number | null; reviews: number | null;
+  phone: string | null;
+  phone_agrees: boolean;
+  phone_wrong: boolean;
+  email: string | null;
+  email_state: LeadEmailState;
+  email_checked_at: string | null;
+  website: string | null;
+  instagram: string | null;
+  rating: number | null;
+  reviews: number | null;
   /** What the listing shows about the business (D2, 00144). Optional: a fixture from before carries none, and the view models read them as absent. */
-  about?: string | null; hours?: { day: string; hours: string }[]; image_url?: string | null; price?: string | null;
+  about?: string | null;
+  hours?: { day: string; hours: string }[];
+  image_url?: string | null;
+  price?: string | null;
   reviews_dist?: { one: number; two: number; three: number; four: number; five: number } | null;
-  facebook_url?: string | null; linkedin_url?: string | null; tiktok_url?: string | null; claimed?: boolean | null; maps_url?: string | null; rank?: number | null;
+  facebook_url?: string | null;
+  linkedin_url?: string | null;
+  tiktok_url?: string | null;
+  claimed?: boolean | null;
+  maps_url?: string | null;
+  rank?: number | null;
   /** D5 (00146): the neighbourhood the listing names, and the coordinates leads_page returns, for the row's line about where and the map. */
-  neighborhood?: string | null; lat?: number | null; lng?: number | null;
+  neighborhood?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   /** D6 (00147): the business's own mark, from its home page. */
   logo_url?: string | null;
-  stage: LeadStage; closed_reason: string | null; contact_id: string | null;
+  stage: LeadStage;
+  closed_reason: string | null;
+  contact_id: string | null;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
-  last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
-  places: number; found_at: string; exported_at: string | null; version: number;
+  last_outcome: string | null;
+  last_note: string | null;
+  contacted_at: string | null;
+  converted_at: string | null;
+  places: number;
+  found_at: string;
+  exported_at: string | null;
+  version: number;
   member: {
-    class: LeadClass; fit: "strong" | "look" | "long" | null; reason: string; excluded_by: string | null; distance_m: number | null; counted: boolean; checks: LeadCheck[]; other_emails: { email: string; why: string }[];
+    class: LeadClass;
+    fit: "strong" | "look" | "long" | null;
+    reason: string;
+    excluded_by: string | null;
+    distance_m: number | null;
+    counted: boolean;
+    checks: LeadCheck[];
+    other_emails: { email: string; why: string }[];
     /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
     reasons?: string[];
   };
@@ -1127,7 +1574,8 @@ export interface LeadRowDto {
 /* ------------------------------------------- Needs review, as a queue (D3) */
 
 /** "Independent" -> "independent" for the middle of a sentence; a name that is capitals stays as it is. */
-export const leadLowerFirst = (s: string): string => (s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+export const leadLowerFirst = (s: string): string =>
+  s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 
 export const LEAD_REVIEW_GROUP_WORDS = {
   mailbox_waiting: "Waiting on the mailbox check",
@@ -1144,7 +1592,18 @@ export const LEAD_REVIEW_GROUP_WORDS = {
 export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
 export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
 /** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
-const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "no_phone", "catch_all", "unsure", "read_only", "out_of_area"];
+const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = [
+  "mailbox_waiting",
+  "checks_out",
+  "mailbox_silent",
+  "bad_email",
+  "no_email",
+  "no_phone",
+  "catch_all",
+  "unsure",
+  "read_only",
+  "out_of_area",
+];
 const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
   mailbox_waiting: [],
   checks_out: ["keep", "exclude"],
@@ -1174,15 +1633,22 @@ function reviewGroupOf(reason: string): LeadReviewGroupId | null {
   if (reason === "out_of_area") return "out_of_area";
   return null;
 }
-export const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string> = { check_again: "Check again", find_email: "Find an email", keep: "Keep", exclude: "Exclude" };
+export const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string> = {
+  check_again: "Check again",
+  find_email: "Find an email",
+  keep: "Keep",
+  exclude: "Exclude",
+};
 /** Why a pile is waiting, in a sentence: what was looked at, and what is true of every lead in it. */
 export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
   mailbox_waiting: "The mailbox check is still running on these. Nothing to press — they move on their own.",
-  checks_out: "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
+  checks_out:
+    "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
   mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
   bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
   no_email: "Their home, contact and about pages were read, and no address was on any of them.",
-  no_phone: "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
+  no_phone:
+    "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
   catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
   unsure: "Claude could not tell from the listing or from their site.",
   read_only: "Only the listing says so, and this search asked to see it for itself.",
@@ -1195,15 +1661,23 @@ export const leadCheckAgainCents = (n: number): number => Math.max(1, Math.round
  * What each press on the bench does, and what it costs (D5). One derivation, because the bar offers the acts and
  * the column beside it explains them: a Keep that spends a lead of the month says so with the number left.
  */
-export function leadReviewCosts(acts: LeadReviewAct[], n: number, month: LeadMonthDto | null): { act: LeadReviewAct; label: string; line: string }[] {
+export function leadReviewCosts(
+  acts: LeadReviewAct[],
+  n: number,
+  month: LeadMonthDto | null,
+): { act: LeadReviewAct; label: string; line: string }[] {
   const line = (a: LeadReviewAct): string => {
     switch (a) {
-      case "keep": return month
-        ? `They join Ready and count against this month. ${n} of your ${month.left} left.`
-        : "They join Ready and count against this month.";
-      case "exclude": return "They don't count, and nothing is charged.";
-      case "check_again": return `About ${leadCheckAgainCents(n)}¢. Their answer lands here in a few minutes.`;
-      case "find_email": return "Claude reads their pages again for an address.";
+      case "keep":
+        return month
+          ? `They join Ready and count against this month. ${n} of your ${month.left} left.`
+          : "They join Ready and count against this month.";
+      case "exclude":
+        return "They don't count, and nothing is charged.";
+      case "check_again":
+        return `About ${leadCheckAgainCents(n)}¢. Their answer lands here in a few minutes.`;
+      case "find_email":
+        return "Claude reads their pages again for an address.";
     }
   };
   return acts.map((act) => ({ act, label: LEAD_REVIEW_ACT_WORDS[act], line: line(act) }));
@@ -1217,13 +1691,22 @@ export function leadAskedFor(search: LeadSearchDto | null): { text: string; kind
     ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" as const })),
   ];
 }
-export interface LeadReviewGroup { id: LeadReviewGroupId; key: string; label: string; ids: string[]; acts: LeadReviewAct[] }
+export interface LeadReviewGroup {
+  id: LeadReviewGroupId;
+  key: string;
+  label: string;
+  ids: string[];
+  acts: LeadReviewAct[];
+}
 /**
  * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
  * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
  * criterion names it in the owner's own words from the plan, and two criteria make two groups.
  */
-export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: string[] }[], search: LeadSearchDto | null): LeadReviewGroup[] {
+export function leadReviewGroups(
+  rows: { id: string; cls: LeadClass; reasons: string[] }[],
+  search: LeadSearchDto | null,
+): LeadReviewGroup[] {
   const by = new Map<string, LeadReviewGroup>();
   for (const r of rows) {
     if (r.cls !== "review") continue;
@@ -1231,12 +1714,21 @@ export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: st
     // An address that checks out is not a problem: it groups a lead only when nothing else holds the lead back
     // (the month was full when its check answered), for Keep to count it. Anything else the lead waits on comes first.
     const held = reasons.map(reviewGroupOf).filter((g): g is LeadReviewGroupId => g !== null && g !== "checks_out");
-    const picked = held.length ? REVIEW_GROUP_ORDER.find((g) => held.includes(g)) : reasons.some((x) => reviewGroupOf(x) === "checks_out") ? "checks_out" : undefined;
+    const picked = held.length
+      ? REVIEW_GROUP_ORDER.find((g) => held.includes(g))
+      : reasons.some((x) => reviewGroupOf(x) === "checks_out")
+        ? "checks_out"
+        : undefined;
     if (!picked) continue;
     const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
-    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
+    const crit =
+      (picked === "unsure" || picked === "read_only") && reason.includes(":")
+        ? reason.slice(reason.indexOf(":") + 1)
+        : null;
     const key = crit ? `${picked}:${crit}` : picked;
-    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} — ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
+    const label = crit
+      ? `${LEAD_REVIEW_GROUP_WORDS[picked]} — ${leadLowerFirst(leadExclusionWord(search, crit))}`
+      : LEAD_REVIEW_GROUP_WORDS[picked];
     const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
     g.ids.push(r.id);
     by.set(key, g);
@@ -1244,26 +1736,49 @@ export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: st
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 export interface LeadSearchRoundDto {
-  id: string; seq: number; purpose: string; state: string; ending: LeadRoundEnding | null;
+  id: string;
+  seq: number;
+  purpose: string;
+  state: string;
+  ending: LeadRoundEnding | null;
   question: { sentence: string; criterion_key: string } | null;
-  target: number; counted: number; qualified: number; review: number; excluded: number;
+  target: number;
+  counted: number;
+  qualified: number;
+  review: number;
+  excluded: number;
   /** Counted leads whose address was found and checked: "88 you can email", and "41 emails checked" while it runs. */
   emails_checked: number;
   /** Counted leads reachable by phone: "72 by phone" (§8.6's sentence needs both, W2 put both on the view). */
   with_phone: number;
   /** The round is stopping and still checking what it found (S12): the only way to tell Stopping from Checking. */
   ending_pending: boolean;
-  waiting_since: string | null; cost_usd: number; ended_at: string | null;
-  undo_op_id: string | null; undo_version: number | null;
+  waiting_since: string | null;
+  cost_usd: number;
+  ended_at: string | null;
+  undo_op_id: string | null;
+  undo_version: number | null;
   /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
   nearby: LeadArea[];
   /** The qualified members by fit band (D5, 00146), for the band bar. Optional: a fixture from before carries none. */
   fits?: { strong: number; look: number; long: number };
 }
-export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
+export interface LeadSearchDto {
+  id: string;
+  name: string;
+  asked: string;
+  asked_on: string;
+  plan: LeadSearchPlan;
+  plan_version: number;
+  round: LeadSearchRoundDto | null;
+}
 /* ------------------------------------------------ the same leads, on the ground (D5) */
 
-export interface LeadMapPin { id: string; x: number; y: number }
+export interface LeadMapPin {
+  id: string;
+  x: number;
+  y: number;
+}
 export interface LeadMapPlot {
   /** Every lead the door gave a place, in a square of 0..1 with 0,0 at the top left. */
   pins: LeadMapPin[];
@@ -1290,12 +1805,19 @@ const M_PER_DEG_LAT = 111_320;
 /** Past this, leads with no area to anchor them are not one place. Fifty miles: a city and the towns around it. */
 export const LEAD_MAP_MAX_SPAN_M = 80_000;
 
-export function leadMapPlot(rows: { id: string; point: { lat: number; lng: number } | null }[], area: LeadArea | null): LeadMapPlot {
+export function leadMapPlot(
+  rows: { id: string; point: { lat: number; lng: number } | null }[],
+  area: LeadArea | null,
+): LeadMapPlot {
   const placed = rows.filter((r): r is { id: string; point: { lat: number; lng: number } } => !!r.point);
   const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
-  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
+  if (!anchor || (!placed.length && !area?.center))
+    return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos((anchor.lat * Math.PI) / 180);
-  const at = (p: { lat: number; lng: number }) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
+  const at = (p: { lat: number; lng: number }) => ({
+    e: (p.lng - anchor.lng) * perLng,
+    s: (anchor.lat - p.lat) * M_PER_DEG_LAT,
+  });
   const metres = placed.map((r) => at(r.point));
   // The square holds every lead and the whole of the area the search asked for, with a margin so nothing sits on
   // the edge. Half a kilometre is the smallest it goes: one lead alone is a place, not a pinpoint.
@@ -1325,21 +1847,39 @@ export const leadMapAcross = (spanM: number): string => (spanM ? `${milesLabel(s
  * that is not there.
  */
 export function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string {
-  if (plot.tooWide) return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
+  if (plot.tooWide)
+    return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
   if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
   return oneSearch
     ? "Where this search's leads are. It never measured a centre, so there is no area to draw."
     : "Every lead these searches placed on the ground.";
 }
 
-export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
+export interface LeadCounts {
+  all: number;
+  ready: number;
+  nurture: number;
+  converted: number;
+  said_no: number;
+  not_a_fit: number;
+}
 /**
  * The month, as a surface says it (D5): how many of its leads are spoken for, how many are left, and the day it
  * renews. The workbench reads it to say what a press costs -- "5 of your 238 left" -- so a Keep is never a number
  * nobody can see. The whole is contracts' LEAD_MONTHLY_ALLOWANCE, never a number a page invents.
  */
-export interface LeadMonthDto { used: number; left: number; renewsOn: string }
-export interface LeadSuggestionsDto { business_line: string; by_owner: boolean; made_at: string; items: { words: string; who_for: string; category_key: string; reach: string | null }[]; note?: string }
+export interface LeadMonthDto {
+  used: number;
+  left: number;
+  renewsOn: string;
+}
+export interface LeadSuggestionsDto {
+  business_line: string;
+  by_owner: boolean;
+  made_at: string;
+  items: { words: string; who_for: string; category_key: string; reach: string | null }[];
+  note?: string;
+}
 /** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
 export interface LeadPlanFacts {
   /** Places already in People or Leads this plan would skip: "Skips the 14 already yours". */
@@ -1370,8 +1910,20 @@ export interface LeadPlanFacts {
 
 export type LeadSlotState = "ok" | "part" | "none" | "bad" | "checking";
 /** One reach slot: the shape carries the meaning (state), the word repeats it, the tip gives the value back. */
-export interface LeadSlot { state: LeadSlotState; value: string | null; word: string; tip: string; copy: boolean }
-export const LEAD_SLOT_WORDS: Record<LeadSlotState, string> = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
+export interface LeadSlot {
+  state: LeadSlotState;
+  value: string | null;
+  word: string;
+  tip: string;
+  copy: boolean;
+}
+export const LEAD_SLOT_WORDS: Record<LeadSlotState, string> = {
+  ok: "Checked",
+  part: "Unconfirmed",
+  none: "Nothing found",
+  bad: "Bad",
+  checking: "Still checking",
+};
 /** The name card's facts (D5): the same derivations the peek draws from, so a hover decides without opening it. */
 export interface LeadRowCard {
   about: string | null;
@@ -1394,19 +1946,76 @@ export interface LeadBand {
  * A mail server that would not answer wears Unconfirmed's shape with its own sentence; a number the owner marked
  * wrong is Bad; a source that gave nothing is Nothing found, never a failure.
  */
-export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_wrong" | "email" | "email_state">): { phone: LeadSlot; mailbox: LeadSlot } {
+export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_wrong" | "email" | "email_state">): {
+  phone: LeadSlot;
+  mailbox: LeadSlot;
+} {
   const phone: LeadSlot = !r.phone
     ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false }
-    : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} — you marked this number wrong`, copy: false }
-    : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} — the same number on Google Maps and on their website`, copy: true }
-    : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} — one source, their Google Maps listing`, copy: true };
+    : r.phone_wrong
+      ? {
+          state: "bad",
+          value: r.phone,
+          word: LEAD_SLOT_WORDS.bad,
+          tip: `${r.phone} — you marked this number wrong`,
+          copy: false,
+        }
+      : r.phone_agrees
+        ? {
+            state: "ok",
+            value: r.phone,
+            word: LEAD_SLOT_WORDS.ok,
+            tip: `${r.phone} — the same number on Google Maps and on their website`,
+            copy: true,
+          }
+        : {
+            state: "part",
+            value: r.phone,
+            word: LEAD_SLOT_WORDS.part,
+            tip: `${r.phone} — one source, their Google Maps listing`,
+            copy: true,
+          };
   const s = r.email_state;
-  const mailbox: LeadSlot = !r.email || s === "none"
-    ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: `${LEAD_MAILBOX_WORDS.none} — home, contact and about pages checked`, copy: false }
-    : s === "ok" ? { state: "ok", value: r.email, word: LEAD_SLOT_WORDS.ok, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.ok}`, copy: true }
-    : s === "invalid" ? { state: "bad", value: r.email, word: LEAD_SLOT_WORDS.bad, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.invalid}`, copy: false }
-    : s === "checking" ? { state: "checking", value: r.email, word: LEAD_SLOT_WORDS.checking, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`, copy: true }
-    : { state: "part", value: r.email, word: LEAD_SLOT_WORDS.part, tip: `${r.email} — ${LEAD_MAILBOX_WORDS[s]}`, copy: true };
+  const mailbox: LeadSlot =
+    !r.email || s === "none"
+      ? {
+          state: "none",
+          value: null,
+          word: LEAD_SLOT_WORDS.none,
+          tip: `${LEAD_MAILBOX_WORDS.none} — home, contact and about pages checked`,
+          copy: false,
+        }
+      : s === "ok"
+        ? {
+            state: "ok",
+            value: r.email,
+            word: LEAD_SLOT_WORDS.ok,
+            tip: `${r.email} — ${LEAD_MAILBOX_WORDS.ok}`,
+            copy: true,
+          }
+        : s === "invalid"
+          ? {
+              state: "bad",
+              value: r.email,
+              word: LEAD_SLOT_WORDS.bad,
+              tip: `${r.email} — ${LEAD_MAILBOX_WORDS.invalid}`,
+              copy: false,
+            }
+          : s === "checking"
+            ? {
+                state: "checking",
+                value: r.email,
+                word: LEAD_SLOT_WORDS.checking,
+                tip: `${r.email} — ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`,
+                copy: true,
+              }
+            : {
+                state: "part",
+                value: r.email,
+                word: LEAD_SLOT_WORDS.part,
+                tip: `${r.email} — ${LEAD_MAILBOX_WORDS[s]}`,
+                copy: true,
+              };
   return { phone, mailbox };
 }
 
@@ -1434,23 +2043,46 @@ export function leadBand(search: LeadSearchDto | null): LeadBand | null {
 }
 
 export interface LeadRowVM {
-  id: string; searchId: string; searchName: string; mark: string; name: string; places: number;
-  category: string; area: string; cls: LeadClass;
+  id: string;
+  searchId: string;
+  searchName: string;
+  mark: string;
+  name: string;
+  places: number;
+  category: string;
+  area: string;
+  cls: LeadClass;
   /** The fit band itself (D5), for the band bar's filter; null for a row that is not qualified. */
   fit: "strong" | "look" | "long" | null;
-  fitLabel: string; fitTitle: string;
-  email: string | null; emailState: LeadEmailState; emailLabel: string; emailWord: string;
-  phone: string | null; phoneAgrees: boolean; phoneWrong: boolean;
+  fitLabel: string;
+  fitTitle: string;
+  email: string | null;
+  emailState: LeadEmailState;
+  emailLabel: string;
+  emailWord: string;
+  phone: string | null;
+  phoneAgrees: boolean;
+  phoneWrong: boolean;
   /** The two contacts as one glance (D2's Reach column). */
-  reach: { email: { address: string; state: LeadEmailState; word: string } | null; phone: { number: string; agrees: boolean } | null };
+  reach: {
+    email: { address: string; state: LeadEmailState; word: string } | null;
+    phone: { number: string; agrees: boolean } | null;
+  };
   /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
   reasons: string[];
-  why: string; rating: string;
+  why: string;
+  rating: string;
   /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
   reviewsTitle: string;
-  stage: LeadStage; stageLabel: string;
-  foundLabel: string; foundAt: string; distance: string; source: string; host: string;
-  excludedBy: string | null; version: number;
+  stage: LeadStage;
+  stageLabel: string;
+  foundLabel: string;
+  foundAt: string;
+  distance: string;
+  source: string;
+  host: string;
+  excludedBy: string | null;
+  version: number;
   /* ---- D5: the row as the redesign reads it ---- */
   /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
   sub: string;
@@ -1486,10 +2118,13 @@ const milesLabel = (m: number | null): string => {
   return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
 };
 /** "5.0 · 16": the stars and how many said so, together, because one without the other says nothing. */
-const ratingLabel = (rating: number | null, reviews: number | null): string => (rating === null || rating === undefined ? "" : `${rating.toFixed(1)} · ${reviews ?? 0}`);
+const ratingLabel = (rating: number | null, reviews: number | null): string =>
+  rating === null || rating === undefined ? "" : `${rating.toFixed(1)} · ${reviews ?? 0}`;
 /** A closed lead says WHY it closed; "archived" is a stored value and never reaches a screen. */
 const stageLabelOf = (stage: LeadStage, closedReason: string | null): string =>
-  (stage === "archived" ? LEAD_CLOSED_WORDS[closedReason as (typeof LEAD_CLOSED_REASONS)[number]] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage]);
+  stage === "archived"
+    ? (LEAD_CLOSED_WORDS[closedReason as (typeof LEAD_CLOSED_REASONS)[number]] ?? LEAD_STAGE_WORDS.archived)
+    : LEAD_STAGE_WORDS[stage];
 
 /**
  * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
@@ -1516,26 +2151,63 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const rating = ratingLabel(r.rating, r.reviews);
   // Qualified wears its fit band; Needs review wears the judge's reason, which
   // is what it is waiting on; Excluded wears the criterion that left it out.
-  const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
-  const fitTitle = m.class === "excluded"
-    ? `Left out: ${excludedBy ?? m.reason}`
-    : m.class === "qualified" && rating ? `${m.reason} · ${rating.replace(" · ", " from ")} reviews` : m.reason;
+  const fitLabel =
+    m.class === "excluded"
+      ? (excludedBy ?? m.reason)
+      : m.class === "review"
+        ? m.reason
+        : m.fit
+          ? LEAD_FIT_WORDS[m.fit]
+          : m.reason;
+  const fitTitle =
+    m.class === "excluded"
+      ? `Left out: ${excludedBy ?? m.reason}`
+      : m.class === "qualified" && rating
+        ? `${m.reason} · ${rating.replace(" · ", " from ")} reviews`
+        : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
-  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null].filter((x): x is string => !!x).join(" · ");
-  const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
-  const spread: LeadRowVM["spread"] = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
-  const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
-  const state: LeadRowVM["state"] = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
+  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null]
+    .filter((x): x is string => !!x)
+    .join(" · ");
+  const rated =
+    r.rating === null || r.rating === undefined
+      ? null
+      : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const spread: LeadRowVM["spread"] = r.reviews_dist
+    ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five]
+    : null;
+  const waitsOn =
+    m.class === "review"
+      ? (leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason)
+      : null;
+  const state: LeadRowVM["state"] =
+    m.class === "excluded"
+      ? "out"
+      : m.class === "review"
+        ? "review"
+        : r.stage === "nurture"
+          ? "contacted"
+          : r.stage === "converted"
+            ? "talking"
+            : r.stage === "archived"
+              ? "out"
+              : "ready";
   // Ready is the silent default and wears nothing; every other state says which one it is. Review said nothing for
   // its whole life, which left `.ld-state-tag.review` in the stylesheet matching no row ever drawn -- and on a mixed
   // list a lead that is waiting on something looked exactly like a lead that is ready to call.
-  const stateTag = state === "contacted"
-    ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` · ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}`
-    : state === "talking" ? LEAD_STAGE_WORDS.converted
-    : state === "review" ? LEAD_REVIEW_WORD
-    : state === "out" ? (m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason))
-    : null;
+  const stateTag =
+    state === "contacted"
+      ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` · ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}`
+      : state === "talking"
+        ? LEAD_STAGE_WORDS.converted
+        : state === "review"
+          ? LEAD_REVIEW_WORD
+          : state === "out"
+            ? m.class === "excluded"
+              ? LEAD_LEFT_OUT_WORD
+              : stageLabelOf(r.stage, r.closed_reason)
+            : null;
   const term = search?.plan.terms[0] ?? null;
   const card: LeadRowCard = {
     about: r.about ?? null,
@@ -1543,7 +2215,16 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     where: leadWhere(r),
     site: r.website ? { label: siteHost(r.website) ?? r.website, href: `https://${r.website}` } : null,
     maps: r.maps_url ? { label: "Google Maps", href: r.maps_url } : null,
-    found: [{ at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`) : "On a Google Maps listing" }],
+    found: [
+      {
+        at: clockIn(tz, r.found_at, now),
+        what: term
+          ? r.rank
+            ? `On Google Maps, #${r.rank} for “${term}”`
+            : `On Google Maps, searching “${term}”`
+          : "On a Google Maps listing",
+      },
+    ],
   };
   return {
     id: r.id,
@@ -1574,7 +2255,9 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     reasons: m.reasons ?? [],
     why: m.reason,
     rating,
-    reviewsTitle: r.reviews_dist ? `5★ ${r.reviews_dist.five} · 4★ ${r.reviews_dist.four} · 3★ ${r.reviews_dist.three} · 2★ ${r.reviews_dist.two} · 1★ ${r.reviews_dist.one}` : "",
+    reviewsTitle: r.reviews_dist
+      ? `5★ ${r.reviews_dist.five} · 4★ ${r.reviews_dist.four} · 3★ ${r.reviews_dist.three} · 2★ ${r.reviews_dist.two} · 1★ ${r.reviews_dist.one}`
+      : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
     foundLabel: agoShort(foundMs, nowMs),
@@ -1588,7 +2271,12 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     slots: leadSlots(r),
     rated,
     spread,
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: leadTileSrc(r.image_url), logo: r.logo_url ?? null },
+    tile: {
+      initials: initialsOf(r.business_name),
+      tint: leadTintOf(r.category),
+      image: leadTileSrc(r.image_url),
+      logo: r.logo_url ?? null,
+    },
     waitsOn,
     state,
     stateTag,
@@ -1601,10 +2289,24 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
 /** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
-export function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now: Date = new Date()): { lists: { id: LeadList; label: string; count: number }[]; searches: { id: string; name: string; count: number; mark: "live" | "question" | null; undoable: boolean }[] } {
+export function leadRail(
+  counts: LeadCounts,
+  searches: LeadSearchDto[],
+  now: Date = new Date(),
+): {
+  lists: { id: LeadList; label: string; count: number }[];
+  searches: { id: string; name: string; count: number; mark: "live" | "question" | null; undoable: boolean }[];
+} {
   // Said no is a list only when somebody said no: an empty row in the rail
   // teaches the owner nothing and costs them a line every day.
-  const ids: LeadList[] = ["all", "ready", "nurture", "converted", ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []), "not_a_fit"];
+  const ids: LeadList[] = [
+    "all",
+    "ready",
+    "nurture",
+    "converted",
+    ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []),
+    "not_a_fit",
+  ];
   return {
     lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
     searches: searches.map((s) => ({
@@ -1612,13 +2314,22 @@ export function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now: Dat
       name: s.name,
       count: s.round?.counted ?? 0,
       undoable: leadUndoable(s, now),
-      mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null,
+      mark: !s.round
+        ? null
+        : s.round.state === "waiting_on_owner"
+          ? "question"
+          : roundIsLive(s.round.state)
+            ? "live"
+            : null,
     })),
   };
 }
 
 /** "322 leads · 272 ready · 3 searches", and "1 search needs you" when one waits. */
-export function leadsStanding(counts: LeadCounts, searches: LeadSearchDto[]): { total: string; parts: string[]; needsYou: { count: number; searchId: string } | null } {
+export function leadsStanding(
+  counts: LeadCounts,
+  searches: LeadSearchDto[],
+): { total: string; parts: string[]; needsYou: { count: number; searchId: string } | null } {
   const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
   return {
     total: `${counts.all} leads`,
@@ -1626,7 +2337,6 @@ export function leadsStanding(counts: LeadCounts, searches: LeadSearchDto[]): { 
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]!.id } : null,
   };
 }
-
 
 /* --------------------------------------------- the plan card (Task 9) -- */
 
@@ -1638,7 +2348,10 @@ export const LEAD_PRIOR_MIN_PLACES = 50;
  * kind of business found, never a promise about this one. A kind never
  * searched says the share is checked after the first 25 (P3).
  */
-export function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): { emailPct: number | null; phonePct: number | null; line: string } {
+export function leadPlanLikely(
+  plan: LeadSearchPlan,
+  facts: LeadPlanFacts,
+): { emailPct: number | null; phonePct: number | null; line: string } {
   const p = facts.prior;
   if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
     return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
@@ -1666,14 +2379,18 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): strin
  * button says that number, and one sentence says which limit and what else
  * would fit. There is no dollar meter, and the word is always leads.
  */
-export function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts): { count: number; label: string; covers: string | null } {
+export function leadPlanAsk(
+  plan: LeadSearchPlan,
+  facts: LeadPlanFacts,
+): { count: number; label: string; covers: string | null } {
   const binds = facts.bound !== null && facts.leadsLeft < plan.count;
   const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
   const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
   if (!binds) return { count, label, covers: null };
   const who = planWho(plan);
-  const covers = facts.bound === "budget"
-    ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?`
-    : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
+  const covers =
+    facts.bound === "budget"
+      ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?`
+      : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
   return { count, label, covers };
 }

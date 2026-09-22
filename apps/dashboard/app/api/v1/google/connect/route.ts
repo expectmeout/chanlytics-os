@@ -16,9 +16,19 @@ export const GET = read({
   handle: async ({ ctx, member }) => {
     const ready = await googleReadiness();
     const secret = stateSecret();
-    if (!ready.profile || !ready.oauth || !secret) throw new AppError("conflict", "Connecting a Business Profile is not available here yet.", 409);
-    const state = await signState(secret, { t: member.tenantId, u: ctx.userId, n: newNonce(), exp: Date.now() + STATE_TTL_MS });
-    const url = authorizeUrl({ clientId: ready.oauth.client_id, redirectUri: ready.oauth.redirect_uri }, state, ctx.email ?? null);
+    if (!ready.profile || !ready.oauth || !secret)
+      throw new AppError("conflict", "Connecting a Business Profile is not available here yet.", 409);
+    const state = await signState(secret, {
+      t: member.tenantId,
+      u: ctx.userId,
+      n: newNonce(),
+      exp: Date.now() + STATE_TTL_MS,
+    });
+    const url = authorizeUrl(
+      { clientId: ready.oauth.client_id, redirectUri: ready.oauth.redirect_uri },
+      state,
+      ctx.email ?? null,
+    );
     return new Response(null, { status: 302, headers: { location: url } });
   },
 });

@@ -16,6 +16,10 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameWhisper } from "../../lib/packages/contracts.js";
+import { env } from "../../lib/env.js";
+import { logger } from "../../lib/log.js";
+
+const L = logger();
 
 /** One answer's worth. A whisper is worked into the next thing said. */
 const MAX_CHARS = 500;
@@ -23,10 +27,14 @@ const MAX_CHARS = 500;
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whisper");
   if (!auth.ok) return auth.response;
-  if (!process.env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
+  if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
 
   let body: { call_id?: string; text?: string; trigger?: boolean } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const callId = String(body.call_id || "");
   const text = String(body.text || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !text || text.length > MAX_CHARS) {
@@ -34,14 +42,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const r = await updateLiveCall(
-    { apiKey: process.env.RETELL_API_KEY },
+    { apiKey: env.RETELL_API_KEY },
     callId,
     // Framed as the owner's instruction, not loose context — see contracts/whisper.ts.
     { additionalContext: frameWhisper(text), triggerResponse: body.trigger === true },
   );
   // The words are the operator's and stay out of the log; the length and the
   // outcome are what a search needs.
-  console.log("admin_whisper", JSON.stringify({ call_id: callId, chars: text.length, ok: r.ok, status: r.status }));
+  L.info("admin_whisper", { call_id: callId, chars: text.length, ok: r.ok, status: r.status });
   if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
   return json(200, { ok: true });
 }

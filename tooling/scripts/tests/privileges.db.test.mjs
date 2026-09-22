@@ -40,7 +40,10 @@ function query(sql) {
   if (r.status !== 0) {
     // The CLI says "Connecting to local database..." on stderr and puts the
     // database's own error on stdout, so a failure carries both.
-    const said = [r.stderr, r.stdout].map((s) => (s ?? "").trim()).filter(Boolean).join("\n");
+    const said = [r.stderr, r.stdout]
+      .map((s) => (s ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
     throw new Error(`supabase db query exited ${r.status}: ${said.slice(-800)}`);
   }
   const out = r.stdout;
@@ -146,11 +149,14 @@ test("anon executes no function in public, directly or through PUBLIC", { skip }
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");
 });
 
-test("a table or function created in public starts closed to anon, and a function still reaches authenticated", { skip }, () => {
-  // Run, not read: make one of each inside a block and drop them before it
-  // ends, so nothing is kept whether it passes or not. PUBLIC's EXECUTE on new
-  // functions is a global default, so this is what proves the global revoke took.
-  query(`do $$
+test(
+  "a table or function created in public starts closed to anon, and a function still reaches authenticated",
+  { skip },
+  () => {
+    // Run, not read: make one of each inside a block and drop them before it
+    // ends, so nothing is kept whether it passes or not. PUBLIC's EXECUTE on new
+    // functions is a global default, so this is what proves the global revoke took.
+    query(`do $$
 begin
   create table public.__privileges_probe (id int);
   create function public.__privileges_probe_fn() returns int language sql as $f$ select 1 $f$;
@@ -167,16 +173,25 @@ begin
   drop table public.__privileges_probe;
 end
 $$`);
-});
+  },
+);
 
 test("a column UPDATE grant is a fence: no table also hands authenticated table-wide UPDATE", { skip }, () => {
   // REVOKE UPDATE on a table takes its column grants with it, so the order is
   // always revoke, then grant the columns (00037, 00084, 00121).
-  assert.deepEqual(rules.column_fence, [], "these tables grant columns and the whole row at once: revoke update on the table, then grant the columns again");
+  assert.deepEqual(
+    rules.column_fence,
+    [],
+    "these tables grant columns and the whole row at once: revoke update on the table, then grant the columns again",
+  );
 });
 
 test("no function that runs with definer rights is callable by anon", { skip }, () => {
-  assert.deepEqual(rules.definer_anon, [], "revoke execute from public, anon: a definer function skips RLS for whoever may call it");
+  assert.deepEqual(
+    rules.definer_anon,
+    [],
+    "revoke execute from public, anon: a definer function skips RLS for whoever may call it",
+  );
 });
 
 test("no trigger function that runs with definer rights is callable by a session", { skip }, () => {
@@ -186,7 +201,11 @@ test("no trigger function that runs with definer rights is callable by a session
 });
 
 test("every function in public pins its search_path", { skip }, () => {
-  assert.deepEqual(rules.search_path_unpinned, [], "add `set search_path = public`: an unpinned function resolves names through its caller's path");
+  assert.deepEqual(
+    rules.search_path_unpinned,
+    [],
+    "add `set search_path = public`: an unpinned function resolves names through its caller's path",
+  );
 });
 
 test("a table with no policy grants anon and authenticated nothing", { skip }, () => {
@@ -200,7 +219,11 @@ test("every table in public has row-level security on", { skip }, () => {
 });
 
 test("the partitions of events grant sessions nothing: a month is read through events", { skip }, () => {
-  assert.deepEqual(rules.partition_granted, [], "a partition's rows are reached through its parent, whose policy scopes them");
+  assert.deepEqual(
+    rules.partition_granted,
+    [],
+    "a partition's rows are reached through its parent, whose policy scopes them",
+  );
 });
 
 test("a session cannot ask whether an address has an account", { skip }, () => {

@@ -13,7 +13,13 @@
  * request never produces.
  */
 import type { SendResult } from "./whatsapp";
-import { mailDomainsFrom, receivedEmailFrom, type EmailRequest, type MailDomainFacts, type ReceivedEmail } from "./email";
+import {
+  mailDomainsFrom,
+  receivedEmailFrom,
+  type EmailRequest,
+  type MailDomainFacts,
+  type ReceivedEmail,
+} from "./email";
 
 export interface ResendConfig {
   apiKey: string;
@@ -27,13 +33,23 @@ export async function sendEmail(cfg: ResendConfig, request: EmailRequest): Promi
   try {
     const r = await fetch(RESEND_EMAILS, {
       method: "POST",
-      headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": idempotency_key },
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotency_key,
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
     const raw = await r.text().catch(() => "");
     if (r.ok) {
-      const id = (() => { try { return (JSON.parse(raw) as { id?: unknown }).id; } catch { return null; } })();
+      const id = (() => {
+        try {
+          return (JSON.parse(raw) as { id?: unknown }).id;
+        } catch {
+          return null;
+        }
+      })();
       // Accepted with no id is still accepted: the words are with the provider,
       // and the receipt finds the row by its tag, not by this id.
       return { ok: true, wamid: typeof id === "string" ? id : null, status: r.status };
@@ -64,7 +80,11 @@ export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string):
   const raw = await r.text();
   if (!r.ok) throw new Error(`resend: received email ${receivedId} answered ${r.status}: ${raw.slice(0, 200)}`);
   let body: unknown;
-  try { body = JSON.parse(raw); } catch { throw new Error(`resend: received email ${receivedId} answered something that is not JSON`); }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new Error(`resend: received email ${receivedId} answered something that is not JSON`);
+  }
   const email = receivedEmailFrom(body);
   if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
   return email;
@@ -90,7 +110,11 @@ export async function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFac
   const raw = await r.text();
   if (!r.ok) throw new Error(`resend: domains answered ${r.status}: ${raw.slice(0, 200)}`);
   let body: unknown;
-  try { body = JSON.parse(raw); } catch { throw new Error("resend: domains answered something that is not JSON"); }
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new Error("resend: domains answered something that is not JSON");
+  }
   const domains = mailDomainsFrom(body);
   if (!domains) throw new Error("resend: domains answered a shape that is not a list of domains");
   return domains;

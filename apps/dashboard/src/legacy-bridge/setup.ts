@@ -7,8 +7,20 @@
  * map re-reads this surface.
  */
 import {
-  setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM, type SetupRequestKind,
-  forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, agoWords,
+  setupSteps,
+  setupRoute,
+  shouldLandOnSetup,
+  type SetupDto,
+  type SetupVM,
+  type SetupRequestKind,
+  forwardingCodes,
+  forwardingTestOpen,
+  CARRIERS,
+  FORWARDING_MODES,
+  CARRIER_WORDS,
+  MODE_WORDS,
+  formatPhoneDisplay,
+  agoWords,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
@@ -41,7 +53,12 @@ export interface SetupApi {
   };
   /** Keep the number you have: save the carrier and the mode, then open the test window. Owners only; the route says so. */
   forwarding: {
-    set(o: { number: string; carrier: string; mode: string; test_from: string }): Promise<{ ok: boolean; message: string }>;
+    set(o: {
+      number: string;
+      carrier: string;
+      mode: string;
+      test_from: string;
+    }): Promise<{ ok: boolean; message: string }>;
     test(lineId: string): Promise<{ ok: boolean; message: string }>;
   };
 }
@@ -87,11 +104,19 @@ export function readLater(storage: Pick<Storage, "getItem"> | null = safeStorage
 }
 
 function writeLater(ids: string[]): void {
-  try { safeStorage()?.setItem(laterKey(), JSON.stringify(ids)); } catch { /* a preference, not a fact */ }
+  try {
+    safeStorage()?.setItem(laterKey(), JSON.stringify(ids));
+  } catch {
+    /* a preference, not a fact */
+  }
 }
 
 function safeStorage(): Storage | null {
-  try { return typeof window !== "undefined" ? window.localStorage : null; } catch { return null; }
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
 }
 
 function publish(dto: SetupDto, role: string): void {
@@ -107,7 +132,15 @@ export const setupOverride: SurfaceOverride = {
   // business record the carriers read; Stripe's answer; the Google profile.
   // Each is published by the database (00057, 00066, 00108, 00075, 00073,
   // 00070, 00117), so a change in another tab, or by a webhook, repaints here.
-  refreshOnTables: ["lines", "notifications", "tenant_channels", "capability_activations", "business_records", "billing_accounts", "google_connections"],
+  refreshOnTables: [
+    "lines",
+    "notifications",
+    "tenant_channels",
+    "capability_activations",
+    "business_records",
+    "billing_accounts",
+    "google_connections",
+  ],
   apply: async () => {
     try {
       const d = await read("GET setup");
@@ -167,7 +200,11 @@ export function installSetup(win: Window = window): void {
       async retry(lineId) {
         const r = await api()("POST lines/retry", { body: { line_id: lineId } });
         if (!r.ok) return { ok: false, queued: false, message: r.message };
-        return { ok: r.data.ok, queued: r.data.queued, message: r.data.ok ? "" : "It stopped again — a person at Chanlytics has it." };
+        return {
+          ok: r.data.ok,
+          queued: r.data.queued,
+          message: r.data.ok ? "" : "It stopped again — a person at Chanlytics has it.",
+        };
       },
     },
     forwarding: {
@@ -184,16 +221,25 @@ export function installSetup(win: Window = window): void {
       const r = await api()("POST setup/request", { body: { what } });
       if (!r.ok) return { ok: false, already: false, message: r.message };
       const req = r.data.request;
-      const already = !!req && typeof req === "object" && "already" in req && (req as { already?: unknown }).already === true;
+      const already =
+        !!req && typeof req === "object" && "already" in req && (req as { already?: unknown }).already === true;
       return { ok: true, already, message: "" };
     },
   };
   win.addEventListener("surface:setup", () => {
     let landed = false;
-    try { landed = win.sessionStorage.getItem("chanlytics.setup.landed") === "1"; } catch { landed = false; }
+    try {
+      landed = win.sessionStorage.getItem("chanlytics.setup.landed") === "1";
+    } catch {
+      landed = false;
+    }
     const s = win.__SETUP;
     if (!s || !shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)) return;
-    try { win.sessionStorage.setItem("chanlytics.setup.landed", "1"); } catch { /* still land, once */ }
+    try {
+      win.sessionStorage.setItem("chanlytics.setup.landed", "1");
+    } catch {
+      /* still land, once */
+    }
     const nav = (win as unknown as { appNavigate?: (to: string) => void }).appNavigate;
     if (nav) nav("admin/setup");
     else win.location.hash = "/admin/setup";

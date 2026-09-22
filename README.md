@@ -28,8 +28,8 @@ not for salons, and `tooling/scripts/tests/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
-thing, `docs/glossary.md` for the words (and the one rule about *tenant*
-versus *workspace*), `docs/architecture.md` for how it is put together,
+thing, `docs/glossary.md` for the words (and the one rule about _tenant_
+versus _workspace_), `docs/architecture.md` for how it is put together,
 `docs/runbook.md` to run, deploy and roll back, `docs/system-prd.md` for the
 as-built reference sheet by sheet, `docs/decisions/` for what is decided and
 not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
@@ -38,12 +38,12 @@ not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
 
 ## The four moving parts
 
-| Path | What it is | Deployed as |
-|---|---|---|
-| `apps/edge` | The webhooks (WhatsApp, SMS and its statuses, four Retell doors, email, Stripe, Apify), the cron sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel **Node** functions, no framework; not the Vercel Edge runtime, despite the name. Holds every provider key. | Vercel project `chanlytics-messaging` |
-| `apps/dashboard` | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key. | Vercel project `chanlytics-os` |
-| `packages/*` | `contracts` (types, zod schemas, enums, view models, the prompt composer), `core` (the use cases as verbs over ports, and the one send door), `db` (Supabase repositories and generated types), `channels` (Meta, Retell, Twilio, Resend, Google, Apify adapters), `jobs` (the ledger, the tick, the handlers). | bundled into both apps |
-| `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials. | Supabase project |
+| Path                  | What it is                                                                                                                                                                                                                                                                                                      | Deployed as                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `apps/edge`           | The webhooks (WhatsApp, SMS and its statuses, four Retell doors, email, Stripe, Apify), the cron sweeps, the job runner, the key-guarded admin doors, diagnostics. Vanilla Vercel **Node** functions, no framework; not the Vercel Edge runtime, despite the name. Holds every provider key.                    | Vercel project `chanlytics-messaging` |
+| `apps/dashboard`      | Next.js: auth, the public pages, the operator UI, and the `/api/v1` app plane. Holds no provider key.                                                                                                                                                                                                           | Vercel project `chanlytics-os`        |
+| `packages/*`          | `contracts` (types, zod schemas, enums, view models, the prompt composer), `core` (the use cases as verbs over ports, and the one send door), `db` (Supabase repositories and generated types), `channels` (Meta, Retell, Twilio, Resend, Google, Apify adapters), `jobs` (the ledger, the tick, the handlers). | bundled into both apps                |
+| `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                                                                                                                                                                            | Supabase project                      |
 
 Counts change weekly, so this file carries none. `find apps/edge/api -name
 '*.ts' | wc -l` and `ls supabase/migrations | wc -l` answer the two most-asked.
@@ -88,8 +88,8 @@ guard will fail on someone else's machine.
 **`apps/dashboard/src/legacy` is the operator UI, and it began as a design
 mockup.** A hash-routed single-page shell of hand-written JSX, imported in a
 fixed order by `src/legacy-bridge/manifest.ts`, talking through `window`
-globals. Surfaces were made real one at a time by *branching inside the
-existing components* (`XReal`/`XSeed`), never by redesigning them; the seam
+globals. Surfaces were made real one at a time by _branching inside the
+existing components_ (`XReal`/`XSeed`), never by redesigning them; the seam
 that feeds a real surface from `/api/v1` is `src/legacy-bridge`, and
 `surface-registry.ts` there is the table that says which routes are real. The
 mockup's unbuilt surfaces (agent fleet, store, studio, tasks, content, the
@@ -115,7 +115,7 @@ a customer is new. The edge asks only for `SUPABASE_URL` and
 `no_database`, and `/api/diag` reports `memory` as `postgres`.
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
-access. *Which member may do a thing* is decided in the route with
+access. _Which member may do a thing_ is decided in the route with
 `requireRole` / `requireOperator`. Both are needed: the job that delivers a
 message runs as service role, so RLS is not even in that path.
 
@@ -125,8 +125,8 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 
 ## Conventions
 
-- **Names.** Storage says *tenant*; everything a person or the API sees says
-  *workspace*; never both in one layer. A new table carries `tenant_id`. The
+- **Names.** Storage says _tenant_; everything a person or the API sees says
+  _workspace_; never both in one layer. A new table carries `tenant_id`. The
   product's nouns are People, Lists, Playbooks, Templates and Settings, and a
   new route or API path uses them (`docs/glossary.md` lists the five old names
   still in use). The thing that answers is the receptionist, never the bot or
@@ -148,6 +148,18 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   whichever deploys first.
 - **Production scripts** are dry-run by default, write a JSONL backup first, and
   take `--apply` to mean it.
+- **Formatting is Prettier's.** `.prettierrc.json` is the whole style; the
+  pre-commit hook formats what is staged and CI checks the tree. The ported
+  shell and generated files are outside it (`.prettierignore` says why).
+- **The layers hold apart.** Browser code never imports the server or the
+  packages that hold rules; server code never imports the shell or the bridge;
+  the edge never imports the dashboard. `eslint.config.mjs` enforces the three
+  boundaries; a type-only import crosses freely.
+- **The edge reads its environment once**, through `apps/edge/lib/env.ts`,
+  trimmed, blank as unset. It logs once, through `apps/edge/lib/log.ts`: one
+  JSON object per line with a level, an event and the bound context. A
+  `process.env` read or a `console` call anywhere else on the edge is a lint
+  error.
 
 ## Testing
 
@@ -217,8 +229,8 @@ sign-up probe needs `E2E_SIGNUP_EMAIL`, a real inbox its code can reach.
 
 ## Operational levers
 
-| Want to | Do |
-|---|---|
+| Want to                             | Do                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Silence one business's receptionist | `tenant_channels.status = 'disabled'` — inbound is then recorded as unroutable and a human is emailed |
-| Stop a queued reply | The cancel window in the UI, or `messages.status = 'canceled'` while it is still `queued` |
-| See what the system did | `events` (append-only), `decisions` (every operator verb), `escalations` (what needed a human) |
+| Stop a queued reply                 | The cancel window in the UI, or `messages.status = 'canceled'` while it is still `queued`             |
+| See what the system did             | `events` (append-only), `decisions` (every operator verb), `escalations` (what needed a human)        |

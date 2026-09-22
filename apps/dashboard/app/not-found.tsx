@@ -15,8 +15,16 @@ export default function NotFound() {
   return (
     <main className="legal">
       <h1>This page isn&rsquo;t here</h1>
-      <p>The address may be mistyped, or the link may be out of date. If a business sent it to you, ask them for the current link.</p>
-      <p className="legal-foot">Chanlytics OS · <a href="/login">Sign in</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
+      <p>
+        The address may be mistyped, or the link may be out of date. If a business sent it to you, ask them for the
+        current link.
+      </p>
+      <p className="legal-foot">
+        Chanlytics OS · <a href="/login">Sign in</a> ·{" "}
+        <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">
+          chanlytics.com
+        </a>
+      </p>
     </main>
   );
 }

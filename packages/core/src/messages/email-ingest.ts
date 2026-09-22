@@ -58,14 +58,36 @@ export interface EmailIngestPorts {
   erasedBefore(tenantId: string, address: string, receivedAtIso: string): Promise<boolean>;
   /** Our own email, coming back: a forward loop, or a copy. */
   ours(tenantId: string, rfcMessageId: string): Promise<boolean>;
-  record(p: { tenantId: string; address: string; receivedId: string; body: string | null; channelTs: string | null; meta: Json }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
+  record(p: {
+    tenantId: string;
+    address: string;
+    receivedId: string;
+    body: string | null;
+    channelTs: string | null;
+    meta: Json;
+  }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
   /**
-  * Flag the thread for a person: a new hold, one that now means something else,
-  * a refresh of the same one, or a write that did not land.
-  */
-  escalate(tenantId: string, conversationId: string, reason: "email_review", details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
+   * Flag the thread for a person: a new hold, one that now means something else,
+   * a refresh of the same one, or a write that did not land.
+   */
+  escalate(
+    tenantId: string,
+    conversationId: string,
+    reason: "email_review",
+    details: string,
+  ): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
-  tell(tenantId: string, note: { conversationId: string; from: string; fromName: string | null; subject: string | null; preview: string | null; claim: EmailClaim }): Promise<void>;
+  tell(
+    tenantId: string,
+    note: {
+      conversationId: string;
+      from: string;
+      fromName: string | null;
+      subject: string | null;
+      preview: string | null;
+      claim: EmailClaim;
+    },
+  ): Promise<void>;
   markProcessed(tenantId: string, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
   now(): number;
@@ -86,14 +108,20 @@ export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
 export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated">, string> = {
-  person: "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
-  automated: "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
+  person:
+    "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
+  automated:
+    "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
 };
 
-export async function ingestEmail(ports: EmailIngestPorts, cmd: { payload: Record<string, unknown> }): Promise<EmailIngestOutcome> {
+export async function ingestEmail(
+  ports: EmailIngestPorts,
+  cmd: { payload: Record<string, unknown> },
+): Promise<EmailIngestOutcome> {
   const mailboxId = typeof cmd.payload.mailbox_id === "string" ? cmd.payload.mailbox_id : "";
   const receivedId = typeof cmd.payload.received_id === "string" ? cmd.payload.received_id : "";
-  if (!mailboxId || !receivedId) throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
+  if (!mailboxId || !receivedId)
+    throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
 
   const mailbox = await ports.mailbox(mailboxId);
   if (!mailbox) return "gone";
@@ -104,7 +132,8 @@ export async function ingestEmail(ports: EmailIngestPorts, cmd: { payload: Recor
   // email with no usable sender has nobody to be a conversation with.
   const address = normalizeEmail(email.from?.address);
   if (!address) return "no_sender";
-  if (address === mailbox.address || (email.messageId && (await ports.ours(mailbox.tenant_id, email.messageId)))) return "our_own";
+  if (address === mailbox.address || (email.messageId && (await ports.ours(mailbox.tenant_id, email.messageId))))
+    return "our_own";
   const at = new Date(ports.now()).toISOString();
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
 
@@ -124,10 +153,16 @@ export async function ingestEmail(ports: EmailIngestPorts, cmd: { payload: Recor
   if (!kept.is_new && kept.processed) return "already_handled";
 
   if (claim !== "auto_reply") {
-    const flagged = await ports.escalate(mailbox.tenant_id, kept.conversation_id, "email_review", EMAIL_REVIEW_WORDS[claim]);
+    const flagged = await ports.escalate(
+      mailbox.tenant_id,
+      kept.conversation_id,
+      "email_review",
+      EMAIL_REVIEW_WORDS[claim],
+    );
     // Kept and not flagged is an email nobody will be shown: the job fails and
     // the next try, finding the row unhandled, flags it.
-    if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
+    if (flagged === "failed")
+      throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
     // Once per hold, not once per email: a second email on a thread already
     // waiting for the same reason refreshes the flag quietly. But a thread
     // waiting for something ELSE -- the carriers, an opt-out, a failed send --
@@ -136,8 +171,12 @@ export async function ingestEmail(ports: EmailIngestPorts, cmd: { payload: Recor
     // different is a different hold.
     if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
-        conversationId: kept.conversation_id, from: address, fromName: email.from?.name ?? null,
-        subject: email.subject, preview: bodyOf(email)?.slice(0, 280) ?? null, claim,
+        conversationId: kept.conversation_id,
+        from: address,
+        fromName: email.from?.name ?? null,
+        subject: email.subject,
+        preview: bodyOf(email)?.slice(0, 280) ?? null,
+        claim,
       });
     }
   }

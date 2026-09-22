@@ -15,7 +15,9 @@ test.describe("Consent for one person", () => {
     await signIn(page);
   });
 
-  test("shows the answer in force, asks how a yes was given, and issues a workspace-scoped PUT — intercepted", async ({ page }) => {
+  test("shows the answer in force, asks how a yes was given, and issues a workspace-scoped PUT — intercepted", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
@@ -42,7 +44,10 @@ test.describe("Consent for one person", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", consent: "opted_in", dnc: false, source: "in_person" } }),
+        body: JSON.stringify({
+          ok: true,
+          data: { contact_id: "intercepted", consent: "opted_in", dnc: false, source: "in_person" },
+        }),
       });
     });
 
@@ -66,7 +71,9 @@ test.describe("Consent for one person", () => {
     await expect(page.locator(".cl-rail-row", { hasText: "Can receive offers" })).toBeVisible();
   });
 
-  test("a name the owner gives and notes the receptionist reads issue a workspace-scoped PUT — intercepted", async ({ page }) => {
+  test("a name the owner gives and notes the receptionist reads issue a workspace-scoped PUT — intercepted", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
@@ -78,7 +85,11 @@ test.describe("Consent for one person", () => {
     await page.route("**/api/v1/contacts/*/details*", async (route) => {
       const req = route.request();
       seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", name: "Test Name" } }) });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", name: "Test Name" } }),
+      });
     });
 
     await page.locator(".cl-prof-id").hover();
@@ -109,7 +120,9 @@ test.describe("Consent for one person", () => {
    * through PUT details to set_person_email (00125), comes back in the door's
    * own spelling, and an empty one clears it.
    */
-  test("a person's email address is added, refused when it is not one, stored in one spelling, and cleared — through the real door", async ({ page }) => {
+  test("a person's email address is added, refused when it is not one, stored in one spelling, and cleared — through the real door", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const robin = page.locator(".cl-table tbody tr", { hasText: "Robin Example" });
@@ -128,7 +141,9 @@ test.describe("Consent for one person", () => {
     }
 
     const puts: string[] = [];
-    page.on("request", (r) => { if (r.method() === "PUT" && /\/api\/v1\/contacts\/[^/]+\/details/.test(r.url())) puts.push(r.postData() ?? ""); });
+    page.on("request", (r) => {
+      if (r.method() === "PUT" && /\/api\/v1\/contacts\/[^/]+\/details/.test(r.url())) puts.push(r.postData() ?? "");
+    });
 
     await page.getByTestId("person-email-edit").click();
     const input = page.getByTestId("person-email-input");

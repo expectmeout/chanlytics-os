@@ -12,7 +12,13 @@ export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
     const [account, ready] = await Promise.all([billingFor(ctx.supabase, member.tenantId), billingReadiness()]);
-    const billing: BillingDto = { ready: ready.ready, livemode: ready.livemode, account, price: ready.price, trial_days: ready.trial_days };
+    const billing: BillingDto = {
+      ready: ready.ready,
+      livemode: ready.livemode,
+      account,
+      price: ready.price,
+      trial_days: ready.trial_days,
+    };
     return { billing };
   },
 });

@@ -21,11 +21,21 @@ const SAID: Record<string, string> = {
 };
 
 function locations(raw: unknown): GoogleLocationDto[] {
-  return (Array.isArray(raw) ? raw : []).map((l) => {
-    const o = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
-    const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : null);
-    return { account_name: s("account_name") ?? "", account_title: s("account_title") ?? "", location_name: s("name") ?? "", title: s("title") ?? "", address: s("address"), place_id: s("place_id"), maps_uri: s("maps_uri") };
-  }).filter((l) => l.account_name && l.location_name);
+  return (Array.isArray(raw) ? raw : [])
+    .map((l) => {
+      const o = (l && typeof l === "object" ? l : {}) as Record<string, unknown>;
+      const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : null);
+      return {
+        account_name: s("account_name") ?? "",
+        account_title: s("account_title") ?? "",
+        location_name: s("name") ?? "",
+        title: s("title") ?? "",
+        address: s("address"),
+        place_id: s("place_id"),
+        maps_uri: s("maps_uri"),
+      };
+    })
+    .filter((l) => l.account_name && l.location_name);
 }
 
 export const GET = read({
@@ -36,7 +46,14 @@ export const GET = read({
     const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", SAID.not_connected, 404);
-    if (a.status !== 200 || b.ok !== true) throw new AppError("internal", typeof b.error === "string" ? SAID[b.error] ?? `Google could not be read: ${b.error}` : "Google could not be read. Try again in a moment.", 502);
+    if (a.status !== 200 || b.ok !== true)
+      throw new AppError(
+        "internal",
+        typeof b.error === "string"
+          ? (SAID[b.error] ?? `Google could not be read: ${b.error}`)
+          : "Google could not be read. Try again in a moment.",
+        502,
+      );
     return { locations: locations(b.locations) };
   },
 });
@@ -49,12 +66,26 @@ export const POST = write({
     const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };
     const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
     const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
-    if (!ACCOUNT.test(accountName) || !LOCATION.test(locationName)) throw new AppError("validation", "Pick a location from the list first.", 400);
-    const a = await edgeGoogle({ op: "choose", tenant_id: member.tenantId, user_id: ctx.userId, account_name: accountName, location_name: locationName }, 55_000);
+    if (!ACCOUNT.test(accountName) || !LOCATION.test(locationName))
+      throw new AppError("validation", "Pick a location from the list first.", 400);
+    const a = await edgeGoogle(
+      {
+        op: "choose",
+        tenant_id: member.tenantId,
+        user_id: ctx.userId,
+        account_name: accountName,
+        location_name: locationName,
+      },
+      55_000,
+    );
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";
-      throw new AppError(a.status === 404 ? "not_found" : "internal", SAID[reason] ?? `The location could not be chosen (${reason}).`, a.status === 404 ? 404 : 502);
+      throw new AppError(
+        a.status === 404 ? "not_found" : "internal",
+        SAID[reason] ?? `The location could not be chosen (${reason}).`,
+        a.status === 404 ? 404 : 502,
+      );
     }
     return { connection: b.connection ?? null, listing: b.listing ?? null, read: readOutcome(b.read) };
   },

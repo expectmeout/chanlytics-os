@@ -44,8 +44,12 @@ const dto = (messages) => ({
   last_wa_inbound_at: null,
   last_message_at: "2026-08-27T07:22:00Z",
   contact: {
-    id: "k", display_name: null, wa_profile_name: null,
-    phone_e164: "+19175746416", consent: "opted_in", dnc: false,
+    id: "k",
+    display_name: null,
+    wa_profile_name: null,
+    phone_e164: "+19175746416",
+    consent: "opted_in",
+    dnc: false,
   },
   messages,
 });

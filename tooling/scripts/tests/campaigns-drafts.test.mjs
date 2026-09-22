@@ -24,22 +24,47 @@ const NOW = Date.now();
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = {
-  body: {}, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  body: {},
+  activeElement: null,
+  addEventListener() {},
+  removeEventListener() {},
+  getElementById: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  location: { pathname: "/w/studio", hash: "#/broadcasts", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/studio",
+    hash: "#/broadcasts",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   history: { replaceState() {} },
   innerHeight: 800,
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
-  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
-  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  addEventListener: (type, fn) => {
+    (listeners[type] ||= new Set()).add(fn);
+  },
+  removeEventListener: (type, fn) => {
+    listeners[type]?.delete(fn);
+  },
+  dispatchEvent: (ev) => {
+    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
+    return true;
+  },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
   setInterval: () => 1,
@@ -71,15 +96,44 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   useEffect: (fn, deps) => {
     const k = seq++;
     const prev = cells[k];
-    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (
+      prev &&
+      deps &&
+      prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, i) => Object.is(d, prev.deps[i]))
+    )
+      return;
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     cells[k] = { deps, cleanup: undefined };
     cells[k].cleanup = fn();
@@ -88,7 +142,8 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/record-fold.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"])
+  globalThis[k] = globalThis.window[k];
 globalThis.useHotkey = () => {};
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => toasts.push(t)],
@@ -117,12 +172,21 @@ await import("../../../apps/dashboard/src/legacy/pages/messages.jsx");
 // and foot, where it puts them), else the children.
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   if (n.rendered !== undefined) walk(n.rendered, fn);
   else walk(n.props?.children, fn);
 };
-const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const all = (tree, pred) => {
+  const out = [];
+  walk(tree, (n) => {
+    if (pred(n)) out.push(n);
+  });
+  return out;
+};
 const find = (tree, pred) => all(tree, pred)[0] ?? null;
 const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
 const textOf = (n) => {
@@ -136,16 +200,36 @@ const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefaul
 const type = (node, value) => node.props.onChange({ target: { value } });
 const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount, as React mounts a page a person came back to: every cell forgotten, every listener gone. */
-const fresh = () => { cells = []; seq = 0; went.length = 0; toasts.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
+const fresh = () => {
+  cells = [];
+  seq = 0;
+  went.length = 0;
+  toasts.length = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+};
 /** The tree drawn again over the same cells, as React draws it after a state change. */
-const redraw = (draw) => { seq = 0; return draw(); };
+const redraw = (draw) => {
+  seq = 0;
+  return draw();
+};
 /** The tree gone, as React unmounts it: each effect's cleanup, then the cells forgotten. */
-const unmount = () => { for (const c of cells) if (c && typeof c.cleanup === "function") c.cleanup(); cells = []; seq = 0; };
+const unmount = () => {
+  for (const c of cells) if (c && typeof c.cleanup === "function") c.cleanup();
+  cells = [];
+  seq = 0;
+};
 /** What the tab keeps, whole: every draft in the slot. */
 const drafts = () => JSON.parse(globalThis.sessionStorage.getItem("chanlytics.drafts.v1") || "{}");
 /** The browser's own question before the tab closes: whether the registry's listener held it. */
 const tabClosing = () => {
-  const ev = { type: "beforeunload", returnValue: undefined, prevented: false, preventDefault() { this.prevented = true; } };
+  const ev = {
+    type: "beforeunload",
+    returnValue: undefined,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   globalThis.window.dispatchEvent(ev);
   return ev.prevented;
 };
@@ -155,63 +239,157 @@ const tabClosing = () => {
 const D = 24 * 3_600_000;
 const iso = (ms) => new Date(NOW + ms).toISOString();
 const dto = (over = {}) => ({
-  id: "b-sent", name: "Win-back · 2026-09-10", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
-  params: [{ kind: "first_name" }], audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
-  state: "sent", scheduled_for: iso(-5 * D), started_at: iso(-5 * D), finished_at: iso(-5 * D + 60_000), recipient_count: 3, failure: null,
-  created_at: iso(-5 * D), playbook_id: "pb-1", run_for: "2026-09-10",
+  id: "b-sent",
+  name: "Win-back · 2026-09-10",
+  template_id: "tpl-1",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  params: [{ kind: "first_name" }],
+  audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
+  state: "sent",
+  scheduled_for: iso(-5 * D),
+  started_at: iso(-5 * D),
+  finished_at: iso(-5 * D + 60_000),
+  recipient_count: 3,
+  failure: null,
+  created_at: iso(-5 * D),
+  playbook_id: "pb-1",
+  run_for: "2026-09-10",
   counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
   ...over,
 });
-const healthyNumber = { present: true, display: "+1 305-555-0100", health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) };
+const healthyNumber = {
+  present: true,
+  display: "+1 305-555-0100",
+  health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+};
 /** A starter as WhatsApp holds it once approved: the library's words and slots. */
 const starterRow = (key, id) => {
   const s = contracts.starterByKey(key);
   const t = contracts.starterText(s, "en_US");
   return {
-    id, channel: "whatsapp", name: s.name, language: "en_US", meta_status: "approved", category: s.category,
-    purpose: s.category === "utility" ? "conversational" : "marketing", source: "starter", title: null, body_preview: t.body,
+    id,
+    channel: "whatsapp",
+    name: s.name,
+    language: "en_US",
+    meta_status: "approved",
+    category: s.category,
+    purpose: s.category === "utility" ? "conversational" : "marketing",
+    source: "starter",
+    title: null,
+    body_preview: t.body,
     variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
   };
 };
 /** A message written elsewhere, with one slot to type into. */
-const ownTemplate = { id: "tpl-own", channel: "whatsapp", name: "autumn_offer", language: "en_US", meta_status: "approved", category: "marketing", purpose: "marketing", source: "meta", title: "Autumn offer", body_preview: "Hi {{1}}, {{2}} this autumn.", variables: [{ position: 1, label: "Name", example: "Dani" }, { position: 2, label: "Value 2", example: "20% off" }] };
+const ownTemplate = {
+  id: "tpl-own",
+  channel: "whatsapp",
+  name: "autumn_offer",
+  language: "en_US",
+  meta_status: "approved",
+  category: "marketing",
+  purpose: "marketing",
+  source: "meta",
+  title: "Autumn offer",
+  body_preview: "Hi {{1}}, {{2}} this autumn.",
+  variables: [
+    { position: 1, label: "Name", example: "Dani" },
+    { position: 2, label: "Value 2", example: "20% off" },
+  ],
+};
 const broadcastsSurface = (over = {}) => ({
   audiences: [
     { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, conversational: 3 } },
     { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
   ],
-  templates: [ownTemplate], rows: [toBroadcastVM(dto(), ZONE)], more: false, heldReasons: contracts.HELD_REASONS,
-  chunk: contracts.BROADCAST_CHUNK, number: healthyNumber, optIn: null, getYes: contracts.GET_YES_ROUTE, listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
+  templates: [ownTemplate],
+  rows: [toBroadcastVM(dto(), ZONE)],
+  more: false,
+  heldReasons: contracts.HELD_REASONS,
+  chunk: contracts.BROADCAST_CHUNK,
+  number: healthyNumber,
+  optIn: null,
+  getYes: contracts.GET_YES_ROUTE,
+  listsRead: true,
+  scheduleMaxDays: 30,
+  businessName: "Northside Studio",
+  bookingLink: false,
+  ...over,
 });
 const playbook = (over = {}) => ({
-  id: "pb-1", name: "Win-back", trigger: "quiet_30", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
-  params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "booking_link" }], policy_class: "reengage", state: "running", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30,
-  last_run_for: null, last_run_at: null, created_at: iso(-30 * D),
-  triggerLabel: "Quiet 30 days", triggerHint: "anyone quiet for a month", schedule: "daily at 10:00", next: "tomorrow 10:00", candidates: 4, held: 0,
+  id: "pb-1",
+  name: "Win-back",
+  trigger: "quiet_30",
+  template_id: "tpl-1",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "booking_link" }],
+  policy_class: "reengage",
+  state: "running",
+  run_hour: 10,
+  cap_per_run: 25,
+  gap_days: 90,
+  cadence_days: 30,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: iso(-30 * D),
+  triggerLabel: "Quiet 30 days",
+  triggerHint: "anyone quiet for a month",
+  schedule: "daily at 10:00",
+  next: "tomorrow 10:00",
+  candidates: 4,
+  held: 0,
   totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
   ...over,
 });
 const playbooksSurface = (over = {}) => ({
-  rows: [playbook()], templates: [starterRow("winback_offer", "tpl-1")],
-  triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: 4, held: 0 })),
-  timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
-  businessName: "Northside Studio", bookingLink: true, fetchedAt: NOW, ...over,
+  rows: [playbook()],
+  templates: [starterRow("winback_offer", "tpl-1")],
+  triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => ({
+    id: t.id,
+    label: t.label,
+    hint: t.hint,
+    cls: t.cls,
+    list: t.list,
+    kind: t.kind,
+    candidates: 4,
+    held: 0,
+  })),
+  timezone: ZONE,
+  calendar: "none",
+  number: { present: true, health: { canSend: true } },
+  businessName: "Northside Studio",
+  bookingLink: true,
+  fetchedAt: NOW,
+  ...over,
 });
 globalThis.window.__broadcasts = {
   failureWords: (code) => contracts.broadcastFailureWords(code),
   noNumberWords: (who, purpose) => contracts.noNumberWords(who, purpose),
   saidYesWords: (who, purpose, sending, saidYes) => contracts.saidYesWords(who, purpose, sending, saidYes),
-  report: (d) => contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null }),
+  report: (d) =>
+    contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: () => null }),
   detail: async () => ({ ok: false, code: "not_found", status: 404, message: "Broadcast not found." }),
-  send: async () => ({ ok: true, data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null } }),
+  send: async () => ({
+    ok: true,
+    data: { id: "b-new", name: "Autumn", recipient_count: 2, scheduled_for: iso(0), moved_from: null },
+  }),
 };
 
 const page = (props = { initialSegment: null, initialRun: null }) => globalThis.window.BroadcastsPage(props);
 /** The send's name box, by its own words: the When box's input wears the same class. */
-const nameBox = (tree) => find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
+const nameBox = (tree) =>
+  find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
 const playbooks = () => globalThis.window.OutboundPage({});
 const messagesPage = () => {
-  Object.assign(globalThis.window, { __TEMPLATES_ALL: [], __TEMPLATE_USE: null, __TEMPLATE_SENT: null, __CHANNELS: [{ kind: "whatsapp" }], __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } } });
+  Object.assign(globalThis.window, {
+    __TEMPLATES_ALL: [],
+    __TEMPLATE_USE: null,
+    __TEMPLATE_SENT: null,
+    __CHANNELS: [{ kind: "whatsapp" }],
+    __SETTINGS: { config: { brain: { business_name: "Northside Studio" } } },
+  });
   return globalThis.window.MessagesPage();
 };
 
@@ -229,18 +407,33 @@ beforeEach(() => {
 test("a playbook card's act is said the moment the server takes it, with what it answered -- not after the playbooks, the broadcasts and every contact are read again -- and the button waits for the re-read", async () => {
   const keep = { ...globalThis.window.__playbooks };
   const reread = [];
-  const acceptThenRead = (data) => (_id, opts = {}) => { if (opts.onAccepted) opts.onAccepted(data); return new Promise((r) => reread.push(() => r({ ok: true, data }))); };
+  const acceptThenRead =
+    (data) =>
+    (_id, opts = {}) => {
+      if (opts.onAccepted) opts.onAccepted(data);
+      return new Promise((r) => reread.push(() => r({ ok: true, data })));
+    };
   try {
     globalThis.window.__playbooks.pause = acceptThenRead({ id: "pb-1", state: "paused" });
-    globalThis.window.__playbooks.runNow = acceptThenRead({ outcome: "sent", eligible: 4, scheduled_for: iso(0), moved_from: null });
-    const draw = () => globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+    globalThis.window.__playbooks.runNow = acceptThenRead({
+      outcome: "sent",
+      eligible: 4,
+      scheduled_for: iso(0),
+      moved_from: null,
+    });
+    const draw = () =>
+      globalThis.window.PlaybookCard({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
     let card = draw();
     press(byTestId(card, "pb-pause"));
     await settle();
     assert.equal(toasts.length, 1, "said at acceptance, while the surfaces are read again");
     assert.match(textOf(toasts[0].msg), /Win-back paused — nothing runs until you resume it/);
     card = redraw(draw);
-    assert.equal(byTestId(card, "pb-pause").props.disabled, true, "the card's buttons wait for the re-read: a second press now would be a second act");
+    assert.equal(
+      byTestId(card, "pb-pause").props.disabled,
+      true,
+      "the card's buttons wait for the re-read: a second press now would be a second act",
+    );
     while (reread.length) reread.shift()();
     await settle();
     assert.equal(toasts.length, 1, "and said once");
@@ -265,7 +458,12 @@ test("a playbook card's act is said the moment the server takes it, with what it
     assert.equal(toasts.length, 1, "said once, from the answer");
     // A refusal is said as one, and nothing else.
     toasts.length = 0;
-    globalThis.window.__playbooks.pause = async () => ({ ok: false, code: "forbidden", status: 403, message: "Only an owner or operator can pause a playbook." });
+    globalThis.window.__playbooks.pause = async () => ({
+      ok: false,
+      code: "forbidden",
+      status: 403,
+      message: "Only an owner or operator can pause a playbook.",
+    });
     card = redraw(draw);
     press(byTestId(card, "pb-pause"));
     await settle();
@@ -322,10 +520,22 @@ test("the playbook sheet keeps what was typed in the tab, opens again on it afte
   // An empty moment's "Set it up" pressed while a new one is half-written: the sheet opens on THAT moment (the page
   // keys the sheet by the slot, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one
   // set of cells whatever the key.
-  assert.ok(textOf(byTestId(tree, "pb-moment")).includes("Welcome"), "the draft's moment: the first one nothing is doing yet");
+  assert.ok(
+    textOf(byTestId(tree, "pb-moment")).includes("Welcome"),
+    "the draft's moment: the first one nothing is doing yet",
+  );
   unmount();
-  const sheet = globalThis.window.PlaybookComposer({ data: globalThis.window.__PLAYBOOKS, editing: null, initialTrigger: "phoned_only", onDone() {}, onCancel() {} });
-  assert.ok(textOf(byTestId(sheet, "pb-moment")).includes(contracts.triggerOf("phoned_only").label), "the moment pressed wins over the draft's");
+  const sheet = globalThis.window.PlaybookComposer({
+    data: globalThis.window.__PLAYBOOKS,
+    editing: null,
+    initialTrigger: "phoned_only",
+    onDone() {},
+    onCancel() {},
+  });
+  assert.ok(
+    textOf(byTestId(sheet, "pb-moment")).includes(contracts.triggerOf("phoned_only").label),
+    "the moment pressed wins over the draft's",
+  );
   assert.equal(byTestId(sheet, "pb-name").props.value, "Sunday quiet", "and the words stay");
   unmount();
   tree = playbooks();
@@ -345,7 +555,10 @@ test("the playbook sheet keeps what was typed in the tab, opens again on it afte
 test("a playbook being changed is kept under its own id, and Save, taken, keeps nothing", async () => {
   const keep = { ...globalThis.window.__playbooks };
   try {
-    globalThis.window.__playbooks.update = async (id, body) => ({ ok: true, data: { id, name: body.name || "Win-back" } });
+    globalThis.window.__playbooks.update = async (id, body) => ({
+      ok: true,
+      data: { id, name: body.name || "Win-back" },
+    });
     let tree = playbooks();
     press(byTestId(tree, "pb-open"));
     tree = redraw(playbooks);
@@ -354,7 +567,11 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
     assert.ok(byTestId(tree, "pb-composer"));
     type(byTestId(tree, "pb-name"), "Win-back, gentler");
     tree = redraw(playbooks);
-    assert.equal(TM.draft("playbook", "pb-1") && TM.draft("playbook", "pb-1").name, "Win-back, gentler", "under the playbook's id");
+    assert.equal(
+      TM.draft("playbook", "pb-1") && TM.draft("playbook", "pb-1").name,
+      "Win-back, gentler",
+      "under the playbook's id",
+    );
     assert.equal(TM.draft("playbook", "new"), null, "not the new one's");
     unmount();
     tree = playbooks();
@@ -392,7 +609,11 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   tree = redraw(page);
   const kept = TM.draft("broadcast");
   assert.equal(kept.name, "Autumn colour");
-  assert.deepEqual(kept.params["tpl-own"], [null, "20% off colour"], "the value typed into the second slot (the first is each person's own name)");
+  assert.deepEqual(
+    kept.params["tpl-own"],
+    [null, "20% off colour"],
+    "the value typed into the second slot (the first is each person's own name)",
+  );
   assert.equal(kept.aud, "saved:s1", "and the list it was for");
   assert.equal(tabClosing(), true, "the tab asks before closing over it");
 
@@ -459,17 +680,43 @@ test("a template half-written is kept, comes back with the page, and Close asks 
   const drafted = [];
   globalThis.window.__templates = {
     ...keep,
-    draft: async (body) => { drafted.push(body); return { ok: true, data: { draft: { name: "autumn_offer", body: "Hola {{1}}, {{2}} este otoño.", footer: "", examples: ["Dani", "20%"], variables: [{ label: "Name" }, { label: "Offer" }], warnings: [] } } }; },
+    draft: async (body) => {
+      drafted.push(body);
+      return {
+        ok: true,
+        data: {
+          draft: {
+            name: "autumn_offer",
+            body: "Hola {{1}}, {{2}} este otoño.",
+            footer: "",
+            examples: ["Dani", "20%"],
+            variables: [{ label: "Name" }, { label: "Offer" }],
+            warnings: [],
+          },
+        },
+      };
+    },
     create: async (b) => ({ ok: true, data: { name: b.name } }),
   };
   try {
     // New. (Drawn on its own: the stub keys hooks by call order, and Messages draws its rows after the composer.)
     let closed = 0;
-    const composeNew = () => globalThis.window.TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() { closed += 1; } });
+    const composeNew = () =>
+      globalThis.window.TemplateComposer({
+        businessName: "Northside Studio",
+        onDone() {},
+        onCancel() {
+          closed += 1;
+        },
+      });
     let tree = composeNew();
     type(byTestId(tree, "tpl-body"), "Hi {{1}}, 20% off any colour service this week.");
     tree = redraw(composeNew);
-    assert.equal(TM.draft("template", "new").body, "Hi {{1}}, 20% off any colour service this week.", "kept as it is typed");
+    assert.equal(
+      TM.draft("template", "new").body,
+      "Hi {{1}}, 20% off any colour service this week.",
+      "kept as it is typed",
+    );
     press(byTestId(tree, "tpl-close"));
     tree = redraw(composeNew);
     assert.equal(closed, 0, "not closed");
@@ -482,14 +729,21 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     unmount();
     tree = messagesPage();
     assert.ok(byTestId(tree, "messages-composer"), "come back to, the composer is open");
-    assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.", "on the words");
+    assert.equal(
+      byTestId(tree, "tpl-body").props.value,
+      "Hi {{1}}, 20% off any colour service this week.",
+      "on the words",
+    );
     // Submitted and taken: nothing kept.
     unmount();
     tree = composeNew();
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.");
     type(byTestId(tree, "tpl-name"), "autumn_colour");
     tree = redraw(composeNew);
-    const ex = find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").includes("what a real value"));
+    const ex = find(
+      tree,
+      (n) => n.type === "input" && String(n.props?.placeholder || "").includes("what a real value"),
+    );
     type(ex, "Dani");
     tree = redraw(composeNew);
     await press(byTestId(tree, "tpl-submit"));
@@ -501,17 +755,26 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     // A translation: written once by the assistant, kept under the message and its language, and never paid for twice.
     fresh();
     const translate = { ref: "tpl-own", from: "en_US", name: "autumn_offer", language: "es", title: "Autumn offer" };
-    const compose = () => globalThis.window.TemplateComposer({ businessName: "Northside Studio", translate, onDone() {}, onCancel() {} });
+    const compose = () =>
+      globalThis.window.TemplateComposer({ businessName: "Northside Studio", translate, onDone() {}, onCancel() {} });
     tree = compose();
     await settle();
     assert.equal(drafted.length, 1, "written once");
     tree = redraw(compose);
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hola {{1}}, {{2}} este otoño.");
-    assert.equal(TM.draft("template", "autumn_offer|es").body, "Hola {{1}}, {{2}} este otoño.", "the assistant's words are work too");
+    assert.equal(
+      TM.draft("template", "autumn_offer|es").body,
+      "Hola {{1}}, {{2}} este otoño.",
+      "the assistant's words are work too",
+    );
     unmount();
     tree = compose();
     await settle();
-    assert.equal(drafted.length, 1, "REGRESSION: opened again, it was drafted again -- and the assistant is paid per draft");
+    assert.equal(
+      drafted.length,
+      1,
+      "REGRESSION: opened again, it was drafted again -- and the assistant is paid per draft",
+    );
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hola {{1}}, {{2}} este otoño.", "the words it had");
     press(byTestId(tree, "tpl-cancel"));
     tree = redraw(compose);
@@ -535,7 +798,11 @@ test("the registry's hold: a composer's words hold the tab and the rail, as an o
   words = true;
   // A fold asked for while a composer holds opens at once: the hold is not a fold's unsaved changes.
   assert.equal(folds.request("hours", { dirty: () => false }), true);
-  assert.equal(folds.request("services", { dirty: () => false }), true, "a clean fold gives way whatever a composer holds");
+  assert.equal(
+    folds.request("services", { dirty: () => false }),
+    true,
+    "a clean fold gives way whatever a composer holds",
+  );
   release();
   assert.equal(tabClosing(), false, "released, it holds nothing");
   release();

@@ -24,7 +24,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
 import { mailboxFor } from "./packages/db.js";
-import { emailReceiptFrom, emailReceivedEventFrom, platformRecipient, verifyResendWebhook, type EmailReceipt, type SvixHeaders } from "./packages/channels.js";
+import {
+  emailReceiptFrom,
+  emailReceivedEventFrom,
+  platformRecipient,
+  verifyResendWebhook,
+  type EmailReceipt,
+  type SvixHeaders,
+} from "./packages/channels.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,9 +54,14 @@ export type ResendVerdict =
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
-  if (!(await verifyResendWebhook(i.secret, i.headers, i.rawBody, i.nowMs))) return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
+  if (!(await verifyResendWebhook(i.secret, i.headers, i.rawBody, i.nowMs)))
+    return { kind: "refuse", status: 401, log: "resend_webhook_bad_signature" };
   let payload: unknown;
-  try { payload = JSON.parse(i.rawBody); } catch { return { kind: "refuse", status: 400, log: "resend_webhook_not_json" }; }
+  try {
+    payload = JSON.parse(i.rawBody);
+  } catch {
+    return { kind: "refuse", status: 400, log: "resend_webhook_not_json" };
+  }
 
   const receipt = emailReceiptFrom(payload);
   if (receipt) return { kind: "receipt", receipt };
@@ -58,7 +70,9 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
 
   // Only addresses on the platform's own mail domain route anywhere; the rest
   // are the other people an email was also sent to.
-  const ours = event.recipients.map((r) => platformRecipient(r, i.domain)).filter((r): r is NonNullable<typeof r> => r !== null);
+  const ours = event.recipients
+    .map((r) => platformRecipient(r, i.domain))
+    .filter((r): r is NonNullable<typeof r> => r !== null);
   const jobs = new Map<string, { tenantId: string; mailboxId: string }>();
   let unroutable = 0;
   for (const to of ours) {

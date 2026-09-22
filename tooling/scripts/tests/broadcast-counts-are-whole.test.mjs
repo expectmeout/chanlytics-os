@@ -23,13 +23,29 @@ const TID = "t-salon";
 const { listBroadcasts } = await import("../../../apps/dashboard/src/server/broadcasts.ts");
 
 const bRow = (i) => ({
-  id: `b${String(i).padStart(3, "0")}`, tenant_id: TID, name: `Run ${i}`,
-  template_id: "tp1", template_name: "offer", template_language: "en_US", params: [],
-  audience: { kind: "everyone", id: null, label: "Everyone who said yes" }, state: "sent",
-  scheduled_for: null, started_at: null, finished_at: null, recipient_count: 1, failure: null,
-  created_at: new Date(Date.UTC(2026, 7, 1) + i * 3_600_000).toISOString(), playbook_id: null, run_for: null,
+  id: `b${String(i).padStart(3, "0")}`,
+  tenant_id: TID,
+  name: `Run ${i}`,
+  template_id: "tp1",
+  template_name: "offer",
+  template_language: "en_US",
+  params: [],
+  audience: { kind: "everyone", id: null, label: "Everyone who said yes" },
+  state: "sent",
+  scheduled_for: null,
+  started_at: null,
+  finished_at: null,
+  recipient_count: 1,
+  failure: null,
+  created_at: new Date(Date.UTC(2026, 7, 1) + i * 3_600_000).toISOString(),
+  playbook_id: null,
+  run_for: null,
 });
-const world = (n) => ({ broadcasts: Array.from({ length: n }, (_, i) => bRow(i)), broadcast_recipients: [], messages: [] });
+const world = (n) => ({
+  broadcasts: Array.from({ length: n }, (_, i) => bRow(i)),
+  broadcast_recipients: [],
+  messages: [],
+});
 
 test("REGRESSION (D12): past fifty broadcasts the list says more exist -- the page summed the newest fifty and called it everything", async () => {
   const many = await listBroadcasts({ supabase: fakeDb(world(51)) }, TID);
@@ -51,24 +67,69 @@ const iso = (ms) => new Date(NOW - ms).toISOString();
 
 /** A person the People read returns, the shape people-vm.test.mjs pins, with a yes to both. */
 const row = (over = {}) => ({
-  id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani", phone_e164: "+17865550181",
-  consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(D),
-  marketing_consent: "opted_in", marketing_consent_source: "in_person", marketing_consent_updated_at: iso(D),
-  dnc: false, channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false,
-  open_escalation_reason: null, open_escalation_since: null, latest_conversation_id: "cv1", latest_state: "open",
-  latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
-  latest_wa_inbound_at: iso(2 * H), last_message_at: iso(2 * H), last_message_direction: "inbound", last_message_sender: "customer",
-  last_inbound_text: "Can I move Saturday to 11?", last_inbound_at: iso(2 * H), last_call_at: null, call_count: 0, call_seconds: 0,
-  first_contact_at: iso(60 * D), earliest_row_at: iso(60 * D), has_backfill: false, has_chat: true, queued_reply_at: null,
+  id: "c1",
+  display_name: "Daniela R.",
+  wa_profile_name: "Dani",
+  phone_e164: "+17865550181",
+  consent: "opted_in",
+  consent_source: "in_person",
+  consent_updated_at: iso(D),
+  marketing_consent: "opted_in",
+  marketing_consent_source: "in_person",
+  marketing_consent_updated_at: iso(D),
+  dnc: false,
+  channels: ["whatsapp"],
+  conversation_count: 1,
+  escalation_count: 0,
+  needs_human: false,
+  open_escalation_reason: null,
+  open_escalation_since: null,
+  latest_conversation_id: "cv1",
+  latest_state: "open",
+  latest_paused_until: null,
+  latest_assignee_user_id: null,
+  latest_snooze_until: null,
+  latest_wa_inbound_at: iso(2 * H),
+  last_message_at: iso(2 * H),
+  last_message_direction: "inbound",
+  last_message_sender: "customer",
+  last_inbound_text: "Can I move Saturday to 11?",
+  last_inbound_at: iso(2 * H),
+  last_call_at: null,
+  call_count: 0,
+  call_seconds: 0,
+  first_contact_at: iso(60 * D),
+  earliest_row_at: iso(60 * D),
+  has_backfill: false,
+  has_chat: true,
+  queued_reply_at: null,
   ...over,
 });
 
-globalThis.document = { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+globalThis.document = {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+};
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
-  location: { pathname: "/w/salon", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/salon",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   addEventListener() {},
@@ -80,7 +141,8 @@ globalThis.window = {
   __WORKSPACES: [{ id: TID, slug: "salon", name: "Salon", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: TID,
 };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const realConsoleError = console.error;
 console.error = () => {};
 const { broadcastsOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -90,7 +152,11 @@ console.error = realConsoleError;
  * Everyone the People read holds, one person a page -- two by default -- and the lists kept by hand; the route's word
  * on whether more than fifty broadcasts exist.
  */
-const wire = ({ more = false, people = [row({ id: "p1" }), row({ id: "p2", phone_e164: "+17865550182" })], lists = [] } = {}) => {
+const wire = ({
+  more = false,
+  people = [row({ id: "p1" }), row({ id: "p2", phone_e164: "+17865550182" })],
+  lists = [],
+} = {}) => {
   const offsets = [];
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
@@ -98,7 +164,14 @@ const wire = ({ more = false, people = [row({ id: "p1" }), row({ id: "p2", phone
     if (u.pathname === "/api/v1/contacts") {
       const offset = Number(u.searchParams.get("offset") || 0);
       offsets.push(offset);
-      return json(200, { ok: true, data: { people: people.slice(offset, offset + 1), page: { q: "", offset, limit: 1, total: people.length, has_more: offset + 1 < people.length }, calendar: { state: "none" } } });
+      return json(200, {
+        ok: true,
+        data: {
+          people: people.slice(offset, offset + 1),
+          page: { q: "", offset, limit: 1, total: people.length, has_more: offset + 1 < people.length },
+          calendar: { state: "none" },
+        },
+      });
     }
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists } });
     if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
@@ -138,34 +211,75 @@ test("REGRESSION: an audience says, per purpose, how many on it said yes, a numb
     people: [
       row({ id: "p1" }),
       // Wrote in by email and said yes to both there: an address, and no number.
-      row({ id: "p2", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+      row({
+        id: "p2",
+        display_name: "Ana Reyes",
+        wa_profile_name: null,
+        phone_e164: null,
+        email: "ana@example.com",
+        channels: ["email"],
+        consent_source: "customer_message",
+        marketing_consent_source: "customer_message",
+      }),
       // A number, and a yes to messages only.
-      row({ id: "p3", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550183", marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null }),
+      row({
+        id: "p3",
+        display_name: "Luis Mora",
+        wa_profile_name: "Luis",
+        phone_e164: "+17865550183",
+        marketing_consent: "unknown",
+        marketing_consent_source: null,
+        marketing_consent_updated_at: null,
+      }),
     ],
-    lists: [{ id: "s1", name: "Regulars", ids: ["p2", "p3"] }, { id: "s2", name: "Walk-ins", ids: ["p3"] }],
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p2", "p3"] },
+      { id: "s2", name: "Walk-ins", ids: ["p3"] },
+    ],
   });
   await broadcastsOverride.apply();
   const { audiences } = globalThis.window.__BROADCASTS;
   const option = (id) => audiences.find((a) => a.id === id);
   /** For one purpose: how many the send reaches (the chip), and how many said yes to what it needs. */
   const sizes = (a, purpose) => [a.counts[purpose], a.preview[purpose].saidYes];
-  assert.deepEqual(sizes(option(null), "marketing"), [1, 2], "Dani can be sent an offer; Ana said yes to one too, and has no number to send it to");
+  assert.deepEqual(
+    sizes(option(null), "marketing"),
+    [1, 2],
+    "Dani can be sent an offer; Ana said yes to one too, and has no number to send it to",
+  );
   assert.deepEqual(sizes(option(null), "conversational"), [2, 3]);
-  assert.deepEqual(sizes(option("s1"), "marketing"), [0, 1], "REGRESSION: nobody on it can be sent an offer, and somebody said yes");
+  assert.deepEqual(
+    sizes(option("s1"), "marketing"),
+    [0, 1],
+    "REGRESSION: nobody on it can be sent an offer, and somebody said yes",
+  );
   assert.deepEqual(sizes(option("s1"), "conversational"), [1, 2]);
-  assert.deepEqual(sizes(option("s2"), "marketing"), [0, 0], "nobody on it said yes to offers: the one case the door is for");
+  assert.deepEqual(
+    sizes(option("s2"), "marketing"),
+    [0, 0],
+    "nobody on it said yes to offers: the one case the door is for",
+  );
 });
 
 test("the verbs publish the words for a list whose yeses have no number to send to -- People's, from contracts (#663)", async () => {
   const { broadcasts } = await import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
   assert.equal(typeof broadcasts.noNumberWords, "function", "the send screen's words for it");
-  assert.equal(broadcasts.noNumberWords("“Regulars”", "marketing"), "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.");
-  assert.equal(broadcasts.noNumberWords("“Regulars”", "conversational"), "Nobody on “Regulars” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.");
+  assert.equal(
+    broadcasts.noNumberWords("“Regulars”", "marketing"),
+    "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
+  );
+  assert.equal(
+    broadcasts.noNumberWords("“Regulars”", "conversational"),
+    "Nobody on “Regulars” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.",
+  );
 });
 
 test("the verbs publish how many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it", async () => {
   const { broadcasts } = await import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
   assert.equal(typeof broadcasts.saidYesWords, "function", "the send screen's words for it");
-  assert.equal(broadcasts.saidYesWords("“Regulars”", "marketing", 0, 1), "1 person on “Regulars” said yes to offers, with no number to send to");
+  assert.equal(
+    broadcasts.saidYesWords("“Regulars”", "marketing", 0, 1),
+    "1 person on “Regulars” said yes to offers, with no number to send to",
+  );
   assert.equal(broadcasts.saidYesWords("“Regulars”", "marketing", 3, 5), "3 people on “Regulars” said yes to offers");
 });

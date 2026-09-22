@@ -11,7 +11,38 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { LANGUAGE_GROUP_WORDS, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, WHATSAPP_LANGUAGES, compareTemplates, defaultSlotKinds, defaultTemplate, findLanguages, groupTemplates, languageLabel, languageTag, languageWords, messageLanguageChoices, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, slotChoices, templateFooter, templatePreview, templatePreviewValues, templateSlots, templateTitle, templateUntranslatable } from "@chanlytics/contracts";
+import {
+  LANGUAGE_GROUP_WORDS,
+  PARAM_SOURCE_HINTS,
+  PARAM_SOURCE_LABELS,
+  STARTER_LANGUAGES,
+  STARTER_TEMPLATES,
+  WHATSAPP_LANGUAGES,
+  compareTemplates,
+  defaultSlotKinds,
+  defaultTemplate,
+  findLanguages,
+  groupTemplates,
+  languageLabel,
+  languageTag,
+  languageWords,
+  messageLanguageChoices,
+  playbooksStillSending,
+  slotLabels,
+  starterByName,
+  starterForTrigger,
+  starterPreview,
+  starterPreviewValues,
+  starterText,
+  sendableTemplates,
+  slotChoices,
+  templateFooter,
+  templatePreview,
+  templatePreviewValues,
+  templateSlots,
+  templateTitle,
+  templateUntranslatable,
+} from "@chanlytics/contracts";
 
 /**
  * A draft from a brief, or a message the workspace has written again in
@@ -21,8 +52,20 @@ import { LANGUAGE_GROUP_WORDS, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, STARTER_
 export type DraftBody =
   | { brief: string; category: "marketing" | "utility"; language: string }
   | { language: string; translate: { id: string } | { starter: string; from?: string } };
-export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[]; button?: { text: string; url: string } | null }
-export interface StarterBody { keys?: string[]; languages?: string[] }
+export interface CreateBody {
+  name: string;
+  language: string;
+  category: string;
+  body: string;
+  footer: string | null;
+  examples: string[];
+  labels?: string[];
+  button?: { text: string; url: string } | null;
+}
+export interface StarterBody {
+  keys?: string[];
+  languages?: string[];
+}
 
 export const syncTemplates = () => api()("POST templates/sync");
 
@@ -48,7 +91,8 @@ export const templates = {
 export function titleOf(t: string | { name: string; title?: string | null } | null | undefined): string {
   if (!t) return "";
   if (typeof t === "string") {
-    const all = (window as unknown as { __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null }).__TEMPLATES_ALL;
+    const all = (window as unknown as { __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null })
+      .__TEMPLATES_ALL;
     const row = Array.isArray(all) ? all.find((x) => x.name === t) : undefined;
     return templateTitle(t, row?.title ?? null);
   }

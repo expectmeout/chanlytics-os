@@ -8,18 +8,32 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 let answer = () => json(200, { ok: true, data: { broadcast: { id: "b-1", state: "sent" }, recipients: [] } });
 const asked = [];
 globalThis.window = {
   location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
-  fetch: async (url, init = {}) => { asked.push(`${init.method || "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`); return answer(); },
+  dispatchEvent() {
+    return true;
+  },
+  fetch: async (url, init = {}) => {
+    asked.push(`${init.method || "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
+    return answer();
+  },
 };
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-const quiet = async (fn) => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+const quiet = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
 const { broadcasts } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts"));
 
 test("a run's report is kept for the run once read, and a refusal never is", async () => {

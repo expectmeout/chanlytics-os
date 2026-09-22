@@ -43,7 +43,13 @@ export interface FeedThread {
   /** Absolute times, when the view-model carries them. */
   lastAtMs?: number;
   escalatedAtMs?: number;
-  veto?: { window: number; endsAtMs: number; messageId: string; draft: string; why?: { heldFor?: string | null; summary?: string } };
+  veto?: {
+    window: number;
+    endsAtMs: number;
+    messageId: string;
+    draft: string;
+    why?: { heldFor?: string | null; summary?: string };
+  };
 }
 
 /** The slice of the Live call view-model the feed reads. */
@@ -82,7 +88,8 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
     if (t.needsYou) {
       // An absolute moment, never "minutes ago" from the clock: a time derived
       // from `now` drifts forward on every read and undoes Mark all read.
-      const at = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 60_000 : t.lastAtMs ?? now);
+      const at =
+        t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 60_000 : (t.lastAtMs ?? now));
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",
@@ -96,7 +103,8 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       });
     }
     if (t.veto && t.veto.endsAtMs > now) {
-      const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
+      const held =
+        t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
       items.push({
         key: `draft:${t.veto.messageId}`,
         kind: "held_draft",
@@ -167,9 +175,7 @@ export interface NotificationRow extends NotificationItem {
 export function applyReadState(items: NotificationItem[], state: NotificationReadState): NotificationRow[] {
   const read = new Set(state.read);
   const gone = new Set(state.dismissed);
-  return items
-    .filter((i) => !gone.has(i.key))
-    .map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
+  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
 
 /**
@@ -195,7 +201,25 @@ export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draf
 /* ------------------------------------------------- rows the workspace keeps */
 
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question"] as const;
+export const SERVER_NOTIFICATION_KINDS = [
+  "handoff",
+  "deadman",
+  "call",
+  "number",
+  "sweep",
+  "job_failed",
+  "playbook",
+  "calendar_people",
+  "alert",
+  "review",
+  "billing",
+  "template_ready",
+  "template_blocked",
+  "broadcast_sent",
+  "broadcast_stopped",
+  "leads_ready",
+  "leads_question",
+] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 /**
@@ -210,7 +234,10 @@ export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
  * Same defect as 00134's, where a template's approval arrived as the phone
  * number's bad news.
  */
-export type JobNewsKind = Extract<ServerNotificationKind, "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff">;
+export type JobNewsKind = Extract<
+  ServerNotificationKind,
+  "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff"
+>;
 
 /**
  * One alert from a job: what it IS, where its button goes, and the words.
@@ -354,10 +381,17 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
       const at = Date.parse(n.created_at);
       return {
         key: `${SERVER_KEY_PREFIX}${n.id}`,
-        kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind) ? (n.kind as NotificationKind) : "alert",
+        kind: (SERVER_NOTIFICATION_KINDS as readonly string[]).includes(n.kind)
+          ? (n.kind as NotificationKind)
+          : "alert",
         at,
         title: n.title,
-        message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+        message:
+          n.body
+            .split("\n")
+            .find((l) => l.trim())
+            ?.trim()
+            .slice(0, 160) ?? "",
         to: n.route ?? look.to,
         icon: look.icon,
         tone: look.tone,
@@ -376,6 +410,12 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
  * row remains as the record.
  */
 export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
-  const covered = new Set(rows.flatMap((r) => (r.kind === "needs_you" ? [conversationOfNeedsKey(r.key)] : [])).filter((id): id is string => !!id));
-  return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
+  const covered = new Set(
+    rows
+      .flatMap((r) => (r.kind === "needs_you" ? [conversationOfNeedsKey(r.key)] : []))
+      .filter((id): id is string => !!id),
+  );
+  return rows.filter(
+    (r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)),
+  );
 }

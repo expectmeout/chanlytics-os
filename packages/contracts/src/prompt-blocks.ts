@@ -144,10 +144,20 @@ const PROMPT: BlockMark = {
   note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet.",
 };
 const BASELINE: BlockMark = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
-const AUTONOMY: BlockMark = { row: "autonomy", label: "Autonomy's rules", startsWith: "", note: "Set on the Autonomy tab, not on this page." };
+const AUTONOMY: BlockMark = {
+  row: "autonomy",
+  label: "Autonomy's rules",
+  startsWith: "",
+  note: "Set on the Autonomy tab, not on this page.",
+};
 
 /** Whose words these are, as whoseWords decides it for the form's box too, and the mark that says so. */
-const MARK_OF: Record<Exclude<WhoseWords["kind"], "none">, BlockMark> = { own: OWN_WORDS, carried: CARRIED, prompt: PROMPT, baseline: BASELINE };
+const MARK_OF: Record<Exclude<WhoseWords["kind"], "none">, BlockMark> = {
+  own: OWN_WORDS,
+  carried: CARRIED,
+  prompt: PROMPT,
+  baseline: BASELINE,
+};
 
 /**
  * Where the owner's own words sit, as a line range, or null.
@@ -158,7 +168,10 @@ const MARK_OF: Record<Exclude<WhoseWords["kind"], "none">, BlockMark> = { own: O
  * words follow every row's block and only the platform's fixed text and the
  * rules come after them.
  */
-function ownWordsSpan(lines: readonly string[], ownWords: string | null | undefined): { from: number; to: number } | null {
+function ownWordsSpan(
+  lines: readonly string[],
+  ownWords: string | null | undefined,
+): { from: number; to: number } | null {
   const want = (ownWords ?? "").trim().split("\n");
   if (!want[0]) return null;
   for (let i = lines.length - want.length; i >= 0; i--) {
@@ -177,7 +190,9 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   // A bare string is the shape this replaced, and it cannot say whether the words
   // were carried.
   if (from === undefined || typeof from !== "object") {
-    throw new TypeError("promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.");
+    throw new TypeError(
+      "promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null.",
+    );
   }
   const lines = text.split("\n");
   const whose = whoseWords(from);

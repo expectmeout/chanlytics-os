@@ -27,8 +27,8 @@ class SkipCeiling implements Reporter {
     if (this.skipped <= max) return undefined;
     console.error(
       `\n${this.skipped} specs skipped, ceiling ${max}. A credentialed run should skip almost ` +
-      `none; this many means the suite covered far less than its size suggests. Raise ` +
-      `E2E_MAX_SKIPS deliberately if the workspace is legitimately quiet.`,
+        `none; this many means the suite covered far less than its size suggests. Raise ` +
+        `E2E_MAX_SKIPS deliberately if the workspace is legitimately quiet.`,
     );
     return { status: "failed" };
   }

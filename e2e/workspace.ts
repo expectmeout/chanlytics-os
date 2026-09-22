@@ -20,9 +20,9 @@ export async function activeWorkspace(page: Page): Promise<string> {
   // switches workspace through the menu, as workspace-create.spec.ts does.
   // Asking the server would then scope the write to the workspace the person
   // just left.
-  const inPage = await page.evaluate(
-    () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null,
-  ).catch(() => null);
+  const inPage = await page
+    .evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null)
+    .catch(() => null);
   if (inPage) return inPage;
   const { data } = await (await page.request.get("/api/v1/workspaces")).json();
   const id = data?.activeWorkspaceId ?? data?.workspaces?.[0]?.id;

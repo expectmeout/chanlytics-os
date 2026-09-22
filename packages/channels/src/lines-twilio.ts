@@ -32,7 +32,8 @@ export const twilioUrls = {
   incomingNumbers: (sid: string) => `${API}/Accounts/${sid}/IncomingPhoneNumbers.json`,
   incomingNumber: (sid: string, numberSid: string) => `${API}/Accounts/${sid}/IncomingPhoneNumbers/${numberSid}.json`,
   credentialLists: (sid: string) => `${API}/Accounts/${sid}/SIP/CredentialLists.json`,
-  credentials: (sid: string, listSid: string) => `${API}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
+  credentials: (sid: string, listSid: string) =>
+    `${API}/Accounts/${sid}/SIP/CredentialLists/${listSid}/Credentials.json`,
   trunks: `${TRUNKING}/Trunks`,
   trunk: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}`,
   trunkCredentialLists: (trunkSid: string) => `${TRUNKING}/Trunks/${trunkSid}/CredentialLists`,
@@ -79,7 +80,8 @@ export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
   return { status: r.status, body };
 };
 
-const str = (o: Record<string, unknown> | null, k: string): string | null => (typeof o?.[k] === "string" ? (o[k] as string) : null);
+const str = (o: Record<string, unknown> | null, k: string): string | null =>
+  typeof o?.[k] === "string" ? (o[k] as string) : null;
 
 function need(a: TwilioAnswer, what: string): Record<string, unknown> {
   if (a.status < 200 || a.status >= 300 || !a.body) throw new TwilioError(a.status, a.body, what);
@@ -91,7 +93,10 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     name: "twilio",
 
     async createSubaccount(master, friendlyName) {
-      const b = need(await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }), "create subaccount");
+      const b = need(
+        await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
+        "create subaccount",
+      );
       const sid = str(b, "sid");
       const token = str(b, "auth_token");
       if (!sid || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
@@ -106,7 +111,9 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
         PageSize: String(Math.min(Math.max(q.limit, 1), 30)),
       }).toString()}`;
       const b = need(await http(acct, "GET", url), "search numbers");
-      const rows = Array.isArray(b.available_phone_numbers) ? (b.available_phone_numbers as Record<string, unknown>[]) : [];
+      const rows = Array.isArray(b.available_phone_numbers)
+        ? (b.available_phone_numbers as Record<string, unknown>[])
+        : [];
       return rows
         .map((n): AvailableNumber | null => {
           const e164 = str(n, "phone_number");
@@ -124,7 +131,13 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async buyNumber(acct, e164, friendlyName) {
-      const b = need(await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), { PhoneNumber: e164, FriendlyName: friendlyName.slice(0, 64) }), "buy number");
+      const b = need(
+        await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
+          PhoneNumber: e164,
+          FriendlyName: friendlyName.slice(0, 64),
+        }),
+        "buy number",
+      );
       const sid = str(b, "sid");
       if (!sid) throw new TwilioError(200, b, "buy number answered without a sid");
       return { sid, e164: str(b, "phone_number") ?? e164 };
@@ -137,11 +150,15 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     // the saga on to buy a second number. So a non-200 throws, and the step retries
     // rather than spending.
     async ownedNumber(acct, e164) {
-      const a = await http(acct, "GET", `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`);
+      const a = await http(
+        acct,
+        "GET",
+        `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`,
+      );
       if (a.status === 404) return null;
       const b = need(a, "list owned numbers");
       const list = Array.isArray((b as { incoming_phone_numbers?: unknown }).incoming_phone_numbers)
-        ? ((b as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers)
+        ? (b as { incoming_phone_numbers: unknown[] }).incoming_phone_numbers
         : [];
       for (const row of list) {
         if (!row || typeof row !== "object") continue;
@@ -157,7 +174,13 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async createTrunk(acct, o) {
-      const b = need(await http(acct, "POST", twilioUrls.trunks, { FriendlyName: o.friendlyName.slice(0, 64), DomainName: o.domainName }), "create trunk");
+      const b = need(
+        await http(acct, "POST", twilioUrls.trunks, {
+          FriendlyName: o.friendlyName.slice(0, 64),
+          DomainName: o.domainName,
+        }),
+        "create trunk",
+      );
       const sid = str(b, "sid");
       if (!sid) throw new TwilioError(200, b, "create trunk answered without a sid");
       return { sid, domainName: str(b, "domain_name") ?? o.domainName };
@@ -169,21 +192,30 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async createCredentialList(acct, friendlyName) {
-      const b = need(await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }), "create credential list");
+      const b = need(
+        await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
+        "create credential list",
+      );
       const sid = str(b, "sid");
       if (!sid) throw new TwilioError(200, b, "create credential list answered without a sid");
       return { sid };
     },
 
     async addCredential(acct, listSid, username, password) {
-      const b = need(await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }), "add credential");
+      const b = need(
+        await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
+        "add credential",
+      );
       const sid = str(b, "sid");
       if (!sid) throw new TwilioError(200, b, "add credential answered without a sid");
       return { sid };
     },
 
     async attachCredentialList(acct, trunkSid, listSid) {
-      need(await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }), "attach credential list");
+      need(
+        await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
+        "attach credential list",
+      );
     },
 
     async addOrigination(acct, trunkSid, o) {
@@ -203,7 +235,10 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async attachNumber(acct, trunkSid, numberSid) {
-      need(await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }), "attach number to trunk");
+      need(
+        await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
+        "attach number to trunk",
+      );
     },
 
     // Messaging Services API (verified 2026-09-07): the service's own inbound
@@ -226,7 +261,10 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async addNumberToService(acct, serviceSid, numberSid) {
-      const b = need(await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }), "add number to messaging service");
+      const b = need(
+        await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
+        "add number to messaging service",
+      );
       const sid = str(b, "sid");
       if (!sid) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
       return { sid };
@@ -234,11 +272,18 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
 
     async sendSms(acct, o) {
       const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
-        MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body,
+        MessagingServiceSid: o.serviceSid,
+        To: o.to,
+        Body: o.body,
         ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
       });
       const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
-      return { ok, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? (a.body.code as number) : null };
+      return {
+        ok,
+        sid: str(a.body, "sid"),
+        status: a.status,
+        code: typeof a.body?.code === "number" ? (a.body.code as number) : null,
+      };
     },
   };
 }

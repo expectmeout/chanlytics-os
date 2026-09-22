@@ -16,9 +16,13 @@ test.describe("Today on a real workspace", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("the standing line, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({ page }) => {
+  test("the standing line, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({
+    page,
+  }) => {
     await expect(page.getByTestId("today-standing")).toBeVisible();
-    await expect(page.getByTestId("today-standing")).toContainText(/lines? connected|could not be counted|no lines connected yet/);
+    await expect(page.getByTestId("today-standing")).toContainText(
+      /lines? connected|could not be counted|no lines connected yet/,
+    );
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
     const rows = queue.locator(".tq-list .cl-attn-row");
@@ -26,7 +30,7 @@ test.describe("Today on a real workspace", () => {
     for (const row of await rows.all()) {
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
       expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
-      await expect(row.locator(".cl-attn-cta")).toHaveCount(await row.locator(".cl-attn-cta").count() > 1 ? 2 : 1);
+      await expect(row.locator(".cl-attn-cta")).toHaveCount((await row.locator(".cl-attn-cta").count()) > 1 ? 2 : 1);
     }
     await expect(queue.locator(".tq-list .cl-attn-cta.primary")).toHaveCount(Math.min(1, n));
     await expect(queue.locator(".tq-head .tq-count")).toHaveCount(0);
@@ -34,16 +38,21 @@ test.describe("Today on a real workspace", () => {
     await expect(page.getByText("Agent Command")).toHaveCount(0);
     await expect(page.getByText(/Good (morning|afternoon|evening)/)).toHaveCount(0);
     // Nothing invented: no dollar amounts anywhere on a page with no revenue column.
-    for (const cell of await page.locator(".today-standing, .today-card, .tsec").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
+    for (const cell of await page.locator(".today-standing, .today-card, .tsec").allInnerTexts())
+      expect(cell).not.toMatch(/\$\d/);
   });
 
-  test("the day's card: four figures with their clauses, or the quiet line with its proof; a receipt on hover adds to its figure", async ({ page }) => {
+  test("the day's card: four figures with their clauses, or the quiet line with its proof; a receipt on hover adds to its figure", async ({
+    page,
+  }) => {
     const card = page.getByTestId("today-card");
     await expect(card).toBeVisible();
     const figures = card.locator('[data-testid^="today-figure-"]');
     const n = await figures.count();
     if (n === 0) {
-      await expect(card.getByTestId("today-quiet-line")).toContainText(/^Nothing has come in yet today\. (The last message arrived .+|No messages have arrived yet\.)/);
+      await expect(card.getByTestId("today-quiet-line")).toContainText(
+        /^Nothing has come in yet today\. (The last message arrived .+|No messages have arrived yet\.)/,
+      );
       return;
     }
     expect(n).toBe(4);
@@ -59,7 +68,7 @@ test.describe("Today on a real workspace", () => {
       await expect(receipt).toHaveAttribute("role", "dialog");
       const value = (await fig.locator(".tc-fig-n").innerText()).trim();
       expect((await receipt.locator(".tc-receipt-t").innerText()).trim()).not.toMatch(new RegExp(`\\b${value}\\b`));
-      await expect(receipt.locator("button")).toHaveCount(await receipt.locator("button").count() ? 1 : 0);
+      await expect(receipt.locator("button")).toHaveCount((await receipt.locator("button").count()) ? 1 : 0);
       await page.mouse.move(0, 0);
       await expect(receipt).toHaveCount(0);
     }
@@ -79,10 +88,17 @@ test.describe("Today on a real workspace", () => {
     await expect(page).toHaveURL(/#\/reports/);
     await page.waitForLoadState("networkidle");
     // Reports' messages tile, over the same range, prints the same count.
-    await expect(page.getByTestId("rp-tile-messages").locator(".rp-tile-value").or(page.locator('[data-testid="rp-tile-messages"]'))).toContainText(m![2]);
+    await expect(
+      page
+        .getByTestId("rp-tile-messages")
+        .locator(".rp-tile-value")
+        .or(page.locator('[data-testid="rp-tile-messages"]')),
+    ).toContainText(m![2]);
   });
 
-  test("the day beside the queue: at most five rows and a line to the Calendar; nothing without a feed", async ({ page }) => {
+  test("the day beside the queue: at most five rows and a line to the Calendar; nothing without a feed", async ({
+    page,
+  }) => {
     const day = page.getByTestId("today-day");
     await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
     if ((await day.count()) === 0) {
@@ -107,7 +123,9 @@ test.describe("Today on a real workspace", () => {
     await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
   });
 
-  test("worth a look: every row a claim with its arithmetic, a word for its tone, an Ask door that asks the row's own sentence", async ({ page }) => {
+  test("worth a look: every row a claim with its arithmetic, a word for its tone, an Ask door that asks the row's own sentence", async ({
+    page,
+  }) => {
     const rows = await expectLeaksWellFormed(page);
     if (rows.length === 0) return;
     for (const r of rows) {
@@ -122,7 +140,9 @@ test.describe("Today on a real workspace", () => {
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
   });
 
-  test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({ page }) => {
+  test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({
+    page,
+  }) => {
     await expect(page.getByTestId("today-queue")).toBeVisible();
     await expectNoQueueRepeat(page);
     await expectAwayAddsUp(page);
@@ -134,7 +154,9 @@ test.describe("Today on a phone", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-  test("the work first: the queue starts on the first screen; a receipt is a panel in the flow, not a popover", async ({ page }) => {
+  test("the work first: the queue starts on the first screen; a receipt is a panel in the flow, not a popover", async ({
+    page,
+  }) => {
     await signIn(page);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");

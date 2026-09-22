@@ -48,7 +48,11 @@ function Loading() {
         />
         <span>Loading your workspace…</span>
       </div>
-      <style>{"@keyframes chanly-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){[aria-busy] div{animation:none!important}}"}</style>
+      <style>
+        {
+          "@keyframes chanly-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){[aria-busy] div{animation:none!important}}"
+        }
+      </style>
     </div>
   );
 }

@@ -30,8 +30,7 @@
 import { CALL_OUTCOMES } from "@chanlytics/contracts";
 
 /** The prompt body. Both placeholders are mandatory; a test pins them. */
-export const VOICE_SHELL_PROMPT =
-  "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
+export const VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 
 /** Composed by the webhook so the business name never becomes a third copy. */
 export const VOICE_SHELL_BEGIN = "{{greeting}}";
@@ -87,7 +86,9 @@ export const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retel
 
 /** The availability tool posts beside it, on the same host and secret. */
 export function availabilityUrl(fnUrl: string): string {
-  return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
+  return /\/api\/retell-fn$/.test(fnUrl)
+    ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability")
+    : `${fnUrl}-availability`;
 }
 
 /** Retell's own tool object, loosely: the fields we set plus whatever it adds. */
@@ -279,7 +280,9 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     patch.general_prompt = desired.general_prompt;
   }
   if (norm(live.begin_message) !== norm(desired.begin_message)) {
-    drift.push(`begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}…), not ${desired.begin_message}`);
+    drift.push(
+      `begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}…), not ${desired.begin_message}`,
+    );
     patch.begin_message = desired.begin_message;
   }
 
@@ -313,7 +316,8 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     }
   }
   const unknownTools = liveTools.map((t) => t.name).filter((n) => !desired.general_tools.some((t) => t.name === n));
-  if (unknownTools.length) drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
+  if (unknownTools.length)
+    drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
   if (toolsDiffer) patch.general_tools = desired.general_tools;
 
   return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
@@ -355,19 +359,26 @@ export const CALL_ANALYSIS_FIELDS = [
   {
     type: "string",
     name: "caller_wanted",
-    description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
-    examples: ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."],
+    description:
+      "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    examples: [
+      "Asked whether Saturday at 10 is free.",
+      "Wanted Tuesday's hours and a price.",
+      "Moved Friday's appointment to next week.",
+    ],
   },
   {
     type: "enum",
     name: "outcome",
-    description: "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+    description:
+      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
     choices: [...CALL_OUTCOMES],
   },
   {
     type: "string",
     name: "follow_up",
-    description: "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    description:
+      "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
     examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."],
   },
   {
@@ -383,9 +394,13 @@ type AnalysisField = (typeof CALL_ANALYSIS_FIELDS)[number];
 /** The live field is ours, unchanged: same name, type, description, choices and examples. */
 function sameAnalysisField(live: Record<string, unknown>, want: AnalysisField): boolean {
   const w = want as unknown as Record<string, unknown>;
-  return live.name === w.name && live.type === w.type && live.description === w.description
-    && JSON.stringify(live.choices ?? null) === JSON.stringify(w.choices ?? null)
-    && JSON.stringify(live.examples ?? null) === JSON.stringify(w.examples ?? null);
+  return (
+    live.name === w.name &&
+    live.type === w.type &&
+    live.description === w.description &&
+    JSON.stringify(live.choices ?? null) === JSON.stringify(w.choices ?? null) &&
+    JSON.stringify(live.examples ?? null) === JSON.stringify(w.examples ?? null)
+  );
 }
 
 /** The agent-level fields the plan reads, as get-agent returns them. */
@@ -437,7 +452,9 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
     patch.webhook_timeout_ms = VOICE_WEBHOOK_TIMEOUT_MS;
   }
   if (live.opt_in_signed_url !== true) {
-    drift.push("recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must");
+    drift.push(
+      "recording URLs are public and permanent (opt_in_signed_url off); the pipeline copies audio within seconds and refetches a fresh link when it must",
+    );
     patch.opt_in_signed_url = true;
   }
   // The analysis fields: ours present and unchanged; anything else on the
@@ -447,7 +464,9 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
     : [];
   const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
   if (missingFields.length) {
-    drift.push(`post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`);
+    drift.push(
+      `post_call_analysis_data lacks ${missingFields.map((f) => f.name).join(", ")} (the strip, the profile and the call card read what the caller wanted)`,
+    );
     patch.post_call_analysis_data = [
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
       ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
@@ -456,15 +475,23 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
   // The call webhook's credential is Retell's signature; a `?key=` on the URL
   // is a secret in the provider's dashboard and in access logs, and the door
   // no longer reads it. The same URL, bare.
-  if (typeof live.webhook_url === "string" && live.webhook_url !== "" && (live.webhook_url_keyed === true || /[?&]key=/.test(live.webhook_url))) {
-    drift.push("webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one");
+  if (
+    typeof live.webhook_url === "string" &&
+    live.webhook_url !== "" &&
+    (live.webhook_url_keyed === true || /[?&]key=/.test(live.webhook_url))
+  ) {
+    drift.push(
+      "webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one",
+    );
     patch.webhook_url = live.webhook_url.split("?")[0];
   }
   if (opts.retentionDays !== undefined && live.data_storage_retention_days !== opts.retentionDays) {
     if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {
       drift.push(`retention must be a whole number of days from 1 to 730, not ${opts.retentionDays}`);
     } else {
-      drift.push(`data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; asked for ${opts.retentionDays}`);
+      drift.push(
+        `data_storage_retention_days is ${live.data_storage_retention_days ?? "unset (kept forever)"}; asked for ${opts.retentionDays}`,
+      );
       patch.data_storage_retention_days = opts.retentionDays;
     }
   }

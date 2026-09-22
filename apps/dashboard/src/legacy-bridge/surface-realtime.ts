@@ -63,7 +63,11 @@ export interface FeedWatch {
  * client rejoins within seconds never flashes a line, and it is said once
  * however many errors follow; the feed's return is said at once.
  */
-export function feedWatch(opts: { graceMs: number; onDown: (down: boolean) => void; onReconnect: () => void }): FeedWatch {
+export function feedWatch(opts: {
+  graceMs: number;
+  onDown: (down: boolean) => void;
+  onReconnect: () => void;
+}): FeedWatch {
   let joined = false;
   let down = false;
   let stopped = false;

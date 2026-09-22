@@ -14,17 +14,32 @@ function fakeClient() {
   const listened = [];
   let onStatus = null;
   const channel = {
-    on(kind, spec, cb) { listened.push({ kind, ...spec, cb }); return channel; },
-    subscribe(cb) { onStatus = cb; return channel; },
+    on(kind, spec, cb) {
+      listened.push({ kind, ...spec, cb });
+      return channel;
+    },
+    subscribe(cb) {
+      onStatus = cb;
+      return channel;
+    },
   };
   const client = {
     token: null,
     topic: null,
     removed: false,
     auth: { getSession: async () => ({ data: { session: { access_token: "jwt" } } }) },
-    realtime: { setAuth(t) { client.token = t; } },
-    channel(topic) { client.topic = topic; return channel; },
-    async removeChannel() { client.removed = true; },
+    realtime: {
+      setAuth(t) {
+        client.token = t;
+      },
+    },
+    channel(topic) {
+      client.topic = topic;
+      return channel;
+    },
+    async removeChannel() {
+      client.removed = true;
+    },
   };
   return { client, listened, fire: (s) => onStatus && onStatus(s) };
 }
@@ -37,7 +52,11 @@ test("with a workspace named, every watched table is filtered to it, on a topic 
   assert.ok(listened.length >= 9, `every watched table (${listened.length})`);
   for (const l of listened) assert.equal(l.filter, "tenant_id=eq.ws-1", `${l.table} is filtered to the workspace`);
   assert.equal(client.topic, "db-changes:bridge:ws-1");
-  assert.equal(client.token, "jwt", "the session token is pushed before the join, or the channel joins as anon and hears nothing");
+  assert.equal(
+    client.token,
+    "jwt",
+    "the session token is pushed before the join, or the channel joins as anon and hears nothing",
+  );
   off();
   assert.equal(client.removed, true);
 });

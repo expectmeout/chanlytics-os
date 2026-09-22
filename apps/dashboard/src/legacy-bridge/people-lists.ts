@@ -15,7 +15,8 @@ export const lists = {
   rename: (id: string, name: string) => api()("PUT segments/[id]", { params: { id }, body: { name } }),
   remove: (id: string) => api()("DELETE segments/[id]", { params: { id } }),
   add: (id: string, contactIds: string[]) => api()("PUT segments/[id]", { params: { id }, body: { add: contactIds } }),
-  drop: (id: string, contactIds: string[]) => api()("PUT segments/[id]", { params: { id }, body: { remove: contactIds } }),
+  drop: (id: string, contactIds: string[]) =>
+    api()("PUT segments/[id]", { params: { id }, body: { remove: contactIds } }),
 };
 
 declare global {

@@ -36,7 +36,8 @@ test("'auto' is never granted without a usable runtime", () => {
   for (const runtimeUsable of [true, false]) {
     for (const policyMode of ["auto", "veto", "ask", "never", undefined]) {
       const p = replyPosture({ runtimeUsable, policyMode });
-      if (p.replyMode === "auto" || p.replyMode === "veto") assert.ok(runtimeUsable, `${p.replyMode} granted with no runtime to say so`);
+      if (p.replyMode === "auto" || p.replyMode === "veto")
+        assert.ok(runtimeUsable, `${p.replyMode} granted with no runtime to say so`);
     }
   }
 });
@@ -45,9 +46,17 @@ test("'auto' is never granted without a usable runtime", () => {
 
 test("a person's own receptionist mode overrides the workspace policy", () => {
   const routed = { replyMode: "auto" };
-  assert.equal(effectiveReplyMode(routed, "never"), "never", "Never for a difficult customer silences the bot for them");
+  assert.equal(
+    effectiveReplyMode(routed, "never"),
+    "never",
+    "Never for a difficult customer silences the bot for them",
+  );
   assert.equal(effectiveReplyMode(routed, "ask"), "ask");
-  assert.equal(effectiveReplyMode({ replyMode: "ask" }, "auto"), "auto", "and can unmute one person in a timid workspace");
+  assert.equal(
+    effectiveReplyMode({ replyMode: "ask" }, "auto"),
+    "auto",
+    "and can unmute one person in a timid workspace",
+  );
 });
 
 test("no person setting changes nothing", () => {

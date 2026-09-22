@@ -10,7 +10,10 @@ const Body = z
     notes: z.string().optional(),
     email: z.string().max(320).optional(),
   })
-  .refine((b) => b.name !== undefined || b.notes !== undefined || b.email !== undefined, "Send a name, notes or an email address.");
+  .refine(
+    (b) => b.name !== undefined || b.notes !== undefined || b.email !== undefined,
+    "Send a name, notes or an email address.",
+  );
 
 /**
  * PUT /api/v1/contacts/:id/details — { name?, notes?, email? }
@@ -41,14 +44,22 @@ export const PUT = write({
     const name = input.name === undefined ? null : input.name.trim().slice(0, 80);
     const notes = input.notes === undefined ? null : input.notes.trim().slice(0, 600);
 
-    const out: { contact_id: string; name?: string | null; notes?: string | null; email?: string | null } = { contact_id: id };
+    const out: { contact_id: string; name?: string | null; notes?: string | null; email?: string | null } = {
+      contact_id: id,
+    };
     if (hasName) {
-      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_name", { p_contact_id: id, p_name: name ?? "" });
+      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_name", {
+        p_contact_id: id,
+        p_name: name ?? "",
+      });
       if (doorErr) throw new AppError("validation", doorErr.message);
       out.name = ((data ?? {}) as { name?: string | null }).name ?? null;
     }
     if (hasNotes) {
-      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_notes", { p_contact_id: id, p_notes: notes ?? "" });
+      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_notes", {
+        p_contact_id: id,
+        p_notes: notes ?? "",
+      });
       if (doorErr) throw new AppError("validation", doorErr.message);
       out.notes = ((data ?? {}) as { notes?: string | null }).notes ?? null;
     }
@@ -56,7 +67,10 @@ export const PUT = write({
       const typed = input.email.trim();
       const email = typed ? normalizeEmail(typed) : null;
       if (typed && !email) throw new AppError("validation", whyNotAnEmail(typed) ?? "That is not an email address.");
-      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_email", { p_contact_id: id, p_email: email ?? "" });
+      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_email", {
+        p_contact_id: id,
+        p_email: email ?? "",
+      });
       // 23505 is the door's own word for "another person here already has that address".
       if (doorErr) throw new AppError(doorErr.code === "23505" ? "conflict" : "validation", doorErr.message);
       out.email = ((data ?? {}) as { email?: string | null }).email ?? null;

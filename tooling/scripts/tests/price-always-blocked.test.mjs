@@ -29,7 +29,14 @@ const SWITCH = [
 test("a chat reply with a price is blocked whether the switch is on, off or never set", () => {
   for (const [label, guardrails] of SWITCH) {
     for (const priced of ["A full balayage runs about $180.", "That one is 180 dollars.", "Son 180 pesos."]) {
-      const out = layerTwo({ replyText: priced, escalate: false, escalationReason: "", brainCfg: brainCfg(guardrails), policy: null, intent: "pricing" });
+      const out = layerTwo({
+        replyText: priced,
+        escalate: false,
+        escalationReason: "",
+        brainCfg: brainCfg(guardrails),
+        policy: null,
+        intent: "pricing",
+      });
       assert.equal(out.priceBlocked, true, `switch ${label}: "${priced}" is caught`);
       assert.doesNotMatch(out.replyText, /180/, `switch ${label}: the customer never reads the figure`);
       assert.match(out.replyText, /consult/i, `switch ${label}: it offers a consult instead`);
@@ -41,7 +48,10 @@ test("a call's price is caught whether the switch is on or off -- the detector t
   // spokenBreach reads the agent's own turns and has no guardrails argument, so it cannot honour the
   // switch by construction. Pinned anyway, so adding one has to change this test.
   assert.equal(spokenBreach.length, 1, "it takes the turns and nothing else");
-  const breach = spokenBreach([{ role: "user", content: "How much is balayage?" }, { role: "agent", content: "A full balayage runs about $180." }]);
+  const breach = spokenBreach([
+    { role: "user", content: "How much is balayage?" },
+    { role: "agent", content: "A full balayage runs about $180." },
+  ]);
   assert.equal(breach?.rule, "price");
 });
 

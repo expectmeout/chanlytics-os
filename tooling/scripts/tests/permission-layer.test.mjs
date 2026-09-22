@@ -89,14 +89,14 @@ test("a workspace the caller does not belong to is a 404, never someone else's",
 });
 
 test("no memberships at all is a 404, not a crash", async () => {
-  await assert.rejects(() => memberContext(ctxWith([])), (e) => e.code === "not_found");
+  await assert.rejects(
+    () => memberContext(ctxWith([])),
+    (e) => e.code === "not_found",
+  );
 });
 
 test("a failed membership read throws rather than resolving to nothing", async () => {
-  await assert.rejects(
-    () => memberContext(ctxWith(null, { message: "connection reset" })),
-    /connection reset/,
-  );
+  await assert.rejects(() => memberContext(ctxWith(null, { message: "connection reset" })), /connection reset/);
 });
 
 /* ------------------------------ may they act ----------------------------- */
@@ -111,8 +111,14 @@ test("the role ladder is owner > operator > viewer", () => {
 });
 
 test("a viewer may change nothing, and an operator is not an owner", () => {
-  assert.throws(() => requireRole(member("viewer"), "operator"), (e) => e.status === 403);
-  assert.throws(() => requireRole(member("operator"), "owner"), (e) => e.status === 403);
+  assert.throws(
+    () => requireRole(member("viewer"), "operator"),
+    (e) => e.status === 403,
+  );
+  assert.throws(
+    () => requireRole(member("operator"), "owner"),
+    (e) => e.status === 403,
+  );
   // The refusal says which, because "forbidden" alone sends people to support.
   assert.throws(() => requireRole(member("operator"), "owner"), /Only an owner/);
   assert.throws(() => requireRole(member("viewer"), "operator"), /Viewers can see everything/);
@@ -149,7 +155,11 @@ test("a malformed id is a 404, and a real one passes through", () => {
   const good = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
   assert.equal(requireUuid(good, "conversation"), good);
   for (const bad of ["", "abc", "123", null, undefined, "3f8b2c1a-4d5e-4f6a-8b9c", `${good} or 1=1`]) {
-    assert.throws(() => requireUuid(bad, "conversation"), (e) => e.status === 404, String(bad));
+    assert.throws(
+      () => requireUuid(bad, "conversation"),
+      (e) => e.status === 404,
+      String(bad),
+    );
   }
 });
 
@@ -157,5 +167,8 @@ test("a body that is not JSON says so, rather than reporting a missing field", a
   const withBody = (b) =>
     new Request("https://app.example/x", { method: "POST", body: b, headers: { "content-type": "application/json" } });
   assert.deepEqual(await jsonBody(withBody('{"a":1}')), { a: 1 });
-  await assert.rejects(() => jsonBody(withBody("not json")), (e) => e.code === "validation");
+  await assert.rejects(
+    () => jsonBody(withBody("not json")),
+    (e) => e.code === "validation",
+  );
 });

@@ -52,7 +52,7 @@ export async function pgThread(
       repliedBefore: s.repliedBefore,
     };
   } catch (e) {
-    console.error("pg_thread_read_failed", e instanceof Error ? e.message : e);
+    logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });
     return unreadableThread();
   }
 }
@@ -87,7 +87,9 @@ export async function queueReply(
 ): Promise<string | null> {
   if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
-      has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing,
+      has_db: !!db,
+      has_tenant: !!tenantId,
+      has_ingest: !!ing,
     });
     return null;
   }
@@ -95,7 +97,17 @@ export async function queueReply(
   // queues the same row and the same job when an owner has one rewritten.
   const id = await queueDraft(
     db,
-    { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id, toPhone, body, delayMs, source, brainMeta, channel },
+    {
+      tenantId,
+      conversationId: ing.conversation_id,
+      contactId: ing.contact_id,
+      toPhone,
+      body,
+      delayMs,
+      source,
+      brainMeta,
+      channel,
+    },
     L,
   );
   return id;
@@ -115,7 +127,12 @@ export class IngestFailed extends Error {
  * IngestFailed: the caller says so to the provider, which retries, rather
  * than acknowledging words that exist only in an email.
  */
-export async function pgIngest(db: SupabaseClient<Database> | null, tenantId: string | null, n: NormalizedInbound, channel: "whatsapp" | "sms" = "whatsapp"): Promise<IngestResult | null> {
+export async function pgIngest(
+  db: SupabaseClient<Database> | null,
+  tenantId: string | null,
+  n: NormalizedInbound,
+  channel: "whatsapp" | "sms" = "whatsapp",
+): Promise<IngestResult | null> {
   if (!db || !tenantId) return null;
   try {
     return await ingestInbound(db, {
@@ -135,7 +152,7 @@ export async function pgIngest(db: SupabaseClient<Database> | null, tenantId: st
       optInMarketing: n.optInMarketing,
     });
   } catch (e) {
-    console.error(JSON.stringify({ level: "error", event: "ingest_pg_failed", tenant_id: tenantId, message: n.messageId, error: errField(e) }));
+    logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.messageId, error: errField(e) });
     throw new IngestFailed(e instanceof Error ? e.message : String(e));
   }
 }
@@ -144,14 +161,19 @@ export async function pgSafe<T>(label: string, fn: () => Promise<T>): Promise<T 
   try {
     return await fn();
   } catch (e) {
-    console.error(`pg_${label}_failed`, e instanceof Error ? e.message : e);
+    logger().error(`pg_${label}_failed`, { error: errField(e) });
     return undefined;
   }
 }
 
 const MIME_EXT: Record<string, string> = {
-  "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
-  "audio/ogg": "ogg", "audio/mpeg": "mp3", "video/mp4": "mp4", "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "video/mp4": "mp4",
+  "application/pdf": "pdf",
 };
 
 /** All PG bookkeeping for one inbound message; every method no-ops when unconfigured. */
@@ -193,26 +215,46 @@ export function pgSink(
      * marketing yes, and offers never going by text) were never asked. The
      * default is the honest one for everything else the receptionist says.
      */
-    deliver: (to: string, text: string, meta?: Record<string, Json>, purpose: SendPurpose = "conversational", kind?: SendKind): Promise<Delivered> =>
+    deliver: (
+      to: string,
+      text: string,
+      meta?: Record<string, Json>,
+      purpose: SendPurpose = "conversational",
+      kind?: SendKind,
+    ): Promise<Delivered> =>
       on
         ? deliverSafely(
             { db: db!, wire },
             {
-              tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
-              to, channel, sender: "ai", purpose, proactive: false,
+              tenantId: tenantId!,
+              conversationId: ing!.conversation_id,
+              contactId: ing!.contact_id,
+              to,
+              channel,
+              sender: "ai",
+              purpose,
+              proactive: false,
               // What the send is, when it is not the receptionist answering:
               // an opt-in confirmation is a system message, owed whoever holds the thread.
               ...(kind ? { kind } : {}),
-              body: text, ...(meta ? { meta } : {}),
+              body: text,
+              ...(meta ? { meta } : {}),
             },
           )
-        : Promise.resolve({ outcome: "failed", reason: "no_sender_for_channel", status: 0, errorBody: "no_database", messageId: null }),
+        : Promise.resolve({
+            outcome: "failed",
+            reason: "no_sender_for_channel",
+            status: 0,
+            errorBody: "no_database",
+            messageId: null,
+          }),
     processed: () =>
       on ? pgSafe("processed", () => markProcessed(db!, tenantId!, ing!.message_id)) : Promise.resolve(),
     allowlistSkip: () =>
       on
         ? pgSafe("allowlist_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id))
+            emitEvent(db!, tenantId!, "ingest.allowlist_skip", "ingest", "message", ing!.message_id),
+          )
         : Promise.resolve(),
     /**
      * The sender cannot receive a reply. Recorded like any other message, and
@@ -221,7 +263,8 @@ export function pgSink(
     unreachableSender: () =>
       on
         ? pgSafe("unreachable_evt", () =>
-            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id))
+            emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id),
+          )
         : Promise.resolve(),
     /**
      * A veto window this workspace CONFIGURED did not happen, and the customer
@@ -240,18 +283,29 @@ export function pgSink(
               source,
               // Scheduling is one insert now, so there is one cause left to name.
               reason: "scheduling_failed",
-            } as Json))
+            } as Json),
+          )
         : Promise.resolve(),
     /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
     pause: (iso: string, keepMessageId?: string) =>
-      on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso, { keepMessageId })) : Promise.resolve(),
+      on
+        ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso, { keepMessageId }))
+        : Promise.resolve(),
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
       on
         ? pgSafe("usage", () =>
-            emitEvent(db!, tenantId!, "usage.llm_tokens", "usage", "conversation", ing!.conversation_id,
-              u as unknown as Json))
+            emitEvent(
+              db!,
+              tenantId!,
+              "usage.llm_tokens",
+              "usage",
+              "conversation",
+              ing!.conversation_id,
+              u as unknown as Json,
+            ),
+          )
         : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can
@@ -260,7 +314,8 @@ export function pgSink(
     escalate: (reason: string, details: string): Promise<EscalationOutcome | undefined> =>
       on
         ? pgSafe("escalation", () =>
-            upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)))
+            upsertEscalation(db!, tenantId!, ing!.conversation_id, reason, details.slice(0, 400)),
+          )
         : Promise.resolve(undefined),
     /** Download from Meta, upload to storage, record where it went. Resolves
      *  to the bytes when they were fetched — a photo the receptionist looks
@@ -273,7 +328,7 @@ export function pgSink(
             // whose vault read failed, or an SMS-only one, has every photo and
             // voice note their customers send stamped "failed" forever with no
             // trace of why.
-            if (!cfg) console.error(JSON.stringify({ level: "error", event: "media_no_credentials", tenant_id: tenantId, message: ing!.message_id }));
+            if (!cfg) logger().error("media_no_credentials", { tenant_id: tenantId, message: ing!.message_id });
             const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {
@@ -295,12 +350,14 @@ export function pgSink(
             // `fetch_state: "pending"` forever: the bytes are in storage, the
             // Inbox shows an attachment that is still downloading, and no
             // reconciliation can tell it from a genuinely in-flight fetch.
-            const { error: rowErr } = await db!.from("messages").update({ media: mediaOut as Json })
-              .eq("id", ing!.message_id).eq("tenant_id", tenantId!);
+            const { error: rowErr } = await db!
+              .from("messages")
+              .update({ media: mediaOut as Json })
+              .eq("id", ing!.message_id)
+              .eq("tenant_id", tenantId!);
             if (rowErr) throw new Error(rowErr.message);
             return got;
           })
         : Promise.resolve(null),
   };
 }
-

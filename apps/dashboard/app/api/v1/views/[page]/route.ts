@@ -24,7 +24,11 @@ export const PUT = write({
     const page = String(ctx.params.page ?? "");
     if (!PAGE.test(page)) throw new AppError("validation", "A page is a short lowercase name.");
     if (JSON.stringify(input.view).length > 2000) throw new AppError("validation", "A view is a small object.");
-    const { data, error } = await ctx.supabase.rpc("member_view_set", { p_tenant_id: member.tenantId, p_page: page, p_view: input.view as Json });
+    const { data, error } = await ctx.supabase.rpc("member_view_set", {
+      p_tenant_id: member.tenantId,
+      p_page: page,
+      p_view: input.view as Json,
+    });
     if (error) throw new AppError("validation", error.message);
     return { views: (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as Record<string, unknown> };
   },

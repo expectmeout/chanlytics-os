@@ -31,10 +31,23 @@ export const POST = write({
     const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The run did not happen (${r.reason}).`;
-      throw new AppError(r.reason === "not_found" ? "not_found" : "upstream_meta", said, r.reason === "not_found" ? 404 : 502);
+      throw new AppError(
+        r.reason === "not_found" ? "not_found" : "upstream_meta",
+        said,
+        r.reason === "not_found" ? 404 : 502,
+      );
     }
-    if (r.outcome === "off") throw new AppError("conflict", SAID[r.skipped ?? ""] ?? `Nothing ran (${r.skipped}).`, 409);
+    if (r.outcome === "off")
+      throw new AppError("conflict", SAID[r.skipped ?? ""] ?? `Nothing ran (${r.skipped}).`, 409);
     // When it really goes: a run outside the hours a send may go out in waits for nine, and the receipt says so.
-    return { id, outcome: r.outcome, eligible: r.eligible ?? 0, broadcast_id: r.broadcastId ?? null, name: p.name, scheduled_for: r.scheduledFor, moved_from: r.movedFrom };
+    return {
+      id,
+      outcome: r.outcome,
+      eligible: r.eligible ?? 0,
+      broadcast_id: r.broadcastId ?? null,
+      name: p.name,
+      scheduled_for: r.scheduledFor,
+      moved_from: r.movedFrom,
+    };
   },
 });

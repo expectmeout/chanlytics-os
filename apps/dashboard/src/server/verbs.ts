@@ -5,7 +5,14 @@
  * service role — scheduling a job, calling the edge — go through the
  * server-only service module at the call sites.
  */
-import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, writtenChannelOf, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
+import {
+  AppError,
+  isOptedOutContact,
+  OPT_OUT_REFUSAL,
+  writtenChannelOf,
+  type DecisionVerb,
+  type DecisionSubject,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
@@ -62,7 +69,9 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const convId = requireUuid(id, "conversation");
   const { data, error } = await ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)")
+    .select(
+      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)",
+    )
     .eq("id", convId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -174,7 +183,10 @@ export const callScope = row((ctx, params) => loadCall(ctx, String(params.id ?? 
  * route sends on it and the assistant's reply card shows its window, so both
  * read it here.
  */
-export async function replyChannelOf(ctx: RouteContext, conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email"> {
+export async function replyChannelOf(
+  ctx: RouteContext,
+  conv: { id: string; tenant_id: string },
+): Promise<"whatsapp" | "sms" | "email"> {
   const { data, error } = await ctx.supabase
     .from("messages")
     .select("channel")
@@ -215,9 +227,17 @@ export async function recordDecision(
     verb,
     actor_type: "user" as const,
     actor_user_id: ctx.userId,
-    payload: ctx.via && payload && typeof payload === "object" && !Array.isArray(payload) ? { ...(payload as Record<string, Json>), via: ctx.via } : payload,
+    payload:
+      ctx.via && payload && typeof payload === "object" && !Array.isArray(payload)
+        ? { ...(payload as Record<string, Json>), via: ctx.via }
+        : payload,
   };
-  const insert = (undoOf: string | null) => ctx.supabase.from("decisions").insert({ ...row, undo_of: undoOf }).select("id").single();
+  const insert = (undoOf: string | null) =>
+    ctx.supabase
+      .from("decisions")
+      .insert({ ...row, undo_of: undoOf })
+      .select("id")
+      .single();
   let attempt = await insert(ctx.undoOf ?? null);
   if (attempt.error && ctx.undoOf && attempt.error.code === "23503") {
     // The undo names a decision this database does not have: a card kept from
@@ -362,7 +382,11 @@ export interface VerbList {
 /** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
 export async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
   const listId = requireUuid(id, "list");
-  const { data, error } = await ctx.supabase.from("segments").select("id, tenant_id, name").eq("id", listId).maybeSingle();
+  const { data, error } = await ctx.supabase
+    .from("segments")
+    .select("id, tenant_id, name")
+    .eq("id", listId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "List not found.", 404);
   return data;

@@ -41,7 +41,8 @@ const ENV_WHATSAPP = { phoneId: "109990000000004", token: "the-environments-own-
 process.env.RETELL_FN_SECRET = SECRET;
 process.env.WHATSAPP_PHONE_ID = ENV_WHATSAPP.phoneId;
 process.env.WHATSAPP_ACCESS_TOKEN = ENV_WHATSAPP.token;
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"])
+  delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -52,7 +53,8 @@ const hook = await import(at("apps/edge/api/retell-fn.ts"));
 /* -------------------------------------------------------------- the wire */
 
 const GRAPH = "https://graph.facebook.com/v25.0";
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /**
  * Every request that leaves this process, captured for the whole file, because
@@ -69,16 +71,25 @@ globalThis.fetch = async (url, init) => {
   if (graphReply) return graphReply(u, init);
   if (!u.startsWith(GRAPH)) return json(404, {});
   const to = JSON.parse(init.body).to;
-  return json(200, { messaging_product: "whatsapp", contacts: [{ input: to, wa_id: to }], messages: [{ id: `wamid.fn.${requests.length}` }] });
+  return json(200, {
+    messaging_product: "whatsapp",
+    contacts: [{ input: to, wa_id: to }],
+    messages: [{ id: `wamid.fn.${requests.length}` }],
+  });
 };
-after(() => { globalThis.fetch = realFetch; setPg(null); });
+after(() => {
+  globalThis.fetch = realFetch;
+  setPg(null);
+});
 
 /** What left after `mark`: every request, and the Graph sends as Meta receives them. */
 function leftSince(mark) {
   const calls = requests.slice(mark);
   return {
     calls,
-    graph: calls.filter((c) => c.url.startsWith(GRAPH)).map((c) => ({ url: c.url, authorization: c.init.headers.Authorization, body: JSON.parse(c.init.body) })),
+    graph: calls
+      .filter((c) => c.url.startsWith(GRAPH))
+      .map((c) => ({ url: c.url, authorization: c.init.headers.Authorization, body: JSON.parse(c.init.body) })),
   };
 }
 
@@ -95,15 +106,22 @@ const DOOR = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 const event = () => ({ waitUntil: () => {} });
 /** Retell's call to the custom function, with the header configured on the tool. `secret: null` sends none. */
 const knock = (body, { secret = SECRET, url = DOOR } = {}) =>
-  hook.POST(new Request(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...(secret === null ? {} : { "x-fn-secret": secret }) },
-    body: JSON.stringify(body),
-  }), event());
+  hook.POST(
+    new Request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(secret === null ? {} : { "x-fn-secret": secret }) },
+      body: JSON.stringify(body),
+    }),
+    event(),
+  );
 
 /** What the voice agent is handed to say: a 200 whose one field is the sentence. */
 async function spoken(res) {
-  assert.equal(res.status, 200, "every answer past the door is a 200: an error status leaves the agent silent with a caller on the line");
+  assert.equal(
+    res.status,
+    200,
+    "every answer past the door is a 200: an error status leaves the agent silent with a caller on the line",
+  );
   const body = await res.json();
   assert.deepEqual(Object.keys(body), ["result"]);
   return body.result;
@@ -112,11 +130,17 @@ async function spoken(res) {
 /** Set (or with undefined, unset) variables for one call, and put them back. */
 async function withEnv(patch, fn) {
   const saved = Object.fromEntries(Object.keys(patch).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(patch)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   try {
     return await fn();
   } finally {
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 
@@ -124,13 +148,27 @@ async function withEnv(patch, fn) {
 async function listening(fn) {
   const lines = [];
   const real = { log: console.log, warn: console.warn, error: console.error };
-  for (const stream of ["log", "warn", "error"]) console[stream] = (...args) => { lines.push({ stream, event: String(args[0]), args }); };
+  // The logger writes ONE JSON object per line, so the event and the fields
+  // are read back out of it; a line that is not an envelope keeps its text.
+  for (const stream of ["log", "warn", "error"])
+    console[stream] = (...args) => {
+      const raw = String(args[0]);
+      let envelope = null;
+      try {
+        const o = JSON.parse(raw);
+        if (o && typeof o === "object" && typeof o.event === "string") envelope = o;
+      } catch {
+        /* not an envelope */
+      }
+      const { level: _level, event: _event, ...fields } = envelope ?? {};
+      lines.push({ stream, event: envelope ? envelope.event : raw, args, fields });
+    };
   try {
     return await fn({
       lines,
       said: (name) => lines.filter((l) => l.event === name),
       /** The fields a `retell_fn_*` line carries, parsed. */
-      fields: (name) => lines.filter((l) => l.event === name).map((l) => JSON.parse(l.args[1])),
+      fields: (name) => lines.filter((l) => l.event === name).map((l) => l.fields),
     });
   } finally {
     Object.assign(console, real);
@@ -139,9 +177,12 @@ async function listening(fn) {
 
 /* ---------------------------------------------------- what the agent says */
 
-const CANNOT_SEND = "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
-const READ_IT_BACK = "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.";
-const CALLERS_OWN = "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.";
+const CANNOT_SEND =
+  "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
+const READ_IT_BACK =
+  "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.";
+const CALLERS_OWN =
+  "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.";
 const SENT = "Booking link sent to their WhatsApp. Confirm they should see it momentarily.";
 /** The line this workspace's receptionist answers on, as the resolver publishes it. */
 const PUBLISHED = "+1 (305) 555-0100";
@@ -164,13 +205,28 @@ const TEMPLATE = {
   language: { code: "en_US" },
   // "there" is the first name: a caller is usually somebody nobody has met yet,
   // and resolveParams writes that rather than leaving a gap.
-  components: [{ type: "body", parameters: [{ type: "text", text: "there" }, { type: "text", text: "Harbor Moving" }, { type: "text", text: "book.example/harbor" }] }],
+  components: [
+    {
+      type: "body",
+      parameters: [
+        { type: "text", text: "there" },
+        { type: "text", text: "Harbor Moving" },
+        { type: "text", text: "book.example/harbor" },
+      ],
+    },
+  ],
 };
 /** What the thread keeps: the template's own words, filled -- not a placeholder line about them. */
-const NOTE = "Hi there, it's Harbor Moving. Here's the link to book your appointment: book.example/harbor — pick any time that suits you.";
+const NOTE =
+  "Hi there, it's Harbor Moving. Here's the link to book your appointment: book.example/harbor — pick any time that suits you.";
 /** The workspace's own approved booking template, as a sync leaves the row. */
 const BOOKING_ROW = {
-  channel: "whatsapp", name: "booking_link", language: "en_US", category: "utility", meta_status: "approved", title: null,
+  channel: "whatsapp",
+  name: "booking_link",
+  language: "en_US",
+  category: "utility",
+  meta_status: "approved",
+  title: null,
   body_preview: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} — pick any time that suits you.",
   variables: [
     { position: 1, label: "First name", example: "Dani" },
@@ -192,7 +248,15 @@ let seq = 0;
  * puts someone on file, `ask()` is the tool's call, and `open()` hands the door
  * a database over these tables.
  */
-function world({ status = "active", mode = "auto", booking = null, brain = BRAIN, whatsapp = "own", line = LINE, templates } = {}) {
+function world({
+  status = "active",
+  mode = "auto",
+  booking = null,
+  brain = BRAIN,
+  whatsapp = "own",
+  line = LINE,
+  templates,
+} = {}) {
   const i = ++seq;
   const T = `bbbbbbbb-0000-4000-8000-${pad(i, 12)}`;
   const AGENT = `agent_fn_${i}_${crypto.randomBytes(4).toString("hex")}`;
@@ -202,26 +266,76 @@ function world({ status = "active", mode = "auto", booking = null, brain = BRAIN
   const tables = {
     tenants: [workspace],
     tenant_channels: [
-      { id: `voice-${i}`, tenant_id: T, kind: "voice", external_id: AGENT, number_e164: line, status: "active", credentials_ref: null, config: {} },
-      ...(whatsapp ? [{ id: `wa-${i}`, tenant_id: T, kind: "whatsapp", external_id: PHONE_ID, number_e164: `+1786555${pad(i, 4)}`, status: "active", credentials_ref: whatsapp === "own" ? `vault-ref-${i}` : null, config: {} }] : []),
+      {
+        id: `voice-${i}`,
+        tenant_id: T,
+        kind: "voice",
+        external_id: AGENT,
+        number_e164: line,
+        status: "active",
+        credentials_ref: null,
+        config: {},
+      },
+      ...(whatsapp
+        ? [
+            {
+              id: `wa-${i}`,
+              tenant_id: T,
+              kind: "whatsapp",
+              external_id: PHONE_ID,
+              number_e164: `+1786555${pad(i, 4)}`,
+              status: "active",
+              credentials_ref: whatsapp === "own" ? `vault-ref-${i}` : null,
+              config: {},
+            },
+          ]
+        : []),
     ],
     tenant_config: [{ tenant_id: T, config: brain ? { brain } : {} }],
     policies: [
-      ...(mode ? [{ id: `pol-${i}`, tenant_id: T, class: "reply", mode, limits: {}, subject_type: null, subject_id: null }] : []),
+      ...(mode
+        ? [{ id: `pol-${i}`, tenant_id: T, class: "reply", mode, limits: {}, subject_type: null, subject_id: null }]
+        : []),
       // The Autonomy pane's Booking row, when this workspace has set one.
-      ...(booking ? [{ id: `pol-b-${i}`, tenant_id: T, class: "booking", mode: booking, limits: {}, subject_type: null, subject_id: null }] : []),
+      ...(booking
+        ? [
+            {
+              id: `pol-b-${i}`,
+              tenant_id: T,
+              class: "booking",
+              mode: booking,
+              limits: {},
+              subject_type: null,
+              subject_id: null,
+            },
+          ]
+        : []),
     ],
     // Which template this path sends is the workspace's own answer now, so a
     // world that has none is a workspace that has none.
-    templates: (templates === undefined ? [BOOKING_ROW] : templates).map((t) => ({ id: `tpl-${i}-${t.name}`, tenant_id: T, ...t })),
-    google_listings: [], contacts: [], conversations: [], messages: [], events: [],
+    templates: (templates === undefined ? [BOOKING_ROW] : templates).map((t) => ({
+      id: `tpl-${i}-${t.name}`,
+      tenant_id: T,
+      ...t,
+    })),
+    google_listings: [],
+    contacts: [],
+    conversations: [],
+    messages: [],
+    events: [],
   };
   const vault = whatsapp === "own" ? { [`wa-${i}`]: { access_token: TOKEN, phone_id: PHONE_ID } } : {};
   const mark = requests.length;
   let people = 0;
   let calls = 0;
   return {
-    i, T, AGENT, PHONE_ID, TOKEN, workspace, tables,
+    i,
+    T,
+    AGENT,
+    PHONE_ID,
+    TOKEN,
+    workspace,
+    tables,
     /** The database for the next ask. The stamp moves with the workspace row, as runtime_stamp's does; `rpcs` overrides for this ask. */
     open: (faults = {}, rpcs = {}) => {
       const db = fakeDb(tables, faults, {
@@ -242,20 +356,56 @@ function world({ status = "active", mode = "auto", booking = null, brain = BRAIN
      * themselves at the moment of the read.
      */
     person: (phone, { consent = "opted_in", marketing = "unknown", dnc = false, mode: own = null } = {}) => {
-      const contact = { id: `k-${i}-${phone.slice(-4)}`, tenant_id: T, phone_e164: phone, consent, dnc, marketing_consent: marketing, erased_at: null };
+      const contact = {
+        id: `k-${i}-${phone.slice(-4)}`,
+        tenant_id: T,
+        phone_e164: phone,
+        consent,
+        dnc,
+        marketing_consent: marketing,
+        erased_at: null,
+      };
       const thread = {
-        id: `conv-${i}-${phone.slice(-4)}`, tenant_id: T, contact_id: contact.id, paused_until: null,
-        get contacts() { return { consent: contact.consent, dnc: contact.dnc, marketing_consent: contact.marketing_consent, erased_at: contact.erased_at }; },
-        get tenants() { return { status: workspace.status }; },
+        id: `conv-${i}-${phone.slice(-4)}`,
+        tenant_id: T,
+        contact_id: contact.id,
+        paused_until: null,
+        get contacts() {
+          return {
+            consent: contact.consent,
+            dnc: contact.dnc,
+            marketing_consent: contact.marketing_consent,
+            erased_at: contact.erased_at,
+          };
+        },
+        get tenants() {
+          return { status: workspace.status };
+        },
       };
       tables.contacts.push(contact);
       tables.conversations.push(thread);
-      if (own) tables.policies.push({ id: `pol-${contact.id}`, tenant_id: T, class: "reply", mode: own, limits: {}, subject_type: "contact", subject_id: contact.id });
+      if (own)
+        tables.policies.push({
+          id: `pol-${contact.id}`,
+          tenant_id: T,
+          class: "reply",
+          mode: own,
+          limits: {},
+          subject_type: "contact",
+          subject_id: contact.id,
+        });
       return { contact, thread };
     },
     /** The tool's call as Retell makes it: the call, and the number the agent collected when it collected one. */
     ask: (from, { spoken: collected } = {}) => ({
-      call: { call_id: `call_fn_${i}_${++calls}`, agent_id: AGENT, call_type: "phone_call", direction: "inbound", from_number: from, to_number: line },
+      call: {
+        call_id: `call_fn_${i}_${++calls}`,
+        agent_id: AGENT,
+        call_type: "phone_call",
+        direction: "inbound",
+        from_number: from,
+        to_number: line,
+      },
       name: "send_booking_link",
       args: collected === undefined ? {} : { phone_number: collected },
     }),
@@ -274,7 +424,10 @@ test("the door: no header, an empty one, a wrong one and the secret on the URL a
       [{ secret: null }, "no header at all"],
       [{ secret: "" }, "an empty header"],
       [{ secret: "not-the-secret" }, "a wrong secret"],
-      [{ secret: null, url: `${DOOR}?key=${SECRET}` }, "the secret on the URL, where the webhook takes it: this door takes it in the header only"],
+      [
+        { secret: null, url: `${DOOR}?key=${SECRET}` },
+        "the secret on the URL, where the webhook takes it: this door takes it in the header only",
+      ],
     ]) {
       const res = await knock(w.ask(caller), opts);
       assert.deepEqual([res.status, await res.json()], [401, { ok: false, error: "bad_secret" }], why);
@@ -282,21 +435,33 @@ test("the door: no header, an empty one, a wrong one and the secret on the URL a
     // With no secret configured, nothing matches it: not a missing header, not an empty one.
     await withEnv({ RETELL_FN_SECRET: undefined }, async () => {
       for (const secret of [null, "", "anything"]) {
-        assert.equal((await knock(w.ask(caller), { secret })).status, 401, `no secret configured, header ${JSON.stringify(secret)}`);
+        assert.equal(
+          (await knock(w.ask(caller), { secret })).status,
+          401,
+          `no secret configured, header ${JSON.stringify(secret)}`,
+        );
       }
     });
     // An empty secret is no secret: an empty header must not match it, as the
     // webhook door already refuses.
     await withEnv({ RETELL_FN_SECRET: "" }, async () => {
       for (const secret of [null, "", "anything"]) {
-        assert.equal((await knock(w.ask(caller), { secret })).status, 401, `an empty secret configured, header ${JSON.stringify(secret)}`);
+        assert.equal(
+          (await knock(w.ask(caller), { secret })).status,
+          401,
+          `an empty secret configured, header ${JSON.stringify(secret)}`,
+        );
       }
     });
     assert.equal(db.seen.length, 0, "not one row read");
     assert.deepEqual(w.left().calls, [], "nothing sent");
     assert.deepEqual(log.lines, [], "and nothing said");
 
-    assert.equal(await spoken(await knock(w.ask(caller))), SENT, "the same ask with the header: the refusals above were the door's doing");
+    assert.equal(
+      await spoken(await knock(w.ask(caller))),
+      SENT,
+      "the same ask with the header: the refusals above were the door's doing",
+    );
   });
 });
 
@@ -317,19 +482,53 @@ test("before a workspace is known: a number that is no phone is read back before
     assert.equal(db.seen.length, 0, "a number that is not one is asked about before anything is read");
 
     setPg(null);
-    assert.equal(await spoken(await knock(w.ask(w.number()))), CANNOT_SEND, "no database: nobody's number to send from");
+    assert.equal(
+      await spoken(await knock(w.ask(w.number()))),
+      CANNOT_SEND,
+      "no database: nobody's number to send from",
+    );
     const again = w.open();
     const noAgent = w.ask(w.number());
     delete noAgent.call.agent_id;
-    assert.equal(await spoken(await knock(noAgent)), CANNOT_SEND, "no agent on the call: no routing key, so no workspace");
-    assert.deepEqual(log.fields("retell_fn_unroutable"), [{ has_db: false, agent_id: w.AGENT }, { has_db: true, agent_id: null }]);
+    assert.equal(
+      await spoken(await knock(noAgent)),
+      CANNOT_SEND,
+      "no agent on the call: no routing key, so no workspace",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_unroutable").map((f) => ({ has_db: f.has_db, agent_id: f.agent_id })),
+      [
+        { has_db: false, agent_id: w.AGENT },
+        { has_db: true, agent_id: null },
+      ],
+    );
+    assert.ok(
+      log.fields("retell_fn_unroutable").every((f) => typeof f.call_id === "string" && f.call_id),
+      "and each line names the call it could not route",
+    );
     assert.equal(again.seen.length, 0, "and nothing read without one");
 
     const stranger = w.ask(w.number());
     stranger.call.agent_id = `${w.AGENT}_nobody`;
     assert.equal(await spoken(await knock(stranger)), CANNOT_SEND, "an agent no row names");
-    assert.deepEqual(log.said("retell_fn_unknown_agent").map((l) => l.args.slice(1)), [[`${w.AGENT}_nobody`]]);
-    assert.deepEqual(again.seen.map((q) => [q.table, q.op, q.filters]), [["tenant_channels", "select", [["eq", "kind", "voice"], ["eq", "external_id", `${w.AGENT}_nobody`]]]], "the routing answer, and nothing of any workspace");
+    assert.deepEqual(
+      log.said("retell_fn_unknown_agent").map((l) => [l.fields.agent_id]),
+      [[`${w.AGENT}_nobody`]],
+    );
+    assert.deepEqual(
+      again.seen.map((q) => [q.table, q.op, q.filters]),
+      [
+        [
+          "tenant_channels",
+          "select",
+          [
+            ["eq", "kind", "voice"],
+            ["eq", "external_id", `${w.AGENT}_nobody`],
+          ],
+        ],
+      ],
+      "the routing answer, and nothing of any workspace",
+    );
   });
 
   const off = world();
@@ -337,11 +536,22 @@ test("before a workspace is known: a number that is no phone is read back before
   const mute = world({ brain: null });
   await listening(async (log) => {
     off.open();
-    assert.equal(await spoken(await knock(off.ask(off.number()))), CANNOT_SEND, "an agent whose channel is switched off");
+    assert.equal(
+      await spoken(await knock(off.ask(off.number()))),
+      CANNOT_SEND,
+      "an agent whose channel is switched off",
+    );
     assert.equal(log.said("retell_fn_unknown_agent").length, 1);
     mute.open();
-    assert.equal(await spoken(await knock(mute.ask(mute.number()))), CANNOT_SEND, "a workspace with no persona does not speak in a voice we invented for it");
-    assert.deepEqual(log.fields("retell_fn_no_persona").map((f) => f.tenant), [mute.T]);
+    assert.equal(
+      await spoken(await knock(mute.ask(mute.number()))),
+      CANNOT_SEND,
+      "a workspace with no persona does not speak in a voice we invented for it",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_no_persona").map((f) => f.tenant),
+      [mute.T],
+    );
     assert.deepEqual([mute.tables.contacts, mute.tables.messages], [[], []], "and nobody is made a contact of it");
   });
   assert.deepEqual(w.left().calls, [], "nothing was sent for any of them");
@@ -356,21 +566,51 @@ test("a paused workspace is refused at the gate, on the runtime's word: the call
   const db = w.open();
   await listening(async (log) => {
     const ask = w.ask(caller);
-    assert.equal(await spoken(await knock(ask)), refusalScript("paused", PUBLISHED), "an alternative for the caller, never our state");
-    assert.deepEqual(log.fields("retell_fn_refused"), [{ call_id: ask.call.call_id, agent_id: w.AGENT, tenant: w.T, reason: "paused", mode: "auto", person_mode: null }],
-      "the gate's refusal, with the workspace's mode still auto");
+    assert.equal(
+      await spoken(await knock(ask)),
+      refusalScript("paused", PUBLISHED),
+      "an alternative for the caller, never our state",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused"),
+      [
+        {
+          call_id: ask.call.call_id,
+          agent_id: w.AGENT,
+          tenant: w.T,
+          reason: "paused",
+          mode: "auto",
+          person_mode: null,
+        },
+      ],
+      "the gate's refusal, with the workspace's mode still auto",
+    );
     assert.deepEqual(log.said("retell_fn_refused_at_wire"), [], "not left for the wire to find");
-    assert.ok(!db.seen.some((q) => q.table === "conversations" && q.op === "select"), "the wire's own read never happened");
-    assert.deepEqual([w.left().calls, w.tables.messages], [[], []], "nothing left this process, and the customer's thread is untouched");
+    assert.ok(
+      !db.seen.some((q) => q.table === "conversations" && q.op === "select"),
+      "the wire's own read never happened",
+    );
+    assert.deepEqual(
+      [w.left().calls, w.tables.messages],
+      [[], []],
+      "nothing left this process, and the customer's thread is untouched",
+    );
     // One row does get written, and it is the point of writing it: the refusal
     // is findable afterwards without reading a log. It names the thread, not a
     // message, because the gate refused before any message row existed.
-    assert.deepEqual(w.tables.events.map((e) => [e.kind, e.data.reason, e.subject_type]), [["message.send_blocked", "paused", "conversation"]]);
+    assert.deepEqual(
+      w.tables.events.map((e) => [e.kind, e.data.reason, e.subject_type]),
+      [["message.send_blocked", "paused", "conversation"]],
+    );
 
     // Billing resumes: the workspace row changes, and with it the runtime's stamp.
     w.workspace.status = "active";
     w.open();
-    assert.equal(await spoken(await knock(w.ask(caller))), SENT, "the next ask, on a runtime reloaded because its stamp moved");
+    assert.equal(
+      await spoken(await knock(w.ask(caller))),
+      SENT,
+      "the next ask, on a runtime reloaded because its stamp moved",
+    );
     assert.equal(w.left().graph.length, 1);
   });
 });
@@ -381,12 +621,31 @@ test("the person's own receptionist mode wins over the workspace's, both ways, l
   const { contact } = auto.person(avoided, { mode: "never" });
   const autoDb = auto.open();
   await listening(async (log) => {
-    assert.equal(await spoken(await knock(auto.ask(avoided))), refusalScript("policy_hold", PUBLISHED), "held, and told the business's own line");
-    assert.deepEqual(log.fields("retell_fn_refused").map((f) => [f.reason, f.mode, f.person_mode]), [["policy_hold", "never", "never"]], "the mode in force is the person's");
+    assert.equal(
+      await spoken(await knock(auto.ask(avoided))),
+      refusalScript("policy_hold", PUBLISHED),
+      "held, and told the business's own line",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused").map((f) => [f.reason, f.mode, f.person_mode]),
+      [["policy_hold", "never", "never"]],
+      "the mode in force is the person's",
+    );
     assert.deepEqual(auto.left().calls, [], "nothing sent to someone the owner stays away from");
     assert.deepEqual(
-      autoDb.seen.filter((q) => q.table === "policies" && q.filters.some(([, col, v]) => col === "subject_type" && v === "contact")).map((q) => q.filters),
-      [[["eq", "tenant_id", auto.T], ["eq", "class", "reply"], ["eq", "subject_type", "contact"], ["eq", "subject_id", contact.id]]],
+      autoDb.seen
+        .filter(
+          (q) => q.table === "policies" && q.filters.some(([, col, v]) => col === "subject_type" && v === "contact"),
+        )
+        .map((q) => q.filters),
+      [
+        [
+          ["eq", "tenant_id", auto.T],
+          ["eq", "class", "reply"],
+          ["eq", "subject_type", "contact"],
+          ["eq", "subject_id", contact.id],
+        ],
+      ],
       "one lookup, for this person in this workspace",
     );
   });
@@ -398,10 +657,24 @@ test("the person's own receptionist mode wins over the workspace's, both ways, l
   ask.person(plain);
   ask.open();
   await listening(async (log) => {
-    assert.equal(await spoken(await knock(ask.ask(vetoed))), SENT, "Veto sends the link a caller asked for: there is nothing in it to redirect");
-    assert.equal(await spoken(await knock(ask.ask(plain))), refusalScript("policy_hold", PUBLISHED), "and a caller with no mode of their own is held by the workspace's ask");
-    assert.deepEqual(ask.left().graph.map((g) => g.body.to), [vetoed.slice(1)]);
-    assert.deepEqual(log.fields("retell_fn_refused").map((f) => [f.reason, f.mode, f.person_mode]), [["policy_hold", "ask", null]]);
+    assert.equal(
+      await spoken(await knock(ask.ask(vetoed))),
+      SENT,
+      "Veto sends the link a caller asked for: there is nothing in it to redirect",
+    );
+    assert.equal(
+      await spoken(await knock(ask.ask(plain))),
+      refusalScript("policy_hold", PUBLISHED),
+      "and a caller with no mode of their own is held by the workspace's ask",
+    );
+    assert.deepEqual(
+      ask.left().graph.map((g) => g.body.to),
+      [vetoed.slice(1)],
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused").map((f) => [f.reason, f.mode, f.person_mode]),
+      [["policy_hold", "ask", null]],
+    );
   });
 });
 
@@ -424,13 +697,32 @@ test("the booking link is a conversational message, proactive only toward someon
     assert.equal(await spoken(await knock(w.ask(caller))), SENT, "no yes to offers, and none to messages yet");
     // A number the caller names starts a conversation with somebody else, which
     // needs that person's own yes: to messages, not to offers.
-    assert.equal(await spoken(await knock(w.ask(caller, { spoken: offersOnly }))), refusalScript("not_opted_in", PUBLISHED), "a yes to offers is not a yes to be texted what someone else asked for");
+    assert.equal(
+      await spoken(await knock(w.ask(caller, { spoken: offersOnly }))),
+      refusalScript("not_opted_in", PUBLISHED),
+      "a yes to offers is not a yes to be texted what someone else asked for",
+    );
     assert.equal(await spoken(await knock(w.ask(caller, { spoken: agreed }))), SENT, "their own recorded yes");
     // Stop is stop, said on the line or by the person named.
-    assert.equal(await spoken(await knock(w.ask(stopped))), refusalScript("opted_out", PUBLISHED), "a caller who said stop");
-    assert.equal(await spoken(await knock(w.ask(caller, { spoken: blocked }))), refusalScript("opted_out", PUBLISHED), "do-not-contact outranks every yes");
-    assert.deepEqual(w.left().graph.map((g) => g.body.to), [caller.slice(1), agreed.slice(1)], "two links: to the caller, and to the person who had said yes");
-    assert.deepEqual(log.fields("retell_fn_refused").map((f) => f.reason), ["not_opted_in", "opted_out", "opted_out"]);
+    assert.equal(
+      await spoken(await knock(w.ask(stopped))),
+      refusalScript("opted_out", PUBLISHED),
+      "a caller who said stop",
+    );
+    assert.equal(
+      await spoken(await knock(w.ask(caller, { spoken: blocked }))),
+      refusalScript("opted_out", PUBLISHED),
+      "do-not-contact outranks every yes",
+    );
+    assert.deepEqual(
+      w.left().graph.map((g) => g.body.to),
+      [caller.slice(1), agreed.slice(1)],
+      "two links: to the caller, and to the person who had said yes",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused").map((f) => f.reason),
+      ["not_opted_in", "opted_out", "opted_out"],
+    );
   });
 
   // A number that belongs to nobody on file: not texted, and not made a contact.
@@ -441,8 +733,15 @@ test("the booking link is a conversational message, proactive only toward someon
   v.open();
   await listening(async (log) => {
     assert.equal(await spoken(await knock(v.ask(on, { spoken: stranger }))), CALLERS_OWN);
-    assert.deepEqual(log.fields("retell_fn_refused_third_party").map((f) => f.tenant), [v.T]);
-    assert.deepEqual(v.tables.contacts.map((c) => c.phone_e164), [on], "no contact is opened for a number merely spoken aloud");
+    assert.deepEqual(
+      log.fields("retell_fn_refused_third_party").map((f) => f.tenant),
+      [v.T],
+    );
+    assert.deepEqual(
+      v.tables.contacts.map((c) => c.phone_e164),
+      [on],
+      "no contact is opened for a number merely spoken aloud",
+    );
     assert.deepEqual(v.left().calls, []);
   });
 });
@@ -455,9 +754,21 @@ test("the number the agent collected is normalised before it is compared: the ca
   w.open();
   await listening(async (log) => {
     const national = `(${caller.slice(2, 5)}) ${caller.slice(5, 8)}-${caller.slice(8)}`;
-    assert.equal(await spoken(await knock(w.ask(caller, { spoken: national }))), SENT, `"${national}", said the way a person says it, is the caller's own`);
-    assert.equal(await spoken(await knock(w.ask(caller, { spoken: "12345" }))), SENT, "a short code is not a phone number: the send falls back to the caller, never to what was collected");
-    assert.deepEqual(w.left().graph.map((g) => g.body.to), [caller.slice(1), caller.slice(1)], "both to the caller, in Graph's bare digits");
+    assert.equal(
+      await spoken(await knock(w.ask(caller, { spoken: national }))),
+      SENT,
+      `"${national}", said the way a person says it, is the caller's own`,
+    );
+    assert.equal(
+      await spoken(await knock(w.ask(caller, { spoken: "12345" }))),
+      SENT,
+      "a short code is not a phone number: the send falls back to the caller, never to what was collected",
+    );
+    assert.deepEqual(
+      w.left().graph.map((g) => g.body.to),
+      [caller.slice(1), caller.slice(1)],
+      "both to the caller, in Graph's bare digits",
+    );
     assert.deepEqual([log.said("retell_fn_refused_third_party"), log.said("retell_fn_refused")], [[], []]);
     assert.equal(w.tables.contacts.length, 1, "and no second contact for the same person written another way");
   });
@@ -467,7 +778,10 @@ test("every number a caller is told is the one the resolver publishes: with none
   const UNDELIVERABLE = { error: { message: "(#131026) Message undeliverable", type: "OAuthException", code: 131026 } };
   const refusedBody = JSON.stringify(UNDELIVERABLE).slice(0, 200);
   try {
-    for (const [line, published] of [[LINE, PUBLISHED], [null, null]]) {
+    for (const [line, published] of [
+      [LINE, PUBLISHED],
+      [null, null],
+    ]) {
       const w = world({ line });
       const held = w.number();
       w.person(held, { mode: "never" });
@@ -477,24 +791,53 @@ test("every number a caller is told is the one the resolver publishes: with none
       const why = published ? "the line, as a person says it" : "no number to give";
       await listening(async (log) => {
         graphReply = null;
-        assert.equal(await spoken(await knock(w.ask(held))), published
-          ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${published}.`
-          : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.", `a hold: ${why}`);
+        assert.equal(
+          await spoken(await knock(w.ask(held))),
+          published
+            ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${published}.`
+            : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.",
+          `a hold: ${why}`,
+        );
 
         graphReply = (u) => (u.startsWith(GRAPH) ? json(400, UNDELIVERABLE) : json(404, {}));
         const ask = w.ask(failing);
-        assert.equal(await spoken(await knock(ask)), published
-          ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}.`
-          : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.", `a failed delivery: ${why}`);
+        assert.equal(
+          await spoken(await knock(ask)),
+          published
+            ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}.`
+            : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name.",
+          `a failed delivery: ${why}`,
+        );
         graphReply = null;
 
         // The attempt is on the record: a failed row in the caller's thread, and the event that says why.
-        assert.deepEqual(w.tables.messages.map(({ id: _id, created_at: _at, ...m }) => m), [{
-          tenant_id: w.T, conversation_id: thread.id, contact_id: contact.id, channel: "whatsapp", direction: "outbound", sender: "ai",
-          type: "template", body: NOTE, external_id: null, status: "failed", meta: { source: SOURCE, call_id: ask.call.call_id, http_status: 400, body: refusedBody },
-        }], `${why}: the business can see it tried`);
-        assert.deepEqual(w.tables.events.filter((e) => e.kind === "message.send_failed").map((e) => [e.subject_id, e.data]), [[w.tables.messages[0].id, { http_status: 400, body: refusedBody, reason: "provider" }]]);
-        assert.deepEqual(log.said("booking_link_send_failed").map((l) => l.args.slice(1)), [[400, refusedBody]]);
+        assert.deepEqual(
+          w.tables.messages.map(({ id: _id, created_at: _at, ...m }) => m),
+          [
+            {
+              tenant_id: w.T,
+              conversation_id: thread.id,
+              contact_id: contact.id,
+              channel: "whatsapp",
+              direction: "outbound",
+              sender: "ai",
+              type: "template",
+              body: NOTE,
+              external_id: null,
+              status: "failed",
+              meta: { source: SOURCE, call_id: ask.call.call_id, http_status: 400, body: refusedBody },
+            },
+          ],
+          `${why}: the business can see it tried`,
+        );
+        assert.deepEqual(
+          w.tables.events.filter((e) => e.kind === "message.send_failed").map((e) => [e.subject_id, e.data]),
+          [[w.tables.messages[0].id, { http_status: 400, body: refusedBody, reason: "provider" }]],
+        );
+        assert.deepEqual(
+          log.said("booking_link_send_failed").map((l) => [l.fields.status, l.fields.body]),
+          [[400, refusedBody]],
+        );
       });
     }
   } finally {
@@ -514,24 +857,51 @@ test("the send: the approved template on the workspace's own WhatsApp number and
     const ask = w.ask(returning);
     assert.equal(await spoken(await knock(ask)), SENT);
 
-    assert.deepEqual(w.left().graph, [{
-      url: `${GRAPH}/${w.PHONE_ID}/messages`,
-      authorization: `Bearer ${w.TOKEN}`,
-      body: { messaging_product: "whatsapp", to: returning.slice(1), type: "template", template: TEMPLATE },
-    }], "one template, from this workspace's own number on its own token");
+    assert.deepEqual(
+      w.left().graph,
+      [
+        {
+          url: `${GRAPH}/${w.PHONE_ID}/messages`,
+          authorization: `Bearer ${w.TOKEN}`,
+          body: { messaging_product: "whatsapp", to: returning.slice(1), type: "template", template: TEMPLATE },
+        },
+      ],
+      "one template, from this workspace's own number on its own token",
+    );
     const wire = JSON.stringify(w.left().calls.map((c) => [c.url, c.init.headers, c.init.body]));
-    assert.ok(!wire.includes(ENV_WHATSAPP.token) && !wire.includes(ENV_WHATSAPP.phoneId), "the environment's pair never left");
+    assert.ok(
+      !wire.includes(ENV_WHATSAPP.token) && !wire.includes(ENV_WHATSAPP.phoneId),
+      "the environment's pair never left",
+    );
 
     assert.equal(w.tables.messages.length, 1);
     const { id, created_at: _at, ...row } = w.tables.messages[0];
     assert.match(row.external_id ?? "", /^wamid\.fn\.\d+$/, "the id Meta gave");
-    assert.deepEqual(row, {
-      tenant_id: w.T, conversation_id: thread.id, contact_id: contact.id, channel: "whatsapp", direction: "outbound", sender: "ai",
-      type: "template", body: NOTE, external_id: row.external_id, status: "sent", meta: { source: SOURCE, call_id: ask.call.call_id },
-    }, "in the caller's own thread, as the receptionist's, with the source the daily cap counts and the call that asked");
-    assert.deepEqual(w.tables.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]), [[w.T, "message.sent", "message", id, { sender: "ai" }]]);
+    assert.deepEqual(
+      row,
+      {
+        tenant_id: w.T,
+        conversation_id: thread.id,
+        contact_id: contact.id,
+        channel: "whatsapp",
+        direction: "outbound",
+        sender: "ai",
+        type: "template",
+        body: NOTE,
+        external_id: row.external_id,
+        status: "sent",
+        meta: { source: SOURCE, call_id: ask.call.call_id },
+      },
+      "in the caller's own thread, as the receptionist's, with the source the daily cap counts and the call that asked",
+    );
+    assert.deepEqual(
+      w.tables.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [[w.T, "message.sent", "message", id, { sender: "ai" }]],
+    );
     assert.ok(thread.last_message_at, "the thread is stamped");
-    assert.deepEqual(log.fields("retell_fn_sent"), [{ call_id: ask.call.call_id, agent_id: w.AGENT, tenant: w.T, wamid: row.external_id }]);
+    assert.deepEqual(log.fields("retell_fn_sent"), [
+      { call_id: ask.call.call_id, agent_id: w.AGENT, tenant: w.T, wamid: row.external_id },
+    ]);
 
     // A first-time caller: made a contact with a thread of their own, and sent
     // the same. The double does not join, so the thread the door opens hands
@@ -542,8 +912,15 @@ test("the send: the approved template on the workspace's own WhatsApp number and
     const made = w.tables.contacts.find((c) => c.phone_e164 === first);
     assert.ok(made, "the caller is on file now");
     const theirs = w.tables.conversations.find((c) => c.contact_id === made.id);
-    assert.deepEqual([w.tables.messages[1].contact_id, w.tables.messages[1].conversation_id], [made.id, theirs.id], "and the link is in their new thread");
-    assert.deepEqual(w.left().graph.map((g) => g.body.to), [returning.slice(1), first.slice(1)]);
+    assert.deepEqual(
+      [w.tables.messages[1].contact_id, w.tables.messages[1].conversation_id],
+      [made.id, theirs.id],
+      "and the link is in their new thread",
+    );
+    assert.deepEqual(
+      w.left().graph.map((g) => g.body.to),
+      [returning.slice(1), first.slice(1)],
+    );
     const said = JSON.stringify(log.lines.map((l) => l.args));
     assert.ok(!said.includes(returning.slice(2)) && !said.includes(first.slice(2)), "neither number on a log line");
   });
@@ -555,11 +932,22 @@ test("the daily cap counts this thread's voice sends of the last day: a thread w
   const b = w.person(busy);
   const calm = w.number();
   const c = w.person(calm);
-  const earlier = ({ contact, thread }, hoursAgo, meta) => w.tables.messages.push({
-    id: `m-${thread.id}-${w.tables.messages.length}`, tenant_id: w.T, conversation_id: thread.id, contact_id: contact.id,
-    channel: "whatsapp", direction: "outbound", sender: "ai", type: "template", body: NOTE, external_id: null, status: "sent",
-    meta, created_at: iso(Date.now() - hoursAgo * 3_600_000),
-  });
+  const earlier = ({ contact, thread }, hoursAgo, meta) =>
+    w.tables.messages.push({
+      id: `m-${thread.id}-${w.tables.messages.length}`,
+      tenant_id: w.T,
+      conversation_id: thread.id,
+      contact_id: contact.id,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "ai",
+      type: "template",
+      body: NOTE,
+      external_id: null,
+      status: "sent",
+      meta,
+      created_at: iso(Date.now() - hoursAgo * 3_600_000),
+    });
   const voice = { source: SOURCE, call_id: "call_earlier" };
   for (const h of [1, 5, 20]) earlier(b, h, voice);
   earlier(c, 2, voice);
@@ -568,11 +956,29 @@ test("the daily cap counts this thread's voice sends of the last day: a thread w
   earlier(c, 3, { source: "broadcast" });
   w.open();
   await listening(async (log) => {
-    assert.equal(await spoken(await knock(w.ask(busy))), refusalScript("daily_cap", PUBLISHED), "three today on this thread");
-    assert.equal(await spoken(await knock(w.ask(calm))), SENT, "two today: yesterday's and a broadcast's are not this cap's");
-    assert.equal(await spoken(await knock(w.ask(calm))), refusalScript("daily_cap", PUBLISHED), "and the link just recorded is the third");
-    assert.deepEqual(log.fields("retell_fn_refused").map((f) => f.reason), ["daily_cap", "daily_cap"]);
-    assert.deepEqual(w.left().graph.map((g) => g.body.to), [calm.slice(1)]);
+    assert.equal(
+      await spoken(await knock(w.ask(busy))),
+      refusalScript("daily_cap", PUBLISHED),
+      "three today on this thread",
+    );
+    assert.equal(
+      await spoken(await knock(w.ask(calm))),
+      SENT,
+      "two today: yesterday's and a broadcast's are not this cap's",
+    );
+    assert.equal(
+      await spoken(await knock(w.ask(calm))),
+      refusalScript("daily_cap", PUBLISHED),
+      "and the link just recorded is the third",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused").map((f) => f.reason),
+      ["daily_cap", "daily_cap"],
+    );
+    assert.deepEqual(
+      w.left().graph.map((g) => g.body.to),
+      [calm.slice(1)],
+    );
   });
 });
 
@@ -590,9 +996,23 @@ test("the wire has the last word: a workspace paused after its runtime was kept,
     // Billing stops. The stamp that would say so does not answer, so the
     // runtime keeps what it has -- and only the wire's own read can see it.
     w.workspace.status = "paused";
-    w.open({}, { runtime_stamp: () => { throw new Error("canceling statement due to statement timeout"); } });
-    assert.equal(await spoken(await knock(w.ask(next))), refusalScript("paused", PUBLISHED), "said as the pause, in the caller's terms");
-    assert.deepEqual(log.fields("retell_fn_refused_at_wire").map((f) => [f.tenant, f.reason]), [[w.T, "paused"]]);
+    w.open(
+      {},
+      {
+        runtime_stamp: () => {
+          throw new Error("canceling statement due to statement timeout");
+        },
+      },
+    );
+    assert.equal(
+      await spoken(await knock(w.ask(next))),
+      refusalScript("paused", PUBLISHED),
+      "said as the pause, in the caller's terms",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_refused_at_wire").map((f) => [f.tenant, f.reason]),
+      [[w.T, "paused"]],
+    );
     assert.deepEqual(log.said("retell_fn_refused"), [], "the gate, on the kept runtime, let it through");
     assert.equal(w.left().graph.length, 1, "the first link only");
     assert.equal(w.tables.messages.length, 1, "a refusal at the wire with no row leaves no row");
@@ -604,14 +1024,39 @@ test("the wire has the last word: a workspace paused after its runtime was kept,
   none.open();
   await listening(async (log) => {
     const ask = none.ask(from);
-    assert.equal(await spoken(await knock(ask)), refusalScript("policy_hold", PUBLISHED), "the caller hears a hold, never that there is no line to send on");
-    assert.deepEqual(log.fields("retell_fn_no_credentials").map((f) => f.tenant), [none.T]);
+    assert.equal(
+      await spoken(await knock(ask)),
+      refusalScript("policy_hold", PUBLISHED),
+      "the caller hears a hold, never that there is no line to send on",
+    );
+    assert.deepEqual(
+      log.fields("retell_fn_no_credentials").map((f) => f.tenant),
+      [none.T],
+    );
     assert.deepEqual(none.left().calls, [], "nothing left at all: not on the environment's pair, not anywhere");
-    assert.deepEqual(none.tables.messages.map(({ id: _id, created_at: _at, ...m }) => m), [{
-      tenant_id: none.T, conversation_id: thread.id, contact_id: contact.id, channel: "whatsapp", direction: "outbound", sender: "ai",
-      type: "template", body: NOTE, external_id: null, status: "failed", meta: { source: SOURCE, call_id: ask.call.call_id, http_status: 503, body: "no_credentials" },
-    }], "the attempt is on the record, with why");
-    assert.deepEqual(none.tables.events.filter((e) => e.kind === "message.send_failed").map((e) => e.data), [{ http_status: 503, body: "no_credentials", reason: "no_credentials" }]);
+    assert.deepEqual(
+      none.tables.messages.map(({ id: _id, created_at: _at, ...m }) => m),
+      [
+        {
+          tenant_id: none.T,
+          conversation_id: thread.id,
+          contact_id: contact.id,
+          channel: "whatsapp",
+          direction: "outbound",
+          sender: "ai",
+          type: "template",
+          body: NOTE,
+          external_id: null,
+          status: "failed",
+          meta: { source: SOURCE, call_id: ask.call.call_id, http_status: 503, body: "no_credentials" },
+        },
+      ],
+      "the attempt is on the record, with why",
+    );
+    assert.deepEqual(
+      none.tables.events.filter((e) => e.kind === "message.send_failed").map((e) => e.data),
+      [{ http_status: 503, body: "no_credentials", reason: "no_credentials" }],
+    );
   });
 });
 
@@ -622,11 +1067,13 @@ test("a repository call that throws is not a 500: the caller is told the WhatsAp
   w.open({ "contacts.select": { message: "canceling statement due to statement timeout" } });
   await listening(async (log) => {
     assert.equal(await spoken(await knock(w.ask(caller))), CANNOT_SEND);
-    assert.deepEqual(log.said("retell_fn_failed").map((l) => l.args.slice(1)), [["resolve_outbound_target: canceling statement due to statement timeout"]]);
+    assert.deepEqual(
+      log.said("retell_fn_failed").map((l) => [l.fields.error]),
+      [["Error: resolve_outbound_target: canceling statement due to statement timeout"]],
+    );
     assert.deepEqual([w.left().calls, w.tables.messages], [[], []]);
   });
 });
-
 
 /* ------------------------------------------- the workspace's own answers */
 
@@ -641,7 +1088,10 @@ test("a workspace that confirms its own bookings does not have the link sent for
   w.person(caller);
   const said = await listening(async (log) => {
     const out = await spoken(await knock(w.ask(caller)));
-    assert.deepEqual(log.fields("retell_fn_refused").map((f) => f.reason), ["booking_needs_a_person"]);
+    assert.deepEqual(
+      log.fields("retell_fn_refused").map((f) => f.reason),
+      ["booking_needs_a_person"],
+    );
     return out;
   });
   assert.equal(said, refusalScript("booking_needs_a_person", PUBLISHED));
@@ -694,8 +1144,28 @@ test("a workspace with no approved booking template is told so, in the cause a b
     [[], "none at all, as a newly created workspace has"],
     [[{ ...BOOKING_ROW, meta_status: "pending" }], "submitted and not yet approved"],
     [[{ ...BOOKING_ROW, meta_status: "rejected" }], "Meta said no"],
-    [[{ ...BOOKING_ROW, name: "save_our_number", variables: [{ position: 1, label: "First name", example: "Dani" }, { position: 2, label: "Business name", example: "Luna" }] }], "approved, but it carries no booking link"],
-    [[{ ...BOOKING_ROW, variables: [...BOOKING_ROW.variables, { position: 3, label: "Your message", example: "anything" }] }], "carries the link, but needs words nobody asked the caller for"],
+    [
+      [
+        {
+          ...BOOKING_ROW,
+          name: "save_our_number",
+          variables: [
+            { position: 1, label: "First name", example: "Dani" },
+            { position: 2, label: "Business name", example: "Luna" },
+          ],
+        },
+      ],
+      "approved, but it carries no booking link",
+    ],
+    [
+      [
+        {
+          ...BOOKING_ROW,
+          variables: [...BOOKING_ROW.variables, { position: 3, label: "Your message", example: "anything" }],
+        },
+      ],
+      "carries the link, but needs words nobody asked the caller for",
+    ],
   ]) {
     const w = world({ templates });
     w.open();
@@ -717,16 +1187,22 @@ test("the purpose is the template's own category again, so a promotion needs the
   utility.open();
   const first = utility.number();
   utility.person(first, { consent: "unknown", marketing: "unknown" });
-  assert.equal(await listening(async () => spoken(await knock(utility.ask(first)))), SENT,
-    "a first-time caller, who has said yes to nothing, still gets the link they just asked for");
+  assert.equal(
+    await listening(async () => spoken(await knock(utility.ask(first)))),
+    SENT,
+    "a first-time caller, who has said yes to nothing, still gets the link they just asked for",
+  );
 
   const promo = world({ templates: [{ ...BOOKING_ROW, category: "marketing" }] });
   promo.open();
   const caller = promo.number();
   promo.person(caller, { consent: "opted_in", marketing: "unknown" });
   const said = await listening(async () => spoken(await knock(promo.ask(caller))));
-  assert.equal(said, refusalScript("no_marketing_consent", PUBLISHED),
-    "a workspace whose booking template is filed as a promotion needs the yes that goes with it");
+  assert.equal(
+    said,
+    refusalScript("no_marketing_consent", PUBLISHED),
+    "a workspace whose booking template is filed as a promotion needs the yes that goes with it",
+  );
   assert.deepEqual(promo.left().graph, []);
 });
 
@@ -738,22 +1214,27 @@ test("the template's own slots are filled in the order it asks for them, not in 
   // taking the starter, is the case that proves it: the starter's name carries
   // the starter's shape, and a name we did not write is read off its labels.
   const swapped = world({
-    templates: [{
-      ...BOOKING_ROW,
-      name: "reservar_ahora",
-      body_preview: "Book here: {{1}} — that's {{2}}.",
-      variables: [
-        { position: 1, label: "Booking link", example: "https://booksy.com/luna-studio" },
-        { position: 2, label: "Business name", example: "Luna Studio" },
-      ],
-    }],
+    templates: [
+      {
+        ...BOOKING_ROW,
+        name: "reservar_ahora",
+        body_preview: "Book here: {{1}} — that's {{2}}.",
+        variables: [
+          { position: 1, label: "Booking link", example: "https://booksy.com/luna-studio" },
+          { position: 2, label: "Business name", example: "Luna Studio" },
+        ],
+      },
+    ],
   });
   swapped.open();
   const caller = swapped.number();
   swapped.person(caller);
   assert.equal(await listening(async () => spoken(await knock(swapped.ask(caller)))), SENT);
   const [sent] = swapped.left().graph;
-  assert.deepEqual(sent.body.template.components[0].parameters.map((p) => p.text), ["book.example/harbor", "Harbor Moving"],
-    "the link first, because this template asks for it first");
+  assert.deepEqual(
+    sent.body.template.components[0].parameters.map((p) => p.text),
+    ["book.example/harbor", "Harbor Moving"],
+    "the link first, because this template asks for it first",
+  );
   assert.equal(swapped.tables.messages[0].body, "Book here: book.example/harbor — that's Harbor Moving.");
 });

@@ -23,18 +23,24 @@ import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead } from "../../lib/packages/db.js";
 import type { RoutedChannel } from "../../lib/packages/db.js";
-import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDelayMs, fallbackMessages } from "../../lib/packages/contracts.js";
+import {
+  resolveSystemPrompt,
+  describeNow,
+  frameSteer,
+  violatesNoPrices,
+  replyDelayMs,
+  fallbackMessages,
+} from "../../lib/packages/contracts.js";
 import { cancelJobsFor } from "../../lib/packages/jobs.js";
 import { generateReply } from "../../lib/brain.js";
 import { queueDraft } from "../../lib/draft-queue.js";
+import { env } from "../../lib/env.js";
+import { logger, errField } from "../../lib/log.js";
 
 const MAX_CHARS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const log = {
-  warn: (event: string, fields: Record<string, unknown> = {}) => console.warn(event, JSON.stringify(fields)),
-  error: (event: string, fields: Record<string, unknown> = {}) => console.error(event, JSON.stringify(fields)),
-};
+const L = logger();
 
 /**
  * The model as a port. Production passes nothing and gets the real brain; a
@@ -45,16 +51,22 @@ const log = {
  * the last three call POST the way Vercel calls it and watch the real brain
  * reach the model.
  */
-export interface BrainPort { generateReply?: typeof generateReply }
+export interface BrainPort {
+  generateReply?: typeof generateReply;
+}
 
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
-  if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+  if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
   let body: { message_id?: string; text?: string } = {};
-  try { body = JSON.parse(await request.text()); } catch { /* below */ }
+  try {
+    body = JSON.parse(await request.text());
+  } catch {
+    /* below */
+  }
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {
@@ -98,7 +110,13 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .maybeSingle();
   if (!ch) return json(409, { ok: false, error: "no_channel" });
   const routed: RoutedChannel = {
-    channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, externalId: ch.external_id, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
+    channelId: ch.id,
+    tenantId: ch.tenant_id,
+    kind: ch.kind,
+    externalId: ch.external_id,
+    numberE164: ch.number_e164,
+    credentialsRef: ch.credentials_ref,
+    config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
@@ -114,7 +132,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   try {
     leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1));
   } catch (e) {
-    log.warn("steer_lead_context_unavailable", { error: e instanceof Error ? e.message : String(e) });
+    L.warn("steer_lead_context_unavailable", { error: errField(e) });
   }
 
   const t0 = Date.now();
@@ -131,37 +149,42 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       frameSteer(text),
     );
   } catch (e) {
-    log.error("steer_brain_failed", { error: e instanceof Error ? e.message : String(e) });
+    L.error("steer_brain_failed", { error: errField(e) });
     return json(502, { ok: false, error: "brain_failed" });
   }
   // The same second door the handler keeps: a price never goes out, and a
   // rewrite that would say one leaves the original draft where it was.
   if (violatesNoPrices(r.text)) {
-    log.warn("steer_policy_block_price", { message_id: messageId });
+    L.warn("steer_policy_block_price", { message_id: messageId });
     return json(409, { ok: false, error: "policy_block_price" });
   }
 
-  const delayMs = typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
-    ? (m.meta as { delay_ms: number }).delay_ms
-    : replyDelayMs("veto", rt.policy?.reply?.limits);
+  const delayMs =
+    typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
+      ? (m.meta as { delay_ms: number }).delay_ms
+      : replyDelayMs("veto", rt.policy?.reply?.limits);
 
   // New first, then retire the old — see the header.
-  const newId = await queueDraft(db, {
-    tenantId: m.tenant_id,
-    conversationId: m.conversation_id,
-    contactId: m.contact_id,
-    toPhone: phone,
-    body: r.text,
-    delayMs,
-    source: "steered",
-    brainMeta: r.meta,
-    // The rewrite goes out on the wire the draft it replaces was written for.
-    // Unsaid, the row defaulted to WhatsApp, so a steered text was sent over
-    // WhatsApp to a number that had only ever texted — and the customer's own
-    // thread never got its answer.
-    channel,
-    extra: { steer: text, steered_from: m.id, escalate: r.escalate },
-  }, log);
+  const newId = await queueDraft(
+    db,
+    {
+      tenantId: m.tenant_id,
+      conversationId: m.conversation_id,
+      contactId: m.contact_id,
+      toPhone: phone,
+      body: r.text,
+      delayMs,
+      source: "steered",
+      brainMeta: r.meta,
+      // The rewrite goes out on the wire the draft it replaces was written for.
+      // Unsaid, the row defaulted to WhatsApp, so a steered text was sent over
+      // WhatsApp to a number that had only ever texted — and the customer's own
+      // thread never got its answer.
+      channel,
+      extra: { steer: text, steered_from: m.id, escalate: r.escalate },
+    },
+    L,
+  );
   if (!newId) return json(502, { ok: false, error: "could_not_queue" });
 
   // Counted, not just attempted. The status filter is the whole guard: the
@@ -178,8 +201,12 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .select("id");
   if (cancelErr || !retired?.length) {
     const lost = !cancelErr;
-    log.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
-    await db.from("messages").update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } }).eq("id", newId).eq("status", "queued");
+    L.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
+    await db
+      .from("messages")
+      .update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } })
+      .eq("id", newId)
+      .eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
     return lost
       ? json(409, { ok: false, error: "already_sent" })
@@ -188,6 +215,20 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
   // The words are the owner's and the model's and stay out of the log.
-  console.log("admin_steer", JSON.stringify({ message_id: m.id, new_message_id: newId, chars: text.length, ms: Date.now() - t0, escalate: r.escalate, delay_ms: delayMs }));
-  return json(200, { ok: true, message_id: newId, text: r.text, meta: r.meta ?? null, escalate: r.escalate, delay_ms: delayMs });
+  L.info("admin_steer", {
+    message_id: m.id,
+    new_message_id: newId,
+    chars: text.length,
+    ms: Date.now() - t0,
+    escalate: r.escalate,
+    delay_ms: delayMs,
+  });
+  return json(200, {
+    ok: true,
+    message_id: newId,
+    text: r.text,
+    meta: r.meta ?? null,
+    escalate: r.escalate,
+    delay_ms: delayMs,
+  });
 }

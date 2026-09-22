@@ -9,8 +9,17 @@
  * nothing and refreshes nothing.
  */
 import {
-  toGoogleVM, ratingWords, starsOf, listingLine, checkedWords, connectionWords, reviewSnippet,
-  type GoogleDto, type GoogleVM, type GoogleCandidateDto, type GoogleLocationDto,
+  toGoogleVM,
+  ratingWords,
+  starsOf,
+  listingLine,
+  checkedWords,
+  connectionWords,
+  reviewSnippet,
+  type GoogleDto,
+  type GoogleVM,
+  type GoogleCandidateDto,
+  type GoogleLocationDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
@@ -24,7 +33,9 @@ export interface GoogleApi {
   /** The view model for a period, from the surface's rows. */
   vm(dto: GoogleDto, periodDays: number, nowMs?: number): GoogleVM;
   /** What Google finds: for the facts on record, or for the words given. Owners only; the route says so. */
-  find(query?: string): Promise<{ ok: boolean; candidates: GoogleCandidateDto[]; query: string; fromFacts: boolean; message: string }>;
+  find(
+    query?: string,
+  ): Promise<{ ok: boolean; candidates: GoogleCandidateDto[]; query: string; fromFacts: boolean; message: string }>;
   /** This is the business. Owners only. */
   link(placeId: string): Promise<{ ok: boolean; read: boolean; message: string }>;
   /** The listing gone, with what was read from it. Owners only. */
@@ -90,9 +101,12 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   no_workspace: "The workspace the connection was started for is not one of yours.",
   no_code: "Google sent nothing back. Start the connection again.",
   scope_missing: "Google connected without access to the Business Profile. Start again and allow it.",
-  no_refresh_token: "Google did not hand over a lasting connection. Remove Chanlytics at myaccount.google.com/permissions and connect again.",
-  accounts_unreadable: "Google connected but the Business Profile could not be read. Is the Business Profile API enabled and approved for this project?",
-  no_locations: "That Google account manages no business locations. Sign in with the account that owns the Business Profile.",
+  no_refresh_token:
+    "Google did not hand over a lasting connection. Remove Chanlytics at myaccount.google.com/permissions and connect again.",
+  accounts_unreadable:
+    "Google connected but the Business Profile could not be read. Is the Business Profile API enabled and approved for this project?",
+  no_locations:
+    "That Google account manages no business locations. Sign in with the account that owns the Business Profile.",
   not_on_maps: "None of that account's locations is on Google Maps yet. Verify one in the Business Profile first.",
   exchange_failed: "Google did not accept the sign-in code. Start the connection again.",
   credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
@@ -105,7 +119,13 @@ export function installGoogle(win: Window = window): void {
     async find(query) {
       const r = await api()("POST google/search", { body: query ? { query } : {} });
       if (!r.ok) return { ok: false, candidates: [], query: query ?? "", fromFacts: false, message: r.message };
-      return { ok: true, candidates: r.data.candidates, query: r.data.query, fromFacts: r.data.from_facts === true, message: "" };
+      return {
+        ok: true,
+        candidates: r.data.candidates,
+        query: r.data.query,
+        fromFacts: r.data.from_facts === true,
+        message: "",
+      };
     },
     async link(placeId) {
       const r = await api()("POST google/link", { body: { place_id: placeId } });
@@ -129,7 +149,9 @@ export function installGoogle(win: Window = window): void {
       return { ok: true, locations: r.data.locations, message: "" };
     },
     async choose(accountName, locationName) {
-      const r = await api()("POST google/locations", { body: { account_name: accountName, location_name: locationName } });
+      const r = await api()("POST google/locations", {
+        body: { account_name: accountName, location_name: locationName },
+      });
       return { ok: r.ok, read: r.ok && r.data.read?.ok === true, message: r.ok ? "" : r.message };
     },
     async disconnect() {
@@ -161,6 +183,13 @@ export function installGoogle(win: Window = window): void {
       }
     },
     outcomeWords: CONNECT_OUTCOME_WORDS,
-    words: { rating: ratingWords, stars: starsOf, listing: listingLine, checked: checkedWords, connection: connectionWords, snippet: reviewSnippet },
+    words: {
+      rating: ratingWords,
+      stars: starsOf,
+      listing: listingLine,
+      checked: checkedWords,
+      connection: connectionWords,
+      snippet: reviewSnippet,
+    },
   };
 }

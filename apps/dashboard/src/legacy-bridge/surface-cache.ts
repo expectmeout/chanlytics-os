@@ -54,8 +54,13 @@ function write(blob: CacheBlob): void {
     // it hit were the ones using the finder most. Dropping the write silently would be worse than either: the
     // OLDER snapshot would stay behind to be painted as current.
     while (raw.length > MAX_BYTES) {
-      const sizes = Object.entries(blob.surfaces).map(([k, v]) => [k, JSON.stringify(v).length] as const).sort((a, b) => b[1] - a[1]);
-      if (!sizes.length) { sessionStorage.removeItem(CACHE_NAME); return; }
+      const sizes = Object.entries(blob.surfaces)
+        .map(([k, v]) => [k, JSON.stringify(v).length] as const)
+        .sort((a, b) => b[1] - a[1]);
+      if (!sizes.length) {
+        sessionStorage.removeItem(CACHE_NAME);
+        return;
+      }
       console.warn("surface_cache_oversize", raw.length, sizes[0][0]);
       delete blob.surfaces[sizes[0][0]];
       raw = JSON.stringify(blob);
@@ -100,7 +105,12 @@ function globalsNow(globals: string[]): Record<string, unknown> {
  * Persist the globals a surface owns, after its apply succeeded. `trim` is the surface's own say over what the cache
  * holds of it (Leads: its first hundred rows, which is all an instant paint needs); the window's globals are untouched.
  */
-export function snapshotSurface(key: string, globals: string[], tenant: string | null, trim?: (snap: Record<string, unknown>) => Record<string, unknown>): void {
+export function snapshotSurface(
+  key: string,
+  globals: string[],
+  tenant: string | null,
+  trim?: (snap: Record<string, unknown>) => Record<string, unknown>,
+): void {
   if (!globals.length) return;
   const blob = read() ?? { build: BUILD, tenant, surfaces: {} };
   blob.build = BUILD;

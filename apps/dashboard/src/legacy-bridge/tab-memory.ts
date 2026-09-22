@@ -20,7 +20,12 @@ import { pathWorkspace } from "./workspace";
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
 /** Every slot this store writes, and the two Leads kept before it: all of them go at sign-out. */
-export const TAB_SLOTS: readonly string[] = [PLACE_SLOT, DRAFT_SLOT, "chanlytics.leads.place.v1", "chanlytics.leads.finder.v1"];
+export const TAB_SLOTS: readonly string[] = [
+  PLACE_SLOT,
+  DRAFT_SLOT,
+  "chanlytics.leads.place.v1",
+  "chanlytics.leads.finder.v1",
+];
 const PLACES_PER_PAGE = 12;
 const DRAFTS_KEPT = 40;
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -37,7 +42,11 @@ export interface TabMemory {
   dropDraft(kind: string, key?: string): void;
 }
 
-interface StorageLike { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
+interface StorageLike {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+  removeItem(k: string): void;
+}
 type WindowLike = { location?: { pathname?: string }; sessionStorage?: StorageLike; __tabMemory?: TabMemory };
 
 const readAll = <T>(s: StorageLike | undefined, slot: string): Record<string, T> => {
@@ -102,12 +111,17 @@ export function tabMemoryFor(win: WindowLike, opts: { now?: () => number } = {})
 }
 
 /** The pages' one store, on the window they read it from. */
-export function installTabMemory(win: WindowLike = window as unknown as WindowLike, opts: { now?: () => number } = {}): void {
+export function installTabMemory(
+  win: WindowLike = window as unknown as WindowLike,
+  opts: { now?: () => number } = {},
+): void {
   win.__tabMemory = tabMemoryFor(win, opts);
 }
 
 /** Everything the tab kept for its pages: at sign-out, with the surface cache (surface-cache.ts clearSurfaceCache). */
-export function clearTabMemory(s: StorageLike | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage): void {
+export function clearTabMemory(
+  s: StorageLike | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage,
+): void {
   try {
     if (s) for (const slot of TAB_SLOTS) s.removeItem(slot);
   } catch {

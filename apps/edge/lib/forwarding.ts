@@ -10,6 +10,7 @@ import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { forwardingMatch, formatPhoneDisplay, type ForwardingFacts } from "./packages/contracts.js";
 import { recordNotification } from "./notify.js";
+import { logger, errField } from "./log.js";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -18,7 +19,12 @@ export interface ForwardingCall {
   callId: string;
 }
 
-export async function markForwardingVerified(db: SupabaseClient<Database>, tenantId: string, call: ForwardingCall): Promise<boolean> {
+export async function markForwardingVerified(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  call: ForwardingCall,
+): Promise<boolean> {
+  const L = logger({ tenant: tenantId });
   try {
     const { data, error } = await db
       .from("lines")
@@ -29,14 +35,21 @@ export async function markForwardingVerified(db: SupabaseClient<Database>, tenan
     if (error || !data?.length) return false;
     const now = new Date().toISOString();
     for (const row of data) {
-      const facts = (row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : {}) as ForwardingFacts & Record<string, unknown>;
+      const facts = (
+        row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : {}
+      ) as ForwardingFacts & Record<string, unknown>;
       if (!forwardingMatch(facts, call)) continue;
       const upd = await db
         .from("lines")
         .update({
           forwarding_state: "verified",
           state_since: now,
-          facts: { ...facts, verified_at: now, verified_call_id: call.callId, verified_from: call.fromE164 } as unknown as Json,
+          facts: {
+            ...facts,
+            verified_at: now,
+            verified_call_id: call.callId,
+            verified_from: call.fromE164,
+          } as unknown as Json,
         })
         .eq("id", row.id)
         .eq("forwarding_state", "instructed")
@@ -50,12 +63,15 @@ export async function markForwardingVerified(db: SupabaseClient<Database>, tenan
         route: "admin/setup",
         about: { type: "line", id: row.id },
       });
-      await emitEvent(db, tenantId, "line.forwarding_verified", "setup", "line", row.id, { from: call.fromE164, call_id: call.callId }).catch(() => {});
-      console.log("forwarding_verified", JSON.stringify({ tenant: tenantId, line: row.id, call: call.callId }));
+      await emitEvent(db, tenantId, "line.forwarding_verified", "setup", "line", row.id, {
+        from: call.fromE164,
+        call_id: call.callId,
+      }).catch(() => {});
+      L.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }
   } catch (e) {
-    console.error("forwarding_verify_failed", e instanceof Error ? e.message : String(e));
+    L.error("forwarding_verify_failed", { error: errField(e) });
   }
   return false;
 }

@@ -18,7 +18,10 @@ import { stateOf } from "@chanlytics/contracts";
 
 let cells = [];
 let seq = 0;
-const fresh = () => { cells = []; seq = 0; };
+const fresh = () => {
+  cells = [];
+  seq = 0;
+};
 const calls = { flash: [], remove: [], cancel: [], arm: [], pbRemove: [], nav: [] };
 globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
@@ -32,15 +35,51 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
   useCallback: (fn) => fn,
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.document = { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.document = {
+  body: {},
+  addEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
 globalThis.window = {
   __chrome: { state: stateOf },
   __ME: { email: "ruben@rjcapital.io", role: "owner" },
@@ -52,14 +91,30 @@ globalThis.window = {
   __TEAM_INVITES: [{ id: "i-jay", email: "jay@example.com", role: "viewer", expires_at: "2026-09-20T00:00:00Z" }],
   __identity: {
     member: ({ email, display_name }) => ({ name: display_name || email, sub: display_name ? email : null }),
-    initials: (name, email) => String(name || email).slice(0, 2).toUpperCase(),
+    initials: (name, email) =>
+      String(name || email)
+        .slice(0, 2)
+        .toUpperCase(),
   },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
-  __teamRemove: async (id) => { calls.remove.push(id); return { ok: true, data: { revokedInvite: id.startsWith("i-") } }; },
+  __teamRemove: async (id) => {
+    calls.remove.push(id);
+    return { ok: true, data: { revokedInvite: id.startsWith("i-") } };
+  },
   __teamSetRole: async () => ({ ok: true }),
   __teamInvite: async () => ({ ok: true }),
-  __broadcasts: { cancel: async (id) => { calls.cancel.push(id); return { ok: true, data: { was: "sending" } }; } },
-  __playbooks: { remove: async (id) => { calls.pbRemove.push(id); return { ok: true, data: {} }; } },
+  __broadcasts: {
+    cancel: async (id) => {
+      calls.cancel.push(id);
+      return { ok: true, data: { was: "sending" } };
+    },
+  },
+  __playbooks: {
+    remove: async (id) => {
+      calls.pbRemove.push(id);
+      return { ok: true, data: {} };
+    },
+  },
   __PLAYBOOKS: { triggers: [] },
   CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   location: { origin: "https://app.chanlytics.com", reload() {} },
@@ -77,16 +132,46 @@ await import("../../../apps/dashboard/src/legacy/components/campaign-bits.jsx");
 const { Confirm, MoreMenu, StatePill } = globalThis.window;
 Object.assign(globalThis, { Confirm, MoreMenu, StatePill });
 
-const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
-const textOf = (n) => { const out = []; walk(n, (x) => { for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k)); }); return out.join(""); };
-const byTestId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
-const byClass = (tree, cls) => { let hit = null; walk(tree, (n) => { if (!hit && typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls)) hit = n; }); return hit; };
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  fn(n);
+  for (const k of n.props?.children ?? []) walk(k, fn);
+  if (n.rendered) walk(n.rendered, fn);
+};
+const textOf = (n) => {
+  const out = [];
+  walk(n, (x) => {
+    for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k));
+  });
+  return out.join("");
+};
+const byTestId = (tree, id) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.props?.["data-testid"] === id) hit = n;
+  });
+  return hit;
+};
+const byClass = (tree, cls) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && typeof n.props?.className === "string" && n.props.className.split(" ").includes(cls)) hit = n;
+  });
+  return hit;
+};
 const flash = (m) => calls.flash.push(m);
 
 /* ------------------------------ the primitive ---------------------------- */
 
 test("the shape: the question, what happens, a Yes that names the verb as a real button, a quiet No; the testids from one name", () => {
-  const c = Confirm({ question: "Disconnect Google?", detail: "The public listing stays.", yes: "Yes, disconnect", onYes() {}, onNo() {}, testid: "google-disconnect" });
+  const c = Confirm({
+    question: "Disconnect Google?",
+    detail: "The public listing stays.",
+    yes: "Yes, disconnect",
+    onYes() {},
+    onNo() {},
+    testid: "google-disconnect",
+  });
   assert.equal(c.props.className, "confirm");
   assert.equal(c.props.role, "group");
   assert.equal(c.props["aria-label"], "Disconnect Google?");
@@ -104,7 +189,17 @@ test("the shape: the question, what happens, a Yes that names the verb as a real
 });
 
 test("danger fills the Yes red; block draws a panel; busy holds both buttons and says what it is doing", () => {
-  const d = Confirm({ question: "Delete?", yes: "Yes, delete", danger: true, block: true, busy: true, busyLabel: "Deleting…", onYes() {}, onNo() {}, testid: "x" });
+  const d = Confirm({
+    question: "Delete?",
+    yes: "Yes, delete",
+    danger: true,
+    block: true,
+    busy: true,
+    busyLabel: "Deleting…",
+    onYes() {},
+    onNo() {},
+    testid: "x",
+  });
   assert.equal(d.props.className, "confirm confirm-block confirm-danger");
   const yes = byTestId(d, "x-yes");
   assert.equal(yes.props.className, "btn btn-sm btn-danger");
@@ -116,17 +211,34 @@ test("danger fills the Yes red; block draws a panel; busy holds both buttons and
 test("Escape is No -- unless the act is already on its way", () => {
   let no = 0;
   let stopped = 0;
-  Confirm({ question: "?", onYes() {}, onNo: () => no++ }).props.onKeyDown({ key: "Escape", stopPropagation: () => stopped++ });
+  Confirm({ question: "?", onYes() {}, onNo: () => no++ }).props.onKeyDown({
+    key: "Escape",
+    stopPropagation: () => stopped++,
+  });
   assert.equal(no, 1);
   assert.equal(stopped, 1, "the key does not reach the row behind");
-  Confirm({ question: "?", onYes() {}, onNo: () => no++ }).props.onKeyDown({ key: "Enter", stopPropagation: () => stopped++ });
+  Confirm({ question: "?", onYes() {}, onNo: () => no++ }).props.onKeyDown({
+    key: "Enter",
+    stopPropagation: () => stopped++,
+  });
   assert.equal(no, 1, "Enter is the Yes button's own");
-  Confirm({ question: "?", busy: true, onYes() {}, onNo: () => no++ }).props.onKeyDown({ key: "Escape", stopPropagation: () => stopped++ });
+  Confirm({ question: "?", busy: true, onYes() {}, onNo: () => no++ }).props.onKeyDown({
+    key: "Escape",
+    stopPropagation: () => stopped++,
+  });
   assert.equal(no, 1, "busy: the act is on its way, Escape does nothing");
 });
 
 test("a typed name gates the Yes -- erasure only -- and the page may know a better match", () => {
-  const props = { question: "Delete this person?", typed: "Rosa M", yes: "Delete this person", danger: true, onYes() {}, onNo() {}, testid: "delete" };
+  const props = {
+    question: "Delete this person?",
+    typed: "Rosa M",
+    yes: "Delete this person",
+    danger: true,
+    onYes() {},
+    onNo() {},
+    testid: "delete",
+  };
   const empty = Confirm({ ...props, value: "" });
   assert.equal(byTestId(empty, "delete-yes").props.disabled, true);
   const input = byTestId(empty, "delete-typed");
@@ -135,12 +247,37 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
   assert.equal(input.props["aria-label"], "Type Rosa M to confirm");
   assert.equal(input.props.autoFocus, true);
   assert.equal(byTestId(empty, "delete-yes").props.autoFocus, false, "the input has the focus, not the button");
-  assert.equal(byTestId(Confirm({ ...props, value: "rosa" }), "delete-yes").props.disabled, true, "close is not the name");
-  assert.equal(byTestId(Confirm({ ...props, value: " Rosa M " }), "delete-yes").props.disabled, false, "the name, whitespace forgiven");
-  assert.equal(byTestId(Confirm({ ...props, value: "+1 646 555 0123", ready: true }), "delete-yes").props.disabled, false, "ready overrides: the page matched their phone number");
-  assert.equal(byTestId(Confirm({ ...props, value: "Rosa M", ready: false }), "delete-yes").props.disabled, true, "and can refuse what would otherwise match");
+  assert.equal(
+    byTestId(Confirm({ ...props, value: "rosa" }), "delete-yes").props.disabled,
+    true,
+    "close is not the name",
+  );
+  assert.equal(
+    byTestId(Confirm({ ...props, value: " Rosa M " }), "delete-yes").props.disabled,
+    false,
+    "the name, whitespace forgiven",
+  );
+  assert.equal(
+    byTestId(Confirm({ ...props, value: "+1 646 555 0123", ready: true }), "delete-yes").props.disabled,
+    false,
+    "ready overrides: the page matched their phone number",
+  );
+  assert.equal(
+    byTestId(Confirm({ ...props, value: "Rosa M", ready: false }), "delete-yes").props.disabled,
+    true,
+    "and can refuse what would otherwise match",
+  );
   let typed = null;
-  byTestId(Confirm({ ...props, value: "", onType: (v) => { typed = v; } }), "delete-typed").props.onChange({ target: { value: "Ro" } });
+  byTestId(
+    Confirm({
+      ...props,
+      value: "",
+      onType: (v) => {
+        typed = v;
+      },
+    }),
+    "delete-typed",
+  ).props.onChange({ target: { value: "Ro" } });
   assert.equal(typed, "Ro", "the text is the page's, so the record keeps it");
   const err = byClass(Confirm({ ...props, value: "Rosa M", error: "Could not delete this person." }), "confirm-error");
   assert.ok(err);
@@ -152,9 +289,18 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
 
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 const TeamSection = globalThis.window.TeamSection;
-const drawTeam = () => { seq = 0; return TeamSection({ flash }); };
+const drawTeam = () => {
+  seq = 0;
+  return TeamSection({ flash });
+};
 /** The row menu that offers `label`, as the props the card handed the shared MoreMenu. */
-const menuFor = (tree, label) => { let hit = null; walk(tree, (n) => { if (!hit && n.type === MoreMenu && (n.props.items || []).some((i) => i.label === label)) hit = n; }); return hit; };
+const menuFor = (tree, label) => {
+  let hit = null;
+  walk(tree, (n) => {
+    if (!hit && n.type === MoreMenu && (n.props.items || []).some((i) => i.label === label)) hit = n;
+  });
+  return hit;
+};
 
 test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, the row asks, and only the Yes reaches the server, with the membership id", async () => {
   fresh();
@@ -175,7 +321,9 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
   byTestId(tree, "team-remove-no").props.onClick();
   tree = drawTeam();
   assert.equal(byTestId(tree, "team-remove-confirm"), null, "No disarms");
-  menuFor(tree, "Remove").props.items.find((i) => i.label === "Remove").onClick();
+  menuFor(tree, "Remove")
+    .props.items.find((i) => i.label === "Remove")
+    .onClick();
   tree = drawTeam();
   await byTestId(tree, "team-remove-yes").props.onClick();
   assert.deepEqual(calls.remove, ["m-lena"], "the membership id, as the route takes it");
@@ -189,7 +337,9 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
 test("revoking an invitation asks in its own words", () => {
   fresh();
   let tree = drawTeam();
-  menuFor(tree, "Revoke invite").props.items.find((i) => i.label === "Revoke invite").onClick();
+  menuFor(tree, "Revoke invite")
+    .props.items.find((i) => i.label === "Revoke invite")
+    .onClick();
   tree = drawTeam();
   const ask = byTestId(tree, "team-remove-confirm");
   assert.ok(ask, "the invitation's row asks");
@@ -203,11 +353,33 @@ test("revoking an invitation asks in its own words", () => {
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 // The run's card on the ledger, where the stop now lives.
 const BcRunCard = globalThis.window.BcRunCard;
-const broadcast = (state) => ({ id: `b-${state}`, name: "September offer", state, stateLabel: state, when: "today 10:00", audience: { label: "Everyone who said yes" }, recipient_count: 40, counts: { sent: 12, skipped: 1, failed: 0 } });
+const broadcast = (state) => ({
+  id: `b-${state}`,
+  name: "September offer",
+  state,
+  stateLabel: state,
+  when: "today 10:00",
+  audience: { label: "Everyone who said yes" },
+  recipient_count: 40,
+  counts: { sent: 12, skipped: 1, failed: 0 },
+});
 
 test("a broadcast's stop is armed and named for what it does: Stop a send, Skip a run nobody approved, Cancel one still to come", async () => {
   fresh();
-  const draw = (state, armed) => { seq = 0; return BcRunCard({ row: broadcast(state), now: Date.now(), canSend: true, onOpen() {}, armed, onArm: (on) => calls.arm.push(on), stopping: false, approve() {}, cancel: (r) => globalThis.window.__broadcasts.cancel(r.id) }); };
+  const draw = (state, armed) => {
+    seq = 0;
+    return BcRunCard({
+      row: broadcast(state),
+      now: Date.now(),
+      canSend: true,
+      onOpen() {},
+      armed,
+      onArm: (on) => calls.arm.push(on),
+      stopping: false,
+      approve() {},
+      cancel: (r) => globalThis.window.__broadcasts.cancel(r.id),
+    });
+  };
   for (const [state, verb, question, yes] of [
     ["sending", "Stop", "Stop September offer?", "Yes, stop it"],
     ["pending_approval", "Skip", "Skip September offer?", "Yes, skip it"],
@@ -229,8 +401,28 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
   assert.deepEqual(calls.cancel, [], "REGRESSION: one click used to cancel");
   await byTestId(draw("sending", true), "bc-stop-yes").props.onClick();
   assert.deepEqual(calls.cancel, ["b-sending"]);
-  assert.ok(byTestId(draw("pending_approval", false), "bc-approve"), "unarmed, a run waiting for approval still offers Approve");
-  assert.equal(byTestId(BcRunCard({ row: broadcast("sending"), now: Date.now(), canSend: false, onOpen() {}, armed: false, onArm() {}, stopping: false, approve() {}, cancel() {} }), "bc-stop"), null, "a viewer has no stop to arm");
+  assert.ok(
+    byTestId(draw("pending_approval", false), "bc-approve"),
+    "unarmed, a run waiting for approval still offers Approve",
+  );
+  assert.equal(
+    byTestId(
+      BcRunCard({
+        row: broadcast("sending"),
+        now: Date.now(),
+        canSend: false,
+        onOpen() {},
+        armed: false,
+        onArm() {},
+        stopping: false,
+        approve() {},
+        cancel() {},
+      }),
+      "bc-stop",
+    ),
+    null,
+    "a viewer has no stop to arm",
+  );
 });
 
 /* ---------------- Playbooks: the delete that was two clicks --------------- */
@@ -238,15 +430,28 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 const PlaybookCard = globalThis.window.PlaybookCard;
 const playbook = {
-  id: "pb-1", name: "Win-back", state: "running", trigger: "winback", triggerLabel: "Quiet 30 days", triggerHint: "",
-  schedule: "daily at 10:00", next: "tomorrow 10:00", policy_class: "marketing", template_name: "winback_offer", template_language: "en_US",
-  candidates: 3, last_run_for: null,
+  id: "pb-1",
+  name: "Win-back",
+  state: "running",
+  trigger: "winback",
+  triggerLabel: "Quiet 30 days",
+  triggerHint: "",
+  schedule: "daily at 10:00",
+  next: "tomorrow 10:00",
+  policy_class: "marketing",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  candidates: 3,
+  last_run_for: null,
   totals: { waiting: null, runs: 2, sent: 10, delivered: 9, replied: 1, held: 0, history: [] },
 };
 
 test("a playbook's delete asks through the one Confirm -- it used to relabel its own button and fire on the second click", async () => {
   fresh();
-  const draw = () => { seq = 0; return PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash }); };
+  const draw = () => {
+    seq = 0;
+    return PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash });
+  };
   let tree = draw();
   const del = byTestId(tree, "pb-delete");
   assert.equal(textOf(del), "Delete");
@@ -257,7 +462,10 @@ test("a playbook's delete asks through the one Confirm -- it used to relabel its
   assert.equal(byTestId(tree, "pb-delete"), null, "the trigger gives way to the question");
   const ask = byTestId(tree, "pb-delete-confirm");
   assert.ok(ask);
-  assert.ok(textOf(ask).includes("Delete Win-back?") && textOf(ask).includes("Its runs stay in Broadcasts"), textOf(ask));
+  assert.ok(
+    textOf(ask).includes("Delete Win-back?") && textOf(ask).includes("Its runs stay in Broadcasts"),
+    textOf(ask),
+  );
   byTestId(tree, "pb-delete-no").props.onClick();
   tree = draw();
   assert.ok(byTestId(tree, "pb-delete"), "No brings the trigger back");

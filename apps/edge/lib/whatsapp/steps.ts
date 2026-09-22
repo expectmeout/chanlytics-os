@@ -7,9 +7,9 @@
 import { replyDelayMs, violatesNoPrices, policyAskClass } from "../packages/contracts.js";
 import type { BrainConfig, BrainMeta, PolicyLimits } from "../packages/contracts.js";
 
-export const PAUSE_MS = 24 * 3600 * 1000;   // human echo pauses the bot for 24h
-export const MAX_REPLIES_PER_DAY = 20;      // per thread
-export const STALE_MS = 10 * 60 * 1000;          // "late" — worth noting in the log
+export const PAUSE_MS = 24 * 3600 * 1000; // human echo pauses the bot for 24h
+export const MAX_REPLIES_PER_DAY = 20; // per thread
+export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
 export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
 
 /**
@@ -19,7 +19,10 @@ export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers,
  * nowhere, so a person picks it up. Meta redelivers for days, so an outage
  * longer than the horizon must never turn its backlog into silence.
  */
-export function ageVerdict(timestampS: string | number | undefined, now = Date.now()): { ageMs: number; verdict: "fresh" | "late" | "stale" } {
+export function ageVerdict(
+  timestampS: string | number | undefined,
+  now = Date.now(),
+): { ageMs: number; verdict: "fresh" | "late" | "stale" } {
   const ageMs = timestampS ? now - Number(timestampS) * 1000 : 0;
   return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
 }
@@ -54,7 +57,10 @@ export function holdPlan(
   let delayMs = replyDelayMs(replyMode, replyLimits);
   const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
   const heldForConfidence =
-    replyMode === "auto" && minConfidence > 0 && typeof brainMeta?.confidence === "number" && brainMeta.confidence < minConfidence;
+    replyMode === "auto" &&
+    minConfidence > 0 &&
+    typeof brainMeta?.confidence === "number" &&
+    brainMeta.confidence < minConfidence;
   if (heldForConfidence) delayMs = replyDelayMs("veto", replyLimits);
   return { delayMs, heldForConfidence, source: heldForConfidence ? "low_confidence" : "veto_window", minConfidence };
 }
@@ -144,9 +150,13 @@ export function holdCopy(x: {
         : "No brain profile configured — the receptionist stays silent until Settings fills one in.";
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
   const why = x.brainCfg
-    ? personHold ? `this person is set to ${x.replyMode}` : `reply mode ${x.replyMode}`
-    : x.configBroken ? "settings could not be read"
-      : x.loadFailed ? "the workspace's settings could not be reached"
+    ? personHold
+      ? `this person is set to ${x.replyMode}`
+      : `reply mode ${x.replyMode}`
+    : x.configBroken
+      ? "settings could not be read"
+      : x.loadFailed
+        ? "the workspace's settings could not be reached"
         : "no persona configured";
   return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
 }

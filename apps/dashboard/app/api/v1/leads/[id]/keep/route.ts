@@ -17,7 +17,10 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
-    const { data, error } = await ctx.supabase.rpc("lead_member_keep", { p_search_id: input.search_id, p_lead_id: leadId });
+    const { data, error } = await ctx.supabase.rpc("lead_member_keep", {
+      p_search_id: input.search_id,
+      p_lead_id: leadId,
+    });
     if (error) throw new Error(`lead_member_keep: ${error.message}`);
     const a = answerOf(data);
     const refused = refusalOf(a);

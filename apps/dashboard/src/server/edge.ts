@@ -25,7 +25,10 @@ export function edgeConfigured(): boolean {
 }
 
 /** The headers a call to the door at `aud` carries. */
-export function edgeHeaders(aud: string, ctx: { workspace?: string | null; user?: string | null } = {}): Record<string, string> {
+export function edgeHeaders(
+  aud: string,
+  ctx: { workspace?: string | null; user?: string | null } = {},
+): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
   const secret = process.env.EDGE_CALL_SECRET;
   if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);

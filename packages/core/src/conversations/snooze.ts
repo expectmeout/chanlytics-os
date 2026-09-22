@@ -4,10 +4,17 @@ import type { Thread, ThreadPorts } from "./ports";
 export const MAX_SNOOZE_MS = 30 * 24 * 3600 * 1000;
 export const NEEDS_UNTIL = "snooze needs a future `until` timestamp.";
 export type SnoozePorts = Pick<ThreadPorts, "snooze" | "record" | "now">;
-export interface SnoozeResult { state: "snoozed"; snooze_until: string; decision_id: string }
+export interface SnoozeResult {
+  state: "snoozed";
+  snooze_until: string;
+  decision_id: string;
+}
 
 /** Snooze: hide from the queue until a wake time. The receptionist stays active. */
-export async function snooze(ports: SnoozePorts, cmd: { conv: Pick<Thread, "id" | "tenant_id" | "paused_until" | "phone_e164">; until: string | undefined }): Promise<SnoozeResult> {
+export async function snooze(
+  ports: SnoozePorts,
+  cmd: { conv: Pick<Thread, "id" | "tenant_id" | "paused_until" | "phone_e164">; until: string | undefined },
+): Promise<SnoozeResult> {
   const { conv } = cmd;
   const now = ports.now();
   const until = cmd.until ? new Date(cmd.until) : null;

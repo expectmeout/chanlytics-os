@@ -28,8 +28,12 @@ import { SETUP_STATE_WORDS } from "./setup";
 import { CALENDAR_FEED_WORDS } from "./calendar";
 import { SOURCE_WORDS, type FactSource } from "./facts";
 import {
-  LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CLASS_WORDS,
-  LEAD_EMAIL_WORDS, LEAD_FIT_WORDS, LEAD_STAGE_WORDS,
+  LEAD_CALL_OUTCOME_TONES,
+  LEAD_CALL_OUTCOME_WORDS,
+  LEAD_CLASS_WORDS,
+  LEAD_EMAIL_WORDS,
+  LEAD_FIT_WORDS,
+  LEAD_STAGE_WORDS,
 } from "./leads";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
@@ -37,30 +41,30 @@ export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger",
 
 /** The families of state a pill can name. */
 export type StateKind =
-  | "thread"      // an Inbox thread, or a Conversations row's outcome
-  | "standing"    // what the receptionist is doing on a thread right now (people.ts rightNow)
-  | "call"        // a phone call, on Live or in Conversations
-  | "person"      // People's smart-list state
-  | "consent"     // a person's answer
-  | "mode"        // the receptionist's mode for one person
+  | "thread" // an Inbox thread, or a Conversations row's outcome
+  | "standing" // what the receptionist is doing on a thread right now (people.ts rightNow)
+  | "call" // a phone call, on Live or in Conversations
+  | "person" // People's smart-list state
+  | "consent" // a person's answer
+  | "mode" // the receptionist's mode for one person
   | "broadcast"
   | "playbook"
-  | "template"    // a WhatsApp template at Meta
+  | "template" // a WhatsApp template at Meta
   | "template_quality" // the rating WhatsApp gives a template (its quality_score)
-  | "setup"       // a Setup row
-  | "role"        // a teammate's role
-  | "tone"        // a tone the caller already holds (a Connections row, the back office), said as itself
-  | "calendar"    // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
+  | "setup" // a Setup row
+  | "role" // a teammate's role
+  | "tone" // a tone the caller already holds (a Connections row, the back office), said as itself
+  | "calendar" // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
   /** Where a fact came from: the chip beside a value on the Business tab. */
   | "fact"
   | "escalation"
   // Leads. The scope had registered none of these and grew a private colour family instead, which drifted in five
   // places: a mailbox still being checked read as "nothing there", a bounce drew fainter than a success, and the
   // accent -- which this file reserves for what is live right now -- sat on Ready, the state every lead starts in.
-  | "lead_class"        // qualified, needs review, left out
-  | "lead_stage"        // ready, contacted, talking, closed
-  | "lead_fit"          // how well the lead matches what the search asked for
-  | "reach"             // a mailbox's state: the Reach column, and the peek's email row
+  | "lead_class" // qualified, needs review, left out
+  | "lead_stage" // ready, contacted, talking, closed
+  | "lead_fit" // how well the lead matches what the search asked for
+  | "reach" // a mailbox's state: the Reach column, and the peek's email row
   | "lead_call_outcome"
   // The row's own state, which its left edge, its tag and its pin on the map all say. The map kept a sixth
   // private family for exactly this, in CSS, keyed by words no tone vocabulary knows.
@@ -94,13 +98,37 @@ const FACT_SOURCE_TONE: Record<FactSource, Tone> = {
  * dists, none of which reads a pill. Marked pure, an unused table is dropped.
  */
 const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => ({
-  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  thread: {
+    escalated: "warn",
+    needs_you: "warn",
+    snoozed: "info",
+    done: "plain",
+    open: "plain",
+    handled: "plain",
+    booked: "ok",
+    decided: "ok",
+  },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
+  call: {
+    live: "accent",
+    missed: "plain",
+    handled: "plain",
+    stale: "plain",
+    ended: "plain",
+    abandoned: "warn",
+    callback: "warn",
+  },
   person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
   consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
-  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  broadcast: {
+    pending_approval: "warn",
+    scheduled: "info",
+    sending: "accent",
+    sent: "ok",
+    canceled: "plain",
+    failed: "danger",
+  },
   // Running is a standing rule that is on -- healthy, ok. It is not happening
   // right now: its RUN is, while it sends, and that is the broadcast's own
   // "sending", which keeps the accent.
@@ -132,16 +160,51 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
 
 /** The words a pill says when the page has none better. Marked pure for the reason `TONE_OF` is. */
 const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE__ */ (() => ({
-  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
-  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
+  thread: {
+    escalated: "Needs you",
+    needs_you: "Needs you",
+    snoozed: "Snoozed",
+    done: "Done",
+    open: "Customer wrote last",
+    handled: "Receptionist replied",
+    booked: "Booked",
+    decided: "Handled",
+  },
+  standing: {
+    escalated: "Needs you",
+    queued: "Reply queued",
+    snoozed: "Snoozed",
+    paused: "Paused",
+    silent: "Silent",
+    answering: "Answering",
+  },
+  call: {
+    live: "Live",
+    missed: "Never connected",
+    handled: "Handled",
+    stale: "No word from the provider",
+    ended: "Ended",
+    abandoned: "Hung up early",
+    callback: "Asked for a call back",
+  },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
   playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
-  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
-  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
+  template: {
+    approved: "Approved",
+    pending: "In review",
+    rejected: "Rejected",
+    paused: "Paused",
+    disabled: "Disabled",
+  },
+  template_quality: {
+    GREEN: "High quality",
+    YELLOW: "Medium quality",
+    RED: "Low quality",
+    UNKNOWN: "Quality not rated yet",
+  },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   calendar: CALENDAR_FEED_WORDS,

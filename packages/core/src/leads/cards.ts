@@ -17,15 +17,43 @@ import { zctaCenter } from "./geo";
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
 export const MAPS_FIELDS = [
-  "title", "categoryName", "neighborhood", "street", "city", "state", "postalCode", "countryCode",
-  "phoneUnformatted", "phone", "phones", "website", "domain", "emails", "instagrams", "placeId",
-  "totalScore", "reviewsCount", "permanentlyClosed", "temporarilyClosed", "location",
+  "title",
+  "categoryName",
+  "neighborhood",
+  "street",
+  "city",
+  "state",
+  "postalCode",
+  "countryCode",
+  "phoneUnformatted",
+  "phone",
+  "phones",
+  "website",
+  "domain",
+  "emails",
+  "instagrams",
+  "placeId",
+  "totalScore",
+  "reviewsCount",
+  "permanentlyClosed",
+  "temporarilyClosed",
+  "location",
   // What the listing shows about the business itself (D2): its own words, hours, a photo, the spread of its
   // reviews, price, the socials beside Instagram, whether the owner claimed the listing, its rank for the term
   // and its Maps page. All in the item the run already returns; nothing more is asked of the provider. None of
   // it reaches the judge (JUDGE_FACT_KEYS is the judge's whole world); it is kept for the owner to read.
-  "description", "ownerDescription", "openingHours", "imageUrl", "reviewsDistribution", "price",
-  "facebooks", "linkedIns", "tiktoks", "claimThisBusiness", "rank", "url",
+  "description",
+  "ownerDescription",
+  "openingHours",
+  "imageUrl",
+  "reviewsDistribution",
+  "price",
+  "facebooks",
+  "linkedIns",
+  "tiktoks",
+  "claimThisBusiness",
+  "rank",
+  "url",
 ] as const;
 export const CHECKER_FIELDS = ["email", "status", "is_catch_all"] as const;
 /** This actor refuses a cap under $0.50 (PRD §10.1). */
@@ -106,7 +134,13 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
       return {
         searchStringsArray: [term],
         ...(center
-          ? { customGeolocation: { type: "Point", coordinates: [center.lng, center.lat], radiusKm: Math.max(1, Math.round(plan.area.radius_m / 100) / 10) } }
+          ? {
+              customGeolocation: {
+                type: "Point",
+                coordinates: [center.lng, center.lat],
+                radiusKm: Math.max(1, Math.round(plan.area.radius_m / 100) / 10),
+              },
+            }
           : { locationQuery: plan.area.query }),
         maxCrawledPlacesPerSearch: places,
         language: "en",
@@ -155,7 +189,13 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
           const d = obj(o.reviewsDistribution);
           if (!d) return null;
           const n = (k: string) => num(d[k]) ?? 0;
-          return { one: n("oneStar"), two: n("twoStar"), three: n("threeStar"), four: n("fourStar"), five: n("fiveStar") };
+          return {
+            one: n("oneStar"),
+            two: n("twoStar"),
+            three: n("threeStar"),
+            four: n("fourStar"),
+            five: n("fiveStar"),
+          };
         })(),
         price: str(o.price)?.slice(0, 8) ?? null,
         facebook: strs(o.facebooks)[0] ?? null,
@@ -179,7 +219,14 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
         const email = str(o?.email)?.toLowerCase() ?? null;
         if (!o || !email) return null;
         const status = (str(o.status) ?? "").toLowerCase();
-        const state = o.is_catch_all === true || status === "risky" ? "catch_all" : status === "valid" ? "ok" : status === "invalid" ? "invalid" : "unknown";
+        const state =
+          o.is_catch_all === true || status === "risky"
+            ? "catch_all"
+            : status === "valid"
+              ? "ok"
+              : status === "invalid"
+                ? "invalid"
+                : "unknown";
         return { email, state };
       },
     },

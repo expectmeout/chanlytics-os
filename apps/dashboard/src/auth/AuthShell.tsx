@@ -59,8 +59,8 @@ function AuthPanel() {
       <div className="auth-aside-inner">
         <h2 className="auth-aside-title">The work happens while you are with a customer.</h2>
         <p className="auth-aside-lead">
-          Chanlytics answers your messages and calls, books what it can, and hands you
-          anything it should not decide alone.
+          Chanlytics answers your messages and calls, books what it can, and hands you anything it should not decide
+          alone.
         </p>
         <div className="auth-show" aria-hidden="true">
           <div className="auth-show-head">

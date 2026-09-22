@@ -34,7 +34,10 @@ export interface GatewayCall {
     messages: unknown[];
     tools?: unknown[];
     tool_choice?: unknown;
-    output_config?: { effort?: "low" | "medium" | "high"; format?: { type: "json_schema"; schema: Record<string, unknown> } };
+    output_config?: {
+      effort?: "low" | "medium" | "high";
+      format?: { type: "json_schema"; schema: Record<string, unknown> };
+    };
   };
   signal?: AbortSignal;
 }
@@ -67,17 +70,33 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     res = await fetch(`${edgeUrl()}/api/admin/llm`, {
       method: "POST",
       headers: edgeHeaders("/api/admin/llm", { workspace: call.tenantId, user: call.userId }),
-      body: JSON.stringify({ tenant_id: call.tenantId, user_id: call.userId, purpose: call.purpose ?? "ask", request: call.request }),
+      body: JSON.stringify({
+        tenant_id: call.tenantId,
+        user_id: call.userId,
+        purpose: call.purpose ?? "ask",
+        request: call.request,
+      }),
       signal: call.signal,
     });
   } catch (e) {
     throw new GatewayRefused({ kind: "unreachable", message: e instanceof Error ? e.message : String(e) });
   }
   if (!res.ok || !res.body) {
-    const j = (await res.json().catch(() => ({}))) as { error?: unknown; used?: number; cap?: number; message?: string };
-    if (res.status === 429 && j.error === "ask_budget") throw new GatewayRefused({ kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 });
+    const j = (await res.json().catch(() => ({}))) as {
+      error?: unknown;
+      used?: number;
+      cap?: number;
+      message?: string;
+    };
+    if (res.status === 429 && j.error === "ask_budget")
+      throw new GatewayRefused({ kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 });
     if (res.status === 503 && j.error === "no_model_key") throw new GatewayRefused({ kind: "no_key" });
-    const err = j.error && typeof j.error === "object" ? (j.error as { message?: string }).message : typeof j.error === "string" ? j.error : j.message;
+    const err =
+      j.error && typeof j.error === "object"
+        ? (j.error as { message?: string }).message
+        : typeof j.error === "string"
+          ? j.error
+          : j.message;
     throw new GatewayRefused({ kind: "bad_request", message: `${res.status} ${err ?? "model refused"}` });
   }
   const reader = res.body.getReader();

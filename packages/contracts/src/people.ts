@@ -159,7 +159,10 @@ export const PERSON_MODE_LABELS: Record<PersonMode, string> = { auto: "Answer", 
  * the bulk menu, a pill and an Ask receipt all say these: the mode was worded four ways on one journey
  * (Answer and Answer them, Never and Stay out, "Use the workspace setting" and "Follow the workspace").
  */
-export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace",
+};
 
 export function asPersonMode(s: string | null | undefined): PersonMode | null {
   return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
@@ -336,21 +339,46 @@ export function bookingLinkAction(
   replyVia: "WhatsApp" | "Text" | "Email" | null,
   win: { open: boolean; hoursLeft: number } | null,
 ): { label: string; title: string; ready: boolean } {
-  if (replyVia === "Email") return { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true };
-  if (replyVia === "Text") return { label: "Text the booking link", title: "Opens the thread with the link ready to send as a text", ready: true };
-  if (win && win.open) return { label: "Text the booking link", title: `Opens the thread with the link ready to send · ${win.hoursLeft}h left in their reply window`, ready: true };
+  if (replyVia === "Email")
+    return {
+      label: "Email the booking link",
+      title: "Opens the thread with the link ready to send by email",
+      ready: true,
+    };
+  if (replyVia === "Text")
+    return {
+      label: "Text the booking link",
+      title: "Opens the thread with the link ready to send as a text",
+      ready: true,
+    };
+  if (win && win.open)
+    return {
+      label: "Text the booking link",
+      title: `Opens the thread with the link ready to send · ${win.hoursLeft}h left in their reply window`,
+      ready: true,
+    };
   return {
     label: "Send the booking-link template",
-    title: "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
+    title:
+      "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
     ready: false,
   };
 }
 
 /** How a reply goes, in the words the page uses for the wire. */
-const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email",
+};
 
 /** A channel in the owner's words. */
-export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email",
+};
 
 /**
  * Where a person first came from, as people_list decides it once (00138): the
@@ -380,16 +408,27 @@ export function cameFromOf(r: { came_from?: string | null }): { key: PersonCameF
   return { key: k as PersonCameFrom, label: PERSON_CAME_FROM_WORDS[k as PersonCameFrom] };
 }
 
-type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
+type StandingRow = Pick<
+  PersonRowDto,
+  "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason"
+>;
 
 /** The latest thread's standing, from the one rule every surface reads (standing.ts). */
 export function personStanding(r: StandingRow, nowMs: number): StandingVerdict {
-  return standingOf({
-    state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : (r.latest_state ?? "open"),
-    paused_until: r.latest_paused_until,
-    assignee_user_id: r.latest_assignee_user_id,
-    open_escalation: !!r.open_escalation_reason,
-  }, nowMs);
+  return standingOf(
+    {
+      state:
+        r.latest_state === "snoozed"
+          ? "snoozed"
+          : r.needs_human || r.latest_state === "needs_human"
+            ? "needs_human"
+            : (r.latest_state ?? "open"),
+      paused_until: r.latest_paused_until,
+      assignee_user_id: r.latest_assignee_user_id,
+      open_escalation: !!r.open_escalation_reason,
+    },
+    nowMs,
+  );
 }
 
 /** A person has the thread: they claimed it, or their own reply paused the receptionist. */
@@ -434,13 +473,28 @@ function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastCo
     return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned · ${ago(k, tz, nowMs)}` };
   }
   const who: PersonLastContact["who"] =
-    r.last_message_direction === "inbound" ? "they"
-    : r.last_message_sender === "human" ? "you"
-    : r.last_message_sender === "ai" ? "receptionist"
-    : "system";
+    r.last_message_direction === "inbound"
+      ? "they"
+      : r.last_message_sender === "human"
+        ? "you"
+        : r.last_message_sender === "ai"
+          ? "receptionist"
+          : "system";
   const verb =
-    who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  return { ts: m as number, at: r.last_message_at, kind: "message", who, label: `${verb} · ${ago(m as number, tz, nowMs)}` };
+    who === "they"
+      ? "They wrote"
+      : who === "you"
+        ? "You replied"
+        : who === "receptionist"
+          ? "Receptionist replied"
+          : "We sent";
+  return {
+    ts: m as number,
+    at: r.last_message_at,
+    kind: "message",
+    who,
+    label: `${verb} · ${ago(m as number, tz, nowMs)}`,
+  };
 }
 
 export interface PersonFirstContact {
@@ -457,7 +511,8 @@ function firstContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonFirst
   const f = ts(r.first_contact_at);
   if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !r.has_backfill };
   const e = ts(r.earliest_row_at);
-  if (e !== null && r.has_backfill) return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
+  if (e !== null && r.has_backfill)
+    return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
   if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !r.has_backfill };
   return { ts: null, label: "—", estimate: true, evidence: false };
 }
@@ -538,7 +593,8 @@ export function offersYesRefusal(source: string | null | undefined): string | nu
  */
 export const OWN_MESSAGE_REFUSALS = {
   /** Their own message, with no message named. */
-  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  missing:
+    "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
   /** The message named is not one this person sent this workspace. */
   notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
   /** The message named has nothing written in it. */
@@ -546,11 +602,15 @@ export const OWN_MESSAGE_REFUSALS = {
   /** A message named beside another way of answering. */
   notOwnMessage: "Only an answer in their own message names a message.",
   /** Their own message, for many people at once: one message cannot be every person's. */
-  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.",
+  batch:
+    "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.",
 } as const;
 
 /** Why an answer given this way cannot be recorded with this message -- or null when it can. */
-export function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null {
+export function ownMessageRefusal(
+  source: string | null | undefined,
+  messageId: string | null | undefined,
+): string | null {
   if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
   return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
 }
@@ -572,27 +632,34 @@ function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
   const how = consentSourceLabel(r.consent_source);
   const sub =
     state === "opted_out"
-      ? (r.consent_source === "customer_message"
-          ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}`
-          : `${how ? `${how} · ` : ""}${date}`)
-    : state === "opted_in" ? `${how ? `${how} · ` : ""}${date}`
-    : "no opt-in recorded";
+      ? r.consent_source === "customer_message"
+        ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}`
+        : `${how ? `${how} · ` : ""}${date}`
+      : state === "opted_in"
+        ? `${how ? `${how} · ` : ""}${date}`
+        : "no opt-in recorded";
   // The offers answer, judged on its own. A STOP or a do-not-call stops
   // everything, so it shows here as opted_out too -- but declining offers never
   // reads back as an opt-out of conversation.
   const marketing: PersonConsent["marketing"] =
-    dnc || r.consent === "opted_out" ? "opted_out"
-    : r.marketing_consent === "opted_in" ? "opted_in"
-    : r.marketing_consent === "opted_out" ? "opted_out"
-    : "unknown";
+    dnc || r.consent === "opted_out"
+      ? "opted_out"
+      : r.marketing_consent === "opted_in"
+        ? "opted_in"
+        : r.marketing_consent === "opted_out"
+          ? "opted_out"
+          : "unknown";
   const mWhen = ts(r.marketing_consent_updated_at ?? null);
   const mHow = consentSourceLabel(r.marketing_consent_source ?? null);
   const marketingSub =
-    marketing === "opted_in" ? `${mHow ? `${mHow} · ` : ""}${mWhen !== null ? fmtDate(mWhen, tz, nowMs) : "recorded"}`
-    : marketing === "opted_out" ? "no offers"
-    : "never asked about offers";
+    marketing === "opted_in"
+      ? `${mHow ? `${mHow} · ` : ""}${mWhen !== null ? fmtDate(mWhen, tz, nowMs) : "recorded"}`
+      : marketing === "opted_out"
+        ? "no offers"
+        : "never asked about offers";
   return {
-    state, dnc,
+    state,
+    dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
     sub,
     source: r.consent_source ?? null,
@@ -635,10 +702,7 @@ function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
  * by the compiler at every call site, the way `businessRecordProblems` requires
  * its registration path.
  */
-export function mayReceive(
-  r: Pick<PersonRowVM, "consent" | "phone">,
-  purpose: SendPurpose,
-): boolean {
+export function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): boolean {
   return whyNotReceive(r, purpose) === null;
 }
 
@@ -651,10 +715,7 @@ export function mayReceive(
  */
 export type NotReceived = "no_number" | "stopped" | "no_yes";
 
-export function whyNotReceive(
-  r: Pick<PersonRowVM, "consent" | "phone">,
-  purpose: SendPurpose,
-): NotReceived | null {
+export function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: SendPurpose): NotReceived | null {
   // Every audience today leaves by WhatsApp or text, and both need a number. A
   // person with an address and none is reached when the email wire carries
   // reminders (docs/plans/2026-09-17-email-channel.md, §11), not before.
@@ -674,7 +735,11 @@ export function whyNotReceive(
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
 export function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: SendPurpose): boolean {
-  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+  return mayMessageFor(
+    { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
+    purpose,
+    { proactive: true },
+  ).ok;
 }
 
 export type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
@@ -688,7 +753,8 @@ function receptionistOf(r: PersonRowDto, tz: string, nowMs: number): PersonRecep
   // A thread a person owns is theirs, whatever flagged it — the Inbox says
   // "you have it" for the same row, and the two must not disagree.
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
-  if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
+  if (r.open_escalation_reason)
+    return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
   if (r.needs_human) return { tone: "escalated", label: "Waiting for a person" };
   if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
   const snooze = ts(r.latest_snooze_until);
@@ -697,8 +763,10 @@ function receptionistOf(r: PersonRowDto, tz: string, nowMs: number): PersonRecep
   }
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
   // "Answering" was shown for a person the owner had set to Never.
-  if (r.effective_reply_mode === "never") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
-  if (r.effective_reply_mode === "ask") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
+  if (r.effective_reply_mode === "never")
+    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
+  if (r.effective_reply_mode === "ask")
+    return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }
 
@@ -786,19 +854,30 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
   const v = r.visits ?? null;
   const calendar = v ? v.state : "none";
   // Their message, or the call they placed. A call the owner made is not them asking.
-  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
+  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter(
+    (x): x is number => x !== null,
+  );
   const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
   const stateDetail =
-    state === "needs_you" ? (r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person")
-    : state === "waiting_on_you" ? "you own the thread and they wrote last"
-    : state === "opted_out" ? consent.sub
-    : state === "new" ? `first contact ${first.label}`
-    : state === "quiet" ? (last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, tz, nowMs)}`)
-    : "";
+    state === "needs_you"
+      ? r.open_escalation_reason
+        ? reasonShort(r.open_escalation_reason)
+        : "waiting for a person"
+      : state === "waiting_on_you"
+        ? "you own the thread and they wrote last"
+        : state === "opted_out"
+          ? consent.sub
+          : state === "new"
+            ? `first contact ${first.label}`
+            : state === "quiet"
+              ? last.ts === null
+                ? "no contact recorded"
+                : `last contact ${ago(last.ts, tz, nowMs)}`
+              : "";
   return {
     id: r.id,
     real: true,
@@ -840,10 +919,15 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
       const via = replyChannelOfRow(r);
       if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
       const w = replyWindow(via, r.latest_wa_inbound_at, now);
-      const win = { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 };
+      const win = {
+        open: w.open,
+        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0,
+      };
       return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
     })(),
-    channelWords: channelsOf(r).map((c) => PERSON_CHANNEL_WORDS[c]).join(" · "),
+    channelWords: channelsOf(r)
+      .map((c) => PERSON_CHANNEL_WORDS[c])
+      .join(" · "),
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -873,15 +957,39 @@ export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }
  * one is connected; the booking is the conversion, and a visit is the fact
  * a salon cares about — a regular who never texts is not quiet.
  */
-export const PEOPLE_LISTS: readonly { id: string; label: string; group: PeopleListGroup; needsCalendar?: boolean; test: (vm: PersonRowVM) => boolean }[] = [
+export const PEOPLE_LISTS: readonly {
+  id: string;
+  label: string;
+  group: PeopleListGroup;
+  needsCalendar?: boolean;
+  test: (vm: PersonRowVM) => boolean;
+}[] = [
   { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
   { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
-  { id: "booked_week", label: "Booked this week", group: "journey", needsCalendar: true, test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7 },
+  {
+    id: "booked_week",
+    label: "Booked this week",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7,
+  },
   { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
-  { id: "asked_never_booked", label: "Asked, never booked", group: "journey", needsCalendar: true, test: (v) => v.askedNotBooked },
+  {
+    id: "asked_never_booked",
+    label: "Asked, never booked",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => v.askedNotBooked,
+  },
   // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  { id: "lapsed", label: "Lapsed", group: "journey", needsCalendar: true, test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45 },
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    group: "journey",
+    needsCalendar: true,
+    test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
+  },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
@@ -936,10 +1044,18 @@ const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts
  * `answered`: what a step that is a door to the yes to offers becomes once everyone on the list has given it. Asking
  * again would ask for an answer they gave (#663's rule), so the step is the list's broadcast instead.
  */
-const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean; text?: string; answered?: { cta: string; to: string } }> = {
+const LIST_STEPS: Record<
+  string,
+  { cta: string; to: string; broadcast?: boolean; text?: string; answered?: { cta: string; to: string } }
+> = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts.", answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" } },
+  new_week: {
+    cta: "Get their yes",
+    to: GET_YES_ROUTE,
+    text: "Their yes to offers is the phrase and the QR on Broadcasts.",
+    answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" },
+  },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
@@ -948,7 +1064,12 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
-  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes.", answered: OFFERS_STEP },
+  opted_in: {
+    cta: "Get their yes to offers",
+    to: GET_YES_ROUTE,
+    text: "They answer and hear about their own visits. Offers need a second, separate yes.",
+    answered: OFFERS_STEP,
+  },
   offers_ok: OFFERS_STEP,
 };
 
@@ -965,7 +1086,8 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
 export function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null {
   const step = LIST_STEPS[id];
   if (!step) return null;
-  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing"))) return broadcastStep(step.answered.cta, step.answered.to, members);
+  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing")))
+    return broadcastStep(step.answered.cta, step.answered.to, members);
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
   return broadcastStep(step.cta, step.to, members);
 }
@@ -1025,15 +1147,24 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
     if (members.length && !saidYes) {
       return {
         text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
-        cta: "Get their yes", to: GET_YES_ROUTE, enabled: true,
+        cta: "Get their yes",
+        to: GET_YES_ROUTE,
+        enabled: true,
       };
     }
     return {
       text: members.length ? noNumberWords("this list", "marketing") : "Nobody here right now.",
-      cta, to, enabled: false,
+      cta,
+      to,
+      enabled: false,
     };
   }
-  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta, to, enabled: true };
+  return {
+    text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`,
+    cta,
+    to,
+    enabled: true,
+  };
 }
 
 export interface PeopleAggregates {
@@ -1072,7 +1203,16 @@ export function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggr
       if (v.state === "new") reachedWeekNew++;
     }
   }
-  return { total: rows.length, needsYou, needsYouOldestMs: oldest, newThisMonth, reachedWeek, reachedWeekNew, booked, askedNotBooked };
+  return {
+    total: rows.length,
+    needsYou,
+    needsYouOldestMs: oldest,
+    newThisMonth,
+    reachedWeek,
+    reachedWeekNew,
+    booked,
+    askedNotBooked,
+  };
 }
 
 const RECENCY_BUCKETS = [
@@ -1143,18 +1283,24 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
   let sentence: string;
   let quoted = false;
-  if (p.quote) { sentence = oneLine(p.quote, 160); quoted = true; }
-  else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  if (p.quote) {
+    sentence = oneLine(p.quote, 160);
+    quoted = true;
+  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
-  else if (p.calls > 0) sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else if (p.calls > 0)
+    sentence =
+      p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
   else sentence = "Nothing written yet";
   const r = p.receptionist;
   let status: string[];
   if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
-  else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
+  else if (r.tone === "answering")
+    status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
   else status = r.label.split(", ");
-  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, tz, nowMs)}`];
+  if (p.state === "needs_you" && p.needsYouSinceMs !== null)
+    status = [...status, `since ${clock(p.needsYouSinceMs, tz, nowMs)}`];
   const cta: AttentionRowVM["cta"] = !p.threadId
     ? null
     : p.state === "needs_you" || p.state === "waiting_on_you"
@@ -1165,14 +1311,19 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
 
 /* -------------------------------- profile -------------------------------- */
 
-export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+export type TimelineKind =
+  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
 
 /**
  * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
  * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
  */
 export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
-export const TIMELINE_FILTERS: readonly { id: TimelineFilterId; label: string; kinds: readonly TimelineKind[] | null }[] = [
+export const TIMELINE_FILTERS: readonly {
+  id: TimelineFilterId;
+  label: string;
+  kinds: readonly TimelineKind[] | null;
+}[] = [
   { id: "all", label: "All", kinds: null },
   { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
   { id: "calls", label: "Calls", kinds: ["call"] },
@@ -1195,12 +1346,27 @@ export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
   const offers = c.purpose === "marketing";
   const text =
-    c.consent === "opted_in" ? (offers ? "Said yes to offers and news" : "Said yes to messages about their visit")
-    : c.consent === "opted_out" ? (offers ? "Said no to offers" : "Said stop — nothing goes out to them")
-    : offers ? "Offers: back to not asked" : "Back to not asked";
+    c.consent === "opted_in"
+      ? offers
+        ? "Said yes to offers and news"
+        : "Said yes to messages about their visit"
+      : c.consent === "opted_out"
+        ? offers
+          ? "Said no to offers"
+          : "Said stop — nothing goes out to them"
+        : offers
+          ? "Offers: back to not asked"
+          : "Back to not asked";
   let sub: string | undefined;
   if (c.source === "customer_message") {
-    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : c.channel === "email" ? "by email" : "in their own message";
+    const where =
+      c.channel === "sms"
+        ? "by text"
+        : c.channel === "whatsapp"
+          ? "on WhatsApp"
+          : c.channel === "email"
+            ? "by email"
+            : "in their own message";
     sub = `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
@@ -1291,7 +1457,8 @@ function ownMessagesOf(d: PersonDetailDto, stamp: (t: number) => { time: string;
   const found: { t: number; vm: OwnMessageVM }[] = [];
   for (const c of d.conversations) {
     for (const m of c.messages) {
-      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system") continue;
+      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system")
+        continue;
       const said = [m.body, m.media?.caption].map((s) => (s ?? "").replace(/\s+/g, " ").trim()).find(Boolean);
       const t = ts(messageAt(m));
       if (!said || t === null) continue;
@@ -1308,7 +1475,10 @@ function ownMessagesOf(d: PersonDetailDto, stamp: (t: number) => { time: string;
       });
     }
   }
-  return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
+  return found
+    .sort((a, b) => b.t - a.t)
+    .slice(0, OWN_MESSAGE_CHOICES)
+    .map((f) => f.vm);
 }
 
 const DECISION_LABELS: Record<string, { who: string; text: string }> = {
@@ -1344,7 +1514,11 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     // A dial that never connected is not a call; people_list agrees, and the
     // profile used to count one more than the list.
     call_count: d.calls.length ? d.calls.filter((k) => k.status !== "not_connected").length : d.row.call_count,
-    call_seconds: d.calls.length ? Math.round(d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000) : d.row.call_seconds,
+    call_seconds: d.calls.length
+      ? Math.round(
+          d.calls.filter((k) => k.status !== "not_connected").reduce((a, k) => a + (k.duration_ms ?? 0), 0) / 1000,
+        )
+      : d.row.call_seconds,
     escalation_count: d.escalations.length || d.row.escalation_count,
     visits: d.visits ?? d.row.visits ?? null,
   };
@@ -1363,10 +1537,26 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       const t = ts(messageAt(m));
       if (t === null) continue;
       const kind: TimelineKind =
-        m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
-      const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
+        m.sender === "customer"
+          ? "customer"
+          : m.sender === "human"
+            ? "you"
+            : m.sender === "ai"
+              ? "receptionist"
+              : "system";
+      const who =
+        kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageWords(m), ...(sub ? { sub } : {}), link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
+      items.push({
+        id: `m-${m.id}`,
+        ts: t,
+        ...stamp(t),
+        kind,
+        who,
+        text: messageWords(m),
+        ...(sub ? { sub } : {}),
+        link: { label: "Open the thread", to: `inbox/th-${c.id}` },
+      });
     }
   }
 
@@ -1377,15 +1567,28 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
-    const sentence = missed ? "The call never connected." : wanted || (summary ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary) : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    const sentence = missed
+      ? "The call never connected."
+      : wanted ||
+        (summary
+          ? (summary.split(/(?<=[.!?])\s/)[0] ?? summary)
+          : k.in_voicemail
+            ? "Reached voicemail."
+            : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
-      who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
+      who: missed
+        ? "Missed call"
+        : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
-      sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
+      sub: missed
+        ? "Never connected"
+        : k.recording?.fetch_state === "stored"
+          ? "Recording and transcript in Conversations"
+          : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` },
     });
   }
@@ -1409,7 +1612,9 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   for (const dec of d.decisions) {
     const label = DECISION_LABELS[dec.verb];
     if (!label) continue;
-    const mine = (dec.subject_type === "conversation" && convIds.has(dec.subject_id)) || (dec.subject_type === "contact" && dec.subject_id === row.id);
+    const mine =
+      (dec.subject_type === "conversation" && convIds.has(dec.subject_id)) ||
+      (dec.subject_type === "contact" && dec.subject_id === row.id);
     if (!mine) continue;
     const t = ts(dec.created_at);
     if (t === null) continue;
@@ -1423,7 +1628,15 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const t = ts(c.at);
     if (t === null) continue;
     const w = consentChangeWords(c);
-    items.push({ id: `c-${c.id}`, ts: t, ...stamp(t), kind: "consent", who: w.who, text: w.text, ...(w.sub ? { sub: w.sub } : {}) });
+    items.push({
+      id: `c-${c.id}`,
+      ts: t,
+      ...stamp(t),
+      kind: "consent",
+      who: w.who,
+      text: w.text,
+      ...(w.sub ? { sub: w.sub } : {}),
+    });
   }
 
   // Their visits, from the calendar: what happened in the chair belongs on
@@ -1435,7 +1648,11 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;
       items.push({
-        id: `v-${v.id}`, ts: t, ...stamp(t), kind: "visit", who: "Calendar",
+        id: `v-${v.id}`,
+        ts: t,
+        ...stamp(t),
+        kind: "visit",
+        who: "Calendar",
         text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
         sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
@@ -1444,13 +1661,26 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   }
   if (d.added) {
     const t = ts(d.added.at);
-    if (t !== null) items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: "Calendar", text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand" });
+    if (t !== null)
+      items.push({
+        id: "added",
+        ts: t,
+        ...stamp(t),
+        kind: "system",
+        who: "Calendar",
+        text:
+          d.added.source === "calendar"
+            ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}`
+            : "Added by hand",
+      });
   }
 
   items.sort((a, b) => b.ts - a.ts);
 
   // Last exchange: the customer's last line and the last reply, verbatim.
-  const latestConv = [...d.conversations].sort((a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0))[0];
+  const latestConv = [...d.conversations].sort(
+    (a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0),
+  )[0];
   let customer: PersonVM["lastExchange"]["customer"] = null;
   let reply: PersonVM["lastExchange"]["reply"] = null;
   if (latestConv) {
@@ -1459,9 +1689,19 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       if (m.type === "call_summary") continue;
       const t = ts(messageAt(m));
       if (t === null) continue;
-      if (!customer && m.direction === "inbound" && m.body) customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
-      if (!reply && m.direction === "outbound" && m.status !== "canceled" && (m.sender === "ai" || m.sender === "human")) {
-        reply = { text: messageText(m), at: `${stamp(t).time} ${stamp(t).day}`, who: m.sender === "ai" ? "Receptionist" : "You" };
+      if (!customer && m.direction === "inbound" && m.body)
+        customer = { text: m.body, at: `${stamp(t).time} ${stamp(t).day}` };
+      if (
+        !reply &&
+        m.direction === "outbound" &&
+        m.status !== "canceled" &&
+        (m.sender === "ai" || m.sender === "human")
+      ) {
+        reply = {
+          text: messageText(m),
+          at: `${stamp(t).time} ${stamp(t).day}`,
+          who: m.sender === "ai" ? "Receptionist" : "You",
+        };
       }
       if (customer && reply) break;
     }
@@ -1482,7 +1722,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // claims the thread, and its state stays needs_human until handed back --
   // read "Needs you · Stopped, and nobody has taken the thread yet".
   if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
+    rightNow = {
+      tone: "paused",
+      title: "Paused, a person owns this thread",
+      detail: "A person owns this thread; automatic replies resume when it is handed back.",
+      cta: openThread,
+    };
   } else if (r.open_escalation_reason) {
     const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
     rightNow = {
@@ -1492,16 +1737,39 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       cta: openThread,
     };
   } else if (r.needs_human) {
-    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "Stopped, and nobody has taken the thread yet.", cta: openThread };
+    rightNow = {
+      tone: "escalated",
+      title: "Waiting for a person",
+      detail: "Stopped, and nobody has taken the thread yet.",
+      cta: openThread,
+    };
   } else if (r.queued_reply_at) {
     const q = ts(r.queued_reply_at);
-    rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`, cta: openThread };
+    rightNow = {
+      tone: "queued",
+      title: "Reply sending",
+      detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`,
+      cta: openThread,
+    };
   } else if (base.receptionist.tone === "snoozed") {
-    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
+    rightNow = {
+      tone: "snoozed",
+      title: "Snoozed",
+      detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`,
+      cta: openThread,
+    };
   } else if (base.consent.state === "opted_out") {
     // The consent ask on the rail carries the date and the words; here, only what it means for the thread.
-    rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop — nothing goes out to them until they ask again.", cta: null };
-  } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
+    rightNow = {
+      tone: "silent",
+      title: "Silent, they opted out",
+      detail: "They said stop — nothing goes out to them until they ask again.",
+      cta: null,
+    };
+  } else if (
+    ["never", "ask"].includes(d.receptionist_mode ?? "") ||
+    ["never", "ask"].includes(d.workspace_reply_mode ?? "")
+  ) {
     // "Answering" sat two inches from "Receptionist for Dani: Never".
     const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
@@ -1515,7 +1783,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       cta: openThread,
     };
   } else {
-    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically.", cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null };
+    rightNow = {
+      tone: "answering",
+      title: "Answering",
+      detail: "New messages are answered automatically.",
+      cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null,
+    };
   }
 
   // Facts strip.
@@ -1539,22 +1812,54 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // Where a reply goes, exactly: the profile knows their last written words, the
   // row only which wires they have used (replyChannelOfRow says why it reads the
   // strictest window when it cannot tell).
-  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const via =
+    replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
   const exactWindow = via ? replyWindow(via, r.latest_wa_inbound_at, now) : null;
   const lc = base.lastContact;
-  const lastMeta = lc.who === "they" ? (lc.kind === "call" ? "they phoned" : "they wrote") : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
+  const lastMeta =
+    lc.who === "they"
+      ? lc.kind === "call"
+        ? "they phoned"
+        : "they wrote"
+      : lc.who === "you"
+        ? "you replied"
+        : lc.who === "receptionist"
+          ? "receptionist replied"
+          : lc.who === "system"
+            ? "we sent"
+            : "";
   // "Held for you" is the word the People row puts beside the state, for a thread a person owns or a mode that holds.
-  const toneWord: Record<ReceptionistTone, string> = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Held for you", silent: "Silent" };
+  const toneWord: Record<ReceptionistTone, string> = {
+    answering: "Answering",
+    escalated: "Waiting",
+    queued: "Queued",
+    snoozed: "Snoozed",
+    paused: "Held for you",
+    silent: "Silent",
+  };
   // Under the word, what the label says after it ("set to Never", "a person owns the thread"), not the label again.
-  const receptionistMeta = (label: string) => (label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase());
+  const receptionistMeta = (label: string) =>
+    label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
   const facts: PersonFact[] = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
     { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, tz, nowMs) : "—", meta: lastMeta },
-    { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
-    { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
+    {
+      label: "Conversations",
+      value: base.threads,
+      meta: base.escalations ? `${base.escalations} needed you` : "none needed you",
+    },
+    {
+      label: "Calls",
+      value: base.calls,
+      meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls",
+    },
     // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
     // again, five times on one profile.
-    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label) },
+    {
+      label: "Receptionist",
+      value: toneWord[base.receptionist.tone],
+      meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label),
+    },
   ];
 
   // About rail.
@@ -1564,18 +1869,28 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",
-    v: base.firstContact.ts !== null
-      ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} · ${firstChannel}`
-      : "—",
+    v:
+      base.firstContact.ts !== null
+        ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} · ${firstChannel}`
+        : "—",
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
   if (base.hasChat && via && exactWindow) {
     // Only WhatsApp has a window. The row said WhatsApp's for everybody, so a
     // person who had only ever emailed read "Closed · template only".
-    const hours = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;
+    const hours = exactWindow.closesAtIso
+      ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000))
+      : 0;
     about.push({
       k: "Reply window",
-      v: via === "email" ? "None — replies go by email" : via === "sms" ? "None — a text can be answered any time" : exactWindow.open ? `Open · ${hours}h left` : "Closed · template only",
+      v:
+        via === "email"
+          ? "None — replies go by email"
+          : via === "sms"
+            ? "None — a text can be answered any time"
+            : exactWindow.open
+              ? `Open · ${hours}h left`
+              : "Closed · template only",
     });
   }
 
@@ -1584,30 +1899,55 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // is given when they call.
   if (d.visits) {
     const v = d.visits;
-    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
+    const nextLine = v.next
+      ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}`
+      : v.state === "ok"
+        ? "Nothing on the calendar"
+        : "Calendar could not be read";
     facts.push({
       label: "Next visit",
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
       // The cell is narrow: the time here, the service in About.
-      meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " · by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read",
+      meta: v.next
+        ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " · by name" : ""}`
+        : v.state === "ok"
+          ? "none booked"
+          : "could not be read",
     });
     about.push({ k: "Next visit", v: nextLine });
     if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
   }
   if (d.added) {
     const at = ts(d.added.at);
-    about.push({ k: "Added", v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
+    about.push({
+      k: "Added",
+      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}`,
+    });
   }
 
   return {
     ...base,
     ...(via && exactWindow
       ? (() => {
-          const win = { open: exactWindow.open, hoursLeft: exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 };
-          return { replyVia: REPLY_VIA[via], replyWindow: win, bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
+          const win = {
+            open: exactWindow.open,
+            hoursLeft: exactWindow.closesAtIso
+              ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000))
+              : 0,
+          };
+          return {
+            replyVia: REPLY_VIA[via],
+            replyWindow: win,
+            bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win),
+          };
         })()
       : {}),
-    since: base.firstContact.label === "—" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
+    since:
+      base.firstContact.label === "—"
+        ? ""
+        : base.firstContact.estimate
+          ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}`
+          : `Since ${base.firstContact.label}`,
     metaLine: `${plural(base.threads, "conversation")} · ${plural(base.calls, "call")}`,
     lastExchange: { customer, reply },
     facts,

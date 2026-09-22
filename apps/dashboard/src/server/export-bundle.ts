@@ -84,7 +84,12 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
   const head = {
     format: BUNDLE_FORMAT,
     version: BUNDLE_VERSION,
-    workspace: { id: opts.workspaceId, name: opts.business, timezone: opts.tz, exported_at: opts.exportedAt.toISOString() },
+    workspace: {
+      id: opts.workspaceId,
+      name: opts.business,
+      timezone: opts.tz,
+      exported_at: opts.exportedAt.toISOString(),
+    },
   };
   // The header, its closing brace dropped so the sections follow inside it.
   yield JSON.stringify(head, null, 2).replace(/\n\}$/, "") + ",\n";
@@ -105,7 +110,10 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
 }
 
 /** Each conversation with every one of its messages, oldest first. */
-async function* withMessages(readers: BundleReaders, page: number): AsyncGenerator<BundleConversation & { messages: MessageDto[] }> {
+async function* withMessages(
+  readers: BundleReaders,
+  page: number,
+): AsyncGenerator<BundleConversation & { messages: MessageDto[] }> {
   for await (const c of paged(readers.conversations, page)) {
     const messages: MessageDto[] = [];
     for await (const m of paged((o, l) => readers.messages(c.id, o, l), page)) messages.push(m);

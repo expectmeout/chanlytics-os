@@ -21,12 +21,16 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const V1 = path.join(here, "../../../apps/dashboard/app/api/v1");
 const load = async (rel) => (await import(pathToFileURL(path.join(V1, rel, "route.ts")).href)).POST;
-const { setRateStore, memoryStore } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
+const { setRateStore, memoryStore } = await import(
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href
+);
 
 beforeEach(() => setRateStore(memoryStore()));
 
 const THREAD_VERBS = ["take-over", "hand-back", "archive", "snooze", "wake"];
-const verbs = Object.fromEntries(await Promise.all(THREAD_VERBS.map(async (v) => [v, await load(`conversations/[id]/${v}`)])));
+const verbs = Object.fromEntries(
+  await Promise.all(THREAD_VERBS.map(async (v) => [v, await load(`conversations/[id]/${v}`)])),
+);
 const resolve = await load("escalations/[id]/resolve");
 const cancelSend = await load("messages/[id]/cancel-send");
 
@@ -35,17 +39,29 @@ const CONV = "22222222-2222-4222-8222-222222222222";
 const ESC = "33333333-3333-4333-8333-333333333333";
 const MSG = "44444444-4444-4444-8444-444444444444";
 const USER = "u1";
-const memberAs = (role) => [{ user_id: USER, tenant_id: T, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" }];
+const memberAs = (role) => [
+  { user_id: USER, tenant_id: T, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+];
 const thread = (over = {}) => ({
-  id: CONV, tenant_id: T, state: "snoozed", paused_until: null, last_wa_inbound_at: null, contact_id: "c1",
-  contacts: { phone_e164: "+15555550100", consent: "opted_in", dnc: false }, ...over,
+  id: CONV,
+  tenant_id: T,
+  state: "snoozed",
+  paused_until: null,
+  last_wa_inbound_at: null,
+  contact_id: "c1",
+  contacts: { phone_e164: "+15555550100", consent: "opted_in", dnc: false },
+  ...over,
 });
 
 function ctxFor(tables, id) {
   const supabase = fakeDb(tables);
   return { ctx: { supabase, userId: USER, email: "ada@example.com", params: { id } }, supabase };
 }
-const post = (body) => new Request("http://localhost/api/v1/x", { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+const post = (body) =>
+  new Request("http://localhost/api/v1/x", {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 const wrote = (supabase) => supabase.seen.filter((q) => q.op === "update" || q.rpc);
 
 async function refused(p, code, status) {
@@ -58,7 +74,11 @@ async function refused(p, code, status) {
 
 test("every thread verb declares the same door", () => {
   for (const [name, handler] of Object.entries({ ...verbs, resolve, "cancel-send": cancelSend })) {
-    assert.deepEqual({ ...handler.policy }, { kind: "write", scope: "row", role: "operator", rate: "thread_state", spend: false }, name);
+    assert.deepEqual(
+      { ...handler.policy },
+      { kind: "write", scope: "row", role: "operator", rate: "thread_state", spend: false },
+      name,
+    );
   }
 });
 
@@ -72,8 +92,16 @@ test("a viewer changes no thread, and is refused before anything is written", as
 
 test("a thread the caller cannot see is a 404, and so is an id that cannot be one", async () => {
   for (const POST of Object.values(verbs)) {
-    await refused(POST.run(post({}), ctxFor({ memberships: memberAs("owner"), conversations: [] }, CONV).ctx), "not_found", 404);
-    await refused(POST.run(post({}), ctxFor({ memberships: memberAs("owner"), conversations: [thread()] }, "not-an-id").ctx), "not_found", 404);
+    await refused(
+      POST.run(post({}), ctxFor({ memberships: memberAs("owner"), conversations: [] }, CONV).ctx),
+      "not_found",
+      404,
+    );
+    await refused(
+      POST.run(post({}), ctxFor({ memberships: memberAs("owner"), conversations: [thread()] }, "not-an-id").ctx),
+      "not_found",
+      404,
+    );
   }
 });
 
@@ -86,7 +114,11 @@ test("a snooze needs a future time, within thirty days, and is refused before an
   ];
   for (const [body, said] of cases) {
     const { ctx, supabase } = ctxFor({ memberships: memberAs("operator"), conversations: [thread()] }, CONV);
-    await assert.rejects(verbs.snooze.run(post(body), ctx), (e) => e.code === "validation" && said.test(e.message), JSON.stringify(body));
+    await assert.rejects(
+      verbs.snooze.run(post(body), ctx),
+      (e) => e.code === "validation" && said.test(e.message),
+      JSON.stringify(body),
+    );
     assert.deepEqual(wrote(supabase), []);
   }
 });
@@ -94,12 +126,31 @@ test("a snooze needs a future time, within thirty days, and is refused before an
 test("an escalation and a queued send are each judged in their own workspace", async () => {
   const esc = { id: ESC, tenant_id: T, state: "open" };
   const msg = { id: MSG, tenant_id: T, conversation_id: CONV, status: "queued" };
-  await refused(resolve.run(post(), ctxFor({ memberships: memberAs("viewer"), escalations: [esc] }, ESC).ctx), "forbidden", 403);
-  await refused(resolve.run(post(), ctxFor({ memberships: memberAs("owner"), escalations: [] }, ESC).ctx), "not_found", 404);
-  await refused(cancelSend.run(post(), ctxFor({ memberships: memberAs("viewer"), messages: [msg] }, MSG).ctx), "forbidden", 403);
-  await refused(cancelSend.run(post(), ctxFor({ memberships: memberAs("owner"), messages: [] }, MSG).ctx), "not_found", 404);
+  await refused(
+    resolve.run(post(), ctxFor({ memberships: memberAs("viewer"), escalations: [esc] }, ESC).ctx),
+    "forbidden",
+    403,
+  );
+  await refused(
+    resolve.run(post(), ctxFor({ memberships: memberAs("owner"), escalations: [] }, ESC).ctx),
+    "not_found",
+    404,
+  );
+  await refused(
+    cancelSend.run(post(), ctxFor({ memberships: memberAs("viewer"), messages: [msg] }, MSG).ctx),
+    "forbidden",
+    403,
+  );
+  await refused(
+    cancelSend.run(post(), ctxFor({ memberships: memberAs("owner"), messages: [] }, MSG).ctx),
+    "not_found",
+    404,
+  );
   // Already resolved is an answer, not an error, and writes nothing.
-  const { ctx, supabase } = ctxFor({ memberships: memberAs("operator"), escalations: [{ ...esc, state: "resolved" }] }, ESC);
+  const { ctx, supabase } = ctxFor(
+    { memberships: memberAs("operator"), escalations: [{ ...esc, state: "resolved" }] },
+    ESC,
+  );
   assert.deepEqual(await resolve.run(post(), ctx), { state: "resolved", already: true });
   assert.deepEqual(wrote(supabase), []);
 });

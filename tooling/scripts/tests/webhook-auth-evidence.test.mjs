@@ -38,10 +38,21 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
   assert.deepEqual(plan.drift, [], "REGRESSION: the provider's defaults read as drift forever");
   assert.equal(plan.llmPatch, null);
   // A field WE set that differs still counts.
-  const cold = { ...live, general_tools: live.general_tools.map((t) => (t.name === "transfer_to_staff" ? { ...t, transfer_option: { ...t.transfer_option, type: "cold_transfer" } } : t)) };
+  const cold = {
+    ...live,
+    general_tools: live.general_tools.map((t) =>
+      t.name === "transfer_to_staff" ? { ...t, transfer_option: { ...t.transfer_option, type: "cold_transfer" } } : t,
+    ),
+  };
   assert.ok(planVoiceConvergence(cold, desired).drift.some((l) => l.includes("transfer_to_staff differs")));
-  assert.ok(!JSON.stringify(desired.general_tools).includes('"required"'), "an empty required list is the provider's default and is dropped on save");
-  assert.ok(!JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'), "provisioning sends none either");
+  assert.ok(
+    !JSON.stringify(desired.general_tools).includes('"required"'),
+    "an empty required list is the provider's default and is dropped on save",
+  );
+  assert.ok(
+    !JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'),
+    "provisioning sends none either",
+  );
 });
 
 // The diagnostic listing which credential each delivery passed, beside a
@@ -55,9 +66,18 @@ test("The transfer number is compared with the receptionist's own line, not the 
   // one a person answers, which is exactly where a transfer should go, so
   // comparing against that refused the very number the owner wanted.
   assert.ok(pane.includes("window.__whyNotAHandoff(typed, voiceLine)"));
-  assert.ok(pane.includes('const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";'), "the provisioned line, not phone_display");
+  assert.ok(
+    pane.includes('const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";'),
+    "the provisioned line, not phone_display",
+  );
   const phone = readCode("packages/contracts/src/phone.ts");
   assert.ok(phone.includes("normalizePhone(norm) === normalizePhone(ownLine)"));
-  assert.ok(!/phone_?[Dd]isplay/.test(phone), "REGRESSION: the salon's own human line was refused as the receptionist's");
-  assert.ok(pane.includes('"every phone call, composed when the call starts"'), "the phone tab is true now that the line runs the shell");
+  assert.ok(
+    !/phone_?[Dd]isplay/.test(phone),
+    "REGRESSION: the salon's own human line was refused as the receptionist's",
+  );
+  assert.ok(
+    pane.includes('"every phone call, composed when the call starts"'),
+    "the phone tab is true now that the line runs the shell",
+  );
 });

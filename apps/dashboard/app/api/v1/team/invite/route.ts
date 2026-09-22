@@ -4,7 +4,11 @@ import { inviteMember } from "@/server/service";
 
 const Body = z.object({
   /** Stored lowercased at the door, so the same address invited twice is the same address. */
-  email: z.string().trim().toLowerCase().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "That doesn't look like an email address."),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "That doesn't look like an email address."),
   role: z.enum(["operator", "viewer"], { message: "Invites can grant operator or viewer." }),
 });
 
@@ -20,5 +24,6 @@ export const POST = write({
   role: "owner",
   rate: "invite",
   input: Body,
-  handle: async ({ ctx, member, input }) => await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role, ctx.via),
+  handle: async ({ ctx, member, input }) =>
+    await inviteMember(ctx.supabase, member.tenantId, ctx.userId, input.email, input.role, ctx.via),
 });

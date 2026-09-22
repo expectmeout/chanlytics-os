@@ -46,7 +46,10 @@ test("a typo INSIDE a known section still fails loudly", () => {
   // one the runtime would silently never apply.
   const r = parseTenantConfigResult({ brain: { ...brain, buisness_name: "typo" } });
   assert.equal(r.ok, false, "an unknown field inside brain was accepted");
-  assert.ok(r.issues.some((i) => /brain/.test(i)), `issues should name the section: ${r.issues.join("; ")}`);
+  assert.ok(
+    r.issues.some((i) => /brain/.test(i)),
+    `issues should name the section: ${r.issues.join("; ")}`,
+  );
 });
 
 test("a malformed section reports WHERE, not just that it failed", () => {

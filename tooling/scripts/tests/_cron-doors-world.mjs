@@ -28,17 +28,25 @@ export const vault = { get_cron_sweep_key: () => KEY };
 
 /** pg_net's call, as pg_cron makes it: a bare POST with the key in its header. `null` knocks with no key at all. */
 export const knock = (POST, route, key = KEY) =>
-  POST(new Request(`http://edge/api/cron/${route}`, { method: "POST", headers: key == null ? {} : { "x-cron-key": key } }));
+  POST(
+    new Request(`http://edge/api/cron/${route}`, { method: "POST", headers: key == null ? {} : { "x-cron-key": key } }),
+  );
 export const answer = async (res) => [res.status, await res.json()];
 
 /** Set (or with undefined, unset) variables for one call, and put them back. */
 export async function withEnv(patch, fn) {
   const saved = Object.fromEntries(Object.keys(patch).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(patch)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   try {
     return await fn();
   } finally {
-    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 
@@ -65,7 +73,9 @@ export function wire(reply = ok) {
     to,
     /** What Resend was asked to send, in order: { from, to, subject, text }. */
     mail: () => to("api.resend.com").map((c) => JSON.parse(c.init.body)),
-    restore: () => { globalThis.fetch = real; },
+    restore: () => {
+      globalThis.fetch = real;
+    },
   };
 }
 
@@ -87,18 +97,42 @@ export async function refusedAtTheDoor(POST, route, setPg) {
   const held = fakeDb({}, {}, vault);
   setPg(held);
   assert.deepEqual(await answer(await knock(POST, route, "not-the-key")), [401, { ok: false, error: "unauthorized" }]);
-  assert.deepEqual(await answer(await knock(POST, route, null)), [401, { ok: false, error: "unauthorized" }], "no key at all");
-  assert.deepEqual(asked(held), ["get_cron_sweep_key", "get_cron_sweep_key"], "the key is the only thing asked of the database");
+  assert.deepEqual(
+    await answer(await knock(POST, route, null)),
+    [401, { ok: false, error: "unauthorized" }],
+    "no key at all",
+  );
+  assert.deepEqual(
+    asked(held),
+    ["get_cron_sweep_key", "get_cron_sweep_key"],
+    "the key is the only thing asked of the database",
+  );
 
   for (const db of [
-    fakeDb({}, {}, { get_cron_sweep_key: () => { throw new Error("permission denied for function get_cron_sweep_key"); } }),
+    fakeDb(
+      {},
+      {},
+      {
+        get_cron_sweep_key: () => {
+          throw new Error("permission denied for function get_cron_sweep_key");
+        },
+      },
+    ),
     fakeDb({}, {}, { get_cron_sweep_key: () => null }),
   ]) {
     setPg(db);
-    assert.deepEqual(await answer(await knock(POST, route)), [503, { ok: false, error: "key_unavailable" }], "a key Vault cannot produce is never a way in");
+    assert.deepEqual(
+      await answer(await knock(POST, route)),
+      [503, { ok: false, error: "key_unavailable" }],
+      "a key Vault cannot produce is never a way in",
+    );
     assert.deepEqual(asked(db), ["get_cron_sweep_key"]);
   }
 
   setPg(null);
-  assert.deepEqual(await answer(await knock(POST, route)), [503, { ok: false, error: "no_database" }], "no database: refused before the key is even asked for");
+  assert.deepEqual(
+    await answer(await knock(POST, route)),
+    [503, { ok: false, error: "no_database" }],
+    "no database: refused before the key is even asked for",
+  );
 }

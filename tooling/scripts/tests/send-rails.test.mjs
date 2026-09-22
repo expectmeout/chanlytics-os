@@ -34,35 +34,97 @@ test("the next open moment, by the business's clock: inside stays, before goes t
   assert.deepEqual(nextOpenMoment(NY, inside), { at: inside, moved: false });
   const lastHour = new Date("2026-09-08T00:30:00Z"); // 20:30 NY: the twenty-hundred hour is still open
   assert.deepEqual(nextOpenMoment(NY, lastHour), { at: lastHour, moved: false });
-  assert.deepEqual(nextOpenMoment(NY, new Date("2026-09-07T09:30:00Z")), { at: new Date("2026-09-07T13:00:00Z"), moved: true }, "05:30 NY -> 09:00 NY the same morning");
-  assert.deepEqual(nextOpenMoment(NY, new Date("2026-09-07T03:00:00Z")), { at: new Date("2026-09-07T13:00:00Z"), moved: true }, "23:00 NY the evening before -> nine that morning");
-  assert.deepEqual(nextOpenMoment(NY, new Date("2026-09-08T01:30:00Z")), { at: new Date("2026-09-08T13:00:00Z"), moved: true }, "21:30 NY -> nine the next morning");
+  assert.deepEqual(
+    nextOpenMoment(NY, new Date("2026-09-07T09:30:00Z")),
+    { at: new Date("2026-09-07T13:00:00Z"), moved: true },
+    "05:30 NY -> 09:00 NY the same morning",
+  );
+  assert.deepEqual(
+    nextOpenMoment(NY, new Date("2026-09-07T03:00:00Z")),
+    { at: new Date("2026-09-07T13:00:00Z"), moved: true },
+    "23:00 NY the evening before -> nine that morning",
+  );
+  assert.deepEqual(
+    nextOpenMoment(NY, new Date("2026-09-08T01:30:00Z")),
+    { at: new Date("2026-09-08T13:00:00Z"), moved: true },
+    "21:30 NY -> nine the next morning",
+  );
   // The night the clocks go back (1 Nov 2026 in New York): 23:00 on 31 Oct is
   // EDT (03:00Z), and nine on 1 Nov is EST (14:00Z) -- five hours off, not four.
-  assert.deepEqual(nextOpenMoment(NY, new Date("2026-11-01T03:00:00Z")), { at: new Date("2026-11-01T14:00:00Z"), moved: true });
+  assert.deepEqual(nextOpenMoment(NY, new Date("2026-11-01T03:00:00Z")), {
+    at: new Date("2026-11-01T14:00:00Z"),
+    moved: true,
+  });
   // A zone with no daylight saving, and one east of Greenwich.
-  assert.deepEqual(nextOpenMoment("Asia/Tokyo", new Date("2026-09-07T20:00:00Z")), { at: new Date("2026-09-08T00:00:00Z"), moved: true }, "05:00 Tokyo -> 09:00 Tokyo");
-  assert.deepEqual(nextOpenMoment("UTC", new Date("2026-09-07T21:00:00Z")), { at: new Date("2026-09-08T09:00:00Z"), moved: true });
+  assert.deepEqual(
+    nextOpenMoment("Asia/Tokyo", new Date("2026-09-07T20:00:00Z")),
+    { at: new Date("2026-09-08T00:00:00Z"), moved: true },
+    "05:00 Tokyo -> 09:00 Tokyo",
+  );
+  assert.deepEqual(nextOpenMoment("UTC", new Date("2026-09-07T21:00:00Z")), {
+    at: new Date("2026-09-08T09:00:00Z"),
+    moved: true,
+  });
 });
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ctx = (tables) => ({ supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", params: {} });
 const row = (id, over = {}) => ({
-  id, tenant_id: T, name: `Run ${id}`, template_id: "t1", template_name: "win_back", template_language: "en_US", params: [], audience: { kind: "list", id: "quiet", label: "Quiet" },
-  state: "sent", scheduled_for: "2026-09-01T14:00:00Z", started_at: "2026-09-01T14:00:00Z", finished_at: "2026-09-01T14:05:00Z", recipient_count: 2, failure: null,
-  created_at: "2026-09-01T13:00:00Z", playbook_id: "p1", run_for: "2026-09-01", ...over,
+  id,
+  tenant_id: T,
+  name: `Run ${id}`,
+  template_id: "t1",
+  template_name: "win_back",
+  template_language: "en_US",
+  params: [],
+  audience: { kind: "list", id: "quiet", label: "Quiet" },
+  state: "sent",
+  scheduled_for: "2026-09-01T14:00:00Z",
+  started_at: "2026-09-01T14:00:00Z",
+  finished_at: "2026-09-01T14:05:00Z",
+  recipient_count: 2,
+  failure: null,
+  created_at: "2026-09-01T13:00:00Z",
+  playbook_id: "p1",
+  run_for: "2026-09-01",
+  ...over,
 });
 
 test("a recipient's line carries the times the receipts gave, and the first reply's; a row from before the stamp carries none", async () => {
   const tables = {
     broadcasts: [row("b1")],
     broadcast_recipients: [
-      { tenant_id: T, broadcast_id: "b1", contact_id: "k1", state: "sent", reason: null, sent_at: "2026-09-01T14:00:10Z",
-        messages: { conversation_id: "c1", status: "read", meta: { source: "broadcast", status_at: { sent: "2026-09-01T14:00:11Z", delivered: "2026-09-01T14:00:40Z", read: "2026-09-01T14:09:00Z" } } },
-        contacts: { display_name: "Ada", wa_profile_name: null, phone_e164: "+13475550101" } },
-      { tenant_id: T, broadcast_id: "b1", contact_id: "k2", state: "sent", reason: null, sent_at: "2026-09-01T14:00:20Z",
+      {
+        tenant_id: T,
+        broadcast_id: "b1",
+        contact_id: "k1",
+        state: "sent",
+        reason: null,
+        sent_at: "2026-09-01T14:00:10Z",
+        messages: {
+          conversation_id: "c1",
+          status: "read",
+          meta: {
+            source: "broadcast",
+            status_at: {
+              sent: "2026-09-01T14:00:11Z",
+              delivered: "2026-09-01T14:00:40Z",
+              read: "2026-09-01T14:09:00Z",
+            },
+          },
+        },
+        contacts: { display_name: "Ada", wa_profile_name: null, phone_e164: "+13475550101" },
+      },
+      {
+        tenant_id: T,
+        broadcast_id: "b1",
+        contact_id: "k2",
+        state: "sent",
+        reason: null,
+        sent_at: "2026-09-01T14:00:20Z",
         messages: { conversation_id: "c2", status: "delivered", meta: {} },
-        contacts: { display_name: "Bo", wa_profile_name: null, phone_e164: "+13475550102" } },
+        contacts: { display_name: "Bo", wa_profile_name: null, phone_e164: "+13475550102" },
+      },
     ],
     messages: [
       // Ada replied twice inside the window; Bo asked something two weeks later, which is not a reply.
@@ -74,9 +136,25 @@ test("a recipient's line carries the times the receipts gave, and the first repl
   const d = await B.getBroadcast(ctx(tables), T, "b1");
   const ada = d.recipients.find((r) => r.contact_id === "k1");
   const bo = d.recipients.find((r) => r.contact_id === "k2");
-  assert.deepEqual([ada.message_status, ada.delivered_at, ada.read_at, ada.replied, ada.replied_at], ["read", "2026-09-01T14:00:40Z", "2026-09-01T14:09:00Z", true, "2026-09-01T14:20:00Z"], "each state's own time, and the FIRST reply");
-  assert.deepEqual([bo.message_status, bo.delivered_at, bo.read_at, bo.replied, bo.replied_at], ["delivered", null, null, false, null], "a row from before 00111: the status, no times, no reply outside the window");
-  assert.deepEqual(d.broadcast.counts, { queued: 0, sent: 2, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 });
+  assert.deepEqual(
+    [ada.message_status, ada.delivered_at, ada.read_at, ada.replied, ada.replied_at],
+    ["read", "2026-09-01T14:00:40Z", "2026-09-01T14:09:00Z", true, "2026-09-01T14:20:00Z"],
+    "each state's own time, and the FIRST reply",
+  );
+  assert.deepEqual(
+    [bo.message_status, bo.delivered_at, bo.read_at, bo.replied, bo.replied_at],
+    ["delivered", null, null, false, null],
+    "a row from before 00111: the status, no times, no reply outside the window",
+  );
+  assert.deepEqual(d.broadcast.counts, {
+    queued: 0,
+    sent: 2,
+    skipped: 0,
+    failed: 0,
+    delivered: 2,
+    read: 1,
+    replied: 1,
+  });
   assert.equal(B.statusAt({ status_at: { delivered: "x" } }, "read"), null);
   assert.equal(B.statusAt(null, "read"), null);
   assert.equal(B.statusAt("junk", "read"), null);
@@ -91,21 +169,79 @@ test("a playbook's totals and history come from every run it made, not the recen
     const id = `r${String(i).padStart(2, "0")}`;
     const day = new Date(Date.UTC(2026, 5, 1 + i)).toISOString();
     broadcasts.push(row(id, { created_at: day, scheduled_for: day, run_for: day.slice(0, 10), recipient_count: 3 }));
-    broadcast_recipients.push({ tenant_id: T, broadcast_id: id, contact_id: "k1", state: "sent", reason: null, sent_at: day, messages: { conversation_id: "c1", status: "delivered", meta: {} } });
-    broadcast_recipients.push({ tenant_id: T, broadcast_id: id, contact_id: "k2", state: "sent", reason: null, sent_at: day, messages: { conversation_id: "c2", status: "sent", meta: {} } });
-    broadcast_recipients.push({ tenant_id: T, broadcast_id: id, contact_id: "k3", state: "skipped", reason: "opted_out", sent_at: null, messages: null });
+    broadcast_recipients.push({
+      tenant_id: T,
+      broadcast_id: id,
+      contact_id: "k1",
+      state: "sent",
+      reason: null,
+      sent_at: day,
+      messages: { conversation_id: "c1", status: "delivered", meta: {} },
+    });
+    broadcast_recipients.push({
+      tenant_id: T,
+      broadcast_id: id,
+      contact_id: "k2",
+      state: "sent",
+      reason: null,
+      sent_at: day,
+      messages: { conversation_id: "c2", status: "sent", meta: {} },
+    });
+    broadcast_recipients.push({
+      tenant_id: T,
+      broadcast_id: id,
+      contact_id: "k3",
+      state: "skipped",
+      reason: "opted_out",
+      sent_at: null,
+      messages: null,
+    });
   }
   for (let i = 0; i < 70; i++) {
     const day = new Date(Date.UTC(2026, 8, 1, i)).toISOString();
-    broadcasts.push(row(`h${i}`, { created_at: day, scheduled_for: day, playbook_id: null, run_for: null, recipient_count: 1 }));
+    broadcasts.push(
+      row(`h${i}`, { created_at: day, scheduled_for: day, playbook_id: null, run_for: null, recipient_count: 1 }),
+    );
   }
-  const playbooks = [{ id: "p1", tenant_id: T, name: "Win-back", trigger: "quiet_30", template_id: "t1", template_name: "win_back", template_language: "en_US", params: [], policy_class: "reengage", state: "running", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30, last_run_for: "2026-07-30", last_run_at: null, created_by: null, created_at: "2026-05-01T00:00:00Z" }];
+  const playbooks = [
+    {
+      id: "p1",
+      tenant_id: T,
+      name: "Win-back",
+      trigger: "quiet_30",
+      template_id: "t1",
+      template_name: "win_back",
+      template_language: "en_US",
+      params: [],
+      policy_class: "reengage",
+      state: "running",
+      run_hour: 10,
+      cap_per_run: 25,
+      gap_days: 90,
+      cadence_days: 30,
+      last_run_for: "2026-07-30",
+      last_run_at: null,
+      created_by: null,
+      created_at: "2026-05-01T00:00:00Z",
+    },
+  ];
   const [p] = await P.listPlaybooks(ctx({ broadcasts, broadcast_recipients, messages: [], playbooks }), T);
-  assert.deepEqual([p.totals.runs, p.totals.sent, p.totals.held, p.totals.delivered], [60, 120, 60, 60], "every run counted");
+  assert.deepEqual(
+    [p.totals.runs, p.totals.sent, p.totals.held, p.totals.delivered],
+    [60, 120, 60, 60],
+    "every run counted",
+  );
   assert.equal(p.totals.history.length, P.HISTORY_ON_CARD, "the card lists the most recent ten");
-  assert.deepEqual(p.totals.history.slice(0, 2).map((h) => [h.run_for, h.sent, h.held, h.state]), [["2026-07-30", 2, 1, "sent"], ["2026-07-29", 2, 1, "sent"]], "newest first, with what each earned");
+  assert.deepEqual(
+    p.totals.history.slice(0, 2).map((h) => [h.run_for, h.sent, h.held, h.state]),
+    [
+      ["2026-07-30", 2, 1, "sent"],
+      ["2026-07-29", 2, 1, "sent"],
+    ],
+    "newest first, with what each earned",
+  );
   assert.equal(p.totals.lastRun.run_for, "2026-07-30");
-  const hand = (await B.listBroadcasts(ctx({ broadcasts, broadcast_recipients, messages: [] }), T));
+  const hand = await B.listBroadcasts(ctx({ broadcasts, broadcast_recipients, messages: [] }), T);
   assert.equal(hand.broadcasts.length, 50, "the Broadcasts page's own window is unchanged");
   assert.equal(hand.more, true, "and with 130 on file, the page is told older ones exist");
 });
@@ -115,10 +251,32 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
   const tables = {
     broadcasts: [
       row("run", { created_at: "2026-09-10T13:00:00Z", scheduled_for: "2026-09-10T14:00:00Z" }),
-      row("hand", { created_at: "2026-09-11T13:00:00Z", scheduled_for: "2026-09-11T14:00:00Z", playbook_id: null, run_for: null }),
-      row("soon", { created_at: "2026-09-12T10:00:00Z", scheduled_for: "2026-09-13T14:00:00Z", state: "scheduled", playbook_id: null, run_for: null }),
-      row("old", { created_at: "2026-09-01T13:00:00Z", scheduled_for: "2026-09-01T14:00:00Z", playbook_id: null, run_for: null }),
-      row("gone", { created_at: "2026-09-11T13:00:00Z", scheduled_for: "2026-09-11T14:00:00Z", state: "canceled", playbook_id: null, run_for: null }),
+      row("hand", {
+        created_at: "2026-09-11T13:00:00Z",
+        scheduled_for: "2026-09-11T14:00:00Z",
+        playbook_id: null,
+        run_for: null,
+      }),
+      row("soon", {
+        created_at: "2026-09-12T10:00:00Z",
+        scheduled_for: "2026-09-13T14:00:00Z",
+        state: "scheduled",
+        playbook_id: null,
+        run_for: null,
+      }),
+      row("old", {
+        created_at: "2026-09-01T13:00:00Z",
+        scheduled_for: "2026-09-01T14:00:00Z",
+        playbook_id: null,
+        run_for: null,
+      }),
+      row("gone", {
+        created_at: "2026-09-11T13:00:00Z",
+        scheduled_for: "2026-09-11T14:00:00Z",
+        state: "canceled",
+        playbook_id: null,
+        run_for: null,
+      }),
     ],
     broadcast_recipients: [
       { tenant_id: T, broadcast_id: "run", contact_id: "a", state: "sent", sent_at: "2026-09-10T14:00:05Z" },

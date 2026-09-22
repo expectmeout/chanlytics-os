@@ -18,11 +18,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const skip = !URL_ || !KEY
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite writes due jobs"
-    : false;
+const skip =
+  !URL_ || !KEY
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+      ? "refusing a database that is not on this machine: this suite writes due jobs"
+      : false;
 
 let db;
 let tenantId;
@@ -38,7 +39,11 @@ before(async () => {
   month.setUTCDate(1);
   month.setUTCHours(0, 0, 0, 0);
   await db.rpc("ensure_events_partition", { p_month: month.toISOString().slice(0, 10) });
-  const { data, error } = await db.from("tenants").insert({ slug: `outbox-${Date.now()}`, name: "Outbox" }).select("id").single();
+  const { data, error } = await db
+    .from("tenants")
+    .insert({ slug: `outbox-${Date.now()}`, name: "Outbox" })
+    .select("id")
+    .single();
   assert.equal(error, null, error?.message);
   tenantId = data.id;
 });
@@ -56,7 +61,8 @@ after(async () => {
 });
 
 async function insertJob(patch = {}) {
-  const { data, error } = await db.from("jobs")
+  const { data, error } = await db
+    .from("jobs")
     .insert({ tenant_id: tenantId, kind: "line_provision", due_at: ago(60), payload: {}, ...patch })
     .select("id")
     .single();
@@ -84,8 +90,10 @@ async function claimHolding(limit, make) {
     const row = (data ?? []).find((r) => r.id === id);
     if (row) return { id, row, batch: data ?? [] };
     const gone = await db.from("jobs").select("state, lease_until").eq("id", id).single();
-    assert.ok(gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
-      `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`);
+    assert.ok(
+      gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
+      `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`,
+    );
   }
   return assert.fail("five claims running: another suite's claim reached this suite's row first every time");
 }
@@ -93,12 +101,14 @@ async function claimHolding(limit, make) {
 /** A conversation of its own contact: conversations are one per contact. */
 async function thread(fields) {
   phones += 1;
-  const { data: c, error: cErr } = await db.from("contacts")
+  const { data: c, error: cErr } = await db
+    .from("contacts")
     .insert({ tenant_id: tenantId, phone_e164: `+1555${String(phones).padStart(7, "0")}` })
     .select("id")
     .single();
   assert.equal(cErr, null, cErr?.message);
-  const { data: v, error: vErr } = await db.from("conversations")
+  const { data: v, error: vErr } = await db
+    .from("conversations")
     .insert({ tenant_id: tenantId, contact_id: c.id, ...fields })
     .select("id")
     .single();
@@ -117,7 +127,11 @@ test("a claim takes what is due, leaves what is not, and holds it on a lease", {
   const { id: due, row, batch } = await claimHolding(50, () => insertJob());
   // This suite's own two rows, never the whole batch: other suites claim from
   // this same queue, and whatever they have due comes back in it too.
-  assert.deepEqual(batch.filter((r) => r.id === due || r.id === later).map((r) => r.id), [due], "the one that is due came back, and the one that is not did not");
+  assert.deepEqual(
+    batch.filter((r) => r.id === due || r.id === later).map((r) => r.id),
+    [due],
+    "the one that is due came back, and the one that is not did not",
+  );
   assert.equal(row.state, "fired");
   assert.equal(row.attempts, 1);
   assert.ok(Date.parse(row.lease_until) > Date.now() + 60_000, "the lease outlives the run that holds it");
@@ -141,14 +155,28 @@ test("two claims at once never take the same row", { skip }, async () => {
   // claim on the same queue, which fires it just the same.
   const rows = await db.from("jobs").select("id, state").in("id", mine);
   assert.equal(rows.error, null, rows.error?.message);
-  assert.deepEqual(rows.data.map((r) => r.state).sort(), ["fired", "fired", "fired", "fired"], "and between them they took all four");
+  assert.deepEqual(
+    rows.data.map((r) => r.state).sort(),
+    ["fired", "fired", "fired", "fired"],
+    "and between them they took all four",
+  );
 });
 
 test("a lease that ran out is taken back with attempts + 1; a live one is left alone", { skip }, async () => {
   const alive = await insertJob({ state: "fired", fired_at: ago(5), lease_until: ahead(80), attempts: 1 });
-  const { id: dead, row, batch } = await claimHolding(50, () => insertJob({ state: "fired", fired_at: ago(200), lease_until: ago(10), attempts: 1 }));
+  const {
+    id: dead,
+    row,
+    batch,
+  } = await claimHolding(50, () =>
+    insertJob({ state: "fired", fired_at: ago(200), lease_until: ago(10), attempts: 1 }),
+  );
   // This suite's own two rows again, not the batch: see claimHolding.
-  assert.deepEqual(batch.filter((r) => r.id === dead || r.id === alive).map((r) => r.id), [dead], "the lease that ran out came back, and the one still running did not");
+  assert.deepEqual(
+    batch.filter((r) => r.id === dead || r.id === alive).map((r) => r.id),
+    [dead],
+    "the lease that ran out came back, and the one still running did not",
+  );
   assert.equal(row.attempts, 2, "verdictFor reads this: a second claim means a run started and never came back");
 });
 
@@ -162,7 +190,11 @@ test("the database refuses every transition the machine does not have", { skip }
   const back = await db.from("jobs").update({ state: "scheduled" }).eq("id", id);
   assert.match(back.error?.message ?? "", /terminal/, "done is final, whoever asks");
 
-  const scrub = await db.from("jobs").update({ payload: { scrubbed: true } }).eq("id", id).select("id");
+  const scrub = await db
+    .from("jobs")
+    .update({ payload: { scrubbed: true } })
+    .eq("id", id)
+    .select("id");
   assert.equal(scrub.error, null, scrub.error?.message);
   assert.equal(scrub.data.length, 1, "but a finished row's payload can still be scrubbed, which erasure needs");
 
@@ -188,7 +220,10 @@ test("the heartbeat records that it looked, and asks the edge only when somethin
   assert.equal(idle.error, null, idle.error?.message);
   assert.equal(idle.data, null, "nothing due, so nothing is asked of the edge");
   const quiet = await db.from("sweep_status").select("requested_at").eq("sweep", "jobs").single();
-  assert.ok(Date.parse(quiet.data.requested_at) >= t0 - 5_000, "but the look is on the record, which is what sweep_health() watches");
+  assert.ok(
+    Date.parse(quiet.data.requested_at) >= t0 - 5_000,
+    "but the look is on the record, which is what sweep_health() watches",
+  );
 
   await insertJob();
   const busy = await db.rpc("trigger_jobs_tick");
@@ -196,8 +231,11 @@ test("the heartbeat records that it looked, and asks the edge only when somethin
   const asked = await db.from("sweep_status").select("note").eq("sweep", "jobs").single();
   // supabase/seed.sql takes the edge's address out of this database's Vault.
   // If that did not happen, this database is posting to production.
-  assert.match(asked.data.note ?? "", /missing cron_sweep_key or edge_base_url/,
-    "with a job due it goes to call the edge, and a database with no edge says so instead");
+  assert.match(
+    asked.data.note ?? "",
+    /missing cron_sweep_key or edge_base_url/,
+    "with a job due it goes to call the edge, and a database with no edge says so instead",
+  );
 });
 
 test("a snooze that has run out reopens its thread; one that has not stays asleep", { skip }, async () => {
@@ -209,52 +247,69 @@ test("a snooze that has run out reopens its thread; one that has not stays aslee
   assert.equal(rows[lapsed].state, "open");
   assert.equal(rows[lapsed].snooze_until, null);
   assert.equal(rows[asleep].state, "snoozed");
-  const { data: ev } = await db.from("events").select("id")
-    .eq("tenant_id", tenantId).eq("kind", "conversation.snooze_expired").eq("subject_id", lapsed);
+  const { data: ev } = await db
+    .from("events")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "conversation.snooze_expired")
+    .eq("subject_id", lapsed);
   assert.equal(ev.length, 1, "the wake is on the record once, whichever clock got there first");
 });
 
-test("a pause that has run out hands the thread back, unless the customer's request for a person is still open", { skip }, async () => {
-  const lapsed = await thread({ state: "needs_human", paused_until: ago(5) });
-  const running = await thread({ state: "needs_human", paused_until: ahead(3600) });
-  // The escalation goes in BEFORE the pause lapses: the real clock runs every
-  // ten seconds and would otherwise get there first.
-  const asked = await thread({ state: "needs_human", paused_until: ahead(3600) });
-  const { error: eErr } = await db.from("escalations").insert({ tenant_id: tenantId, conversation_id: asked, reason: "manual" });
-  assert.equal(eErr, null, eErr?.message);
-  const { error: lErr } = await db.from("conversations").update({ paused_until: ago(5) }).eq("id", asked);
-  assert.equal(lErr, null, lErr?.message);
+test(
+  "a pause that has run out hands the thread back, unless the customer's request for a person is still open",
+  { skip },
+  async () => {
+    const lapsed = await thread({ state: "needs_human", paused_until: ago(5) });
+    const running = await thread({ state: "needs_human", paused_until: ahead(3600) });
+    // The escalation goes in BEFORE the pause lapses: the real clock runs every
+    // ten seconds and would otherwise get there first.
+    const asked = await thread({ state: "needs_human", paused_until: ahead(3600) });
+    const { error: eErr } = await db
+      .from("escalations")
+      .insert({ tenant_id: tenantId, conversation_id: asked, reason: "manual" });
+    assert.equal(eErr, null, eErr?.message);
+    const { error: lErr } = await db
+      .from("conversations")
+      .update({ paused_until: ago(5) })
+      .eq("id", asked);
+    assert.equal(lErr, null, lErr?.message);
 
-  const { error } = await db.rpc("expire_stale_pauses");
-  assert.equal(error, null, error?.message);
-  const rows = await statesOf([lapsed, asked, running]);
-  assert.equal(rows[lapsed].state, "open");
-  assert.equal(rows[lapsed].paused_until, null);
-  // The retired pause_expire job would have handed this one back as well. A
-  // person was asked for and has not answered; that is not the bot's to take.
-  assert.equal(rows[asked].state, "needs_human");
-  assert.equal(rows[running].state, "needs_human");
-});
+    const { error } = await db.rpc("expire_stale_pauses");
+    assert.equal(error, null, error?.message);
+    const rows = await statesOf([lapsed, asked, running]);
+    assert.equal(rows[lapsed].state, "open");
+    assert.equal(rows[lapsed].paused_until, null);
+    // The retired pause_expire job would have handed this one back as well. A
+    // person was asked for and has not answered; that is not the bot's to take.
+    assert.equal(rows[asked].state, "needs_human");
+    assert.equal(rows[running].state, "needs_human");
+  },
+);
 
-test("jobs_backlog() counts due work nobody has claimed for two minutes, and a claim takes it off the count", { skip }, async () => {
-  // What the health sweep pages on and the public health door reports: run
-  // against the function, which until now only the pager's memory test
-  // described. Relative to whatever the ledger already holds, since the
-  // count is platform-wide by design.
-  const before = await db.rpc("jobs_backlog");
-  assert.equal(before.error, null, before.error?.message);
-  const base = before.data;
-  await insertJob({ due_at: ago(180) });
-  await insertJob({ due_at: ago(30) });
-  const { data: waiting, error } = await db.rpc("jobs_backlog");
-  assert.equal(error, null, error?.message);
-  assert.equal(waiting, base + 1, "a job due thirty seconds ago is the heartbeat's next tick, not a backlog");
-  const { data: patient } = await db.rpc("jobs_backlog", { p_wait: "10 seconds" });
-  assert.equal(patient, base + 2, "the grace is the caller's to set");
-  await claim(50);
-  const { data: drained } = await db.rpc("jobs_backlog");
-  assert.equal(drained, base, "claimed is not waiting");
-});
+test(
+  "jobs_backlog() counts due work nobody has claimed for two minutes, and a claim takes it off the count",
+  { skip },
+  async () => {
+    // What the health sweep pages on and the public health door reports: run
+    // against the function, which until now only the pager's memory test
+    // described. Relative to whatever the ledger already holds, since the
+    // count is platform-wide by design.
+    const before = await db.rpc("jobs_backlog");
+    assert.equal(before.error, null, before.error?.message);
+    const base = before.data;
+    await insertJob({ due_at: ago(180) });
+    await insertJob({ due_at: ago(30) });
+    const { data: waiting, error } = await db.rpc("jobs_backlog");
+    assert.equal(error, null, error?.message);
+    assert.equal(waiting, base + 1, "a job due thirty seconds ago is the heartbeat's next tick, not a backlog");
+    const { data: patient } = await db.rpc("jobs_backlog", { p_wait: "10 seconds" });
+    assert.equal(patient, base + 2, "the grace is the caller's to set");
+    await claim(50);
+    const { data: drained } = await db.rpc("jobs_backlog");
+    assert.equal(drained, base, "claimed is not waiting");
+  },
+);
 
 test("the three clocks run every ten seconds, and the sweep that re-published is gone", { skip }, async () => {
   const { data, error } = await db.rpc("sweep_schedules");

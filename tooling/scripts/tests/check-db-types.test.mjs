@@ -48,13 +48,15 @@ function types({ version = "14.5", tables = null } = {}) {
     "  | null",
     "",
     "export type Database = {",
-    ...(version === null ? [] : [
-      "  // Allows to automatically instantiate createClient with right options",
-      "  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)",
-      "  __InternalSupabase: {",
-      `    PostgrestVersion: "${version}"`,
-      "  }",
-    ]),
+    ...(version === null
+      ? []
+      : [
+          "  // Allows to automatically instantiate createClient with right options",
+          "  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)",
+          "  __InternalSupabase: {",
+          `    PostgrestVersion: "${version}"`,
+          "  }",
+        ]),
     "  public: {",
     "    Tables: {",
     ...Object.entries(t).flatMap(([name, cols]) => table(name, cols)),
@@ -90,17 +92,28 @@ test("a linked project's generation and the local stack's are the same schema: o
 
 test("a renamed column is drift, and the hint names the line and the table", () => {
   const committed = types();
-  const generated = types({ tables: { contacts: ["id: string", "phone_e164: string", "tenant_id: string"], tenants: ["id: string", "name: string"] } });
+  const generated = types({
+    tables: {
+      contacts: ["id: string", "phone_e164: string", "tenant_id: string"],
+      tenants: ["id: string", "name: string"],
+    },
+  });
   const r = compare(committed, generated);
   assert.equal(r.same, false);
-  assert.equal(r.diffHint.line, committed.split("\n").indexOf("          phone: string") + 1, "the committed file's own line number");
+  assert.equal(
+    r.diffHint.line,
+    committed.split("\n").indexOf("          phone: string") + 1,
+    "the committed file's own line number",
+  );
   assert.equal(r.diffHint.within, "public.Tables.contacts");
   assert.equal(r.diffHint.committed.trim(), "phone: string");
   assert.equal(r.diffHint.generated.trim(), "phone_e164: string");
 });
 
 test("a retyped column is drift", () => {
-  const generated = types({ tables: { contacts: ["id: string", "phone: number", "tenant_id: string"], tenants: ["id: string", "name: string"] } });
+  const generated = types({
+    tables: { contacts: ["id: string", "phone: number", "tenant_id: string"], tenants: ["id: string", "name: string"] },
+  });
   assert.equal(compare(types(), generated).same, false);
 });
 
@@ -108,7 +121,11 @@ test("a dropped table is drift", () => {
   const generated = types({ tables: { contacts: ["id: string", "phone: string", "tenant_id: string"] } });
   const r = compare(types(), generated);
   assert.equal(r.same, false);
-  assert.equal(r.diffHint.within, "public.Tables.tenants", "the first line that differs is where the dropped table used to start");
+  assert.equal(
+    r.diffHint.within,
+    "public.Tables.tenants",
+    "the first line that differs is where the dropped table used to start",
+  );
 });
 
 test("CRLF and LF are the same file", () => {
@@ -129,20 +146,61 @@ test("normalise drops the generator's PostgREST block -- the comment above it, t
 
 test("which events partitions exist is the calendar's, not the schema's: files that differ only in their events_yYYYYmMM tables are the same", () => {
   const events = ["id: string", "kind: string", "tenant_id: string"];
-  const people = { contacts: ["id: string", "phone: string", "tenant_id: string"], tenants: ["id: string", "name: string"] };
-  const august = types({ tables: { contacts: people.contacts, events, events_y2026m08: events, events_y2026m09: events, tenants: people.tenants } });
-  const october = types({ tables: { contacts: people.contacts, events, events_y2026m10: events, events_y2026m11: events, events_y2026m12: events, tenants: people.tenants } });
-  assert.equal(compare(august, october).same, true, "a replay in October has partitions a replay in August does not, for the same migrations");
+  const people = {
+    contacts: ["id: string", "phone: string", "tenant_id: string"],
+    tenants: ["id: string", "name: string"],
+  };
+  const august = types({
+    tables: {
+      contacts: people.contacts,
+      events,
+      events_y2026m08: events,
+      events_y2026m09: events,
+      tenants: people.tenants,
+    },
+  });
+  const october = types({
+    tables: {
+      contacts: people.contacts,
+      events,
+      events_y2026m10: events,
+      events_y2026m11: events,
+      events_y2026m12: events,
+      tenants: people.tenants,
+    },
+  });
+  assert.equal(
+    compare(august, october).same,
+    true,
+    "a replay in October has partitions a replay in August does not, for the same migrations",
+  );
   assert.equal(compare(august, types({ tables: people })).same, false, "the partitioned table itself is schema");
 });
 
 test("drift after the partitions is still drift, at the committed file's own line", () => {
   const events = ["id: string", "kind: string", "tenant_id: string"];
-  const committed = types({ tables: { contacts: ["id: string", "tenant_id: string"], events_y2026m08: events, events_y2026m09: events, tenants: ["id: string", "name: string"] } });
-  const generated = types({ tables: { contacts: ["id: string", "tenant_id: string"], events_y2026m10: events, tenants: ["id: string", "title: string"] } });
+  const committed = types({
+    tables: {
+      contacts: ["id: string", "tenant_id: string"],
+      events_y2026m08: events,
+      events_y2026m09: events,
+      tenants: ["id: string", "name: string"],
+    },
+  });
+  const generated = types({
+    tables: {
+      contacts: ["id: string", "tenant_id: string"],
+      events_y2026m10: events,
+      tenants: ["id: string", "title: string"],
+    },
+  });
   const r = compare(committed, generated);
   assert.equal(r.same, false);
-  assert.equal(r.diffHint.line, committed.split("\n").indexOf("          name: string") + 1, "the skipped partitions are counted back in");
+  assert.equal(
+    r.diffHint.line,
+    committed.split("\n").indexOf("          name: string") + 1,
+    "the skipped partitions are counted back in",
+  );
   assert.equal(r.diffHint.within, "public.Tables.tenants");
   assert.equal(r.diffHint.generated.trim(), "title: string");
 });
@@ -159,16 +217,24 @@ after(() => fs.rmSync(dir, { recursive: true, force: true }));
 const TYPES = path.join(ROOT, OUT);
 function stub(name, body) {
   const p = path.join(dir, `${name}.js`);
-  fs.writeFileSync(p, [
-    'const fs = require("node:fs");',
-    'if (process.argv.slice(2).join(" ") !== "gen types typescript --local") { console.error("unexpected args: " + process.argv.slice(2).join(" ")); process.exit(9); }',
-    `const real = () => fs.readFileSync(${JSON.stringify(TYPES)}, "utf8");`,
-    body,
-    "",
-  ].join("\n"));
+  fs.writeFileSync(
+    p,
+    [
+      'const fs = require("node:fs");',
+      'if (process.argv.slice(2).join(" ") !== "gen types typescript --local") { console.error("unexpected args: " + process.argv.slice(2).join(" ")); process.exit(9); }',
+      `const real = () => fs.readFileSync(${JSON.stringify(TYPES)}, "utf8");`,
+      body,
+      "",
+    ].join("\n"),
+  );
   return p;
 }
-const run = (cli) => spawnSync(process.execPath, [SCRIPT, "--check"], { cwd: ROOT, encoding: "utf8", env: { ...process.env, SUPABASE_CLI: cli } });
+const run = (cli) =>
+  spawnSync(process.execPath, [SCRIPT, "--check"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, SUPABASE_CLI: cli },
+  });
 
 test("--check: the committed file, regenerated identically, is current (exit 0)", () => {
   const r = run(stub("same", "process.stdout.write(real());"));
@@ -177,11 +243,16 @@ test("--check: the committed file, regenerated identically, is current (exit 0)"
 });
 
 test("--check: one column renamed is stale (exit 1), and the message says what to run", () => {
-  const r = run(stub("renamed", [
-    "const src = real();",
-    'const m = /^ {10}(\\w+): string$/m.exec(src);',
-    'process.stdout.write(src.replace(m[0], m[0].replace(m[1], m[1] + "_renamed")));',
-  ].join("\n")));
+  const r = run(
+    stub(
+      "renamed",
+      [
+        "const src = real();",
+        "const m = /^ {10}(\\w+): string$/m.exec(src);",
+        'process.stdout.write(src.replace(m[0], m[0].replace(m[1], m[1] + "_renamed")));',
+      ].join("\n"),
+    ),
+  );
   assert.equal(r.status, 1, r.stderr);
   assert.match(r.stderr, /database\.types\.ts is stale/);
   assert.match(r.stderr, /first difference at line \d+, in public\.Tables\.\w+/);
@@ -191,10 +262,15 @@ test("--check: one column renamed is stale (exit 1), and the message says what t
 test("--check: a generation that differs only in PostgREST's version block is current (exit 0), and both versions are printed", () => {
   // The stand-in answers with version 99.9 whatever the committed file records:
   // a different version when it has one, the whole block when it has none.
-  const r = run(stub("version", String.raw`const src = real();
+  const r = run(
+    stub(
+      "version",
+      String.raw`const src = real();
 const VERSION = /PostgrestVersion: "[^"]*"/;
 const block = (nl) => ["  // Allows to automatically instantiate createClient with right options", "  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)", "  __InternalSupabase: {", '    PostgrestVersion: "99.9"', "  }", ""].join(nl);
-process.stdout.write(VERSION.test(src) ? src.replace(VERSION, 'PostgrestVersion: "99.9"') : src.replace(/export type Database = \{(\r?\n)/, (m, nl) => m + block(nl)));`));
+process.stdout.write(VERSION.test(src) ? src.replace(VERSION, 'PostgrestVersion: "99.9"') : src.replace(/export type Database = \{(\r?\n)/, (m, nl) => m + block(nl)));`,
+    ),
+  );
   assert.equal(r.status, 0, r.stderr);
   const committed = postgrestVersion(fs.readFileSync(TYPES, "utf8")) ?? "none";
   assert.ok(r.stdout.includes(`PostgREST ${committed} committed, 99.9 generated`), r.stdout);
@@ -202,17 +278,24 @@ process.stdout.write(VERSION.test(src) ? src.replace(VERSION, 'PostgrestVersion:
 });
 
 test("--check: the same schema replayed a month later is current (exit 0): only its events partitions moved on", () => {
-  const r = run(stub("month-later", [
-    "const src = real();",
-    "const later = (y, m) => (m === 12 ? [y + 1, 1] : [y, m + 1]);",
-    'process.stdout.write(src.replace(/events_y(\\d{4})m(\\d{2})/g, (_, y, m) => { const [ny, nm] = later(+y, +m); return "events_y" + ny + "m" + String(nm).padStart(2, "0"); }));',
-  ].join("\n")));
+  const r = run(
+    stub(
+      "month-later",
+      [
+        "const src = real();",
+        "const later = (y, m) => (m === 12 ? [y + 1, 1] : [y, m + 1]);",
+        'process.stdout.write(src.replace(/events_y(\\d{4})m(\\d{2})/g, (_, y, m) => { const [ny, nm] = later(+y, +m); return "events_y" + ny + "m" + String(nm).padStart(2, "0"); }));',
+      ].join("\n"),
+    ),
+  );
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /database\.types\.ts is current/);
 });
 
 test("--check: a CLI that fails is exit 2, not a pass", () => {
-  const r = run(stub("down", 'process.stderr.write("failed to connect to postgres: connection refused\\n"); process.exit(1);'));
+  const r = run(
+    stub("down", 'process.stderr.write("failed to connect to postgres: connection refused\\n"); process.exit(1);'),
+  );
   assert.equal(r.status, 2, r.stderr);
   assert.match(r.stderr, /Is `supabase start` running\?/);
   assert.match(r.stderr, /connection refused/, "the CLI's own words are passed on");

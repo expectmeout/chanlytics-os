@@ -15,7 +15,9 @@ test.describe("Delete this person", () => {
     await signIn(page);
   });
 
-  test("is gated on the typed name and issues a workspace-scoped DELETE — intercepted, nothing is deleted", async ({ page }) => {
+  test("is gated on the typed name and issues a workspace-scoped DELETE — intercepted, nothing is deleted", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
@@ -32,7 +34,10 @@ test.describe("Delete this person", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, data: { contact_id: "intercepted-by-the-test-suite", already_erased: false } }),
+        body: JSON.stringify({
+          ok: true,
+          data: { contact_id: "intercepted-by-the-test-suite", already_erased: false },
+        }),
       });
     });
 

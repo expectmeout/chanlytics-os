@@ -18,7 +18,11 @@ test.describe("identity on a real workspace", () => {
     const before = await field.inputValue();
     const put = async (name: string) => {
       const r = await page.evaluate(async (n) => {
-        const res = await fetch("/api/v1/me", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ display_name: n }) });
+        const res = await fetch("/api/v1/me", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ display_name: n }),
+        });
         return { status: res.status, body: await res.json() };
       }, name);
       // A 429 here is not the product misbehaving. profile_set allows ten name
@@ -47,7 +51,9 @@ test.describe("identity on a real workspace", () => {
       // so wait for a row before reading the one that says You.
       await page.goto("/#/admin/team");
       await page.locator(".set-team-row").first().waitFor({ timeout: 20_000 });
-      await expect(page.locator(".set-team-row").filter({ hasText: "You" }).locator(".set-team-name")).toContainText("Ruben Test");
+      await expect(page.locator(".set-team-row").filter({ hasText: "You" }).locator(".set-team-name")).toContainText(
+        "Ruben Test",
+      );
       const cleared = await put("");
       expect(cleared.status).toBe(200);
       await page.reload();

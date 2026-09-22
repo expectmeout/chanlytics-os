@@ -155,7 +155,11 @@ export const WHATSAPP_LANGUAGES: readonly TemplateLanguage[] = [
 const BY_ID: ReadonlyMap<string, TemplateLanguage> = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 
 /** "pt-BR", "pt_br" and "pt_BR" are one code. */
-const keyOf = (code: string | null | undefined): string => String(code ?? "").trim().replace(/-/g, "_").toLowerCase();
+const keyOf = (code: string | null | undefined): string =>
+  String(code ?? "")
+    .trim()
+    .replace(/-/g, "_")
+    .toLowerCase();
 
 /** The language WhatsApp files under this code, or null when WhatsApp takes no template in it. */
 export function templateLanguage(code: string | null | undefined): TemplateLanguage | null {
@@ -171,7 +175,11 @@ export function languageName(code: string): string {
   const known = templateLanguage(code);
   if (known) return known.name;
   const base = String(code ?? "").split(/[-_]/)[0];
-  const Names = (Intl as unknown as { DisplayNames?: new (locales: string[], options: { type: "language" }) => { of(code: string): string | undefined } }).DisplayNames;
+  const Names = (
+    Intl as unknown as {
+      DisplayNames?: new (locales: string[], options: { type: "language" }) => { of(code: string): string | undefined };
+    }
+  ).DisplayNames;
   try {
     const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : undefined;
     return name && name !== base ? name : String(code ?? "");
@@ -192,7 +200,13 @@ export function languageLabel(code: string): string {
  */
 export function languageTag(code: string, among: readonly string[] = []): string {
   const [base = "", region = ""] = String(code ?? "").split(/[-_]/);
-  const clash = among.some((c) => keyOf(c) !== keyOf(code) && String(c ?? "").split(/[-_]/)[0].toLowerCase() === base.toLowerCase());
+  const clash = among.some(
+    (c) =>
+      keyOf(c) !== keyOf(code) &&
+      String(c ?? "")
+        .split(/[-_]/)[0]
+        .toLowerCase() === base.toLowerCase(),
+  );
   return clash && region ? `${base.toUpperCase()}-${region.toUpperCase()}` : base.toUpperCase();
 }
 
@@ -206,7 +220,10 @@ const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").to
  * "mex") -- then anything that contains it. Nothing typed is the whole list, in
  * its order. A query only ever narrows: it never invents a language.
  */
-export function findLanguages<T extends TemplateLanguage>(query: string, list: readonly T[] = WHATSAPP_LANGUAGES as readonly T[]): T[] {
+export function findLanguages<T extends TemplateLanguage>(
+  query: string,
+  list: readonly T[] = WHATSAPP_LANGUAGES as readonly T[],
+): T[] {
   const q = fold(String(query ?? "").trim()).replace(/-/g, "_");
   if (!q) return [...list];
   const scored: Array<{ l: T; score: number; at: number }> = [];
@@ -215,7 +232,10 @@ export function findLanguages<T extends TemplateLanguage>(query: string, list: r
     const name = fold(l.name);
     const label = fold(l.label);
     const native = fold(l.native);
-    const words = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
+    const words = [label, native]
+      .join(" ")
+      .split(/[\s(),’'（）]+/)
+      .filter(Boolean);
     let score = -1;
     if (code === q || code.split("_")[0] === q) score = 0;
     else if (name.startsWith(q) || label.startsWith(q)) score = 1;

@@ -34,7 +34,10 @@ export const POST = write({
     try {
       decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "end_call", {});
     } catch (e) {
-      console.error("end_call_unrecorded", JSON.stringify({ call: call.id, error: e instanceof Error ? e.message : String(e) }));
+      console.error(
+        "end_call_unrecorded",
+        JSON.stringify({ call: call.id, error: e instanceof Error ? e.message : String(e) }),
+      );
     }
     return { ok: true, decision_id };
   },

@@ -9,7 +9,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent, listPolicies, type Database, type Json } from "./packages/db.js";
 import { scheduleJob } from "./packages/jobs.js";
-import { runPlaybook as runOverPorts, type PlaybookRow, type RunBy, type RunContext, type RunOutcome } from "./packages/core.js";
+import {
+  runPlaybook as runOverPorts,
+  type PlaybookRow,
+  type RunBy,
+  type RunContext,
+  type RunOutcome,
+} from "./packages/core.js";
 import { notify } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
@@ -34,7 +40,13 @@ const TOUCH_WINDOW_MS = (365 + 7) * 24 * 3600 * 1000;
 /** Ids per recipients query: they ride in the URL, which is not unbounded. */
 const RUN_IDS_PER_QUERY = 200;
 
-type BroadcastRow = { id: string; playbook_id: string | null; state: string; scheduled_for: string | null; created_at: string };
+type BroadcastRow = {
+  id: string;
+  playbook_id: string | null;
+  state: string;
+  scheduled_for: string | null;
+  created_at: string;
+};
 type TouchRow = { broadcast_id: string; contact_id: string; state: string; sent_at: string | null };
 
 type Db = SupabaseClient<Database>;
@@ -48,10 +60,16 @@ export type { PlaybookRow, RunOutcome };
  * page arguments are named only past the first page, so a database that has
  * not been given 00112 yet answers the first page as it always has.
  */
-export async function allPeople(db: Db, tenantId: string): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
+export async function allPeople(
+  db: Db,
+  tenantId: string,
+): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
   const all: PersonRowDto[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await db.rpc("people_list", offset ? { p_tenant_id: tenantId, p_offset: offset, p_limit: 1000 } : { p_tenant_id: tenantId });
+    const { data, error } = await db.rpc(
+      "people_list",
+      offset ? { p_tenant_id: tenantId, p_offset: offset, p_limit: 1000 } : { p_tenant_id: tenantId },
+    );
     if (error) return { data: null, error };
     const page = (data ?? []) as unknown as PersonRowDto[];
     all.push(...page);
@@ -66,41 +84,59 @@ export interface TenantRunContext extends RunContext {
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
-export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, pastRuns, { data: cfgRow }] = await Promise.all([
-    db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
-    allPeople(db, tenantId),
-    listPolicies(db, tenantId).catch(() => []),
-    db.from("tenant_channels").select("config").eq("tenant_id", tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
-    // Every broadcast, not only the playbooks' runs: a message sent by hand is
-    // a touch too, and the week's breath is one message per person across all
-    // of them. byThis (the gap) still keys on the playbook that sent it.
-    //
-    // Bounded by TIME, not by luck. Nothing older than the longest gap a
-    // playbook may set can hold anybody back, so reading further is work for
-    // nothing -- and the ids come back to be listed in the recipients query
-    // below, where an unbounded set is a URL no proxy will accept.
-    //
-    // The failure is CAUGHT to an error rather than to null: `null` reads as
-    // "no past broadcasts", which empties the touch history and re-messages
-    // everyone it can no longer see -- the exact defect the paging was added
-    // for, arrived at from the other side.
-    readAllRows<BroadcastRow>("broadcasts", (from, to) =>
+export async function loadTenantRunContext(
+  db: Db,
+  tenantId: string,
+  now: Date,
+): Promise<TenantRunContext | { error: string }> {
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, pastRuns, { data: cfgRow }] =
+    await Promise.all([
+      db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
+      allPeople(db, tenantId),
+      listPolicies(db, tenantId).catch(() => []),
       db
-        .from("broadcasts")
-        .select("id, playbook_id, state, scheduled_for, created_at")
+        .from("tenant_channels")
+        .select("config")
         .eq("tenant_id", tenantId)
-        .gte("created_at", new Date(now.getTime() - TOUCH_WINDOW_MS).toISOString())
-        .order("id")
-        .range(from, to),
-    ).then((data) => ({ data, error: null as string | null }), (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) })),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-  ]);
+        .eq("kind", "whatsapp")
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle(),
+      // Every broadcast, not only the playbooks' runs: a message sent by hand is
+      // a touch too, and the week's breath is one message per person across all
+      // of them. byThis (the gap) still keys on the playbook that sent it.
+      //
+      // Bounded by TIME, not by luck. Nothing older than the longest gap a
+      // playbook may set can hold anybody back, so reading further is work for
+      // nothing -- and the ids come back to be listed in the recipients query
+      // below, where an unbounded set is a URL no proxy will accept.
+      //
+      // The failure is CAUGHT to an error rather than to null: `null` reads as
+      // "no past broadcasts", which empties the touch history and re-messages
+      // everyone it can no longer see -- the exact defect the paging was added
+      // for, arrived at from the other side.
+      readAllRows<BroadcastRow>("broadcasts", (from, to) =>
+        db
+          .from("broadcasts")
+          .select("id, playbook_id, state, scheduled_for, created_at")
+          .eq("tenant_id", tenantId)
+          .gte("created_at", new Date(now.getTime() - TOUCH_WINDOW_MS).toISOString())
+          .order("id")
+          .range(from, to),
+      ).then(
+        (data) => ({ data, error: null as string | null }),
+        (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
+      ),
+      db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    ]);
   if (pErr) return { error: pErr.message };
   if (pastRuns.error) return { error: `broadcasts: ${pastRuns.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
   if (tenant?.status === "paused") return { error: "paused" };
-  const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
+  const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<
+    string,
+    unknown
+  >;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
   const byThis = new Map<string, Map<string, number>>();
   const byAny = new Map<string, number>();
@@ -184,8 +220,18 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
       // as a customer, for a meeting on their own calendar.
       const index = indexFeed(items, ownAddressesOf(cfgParsed));
       for (const r of rows) {
-        const v = visitsIn(index, { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null }, now.getTime());
-        visits.set(r.id, { timezone: tz, source: "calendar", state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
+        const v = visitsIn(
+          index,
+          { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null },
+          now.getTime(),
+        );
+        visits.set(r.id, {
+          timezone: tz,
+          source: "calendar",
+          state: "ok",
+          next: toVisitDto(v.next),
+          last: toVisitDto(v.last),
+        });
       }
     } else {
       calendar = "unavailable";
@@ -220,12 +266,24 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       // A read that fails throws: a template that could not be read is not
       // one Meta withdrew, and the run says it failed rather than skipping the day.
       template: async (name, language) => {
-        const { data, error } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        const { data, error } = await db
+          .from("templates")
+          .select("meta_status")
+          .eq("tenant_id", tenantId)
+          .eq("channel", "whatsapp")
+          .eq("name", name)
+          .eq("language", language)
+          .maybeSingle();
         if (error) throw new Error(`cannot read template ${name}: ${error.message}`);
         return data ?? null;
       },
       alreadyRan: async (playbookId, runFor) => {
-        const { data } = await db.from("broadcasts").select("id").eq("playbook_id", playbookId).eq("run_for", runFor).maybeSingle();
+        const { data } = await db
+          .from("broadcasts")
+          .select("id")
+          .eq("playbook_id", playbookId)
+          .eq("run_for", runFor)
+          .maybeSingle();
         return !!data;
       },
       record: async (playbookId, runFor, at, data) => {
@@ -235,14 +293,26 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       create: async (row) => {
         const { data, error } = await db
           .from("broadcasts")
-          .insert({ tenant_id: tenantId, ...row, params: row.params as unknown as Json, audience: row.audience as unknown as Json })
+          .insert({
+            tenant_id: tenantId,
+            ...row,
+            params: row.params as unknown as Json,
+            audience: row.audience as unknown as Json,
+          })
           .select("id")
           .single();
         if (error || !data) throw new Error(error?.message ?? "run not created");
         return data.id;
       },
       enrol: async (id, rows) => {
-        const { error } = await db.from("broadcast_recipients").insert(rows.map((r) => ({ broadcast_id: id, contact_id: r.contact_id, tenant_id: tenantId, ...(r.facts ? { facts: r.facts as unknown as Json } : {}) })));
+        const { error } = await db.from("broadcast_recipients").insert(
+          rows.map((r) => ({
+            broadcast_id: id,
+            contact_id: r.contact_id,
+            tenant_id: tenantId,
+            ...(r.facts ? { facts: r.facts as unknown as Json } : {}),
+          })),
+        );
         if (error) throw new Error(error.message);
       },
       fail: async (id, failure) => {
@@ -266,7 +336,10 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       },
       notify: async (subject, body) => {
         const target = await loadTenantNotifications(db, tenantId);
-        await notify({ tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault }, { kind: "playbook", route: "outbound", subject, body });
+        await notify(
+          { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+          { kind: "playbook", route: "outbound", subject, body },
+        );
       },
     },
     { playbook: p, ctx, runFor: req.runFor, by: req.by },

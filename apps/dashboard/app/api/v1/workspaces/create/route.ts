@@ -1,5 +1,11 @@
 import { write, account } from "@/server/route";
-import { AppError, firstWorkspaceDoor, signupPosture, PENDING_WORKSPACE_KEY, pendingWorkspaceOf } from "@chanlytics/contracts";
+import {
+  AppError,
+  firstWorkspaceDoor,
+  signupPosture,
+  PENDING_WORKSPACE_KEY,
+  pendingWorkspaceOf,
+} from "@chanlytics/contracts";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
 
@@ -49,8 +55,8 @@ const Body = z
 /** Postgres error codes the function raises deliberately, mapped to the wire. */
 const RAISED: Record<string, { code: "validation" | "forbidden" | "conflict"; status: number }> = {
   "22023": { code: "validation", status: 400 }, // bad name or unknown timezone
-  "54000": { code: "conflict", status: 409 },   // per-account workspace cap
-  "28000": { code: "forbidden", status: 403 },  // no auth.uid() behind the session
+  "54000": { code: "conflict", status: 409 }, // per-account workspace cap
+  "28000": { code: "forbidden", status: 403 }, // no auth.uid() behind the session
 };
 
 export const POST = write({
@@ -69,9 +75,16 @@ export const POST = write({
     // door takes for "no memberships" -- so an owner making their second
     // workspace would be refused with a wrong-invite-code message, for a field
     // the create screen never showed them.
-    const { count, error: countErr } = await ctx.supabase.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", ctx.userId);
+    const { count, error: countErr } = await ctx.supabase
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", ctx.userId);
     if (countErr) throw new Error(`memberships_count: ${countErr.message}`);
-    const door = firstWorkspaceDoor({ posture: signupPosture(process.env.SIGNUP_CODE), memberships: count ?? 0, codeMatches: inviteCodeMatches(parsed.data.code) });
+    const door = firstWorkspaceDoor({
+      posture: signupPosture(process.env.SIGNUP_CODE),
+      memberships: count ?? 0,
+      codeMatches: inviteCodeMatches(parsed.data.code),
+    });
     if (!door.open) throw new AppError(door.code, door.message);
 
     const { data, error } = await ctx.supabase

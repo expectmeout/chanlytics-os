@@ -11,7 +11,7 @@ the code disagree, the code wins.
 `ROLE_PERMS` (`packages/contracts/src/config.ts:21-34`) has owner, operator and
 viewer, and eight permissions: `approve`, `autonomy`, `disconnect`, `billing`,
 `team`, `settings`, `export`, `find`. Operators get `approve` and `autonomy`;
-viewers get nothing. None of the eight says anything about *which* threads a
+viewers get nothing. None of the eight says anything about _which_ threads a
 member works. That is the gap this note fills, and it is a gap in the product,
 not in the permission model: assignment is about people, and the Autonomy
 matrix (`POLICY_CLASSES`, `config.ts:38`) is about the machine. Nothing here
@@ -37,14 +37,14 @@ resolves the open escalation.
 ### 00132 named the defect, and closed most of it
 
 **Correction to the brief.** `00132_a_thread_says_who_is_speaking_now.sql` does
-not only *record* that assignment never cleared — it fixes two of the three
+not only _record_ that assignment never cleared — it fixes two of the three
 cases:
 
 - `clear_control_of_departed_member()` (`:226-239`) clears `assignee_user_id`
   for every thread a removed member held, and their live hold with it, fired by
   `memberships_clear_control` on `after delete on memberships` (`:246-249`).
-  Its comment: *"A member removed from a workspace stops being responsible for
-  its threads and stops holding any."*
+  Its comment: _"A member removed from a workspace stops being responsible for
+  its threads and stops holding any."_
 - `expire_stale_pauses()` (`:192-220`) clears `assignee_user_id` alongside the
   pause, for a `needs_human` thread whose `paused_until` has passed **and**
   which has no open escalation (`:204-217`).
@@ -75,21 +75,21 @@ on `rate: "reply"`.
 ### The Inbox has no per-member queue, but the vocabulary exists
 
 `GET /api/v1/conversations` (`apps/dashboard/app/api/v1/conversations/route.ts`)
-takes one query parameter, `ids`, and otherwise reads *"the hundred most recent
-conversations of the workspace"* (`:24-25`) ordered by `last_message_at`. There
+takes one query parameter, `ids`, and otherwise reads _"the hundred most recent
+conversations of the workspace"_ (`:24-25`) ordered by `last_message_at`. There
 is no scope, no filter, no assignee predicate.
 `apps/dashboard/src/legacy-bridge/inbox-verbs.ts` (543 lines) names `assignee`
 nowhere.
 
-What *does* exist is the word for it. `standingOf`
+What _does_ exist is the word for it. `standingOf`
 (`packages/contracts/src/standing.ts:45-61`) already answers `needs_you |
 yours | theirs | snoozed | quiet` from the state, the pause, the assignee and
 `assignee_is_me`, which `apps/dashboard/src/server/dto.ts:152` computes per
 request; `packages/contracts/src/viewmodels.ts:655-663` reads it for every
-Inbox thread. Today reads it too and filters *away* anything held: its
+Inbox thread. Today reads it too and filters _away_ anything held: its
 escalation list keeps only `standing === "needs_you"`
 (`packages/contracts/src/today.ts:696-703`), and the "waiting with nothing
-back" list only `quiet` or `needs_you` (`:794-802`). Today shows *unheld* work,
+back" list only `quiet` or `needs_you` (`:794-802`). Today shows _unheld_ work,
 by design, and there is nowhere to see your own.
 
 ### Notifications are addressed to the workspace
@@ -104,7 +104,7 @@ Nothing anywhere maps a member to an address.
 The bell is the same: `notifications` (`00057_notifications.sql:14-30`) is a
 workspace row every member reads, with per-member `notification_reads`
 (`:34-43`) and `notification_marks` (`:45-50`) for what each has seen. So the
-*read* state is already per member and the *addressing* is not.
+_read_ state is already per member and the _addressing_ is not.
 
 ### The deadman sweep does not know about holders
 
@@ -112,7 +112,7 @@ workspace row every member reads, with per-member `notification_reads`
 selects open escalations older than two hours with `deadman_alerted_at is
 null`, joined to the conversation and the contact. There is **no assignee
 predicate**. `apps/edge/api/cron/deadman.ts:115-129` then mails the workspace's
-addresses *"Still waiting: a customer has had no answer for N hours"*, and
+addresses _"Still waiting: a customer has had no answer for N hours"_, and
 stamps the escalation only if the mail was delivered (`:135`, `:156`). So a
 thread a teammate took over two hours ago and is still working produces the
 same alarm, in the same words, to the same people, as one nobody has touched.
@@ -139,14 +139,14 @@ Three verbs in `packages/core/src/conversations/`, over the existing
   else.
 - **claim** — assign it to yourself. The same verb as assign with the caller as
   the target, kept separate because it is a different permission question: a
-  member may always claim, and assigning *somebody else* is a different act.
+  member may always claim, and assigning _somebody else_ is a different act.
 
 Each records a `decisions` row, so "who gave me this" has an answer.
 
 **A "mine" scope in the Inbox and on Today.** `GET /api/v1/conversations` gains
 `scope: "all" | "mine" | "unassigned"`, defaulting to `all` so no deployed
 client changes. `standingOf` needs no change: `yours` and `theirs` are already
-the words. Today gains one section, *Yours*, beside the queue — and the queue
+the words. Today gains one section, _Yours_, beside the queue — and the queue
 itself keeps filtering to `needs_you`, because "nobody has this" is what a
 queue is for.
 
@@ -160,8 +160,8 @@ assigns anything behaves exactly as today.
 unattended, but it is not answered either. So `deadman_candidates` returns the
 assignee, the sweep tells **that person first** and the workspace only after a
 second window, and a thread whose holder has been idle past that window is
-reported in different words — *"X took this on N hours ago and the customer has
-had no answer"* — because it is a different problem. The stamping rule does not
+reported in different words — _"X took this on N hours ago and the customer has
+had no answer"_ — because it is a different problem. The stamping rule does not
 change: only a delivered warning earns the guard (`deadman.ts:131-136`).
 
 **Membership removal already works** (`00132:226-249`) and needs nothing. The
@@ -228,6 +228,7 @@ POST conversations/[id]/assign   {"kind":"write","scope":"row","role":"operator"
 POST conversations/[id]/release  {"kind":"write","scope":"row","role":"operator","rate":"thread_state","spend":false}
 POST conversations/[id]/claim    {"kind":"write","scope":"row","role":"operator","rate":"thread_state","spend":false}
 ```
+
 ```sql
 alter table public.decisions drop constraint if exists decisions_verb_check;
 alter table public.decisions add constraint decisions_verb_check
@@ -249,7 +250,6 @@ create table public.assignment_rules (
 );
 ```
 
-
 ## Steps
 
 The README rule governs every step: the two apps deploy independently, so each
@@ -259,22 +259,22 @@ must be correct whichever goes first.
 `packages/core/src/conversations/`, the two ports, the adapter, the three
 routes, the `route-policy.json` entries and the `decisions` verb migration —
 which ships **first and alone**, because a `decisions` row with an unknown verb
-is refused by the CHECK. *Both orders:* the edge writes no `assign` row, and an
+is refused by the CHECK. _Both orders:_ the edge writes no `assign` row, and an
 older dashboard does not call the new routes.
 
 **2 · The "mine" scope.** `GET /api/v1/conversations` gains `scope`, defaulting
 to `all`, and a filter in the Inbox that sets it — branching inside the
-existing components the way `XReal`/`XSeed` does. *Both orders:* a default that
+existing components the way `XReal`/`XSeed` does. _Both orders:_ a default that
 means "what it does today" keeps an older client safe against a newer server,
 and this is one app, so the server half ships first.
 
-**3 · Today gains *Yours*.** One section, built from the same `standingOf`
+**3 · Today gains _Yours_.** One section, built from the same `standingOf`
 verdict the queue already computes (`today.ts:696-703`). The queue's own filter
-does not change. *Both orders:* a view-model change inside one app.
+does not change. _Both orders:_ a view-model change inside one app.
 
 **4 · The deadman sweep learns the holder.** `deadman_candidates` returns
 `assignee_user_id`; the sweep addresses it first and the workspace after a
-second window, in its own words. *Both orders:* the function's new output
+second window, in its own words. _Both orders:_ the function's new output
 column is additive, so an older edge ignoring it behaves as today. SQL first.
 
 **5 · Per-member notification routing.** The member's own address, from the
@@ -296,16 +296,17 @@ list takes only `ids` becomes a test of the `scope` default instead.
 **Keep meaningful.** `tooling/scripts/tests/route-policy.test.mjs` compares
 every route's declaration against `route-policy.json`; the three new rows are
 the review artifact for "who may assign a thread", and that file's own note
-says a change there *"is a change to who may do what, how often, and on which
-workspace: review it as one"*.
+says a change there _"is a change to who may do what, how often, and on which
+workspace: review it as one"_.
 
 **New.**
+
 - `assign.test.mjs`: the three verbs over ports in memory, including the two
   things that must hold for each — a viewer is refused before anything is
   written, and a verb that changed no row wrote no decision.
 - `assignment.db.test.mjs`: removing a membership clears the assignee (the
   `memberships_clear_control` trigger, `00132:246-249`) — a proof this note
-  *depends* on and does not add.
+  _depends_ on and does not add.
 - `deadman-holder.test.mjs`: an assigned thread inside the second window tells
   the holder and not the workspace; past it, both, in the holder's words.
 
@@ -316,10 +317,10 @@ workspace: review it as one"*.
   of 00132. An assign verb that quietly took control too would undo it in one
   line, so assign never touches `control_*`; take-over goes on doing both.
 - **The wire must go on reading control, not the assignee.** It already does:
-  `WireFacts.control` is documented as *"Not `assignee_user_id`, which says who
+  `WireFacts.control` is documented as _"Not `assignee_user_id`, which says who
   is responsible and may outlive the exchange — reading that as a live hold is
   how a thread taken over and never handed back refused the receptionist's
-  drafts for ever"* (`packages/core/src/deliver.ts:181-190`, reading
+  drafts for ever"_ (`packages/core/src/deliver.ts:181-190`, reading
   `control_kind, control_until` at `:208`). Assignment writes the assignee on
   threads the receptionist was never paused on, so the day that separation is
   undone, every assigned thread silently loses its veto window.

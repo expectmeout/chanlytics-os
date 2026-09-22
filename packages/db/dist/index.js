@@ -205,7 +205,16 @@ var DECISION_VERBS = [
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
-var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",
@@ -251,7 +260,9 @@ var BrainOutputSchema = z2.object({
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
   confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z2.array(z2.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  facts_used: z2.array(z2.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
@@ -321,11 +332,31 @@ function feedProblemWords(reason, status) {
 }
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema = z3.object({
@@ -595,7 +626,11 @@ function checkClosure(c, n, ctx) {
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -614,14 +649,26 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
@@ -644,8 +691,18 @@ var CHANNEL_KIND_WORDS = {
   instagram: "Instagram"
 };
 var KIND_META = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -718,8 +775,16 @@ var AskFinishSchema = z4.object({
       label: z4.string().catch("").transform(clip(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z4.array(z4.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
-  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  followups: z4.array(z4.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
   language: z4.enum(ASK_LANGUAGES).catch("other")
 });
 var ASK_UNDO_MS = 10 * 6e4;
@@ -730,10 +795,24 @@ var AskProposalOutcomeSchema = z4.object({
   undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
-  z4.object({ op: z4.literal("add_closure"), date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z4.string().max(200).optional() }),
-  z4.object({ op: z4.literal("set_hours"), day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z4.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z4.object({
+    op: z4.literal("add_closure"),
+    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z4.string().max(200).optional()
+  }),
+  z4.object({
+    op: z4.literal("set_hours"),
+    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
-  z4.object({ op: z4.literal("add_service"), name: z4.string().min(1).max(80), duration_min: z4.number().int().min(1).max(1440).optional() })
+  z4.object({
+    op: z4.literal("add_service"),
+    name: z4.string().min(1).max(80),
+    duration_min: z4.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L = (id, name, region, native) => ({
   id,
@@ -1038,18 +1117,47 @@ var LeadSearchPlanSchema = z6.object({
   }),
   count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
   contact: z6.enum(["phone", "email"]),
-  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
-  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+  criteria: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 120),
+      standard: z6.enum(["likely", "seen"]),
+      required: z6.boolean()
+    })
+  ).max(8),
+  exclusions: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 80),
+      origin: z6.enum(["claude", "you_said"]),
+      category_key: z6.string().regex(KEY).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
+var US_NAMES = Object.fromEntries(
+  Object.entries(US_STATES).map(([name, code2]) => [code2, name])
+);
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -1078,9 +1186,22 @@ var PASSWORD_WORDS = {
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
@@ -1089,7 +1210,14 @@ var LEAD_CALL_OUTCOME_TONES = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS = {
   chain: "A chain or franchise",
@@ -1142,7 +1270,11 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -1151,7 +1283,10 @@ var LEAD_WORDS = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
@@ -1194,13 +1329,22 @@ var LeadStageInputSchema = z7.discriminatedUnion("kind", [
   z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
   z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
   z7.object({ kind: z7.literal("said_no") }),
-  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  z7.object({
+    kind: z7.literal("outcome"),
+    outcome: z7.enum(LEAD_CALL_OUTCOMES),
+    note: z7.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z7.object({ kind: z7.literal("emailed") })
 ]);
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
+  z7.object({
+    by: z7.literal("ids"),
+    action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z7.array(z7.string().uuid()).min(1).max(500),
+    search_id: z7.string().uuid().optional()
+  }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
 var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
@@ -1229,13 +1373,32 @@ var ProposeLeadSearchSchema = z7.object({
   leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
   asked: z7.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema = z7.object({
+  subject: z7.string().trim().min(3).max(120),
+  body: z7.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
-  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z7.array(
+    z7.object({
+      words: z7.string().trim().min(3).max(80),
+      who_for: z7.string().trim().min(3).max(120),
+      category_key: z7.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -1270,12 +1433,16 @@ var JUDGE_OUTPUT_SCHEMA = {
   additionalProperties: false
 };
 var AnswerSchema = z8.object({
-  places: z8.array(z8.object({
-    ref: z8.number().int(),
-    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
-    email_index: z8.number().int().nullable(),
-    reason: z8.string()
-  }))
+  places: z8.array(
+    z8.object({
+      ref: z8.number().int(),
+      criteria: z8.array(
+        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+      ),
+      email_index: z8.number().int().nullable(),
+      reason: z8.string()
+    })
+  )
 });
 var K = new Uint32Array([
   1116352408,
@@ -1371,17 +1538,24 @@ async function ingestInbound(db, p) {
       p_source: "customer_message",
       p_note: null
     };
-    const evidence = { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null };
+    const evidence = {
+      channel: p.channel,
+      message_external_id: p.messageExternalId,
+      words: (p.body ?? "").slice(0, 80) || null
+    };
     let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
-    if (mErr && /p_evidence/.test(mErr.message)) ({ error: mErr } = await db.rpc("set_marketing_consent", args));
+    if (mErr && /p_evidence/.test(mErr.message))
+      ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "marketing_consent_write_failed",
-        tenant_id: p.tenantId,
-        contact_id: out.contact_id,
-        error: mErr.message
-      }));
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "marketing_consent_write_failed",
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          error: mErr.message
+        })
+      );
     }
   }
   return out;
@@ -1544,7 +1718,10 @@ async function ingestInboundEmail(db, p) {
   const known = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("email", p.address).is("erased_at", null).is("merged_into_contact_id", null).maybeSingle();
   if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
   if (known.data) {
-    const { error } = await db.from("contact_identities").upsert({ tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address }, { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true });
+    const { error } = await db.from("contact_identities").upsert(
+      { tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address },
+      { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true }
+    );
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
   const out = await ingestInbound(db, {
@@ -1561,8 +1738,10 @@ async function ingestInboundEmail(db, p) {
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
-    if (error && error.code !== "23505") throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error) console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error && error.code !== "23505")
+      throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
+    if (error)
+      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
   }
   return out;
 }
@@ -1607,12 +1786,14 @@ async function stampEmailSent(db, p) {
 }
 async function recordEmailStatus(db, p) {
   const { error } = await db.from("messages").update({ status: p.status, ...p.error ? { error: p.error } : {} }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound");
-  if (error && !/monotone|terminal/.test(error.message)) throw new Error(`email receipt: cannot move message ${p.messageId}: ${error.message}`);
+  if (error && !/monotone|terminal/.test(error.message))
+    throw new Error(`email receipt: cannot move message ${p.messageId}: ${error.message}`);
 }
 async function suppressEmailOf(db, p) {
   if (!p.addresses.length) return null;
   const sent = await db.from("messages").select("contact_id").eq("id", p.messageId).eq("tenant_id", p.tenantId).maybeSingle();
-  if (sent.error) throw new Error(`email receipt: cannot read who message ${p.messageId} went to: ${sent.error.message}`);
+  if (sent.error)
+    throw new Error(`email receipt: cannot read who message ${p.messageId} went to: ${sent.error.message}`);
   if (!sent.data?.contact_id) return null;
   const { data, error } = await db.from("contacts").update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason }).eq("id", sent.data.contact_id).eq("tenant_id", p.tenantId).in("email", p.addresses).is("email_suppressed_at", null).select("id");
   if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
@@ -1688,12 +1869,14 @@ async function ingestCall(db, tenantId, n, raw) {
 async function linkCallMessage(db, tenantId, callId, messageId) {
   const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
   if (error) console.error("link_call_message_failed", error.message);
-  else if (!data || data.length === 0) console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  else if (!data || data.length === 0)
+    console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
   if (error) console.error("set_call_recording_failed", error.message);
-  else if (!data || data.length === 0) console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+  else if (!data || data.length === 0)
+    console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 async function recordCallNote(db, p) {
   const { data, error } = await db.from("messages").insert({
@@ -1958,7 +2141,11 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
         },
         // The event too: a surface may want a call STARTING and ENDING and
         // not the transcript turn every few seconds in between.
-        (payload) => onInsert(payload.new ?? payload.old ?? {}, w.table, payload.eventType)
+        (payload) => onInsert(
+          payload.new ?? payload.old ?? {},
+          w.table,
+          payload.eventType
+        )
       );
     }
     channel = channel.subscribe((status) => {

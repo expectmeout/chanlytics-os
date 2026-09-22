@@ -1,10 +1,18 @@
 import { z } from "zod";
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, ownMessageRefusal } from "@chanlytics/contracts";
+import {
+  AppError,
+  CONSENT_RESET_SOURCE,
+  CONSENT_SOURCES,
+  CONSENT_STATES,
+  ownMessageRefusal,
+} from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 
 const Body = z.object({
-  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
+  consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], {
+    message: "Consent must be one of: opted_in, opted_out, unknown.",
+  }),
   source: z.string().optional(),
   note: z.string().optional(),
   message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
@@ -43,7 +51,10 @@ export const PUT = write({
     const consent = body.consent;
     const source = consent === "unknown" ? CONSENT_RESET_SOURCE : body?.source;
     if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
-      throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
+      throw new AppError(
+        "validation",
+        "Say how they told you: in person, on the phone, on a form, or in their own message.",
+      );
     }
     const messageId = body.message_id ?? null;
     const ownMessage = ownMessageRefusal(source, messageId);
@@ -61,7 +72,10 @@ export const PUT = write({
     const r = (data ?? {}) as { previous?: string | null; updated_at?: string | null; dnc?: boolean };
 
     const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
-      consent, source, note, previous: r.previous ?? null,
+      consent,
+      source,
+      note,
+      previous: r.previous ?? null,
       ...(messageId ? { message_id: messageId } : {}),
     });
     return { contact_id: id, consent, dnc: !!r.dnc, source, updated_at: r.updated_at ?? null, decision_id: decisionId };

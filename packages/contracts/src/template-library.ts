@@ -11,7 +11,13 @@
  * Titles are for people; names are what Meta and the wire use.
  */
 import { purposeOfTemplate } from "./consent";
-import { WHATSAPP_LANGUAGES, languageLabel, languageName, templateLanguage, type TemplateLanguage } from "./template-languages";
+import {
+  WHATSAPP_LANGUAGES,
+  languageLabel,
+  languageName,
+  templateLanguage,
+  type TemplateLanguage,
+} from "./template-languages";
 import { PARAM_SOURCES, type ParamSourceKind, type ParamSpec } from "./templates";
 import type { PlaybookTrigger } from "./playbooks";
 
@@ -134,12 +140,26 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       en_US: {
         body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} — spaces are limited.",
         footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The offer", example: "20% off any service booked before Friday." }, LINK],
+        slots: [
+          FIRST,
+          BUSINESS,
+          { kind: "text", label: "The offer", example: "20% off any service booked before Friday." },
+          LINK,
+        ],
       },
       es: {
         body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aquí: {{4}} — las plazas son limitadas.",
         footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La oferta", example: "20% de descuento en cualquier servicio reservado antes del viernes." }, LINK_ES],
+        slots: [
+          FIRST_ES,
+          BUSINESS_ES,
+          {
+            kind: "text",
+            label: "La oferta",
+            example: "20% de descuento en cualquier servicio reservado antes del viernes.",
+          },
+          LINK_ES,
+        ],
       },
     },
   },
@@ -194,12 +214,20 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       en_US: {
         body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
         footer: STOP_EN,
-        slots: [FIRST, BUSINESS, { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }],
+        slots: [
+          FIRST,
+          BUSINESS,
+          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." },
+        ],
       },
       es: {
         body: "Hola {{1}}, una nota rápida de {{2}}: {{3}} Escríbenos aquí si tienes alguna pregunta.",
         footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }],
+        slots: [
+          FIRST_ES,
+          BUSINESS_ES,
+          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." },
+        ],
       },
     },
   },
@@ -258,9 +286,19 @@ export function starterText(s: StarterTemplate, language: string): StarterText {
 }
 
 /** What the submit route takes: the same shape a template written by hand has. */
-export function starterDraft(s: StarterTemplate, language: string): { name: string; language: string; category: string; body: string; footer: string | null; examples: string[] } {
+export function starterDraft(
+  s: StarterTemplate,
+  language: string,
+): { name: string; language: string; category: string; body: string; footer: string | null; examples: string[] } {
   const t = starterText(s, language);
-  return { name: s.name, language, category: s.category, body: t.body, footer: t.footer, examples: t.slots.map((x) => x.example) };
+  return {
+    name: s.name,
+    language,
+    category: s.category,
+    body: t.body,
+    footer: t.footer,
+    examples: t.slots.map((x) => x.example),
+  };
 }
 
 function fill(body: string, values: string[]): string {
@@ -274,7 +312,10 @@ export interface OwnFacts {
 }
 
 /** The slots that name the business, and what a blank one is called when there is no label of its own. */
-const OWN_SLOT_LABEL: ReadonlyMap<string, string> = new Map([["business_name", "Business name"], ["booking_link", "Booking link"]]);
+const OWN_SLOT_LABEL: ReadonlyMap<string, string> = new Map([
+  ["business_name", "Business name"],
+  ["booking_link", "Booking link"],
+]);
 
 /**
  * A slot's words for a customer's eyes. A slot that names the business takes
@@ -298,14 +339,24 @@ function slotWords(kind: string | undefined, label: string, example: string | nu
  * substituted into a string, so the values are decided here and the two
  * preview functions below are the same thing joined up.
  */
-export function starterPreviewValues(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string[] {
+export function starterPreviewValues(
+  s: StarterTemplate,
+  language: string,
+  businessName?: string | null,
+  bookingLink?: string | null,
+): string[] {
   const t = starterText(s, language);
   const own: OwnFacts = { business_name: businessName, booking_link: bookingLink };
   return t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example);
 }
 
 /** The message as a customer would read it: the business's own name and booking link, and a blank for what it has not given. */
-export function starterPreview(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string {
+export function starterPreview(
+  s: StarterTemplate,
+  language: string,
+  businessName?: string | null,
+  bookingLink?: string | null,
+): string {
   return fill(starterText(s, language).body, starterPreviewValues(s, language, businessName, bookingLink));
 }
 
@@ -316,7 +367,10 @@ export function starterPreview(s: StarterTemplate, language: string, businessNam
  * example (defaultSlotKinds), and the words follow slotWords. A slot with
  * nothing to show stays a slot.
  */
-export function templatePreviewValues(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string[] {
+export function templatePreviewValues(
+  t: { name: string; language?: string | null; body_preview: string | null; variables: unknown },
+  own: OwnFacts = {},
+): string[] {
   const vars = Array.isArray(t.variables) ? (t.variables as VariableLike[]) : [];
   const kinds = defaultSlotKinds(t);
   const labels = slotLabels(t);
@@ -324,14 +378,18 @@ export function templatePreviewValues(t: { name: string; language?: string | nul
   vars.forEach((v, i) => {
     const at = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
     const kind = kinds[i];
-    const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at + 1}`;
+    const label =
+      labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : (OWN_SLOT_LABEL.get(kind) ?? `Value ${at + 1}`);
     const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
     if (words !== null) values[at] = words;
   });
   return values;
 }
 
-export function templatePreview(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string {
+export function templatePreview(
+  t: { name: string; language?: string | null; body_preview: string | null; variables: unknown },
+  own: OwnFacts = {},
+): string {
   return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 
@@ -368,12 +426,17 @@ export function footerOf(components: unknown): string | null {
  * read existed -- its rows carry components, but a row written by hand or by an
  * older webhook may not, and the library still knows what that message says.
  */
-export function templateFooter(t: { name: string; language?: string | null; components?: unknown; footer?: string | null }): string | null {
+export function templateFooter(t: {
+  name: string;
+  language?: string | null;
+  components?: unknown;
+  footer?: string | null;
+}): string | null {
   if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
   const stored = footerOf(t.components);
   if (stored) return stored;
   const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+  return s ? (starterText(s, t.language ?? "en_US").footer ?? null) : null;
 }
 
 /* ---- What a message is made of, and whether this product can send it ---- */
@@ -397,7 +460,8 @@ export interface TemplateParts {
 const partOf = (components: unknown, type: string): Record<string, unknown> | null => {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
-    if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type) return c as Record<string, unknown>;
+    if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type)
+      return c as Record<string, unknown>;
   }
   return null;
 };
@@ -461,7 +525,8 @@ export function templateBlocked(t: { blocked?: string | null; components?: unkno
   const header = partOf(components, "HEADER");
   if (header) {
     const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT") return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
     if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
   }
   const holder = partOf(components, "BUTTONS");
@@ -486,7 +551,9 @@ function blockedWords(reasons: readonly string[]): string {
 }
 
 /** The templates a composer may offer, and one sentence for the ones it may not. */
-export function sendableTemplates<T extends { components?: unknown }>(list: readonly T[]): { sendable: T[]; blocked: T[]; why: string | null } {
+export function sendableTemplates<T extends { components?: unknown }>(
+  list: readonly T[],
+): { sendable: T[]; blocked: T[]; why: string | null } {
   const sendable: T[] = [];
   const blocked: T[] = [];
   for (const t of list) (templateBlocked(t) ? blocked : sendable).push(t);
@@ -515,7 +582,11 @@ export function templateTitle(name: string | null | undefined, title?: string | 
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const words = String(name ?? "")
+    .replace(/_v\d+$/i, "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
 }
 
@@ -555,8 +626,14 @@ export function inboxTemplates<T extends InboxTemplateLike>(
   for (const t of templates) {
     // The reply route's own reading of the slots: words to write are what the Inbox does not ask for. It counted
     // slots, and turned away any template with other than two -- the workspace's starters among them (I6).
-    if (slotToWrite(t)) { unfillable += 1; continue; }
-    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) { promotions += 1; continue; }
+    if (slotToWrite(t)) {
+      unfillable += 1;
+      continue;
+    }
+    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) {
+      promotions += 1;
+      continue;
+    }
     const title = templateTitle(t.name, t.title);
     sendable.push({ template: t, title, label: `${title} · ${languageWords(t.language)}` });
   }
@@ -575,7 +652,8 @@ export function inboxTemplates<T extends InboxTemplateLike>(
 export function guessSlotKind(label: string | null | undefined, example?: string | null): StarterSlotKind {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
-  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
+    return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name"; // trade-word: a label naming the business, in whatever word a trade uses
   if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
   return "text";
@@ -595,7 +673,9 @@ export function defaultSlotKinds(t: { name: string; variables: unknown }): Start
     const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
     return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
   }
-  return vars.map((v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null));
+  return vars.map((v) =>
+    guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null),
+  );
 }
 
 /** The specs a run or a broadcast would send with, from the default kinds — typed text stays empty for the person to fill. */
@@ -620,16 +700,25 @@ export function defaultParamSpecs(t: { name: string; variables: unknown }): Para
  * A slot whose kind is only GUESSED, on a template written elsewhere, may be
  * any of them, the guess first: the guess is ours, the template is theirs.
  */
-export function slotChoices(kind: StarterSlotKind, o: { known: boolean; visits: boolean; bookingLink: boolean }): ParamSourceKind[] {
-  const may = (k: ParamSourceKind) => (k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true);
+export function slotChoices(
+  kind: StarterSlotKind,
+  o: { known: boolean; visits: boolean; bookingLink: boolean },
+): ParamSourceKind[] {
+  const may = (k: ParamSourceKind) =>
+    k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
-    case "first_name": return ["first_name"];
-    case "business_name": return ["business_name", "text"];
-    case "booking_link": return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "first_name":
+      return ["first_name"];
+    case "business_name":
+      return ["business_name", "text"];
+    case "booking_link":
+      return o.bookingLink ? ["booking_link", "text"] : ["text"];
     case "visit_when":
-    case "visit_service": return o.visits ? [kind] : [];
-    default: return ["text"];
+    case "visit_service":
+      return o.visits ? [kind] : [];
+    default:
+      return ["text"];
   }
 }
 
@@ -638,7 +727,10 @@ export function slotChoices(kind: StarterSlotKind, o: { known: boolean; visits: 
  * when one of them can take nothing there: the visit reminder, whose time and
  * service no list has, is not a message a win-back can send.
  */
-export function templateSlots(t: { name: string; variables: unknown }, o: { visits: boolean; bookingLink: boolean }): ParamSourceKind[][] | null {
+export function templateSlots(
+  t: { name: string; variables: unknown },
+  o: { visits: boolean; bookingLink: boolean },
+): ParamSourceKind[][] | null {
   const known = starterByName(t.name) !== null;
   const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
   return each.every((c) => c.length > 0) ? each : null;
@@ -650,8 +742,13 @@ export function templateSlots(t: { name: string; variables: unknown }, o: { visi
  * ("Win-back · Autumn offer"). The route names it so, and the composer says
  * so before it is saved.
  */
-export function playbookName(trigger: { id: string; label: string }, tpl: { name: string; title?: string | null }): string {
-  return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} · ${templateTitle(tpl.name, tpl.title)}`;
+export function playbookName(
+  trigger: { id: string; label: string },
+  tpl: { name: string; title?: string | null },
+): string {
+  return starterForTrigger(trigger.id)?.name === tpl.name
+    ? trigger.label
+    : `${trigger.label} · ${templateTitle(tpl.name, tpl.title)}`;
 }
 
 /* ---- Where a template sits, what a composer opens on, what a slot is called ---- */
@@ -674,11 +771,16 @@ export function compareTemplates(
   const ai = starterIndex(a.name);
   const bi = starterIndex(b.name);
   if (ai !== bi) return ai - bi;
-  const rank = (t: { category?: string | null; source?: string | null }) => (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
+  const rank = (t: { category?: string | null; source?: string | null }) =>
+    (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
   // Language last, so the order is TOTAL. Templates are one row per (name,
   // language): without this the rows of one name came back in whatever order
   // the query gave them, which is also the order `defaultTemplate` picked from.
-  return rank(a) - rank(b) || a.name.localeCompare(b.name) || String(a.language ?? "").localeCompare(String(b.language ?? ""));
+  return (
+    rank(a) - rank(b) ||
+    a.name.localeCompare(b.name) ||
+    String(a.language ?? "").localeCompare(String(b.language ?? ""))
+  );
 }
 
 /**
@@ -690,7 +792,9 @@ export function compareTemplates(
  * a different language on a different load, from a picker that drew the two
  * rows identically. The sort decides it now, and it is a total order.
  */
-export function defaultTemplate<T extends { name: string; category?: string | null; source?: string | null; language?: string | null }>(list: readonly T[], trigger: string | null): T | null {
+export function defaultTemplate<
+  T extends { name: string; category?: string | null; source?: string | null; language?: string | null },
+>(list: readonly T[], trigger: string | null): T | null {
   const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
   const sorted = list.slice().sort(compareTemplates);
   return (s ? sorted.find((t) => t.name === s.name) : undefined) ?? sorted[0] ?? null;
@@ -763,7 +867,14 @@ export function messageLanguageChoices(input: {
 }): LanguageChoice[] {
   const seen = new Set<string>();
   const out: LanguageChoice[] = [];
-  const known = (code: string): TemplateLanguage => templateLanguage(code) ?? { id: code, label: languageLabel(code), name: languageName(code), region: null, native: languageLabel(code) };
+  const known = (code: string): TemplateLanguage =>
+    templateLanguage(code) ?? {
+      id: code,
+      label: languageLabel(code),
+      name: languageName(code),
+      region: null,
+      native: languageLabel(code),
+    };
   for (const r of input.onFile) {
     if (seen.has(r.language)) continue;
     seen.add(r.language);
@@ -792,9 +903,15 @@ export function messageLanguageChoices(input: {
  * other button, would lose it in the new language -- a different message
  * under the same name, which is the one thing a translation must not be.
  */
-export function templateUntranslatable(t: { header?: string | null; buttons?: readonly { kind: string }[] | null; blocked?: string | null; category?: string | null }): string | null {
+export function templateUntranslatable(t: {
+  header?: string | null;
+  buttons?: readonly { kind: string }[] | null;
+  blocked?: string | null;
+  category?: string | null;
+}): string | null {
   if (t.blocked) return `it has ${t.blocked}`;
-  if (t.category && !/^(marketing|utility)$/i.test(t.category)) return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
+  if (t.category && !/^(marketing|utility)$/i.test(t.category))
+    return `WhatsApp files it as ${String(t.category).toLowerCase()}`;
   if (t.header) return "it has a heading";
   const buttons = t.buttons ?? [];
   if (buttons.length > 1) return "it has more than one button";
@@ -838,9 +955,9 @@ export interface TemplateGroup<T> {
  * (`inboxTemplates` labels each "<title> · <language>"); the two Campaigns
  * composers had not.
  */
-export function groupTemplates<T extends { name: string; language: string; title?: string | null; category?: string | null; source?: string | null }>(
-  list: readonly T[],
-): TemplateGroup<T>[] {
+export function groupTemplates<
+  T extends { name: string; language: string; title?: string | null; category?: string | null; source?: string | null },
+>(list: readonly T[]): TemplateGroup<T>[] {
   const out: TemplateGroup<T>[] = [];
   const at = new Map<string, TemplateGroup<T>>();
   for (const t of list.slice().sort(compareTemplates)) {
@@ -867,9 +984,9 @@ export function groupTemplates<T extends { name: string; language: string; title
  * it the booking template rather than any other. A workspace with none has
  * none, and is owed that answer rather than a send that fails at Meta.
  */
-export function bookingTemplate<T extends { name: string; language: string; meta_status?: string | null; variables: unknown }>(
-  templates: readonly T[],
-): T | null {
+export function bookingTemplate<
+  T extends { name: string; language: string; meta_status?: string | null; variables: unknown },
+>(templates: readonly T[]): T | null {
   const usable = templates.filter(
     (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link"),
   );

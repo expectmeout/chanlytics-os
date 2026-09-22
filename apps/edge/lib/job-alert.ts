@@ -46,7 +46,14 @@ export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: No
       : { notifications: null, isEnvDefault: false };
     await notify(
       { tenantId: job.tenant_id, ...addressing },
-      { kind: news.kind, route: news.route, about: news.about ?? null, subject: news.subject, body: news.body, redactedBody: REDACTED[news.kind](job.kind) },
+      {
+        kind: news.kind,
+        route: news.route,
+        about: news.about ?? null,
+        subject: news.subject,
+        body: news.body,
+        redactedBody: REDACTED[news.kind](job.kind),
+      },
       ports,
     );
   };

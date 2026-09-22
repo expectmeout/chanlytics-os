@@ -59,7 +59,10 @@ function world(rows, { backlog = 0, faults = {}, sweep_health = () => rows, mess
     ...vault,
     sweep_health,
     jobs_backlog: () => backlog,
-    sweep_mark_alerted: (a) => { marks.push(a); return a.p_alerted.length + a.p_healthy.length; },
+    sweep_mark_alerted: (a) => {
+      marks.push(a);
+      return a.p_alerted.length + a.p_healthy.length;
+    },
   });
   setPg(db);
   return { db, tables, marks, tick: () => knock(POST, "health") };
@@ -85,22 +88,47 @@ test("two clocks broken: both are named, still 200; the one outside its quiet wi
   const line = wire();
   try {
     const [status, body] = await answer(await w.tick());
-    assert.equal(status, 200, "200 even while reporting a broken sweep: pg_net records this reply and /api/diag reads it");
+    assert.equal(
+      status,
+      200,
+      "200 even while reporting a broken sweep: pg_net records this reply and /api/diag reads it",
+    );
     assert.deepEqual(body, { ok: true, healthy: false, broken: ["deadman", "calls"] });
 
     const mail = line.mail();
-    assert.equal(mail.length, 1, "one mail: the calls clock is inside its quiet window, and no all-clear while something is broken");
+    assert.equal(
+      mail.length,
+      1,
+      "one mail: the calls clock is inside its quiet window, and no all-clear while something is broken",
+    );
     assert.equal(mail[0].subject, "A background sweep is not running: deadman");
-    assert.deepEqual([mail[0].to, mail[0].from], [["ops@platform.test"], "Pager <pager@platform.test>"], "the platform's mailbox, from the platform");
+    assert.deepEqual(
+      [mail[0].to, mail[0].from],
+      [["ops@platform.test"], "Pager <pager@platform.test>"],
+      "the platform's mailbox, from the platform",
+    );
     assert.match(mail[0].text, /deadman — the edge answered 503/);
-    assert.match(mail[0].text, /no longer flagged when nobody picks it up/, "what the failure costs, in the owner's terms");
+    assert.match(
+      mail[0].text,
+      /no longer flagged when nobody picks it up/,
+      "what the failure costs, in the owner's terms",
+    );
     assert.doesNotMatch(mail[0].text, /calls —/, "the suppressed clock is not re-described");
 
-    assert.deepEqual(w.marks, [{ p_alerted: ["deadman"], p_healthy: ["jobs", "purge_events"] }], "stamped once, the delivered clock only; every healthy clock's stamp cleared");
-    assert.ok(!w.db.seen.some((s) => s.table === "tenant_config"), "a platform fault looks no tenant up -- that lookup is how a failed read defaults to tenant #1's owner");
+    assert.deepEqual(
+      w.marks,
+      [{ p_alerted: ["deadman"], p_healthy: ["jobs", "purge_events"] }],
+      "stamped once, the delivered clock only; every healthy clock's stamp cleared",
+    );
+    assert.ok(
+      !w.db.seen.some((s) => s.table === "tenant_config"),
+      "a platform fault looks no tenant up -- that lookup is how a failed read defaults to tenant #1's owner",
+    );
     assert.deepEqual(w.tables.notifications, [], "and rings no workspace's bell");
     assert.deepEqual(w.tables.operator_pages, [], "nothing due is waiting, so nobody is paged");
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 test("a mail the mailer refuses, or one with nowhere to go, earns no quiet: the clock is named, nothing is stamped, and the next tick tries again", async () => {
@@ -112,7 +140,9 @@ test("a mail the mailer refuses, or one with nowhere to go, earns no quiet: the 
     assert.deepEqual(body.broken, ["deadman"]);
     assert.equal(refused.mail().length, 1, "it tried");
     assert.deepEqual(w.marks, [{ p_alerted: [], p_healthy: ["jobs"] }], "undelivered: not stamped");
-  } finally { refused.restore(); }
+  } finally {
+    refused.restore();
+  }
 
   const nowhere = wire();
   try {
@@ -122,14 +152,22 @@ test("a mail the mailer refuses, or one with nowhere to go, earns no quiet: the 
     });
     assert.deepEqual(nowhere.mail(), [], "no platform mailbox: nothing to send it to");
     assert.deepEqual(w.marks.at(-1), { p_alerted: [], p_healthy: ["jobs"] }, "unaddressed: not stamped either");
-  } finally { nowhere.restore(); }
+  } finally {
+    nowhere.restore();
+  }
 
   const delivered = wire();
   try {
     await w.tick();
     assert.equal(delivered.mail().length, 1);
-    assert.deepEqual(w.marks.at(-1), { p_alerted: ["deadman"], p_healthy: ["jobs"] }, "the tick that delivers is the one that stamps");
-  } finally { delivered.restore(); }
+    assert.deepEqual(
+      w.marks.at(-1),
+      { p_alerted: ["deadman"], p_healthy: ["jobs"] },
+      "the tick that delivers is the one that stamps",
+    );
+  } finally {
+    delivered.restore();
+  }
 });
 
 /* -------------------------------------------------------------- healthy */
@@ -145,7 +183,9 @@ test("every clock healthy and none alerted before: nobody is mailed, nobody is p
     assert.deepEqual(w.marks, [{ p_alerted: [], p_healthy: ["jobs", "deadman", "calls", "partitions"] }]);
     assert.deepEqual(w.tables.operator_pages, []);
     assert.deepEqual(w.tables.notifications, []);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 test("a clock that was alerted about and is answering again earns an all-clear to the platform, and its stamp is cleared", async () => {
@@ -161,7 +201,9 @@ test("a clock that was alerted about and is answering again earns an all-clear t
     assert.deepEqual(mail[0].to, ["ops@platform.test"]);
     assert.match(mail[0].text, /^These were failing and are now answering normally:\n\n {2}- deadman\n$/);
     assert.deepEqual(w.marks, [{ p_alerted: [], p_healthy: ["deadman", "jobs"] }]);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* --------------------------------------------------------- the backlog */
@@ -172,7 +214,11 @@ test("due jobs nobody claims page the operator -- once per window, remembered in
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
-    assert.deepEqual(body, { ok: true, healthy: true, broken: [] }, "the heartbeat is scheduled and answering; not draining is the pager's condition, not this answer's");
+    assert.deepEqual(
+      body,
+      { ok: true, healthy: true, broken: [] },
+      "the heartbeat is scheduled and answering; not draining is the pager's condition, not this answer's",
+    );
     const mail = line.mail();
     assert.equal(mail.length, 1);
     assert.equal(mail[0].subject, "[Chanlytics] 7 due jobs have waited more than two minutes");
@@ -188,7 +234,9 @@ test("due jobs nobody claims page the operator -- once per window, remembered in
     await w.tick();
     assert.equal(line.mail().length, 1, "one page per window");
     assert.equal(w.tables.operator_pages[0].count, 2, "the row remembers the second firing");
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* -------------------------------------------------- the receipts watch */
@@ -207,9 +255,19 @@ let seq = 0;
 const accepted = (tenant, over = {}) => {
   seq += 1;
   return {
-    id: `msg-${seq}`, tenant_id: tenant, conversation_id: `conv-${seq}`, contact_id: `contact-${seq}`,
-    channel: "whatsapp", direction: "outbound", sender: "ai", type: "text", body: WORDS,
-    status: "sent", external_id: `wamid.HBgL${seq}`, created_at: ago(7 * H), status_updated_at: null,
+    id: `msg-${seq}`,
+    tenant_id: tenant,
+    conversation_id: `conv-${seq}`,
+    contact_id: `contact-${seq}`,
+    channel: "whatsapp",
+    direction: "outbound",
+    sender: "ai",
+    type: "text",
+    body: WORDS,
+    status: "sent",
+    external_id: `wamid.HBgL${seq}`,
+    created_at: ago(7 * H),
+    status_updated_at: null,
     ...over,
   };
 };
@@ -239,7 +297,11 @@ test("a WhatsApp message Meta accepted with no receipt for six hours, and nothin
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
-    assert.deepEqual(body, { ok: true, healthy: true, broken: [] }, "a watched condition is the pager's, not this answer's");
+    assert.deepEqual(
+      body,
+      { ok: true, healthy: true, broken: [] },
+      "a watched condition is the pager's, not this answer's",
+    );
 
     const mail = line.mail();
     assert.equal(mail.length, 1);
@@ -247,7 +309,8 @@ test("a WhatsApp message Meta accepted with no receipt for six hours, and nothin
     assert.deepEqual(mail[0].to, ["ops@platform.test"]);
     assert.ok(mail[0].text.includes(`workspace ${A}: 2 messages`), "the workspace, and how many");
     assert.match(mail[0].text, /wa_status/, "and where to look");
-    for (const secret of [WORDS, "conv-", "contact-", "msg-", "wamid."]) assert.ok(!mail[0].text.includes(secret), `never the customer: ${secret}`);
+    for (const secret of [WORDS, "conv-", "contact-", "msg-", "wamid."])
+      assert.ok(!mail[0].text.includes(secret), `never the customer: ${secret}`);
 
     assert.equal(w.tables.operator_pages.length, 1);
     const page = w.tables.operator_pages[0];
@@ -259,7 +322,9 @@ test("a WhatsApp message Meta accepted with no receipt for six hours, and nothin
     await w.tick();
     assert.equal(line.mail().length, 1, "one page per window while it lasts");
     assert.equal(w.tables.operator_pages[0].count, 2);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 test("one person's phone is not the webhook: a workspace with any receipt since its silent message left pages nobody, a receipt of failure included, and another workspace's silence still pages alone", async () => {
@@ -282,31 +347,50 @@ test("one person's phone is not the webhook: a workspace with any receipt since 
     assert.equal(mail.length, 1);
     assert.equal(mail[0].subject, "[Chanlytics] 1 WhatsApp message has had no receipt for six hours");
     assert.ok(mail[0].text.includes(`workspace ${B}: 1 message`));
-    assert.ok(!mail[0].text.includes(A) && !mail[0].text.includes(C), "a workspace whose receipts are arriving is not described");
-  } finally { line.restore(); }
+    assert.ok(
+      !mail[0].text.includes(A) && !mail[0].text.includes(C),
+      "a workspace whose receipts are arriving is not described",
+    );
+  } finally {
+    line.restore();
+  }
 });
 
 test("messages that cannot be read page nobody: the clocks are still judged, and the route still answers 200", async () => {
-  const w = world([clock("deadman", false)], { faults: { "messages.select": { message: "permission denied for table messages" } } });
+  const w = world([clock("deadman", false)], {
+    faults: { "messages.select": { message: "permission denied for table messages" } },
+  });
   const line = wire();
   try {
     const [status, body] = await answer(await w.tick());
     assert.equal(status, 200);
     assert.deepEqual(body, { ok: true, healthy: false, broken: ["deadman"] });
-    assert.deepEqual(line.mail().map((m) => m.subject), ["A background sweep is not running: deadman"], "the clock's alert, and no page");
+    assert.deepEqual(
+      line.mail().map((m) => m.subject),
+      ["A background sweep is not running: deadman"],
+      "the clock's alert, and no page",
+    );
     assert.deepEqual(w.tables.operator_pages, []);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });
 
 /* ------------------------------------------------------- cannot be read */
 
 test("a health function that cannot be read is a 500 with a slug, and nothing is mailed, stamped or paged", async () => {
-  const w = world(null, { sweep_health: () => { throw new Error("permission denied for schema cron"); } });
+  const w = world(null, {
+    sweep_health: () => {
+      throw new Error("permission denied for schema cron");
+    },
+  });
   const line = wire();
   try {
     assert.deepEqual(await answer(await w.tick()), [500, { ok: false, error: "query_failed" }]);
     assert.deepEqual(line.mail(), []);
     assert.deepEqual(w.marks, []);
     assert.deepEqual(w.tables.operator_pages, []);
-  } finally { line.restore(); }
+  } finally {
+    line.restore();
+  }
 });

@@ -11,17 +11,39 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), get size() { return m.size; }, keys: () => [...m.keys()] }; };
+const storage = () => {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+    get size() {
+      return m.size;
+    },
+    keys: () => [...m.keys()],
+  };
+};
 let clock = Date.parse("2026-09-22T12:00:00Z");
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
-globalThis.window = { location: { pathname: "/w/salon", hash: "" }, sessionStorage: globalThis.sessionStorage, localStorage: globalThis.localStorage };
-const { installTabMemory, clearTabMemory, TAB_SLOTS } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+globalThis.window = {
+  location: { pathname: "/w/salon", hash: "" },
+  sessionStorage: globalThis.sessionStorage,
+  localStorage: globalThis.localStorage,
+};
+const { installTabMemory, clearTabMemory, TAB_SLOTS } =
+  await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
 installTabMemory(globalThis.window, { now: () => clock });
 const tm = globalThis.window.__tabMemory;
-const at = (path) => { globalThis.window.location.pathname = path; };
+const at = (path) => {
+  globalThis.window.location.pathname = path;
+};
 
-beforeEach(() => { clearTabMemory(); at("/w/salon"); clock = Date.parse("2026-09-22T12:00:00Z"); });
+beforeEach(() => {
+  clearTabMemory();
+  at("/w/salon");
+  clock = Date.parse("2026-09-22T12:00:00Z");
+});
 
 test("a place is kept per page and view, and read back as it was kept", () => {
   tm.keepPlace("leads", "clients/leads:s-1", { q: "nail", cursor: "l-3", top: 380 });
@@ -90,7 +112,17 @@ test("signing out takes all of it, and the slots Leads kept before this store", 
 });
 
 test("a storage that refuses costs the memory, never the page", () => {
-  const refusing = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); }, removeItem() { throw new Error("blocked"); } };
+  const refusing = {
+    getItem() {
+      throw new Error("blocked");
+    },
+    setItem() {
+      throw new Error("blocked");
+    },
+    removeItem() {
+      throw new Error("blocked");
+    },
+  };
   const win = { location: { pathname: "/w/salon" }, sessionStorage: refusing };
   installTabMemory(win);
   assert.doesNotThrow(() => win.__tabMemory.keepPlace("leads", "v", { q: "x" }));

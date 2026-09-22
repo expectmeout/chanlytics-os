@@ -19,7 +19,12 @@ export const PATCH = write({
   rate: "team",
   input: Body,
   handle: async ({ ctx, member, input }) =>
-    await setMemberRole(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), input.role as "owner" | "operator" | "viewer"),
+    await setMemberRole(
+      ctx,
+      member.tenantId,
+      requireUuid(ctx.params.id, "member"),
+      input.role as "owner" | "operator" | "viewer",
+    ),
 });
 
 /** DELETE /api/v1/team/:id — remove a member (or revoke an open invite). Owner-only. */
@@ -27,5 +32,6 @@ export const DELETE = write({
   scope: workspace,
   role: "owner",
   rate: "team",
-  handle: async ({ ctx, member }) => await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), ctx.userId),
+  handle: async ({ ctx, member }) =>
+    await removeMember(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), ctx.userId),
 });

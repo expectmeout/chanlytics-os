@@ -30,8 +30,13 @@ const DAWN_OF_AUTUMN = Date.parse("2026-11-01T04:30:00Z");
 const OPEN = { open: "09:00", close: "17:00" };
 const EVERY_DAY = { mon: OPEN, tue: OPEN, wed: OPEN, thu: OPEN, fri: OPEN, sat: OPEN, sun: OPEN };
 const offered = (now, days) =>
-  freeWindows({ hours: EVERY_DAY, tz: TZ, busy: [], rules: { lead_hours: 2, max_days_ahead: days }, now: new Date(now) })
-    .map((o) => o.key);
+  freeWindows({
+    hours: EVERY_DAY,
+    tz: TZ,
+    busy: [],
+    rules: { lead_hours: 2, max_days_ahead: days },
+    now: new Date(now),
+  }).map((o) => o.key);
 
 /* ------------------------------------------------------------ the stepper */
 
@@ -45,8 +50,11 @@ test("the day after is the next date, whether the clock moved forward, back, or 
 
   // A zone that never changes, and one whose offset is not a whole hour.
   assert.equal(dayPlusInZone("UTC", Date.parse("2026-03-07T23:30:00Z"), 1).key, "2026-03-08");
-  assert.equal(dayPlusInZone("Asia/Kolkata", Date.parse("2026-03-07T20:00:00Z"), 1).key, "2026-03-09",
-    "20:00 UTC is already the 8th in Kolkata, so tomorrow there is the 9th");
+  assert.equal(
+    dayPlusInZone("Asia/Kolkata", Date.parse("2026-03-07T20:00:00Z"), 1).key,
+    "2026-03-09",
+    "20:00 UTC is already the 8th in Kolkata, so tomorrow there is the 9th",
+  );
 });
 
 test("the weekday comes with the date, and month, year and backwards all hold", () => {
@@ -67,14 +75,19 @@ test("the weekday comes with the date, and month, year and backwards all hold", 
 test("REGRESSION: the day the clocks go forward was never offered at all", () => {
   // Asked at 23:30 the night before. Today has nothing left on it — the shop
   // shut at five — so the horizon begins tomorrow, and tomorrow is the 8th.
-  assert.deepEqual(offered(EVE_OF_SPRING, 5), ["2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11"],
-    "adding 24h used to land on the 9th and the 8th was skipped, with the 12th offered in its place");
+  assert.deepEqual(
+    offered(EVE_OF_SPRING, 5),
+    ["2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11"],
+    "adding 24h used to land on the 9th and the 8th was skipped, with the 12th offered in its place",
+  );
 });
 
 test("REGRESSION: the day the clocks go back was offered twice, and a day fell off the far end", () => {
-  assert.deepEqual(offered(DAWN_OF_AUTUMN, 6),
+  assert.deepEqual(
+    offered(DAWN_OF_AUTUMN, 6),
     ["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06"],
-    "adding 24h to 00:30 on a 25-hour day lands back on the same date");
+    "adding 24h to 00:30 on a 25-hour day lands back on the same date",
+  );
 });
 
 test("an ordinary week is unchanged, which is what makes the two above worth having", () => {
@@ -84,7 +97,13 @@ test("an ordinary week is unchanged, which is what makes the two above worth hav
 });
 
 test("the day's label is read from an hour the day owns however the clock moved", () => {
-  const spring = freeWindows({ hours: EVERY_DAY, tz: TZ, busy: [], rules: { lead_hours: 2, max_days_ahead: 2 }, now: new Date(EVE_OF_SPRING) });
+  const spring = freeWindows({
+    hours: EVERY_DAY,
+    tz: TZ,
+    busy: [],
+    rules: { lead_hours: 2, max_days_ahead: 2 },
+    now: new Date(EVE_OF_SPRING),
+  });
   assert.equal(spring[0].key, "2026-03-08");
   assert.equal(spring[0].label, "Sunday, March 8", "midnight on a spring-forward day is a time that may not exist");
   assert.equal(spring[0].weekday, "sun");
@@ -105,7 +124,11 @@ test('"what is open tomorrow?" names the next day, not the one after it', () => 
 test('a visit on the 8th is labelled "Tomorrow" on the evening of the 7th', () => {
   const noonOnTheEighth = Date.parse("2026-03-08T16:00:00Z"); // 12:00 EDT, the day after the change
   assert.equal(visitDay(noonOnTheEighth, TZ, EVE_OF_SPRING), "Tomorrow");
-  assert.equal(visitDay(Date.parse("2026-03-09T16:00:00Z"), TZ, EVE_OF_SPRING), "Mon, Mar 9", "and the day after that is a date");
+  assert.equal(
+    visitDay(Date.parse("2026-03-09T16:00:00Z"), TZ, EVE_OF_SPRING),
+    "Mon, Mar 9",
+    "and the day after that is a date",
+  );
 });
 
 test("the Calendar's horizon is the one the receptionist actually walks", () => {
@@ -113,13 +136,25 @@ test("the Calendar's horizon is the one the receptionist actually walks", () => 
   // "not offered yet" while the receptionist is busy offering it.
   const days = [];
   for (let i = 0; i < 7; i++) days.push({ key: dayPlusInZone(TZ, EVE_OF_SPRING, i).key, items: [], windows: [] });
-  const vm = toCalendarVM({
-    timezone: TZ, from: days[0].key, to: days[6].key,
-    feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
-    hours: EVERY_DAY, closures: [], rules: { lead_hours: 2, max_days_ahead: 5 },
-    booking_link: null, next_opening: null, days,
-  }, new Date(EVE_OF_SPRING));
+  const vm = toCalendarVM(
+    {
+      timezone: TZ,
+      from: days[0].key,
+      to: days[6].key,
+      feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
+      hours: EVERY_DAY,
+      closures: [],
+      rules: { lead_hours: 2, max_days_ahead: 5 },
+      booking_link: null,
+      next_opening: null,
+      days,
+    },
+    new Date(EVE_OF_SPRING),
+  );
   assert.equal(vm.offer.until, "2026-03-11", "five days from the 7th, counted as days");
-  assert.deepEqual(offered(EVE_OF_SPRING, 5).filter((k) => k > vm.offer.until), [],
-    "nothing the engine offers may fall outside the horizon the page draws");
+  assert.deepEqual(
+    offered(EVE_OF_SPRING, 5).filter((k) => k > vm.offer.until),
+    [],
+    "nothing the engine offers may fall outside the horizon the page draws",
+  );
 });

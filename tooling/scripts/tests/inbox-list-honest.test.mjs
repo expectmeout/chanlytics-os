@@ -18,11 +18,36 @@ import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
-const person = (id, name) => ({ id, display_name: name, wa_profile_name: null, phone_e164: "+16465550123", consent: "opted_in", dnc: false });
-const wrote = (id, body, min) => ({ id, direction: "inbound", sender: "customer", type: "text", body, media: null, meta: null, status: "received", created_at: ago(min), channel_ts: ago(min) });
+const person = (id, name) => ({
+  id,
+  display_name: name,
+  wa_profile_name: null,
+  phone_e164: "+16465550123",
+  consent: "opted_in",
+  dnc: false,
+});
+const wrote = (id, body, min) => ({
+  id,
+  direction: "inbound",
+  sender: "customer",
+  type: "text",
+  body,
+  media: null,
+  meta: null,
+  status: "received",
+  created_at: ago(min),
+  channel_ts: ago(min),
+});
 const conv = (id, name) => ({
-  id, state: "needs_human", paused_until: null, snooze_until: null, assignee_user_id: null, assignee_is_me: false,
-  last_wa_inbound_at: ago(40), last_message_at: ago(40), contact: person(`p-${id}`, name),
+  id,
+  state: "needs_human",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: ago(40),
+  last_message_at: ago(40),
+  contact: person(`p-${id}`, name),
   messages: [wrote(`m-${id}`, "Can I move my appointment?", 40)],
 });
 const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, state: "open", created_at: ago(40) });
@@ -30,7 +55,14 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 /* -------------------------------- a browser -------------------------------- */
 
 globalThis.window = {
-  location: { pathname: "/w/melanys", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  location: {
+    pathname: "/w/melanys",
+    hash: "",
+    origin: "https://app.chanlytics.com",
+    assign() {},
+    replace() {},
+    reload() {},
+  },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
@@ -42,15 +74,32 @@ globalThis.window = {
   __DEMO_MODE: false,
   addEventListener() {},
   removeEventListener() {},
-  dispatchEvent() { return true; },
+  dispatchEvent() {
+    return true;
+  },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 };
-globalThis.document = { visibilityState: "hidden", body: { appendChild() {} }, addEventListener() {}, removeEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }) };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const quiet = async (fn) => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+globalThis.document = {
+  visibilityState: "hidden",
+  body: { appendChild() {} },
+  addEventListener() {},
+  removeEventListener() {},
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
+};
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const quiet = async (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = e;
+  }
+};
 const tick = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* --------------------------- the bulk courier, run --------------------------- */
@@ -68,16 +117,34 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
     const method = init.method ?? "GET";
     seen.push(`${method} ${u.pathname}`);
     if (method !== "POST") {
-      return json(200, { ok: true, data: { conversations: [], escalations: [], templates: [], workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
+      return json(200, {
+        ok: true,
+        data: {
+          conversations: [],
+          escalations: [],
+          templates: [],
+          workspaces: globalThis.window.__WORKSPACES,
+          activeWorkspaceId: "t1",
+        },
+      });
     }
     await new Promise((r) => gates.push(r));
     seen.push(`ANSWERED ${u.pathname}`);
-    if (u.pathname === "/api/v1/conversations/c2/snooze") return json(409, { ok: false, error: { code: "conflict", message: "That conversation changed; read it again." } });
+    if (u.pathname === "/api/v1/conversations/c2/snooze")
+      return json(409, {
+        ok: false,
+        error: { code: "conflict", message: "That conversation changed; read it again." },
+      });
     return json(200, { ok: true, data: { conversation: { id: u.pathname.split("/")[4], state: "snoozed" } } });
   };
   const stop = startSurfaces([]);
   try {
-    const threads = ["c1", "c2", "c3"].map((id) => ({ id: `th-${id}`, conversationId: id, escalationId: null, who: `Person ${id}` }));
+    const threads = ["c1", "c2", "c3"].map((id) => ({
+      id: `th-${id}`,
+      conversationId: id,
+      escalationId: null,
+      who: `Person ${id}`,
+    }));
     const pending = quiet(() => inboxBulk(threads, "snooze"));
     // The server answers one ask at a time, with time between for a re-read to start, were one coming.
     for (let answered = 0; answered < 3; answered += 1) {
@@ -92,10 +159,22 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
     assert.equal(seen.filter((s) => s.startsWith("POST")).length, 3, "one ask per thread");
     const lastAnswer = Math.max(...seen.map((s, i) => (s.startsWith("ANSWERED") ? i : -1)));
     const firstRead = seen.findIndex((s) => s.startsWith("GET"));
-    assert.ok(firstRead > lastAnswer, `REGRESSION: each snooze read the Inbox, the threads and Today again before the next was answered: ${seen.join(" | ")}`);
-    assert.ok(seen.slice(lastAnswer).includes("GET /api/v1/conversations"), "and the Inbox is read again once every ask has its answer");
-    assert.deepEqual(result.done.map((t) => t.conversationId), ["c1", "c3"]);
-    assert.deepEqual(result.refused.map((r) => r.thread.conversationId), ["c2"]);
+    assert.ok(
+      firstRead > lastAnswer,
+      `REGRESSION: each snooze read the Inbox, the threads and Today again before the next was answered: ${seen.join(" | ")}`,
+    );
+    assert.ok(
+      seen.slice(lastAnswer).includes("GET /api/v1/conversations"),
+      "and the Inbox is read again once every ask has its answer",
+    );
+    assert.deepEqual(
+      result.done.map((t) => t.conversationId),
+      ["c1", "c3"],
+    );
+    assert.deepEqual(
+      result.refused.map((r) => r.thread.conversationId),
+      ["c2"],
+    );
     assert.equal(typeof result.refused[0].message, "string");
     assert.ok(result.refused[0].message.length > 0, "a refusal carries its sentence");
   } finally {
@@ -116,16 +195,59 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
-  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
-  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
-  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
-  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useState: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
+    return [
+      cells[k],
+      (v) => {
+        cells[k] = typeof v === "function" ? v(cells[k]) : v;
+      },
+    ];
+  },
+  useReducer: (red, init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = init;
+    return [
+      cells[k],
+      (a) => {
+        cells[k] = red(cells[k], a);
+      },
+    ];
+  },
+  useRef: (init) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = { current: init };
+    return cells[k];
+  },
+  useMemo: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) cells[k] = fn();
+    return cells[k];
+  },
+  useEffect: (fn) => {
+    const k = seq++;
+    if (!(k in cells)) {
+      cells[k] = true;
+      fn();
+    }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatePill", "MoreMenu", "EmptyState", "PolicyChip", "TlMedia", "FailedRead", "Confirm", "usePPToast", "useHotkey"]) globalThis[k] = globalThis.window[k];
+for (const k of [
+  "StatePill",
+  "MoreMenu",
+  "EmptyState",
+  "PolicyChip",
+  "TlMedia",
+  "FailedRead",
+  "Confirm",
+  "usePPToast",
+  "useHotkey",
+])
+  globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/inbox-list.jsx");
 globalThis.ConfidenceDots = globalThis.window.ConfidenceDots;
 const RealInboxList = globalThis.window.InboxList;
@@ -137,13 +259,28 @@ await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  if (Array.isArray(n)) {
+    for (const k of n) walk(k, fn);
+    return;
+  }
   fn(n);
   walk(n.props?.children, fn);
   walk(n.rendered, fn);
 };
-const find = (tree, pred) => { let hit; walk(tree, (n) => { if (hit === undefined && pred(n)) hit = n; }); return hit; };
-const findAll = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const find = (tree, pred) => {
+  let hit;
+  walk(tree, (n) => {
+    if (hit === undefined && pred(n)) hit = n;
+  });
+  return hit;
+};
+const findAll = (tree, pred) => {
+  const out = [];
+  walk(tree, (n) => {
+    if (pred(n)) out.push(n);
+  });
+  return out;
+};
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -157,36 +294,81 @@ const rosa = toInboxThreadVM(conv("c1", "Rosa Díaz"), asked("c1"), ZONE, NOW);
 const nina = toInboxThreadVM(conv("c2", "Nina Park"), asked("c2"), ZONE, NOW);
 const ada = toInboxThreadVM(conv("c3", "Ada Lovelace"), asked("c3"), ZONE, NOW);
 const listProps = (over = {}) => ({
-  threads: [rosa, nina, ada], allThreads: [rosa, nina, ada],
-  buckets: [{ id: "escalated", label: "Needs you", icon: "flag", count: 3 }], views: [],
-  activeBucket: "escalated", onBucketChange() {},
-  activeThreadId: nina.id, onSelectThread() {},
-  selected: [], onToggleSelect() {}, onClearSelection() {},
+  threads: [rosa, nina, ada],
+  allThreads: [rosa, nina, ada],
+  buckets: [{ id: "escalated", label: "Needs you", icon: "flag", count: 3 }],
+  views: [],
+  activeBucket: "escalated",
+  onBucketChange() {},
+  activeThreadId: nina.id,
+  onSelectThread() {},
+  selected: [],
+  onToggleSelect() {},
+  onClearSelection() {},
   ...over,
 });
-const inboxWith = (threads) => { globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: threads }; };
+const inboxWith = (threads) => {
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: {},
+    THREADS: threads,
+  };
+};
 
 test("a single act tells the page the moment the server takes it, while the Inbox, the threads and Today are still being read again behind it", async () => {
   const events = [];
   const parked = [];
   globalThis.window.fetch = async (_url, init = {}) => {
-    if ((init.method ?? "GET") === "POST") { events.push("POST answered"); return json(200, { ok: true, data: { conversation: { id: "c1", state: "snoozed" } } }); }
+    if ((init.method ?? "GET") === "POST") {
+      events.push("POST answered");
+      return json(200, { ok: true, data: { conversation: { id: "c1", state: "snoozed" } } });
+    }
     await new Promise((r) => parked.push(r));
-    return json(200, { ok: true, data: { conversations: [], escalations: [], templates: [], calls: [], workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1", days: 1 } });
+    return json(200, {
+      ok: true,
+      data: {
+        conversations: [],
+        escalations: [],
+        templates: [],
+        calls: [],
+        workspaces: globalThis.window.__WORKSPACES,
+        activeWorkspaceId: "t1",
+        days: 1,
+      },
+    });
   };
-  const { inboxOverride, conversationsOverride, todayOverride } = await quiet(() => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+  const { inboxOverride, conversationsOverride, todayOverride } = await quiet(
+    () => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"),
+  );
   const stop = startSurfaces([inboxOverride, conversationsOverride, todayOverride]);
   try {
     // Let the boot's own reads through first, so what is parked below is the re-read the snooze starts.
-    for (let i = 0; i < 40; i += 1) { while (parked.length) parked.shift()(); await tick(5); }
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await tick(5);
+    }
     const t = { id: "th-c1", conversationId: "c1", escalationId: null, who: "Aiko" };
     let settled = false;
-    const done = quiet(() => inboxVerb(t, "snooze", undefined, { onAccepted: () => events.push("told the page") })).then((r) => { settled = true; return r; });
+    const done = quiet(() =>
+      inboxVerb(t, "snooze", undefined, { onAccepted: () => events.push("told the page") }),
+    ).then((r) => {
+      settled = true;
+      return r;
+    });
     for (let i = 0; i < 200 && !parked.length; i += 1) await tick(5);
     assert.deepEqual(events, ["POST answered", "told the page"], "the page hears it when the server took it");
     assert.ok(parked.length > 0, "the re-read is out");
-    assert.equal(settled, false, "and the act itself still answers once the surfaces have been read again (the pane's own act lasts until then)");
-    for (let i = 0; i < 80 && !settled; i += 1) { while (parked.length) parked.shift()(); await tick(5); }
+    assert.equal(
+      settled,
+      false,
+      "and the act itself still answers once the surfaces have been read again (the pane's own act lasts until then)",
+    );
+    for (let i = 0; i < 80 && !settled; i += 1) {
+      while (parked.length) parked.shift()();
+      await tick(5);
+    }
     assert.equal((await done).ok, true);
   } finally {
     while (parked.length) parked.shift()();
@@ -196,7 +378,10 @@ test("a single act tells the page the moment the server takes it, while the Inbo
 
 test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs, one toast with the count and each refusal named, the refused left selected, and an Undo that wakes what it snoozed", async () => {
   let list = null;
-  globalThis.InboxList = (p) => { list = p; return null; };
+  globalThis.InboxList = (p) => {
+    list = p;
+    return null;
+  };
   globalThis.InboxThread = () => null;
   globalThis.InboxAgentRail = () => null;
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
@@ -206,20 +391,36 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
   globalThis.window.__inboxBulk = (threads, verb) => {
     bulk.push([verb, threads.map((t) => t.id)]);
     if (verb === "wake") return Promise.resolve({ done: threads, refused: [] });
-    return new Promise((r) => { finish = () => r({ done: threads.slice(0, 1), refused: [{ thread: threads[1], message: "That conversation changed; read it again." }] }); });
+    return new Promise((r) => {
+      finish = () =>
+        r({
+          done: threads.slice(0, 1),
+          refused: [{ thread: threads[1], message: "That conversation changed; read it again." }],
+        });
+    });
   };
   const single = [];
-  globalThis.window.__inboxVerb = (t, verb) => { single.push(verb); return Promise.resolve({ ok: true, data: {} }); };
+  globalThis.window.__inboxVerb = (t, verb) => {
+    single.push(verb);
+    return Promise.resolve({ ok: true, data: {} });
+  };
   try {
     cells = [];
-    const render = () => { seq = 0; return globalThis.window.Inbox({ showAgentRail: false }); };
+    const render = () => {
+      seq = 0;
+      return globalThis.window.Inbox({ showAgentRail: false });
+    };
     render();
     list.onToggleSelect(rosa.id);
     render();
     list.onToggleSelect(nina.id);
     render();
     const pending = list.onBulkSnooze();
-    assert.deepEqual(single, [], "REGRESSION: the single verb went out once per thread, each with its own toast and its own re-read");
+    assert.deepEqual(
+      single,
+      [],
+      "REGRESSION: the single verb went out once per thread, each with its own toast and its own re-read",
+    );
     render();
     assert.equal(list.bulkBusy, "snooze", "the bar says it is working");
     list.onBulkSnooze();
@@ -230,10 +431,17 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
     assert.deepEqual(bulk[0], ["snooze", [rosa.id, nina.id]]);
     assert.equal(list.bulkBusy, null);
     assert.deepEqual(list.selected, [nina.id], "the refused stay selected, to try again");
-    const toasts = findAll(tree, (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "));
+    const toasts = findAll(
+      tree,
+      (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "),
+    );
     assert.equal(toasts.length, 1, "one toast for the act");
     assert.match(textOf(toasts[0]), /1 of 2 snoozed/);
-    assert.match(textOf(toasts[0]), /Nina Park: That conversation changed; read it again\./, "the refusal is named in it");
+    assert.match(
+      textOf(toasts[0]),
+      /Nina Park: That conversation changed; read it again\./,
+      "the refusal is named in it",
+    );
     buttonNamed(toasts[0], "Undo").props.onClick();
     assert.deepEqual(bulk[1], ["wake", [rosa.id]], "Undo wakes what was snoozed, and only that");
   } finally {
@@ -245,10 +453,23 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
 test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no undo -- and the question says it is working until it is done", () => {
   const archived = [];
   cells = [];
-  const props = listProps({ selected: [rosa.id, nina.id], onBulkArchive: () => { archived.push(1); return new Promise(() => {}); } });
-  const draw = (over = {}) => { seq = 0; return RealInboxList({ ...props, ...over }); };
+  const props = listProps({
+    selected: [rosa.id, nina.id],
+    onBulkArchive: () => {
+      archived.push(1);
+      return new Promise(() => {});
+    },
+  });
+  const draw = (over = {}) => {
+    seq = 0;
+    return RealInboxList({ ...props, ...over });
+  };
   buttonNamed(draw(), "Archive").props.onClick();
-  assert.deepEqual(archived, [], "REGRESSION: two conversations were archived on one press, with no question and no way back");
+  assert.deepEqual(
+    archived,
+    [],
+    "REGRESSION: two conversations were archived on one press, with no question and no way back",
+  );
   let tree = draw();
   const ask = find(tree, byTestId("ix-bulk-archive-confirm"));
   assert.ok(ask, "the question is asked in the list");
@@ -257,12 +478,28 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
   find(ask, byTestId("ix-bulk-archive-yes")).props.onClick();
   assert.equal(archived.length, 1, "Yes archives them, once");
   tree = draw({ bulkBusy: "archive" });
-  assert.equal(textOf(find(tree, byTestId("ix-bulk-archive-yes"))), "Archiving…", "and the question says it is working");
+  assert.equal(
+    textOf(find(tree, byTestId("ix-bulk-archive-yes"))),
+    "Archiving…",
+    "and the question says it is working",
+  );
   const seeded = { ...rosa, id: "t-seed", real: false };
   cells = [];
   let pressed = 0;
   seq = 0;
-  buttonNamed(RealInboxList(listProps({ threads: [seeded], allThreads: [seeded], selected: ["t-seed"], onBulkArchive: () => { pressed += 1; } })), "Archive").props.onClick();
+  buttonNamed(
+    RealInboxList(
+      listProps({
+        threads: [seeded],
+        allThreads: [seeded],
+        selected: ["t-seed"],
+        onBulkArchive: () => {
+          pressed += 1;
+        },
+      }),
+    ),
+    "Archive",
+  ).props.onClick();
   assert.equal(pressed, 1, "the demo's archive keeps its Undo and asks nothing");
 });
 
@@ -271,8 +508,15 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
   const toggled = [];
   const focused = [];
   cells = [];
-  const props = listProps({ selected: [ada.id], onSelectThread: (id) => opened.push(id), onToggleSelect: (id) => toggled.push(id) });
-  const draw = (over = {}) => { seq = 0; return RealInboxList({ ...props, ...over }); };
+  const props = listProps({
+    selected: [ada.id],
+    onSelectThread: (id) => opened.push(id),
+    onToggleSelect: (id) => toggled.push(id),
+  });
+  const draw = (over = {}) => {
+    seq = 0;
+    return RealInboxList({ ...props, ...over });
+  };
   let tree = draw();
   const box = find(tree, (n) => n.props?.role === "listbox");
   assert.ok(box, "REGRESSION: a screen reader heard no list");
@@ -280,17 +524,50 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
   assert.equal(box.props["aria-multiselectable"], "true");
   const rows = findAll(box, (n) => n.props?.role === "option");
   assert.equal(rows.length, 3, "REGRESSION: rows were divs with only a click");
-  assert.deepEqual(rows.map((r) => r.props.tabIndex), [-1, 0, -1], "one tab stop, on the open thread");
-  assert.deepEqual(rows.map((r) => r.props["aria-current"]), [undefined, "true", undefined], "the open thread is the current one");
-  assert.deepEqual(rows.map((r) => r.props["aria-selected"]), [false, false, true], "selected means picked for a bulk act");
-  const list = { querySelector: (sel) => { const m = /data-thread-id="([^"]+)"/.exec(sel); return m ? { focus: () => focused.push(m[1]) } : null; } };
+  assert.deepEqual(
+    rows.map((r) => r.props.tabIndex),
+    [-1, 0, -1],
+    "one tab stop, on the open thread",
+  );
+  assert.deepEqual(
+    rows.map((r) => r.props["aria-current"]),
+    [undefined, "true", undefined],
+    "the open thread is the current one",
+  );
+  assert.deepEqual(
+    rows.map((r) => r.props["aria-selected"]),
+    [false, false, true],
+    "selected means picked for a bulk act",
+  );
+  const list = {
+    querySelector: (sel) => {
+      const m = /data-thread-id="([^"]+)"/.exec(sel);
+      return m ? { focus: () => focused.push(m[1]) } : null;
+    },
+  };
   const press = (row, key) => {
     let stopped = false;
-    row.props.onKeyDown({ key, target: { tagName: "DIV" }, currentTarget: { parentNode: list }, preventDefault() {}, stopPropagation() { stopped = true; } });
+    row.props.onKeyDown({
+      key,
+      target: { tagName: "DIV" },
+      currentTarget: { parentNode: list },
+      preventDefault() {},
+      stopPropagation() {
+        stopped = true;
+      },
+    });
     return stopped;
   };
-  assert.equal(press(rows[1], "ArrowDown"), true, "the row answers its own arrows, not the page's walk through its bucket");
-  assert.deepEqual([opened.at(-1), focused.at(-1)], [ada.id, ada.id], "REGRESSION: an arrow on a row did nothing; it opens and focuses the next row on screen");
+  assert.equal(
+    press(rows[1], "ArrowDown"),
+    true,
+    "the row answers its own arrows, not the page's walk through its bucket",
+  );
+  assert.deepEqual(
+    [opened.at(-1), focused.at(-1)],
+    [ada.id, ada.id],
+    "REGRESSION: an arrow on a row did nothing; it opens and focuses the next row on screen",
+  );
   press(rows[1], "k");
   assert.deepEqual([opened.at(-1), focused.at(-1)], [rosa.id, rosa.id]);
   press(rows[1], "End");
@@ -300,28 +577,61 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
   press(rows[0], " ");
   assert.deepEqual(toggled, [rosa.id], "Space picks it for a bulk act");
   const check = find(rows[0], (n) => n.type === "input" && n.props?.type === "checkbox");
-  assert.deepEqual([check.props.tabIndex, check.props["aria-hidden"]], [-1, "true"], "the box is the mouse's; the row itself says selected");
+  assert.deepEqual(
+    [check.props.tabIndex, check.props["aria-hidden"]],
+    [-1, "true"],
+    "the box is the mouse's; the row itself says selected",
+  );
   tree = draw({ activeThreadId: null });
-  assert.deepEqual(findAll(tree, (n) => n.props?.role === "option").map((r) => r.props.tabIndex), [0, -1, -1], "with none of these open, the first row keeps the list reachable");
+  assert.deepEqual(
+    findAll(tree, (n) => n.props?.role === "option").map((r) => r.props.tabIndex),
+    [0, -1, -1],
+    "with none of these open, the first row keeps the list reachable",
+  );
   const search = find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input");
   assert.equal(search.props["aria-label"], "Search conversations");
   search.props.onChange({ target: { value: "ro" } });
   tree = draw();
-  assert.equal(find(tree, (n) => n.props?.className === "ix-search-clear").props["aria-label"], "Clear search", "REGRESSION: the clear was an unnamed icon");
+  assert.equal(
+    find(tree, (n) => n.props?.className === "ix-search-clear").props["aria-label"],
+    "Clear search",
+    "REGRESSION: the clear was an unnamed icon",
+  );
 });
 
 test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- the rail is not drawn for one, and the view model carries no autonomy or voice to invent it from", () => {
-  assert.deepEqual(Object.keys(rosa.agent).sort(), ["glyph", "name"], "REGRESSION: 'Pauses on handoff' and 'Warm · bilingual (EN/ES)' were written into every real thread");
+  assert.deepEqual(
+    Object.keys(rosa.agent).sort(),
+    ["glyph", "name"],
+    "REGRESSION: 'Pauses on handoff' and 'Warm · bilingual (EN/ES)' were written into every real thread",
+  );
   const railed = [];
   globalThis.InboxList = () => null;
   globalThis.InboxThread = () => null;
-  globalThis.InboxAgentRail = (p) => { railed.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxAgentRail = (p) => {
+    railed.push(p.thread ? p.thread.id : null);
+    return null;
+  };
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
-  const draw = (threads) => { cells = []; seq = 0; inboxWith(threads); return globalThis.window.Inbox({ showAgentRail: true }); };
+  const draw = (threads) => {
+    cells = [];
+    seq = 0;
+    inboxWith(threads);
+    return globalThis.window.Inbox({ showAgentRail: true });
+  };
   const real = draw([rosa]);
   assert.deepEqual(railed, [], "REGRESSION: the rail drew canned answers beside a real customer");
   assert.ok(!String(real.props.className).includes("with-rail"), "and the page keeps no column for it");
-  const seeded = { id: "t-seed", real: false, who: "Aisha", state: "needs", tags: [], whoMeta: "", timeline: [], agent: { name: "Front Desk", glyph: "F", autonomy: "Asks first", tone: "Warm" } };
+  const seeded = {
+    id: "t-seed",
+    real: false,
+    who: "Aisha",
+    state: "needs",
+    tags: [],
+    whoMeta: "",
+    timeline: [],
+    agent: { name: "Front Desk", glyph: "F", autonomy: "Asks first", tone: "Warm" },
+  };
   const demo = draw([seeded]);
   assert.deepEqual(railed, ["t-seed"], "the demo keeps its rail");
   assert.ok(String(demo.props.className).includes("with-rail"));

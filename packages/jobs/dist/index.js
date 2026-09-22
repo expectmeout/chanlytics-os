@@ -147,7 +147,9 @@ async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
   if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
   const { data, error } = await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", tenantId).eq("kind", kind).eq("state", "scheduled").eq(`payload->>${payloadKey}`, payloadValue).select("id");
   if (error) {
-    console.error(JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }));
+    console.error(
+      JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message })
+    );
     return 0;
   }
   return data?.length ?? 0;
@@ -344,7 +346,16 @@ var DECISION_VERBS = [
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
-var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA = {
   type: "object",
@@ -390,7 +401,9 @@ var BrainOutputSchema = z2.object({
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z2.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z2.array(z2.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z2.array(z2.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
@@ -460,11 +473,31 @@ function feedProblemWords(reason, status) {
 }
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema = z3.object({
@@ -734,7 +767,11 @@ function checkClosure(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -765,14 +802,26 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
@@ -795,8 +844,18 @@ var CHANNEL_KIND_WORDS = {
   instagram: "Instagram"
 };
 var KIND_META = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -869,8 +928,16 @@ var AskFinishSchema = z4.object({
       label: z4.string().catch("").transform(clip(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS.citations)),
-  followups: z4.array(z4.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z4.array(z4.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z4.enum(ASK_LANGUAGES).catch("other")
 });
 var ASK_UNDO_MS = 10 * 6e4;
@@ -881,10 +948,24 @@ var AskProposalOutcomeSchema = z4.object({
   undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
-  z4.object({ op: z4.literal("add_closure"), date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z4.string().max(200).optional() }),
-  z4.object({ op: z4.literal("set_hours"), day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z4.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z4.object({
+    op: z4.literal("add_closure"),
+    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z4.string().max(200).optional()
+  }),
+  z4.object({
+    op: z4.literal("set_hours"),
+    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
-  z4.object({ op: z4.literal("add_service"), name: z4.string().min(1).max(80), duration_min: z4.number().int().min(1).max(1440).optional() })
+  z4.object({
+    op: z4.literal("add_service"),
+    name: z4.string().min(1).max(80),
+    duration_min: z4.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L = (id, name2, region, native) => ({
   id,
@@ -1189,18 +1270,47 @@ var LeadSearchPlanSchema = z6.object({
   }),
   count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
   contact: z6.enum(["phone", "email"]),
-  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
-  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+  criteria: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 120),
+      standard: z6.enum(["likely", "seen"]),
+      required: z6.boolean()
+    })
+  ).max(8),
+  exclusions: z6.array(
+    z6.object({
+      key: z6.string().regex(KEY),
+      text: words(2, 80),
+      origin: z6.enum(["claude", "you_said"]),
+      category_key: z6.string().regex(KEY).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name2, code2]) => [code2, name2]));
+var US_NAMES = Object.fromEntries(
+  Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -1229,9 +1339,22 @@ var PASSWORD_WORDS = {
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES = {
   interested: "ok",
   call_back: "warn",
@@ -1240,7 +1363,14 @@ var LEAD_CALL_OUTCOME_TONES = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS = {
   chain: "A chain or franchise",
@@ -1293,7 +1423,11 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS[id],
+    tone: LEAD_CALL_OUTCOME_TONES[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -1302,7 +1436,10 @@ var LEAD_WORDS = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
@@ -1345,13 +1482,22 @@ var LeadStageInputSchema = z7.discriminatedUnion("kind", [
   z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
   z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
   z7.object({ kind: z7.literal("said_no") }),
-  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  z7.object({
+    kind: z7.literal("outcome"),
+    outcome: z7.enum(LEAD_CALL_OUTCOMES),
+    note: z7.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z7.object({ kind: z7.literal("emailed") })
 ]);
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
+  z7.object({
+    by: z7.literal("ids"),
+    action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z7.array(z7.string().uuid()).min(1).max(500),
+    search_id: z7.string().uuid().optional()
+  }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
 var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
@@ -1380,13 +1526,32 @@ var ProposeLeadSearchSchema = z7.object({
   leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
   asked: z7.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema = z7.object({
+  subject: z7.string().trim().min(3).max(120),
+  body: z7.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
-  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z7.array(
+    z7.object({
+      words: z7.string().trim().min(3).max(80),
+      who_for: z7.string().trim().min(3).max(120),
+      category_key: z7.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -1421,12 +1586,16 @@ var JUDGE_OUTPUT_SCHEMA = {
   additionalProperties: false
 };
 var AnswerSchema = z8.object({
-  places: z8.array(z8.object({
-    ref: z8.number().int(),
-    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
-    email_index: z8.number().int().nullable(),
-    reason: z8.string()
-  }))
+  places: z8.array(
+    z8.object({
+      ref: z8.number().int(),
+      criteria: z8.array(
+        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+      ),
+      email_index: z8.number().int().nullable(),
+      reason: z8.string()
+    })
+  )
 });
 var K = new Uint32Array([
   1116352408,
@@ -6626,7 +6795,16 @@ var DECISION_VERBS2 = [
 ];
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
-var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS2 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
   type: "object",
@@ -6672,7 +6850,9 @@ var BrainOutputSchema2 = z22.object({
   escalate: z22.boolean().catch(false),
   reason: z22.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z22.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z22.array(z22.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z22.array(z22.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z22.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
@@ -6683,7 +6863,14 @@ var REPLY_LIMITS2 = {
 };
 var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
-var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+var CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
 var RETENTION_DAYS2 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -6743,11 +6930,31 @@ function feedProblemWords2(reason, status) {
 }
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema2 = z32.object({
@@ -7017,7 +7224,11 @@ function checkClosure2(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords2("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z32.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords2("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -7036,14 +7247,26 @@ var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = { ...PERSON_MODE_LABELS2, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var DAY_MS32 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
 var NEW_WINDOW_MS2 = 7 * DAY_MS32;
 var QUIET_AFTER_MS3 = 30 * DAY_MS32;
-var REPLY_VIA2 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS2 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS2 = {
   whatsapp: REPLY_VIA2.whatsapp,
   sms: REPLY_VIA2.sms,
@@ -7066,8 +7289,18 @@ var CHANNEL_KIND_WORDS2 = {
   instagram: "Instagram"
 };
 var KIND_META2 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS2.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS2.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS2.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -7140,8 +7373,16 @@ var AskFinishSchema2 = z42.object({
       label: z42.string().catch("").transform(clip2(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS2.citations)),
-  followups: z42.array(z42.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z42.array(z42.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z42.enum(ASK_LANGUAGES2).catch("other")
 });
 var ASK_UNDO_MS2 = 10 * 6e4;
@@ -7152,10 +7393,24 @@ var AskProposalOutcomeSchema2 = z42.object({
   undo: z42.record(z42.string(), z42.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema2 = z42.discriminatedUnion("op", [
-  z42.object({ op: z42.literal("add_closure"), date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z42.string().max(200).optional() }),
-  z42.object({ op: z42.literal("set_hours"), day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z42.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z42.object({
+    op: z42.literal("add_closure"),
+    date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z42.string().max(200).optional()
+  }),
+  z42.object({
+    op: z42.literal("set_hours"),
+    day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z42.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z42.object({ op: z42.literal("add_note"), title: z42.string().min(1).max(80), text: z42.string().min(1).max(1200) }),
-  z42.object({ op: z42.literal("add_service"), name: z42.string().min(1).max(80), duration_min: z42.number().int().min(1).max(1440).optional() })
+  z42.object({
+    op: z42.literal("add_service"),
+    name: z42.string().min(1).max(80),
+    duration_min: z42.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L2 = (id, name2, region, native) => ({
   id,
@@ -7460,18 +7715,47 @@ var LeadSearchPlanSchema2 = z62.object({
   }),
   count: z62.number().int().min(1).max(LEAD_MAX_PLACES2),
   contact: z62.enum(["phone", "email"]),
-  criteria: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 120), standard: z62.enum(["likely", "seen"]), required: z62.boolean() })).max(8),
-  exclusions: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 80), origin: z62.enum(["claude", "you_said"]), category_key: z62.string().regex(KEY2).optional() })).max(8)
+  criteria: z62.array(
+    z62.object({
+      key: z62.string().regex(KEY2),
+      text: words2(2, 120),
+      standard: z62.enum(["likely", "seen"]),
+      required: z62.boolean()
+    })
+  ).max(8),
+  exclusions: z62.array(
+    z62.object({
+      key: z62.string().regex(KEY2),
+      text: words2(2, 80),
+      origin: z62.enum(["claude", "you_said"]),
+      category_key: z62.string().regex(KEY2).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES2.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES2.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES2 = Object.fromEntries(Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2]));
+var US_NAMES2 = Object.fromEntries(
+  Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
@@ -7500,9 +7784,22 @@ var PASSWORD_WORDS2 = {
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES2 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES2 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS2 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS2 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES2 = {
   interested: "ok",
   call_back: "warn",
@@ -7511,7 +7808,14 @@ var LEAD_CALL_OUTCOME_TONES2 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS2 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS2 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS2 = {
   chain: "A chain or franchise",
@@ -7564,7 +7868,11 @@ var LEAD_WORDS2 = {
   callQuestion: LEAD_CALL_QUESTION2,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS2[id], tone: LEAD_CALL_OUTCOME_TONES2[id] })),
+  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS2[id],
+    tone: LEAD_CALL_OUTCOME_TONES2[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
   noteMax: LEAD_NOTE_MAX2,
@@ -7573,7 +7881,10 @@ var LEAD_WORDS2 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE2,
   draftOpen: "Open in your email",
@@ -7616,13 +7927,22 @@ var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
   z72.object({ kind: z72.literal("stage"), stage: z72.enum(["ready", "nurture", "converted"]) }),
   z72.object({ kind: z72.literal("not_a_fit"), why: z72.enum(LEAD_NOT_A_FIT_WHYS2) }),
   z72.object({ kind: z72.literal("said_no") }),
-  z72.object({ kind: z72.literal("outcome"), outcome: z72.enum(LEAD_CALL_OUTCOMES2), note: z72.string().trim().max(280).optional() }),
+  z72.object({
+    kind: z72.literal("outcome"),
+    outcome: z72.enum(LEAD_CALL_OUTCOMES2),
+    note: z72.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z72.object({ kind: z72.literal("emailed") })
 ]);
 var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z72.array(z72.string().uuid()).min(1).max(500), search_id: z72.string().uuid().optional() }),
+  z72.object({
+    by: z72.literal("ids"),
+    action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z72.array(z72.string().uuid()).min(1).max(500),
+    search_id: z72.string().uuid().optional()
+  }),
   z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
 ]);
 var LeadsCheckAgainSchema2 = z72.object({ ids: z72.array(z72.string().uuid()).min(1).max(500) });
@@ -7651,13 +7971,32 @@ var ProposeLeadSearchSchema2 = z72.object({
   leave_out: z72.array(z72.object({ words: planChip2(40) })).max(6).default([]),
   asked: z72.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema2 = z72.object({ subject: z72.string().trim().min(3).max(120), body: z72.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema2 = z72.object({
+  subject: z72.string().trim().min(3).max(120),
+  body: z72.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema2 = z72.object({
   line: z72.string().trim().min(3).max(160),
-  items: z72.array(z72.object({ words: z72.string().trim().min(3).max(80), who_for: z72.string().trim().min(3).max(120), category_key: z72.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z72.array(
+    z72.object({
+      words: z72.string().trim().min(3).max(80),
+      who_for: z72.string().trim().min(3).max(120),
+      category_key: z72.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS2 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
   properties: {
@@ -7692,12 +8031,16 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   additionalProperties: false
 };
 var AnswerSchema2 = z82.object({
-  places: z82.array(z82.object({
-    ref: z82.number().int(),
-    criteria: z82.array(z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })),
-    email_index: z82.number().int().nullable(),
-    reason: z82.string()
-  }))
+  places: z82.array(
+    z82.object({
+      ref: z82.number().int(),
+      criteria: z82.array(
+        z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })
+      ),
+      email_index: z82.number().int().nullable(),
+      reason: z82.string()
+    })
+  )
 });
 var K2 = new Uint32Array([
   1116352408,
@@ -7776,7 +8119,11 @@ var CALL_ANALYSIS_FIELDS = [
     type: "string",
     name: "caller_wanted",
     description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
-    examples: ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."]
+    examples: [
+      "Asked whether Saturday at 10 is free.",
+      "Wanted Tuesday's hours and a price.",
+      "Moved Friday's appointment to next week."
+    ]
   },
   {
     type: "enum",
@@ -7837,8 +8184,10 @@ function classifyReceived(e2) {
   const local = e2.from?.address.split("@")[0] ?? "";
   if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
   const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
-  if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())) return "auto_reply";
-  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h) return "automated";
+  if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim()))
+    return "auto_reply";
+  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h)
+    return "automated";
   return "person";
 }
 function emailPlainText(e2) {
@@ -8985,7 +9334,16 @@ var DECISION_VERBS3 = [
 ];
 var DAY_MS7 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS7;
-var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS3 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES3 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA3 = {
   type: "object",
@@ -9031,7 +9389,9 @@ var BrainOutputSchema3 = z23.object({
   escalate: z23.boolean().catch(false),
   reason: z23.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z23.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z23.array(z23.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z23.array(z23.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z23.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
@@ -9042,7 +9402,14 @@ var REPLY_LIMITS3 = {
 };
 var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
-var CALL_OUTCOMES2 = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
+var CALL_OUTCOMES2 = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
 var RETENTION_DAYS3 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -9102,11 +9469,31 @@ function feedProblemWords3(reason, status) {
 }
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema3 = z33.object({
@@ -9376,7 +9763,11 @@ function checkClosure3(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords3("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z33.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords3("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -9395,14 +9786,26 @@ var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = { ...PERSON_MODE_LABELS3, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
 var DAY_MS33 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;
 var NEW_WINDOW_MS3 = 7 * DAY_MS33;
 var QUIET_AFTER_MS4 = 30 * DAY_MS33;
-var REPLY_VIA3 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS3 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS3 = {
   whatsapp: REPLY_VIA3.whatsapp,
   sms: REPLY_VIA3.sms,
@@ -9425,8 +9828,18 @@ var CHANNEL_KIND_WORDS3 = {
   instagram: "Instagram"
 };
 var KIND_META3 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS3.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS3.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -9499,8 +9912,16 @@ var AskFinishSchema3 = z43.object({
       label: z43.string().catch("").transform(clip3(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS3.citations)),
-  followups: z43.array(z43.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z43.array(z43.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z43.enum(ASK_LANGUAGES3).catch("other")
 });
 var ASK_UNDO_MS3 = 10 * 6e4;
@@ -9511,10 +9932,24 @@ var AskProposalOutcomeSchema3 = z43.object({
   undo: z43.record(z43.string(), z43.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema3 = z43.discriminatedUnion("op", [
-  z43.object({ op: z43.literal("add_closure"), date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z43.string().max(200).optional() }),
-  z43.object({ op: z43.literal("set_hours"), day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z43.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z43.object({
+    op: z43.literal("add_closure"),
+    date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z43.string().max(200).optional()
+  }),
+  z43.object({
+    op: z43.literal("set_hours"),
+    day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z43.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z43.object({ op: z43.literal("add_note"), title: z43.string().min(1).max(80), text: z43.string().min(1).max(1200) }),
-  z43.object({ op: z43.literal("add_service"), name: z43.string().min(1).max(80), duration_min: z43.number().int().min(1).max(1440).optional() })
+  z43.object({
+    op: z43.literal("add_service"),
+    name: z43.string().min(1).max(80),
+    duration_min: z43.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L3 = (id, name2, region, native) => ({
   id,
@@ -9819,18 +10254,47 @@ var LeadSearchPlanSchema3 = z63.object({
   }),
   count: z63.number().int().min(1).max(LEAD_MAX_PLACES3),
   contact: z63.enum(["phone", "email"]),
-  criteria: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 120), standard: z63.enum(["likely", "seen"]), required: z63.boolean() })).max(8),
-  exclusions: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 80), origin: z63.enum(["claude", "you_said"]), category_key: z63.string().regex(KEY3).optional() })).max(8)
+  criteria: z63.array(
+    z63.object({
+      key: z63.string().regex(KEY3),
+      text: words3(2, 120),
+      standard: z63.enum(["likely", "seen"]),
+      required: z63.boolean()
+    })
+  ).max(8),
+  exclusions: z63.array(
+    z63.object({
+      key: z63.string().regex(KEY3),
+      text: words3(2, 80),
+      origin: z63.enum(["claude", "you_said"]),
+      category_key: z63.string().regex(KEY3).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES3.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES3.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES3 = Object.fromEntries(Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2]));
+var US_NAMES3 = Object.fromEntries(
+  Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
@@ -9859,9 +10323,22 @@ var PASSWORD_WORDS3 = {
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES3 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES3 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS3 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS3 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES3 = {
   interested: "ok",
   call_back: "warn",
@@ -9870,7 +10347,14 @@ var LEAD_CALL_OUTCOME_TONES3 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS3 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS3 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE3 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS3 = {
   chain: "A chain or franchise",
@@ -9923,7 +10407,11 @@ var LEAD_WORDS3 = {
   callQuestion: LEAD_CALL_QUESTION3,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS3[id], tone: LEAD_CALL_OUTCOME_TONES3[id] })),
+  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS3[id],
+    tone: LEAD_CALL_OUTCOME_TONES3[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER3,
   noteMax: LEAD_NOTE_MAX3,
@@ -9932,7 +10420,10 @@ var LEAD_WORDS3 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE3,
   draftOpen: "Open in your email",
@@ -9975,13 +10466,22 @@ var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
   z73.object({ kind: z73.literal("stage"), stage: z73.enum(["ready", "nurture", "converted"]) }),
   z73.object({ kind: z73.literal("not_a_fit"), why: z73.enum(LEAD_NOT_A_FIT_WHYS3) }),
   z73.object({ kind: z73.literal("said_no") }),
-  z73.object({ kind: z73.literal("outcome"), outcome: z73.enum(LEAD_CALL_OUTCOMES3), note: z73.string().trim().max(280).optional() }),
+  z73.object({
+    kind: z73.literal("outcome"),
+    outcome: z73.enum(LEAD_CALL_OUTCOMES3),
+    note: z73.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z73.object({ kind: z73.literal("emailed") })
 ]);
 var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z73.array(z73.string().uuid()).min(1).max(500), search_id: z73.string().uuid().optional() }),
+  z73.object({
+    by: z73.literal("ids"),
+    action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z73.array(z73.string().uuid()).min(1).max(500),
+    search_id: z73.string().uuid().optional()
+  }),
   z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
 ]);
 var LeadsCheckAgainSchema3 = z73.object({ ids: z73.array(z73.string().uuid()).min(1).max(500) });
@@ -10010,13 +10510,32 @@ var ProposeLeadSearchSchema3 = z73.object({
   leave_out: z73.array(z73.object({ words: planChip3(40) })).max(6).default([]),
   asked: z73.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema3 = z73.object({ subject: z73.string().trim().min(3).max(120), body: z73.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema3 = z73.object({
+  subject: z73.string().trim().min(3).max(120),
+  body: z73.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema3 = z73.object({
   line: z73.string().trim().min(3).max(160),
-  items: z73.array(z73.object({ words: z73.string().trim().min(3).max(80), who_for: z73.string().trim().min(3).max(120), category_key: z73.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z73.array(
+    z73.object({
+      words: z73.string().trim().min(3).max(80),
+      who_for: z73.string().trim().min(3).max(120),
+      category_key: z73.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS3 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
   properties: {
@@ -10051,12 +10570,16 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   additionalProperties: false
 };
 var AnswerSchema3 = z83.object({
-  places: z83.array(z83.object({
-    ref: z83.number().int(),
-    criteria: z83.array(z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })),
-    email_index: z83.number().int().nullable(),
-    reason: z83.string()
-  }))
+  places: z83.array(
+    z83.object({
+      ref: z83.number().int(),
+      criteria: z83.array(
+        z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })
+      ),
+      email_index: z83.number().int().nullable(),
+      reason: z83.string()
+    })
+  )
 });
 var K3 = new Uint32Array([
   1116352408,
@@ -10135,7 +10658,11 @@ var CALL_ANALYSIS_FIELDS2 = [
     type: "string",
     name: "caller_wanted",
     description: "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
-    examples: ["Asked whether Saturday at 10 is free.", "Wanted Tuesday's hours and a price.", "Moved Friday's appointment to next week."]
+    examples: [
+      "Asked whether Saturday at 10 is free.",
+      "Wanted Tuesday's hours and a price.",
+      "Moved Friday's appointment to next week."
+    ]
   },
   {
     type: "enum",
@@ -10386,7 +10913,16 @@ function purposeOfTemplate(category) {
 }
 var DAY_MS22 = 864e5;
 var WEEK_MS42 = 7 * DAY_MS22;
-var BRAIN_INTENTS22 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS22 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES22 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA22 = {
   type: "object",
@@ -10432,7 +10968,9 @@ var BrainOutputSchema22 = z222.object({
   escalate: z222.boolean().catch(false),
   reason: z222.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z222.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z222.array(z222.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z222.array(z222.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z222.enum(BRAIN_LANGUAGES22).catch("other")
 });
 var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
@@ -10502,11 +11040,31 @@ function feedProblemWords22(reason, status) {
 }
 var POLICY_CLASS_WORDS22 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema22 = z322.object({
@@ -10776,7 +11334,11 @@ function checkClosure22(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk22(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z322.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords22("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z322.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords22("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -10795,14 +11357,26 @@ var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS22 = { ...PERSON_MODE_LABELS22, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS22 = {
+  ...PERSON_MODE_LABELS22,
+  inherit: "Follow the workspace"
+};
 var DAY_MS322 = 864e5;
 var WEEK_MS222 = 7 * DAY_MS322;
 var MONTH_MS22 = 30 * DAY_MS322;
 var NEW_WINDOW_MS22 = 7 * DAY_MS322;
 var QUIET_AFTER_MS32 = 30 * DAY_MS322;
-var REPLY_VIA22 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS22 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA22 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS22 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS22 = {
   whatsapp: REPLY_VIA22.whatsapp,
   sms: REPLY_VIA22.sms,
@@ -10825,8 +11399,18 @@ var CHANNEL_KIND_WORDS22 = {
   instagram: "Instagram"
 };
 var KIND_META22 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS22.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS22.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS22.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS22.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS22.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -10899,8 +11483,16 @@ var AskFinishSchema22 = z422.object({
       label: z422.string().catch("").transform(clip22(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS22.citations)),
-  followups: z422.array(z422.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS22.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z422.object({ to: z422.string().catch(""), label: z422.string().catch(""), now: z422.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z422.array(z422.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS22.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z422.object({ to: z422.string().catch(""), label: z422.string().catch(""), now: z422.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z422.enum(ASK_LANGUAGES22).catch("other")
 });
 var ASK_UNDO_MS22 = 10 * 6e4;
@@ -10911,10 +11503,24 @@ var AskProposalOutcomeSchema22 = z422.object({
   undo: z422.record(z422.string(), z422.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema22 = z422.discriminatedUnion("op", [
-  z422.object({ op: z422.literal("add_closure"), date: z422.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z422.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z422.string().max(200).optional() }),
-  z422.object({ op: z422.literal("set_hours"), day: z422.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z422.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z422.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z422.object({
+    op: z422.literal("add_closure"),
+    date: z422.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z422.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z422.string().max(200).optional()
+  }),
+  z422.object({
+    op: z422.literal("set_hours"),
+    day: z422.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z422.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z422.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z422.object({ op: z422.literal("add_note"), title: z422.string().min(1).max(80), text: z422.string().min(1).max(1200) }),
-  z422.object({ op: z422.literal("add_service"), name: z422.string().min(1).max(80), duration_min: z422.number().int().min(1).max(1440).optional() })
+  z422.object({
+    op: z422.literal("add_service"),
+    name: z422.string().min(1).max(80),
+    duration_min: z422.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L22 = (id, name2, region, native) => ({
   id,
@@ -11046,7 +11652,8 @@ function parseParamSpec(raw) {
   if (raw && typeof raw === "object") {
     const o2 = raw;
     if (o2.kind === "text") return typeof o2.value === "string" ? { kind: "text", value: o2.value } : null;
-    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service") return { kind: o2.kind };
+    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service")
+      return { kind: o2.kind };
   }
   return null;
 }
@@ -11268,18 +11875,47 @@ var LeadSearchPlanSchema22 = z622.object({
   }),
   count: z622.number().int().min(1).max(LEAD_MAX_PLACES22),
   contact: z622.enum(["phone", "email"]),
-  criteria: z622.array(z622.object({ key: z622.string().regex(KEY22), text: words22(2, 120), standard: z622.enum(["likely", "seen"]), required: z622.boolean() })).max(8),
-  exclusions: z622.array(z622.object({ key: z622.string().regex(KEY22), text: words22(2, 80), origin: z622.enum(["claude", "you_said"]), category_key: z622.string().regex(KEY22).optional() })).max(8)
+  criteria: z622.array(
+    z622.object({
+      key: z622.string().regex(KEY22),
+      text: words22(2, 120),
+      standard: z622.enum(["likely", "seen"]),
+      required: z622.boolean()
+    })
+  ).max(8),
+  exclusions: z622.array(
+    z622.object({
+      key: z622.string().regex(KEY22),
+      text: words22(2, 80),
+      origin: z622.enum(["claude", "you_said"]),
+      category_key: z622.string().regex(KEY22).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES22.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES22.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES22 = Object.fromEntries(Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2]));
+var US_NAMES22 = Object.fromEntries(
+  Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
 var PASSWORD_MIN22 = 12;
 var PASSWORD_WORDS22 = {
@@ -11308,9 +11944,22 @@ var PASSWORD_WORDS22 = {
 var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
 var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES22 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES22 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS22 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS22 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS22 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES22 = {
   interested: "ok",
   call_back: "warn",
@@ -11319,7 +11968,14 @@ var LEAD_CALL_OUTCOME_TONES22 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS22 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS22 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE22 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS22 = {
   chain: "A chain or franchise",
@@ -11372,7 +12028,11 @@ var LEAD_WORDS22 = {
   callQuestion: LEAD_CALL_QUESTION22,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES22.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS22[id], tone: LEAD_CALL_OUTCOME_TONES22[id] })),
+  outcomes: LEAD_CALL_OUTCOMES22.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS22[id],
+    tone: LEAD_CALL_OUTCOME_TONES22[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER22,
   noteMax: LEAD_NOTE_MAX22,
@@ -11381,7 +12041,10 @@ var LEAD_WORDS22 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE22,
   draftOpen: "Open in your email",
@@ -11424,13 +12087,22 @@ var LeadStageInputSchema22 = z722.discriminatedUnion("kind", [
   z722.object({ kind: z722.literal("stage"), stage: z722.enum(["ready", "nurture", "converted"]) }),
   z722.object({ kind: z722.literal("not_a_fit"), why: z722.enum(LEAD_NOT_A_FIT_WHYS22) }),
   z722.object({ kind: z722.literal("said_no") }),
-  z722.object({ kind: z722.literal("outcome"), outcome: z722.enum(LEAD_CALL_OUTCOMES22), note: z722.string().trim().max(280).optional() }),
+  z722.object({
+    kind: z722.literal("outcome"),
+    outcome: z722.enum(LEAD_CALL_OUTCOMES22),
+    note: z722.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z722.object({ kind: z722.literal("emailed") })
 ]);
 var LeadsBulkSchema22 = z722.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z722.object({ by: z722.literal("ids"), action: z722.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z722.array(z722.string().uuid()).min(1).max(500), search_id: z722.string().uuid().optional() }),
+  z722.object({
+    by: z722.literal("ids"),
+    action: z722.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z722.array(z722.string().uuid()).min(1).max(500),
+    search_id: z722.string().uuid().optional()
+  }),
   z722.object({ by: z722.literal("view"), action: z722.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema22 })
 ]);
 var LeadsCheckAgainSchema22 = z722.object({ ids: z722.array(z722.string().uuid()).min(1).max(500) });
@@ -11459,13 +12131,32 @@ var ProposeLeadSearchSchema22 = z722.object({
   leave_out: z722.array(z722.object({ words: planChip22(40) })).max(6).default([]),
   asked: z722.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema22 = z722.object({ subject: z722.string().trim().min(3).max(120), body: z722.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema22 = z722.object({
+  subject: z722.string().trim().min(3).max(120),
+  body: z722.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema22 = z722.object({
   line: z722.string().trim().min(3).max(160),
-  items: z722.array(z722.object({ words: z722.string().trim().min(3).max(80), who_for: z722.string().trim().min(3).max(120), category_key: z722.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z722.array(
+    z722.object({
+      words: z722.string().trim().min(3).max(80),
+      who_for: z722.string().trim().min(3).max(120),
+      category_key: z722.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS22 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS22 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA22 = {
   type: "object",
   properties: {
@@ -11500,12 +12191,16 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   additionalProperties: false
 };
 var AnswerSchema22 = z822.object({
-  places: z822.array(z822.object({
-    ref: z822.number().int(),
-    criteria: z822.array(z822.object({ key: z822.string(), answer: z822.enum(["pass", "fail", "unknown"]), facts: z822.array(z822.string()) })),
-    email_index: z822.number().int().nullable(),
-    reason: z822.string()
-  }))
+  places: z822.array(
+    z822.object({
+      ref: z822.number().int(),
+      criteria: z822.array(
+        z822.object({ key: z822.string(), answer: z822.enum(["pass", "fail", "unknown"]), facts: z822.array(z822.string()) })
+      ),
+      email_index: z822.number().int().nullable(),
+      reason: z822.string()
+    })
+  )
 });
 var K22 = new Uint32Array([
   1116352408,
@@ -11755,7 +12450,16 @@ var DECISION_VERBS32 = [
 ];
 var DAY_MS72 = 864e5;
 var WEEK_MS52 = 7 * DAY_MS72;
-var BRAIN_INTENTS32 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS32 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES32 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA32 = {
   type: "object",
@@ -11801,7 +12505,9 @@ var BrainOutputSchema32 = z232.object({
   escalate: z232.boolean().catch(false),
   reason: z232.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z232.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z232.array(z232.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z232.array(z232.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z232.enum(BRAIN_LANGUAGES32).catch("other")
 });
 var WA_WINDOW_MS32 = 24 * 3600 * 1e3;
@@ -11871,11 +12577,31 @@ function feedProblemWords32(reason, status) {
 }
 var POLICY_CLASS_WORDS32 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema32 = z332.object({
@@ -12145,7 +12871,11 @@ function checkClosure32(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk32(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z332.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords32("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z332.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords32("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -12164,14 +12894,26 @@ var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS32 = { ...PERSON_MODE_LABELS32, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS32 = {
+  ...PERSON_MODE_LABELS32,
+  inherit: "Follow the workspace"
+};
 var DAY_MS332 = 864e5;
 var WEEK_MS232 = 7 * DAY_MS332;
 var MONTH_MS32 = 30 * DAY_MS332;
 var NEW_WINDOW_MS32 = 7 * DAY_MS332;
 var QUIET_AFTER_MS42 = 30 * DAY_MS332;
-var REPLY_VIA32 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS32 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA32 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS32 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS32 = {
   whatsapp: REPLY_VIA32.whatsapp,
   sms: REPLY_VIA32.sms,
@@ -12194,8 +12936,18 @@ var CHANNEL_KIND_WORDS32 = {
   instagram: "Instagram"
 };
 var KIND_META32 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS32.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS32.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS32.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS32.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS32.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -12268,8 +13020,16 @@ var AskFinishSchema32 = z432.object({
       label: z432.string().catch("").transform(clip32(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS32.citations)),
-  followups: z432.array(z432.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS32.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z432.object({ to: z432.string().catch(""), label: z432.string().catch(""), now: z432.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z432.array(z432.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS32.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z432.object({ to: z432.string().catch(""), label: z432.string().catch(""), now: z432.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z432.enum(ASK_LANGUAGES32).catch("other")
 });
 var ASK_UNDO_MS32 = 10 * 6e4;
@@ -12280,10 +13040,24 @@ var AskProposalOutcomeSchema32 = z432.object({
   undo: z432.record(z432.string(), z432.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema32 = z432.discriminatedUnion("op", [
-  z432.object({ op: z432.literal("add_closure"), date: z432.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z432.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z432.string().max(200).optional() }),
-  z432.object({ op: z432.literal("set_hours"), day: z432.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z432.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z432.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z432.object({
+    op: z432.literal("add_closure"),
+    date: z432.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z432.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z432.string().max(200).optional()
+  }),
+  z432.object({
+    op: z432.literal("set_hours"),
+    day: z432.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z432.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z432.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z432.object({ op: z432.literal("add_note"), title: z432.string().min(1).max(80), text: z432.string().min(1).max(1200) }),
-  z432.object({ op: z432.literal("add_service"), name: z432.string().min(1).max(80), duration_min: z432.number().int().min(1).max(1440).optional() })
+  z432.object({
+    op: z432.literal("add_service"),
+    name: z432.string().min(1).max(80),
+    duration_min: z432.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L32 = (id, name2, region, native) => ({
   id,
@@ -12588,18 +13362,47 @@ var LeadSearchPlanSchema32 = z632.object({
   }),
   count: z632.number().int().min(1).max(LEAD_MAX_PLACES32),
   contact: z632.enum(["phone", "email"]),
-  criteria: z632.array(z632.object({ key: z632.string().regex(KEY32), text: words32(2, 120), standard: z632.enum(["likely", "seen"]), required: z632.boolean() })).max(8),
-  exclusions: z632.array(z632.object({ key: z632.string().regex(KEY32), text: words32(2, 80), origin: z632.enum(["claude", "you_said"]), category_key: z632.string().regex(KEY32).optional() })).max(8)
+  criteria: z632.array(
+    z632.object({
+      key: z632.string().regex(KEY32),
+      text: words32(2, 120),
+      standard: z632.enum(["likely", "seen"]),
+      required: z632.boolean()
+    })
+  ).max(8),
+  exclusions: z632.array(
+    z632.object({
+      key: z632.string().regex(KEY32),
+      text: words32(2, 80),
+      origin: z632.enum(["claude", "you_said"]),
+      category_key: z632.string().regex(KEY32).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES32.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES32.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES32 = Object.fromEntries(Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2]));
+var US_NAMES32 = Object.fromEntries(
+  Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS32 = [...DECISION_VERBS32, ...EVENT_KINDS32];
 var PASSWORD_MIN32 = 12;
 var PASSWORD_WORDS32 = {
@@ -12628,9 +13431,22 @@ var PASSWORD_WORDS32 = {
 var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
 var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES32 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES32 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS32 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS32 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS32 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES32 = {
   interested: "ok",
   call_back: "warn",
@@ -12639,7 +13455,14 @@ var LEAD_CALL_OUTCOME_TONES32 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS32 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS32 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE32 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS32 = {
   chain: "A chain or franchise",
@@ -12692,7 +13515,11 @@ var LEAD_WORDS32 = {
   callQuestion: LEAD_CALL_QUESTION32,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES32.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS32[id], tone: LEAD_CALL_OUTCOME_TONES32[id] })),
+  outcomes: LEAD_CALL_OUTCOMES32.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS32[id],
+    tone: LEAD_CALL_OUTCOME_TONES32[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER32,
   noteMax: LEAD_NOTE_MAX32,
@@ -12701,7 +13528,10 @@ var LEAD_WORDS32 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE32,
   draftOpen: "Open in your email",
@@ -12744,13 +13574,22 @@ var LeadStageInputSchema32 = z732.discriminatedUnion("kind", [
   z732.object({ kind: z732.literal("stage"), stage: z732.enum(["ready", "nurture", "converted"]) }),
   z732.object({ kind: z732.literal("not_a_fit"), why: z732.enum(LEAD_NOT_A_FIT_WHYS32) }),
   z732.object({ kind: z732.literal("said_no") }),
-  z732.object({ kind: z732.literal("outcome"), outcome: z732.enum(LEAD_CALL_OUTCOMES32), note: z732.string().trim().max(280).optional() }),
+  z732.object({
+    kind: z732.literal("outcome"),
+    outcome: z732.enum(LEAD_CALL_OUTCOMES32),
+    note: z732.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z732.object({ kind: z732.literal("emailed") })
 ]);
 var LeadsBulkSchema32 = z732.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z732.object({ by: z732.literal("ids"), action: z732.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z732.array(z732.string().uuid()).min(1).max(500), search_id: z732.string().uuid().optional() }),
+  z732.object({
+    by: z732.literal("ids"),
+    action: z732.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z732.array(z732.string().uuid()).min(1).max(500),
+    search_id: z732.string().uuid().optional()
+  }),
   z732.object({ by: z732.literal("view"), action: z732.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema32 })
 ]);
 var LeadsCheckAgainSchema32 = z732.object({ ids: z732.array(z732.string().uuid()).min(1).max(500) });
@@ -12779,13 +13618,32 @@ var ProposeLeadSearchSchema32 = z732.object({
   leave_out: z732.array(z732.object({ words: planChip32(40) })).max(6).default([]),
   asked: z732.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema32 = z732.object({ subject: z732.string().trim().min(3).max(120), body: z732.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema32 = z732.object({
+  subject: z732.string().trim().min(3).max(120),
+  body: z732.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema32 = z732.object({
   line: z732.string().trim().min(3).max(160),
-  items: z732.array(z732.object({ words: z732.string().trim().min(3).max(80), who_for: z732.string().trim().min(3).max(120), category_key: z732.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z732.array(
+    z732.object({
+      words: z732.string().trim().min(3).max(80),
+      who_for: z732.string().trim().min(3).max(120),
+      category_key: z732.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS32 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS32 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA32 = {
   type: "object",
   properties: {
@@ -12820,12 +13678,16 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   additionalProperties: false
 };
 var AnswerSchema32 = z832.object({
-  places: z832.array(z832.object({
-    ref: z832.number().int(),
-    criteria: z832.array(z832.object({ key: z832.string(), answer: z832.enum(["pass", "fail", "unknown"]), facts: z832.array(z832.string()) })),
-    email_index: z832.number().int().nullable(),
-    reason: z832.string()
-  }))
+  places: z832.array(
+    z832.object({
+      ref: z832.number().int(),
+      criteria: z832.array(
+        z832.object({ key: z832.string(), answer: z832.enum(["pass", "fail", "unknown"]), facts: z832.array(z832.string()) })
+      ),
+      email_index: z832.number().int().nullable(),
+      reason: z832.string()
+    })
+  )
 });
 var K32 = new Uint32Array([
   1116352408,
@@ -12939,14 +13801,24 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select(
+    "paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)"
+  ).eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
     control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
+    contact: row.contacts ?? {
+      consent: null,
+      dnc: null,
+      marketing_consent: null,
+      erased_at: null,
+      erasing_since: null,
+      email: null,
+      email_suppressed_at: null
+    },
     tenantStatus: row.tenants?.status ?? null
   };
 }
@@ -12965,7 +13837,8 @@ function refusalFor(d, f, nowMs) {
   if (f.tenantStatus === "paused") return "paused";
   const held = !!f.control && nowMs < new Date(f.control.until).getTime();
   if (kind === "draft" && held) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))
+    return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -12982,7 +13855,11 @@ function event(db, d, kind, messageId, data) {
 }
 async function stampThread(db, d, nowMs) {
   const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
-  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
+  if (error)
+    console.error(
+      "deliver_stamp_failed",
+      JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message })
+    );
 }
 async function finalizeQueued(db, d, patch) {
   const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
@@ -13013,8 +13890,19 @@ async function deliver(ports, d) {
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template, ...d.email ? { email: d.email } : {} });
   if (sent.ok) {
     if (d.messageId) {
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} }).catch((e2) => {
-        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e2 instanceof Error ? e2.message : String(e2) }));
+      const marked = await finalizeQueued(ports.db, d, {
+        status: "sent",
+        ...sent.wamid ? { external_id: sent.wamid } : {}
+      }).catch((e2) => {
+        console.error(
+          "deliver_finalize_failed",
+          JSON.stringify({
+            tenant: d.tenantId,
+            message: d.messageId,
+            wamid: sent.wamid,
+            error: e2 instanceof Error ? e2.message : String(e2)
+          })
+        );
         return null;
       });
       await Promise.all([
@@ -13036,7 +13924,15 @@ async function deliver(ports, d) {
       status: "sent",
       meta: d.meta ?? {}
     }).catch((e2) => {
-      console.error("deliver_record_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, wamid: sent.wamid, error: e2 instanceof Error ? e2.message : String(e2) }));
+      console.error(
+        "deliver_record_failed",
+        JSON.stringify({
+          tenant: d.tenantId,
+          conversation: d.conversationId,
+          wamid: sent.wamid,
+          error: e2 instanceof Error ? e2.message : String(e2)
+        })
+      );
       return null;
     });
     return { outcome: "sent", messageId: messageId2, externalId: sent.wamid };
@@ -13060,7 +13956,13 @@ async function deliver(ports, d) {
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  return { outcome: "failed", reason: sent.reason ?? "provider", status: sent.status, errorBody: sent.errorBody ?? null, messageId };
+  return {
+    outcome: "failed",
+    reason: sent.reason ?? "provider",
+    status: sent.status,
+    errorBody: sent.errorBody ?? null,
+    messageId
+  };
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -13078,13 +13980,18 @@ async function sendQueued(ports, cmd) {
   try {
     msg = await ports.queued(p.message_id);
   } catch (e2) {
-    throw new Error(`outbound_send: cannot read message ${p.message_id}: ${e2 instanceof Error ? e2.message : String(e2)}`);
+    throw new Error(
+      `outbound_send: cannot read message ${p.message_id}: ${e2 instanceof Error ? e2.message : String(e2)}`
+    );
   }
   if (!msg || msg.status !== "queued") return;
   const purpose = await ports.purposeOf(p.template);
   const channel = msg.channel ?? "whatsapp";
   const to = channel === "email" ? p.to_email : p.to_phone;
-  if (!to) throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`);
+  if (!to)
+    throw new Error(
+      `outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`
+    );
   const out = await ports.deliver({
     tenantId: cmd.tenantId,
     conversationId: p.conversation_id,
@@ -13105,12 +14012,24 @@ async function sendQueued(ports, cmd) {
   });
   if (out.outcome !== "failed") return;
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
-    await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
+    await ports.page?.(
+      `provider_auth:${channel}`,
+      `${channel} rejected a send with ${out.status}`,
+      `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`
+    );
   }
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`;
+  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : (
+    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
+  );
   const receptionist = msg.sender === "ai";
-  await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
+  await ports.escalate(
+    p.conversation_id,
+    "send_failed",
+    `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
+  );
   await ports.alert({
     kind: "handoff",
     route: `inbox/th-${p.conversation_id}`,
@@ -13135,14 +14054,16 @@ var EMAIL_REVIEW_WORDS = {
 async function ingestEmail(ports, cmd) {
   const mailboxId = typeof cmd.payload.mailbox_id === "string" ? cmd.payload.mailbox_id : "";
   const receivedId = typeof cmd.payload.received_id === "string" ? cmd.payload.received_id : "";
-  if (!mailboxId || !receivedId) throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
+  if (!mailboxId || !receivedId)
+    throw new Error("email_ingest: payload.mailbox_id and payload.received_id are required");
   const mailbox = await ports.mailbox(mailboxId);
   if (!mailbox) return "gone";
   const email = await ports.fetch(receivedId);
   if (!email) return "gone";
   const address = normalizeEmail(email.from?.address);
   if (!address) return "no_sender";
-  if (address === mailbox.address || email.messageId && await ports.ours(mailbox.tenant_id, email.messageId)) return "our_own";
+  if (address === mailbox.address || email.messageId && await ports.ours(mailbox.tenant_id, email.messageId))
+    return "our_own";
   const at = new Date(ports.now()).toISOString();
   if (await ports.erasedBefore(mailbox.tenant_id, address, email.receivedAt ?? at)) return "erased_person";
   const { claim } = email;
@@ -13157,8 +14078,14 @@ async function ingestEmail(ports, cmd) {
   });
   if (!kept.is_new && kept.processed) return "already_handled";
   if (claim !== "auto_reply") {
-    const flagged = await ports.escalate(mailbox.tenant_id, kept.conversation_id, "email_review", EMAIL_REVIEW_WORDS[claim]);
-    if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
+    const flagged = await ports.escalate(
+      mailbox.tenant_id,
+      kept.conversation_id,
+      "email_review",
+      EMAIL_REVIEW_WORDS[claim]
+    );
+    if (flagged === "failed")
+      throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
     if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
         conversationId: kept.conversation_id,
@@ -13211,14 +14138,26 @@ async function sendBroadcastBatch(ports, cmd) {
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D not sent`, body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again." });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D not sent`,
+      body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again."
+    });
     return;
   }
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D stopped`,
+      body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`
+    });
     return;
   }
   const purpose = purposeOfTemplate(tpl.category);
@@ -13295,7 +14234,10 @@ async function sendBroadcastBatch(ports, cmd) {
         source: "broadcast",
         broadcast_id: b.id,
         broadcast_name: b.name,
-        ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {}
+        ...b.playbook_id ? {
+          playbook_id: b.playbook_id,
+          playbook_name: String(b.audience?.label ?? b.name)
+        } : {}
       }
     }).catch((e2) => {
       throw new ThrownAtTheDoor(e2);
@@ -13312,7 +14254,13 @@ async function sendBroadcastBatch(ports, cmd) {
     if (!wireIsDown(out)) return "go on";
     const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
     await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.` });
+    await ports.alert({
+      kind: "broadcast_stopped",
+      route: "broadcasts",
+      about: { type: "broadcast", id: b.id },
+      subject: `Broadcast \u201C${b.name}\u201D stopped`,
+      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
+    });
     return "stop";
   };
   for (const [i, r2] of batch.entries()) {
@@ -13333,7 +14281,8 @@ async function sendBroadcastBatch(ports, cmd) {
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0)
+      await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }
@@ -13552,7 +14501,16 @@ var DECISION_VERBS4 = [
 ];
 var DAY_MS8 = 864e5;
 var WEEK_MS6 = 7 * DAY_MS8;
-var BRAIN_INTENTS4 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+var BRAIN_INTENTS4 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
 var BRAIN_LANGUAGES4 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA4 = {
   type: "object",
@@ -13598,7 +14556,9 @@ var BrainOutputSchema4 = z24.object({
   escalate: z24.boolean().catch(false),
   reason: z24.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
   confidence: z24.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z24.array(z24.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))),
+  facts_used: z24.array(z24.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
   language: z24.enum(BRAIN_LANGUAGES4).catch("other")
 });
 var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
@@ -13668,11 +14628,31 @@ function feedProblemWords4(reason, status) {
 }
 var POLICY_CLASS_WORDS4 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: { name: "Service & pricing questions", short: "Questions", note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone" },
-  booking: { name: "Book \xB7 reschedule", short: "Bookings", note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone" },
-  reengage: { name: "Re-engage quiet customers", short: "Re-engage", note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  campaign: { name: "Standing offers", short: "Offers", note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing" },
-  reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var PolicyLimitsSchema4 = z34.object({
@@ -13942,7 +14922,11 @@ function checkClosure4(c2, n2, ctx) {
 }
 var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk4(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z34.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords4("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({
+      code: z34.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords4("address") ?? "Not an address the receptionist may read."
+    });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
@@ -13961,14 +14945,26 @@ var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
 var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS4 = { ...PERSON_MODE_LABELS4, inherit: "Follow the workspace" };
+var PERSON_MODE_WORDS4 = {
+  ...PERSON_MODE_LABELS4,
+  inherit: "Follow the workspace"
+};
 var DAY_MS34 = 864e5;
 var WEEK_MS24 = 7 * DAY_MS34;
 var MONTH_MS4 = 30 * DAY_MS34;
 var NEW_WINDOW_MS4 = 7 * DAY_MS34;
 var QUIET_AFTER_MS5 = 30 * DAY_MS34;
-var REPLY_VIA4 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
-var PERSON_CHANNEL_WORDS4 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var REPLY_VIA4 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS4 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
 var PERSON_CAME_FROM_WORDS4 = {
   whatsapp: REPLY_VIA4.whatsapp,
   sms: REPLY_VIA4.sms,
@@ -13991,8 +14987,18 @@ var CHANNEL_KIND_WORDS4 = {
   instagram: "Instagram"
 };
 var KIND_META4 = {
-  whatsapp: { name: `${CHANNEL_KIND_WORDS4.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: CHANNEL_KIND_WORDS4.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS4.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS4.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
   sms: { name: CHANNEL_KIND_WORDS4.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
@@ -14065,8 +15071,16 @@ var AskFinishSchema4 = z44.object({
       label: z44.string().catch("").transform(clip4(80))
     })
   ).catch([]).transform((a) => a.filter((c2) => c2.id && c2.label).slice(0, ASK_CAPS4.citations)),
-  followups: z44.array(z44.string()).catch([]).transform((a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS4.followups).map((s2) => s2.slice(0, 90))),
-  navigate: z44.object({ to: z44.string().catch(""), label: z44.string().catch(""), now: z44.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n2) => n2.to.trim() ? { to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n2.label.trim().slice(0, 60) || "Open", now: n2.now === true } : null),
+  followups: z44.array(z44.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, ASK_CAPS4.followups).map((s2) => s2.slice(0, 90))
+  ),
+  navigate: z44.object({ to: z44.string().catch(""), label: z44.string().catch(""), now: z44.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
+    } : null
+  ),
   language: z44.enum(ASK_LANGUAGES4).catch("other")
 });
 var ASK_UNDO_MS4 = 10 * 6e4;
@@ -14077,10 +15091,24 @@ var AskProposalOutcomeSchema4 = z44.object({
   undo: z44.record(z44.string(), z44.unknown()).nullable().optional()
 });
 var AskSettingsChangeSchema4 = z44.discriminatedUnion("op", [
-  z44.object({ op: z44.literal("add_closure"), date: z44.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z44.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z44.string().max(200).optional() }),
-  z44.object({ op: z44.literal("set_hours"), day: z44.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z44.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z44.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z44.object({
+    op: z44.literal("add_closure"),
+    date: z44.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z44.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z44.string().max(200).optional()
+  }),
+  z44.object({
+    op: z44.literal("set_hours"),
+    day: z44.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z44.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z44.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
   z44.object({ op: z44.literal("add_note"), title: z44.string().min(1).max(80), text: z44.string().min(1).max(1200) }),
-  z44.object({ op: z44.literal("add_service"), name: z44.string().min(1).max(80), duration_min: z44.number().int().min(1).max(1440).optional() })
+  z44.object({
+    op: z44.literal("add_service"),
+    name: z44.string().min(1).max(80),
+    duration_min: z44.number().int().min(1).max(1440).optional()
+  })
 ]);
 var L4 = (id, name2, region, native) => ({
   id,
@@ -14385,18 +15413,47 @@ var LeadSearchPlanSchema4 = z64.object({
   }),
   count: z64.number().int().min(1).max(LEAD_MAX_PLACES4),
   contact: z64.enum(["phone", "email"]),
-  criteria: z64.array(z64.object({ key: z64.string().regex(KEY4), text: words4(2, 120), standard: z64.enum(["likely", "seen"]), required: z64.boolean() })).max(8),
-  exclusions: z64.array(z64.object({ key: z64.string().regex(KEY4), text: words4(2, 80), origin: z64.enum(["claude", "you_said"]), category_key: z64.string().regex(KEY4).optional() })).max(8)
+  criteria: z64.array(
+    z64.object({
+      key: z64.string().regex(KEY4),
+      text: words4(2, 120),
+      standard: z64.enum(["likely", "seen"]),
+      required: z64.boolean()
+    })
+  ).max(8),
+  exclusions: z64.array(
+    z64.object({
+      key: z64.string().regex(KEY4),
+      text: words4(2, 80),
+      origin: z64.enum(["claude", "you_said"]),
+      category_key: z64.string().regex(KEY4).optional()
+    })
+  ).max(8)
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
   const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES4.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES4.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
-var US_NAMES4 = Object.fromEntries(Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2]));
+var US_NAMES4 = Object.fromEntries(
+  Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
+);
 var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
 var PASSWORD_MIN4 = 12;
 var PASSWORD_WORDS4 = {
@@ -14425,9 +15482,22 @@ var PASSWORD_WORDS4 = {
 var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
 var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES4 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_CALL_OUTCOMES4 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
 var LEAD_NOT_A_FIT_WHYS4 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS4 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CLOSED_WORDS4 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
 var LEAD_CALL_OUTCOME_TONES4 = {
   interested: "ok",
   call_back: "warn",
@@ -14436,7 +15506,14 @@ var LEAD_CALL_OUTCOME_TONES4 = {
   not_interested: "danger",
   wrong_number: "danger"
 };
-var LEAD_CALL_OUTCOME_WORDS4 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_CALL_OUTCOME_WORDS4 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
 var LEAD_DRAFT_NOTE4 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS4 = {
   chain: "A chain or franchise",
@@ -14489,7 +15566,11 @@ var LEAD_WORDS4 = {
   callQuestion: LEAD_CALL_QUESTION4,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES4.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS4[id], tone: LEAD_CALL_OUTCOME_TONES4[id] })),
+  outcomes: LEAD_CALL_OUTCOMES4.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS4[id],
+    tone: LEAD_CALL_OUTCOME_TONES4[id]
+  })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER4,
   noteMax: LEAD_NOTE_MAX4,
@@ -14498,7 +15579,10 @@ var LEAD_WORDS4 = {
   to: "To",
   subject: "Subject",
   draftRewrite: "Rewrite",
-  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
   draftWriting: "Writing it\u2026",
   draftNote: LEAD_DRAFT_NOTE4,
   draftOpen: "Open in your email",
@@ -14541,13 +15625,22 @@ var LeadStageInputSchema4 = z74.discriminatedUnion("kind", [
   z74.object({ kind: z74.literal("stage"), stage: z74.enum(["ready", "nurture", "converted"]) }),
   z74.object({ kind: z74.literal("not_a_fit"), why: z74.enum(LEAD_NOT_A_FIT_WHYS4) }),
   z74.object({ kind: z74.literal("said_no") }),
-  z74.object({ kind: z74.literal("outcome"), outcome: z74.enum(LEAD_CALL_OUTCOMES4), note: z74.string().trim().max(280).optional() }),
+  z74.object({
+    kind: z74.literal("outcome"),
+    outcome: z74.enum(LEAD_CALL_OUTCOMES4),
+    note: z74.string().trim().max(280).optional()
+  }),
   /** "Did you send it?" Yes. */
   z74.object({ kind: z74.literal("emailed") })
 ]);
 var LeadsBulkSchema4 = z74.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z74.object({ by: z74.literal("ids"), action: z74.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z74.array(z74.string().uuid()).min(1).max(500), search_id: z74.string().uuid().optional() }),
+  z74.object({
+    by: z74.literal("ids"),
+    action: z74.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z74.array(z74.string().uuid()).min(1).max(500),
+    search_id: z74.string().uuid().optional()
+  }),
   z74.object({ by: z74.literal("view"), action: z74.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema4 })
 ]);
 var LeadsCheckAgainSchema4 = z74.object({ ids: z74.array(z74.string().uuid()).min(1).max(500) });
@@ -14576,13 +15669,32 @@ var ProposeLeadSearchSchema4 = z74.object({
   leave_out: z74.array(z74.object({ words: planChip4(40) })).max(6).default([]),
   asked: z74.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema4 = z74.object({ subject: z74.string().trim().min(3).max(120), body: z74.string().trim().min(20).max(2e3) });
+var LeadDraftAnswerSchema4 = z74.object({
+  subject: z74.string().trim().min(3).max(120),
+  body: z74.string().trim().min(20).max(2e3)
+});
 var LeadSuggestAnswerSchema4 = z74.object({
   line: z74.string().trim().min(3).max(160),
-  items: z74.array(z74.object({ words: z74.string().trim().min(3).max(80), who_for: z74.string().trim().min(3).max(120), category_key: z74.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+  items: z74.array(
+    z74.object({
+      words: z74.string().trim().min(3).max(80),
+      who_for: z74.string().trim().min(3).max(120),
+      category_key: z74.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
 });
 var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
-var JUDGE_FACT_KEYS4 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_FACT_KEYS4 = [
+  "name",
+  "category",
+  "city",
+  "state",
+  "host",
+  "rating",
+  "reviews",
+  "emails",
+  "phone_matches_site"
+];
 var JUDGE_OUTPUT_SCHEMA4 = {
   type: "object",
   properties: {
@@ -14617,12 +15729,16 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   additionalProperties: false
 };
 var AnswerSchema4 = z84.object({
-  places: z84.array(z84.object({
-    ref: z84.number().int(),
-    criteria: z84.array(z84.object({ key: z84.string(), answer: z84.enum(["pass", "fail", "unknown"]), facts: z84.array(z84.string()) })),
-    email_index: z84.number().int().nullable(),
-    reason: z84.string()
-  }))
+  places: z84.array(
+    z84.object({
+      ref: z84.number().int(),
+      criteria: z84.array(
+        z84.object({ key: z84.string(), answer: z84.enum(["pass", "fail", "unknown"]), facts: z84.array(z84.string()) })
+      ),
+      email_index: z84.number().int().nullable(),
+      reason: z84.string()
+    })
+  )
 });
 var K4 = new Uint32Array([
   1116352408,
@@ -14716,17 +15832,24 @@ async function ingestInbound(db, p) {
       p_source: "customer_message",
       p_note: null
     };
-    const evidence = { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null };
+    const evidence = {
+      channel: p.channel,
+      message_external_id: p.messageExternalId,
+      words: (p.body ?? "").slice(0, 80) || null
+    };
     let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
-    if (mErr && /p_evidence/.test(mErr.message)) ({ error: mErr } = await db.rpc("set_marketing_consent", args));
+    if (mErr && /p_evidence/.test(mErr.message))
+      ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "marketing_consent_write_failed",
-        tenant_id: p.tenantId,
-        contact_id: out.contact_id,
-        error: mErr.message
-      }));
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "marketing_consent_write_failed",
+          tenant_id: p.tenantId,
+          contact_id: out.contact_id,
+          error: mErr.message
+        })
+      );
     }
   }
   return out;
@@ -14783,7 +15906,10 @@ async function ingestInboundEmail(db, p) {
   const known = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("email", p.address).is("erased_at", null).is("merged_into_contact_id", null).maybeSingle();
   if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
   if (known.data) {
-    const { error } = await db.from("contact_identities").upsert({ tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address }, { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true });
+    const { error } = await db.from("contact_identities").upsert(
+      { tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address },
+      { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true }
+    );
     if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
   }
   const out = await ingestInbound(db, {
@@ -14800,8 +15926,10 @@ async function ingestInboundEmail(db, p) {
   });
   if (!known.data) {
     const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
-    if (error && error.code !== "23505") throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
-    if (error) console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+    if (error && error.code !== "23505")
+      throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
+    if (error)
+      console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
   }
   return out;
 }
@@ -14869,7 +15997,13 @@ async function outboundSend(ctx, job) {
         if (error) throw new Error(error.message);
         if (!data) return null;
         const request = data.meta?.email?.request;
-        return { status: data.status, body: data.body, channel: data.channel, sender: data.sender, email: isEmailRequest(request) ? request : null };
+        return {
+          status: data.status,
+          body: data.body,
+          channel: data.channel,
+          sender: data.sender,
+          email: isEmailRequest(request) ? request : null
+        };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),
@@ -14893,14 +16027,23 @@ async function broadcastSend(ctx, job) {
       // The billing gate, so it fails CLOSED: a tenants row that cannot be read
       // is not a workspace that is paying.
       workspacePaused: async () => {
-        const row = must("broadcast_send: cannot read the workspace's status", await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle());
+        const row = must(
+          "broadcast_send: cannot read the workspace's status",
+          await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle()
+        );
         return row?.status === "paused";
       },
       fail: async (id, failure) => {
-        must("broadcast_send: cannot mark the broadcast failed", await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id));
+        must(
+          "broadcast_send: cannot mark the broadcast failed",
+          await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id)
+        );
       },
       startSending: async (id) => {
-        const rows = must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id"));
+        const rows = must(
+          "broadcast_send: cannot start the broadcast",
+          await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id")
+        );
         return !!rows && rows.length > 0;
       },
       // `category` is Meta's verdict on what kind of message this is, and it
@@ -14909,7 +16052,10 @@ async function broadcastSend(ctx, job) {
       // emails the owner that WhatsApp rejected it, which would be a lie about
       // their Meta account told over a statement timeout.
       template: async (name2, language) => {
-        return must(`broadcast_send: cannot read template ${name2}`, await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name2).eq("language", language).maybeSingle());
+        return must(
+          `broadcast_send: cannot read template ${name2}`,
+          await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name2).eq("language", language).maybeSingle()
+        );
       },
       // An empty business name is not a fallback: it resolves to an empty slot,
       // and the verb marks everyone in the batch permanently "missing_value".
@@ -14945,9 +16091,13 @@ async function broadcastSend(ctx, job) {
       // second WhatsApp template to the same person, so a read that FAILED must
       // never come back as "no, they have not been messaged".
       alreadySent: async (id, contactIds) => {
-        const rows = must("broadcast_send: cannot check what the batch was already sent", await db.from("messages").select("id, contact_id, created_at").eq("tenant_id", job.tenant_id).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]));
+        const rows = must(
+          "broadcast_send: cannot check what the batch was already sent",
+          await db.from("messages").select("id, contact_id, created_at").eq("tenant_id", job.tenant_id).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"])
+        );
         const prior = /* @__PURE__ */ new Map();
-        for (const m of rows ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+        for (const m of rows ?? [])
+          if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
         return prior;
       },
       // `sent_at` comes from the patch when the caller knows it — a resumed run
@@ -14955,7 +16105,10 @@ async function broadcastSend(ctx, job) {
       // and stamping "now" instead would reorder the broadcast's own page.
       mark: async (id, contactId, patch) => {
         const sentAt = patch.sent_at ?? (patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null);
-        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
+        must(
+          "broadcast_send: cannot record how this person's send went",
+          await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId)
+        );
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
@@ -14963,7 +16116,10 @@ async function broadcastSend(ctx, job) {
       // cancel reads, so a failed read here would abandon a half-sent broadcast
       // with nothing scheduled, nothing failed and nobody told.
       state: async (id) => {
-        const row = must("broadcast_send: cannot read whether the broadcast is still wanted", await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle());
+        const row = must(
+          "broadcast_send: cannot read whether the broadcast is still wanted",
+          await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+        );
         return row?.state ?? null;
       },
       scheduleNext: async (id, dueAt) => {
@@ -14979,8 +16135,21 @@ async function broadcastSend(ctx, job) {
         return { sent, held: all2 - sent };
       },
       finish: async (id, tally) => {
-        must("broadcast_send: cannot close the broadcast", await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending"));
-        must("broadcast_send: cannot record the broadcast's tally", await db.from("events").insert({ tenant_id: job.tenant_id, kind: "broadcast.sent", category: "message", subject_type: "broadcast", subject_id: id, data: tally }));
+        must(
+          "broadcast_send: cannot close the broadcast",
+          await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending")
+        );
+        must(
+          "broadcast_send: cannot record the broadcast's tally",
+          await db.from("events").insert({
+            tenant_id: job.tenant_id,
+            kind: "broadcast.sent",
+            category: "message",
+            subject_type: "broadcast",
+            subject_id: id,
+            data: tally
+          })
+        );
       },
       alert: ctx.alert,
       now: Date.now,
@@ -15159,8 +16328,21 @@ async function settleJob(db, job, certain) {
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
     const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender");
     const row = data?.[0] ?? null;
-    const flagged = !error && row?.conversation_id ? await upsertEscalation(db, job.tenant_id, row.conversation_id, "send_failed", `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`) : null;
-    return [{ what: "message", changed: !!data?.length, ...flagged ? { flagged } : {}, ...error ? { error: error.message } : {} }];
+    const flagged = !error && row?.conversation_id ? await upsertEscalation(
+      db,
+      job.tenant_id,
+      row.conversation_id,
+      "send_failed",
+      `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`
+    ) : null;
+    return [
+      {
+        what: "message",
+        changed: !!data?.length,
+        ...flagged ? { flagged } : {},
+        ...error ? { error: error.message } : {}
+      }
+    ];
   }
   if (job.kind === "email_ingest") {
     const receivedId = idFrom(job.payload, "received_id");
@@ -15186,9 +16368,18 @@ async function settleJob(db, job, certain) {
     if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
     if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
     const resumes = resumesOf(job.payload);
-    if (resumes >= MAX_RESUMES) return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, { reached, remaining });
+    if (resumes >= MAX_RESUMES)
+      return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, {
+        reached,
+        remaining
+      });
     try {
-      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: /* @__PURE__ */ new Date(), payload: { broadcast_id: broadcastId, resumes: resumes + 1 } });
+      await scheduleJob(db, {
+        tenantId: job.tenant_id,
+        kind: "broadcast_send",
+        dueAt: /* @__PURE__ */ new Date(),
+        payload: { broadcast_id: broadcastId, resumes: resumes + 1 }
+      });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e2) {
       return failBroadcast(db, job, broadcastId, e2 instanceof Error ? e2.message : String(e2), { reached, remaining });
@@ -15200,17 +16391,27 @@ function saySettled(results) {
   const lines = [];
   for (const r2 of results) {
     if (r2.error) {
-      lines.push(r2.what === "message" ? `The message it was sending could not be updated (${r2.error}), so it may still show as sending.` : r2.what === "email" ? `The email it was taking in could not be flagged for a person (${r2.error}), so look for it in the Inbox.` : `The broadcast could not be updated (${r2.error}), so it may still show as sending.`);
+      lines.push(
+        r2.what === "message" ? `The message it was sending could not be updated (${r2.error}), so it may still show as sending.` : r2.what === "email" ? `The email it was taking in could not be flagged for a person (${r2.error}), so look for it in the Inbox.` : `The broadcast could not be updated (${r2.error}), so it may still show as sending.`
+      );
     } else if (r2.resumed) {
-      lines.push(`The broadcast carries on in a fresh run: ${r2.reached ?? 0} reached so far, ${r2.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
+      lines.push(
+        `The broadcast carries on in a fresh run: ${r2.reached ?? 0} reached so far, ${r2.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`
+      );
     } else if (r2.changed && r2.notResumed) {
-      lines.push(`The broadcast could not be handed to a fresh run (${r2.notResumed}), so it has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
+      lines.push(
+        `The broadcast could not be handed to a fresh run (${r2.notResumed}), so it has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`
+      );
     } else if (r2.changed && r2.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
     } else if (r2.what === "email") {
-      lines.push(r2.mailbox === "marked" ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in." : "The email it was taking in was never stored, so there is nothing to flag for a person.");
+      lines.push(
+        r2.mailbox === "marked" ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in." : "The email it was taking in was never stored, so there is nothing to flag for a person."
+      );
     } else if (r2.changed) {
-      lines.push(r2.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
+      lines.push(
+        r2.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`
+      );
     }
   }
   return lines.length ? lines.join(" ") : null;
@@ -15248,7 +16449,14 @@ async function runTick(ports, opts) {
         const untilIso = new Date(ports.now() + wait).toISOString();
         try {
           if (await ports.defer(job, untilIso, msg)) {
-            ports.log.warn("job_deferred", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, until: untilIso, error: msg });
+            ports.log.warn("job_deferred", {
+              job_id: job.id,
+              tenant_id: job.tenant_id,
+              kind: job.kind,
+              attempts: job.attempts,
+              until: untilIso,
+              error: msg
+            });
           } else {
             ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
           }
@@ -15309,18 +16517,30 @@ async function conclude(ports, job, reason, certain, subject, lead) {
     const settled = await ports.settle(job, certain);
     for (const s2 of settled) {
       if (s2.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s2.what, error: s2.error });
-      else if (s2.notResumed) ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s2.notResumed });
+      else if (s2.notResumed)
+        ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s2.notResumed });
     }
     wreckage = saySettled(settled);
   } catch (e2) {
     ports.log.error("job_settle_failed", { job_id: job.id, error: errText(e2) });
     wreckage = "What it was in the middle of could not be checked, so a message or broadcast may still show as sending.";
   }
-  ports.log.info("job_failed", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, reason });
+  ports.log.info("job_failed", {
+    job_id: job.id,
+    tenant_id: job.tenant_id,
+    kind: job.kind,
+    attempts: job.attempts,
+    reason
+  });
   try {
-    await ports.alert(job, { kind: "job_failed", route: "inbox", subject, body: wreckage ? `${lead}
+    await ports.alert(job, {
+      kind: "job_failed",
+      route: "inbox",
+      subject,
+      body: wreckage ? `${lead}
 
-${wreckage}` : lead });
+${wreckage}` : lead
+    });
   } catch (e2) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e2) });
   }

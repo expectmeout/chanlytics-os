@@ -12,6 +12,9 @@ import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
 import { deleteTemplate } from "../../../lib/meta-templates.js";
+import { logger } from "../../../lib/log.js";
+
+const L = logger();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,14 +64,20 @@ export async function POST(request: Request): Promise<Response> {
   const gone = row.meta_id
     ? await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)
     : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
-  if (!row.meta_id) console.warn("wa_template_delete_unsynced", JSON.stringify({ tenant_id: tenantId, name: row.name, language: row.language }));
+  if (!row.meta_id)
+    L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.
   if (!gone.ok && gone.status !== 404 && !/does not exist|not found|Unsupported get request/i.test(gone.error)) {
-    console.error("wa_template_delete_failed", JSON.stringify({ tenant_id: tenantId, name: row.name, status: gone.status, error: gone.error.slice(0, 300) }));
+    L.error("wa_template_delete_failed", {
+      tenant_id: tenantId,
+      name: row.name,
+      status: gone.status,
+      error: gone.error.slice(0, 300),
+    });
     return json(502, { ok: false, error: "meta_refused", detail: gone.error });
   }
   const { error } = await db.from("templates").delete().eq("id", row.id);
   if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
-  console.log("wa_template_deleted", JSON.stringify({ tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok }));
+  L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }

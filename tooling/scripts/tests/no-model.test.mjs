@@ -11,11 +11,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESCALATION_REASONS } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { noModelPlan, NO_MODEL_PAGE } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href);
+const { noModelPlan, NO_MODEL_PAGE } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/steps.ts")).href
+);
 
 test("no model: the workspace's own greeting goes as a labelled fallback, and the thread goes to a person", () => {
   const plan = noModelPlan({ greeting: "Thanks for writing to Melany's. A person will be with you shortly." });
-  assert.equal(plan.replyText, "Thanks for writing to Melany's. A person will be with you shortly.", "the workspace's words, not ours");
+  assert.equal(
+    plan.replyText,
+    "Thanks for writing to Melany's. A person will be with you shortly.",
+    "the workspace's words, not ours",
+  );
   assert.deepEqual(plan.meta, { ack: true, fallback: "no_model" }, "the message row says what it is");
   assert.equal(plan.escalate, true, "a person takes the thread");
   assert.ok(ESCALATION_REASONS.includes(plan.escalationReason), "under a reason the closed set knows");

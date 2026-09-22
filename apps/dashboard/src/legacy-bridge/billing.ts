@@ -8,8 +8,17 @@
  * reads the same facts.
  */
 import {
-  toBillingVM, billingPill, dayWords, moneyWords, trialWords, priceWords, invoiceStatusWords, CHECKOUT_OUTCOME_WORDS,
-  type BillingDto, type BillingVM, type BillingInvoiceDto,
+  toBillingVM,
+  billingPill,
+  dayWords,
+  moneyWords,
+  trialWords,
+  priceWords,
+  invoiceStatusWords,
+  CHECKOUT_OUTCOME_WORDS,
+  type BillingDto,
+  type BillingVM,
+  type BillingInvoiceDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
@@ -35,7 +44,13 @@ export interface BillingApi {
   /** Read the row again: the failed card's retry, and nothing else's. */
   refresh(): Promise<void>;
   outcomeWords: Record<string, string>;
-  words: { day: typeof dayWords; money: typeof moneyWords; trial: typeof trialWords; price: typeof priceWords; invoice: typeof invoiceStatusWords };
+  words: {
+    day: typeof dayWords;
+    money: typeof moneyWords;
+    trial: typeof trialWords;
+    price: typeof priceWords;
+    invoice: typeof invoiceStatusWords;
+  };
   /** What a state means for the receptionist, for the pill beside the headline. */
   pill: typeof billingPill;
 }

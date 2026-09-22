@@ -28,7 +28,14 @@
  * the write throws, the door answers 503, and the receipt comes again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, recordEmailStatus, stampEmailSent, suppressEmailOf, type Database, type Json } from "./packages/db.js";
+import {
+  emitEvent,
+  recordEmailStatus,
+  stampEmailSent,
+  suppressEmailOf,
+  type Database,
+  type Json,
+} from "./packages/db.js";
 import { emailReceiptEffect, type EmailReceipt, type EmailReceiptType } from "./packages/channels.js";
 import { upsertEscalation } from "./packages/jobs.js";
 
@@ -38,9 +45,11 @@ export type ReceiptOutcome = "not_a_workspace_email" | "no_such_row" | "applied"
 
 /** Why a reply never arrived, for the person who has to do something about it. Names no address. */
 export const EMAIL_FAILED_WORDS: Partial<Record<EmailReceiptType, string>> = {
-  bounced: "An email reply bounced: their address did not accept it. Check the address on their page, or reach them another way.",
+  bounced:
+    "An email reply bounced: their address did not accept it. Check the address on their page, or reach them another way.",
   failed: "An email reply could not be sent by the mail provider. Send it again, or reach them another way.",
-  suppressed: "An email reply was not sent: the mail provider has stopped sending to this address after an earlier bounce or complaint.",
+  suppressed:
+    "An email reply was not sent: the mail provider has stopped sending to this address after an earlier bounce or complaint.",
 };
 
 export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string): Promise<ReceiptOutcome> {
@@ -53,13 +62,15 @@ export async function applyEmailReceipt(db: Db, r: EmailReceipt, nowIso: string)
   const words = EMAIL_FAILED_WORDS[r.type];
   if (effect.status === "failed" && words && stands.status !== "failed") {
     const flagged = await upsertEscalation(db, r.tenantId, stands.conversationId, "send_failed", words);
-    if (flagged === "failed") throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
+    if (flagged === "failed")
+      throw new Error(`email receipt: message ${r.messageId} failed and its thread could not be flagged`);
   }
   if (effect.status) await recordEmailStatus(db, { ...row, status: effect.status, error: effect.error as Json | null });
   if (effect.suppress) {
     const contactId = await suppressEmailOf(db, { ...row, addresses: r.to, reason: effect.suppress, at: nowIso });
     const stopped = { reason: effect.suppress };
-    if (contactId) await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
+    if (contactId)
+      await emitEvent(db, r.tenantId, "contact.email_suppressed", "contact", "contact", contactId, stopped);
   }
   return "applied";
 }

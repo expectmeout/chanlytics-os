@@ -36,7 +36,11 @@ export const PAGE_READ_ALLOWANCE_MS = 4_000;
 /** A fact as the judge sees it: one line, no control characters, at most 120 characters. */
 export function fact(v: string | null): string | null {
   if (v === null) return null;
-  const s = v.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ").trim().slice(0, FACT_MAX);
+  const s = v
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, FACT_MAX);
   return s || null;
 }
 
@@ -70,7 +74,12 @@ export function opIdFor(runId: string, fromOffset: number, batch: number): strin
 }
 
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
-export async function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string): Promise<JudgedBatch> {
+export async function judgeBatch(
+  judge: LeadJudge,
+  plan: LeadSearchPlan,
+  places: PlaceFacts[],
+  opId: string,
+): Promise<JudgedBatch> {
   if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {

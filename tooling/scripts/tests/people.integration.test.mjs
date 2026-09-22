@@ -53,20 +53,83 @@ test("people_list reports one person's facts by the same rules the rest of the a
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
   try {
-    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "People Probe" }).select("id").single());
-    ok(await db.from("contact_identities").insert({ tenant_id: tenantId, contact_id: contact.id, channel: "whatsapp", external_id: PHONE.slice(1) }));
-    const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "needs_human", last_message_at: "2026-09-01T12:00:00Z" }).select("id").single());
-    const base = { tenant_id: tenantId, conversation_id: conv.id, contact_id: contact.id, channel: "whatsapp", type: "text", meta: {} };
-    ok(await db.from("messages").insert([
-      // An undated import: contributes no time, marks the person as pre-existing.
-      { ...base, direction: "inbound", sender: "customer", status: "received", body: "old imported line", channel_ts: null, meta: { backfill: "true" } },
-      { ...base, direction: "inbound", sender: "customer", status: "received", body: "hola", channel_ts: "2026-08-01T12:00:00Z" },
-      { ...base, direction: "outbound", sender: "ai", status: "delivered", body: "hi there", channel_ts: "2026-08-01T12:00:30Z" },
-      { ...base, direction: "inbound", sender: "customer", status: "received", body: "can I book?", channel_ts: "2026-09-01T12:00:00Z" },
-      // A reply still in its cancel window: not yet "the last word".
-      { ...base, direction: "outbound", sender: "ai", status: "queued", body: "of course", channel_ts: null },
-    ]));
-    ok(await db.from("escalations").insert({ tenant_id: tenantId, conversation_id: conv.id, reason: "human_token", state: "open" }));
+    const contact = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "People Probe" })
+        .select("id")
+        .single(),
+    );
+    ok(
+      await db
+        .from("contact_identities")
+        .insert({ tenant_id: tenantId, contact_id: contact.id, channel: "whatsapp", external_id: PHONE.slice(1) }),
+    );
+    const conv = ok(
+      await db
+        .from("conversations")
+        .insert({
+          tenant_id: tenantId,
+          contact_id: contact.id,
+          state: "needs_human",
+          last_message_at: "2026-09-01T12:00:00Z",
+        })
+        .select("id")
+        .single(),
+    );
+    const base = {
+      tenant_id: tenantId,
+      conversation_id: conv.id,
+      contact_id: contact.id,
+      channel: "whatsapp",
+      type: "text",
+      meta: {},
+    };
+    ok(
+      await db.from("messages").insert([
+        // An undated import: contributes no time, marks the person as pre-existing.
+        {
+          ...base,
+          direction: "inbound",
+          sender: "customer",
+          status: "received",
+          body: "old imported line",
+          channel_ts: null,
+          meta: { backfill: "true" },
+        },
+        {
+          ...base,
+          direction: "inbound",
+          sender: "customer",
+          status: "received",
+          body: "hola",
+          channel_ts: "2026-08-01T12:00:00Z",
+        },
+        {
+          ...base,
+          direction: "outbound",
+          sender: "ai",
+          status: "delivered",
+          body: "hi there",
+          channel_ts: "2026-08-01T12:00:30Z",
+        },
+        {
+          ...base,
+          direction: "inbound",
+          sender: "customer",
+          status: "received",
+          body: "can I book?",
+          channel_ts: "2026-09-01T12:00:00Z",
+        },
+        // A reply still in its cancel window: not yet "the last word".
+        { ...base, direction: "outbound", sender: "ai", status: "queued", body: "of course", channel_ts: null },
+      ]),
+    );
+    ok(
+      await db
+        .from("escalations")
+        .insert({ tenant_id: tenantId, conversation_id: conv.id, reason: "human_token", state: "open" }),
+    );
 
     const rows = ok(await db.rpc("people_list", { p_tenant_id: tenantId }));
     const r = rows.find((x) => x.id === contact.id);
@@ -98,58 +161,105 @@ test("people_list reports one person's facts by the same rules the rest of the a
 
     // Narrowed to one contact, and nothing for a tenant that does not exist.
     const one = ok(await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contact.id }));
-    assert.deepEqual(one.map((x) => x.id), [contact.id]);
+    assert.deepEqual(
+      one.map((x) => x.id),
+      [contact.id],
+    );
     const none = ok(await db.rpc("people_list", { p_tenant_id: "00000000-0000-4000-8000-000000000000" }));
     assert.deepEqual(none, []);
 
     // Erased people never appear — the promise the erasure route makes.
     ok(await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", contact.id));
     const after = ok(await db.rpc("people_list", { p_tenant_id: tenantId }));
-    assert.equal(after.some((x) => x.id === contact.id), false);
+    assert.equal(
+      after.some((x) => x.id === contact.id),
+      false,
+    );
   } finally {
     await cleanup(tenantId);
   }
 });
 
-test("a person who only ever phoned has no chat, a voice channel, and the call as first contact", { skip }, async () => {
-  const tenantId = await smokeTenantId();
-  await cleanup(tenantId);
-  try {
-    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: null }).select("id").single());
-    ok(await db.from("contact_identities").insert({ tenant_id: tenantId, contact_id: contact.id, channel: "voice", external_id: PHONE }));
-    const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: contact.id, state: "open" }).select("id").single());
-    ok(await db.from("calls").insert({
-      tenant_id: tenantId, contact_id: contact.id, conversation_id: conv.id,
-      retell_call_id: `people-probe-${Date.now()}`, direction: "inbound", status: "ended",
-      from_e164: PHONE, started_at: "2026-08-20T15:00:00Z", ended_at: "2026-08-20T15:01:52Z", duration_ms: 112000,
-      raw: {},
-    }));
-    const rows = ok(await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contact.id }));
-    assert.equal(rows.length, 1);
-    const r = rows[0];
-    assert.equal(r.has_chat, false);
-    assert.deepEqual(r.channels, ["voice"]);
-    assert.equal(r.call_count, 1);
-    assert.equal(r.call_seconds, 112);
-    assert.equal(new Date(r.first_contact_at).toISOString(), "2026-08-20T15:00:00.000Z");
-    assert.equal(new Date(r.last_call_at).toISOString(), "2026-08-20T15:00:00.000Z");
-    assert.equal(r.last_message_at, null);
-    assert.equal(r.has_backfill, false);
-  } finally {
+test(
+  "a person who only ever phoned has no chat, a voice channel, and the call as first contact",
+  { skip },
+  async () => {
+    const tenantId = await smokeTenantId();
     await cleanup(tenantId);
-  }
-});
+    try {
+      const contact = ok(
+        await db
+          .from("contacts")
+          .insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: null })
+          .select("id")
+          .single(),
+      );
+      ok(
+        await db
+          .from("contact_identities")
+          .insert({ tenant_id: tenantId, contact_id: contact.id, channel: "voice", external_id: PHONE }),
+      );
+      const conv = ok(
+        await db
+          .from("conversations")
+          .insert({ tenant_id: tenantId, contact_id: contact.id, state: "open" })
+          .select("id")
+          .single(),
+      );
+      ok(
+        await db.from("calls").insert({
+          tenant_id: tenantId,
+          contact_id: contact.id,
+          conversation_id: conv.id,
+          retell_call_id: `people-probe-${Date.now()}`,
+          direction: "inbound",
+          status: "ended",
+          from_e164: PHONE,
+          started_at: "2026-08-20T15:00:00Z",
+          ended_at: "2026-08-20T15:01:52Z",
+          duration_ms: 112000,
+          raw: {},
+        }),
+      );
+      const rows = ok(await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contact.id }));
+      assert.equal(rows.length, 1);
+      const r = rows[0];
+      assert.equal(r.has_chat, false);
+      assert.deepEqual(r.channels, ["voice"]);
+      assert.equal(r.call_count, 1);
+      assert.equal(r.call_seconds, 112);
+      assert.equal(new Date(r.first_contact_at).toISOString(), "2026-08-20T15:00:00.000Z");
+      assert.equal(new Date(r.last_call_at).toISOString(), "2026-08-20T15:00:00.000Z");
+      assert.equal(r.last_message_at, null);
+      assert.equal(r.has_backfill, false);
+    } finally {
+      await cleanup(tenantId);
+    }
+  },
+);
 
 test("a person's receptionist mode is a policy row scoped to them: set, read, cleared", { skip }, async () => {
   const tenantId = await smokeTenantId();
   await cleanup(tenantId);
   try {
-    const contact = ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Mode Probe" }).select("id").single());
+    const contact = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: tenantId, phone_e164: PHONE, display_name: "Mode Probe" })
+        .select("id")
+        .single(),
+    );
     assert.equal(await personReplyMode(db, tenantId, contact.id), null, "nothing set = follow the workspace");
 
     await setPersonReplyMode(db, tenantId, contact.id, "never");
     assert.equal(await personReplyMode(db, tenantId, contact.id), "never");
-    const rows = ok(await db.from("policies").select("class, subject_type, subject_id, mode").eq("tenant_id", tenantId).eq("subject_id", contact.id));
+    const rows = ok(
+      await db
+        .from("policies")
+        .select("class, subject_type, subject_id, mode")
+        .eq("tenant_id", tenantId)
+        .eq("subject_id", contact.id),
+    );
     assert.deepEqual(rows, [{ class: "reply", subject_type: "contact", subject_id: contact.id, mode: "never" }]);
 
     // Changing it is an upsert on the same row, not a second row.
@@ -159,7 +269,15 @@ test("a person's receptionist mode is a policy row scoped to them: set, read, cl
     assert.equal(again.length, 1);
 
     // The workspace row is untouched by any of this.
-    const ws = ok(await db.from("policies").select("mode").eq("tenant_id", tenantId).eq("class", "reply").is("subject_type", null).maybeSingle());
+    const ws = ok(
+      await db
+        .from("policies")
+        .select("mode")
+        .eq("tenant_id", tenantId)
+        .eq("class", "reply")
+        .is("subject_type", null)
+        .maybeSingle(),
+    );
     assert.ok(ws, "the workspace reply row still exists");
 
     await setPersonReplyMode(db, tenantId, contact.id, null);

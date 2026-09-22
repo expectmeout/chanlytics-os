@@ -8,7 +8,16 @@
  * refresh map re-reads the Broadcasts surface, so the Scheduled and History
  * rows are the server's — never a row the page invented while it waited.
  */
-import { REPLY_WINDOW_MS, broadcastFailureWords, noNumberWords, saidYesWords, toApprovalVM, toRunReportVM, type BroadcastDetailDto, type PlaybookDto } from "@chanlytics/contracts";
+import {
+  REPLY_WINDOW_MS,
+  broadcastFailureWords,
+  noNumberWords,
+  saidYesWords,
+  toApprovalVM,
+  toRunReportVM,
+  type BroadcastDetailDto,
+  type PlaybookDto,
+} from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
 import type { ApiResult, Output } from "../client/api";
@@ -40,9 +49,11 @@ export const broadcasts = {
   send: (body: SendBody) => api()("POST broadcasts", { body }),
   // Each act says so the moment the server takes it (`onAccepted`, with what it answered), not once the broadcasts and
   // the playbooks are read again behind it; the page repaints from that re-read.
-  cancel: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/cancel">) => void } = {}) => api()("POST broadcasts/[id]/cancel", { params: { id }, onAccepted: opts.onAccepted }),
+  cancel: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/cancel">) => void } = {}) =>
+    api()("POST broadcasts/[id]/cancel", { params: { id }, onAccepted: opts.onAccepted }),
   /** A playbook's run that waited for a person goes out now. */
-  approve: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/approve">) => void } = {}) => api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted }),
+  approve: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/approve">) => void } = {}) =>
+    api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted }),
   /** One broadcast and every person on it. A read: nothing refreshes. Kept for the run, so its next open is at once. */
   detail: (id: string) => details.through(id, () => api()("GET broadcasts/[id]", { params: { id } })),
   /** The last answer this tab holds for a run, to paint while it is read again; null when it has none. */
@@ -71,7 +82,11 @@ export const broadcasts = {
    * its first person reads them, and what approving does now -- by the business's clock, whose next open moment is
    * when approveRun would send it.
    */
-  approval: (d: BroadcastDetailDto, playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null, businessName: string) => {
+  approval: (
+    d: BroadcastDetailDto,
+    playbook: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> | null,
+    businessName: string,
+  ) => {
     const clock = window.__clock;
     const now = Date.now();
     const open = clock ? clock.nextOpen(now) : { at: now, moved: false };

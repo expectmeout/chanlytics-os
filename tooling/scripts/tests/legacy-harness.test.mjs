@@ -24,9 +24,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  identityWords, memberWords, personInitials,
-  DEFAULT_TIMEZONE, timezoneCity, timezoneWords,
-  SOURCE_WORDS, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164,
+  identityWords,
+  memberWords,
+  personInitials,
+  DEFAULT_TIMEZONE,
+  timezoneCity,
+  timezoneWords,
+  SOURCE_WORDS,
+  samePhone,
+  whyNotAPhone,
+  whyNotAHandoff,
+  handoffE164,
 } from "@chanlytics/contracts";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
 
@@ -37,7 +45,9 @@ const html = readRaw(`${LEGACY}/Chanlytics.html`);
 const STUBS = "data/bridge-stubs.jsx";
 
 /** Every `src="dir/file.jsx?v=N"` the harness loads, in order, without the cache-buster. */
-const harness = [...html.matchAll(/<script[^>]*\bsrc="((?:components|data|pages)\/[^"?]+\.jsx)[^"]*"/g)].map((m) => m[1]);
+const harness = [...html.matchAll(/<script[^>]*\bsrc="((?:components|data|pages)\/[^"?]+\.jsx)[^"]*"/g)].map(
+  (m) => m[1],
+);
 
 /** Every legacy file the bridge loads, in order; its seed-globals is the harness's stub file. */
 const manifest = readCode(`${LEGACY}-bridge/manifest.ts`)
@@ -51,7 +61,10 @@ const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
 
 /** Every file of the mockup on disk, in the shape both lists name it. */
 const onDisk = ["components", "data", "pages"].flatMap((dir) =>
-  fs.readdirSync(path.join(ROOT, LEGACY, dir)).filter((f) => f.endsWith(".jsx")).map((f) => `${dir}/${f}`),
+  fs
+    .readdirSync(path.join(ROOT, LEGACY, dir))
+    .filter((f) => f.endsWith(".jsx"))
+    .map((f) => `${dir}/${f}`),
 );
 
 test("a file of the mockup that exists is a file the harness loads", () => {
@@ -90,8 +103,15 @@ const seed = (win) => {
 
 /** What the bridge publishes and the classic pages read without asking first. */
 const BRIDGED = [
-  "__DEMO_MODE", "__identity", "__tz", "DEFAULT_TIMEZONE", "__FACT_WORDS",
-  "__samePhone", "__whyNotAPhone", "__whyNotAHandoff", "__handoffE164",
+  "__DEMO_MODE",
+  "__identity",
+  "__tz",
+  "DEFAULT_TIMEZONE",
+  "__FACT_WORDS",
+  "__samePhone",
+  "__whyNotAPhone",
+  "__whyNotAHandoff",
+  "__handoffE164",
 ];
 
 test("the harness seeds the bridge's globals before anything reads them", () => {
@@ -124,7 +144,10 @@ test("the stubs answer the way contracts answers", () => {
   const me = { email: "sales@chanlytics.com", display_name: "Sarah Chen", role: "owner" };
   assert.deepEqual(win.__identity.words(me), identityWords(me));
   assert.deepEqual(win.__identity.words(null), identityWords(null));
-  assert.deepEqual(win.__identity.member({ email: "hi@chanlytics.agency" }), memberWords({ email: "hi@chanlytics.agency" }));
+  assert.deepEqual(
+    win.__identity.member({ email: "hi@chanlytics.agency" }),
+    memberWords({ email: "hi@chanlytics.agency" }),
+  );
   assert.equal(win.__identity.initials(null, "hi@chanlytics.agency"), personInitials(null, "hi@chanlytics.agency"));
 
   assert.equal(win.DEFAULT_TIMEZONE, DEFAULT_TIMEZONE);
@@ -138,7 +161,11 @@ test("the stubs answer the way contracts answers", () => {
     assert.equal(win.__whyNotAPhone(n), whyNotAPhone(n), `whyNotAPhone(${JSON.stringify(n)})`);
   }
   for (const n of ["", "6469325775", "+16469325775"]) {
-    assert.equal(win.__whyNotAHandoff(n, "+16469325775"), whyNotAHandoff(n, "+16469325775"), `whyNotAHandoff(${JSON.stringify(n)})`);
+    assert.equal(
+      win.__whyNotAHandoff(n, "+16469325775"),
+      whyNotAHandoff(n, "+16469325775"),
+      `whyNotAHandoff(${JSON.stringify(n)})`,
+    );
     assert.equal(win.__handoffE164(n), handoffE164(n), `handoffE164(${JSON.stringify(n)})`);
   }
 });
@@ -169,6 +196,14 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
 test("the mockup draws Reports and Today from their samples, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
   // Plain scripts, outside the .jsx lists above: the bridge never loads them, because a workspace draws its own numbers.
   const tags = [...html.matchAll(/<script[^>]*\bsrc="([^"?]+)[^"]*"/g)].map((m) => m[1]);
-  assert.equal(tags[tags.indexOf(STUBS) + 1], "data/reports-sample.js", "the demo's Reports reads window.__reportsSample");
-  assert.equal(tags[tags.indexOf(STUBS) + 2], "data/today-sample.js", "the demo's Today reads what installTodaySample published");
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 1],
+    "data/reports-sample.js",
+    "the demo's Reports reads window.__reportsSample",
+  );
+  assert.equal(
+    tags[tags.indexOf(STUBS) + 2],
+    "data/today-sample.js",
+    "the demo's Today reads what installTodaySample published",
+  );
 });

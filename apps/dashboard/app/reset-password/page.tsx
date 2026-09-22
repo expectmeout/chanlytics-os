@@ -37,7 +37,9 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => { fieldRef.current?.focus(); }, [stage]);
+  useEffect(() => {
+    fieldRef.current?.focus();
+  }, [stage]);
 
   // Arriving from the sign-in page, which carries whatever was typed there so
   // nobody types their address twice.
@@ -90,7 +92,9 @@ export default function ResetPasswordPage() {
           <div role="alert" aria-live="assertive">
             {error && <div className="error">{error}</div>}
           </div>
-          <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
+          <div className="hint">
+            <a href="/login">{PASSWORD_WORDS.backToSignIn}</a>
+          </div>
         </div>
       </AuthShell>
     );
@@ -139,7 +143,10 @@ export default function ResetPasswordPage() {
             if (!error) codeAccepted.current = false;
             return error ? requestCodeWords(error) : null;
           }}
-          onBack={() => { setStage("ask"); setError(null); }}
+          onBack={() => {
+            setStage("ask");
+            setError(null);
+          }}
           backLabel="Use a different email"
         >
           <label htmlFor="new-password">{PASSWORD_WORDS.newLabel}</label>
@@ -155,7 +162,9 @@ export default function ResetPasswordPage() {
           />
           <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
         </CodeStep>
-        <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
+        <div className="hint">
+          <a href="/login">{PASSWORD_WORDS.backToSignIn}</a>
+        </div>
       </div>
     </AuthShell>
   );

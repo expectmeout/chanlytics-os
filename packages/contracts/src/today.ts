@@ -297,12 +297,25 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
   const key = (d: Date) => {
-    try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d); } catch { return d.toDateString(); }
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
+    } catch {
+      return d.toDateString();
+    }
   };
   const day = key(new Date(iso));
   if (day === key(now)) return t;
   if (day === key(new Date(now.getTime() + 86_400_000))) return `tomorrow ${t}`;
-  try { return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`; } catch { return t; }
+  try {
+    return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
+  } catch {
+    return t;
+  }
 }
 
 /**
@@ -316,7 +329,15 @@ function tzSince(iso: string | null | undefined, tz: string, now: Date): string 
   if (!iso || !t) return t;
   const dayNumber = (d: Date): number => {
     try {
-      const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d).split("-").map(Number);
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .format(d)
+        .split("-")
+        .map(Number);
       return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / 86_400_000;
     } catch {
       return Math.floor(d.getTime() / 86_400_000);
@@ -326,7 +347,8 @@ function tzSince(iso: string | null | undefined, tz: string, now: Date): string 
   if (days <= 0) return t;
   if (days === 1) return `yesterday ${t}`;
   try {
-    const within: Intl.DateTimeFormatOptions = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const within: Intl.DateTimeFormatOptions =
+      days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
     const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
     return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
   } catch {
@@ -353,7 +375,8 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   if (!t) return null;
   // The tenant's calendar day, not a 24-hour multiple: at 8 AM, a message
   // from 9:15 AM yesterday is "yesterday", however few hours ago it was.
-  const key = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const key = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
   const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / 86400000);
   if (days < 1) return t;
@@ -381,7 +404,17 @@ function secondsPhrase(s: number): string {
 
 /** "once", "twice", "3 times". */
 /** Small counts as words, so a receipt can never repeat its figure's digit: "three times", "Two are already resolved." */
-const COUNT_WORDS: Record<number, string> = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine" };
+const COUNT_WORDS: Record<number, string> = {
+  1: "one",
+  2: "two",
+  3: "three",
+  4: "four",
+  5: "five",
+  6: "six",
+  7: "seven",
+  8: "eight",
+  9: "nine",
+};
 const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
 const timesWords = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`);
 
@@ -423,7 +456,8 @@ const counted = (o: Record<string, unknown> | null | undefined): Array<[string, 
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-const tally = (xs: readonly string[]): Array<[string, number]> => counted(xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
+const tally = (xs: readonly string[]): Array<[string, number]> =>
+  counted(xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
 
 /** A caller the voice provider could not name is counted in the clause, never named in the receipt by these words. */
 const UNNAMED_CALLER = new Set(["Caller ID withheld", "Unknown caller", "Unknown"]);
@@ -441,7 +475,11 @@ function replyGapSeconds(live: { last_inbound_at: string | null; last_outbound_a
  * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
  * card's line, and the quiet card's own sentence ends with it, so the two cannot drift.
  */
-export function todayProof(live: { last_inbound_at: string | null; last_outbound_at: string | null }, tz: string, now: Date): string {
+export function todayProof(
+  live: { last_inbound_at: string | null; last_outbound_at: string | null },
+  tz: string,
+  now: Date,
+): string {
   const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
   if (!lastIn) return "No messages have arrived yet.";
   const gap = replyGapSeconds(live);
@@ -472,14 +510,21 @@ function figuresOf(
   const live = m.now;
   if (p.messages_in + p.calls + p.new_contacts === 0) return null;
   const windowMs = new Date(m.window.since).getTime();
-  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
+  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
+    x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
 
   // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
   // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
   // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
   const gap = replyGapSeconds(live);
   const lastAt = tzClock(live.last_inbound_at, tz, now);
-  const wires = tally(conversations.flatMap((c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))));
+  const wires = tally(
+    conversations.flatMap((c) =>
+      c.messages
+        .filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x))
+        .map((x) => threadChannelWords([x])),
+    ),
+  );
   const held = wires.reduce((s, [, n]) => s + n, 0);
   const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
   const messages: TodayFigureVM = {
@@ -490,13 +535,16 @@ function figuresOf(
     receipt: wires.length
       ? {
           // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
-          text: held !== p.messages_in
-            ? held === 1
-              ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+          text:
+            held !== p.messages_in
+              ? held === 1
+                ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+                : wires.length === 1
+                  ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+                  : `Of the ${held} in the Inbox: ${split}.`
               : wires.length === 1
-                ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
-                : `Of the ${held} in the Inbox: ${split}.`
-            : wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${split}.`,
+                ? `All by ${wireWord(wires[0][0])}.`
+                : `${split}.`,
           door: { label: "Open the Inbox", to: "inbox" },
         }
       : null,
@@ -511,10 +559,13 @@ function figuresOf(
   const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, p.escalations_new - todays.length);
-  const answeredMeta = [
-    p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
-    p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
-  ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
+  const answeredMeta =
+    [
+      p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+      p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
+    ]
+      .filter(Boolean)
+      .join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
   // The why as a person would say it: how many times it handed over, why each time, and that the rest it answered
   // itself. It was a ledger ("Asked for a person: once; sent something the receptionist can't read: once."); the
   // canvas wrote the same facts as a sentence, and a sentence is what an owner reads. Counts are words, so the
@@ -533,7 +584,9 @@ function figuresOf(
     } else {
       // The breakdown, most common first; what is already resolved is not in the list, so it is said after.
       const parts = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
-      const done = resolved ? ` ${capitalize(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.` : "";
+      const done = resolved
+        ? ` ${capitalize(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.`
+        : "";
       handovers = `${lead}: ${parts}.${done}`;
     }
   }
@@ -542,7 +595,8 @@ function figuresOf(
   // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: more is more than one thing
   // said, worth a sentence; equal is one reply each, worth saying only when there is nothing else to say; fewer means
   // one reply answered several asks, which is not worth a sentence.
-  const sentMore = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : "";
+  const sentMore =
+    p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : "";
   const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
   const answeredWhy = (handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]).filter(Boolean);
   const answered: TodayFigureVM = {
@@ -558,20 +612,46 @@ function figuresOf(
   // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is
   // named once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
   const moods = counted(p.call_sentiments);
-  const moodOf = ([mood, n]: [string, number]) => (n === p.calls ? (p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}`) : `${n} as ${mood.toLowerCase()}`);
+  const moodOf = ([mood, n]: [string, number]) =>
+    n === p.calls
+      ? p.calls === 1
+        ? `it as ${mood.toLowerCase()}`
+        : `all of them as ${mood.toLowerCase()}`
+      : `${n} as ${mood.toLowerCase()}`;
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
-  const voicemail = [...new Map(callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])).values()].filter((who) => !UNNAMED_CALLER.has(who));
-  const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
-  const callsMeta = [
-    p.call_seconds > 0 ? (p.call_seconds < 60 ? "under a minute on the phone" : `${Math.round(p.call_seconds / 60)} min on the phone`) : "",
-    p.calls_voicemail ? `${p.calls_voicemail} to voicemail` : "",
-  ].filter(Boolean).join(", ") || (p.calls ? "none connected" : "none yet");
+  const voicemail = [
+    ...new Map(
+      callsInWindow
+        .filter((c) => c.in_voicemail)
+        .map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who]),
+    ).values(),
+  ].filter((who) => !UNNAMED_CALLER.has(who));
+  const voicemailWords = voicemail.length
+    ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.`
+    : "";
+  const callsMeta =
+    [
+      p.call_seconds > 0
+        ? p.call_seconds < 60
+          ? "under a minute on the phone"
+          : `${Math.round(p.call_seconds / 60)} min on the phone`
+        : "",
+      p.calls_voicemail ? `${p.calls_voicemail} to voicemail` : "",
+    ]
+      .filter(Boolean)
+      .join(", ") || (p.calls ? "none connected" : "none yet");
   const calls: TodayFigureVM = {
     id: "calls",
     label: "calls",
     value: p.calls,
     meta: callsMeta,
-    receipt: moodWords || voicemailWords ? { text: [moodWords, voicemailWords].filter(Boolean).join(" "), door: { label: "Open the calls", to: "conversations/phone" } } : null,
+    receipt:
+      moodWords || voicemailWords
+        ? {
+            text: [moodWords, voicemailWords].filter(Boolean).join(" "),
+            door: { label: "Open the calls", to: "conversations/phone" },
+          }
+        : null,
   };
 
   // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
@@ -579,7 +659,9 @@ function figuresOf(
   // counts) or more (someone who existed before and wrote for the first time today is not new), so a wire or a name
   // is said only when the two agree.
   const newThreads = conversations.filter((c) => {
-    const first = [...c.messages].filter((x) => x.meta?.backfill !== true).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+    const first = [...c.messages]
+      .filter((x) => x.meta?.backfill !== true)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
     return !!first && first.sender === "customer" && fresh(first);
   });
   const agree = p.new_contacts > 0 && newThreads.length === p.new_contacts;
@@ -602,9 +684,15 @@ function figuresOf(
     // only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
     // under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length
-      ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+      ? {
+          text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`,
+          door: { label: "Open People", to: "clients/seg:new_week" },
+        }
       : p.new_contacts > 0
-        ? { text: `Counted however they reached you — a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+        ? {
+            text: `Counted however they reached you — a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
+            door: { label: "Open People", to: "clients/seg:new_week" },
+          }
         : null,
   };
   return [messages, answered, calls, newPeople];
@@ -651,11 +739,12 @@ export function toTodayVM(
   // workspace with three. A wire that could not be read is not a smaller
   // whole: the line says so instead of a count that is short by one.
   const lines = {
-    text: m.linesRead === false
-      ? "the email line could not be counted"
-      : wires.length
-        ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
-        : "no lines connected yet",
+    text:
+      m.linesRead === false
+        ? "the email line could not be counted"
+        : wires.length
+          ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
+          : "no lines connected yet",
     down: down.length > 0,
   };
 
@@ -676,16 +765,52 @@ export function toTodayVM(
   const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
   const queueEmpty: TodayQueueEmptyVM =
     m.workspace.status === "paused"
-      ? { title: "Nothing in the queue — the workspace is paused, so nothing is being answered.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-paused" }
+      ? {
+          title: "Nothing in the queue — the workspace is paused, so nothing is being answered.",
+          sub: "nothing in the queue",
+          glyph: "alert",
+          tone: "warn",
+          testid: "today-queue-empty-paused",
+        }
       : down.length
-        ? { title: "Nothing in the queue — new messages go unanswered until the line is back.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-down" }
+        ? {
+            title: "Nothing in the queue — new messages go unanswered until the line is back.",
+            sub: "nothing in the queue",
+            glyph: "alert",
+            tone: "warn",
+            testid: "today-queue-empty-down",
+          }
         : wires.length === 0
-          ? { title: "Nothing in the queue — nothing can come in until a line is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unconnected" }
+          ? {
+              title: "Nothing in the queue — nothing can come in until a line is connected.",
+              sub: "nothing in the queue",
+              glyph: "phone",
+              tone: "",
+              testid: "today-queue-empty-unconnected",
+            }
           : answered.length === 0
             ? on.every((w) => w.kind === "email")
-              ? { title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`, sub: "nothing in the queue", glyph: "mail", tone: "", testid: "today-queue-empty-unanswered" }
-              : { title: "Nothing in the queue — no line the receptionist answers is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unanswered" }
-            : { title: "All caught up — the receptionist is answering on its own.", sub: "nothing needs you", glyph: "check", tone: "ok", testid: "today-queue-empty-ok" };
+              ? {
+                  title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+                  sub: "nothing in the queue",
+                  glyph: "mail",
+                  tone: "",
+                  testid: "today-queue-empty-unanswered",
+                }
+              : {
+                  title: "Nothing in the queue — no line the receptionist answers is connected.",
+                  sub: "nothing in the queue",
+                  glyph: "phone",
+                  tone: "",
+                  testid: "today-queue-empty-unanswered",
+                }
+            : {
+                title: "All caught up — the receptionist is answering on its own.",
+                sub: "nothing needs you",
+                glyph: "check",
+                tone: "ok",
+                testid: "today-queue-empty-ok",
+              };
 
   const byConv = new Map(conversations.map((c) => [c.id, c]));
   const openEsc = escalations
@@ -696,10 +821,18 @@ export function toTodayVM(
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
-      return standingOf({
-        state: conv.state, paused_until: conv.paused_until, assignee_user_id: conv.assignee_user_id,
-        assignee_is_me: conv.assignee_is_me, open_escalation: true,
-      }, now.getTime()).standing === "needs_you";
+      return (
+        standingOf(
+          {
+            state: conv.state,
+            paused_until: conv.paused_until,
+            assignee_user_id: conv.assignee_user_id,
+            assignee_is_me: conv.assignee_is_me,
+            open_escalation: true,
+          },
+          now.getTime(),
+        ).standing === "needs_you"
+      );
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
   // The one number every surface shows for "need you": the Inbox badge counts
@@ -707,9 +840,7 @@ export function toTodayVM(
   const needsYouCount = openEsc.length;
 
   const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = callDtos.filter(
-    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
-  );
+  const callsInWindow = callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs);
   const callMinutes = Math.round(p.call_seconds / 60);
 
   // The newest call a thread holds: a call-back's row opens it, and a call-back with no thread is named by it.
@@ -726,7 +857,7 @@ export function toTodayVM(
   // left, and named a caller with no thread "Unknown" where the queue named the call.
   const escRecords = openEsc.map((e) => {
     const conv = byConv.get(e.conversation_id);
-    const call = e.reason === "callback" ? callByConv.get(e.conversation_id) ?? null : null;
+    const call = e.reason === "callback" ? (callByConv.get(e.conversation_id) ?? null) : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
@@ -739,7 +870,13 @@ export function toTodayVM(
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
-      who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
+      who: conv
+        ? contactName(conv)
+        : call
+          ? toCallVM(call, tz, now).who
+          : e.reason === "callback"
+            ? "Unknown caller"
+            : "Unknown",
       closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,
     };
   });
@@ -755,7 +892,14 @@ export function toTodayVM(
     // The customer's words; for a call-back with none, the to-do the phone receptionist left.
     quote: r.quote || (r.e.reason === "callback" ? say(r.e.details) : ""),
     // A call-back is the phone's, whatever wire the thread's words travelled; the queue's row says "Phone" too.
-    meta: r.e.reason === "callback" ? (r.conv ? contactMeta(r.conv, "Phone") : "Phone") : r.conv ? contactMeta(r.conv, threadChannelWords(r.conv.messages)) : "WhatsApp",
+    meta:
+      r.e.reason === "callback"
+        ? r.conv
+          ? contactMeta(r.conv, "Phone")
+          : "Phone"
+        : r.conv
+          ? contactMeta(r.conv, threadChannelWords(r.conv.messages))
+          : "WhatsApp",
     windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
     to: `inbox/th-${r.e.conversation_id}`,
   }));
@@ -764,27 +908,24 @@ export function toTodayVM(
   // out. Rendered ONLY when at least one qualifies — an empty deadline board
   // manufactures anxiety on a calm day.
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const closingConvs = conversations
-    .filter((c) => {
-      if (escSet.has(c.id)) return false;
-      const last = c.messages[c.messages.length - 1];
-      if (!last || last.sender !== "customer") return false;
-      const w = waWindow(c.last_wa_inbound_at, now);
-      return w.open && w.closesAtIso
-        ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000
-        : false;
-    });
+  const closingConvs = conversations.filter((c) => {
+    if (escSet.has(c.id)) return false;
+    const last = c.messages[c.messages.length - 1];
+    if (!last || last.sender !== "customer") return false;
+    const w = waWindow(c.last_wa_inbound_at, now);
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000 : false;
+  });
   const closingRows = closingConvs.map((c) => {
-      const w = waWindow(c.last_wa_inbound_at, now);
-      const mins = w.closesAtIso
-        ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
-        : 0;
-      return {
-        id: `wc-${c.id}`,
-        text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
-        to: `inbox/th-${c.id}`,
-      };
-    });
+    const w = waWindow(c.last_wa_inbound_at, now);
+    const mins = w.closesAtIso
+      ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
+      : 0;
+    return {
+      id: `wc-${c.id}`,
+      text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
+      to: `inbox/th-${c.id}`,
+    };
+  });
 
   // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
   // thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
@@ -795,10 +936,16 @@ export function toTodayVM(
     .flatMap((c) => {
       // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
       if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
-      const { standing } = standingOf({
-        state: c.state, paused_until: c.paused_until, assignee_user_id: c.assignee_user_id,
-        assignee_is_me: c.assignee_is_me, open_escalation: false,
-      }, now.getTime());
+      const { standing } = standingOf(
+        {
+          state: c.state,
+          paused_until: c.paused_until,
+          assignee_user_id: c.assignee_user_id,
+          assignee_is_me: c.assignee_is_me,
+          open_escalation: false,
+        },
+        now.getTime(),
+      );
       if (standing !== "quiet" && standing !== "needs_you") return [];
       const last = c.messages[c.messages.length - 1];
       if (!last || last.sender !== "customer") return [];
@@ -847,9 +994,10 @@ export function toTodayVM(
     // A workspace with no wire yet is a new owner's first Today — it must not
     // read " is connected." with nothing in front of it, and it must not name
     // the only two wires this sentence used to know about.
-    const sub = wires.length === 0
-      ? "No line is connected yet, so nothing can come in."
-      : `${names} ${pluralVerb} connected. ${proof}`;
+    const sub =
+      wires.length === 0
+        ? "No line is connected yet, so nothing can come in."
+        : `${names} ${pluralVerb} connected. ${proof}`;
     return {
       standing: {
         eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
@@ -979,7 +1127,13 @@ export function toTodayVM(
     const lastFailed = conversations
       .flatMap((c) =>
         c.messages
-          .filter((x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs)
+          .filter(
+            (x) =>
+              x.direction === "outbound" &&
+              x.status === "failed" &&
+              x.meta?.backfill !== true &&
+              new Date(x.created_at).getTime() >= sinceMs,
+          )
           .map((x) => ({ conv: c, at: x.created_at })),
       )
       .sort((a, b) => b.at.localeCompare(a.at))[0];
@@ -1052,11 +1206,11 @@ export function toTodayVM(
           ? "In progress right now"
           : c.in_voicemail
             ? "Reached voicemail"
-            // BEFORE the summary branches, deliberately. A caller gone in six
-            // seconds has no summary and never will have much of one, so the
-            // chain below would have said "summary on its way" and buried the
-            // only fact worth acting on.
-            : abandonedCall(c)
+            : // BEFORE the summary branches, deliberately. A caller gone in six
+              // seconds has no summary and never will have much of one, so the
+              // chain below would have said "summary on its way" and buried the
+              // only fact worth acting on.
+              abandonedCall(c)
               ? `Hung up after ${spokenDuration(c.duration_ms)} — they left with nothing`
               : c.sentiment === "Negative"
                 ? "Caller sentiment: Negative — the voice provider's own read"
@@ -1079,11 +1233,19 @@ export function toTodayVM(
       // The phone receptionist could not finish it: the to-do it left is the
       // sentence, the call itself is where the verb goes, Done resolves it.
       queueAll.push({
-        id: `q-${e.id}`, kind: "callback", conversationId: e.conversation_id, callId: r.call ? r.call.id : null,
-        who: r.who, initials: initialsOf(r.who), channel: "Phone",
+        id: `q-${e.id}`,
+        kind: "callback",
+        conversationId: e.conversation_id,
+        callId: r.call ? r.call.id : null,
+        who: r.who,
+        initials: initialsOf(r.who),
+        channel: "Phone",
         when: `waited ${formatWaited(r.waitedMs)}`,
-        sentence: say(e.details) || "The caller needs a call back.", quoted: false,
-        status: ["Needs a call back", `since ${r.since}`], tone: "escalated", warn: r.warn,
+        sentence: say(e.details) || "The caller needs a call back.",
+        quoted: false,
+        status: ["Needs a call back", `since ${r.since}`],
+        tone: "escalated",
+        warn: r.warn,
         cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
         also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
         waitedMs: r.waitedMs,
@@ -1091,12 +1253,24 @@ export function toTodayVM(
       continue;
     }
     queueAll.push({
-      id: `q-${e.id}`, kind: "handoff", conversationId: e.conversation_id, callId: null,
-      who: r.who, initials: initialsOf(r.who), channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
+      id: `q-${e.id}`,
+      kind: "handoff",
+      conversationId: e.conversation_id,
+      callId: null,
+      who: r.who,
+      initials: initialsOf(r.who),
+      channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
       when: `waited ${formatWaited(r.waitedMs)}`,
-      sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!r.quote,
-      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${r.since}`, ...(r.closes ? [`reply window closes ${r.closes}`] : [])],
-      tone: "escalated", warn: r.warn,
+      sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
+      quoted: !!r.quote,
+      status: [
+        "Escalated",
+        reasonShort(e.reason) || e.reason,
+        `since ${r.since}`,
+        ...(r.closes ? [`reply window closes ${r.closes}`] : []),
+      ],
+      tone: "escalated",
+      warn: r.warn,
       cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
       also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
       waitedMs: r.waitedMs,
@@ -1112,11 +1286,23 @@ export function toTodayVM(
       // email: the row is about WhatsApp's window (waWindow on the thread's
       // last WhatsApp inbound), which is the one wire that has one. The
       // handoff row above names the wire the reply would go out on instead.
-      id: `q-w-${c.id}`, kind: "window", conversationId: c.id, callId: null, who, initials: initialsOf(who), channel: "WhatsApp",
+      id: `q-w-${c.id}`,
+      kind: "window",
+      conversationId: c.id,
+      callId: null,
+      who,
+      initials: initialsOf(who),
+      channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
-      sentence: last ? clipAtWord(messageWords(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
-      status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
-      cta: { label: "Open thread", to: `inbox/th-${c.id}` }, also: null,
+      sentence: last
+        ? clipAtWord(messageWords(last), QUOTE_MAX)
+        : "They wrote last, and the free reply window is closing.",
+      quoted: !!last,
+      status: ["Reply window closing", "they wrote last"],
+      tone: "warn",
+      warn: leftMs < 2 * 3600000,
+      cta: { label: "Open thread", to: `inbox/th-${c.id}` },
+      also: null,
       // After every escalation (which waited ≥ 0), the soonest to close first.
       waitedMs: -leftMs,
     });
@@ -1126,11 +1312,21 @@ export function toTodayVM(
     const c = callsInWindow.find((k) => k.id === r.id);
     const wanted = say(c?.wanted);
     queueAll.push({
-      id: `q-c-${r.id}`, kind: "call", conversationId: c?.conversation_id ?? null, callId: r.id, who: r.who, initials: initialsOf(r.who), channel: "Phone",
+      id: `q-c-${r.id}`,
+      kind: "call",
+      conversationId: c?.conversation_id ?? null,
+      callId: r.id,
+      who: r.who,
+      initials: initialsOf(r.who),
+      channel: "Phone",
       when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
-      sentence: wanted || r.note, quoted: false,
-      status: [wanted ? r.note : "Worth a listen"], tone: "warn", warn: false,
-      cta: { label: "Open the call", to: r.to }, also: null,
+      sentence: wanted || r.note,
+      quoted: false,
+      status: [wanted ? r.note : "Worth a listen"],
+      tone: "warn",
+      warn: false,
+      cta: { label: "Open the call", to: r.to },
+      also: null,
       waitedMs: Number.NEGATIVE_INFINITY,
     });
   }
@@ -1144,7 +1340,12 @@ export function toTodayVM(
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
   ].filter(Boolean);
-  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts, empty: queueEmpty };
+  const queue = {
+    rows: queueAll.slice(0, TODAY_QUEUE_MAX),
+    more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
+    parts,
+    empty: queueEmpty,
+  };
 
   return {
     standing: {
@@ -1200,8 +1401,22 @@ export interface DayFrameLike {
   today: boolean;
   past: boolean;
   closed: { yes: boolean; note: string | null };
-  blocks: Array<{ id: string; t: number; dur: number; time: string; title: string; person: { id: string; name: string } | null }>;
-  allDay: Array<{ id: string; t: number; dur: number; time: string; title: string; person: { id: string; name: string } | null }>;
+  blocks: Array<{
+    id: string;
+    t: number;
+    dur: number;
+    time: string;
+    title: string;
+    person: { id: string; name: string } | null;
+  }>;
+  allDay: Array<{
+    id: string;
+    t: number;
+    dur: number;
+    time: string;
+    title: string;
+    person: { id: string; name: string } | null;
+  }>;
   windows: Array<{ label: string }>;
 }
 export interface CalendarLike {
@@ -1261,7 +1476,10 @@ export function durationLabel(minutes: number): string {
   return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
-const FLAG_WORDS: Record<string, string> = { needs_you: "Needs you — in Inbox", waiting_on_you: "Waiting on you — in Inbox" };
+const FLAG_WORDS: Record<string, string> = {
+  needs_you: "Needs you — in Inbox",
+  waiting_on_you: "Waiting on you — in Inbox",
+};
 
 export interface TodayDayVM {
   feed: "ok" | "unavailable" | "none";
@@ -1304,7 +1522,11 @@ export function todayDay(
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
   const stateOf = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
-  const item = (b: DayFrameLike["blocks"][number], allDay: boolean, phase: TodayDayItemVM["phase"]): TodayDayItemVM => ({
+  const item = (
+    b: DayFrameLike["blocks"][number],
+    allDay: boolean,
+    phase: TodayDayItemVM["phase"],
+  ): TodayDayItemVM => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
     time: b.time,
@@ -1313,23 +1535,28 @@ export function todayDay(
     person: b.person ? { id: b.person.id, name: b.person.name } : null,
     allDay,
     phase,
-    flag: b.person ? FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null : null,
+    flag: b.person ? (FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null) : null,
   });
   const frames: TodayDayFrameVM[] = picked.map((d) => {
     // Against the clock, today only: what is over, what is on now, the one
     // coming next. Tomorrow is all "later"; an all-day entry has no place on
     // the rail.
     let nextTaken = false;
-    const timed = [...d.blocks].sort((a, b) => a.t - b.t).map((b) => {
-      let phase: TodayDayItemVM["phase"] = "later";
-      if (d.today) {
-        const end = b.t + b.dur / 60;
-        if (end <= cal.now) phase = "past";
-        else if (b.t <= cal.now) phase = "now";
-        else if (!nextTaken) { phase = "next"; nextTaken = true; }
-      }
-      return item(b, false, phase);
-    });
+    const timed = [...d.blocks]
+      .sort((a, b) => a.t - b.t)
+      .map((b) => {
+        let phase: TodayDayItemVM["phase"] = "later";
+        if (d.today) {
+          const end = b.t + b.dur / 60;
+          if (end <= cal.now) phase = "past";
+          else if (b.t <= cal.now) phase = "now";
+          else if (!nextTaken) {
+            phase = "next";
+            nextTaken = true;
+          }
+        }
+        return item(b, false, phase);
+      });
     const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
     const shown = capDay(items, max);
@@ -1343,16 +1570,35 @@ export function todayDay(
       items: shown,
       more,
       moreLine: more ? `${more} more on the Calendar` : null,
-      summary: items.length ? { booked: `${items.length} booked`, flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null } : null,
+      summary: items.length
+        ? {
+            booked: `${items.length} booked`,
+            flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null,
+          }
+        : null,
       open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
     };
   });
   let reminders: TodayDayVM["reminders"] = null;
   if (feed === "ok") {
-    const visit = (playbooks ?? []).filter((p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running");
-    reminders = visit.length === 0
-      ? { text: "No visit reminders yet — a playbook can text the day before an appointment and the day after a visit.", to: "outbound" }
-      : { text: visit.map((p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} · next run ${p.next}`).join(" · "), to: "outbound" };
+    const visit = (playbooks ?? []).filter(
+      (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running",
+    );
+    reminders =
+      visit.length === 0
+        ? {
+            text: "No visit reminders yet — a playbook can text the day before an appointment and the day after a visit.",
+            to: "outbound",
+          }
+        : {
+            text: visit
+              .map(
+                (p) =>
+                  `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} · next run ${p.next}`,
+              )
+              .join(" · "),
+            to: "outbound",
+          };
   }
   return { feed, frames, nextOpening: feed === "ok" && cal.stats.next !== "—" ? cal.stats.next : null, reminders };
 }
@@ -1411,8 +1657,11 @@ export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "rep
   const a = v.answered;
   if (!a) return null;
   const messages = v.tiles.find((t) => t.id === "messages");
-  const parts = [`${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`];
-  if (a.share !== undefined && a.share !== null) parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
+  const parts = [
+    `${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`,
+  ];
+  if (a.share !== undefined && a.share !== null)
+    parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
   if (v.replyTime && v.replyTime.count > 0) parts.push(`median reply ${v.replyTime.medianLabel}`);
   const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
@@ -1454,7 +1703,11 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
   return {
     people,
     waiting: { sentence: `${people}. Nothing sends until you say so.`, status: ["Waiting for your approval"] },
-    soon: { meta: `Playbook · sends ${r.when}`, sentence: `${people}. Stop it if you'd rather not.`, status: ["Scheduled", `sends ${r.when}`] },
+    soon: {
+      meta: `Playbook · sends ${r.when}`,
+      sentence: `${people}. Stop it if you'd rather not.`,
+      status: ["Scheduled", `sends ${r.when}`],
+    },
     done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },
   };
 }
@@ -1557,7 +1810,7 @@ export function todayLeaks(
   max = TODAY_LEAK_MAX,
 ): TodayLeaksVM {
   const found = new Map<TodayLeakId, TodayLeakVM>();
-  const list = (id: string) => (people ? people.lists.find((l) => l.id === id) ?? null : null);
+  const list = (id: string) => (people ? (people.lists.find((l) => l.id === id) ?? null) : null);
   const step = (id: string) => {
     const l = list(id);
     return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
@@ -1569,9 +1822,10 @@ export function todayLeaks(
     const asked = b.asked ?? 0;
     const booked = b.booked ?? 0;
     const never = list("asked_never_booked");
-    const text = booked === 0
-      ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
-      : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+    const text =
+      booked === 0
+        ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
+        : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
     const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
@@ -1679,7 +1933,8 @@ export interface AwayRowLike {
 }
 
 /** What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread. */
-export type AwayQueueRef = string | { conversationId?: string | null; callId?: string | null; runLabel?: string | null };
+export type AwayQueueRef =
+  string | { conversationId?: string | null; callId?: string | null; runLabel?: string | null };
 
 /**
  * The title the edge gives a run held for a word: `Playbook “Win-back · quiet 30 days” is ready: 1 person`
@@ -1803,7 +2058,12 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   inQueue: readonly AwayQueueRef[] = [],
   max = 5,
 ): TodayAwayVM<T> {
-  const convs = new Set(inQueue.flatMap((q) => { const id = typeof q === "string" ? q : q.conversationId; return id ? [id] : []; }));
+  const convs = new Set(
+    inQueue.flatMap((q) => {
+      const id = typeof q === "string" ? q : q.conversationId;
+      return id ? [id] : [];
+    }),
+  );
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
   const runsQueued = inQueue.flatMap((q) => (typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]));
   const idOf = (r: T) => r.id ?? r.key ?? "";
@@ -1836,7 +2096,11 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   for (const r of fresh) {
     const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
     let bucket = byKind.get(k);
-    if (!bucket) { bucket = []; byKind.set(k, bucket); order.push(k); }
+    if (!bucket) {
+      bucket = [];
+      byKind.set(k, bucket);
+      order.push(k);
+    }
     bucket.push(r);
   }
 
@@ -1848,13 +2112,18 @@ export function todayAwayGrouped<T extends AwayRowLike>(
       for (const r of members) groups.push({ row: r, count: 1, title: null, ids: [idOf(r)] });
       continue;
     }
-    groups.push({ row: members[0], count: members.length, title: `${members.length} ${noun[1]}`, ids: members.map(idOf) });
+    groups.push({
+      row: members[0],
+      count: members.length,
+      title: `${members.length} ${noun[1]}`,
+      ids: members.map(idOf),
+    });
   }
 
   const rank = (g: AwayGroupVM<T>) => AWAY_TONE_RANK[g.row.tone] ?? 1;
   const sorted = groups
     .map((g, i) => ({ g, i }))
-    .sort((x, y) => (rank(x.g) - rank(y.g)) || (x.i - y.i))
+    .sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i)
     .map((x) => x.g);
   // The head says how many unread things the BELL holds and the foot how many
   // of them are not on screen, so the two add up: a group of twelve stands for

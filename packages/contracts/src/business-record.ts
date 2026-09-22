@@ -24,7 +24,14 @@
  * `soleProprietorEndUserRequest` read the person, their mobile, one name and
  * the industry. Nothing else is asked because nothing else is sent.
  */
-import { BUSINESS_INDUSTRIES, BUSINESS_TYPES, COMPANY_TYPES, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY } from "./a2p-enums";
+import {
+  BUSINESS_INDUSTRIES,
+  BUSINESS_TYPES,
+  COMPANY_TYPES,
+  DEFAULT_BUSINESS_TYPE,
+  DEFAULT_COMPANY_TYPE,
+  DEFAULT_INDUSTRY,
+} from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
 
 export interface BusinessRecordDto {
@@ -78,13 +85,33 @@ type FieldShape = Omit<BusinessFieldVM, "name" | "required">;
  * keys written here rather than every column in the DTO.
  */
 const FIELD = {
-  legal_name: { label: "Legal name", hint: "Exactly as it appears on your tax filing, not your trading name.", placeholder: "Harbor Moving LLC", group: "business" },
-  trade_name: { label: "Trading name", hint: "What customers call you, if it differs.", placeholder: "Harbor Moving", group: "business" },
-  ein: { label: "Tax ID (EIN)", hint: "Nine digits from the IRS — on the letter that issued it, or any filing you have made with it.", placeholder: "12-3456789", group: "business" },
+  legal_name: {
+    label: "Legal name",
+    hint: "Exactly as it appears on your tax filing, not your trading name.",
+    placeholder: "Harbor Moving LLC",
+    group: "business",
+  },
+  trade_name: {
+    label: "Trading name",
+    hint: "What customers call you, if it differs.",
+    placeholder: "Harbor Moving",
+    group: "business",
+  },
+  ein: {
+    label: "Tax ID (EIN)",
+    hint: "Nine digits from the IRS — on the letter that issued it, or any filing you have made with it.",
+    placeholder: "12-3456789",
+    group: "business",
+  },
   business_type: { label: "Legal form", options: BUSINESS_TYPES, group: "business" },
   company_type: { label: "Ownership", options: COMPANY_TYPES, group: "business" },
   industry: { label: "Industry", options: BUSINESS_INDUSTRIES, group: "business" },
-  website_url: { label: "Website", hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require — which is what they check.", placeholder: "https://", group: "business" },
+  website_url: {
+    label: "Website",
+    hint: "Yours, if you have one. Without it we publish a page for you at chanlytics.com carrying your name, address and the wording the carriers require — which is what they check.",
+    placeholder: "https://",
+    group: "business",
+  },
   street: { label: "Street", placeholder: "193 Jamaica Ave", group: "address" },
   street_secondary: { label: "Suite or floor", group: "address" },
   city: { label: "City", placeholder: "Brooklyn", group: "address" },
@@ -92,8 +119,18 @@ const FIELD = {
   postal_code: { label: "ZIP", placeholder: "11207", group: "address" },
   contact_first_name: { label: "First name", group: "contact" },
   contact_last_name: { label: "Last name", group: "contact" },
-  contact_email: { label: "Email", hint: "The carriers write here if they need something.", placeholder: "you@business.com", group: "contact" },
-  contact_phone: { label: "Mobile", hint: "Yours, not the business line.", placeholder: "+1 646 555 0123", group: "contact" },
+  contact_email: {
+    label: "Email",
+    hint: "The carriers write here if they need something.",
+    placeholder: "you@business.com",
+    group: "contact",
+  },
+  contact_phone: {
+    label: "Mobile",
+    hint: "Yours, not the business line.",
+    placeholder: "+1 646 555 0123",
+    group: "contact",
+  },
   contact_title: { label: "Title", placeholder: "Owner", group: "contact" },
 } satisfies Partial<Record<keyof BusinessRecordDto, FieldShape>>;
 
@@ -141,9 +178,18 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
   // required because nothing in this registration sends it — a required box
   // whose answer goes nowhere is how a form loses somebody at field fifteen.
   sole_proprietor: [
-    { name: "legal_name", required: true, label: "Business name", hint: "What customers call you. There is no filing to match — this is the name the carriers show beside your texts." },
+    {
+      name: "legal_name",
+      required: true,
+      label: "Business name",
+      hint: "What customers call you. There is no filing to match — this is the name the carriers show beside your texts.",
+    },
     { name: "industry", required: true },
-    { name: "website_url", required: false, hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up." },
+    {
+      name: "website_url",
+      required: false,
+      hint: "Optional: nothing in this registration sends it. Worth having anyway, if a customer ever looks you up.",
+    },
     { name: "street", required: true },
     { name: "street_secondary", required: false },
     { name: "city", required: true },
@@ -152,7 +198,12 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     { name: "contact_first_name", required: true },
     { name: "contact_last_name", required: true },
     { name: "contact_email", required: true },
-    { name: "contact_phone", required: true, label: "Your mobile", hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone." },
+    {
+      name: "contact_phone",
+      required: true,
+      label: "Your mobile",
+      hint: "Your own handset, not the number Chanlytics answers for you. The carriers text a code to it and you reply from that phone.",
+    },
   ],
 };
 
@@ -179,7 +230,9 @@ export function businessFieldsFor(path: RegistrationPath): readonly BusinessFiel
 }
 
 /** The headings over each part of the form. A sole proprietor has no tax filing, so the standard headings would be lying. */
-export function businessGroupWordsFor(path: RegistrationPath): Record<BusinessFieldVM["group"], { title: string; sub: string }> {
+export function businessGroupWordsFor(
+  path: RegistrationPath,
+): Record<BusinessFieldVM["group"], { title: string; sub: string }> {
   if (path === "sole_proprietor") {
     return {
       business: { title: "What you do", sub: "as customers know it" },
@@ -197,12 +250,25 @@ export function businessGroupWordsFor(path: RegistrationPath): Record<BusinessFi
 /** An empty record, with the defaults the carriers accept already chosen. */
 export function emptyBusinessRecord(o: { websiteUrl?: string; email?: string } = {}): BusinessRecordDto {
   return {
-    legal_name: "", trade_name: null, ein: null,
-    street: "", street_secondary: null, city: "", region: "", postal_code: "", country: "US",
-    website_url: o.websiteUrl ?? "", industry: DEFAULT_INDUSTRY,
-    business_type: DEFAULT_BUSINESS_TYPE, company_type: DEFAULT_COMPANY_TYPE,
-    contact_first_name: "", contact_last_name: "", contact_email: o.email ?? "", contact_phone: "",
-    contact_title: "Owner", contact_job_position: "Director",
+    legal_name: "",
+    trade_name: null,
+    ein: null,
+    street: "",
+    street_secondary: null,
+    city: "",
+    region: "",
+    postal_code: "",
+    country: "US",
+    website_url: o.websiteUrl ?? "",
+    industry: DEFAULT_INDUSTRY,
+    business_type: DEFAULT_BUSINESS_TYPE,
+    company_type: DEFAULT_COMPANY_TYPE,
+    contact_first_name: "",
+    contact_last_name: "",
+    contact_email: o.email ?? "",
+    contact_phone: "",
+    contact_title: "Owner",
+    contact_job_position: "Director",
   };
 }
 
@@ -248,18 +314,26 @@ export function businessRecordProblems(
   // when both are true.
   for (const f of businessFieldsFor(path)) if (f.required && !has(f.name)) out[f.name] = `${f.label} is needed.`;
   if (has("ein") && !EIN.test(String(r.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
-  if (has("contact_email") && !EMAIL.test(String(r.contact_email).trim())) out.contact_email = "That does not look like an email address.";
-  if (has("contact_phone") && !E164.test(String(r.contact_phone).replace(/[\s()-]/g, ""))) out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
+  if (has("contact_email") && !EMAIL.test(String(r.contact_email).trim()))
+    out.contact_email = "That does not look like an email address.";
+  if (has("contact_phone") && !E164.test(String(r.contact_phone).replace(/[\s()-]/g, "")))
+    out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
   if (has("region") && !REGION.test(String(r.region).trim())) out.region = "Two letters, like NY.";
-  if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim())) out.website_url = "A full address a reviewer can open, starting with https://";
+  if (has("website_url") && !/^https?:\/\/\S+\.\S+/.test(String(r.website_url).trim()))
+    out.website_url = "A full address a reviewer can open, starting with https://";
   // Not a form field — it is "US" unless something hand-built says otherwise —
   // but the carriers only register businesses in two countries, and a refusal
   // for this arrives days later saying nothing a person can act on.
   if (has("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
     out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
   }
-  if (path === "sole_proprietor" && has("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
-    out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset — they text a code to it and you reply from the phone in your hand.";
+  if (
+    path === "sole_proprietor" &&
+    has("contact_phone") &&
+    (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))
+  ) {
+    out.contact_phone =
+      "This is the number Chanlytics answers for you. The carriers need YOUR handset — they text a code to it and you reply from the phone in your hand.";
   }
   return out;
 }
@@ -287,6 +361,7 @@ export function businessRecordLine(r: BusinessRecordDto | null): string {
   const problems = businessRecordProblems(r, path);
   const missing = Object.keys(problems).length;
   if (missing) return `${missing} thing${missing === 1 ? "" : "s"} still to fill in before this can be filed.`;
-  const capped = path === "sole_proprietor" ? ` · one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
+  const capped =
+    path === "sole_proprietor" ? ` · one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} text a second` : "";
   return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} · ${r.city}, ${r.region} · on record${capped}.`;
 }

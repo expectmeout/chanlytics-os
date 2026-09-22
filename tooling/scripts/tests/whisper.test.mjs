@@ -33,12 +33,17 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
     return new Response("{}", { status: 404 });
   };
   try {
-    const r = await updateLiveCall({ apiKey: "k" }, "call_abc123def456", { additionalContext: "Melany can see them at 4:30.", triggerResponse: true });
+    const r = await updateLiveCall({ apiKey: "k" }, "call_abc123def456", {
+      additionalContext: "Melany can see them at 4:30.",
+      triggerResponse: true,
+    });
     assert.deepEqual(r, { ok: false, status: 404 }, "a call that just ended is a status, not an exception in a route");
     assert.equal(captured.url, "https://api.retellai.com/v2/update-live-call/call_abc123def456");
     assert.equal(captured.init.method, "PATCH");
     assert.equal(captured.init.headers.Authorization, "Bearer k");
-    assert.deepEqual(JSON.parse(captured.init.body), { call_control: { additional_context: "Melany can see them at 4:30.", trigger_response: true } });
+    assert.deepEqual(JSON.parse(captured.init.body), {
+      call_control: { additional_context: "Melany can see them at 4:30.", trigger_response: true },
+    });
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -54,12 +59,25 @@ test("the route proves visibility, then the role door, then the provider — and
   const ongoing = route.indexOf('call.status !== "ongoing"');
   const provider = route.indexOf("await whisperLiveCall(call.retell_call_id, text, trigger)");
   const ledger = route.indexOf('recordDecision(ctx, call.tenant_id, "call", call.id, "whisper"');
-  for (const [name, at] of [["rls", rls], ["door", door], ["ongoing", ongoing], ["provider", provider], ["ledger", ledger]]) assert.ok(at > 0, `${name} missing`);
-  assert.ok(rls < door && door < ongoing && ongoing < provider && provider < ledger, "REGRESSION: the order is the safety");
-  assert.ok(route.includes("There is nobody on the line to whisper to") || route.includes("there is nobody on the line to whisper to"));
+  for (const [name, at] of [
+    ["rls", rls],
+    ["door", door],
+    ["ongoing", ongoing],
+    ["provider", provider],
+    ["ledger", ledger],
+  ])
+    assert.ok(at > 0, `${name} missing`);
+  assert.ok(
+    rls < door && door < ongoing && ongoing < provider && provider < ledger,
+    "REGRESSION: the order is the safety",
+  );
+  assert.ok(
+    route.includes("There is nobody on the line to whisper to") ||
+      route.includes("there is nobody on the line to whisper to"),
+  );
   const service = readCode("apps/dashboard/src/server/service.ts");
   const fn = service.slice(service.indexOf("export async function whisperLiveCall"));
-  assert.ok(fn.includes('!deployment.providersLive'), "a preview must not speak into a real customer's call");
+  assert.ok(fn.includes("!deployment.providersLive"), "a preview must not speak into a real customer's call");
   assert.ok(fn.includes('edgeHeaders("/api/admin/whisper")'));
 });
 
@@ -68,7 +86,10 @@ test("the page offers it only on a live call, behind the gate the server enforce
   assert.ok(page.includes("{c.live && <LrWhisper c={c} />}"));
   assert.ok(page.includes('data-testid="live-whisper"'));
   assert.ok(page.includes('{...window.gate("approve")}'), "the same door: operator or owner");
-  assert.ok(page.includes("window.__whisperCall(c.callId, t, false)"), "no nudge to speak: a whisper is used when it fits");
+  assert.ok(
+    page.includes("window.__whisperCall(c.callId, t, false)"),
+    "no nudge to speak: a whisper is used when it fits",
+  );
   const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(verbs.includes("export async function whisperCall(callId: string, text: string, trigger = false)"));
   assert.ok(verbs.includes("window.__whisperCall = whisperCall;"));

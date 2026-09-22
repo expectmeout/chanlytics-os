@@ -32,7 +32,10 @@ test("WhatsApp: the person's mode is looked up before the first branch that can 
   const nonText = wa.indexOf('n.type !== "text" || !n.body');
   const ack = wa.indexOf("fallbacks!.non_text");
   assert.ok(lookup > 0 && nonText > 0 && ack > 0, "all three landmarks exist");
-  assert.ok(lookup < nonText, "REGRESSION: the lookup sat below the non-text branch, so a Never person who sent a photo got a canned text");
+  assert.ok(
+    lookup < nonText,
+    "REGRESSION: the lookup sat below the non-text branch, so a Never person who sent a photo got a canned text",
+  );
   assert.ok(lookup < ack);
   assert.equal(wa.split("personMode = await ports.leads.personReplyMode(").length, 2, "exactly one lookup");
 });
@@ -52,7 +55,15 @@ test("WhatsApp: a person's hold is its own reason, alerted once per open hold", 
 });
 
 test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {
-  const facts = { contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" }, purpose: "conversational", proactive: false, pausedUntilMs: null, sentToday: 0, dailyCap: 3, nowMs: 1_800_000_000_000 };
+  const facts = {
+    contact: { consent: "unknown", dnc: false, marketing_consent: "unknown" },
+    purpose: "conversational",
+    proactive: false,
+    pausedUntilMs: null,
+    sentToday: 0,
+    dailyCap: 3,
+    nowMs: 1_800_000_000_000,
+  };
   assert.equal(outboundGate({ ...facts, replyMode: "veto" }).allowed, true);
   assert.equal(outboundGate({ ...facts, replyMode: "auto" }).allowed, true);
   assert.equal(outboundGate({ ...facts, replyMode: "never" }).refusal, "policy_hold");

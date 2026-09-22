@@ -1,6 +1,15 @@
 import { read, write, workspace } from "@/server/route";
 import type { RouteContext } from "@/server/with-route";
-import { AppError, parseTenantConfig, parseTenantConfigResult, TenantConfigWriteSchema, resolveFacts, factConflicts, changedConfigFields, type KnownFacts } from "@chanlytics/contracts";
+import {
+  AppError,
+  parseTenantConfig,
+  parseTenantConfigResult,
+  TenantConfigWriteSchema,
+  resolveFacts,
+  factConflicts,
+  changedConfigFields,
+  type KnownFacts,
+} from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
 import { promptPreview } from "@/server/prompt-preview";
@@ -50,16 +59,22 @@ export const GET = read({
       // The calendar feed address grants read access to the owner's calendar;
       // only an owner sees it whole. Anyone else learns that one is set.
       const cfg = parsed.config;
-      const visible = member.role === "owner" || !cfg.calendar
-        ? cfg
-        : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
+      const visible =
+        member.role === "owner" || !cfg.calendar
+          ? cfg
+          : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
       const known = await knownFacts(ctx, member.tenantId);
       const facts = resolveFacts(cfg.brain ?? null, known);
       // What the receptionist is told, composed here with the inputs the browser
       // cannot see (the Autonomy rows, these facts, the closures, the calendar's
       // openings), so the pane's card is the prompt and not a rendering of it.
       // The feed address is read here and stays here.
-      const prompt = await promptPreview(ctx, member.tenantId, { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null }, known);
+      const prompt = await promptPreview(
+        ctx,
+        member.tenantId,
+        { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null },
+        known,
+      );
       return {
         config: visible,
         version: row.version,
@@ -79,7 +94,13 @@ export const GET = read({
       };
     }
     // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.
-    return { config: null, version: row.version, role: member.role, configBroken: true as const, issues: parsed.issues };
+    return {
+      config: null,
+      version: row.version,
+      role: member.role,
+      configBroken: true as const,
+      issues: parsed.issues,
+    };
   },
 });
 
@@ -115,14 +136,14 @@ export const PUT = write({
       // resubmitted, and got the same unattributed sentence again. The write
       // rules build a path for exactly this.
       const said = parsed.error.issues.slice(0, 3).map((i) => {
-        const field = i.path.filter((p) => typeof p === "string").slice(-2).join(".");
+        const field = i.path
+          .filter((p) => typeof p === "string")
+          .slice(-2)
+          .join(".");
         return field ? `${field}: ${i.message}` : i.message;
       });
       const more = parsed.error.issues.length - said.length;
-      throw new AppError(
-        "validation",
-        `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`,
-      );
+      throw new AppError("validation", `Config rejected — ${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
     }
     const before = await getTenantConfig(ctx.supabase, member.tenantId);
     const result = await putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId);
@@ -147,15 +168,20 @@ export const PUT = write({
     // watched succeed.
     const fields = changedConfigFields(before?.config, parsed.data);
     if (fields.length) {
-      await ctx.supabase.from("events").insert({
-        tenant_id: member.tenantId,
-        kind: "settings.changed",
-        category: "system",
-        subject_type: "workspace",
-        subject_id: member.tenantId,
-        // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
-        data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },
-      }).then(({ error }) => { if (error) console.error("settings_event_failed", error.message); });
+      await ctx.supabase
+        .from("events")
+        .insert({
+          tenant_id: member.tenantId,
+          kind: "settings.changed",
+          category: "system",
+          subject_type: "workspace",
+          subject_id: member.tenantId,
+          // `via` says a card was tapped rather than a form saved, as the decisions ledger says it.
+          data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },
+        })
+        .then(({ error }) => {
+          if (error) console.error("settings_event_failed", error.message);
+        });
     }
     return { config: parseTenantConfig(result.row.config) ?? {}, version: result.row.version };
   },

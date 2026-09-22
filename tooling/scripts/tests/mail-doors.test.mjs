@@ -51,9 +51,19 @@ const KEY = "diag-key-for-this-file";
 
 /* ------------------------------- the knock -------------------------------- */
 
-const token = (aud, o = {}) => signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? aud, { workspace: "workspace" in o ? o.workspace : A, user: "u1" });
+const token = (aud, o = {}) =>
+  signEdgeToken(o.secret ?? process.env.EDGE_CALL_SECRET, o.aud ?? aud, {
+    workspace: "workspace" in o ? o.workspace : A,
+    user: "u1",
+  });
 const knock = (aud, body, headers = { "x-edge-token": token(aud) }) =>
-  DOORS[aud](new Request(`http://edge${aud}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) }));
+  DOORS[aud](
+    new Request(`http://edge${aud}`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    }),
+  );
 const answer = async (res) => [res.status, await res.json()];
 /** The body each door needs to get past its own validation, when the case is about something else. */
 const plain = (aud) => (aud === SETUP ? { what: "line" } : { email: "owner@example.com" });
@@ -61,9 +71,17 @@ const plain = (aud) => (aud === SETUP ? { what: "line" } : { email: "owner@examp
 /** Set variables for one call and put every one of them back afterwards; `undefined` unsets. */
 async function withEnv(vars, fn) {
   const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
-  for (const [k, v] of Object.entries(vars)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-  try { return await fn(); } finally {
-    for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [k, v] of Object.entries(before)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 }
 /** The edge before it has the secret: the key decides, and a token is ignored. */
@@ -72,11 +90,32 @@ const keyed = (fn) => withEnv({ EDGE_CALL_SECRET: undefined, DIAG_KEY: KEY }, fn
 /* -------------------------------- the world ------------------------------- */
 
 const tenants = () => [
-  { id: A, name: "Harbor Moving", slug: "harbor-moving", timezone: "America/New_York", status: "active", created_at: "2026-09-13T14:00:00Z" },
-  { id: B, name: "Billing probe", slug: "billing-probe", timezone: "Europe/Madrid", status: "active", created_at: "2026-09-12T09:30:00Z" },
+  {
+    id: A,
+    name: "Harbor Moving",
+    slug: "harbor-moving",
+    timezone: "America/New_York",
+    status: "active",
+    created_at: "2026-09-13T14:00:00Z",
+  },
+  {
+    id: B,
+    name: "Billing probe",
+    slug: "billing-probe",
+    timezone: "Europe/Madrid",
+    status: "active",
+    created_at: "2026-09-12T09:30:00Z",
+  },
 ];
 /** The tables a mail door might be tempted by are here, empty, so a read of any of them would show in `seen`. */
-const world = (over = {}) => ({ tenants: tenants(), notifications: [], contacts: [], messages: [], conversations: [], ...over });
+const world = (over = {}) => ({
+  tenants: tenants(),
+  notifications: [],
+  contacts: [],
+  messages: [],
+  conversations: [],
+  ...over,
+});
 function use(tables) {
   const db = fakeDb(tables);
   setPg(db);
@@ -91,20 +130,34 @@ function wire(reply = () => ({ status: 200, body: { id: "email_1" } })) {
   const seen = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    const req = { url: String(url), method: init?.method ?? "GET", headers: init?.headers ?? {}, body: typeof init?.body === "string" ? JSON.parse(init.body) : null, signal: init?.signal ?? null };
+    const req = {
+      url: String(url),
+      method: init?.method ?? "GET",
+      headers: init?.headers ?? {},
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+      signal: init?.signal ?? null,
+    };
     seen.push(req);
     const a = reply(req);
-    return new Response(JSON.stringify(a.body ?? {}), { status: a.status ?? 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(a.body ?? {}), {
+      status: a.status ?? 200,
+      headers: { "content-type": "application/json" },
+    });
   };
   return {
     seen,
     /** What Resend was asked to send, in order: { from, to, subject, text }. */
     mail: () => seen.filter((r) => r.url === "https://api.resend.com/emails").map((r) => r.body),
-    restore: () => { globalThis.fetch = real; },
+    restore: () => {
+      globalThis.fetch = real;
+    },
   };
 }
 /** A wire nothing may reach. The transport swallows a failure and answers false, so the proof is `seen`, not the throw. */
-const unreachable = (why) => wire(() => { throw new Error(why); });
+const unreachable = (why) =>
+  wire(() => {
+    throw new Error(why);
+  });
 
 /* --------------------------------- the door ------------------------------- */
 
@@ -112,21 +165,50 @@ test("both doors: a token for another door, a forgery and no credential at all a
   const db = use(world());
   const net = unreachable("a refused knock must not reach the transport");
   try {
-    for (const [aud, other] of [[SETUP, SIGNUP], [SIGNUP, SETUP]]) {
+    for (const [aud, other] of [
+      [SETUP, SIGNUP],
+      [SIGNUP, SETUP],
+    ]) {
       const body = plain(aud);
-      assert.deepEqual(await answer(await knock(aud, body, { "x-edge-token": token(other) })), [403, { ok: false, error: "token_audience" }], `${aud}: a token for the other mail door opens nothing here`);
-      assert.deepEqual(await answer(await knock(aud, body, { "x-edge-token": token(aud, { secret: "not-the-secret" }) })), [403, { ok: false, error: "token_signature" }], aud);
+      assert.deepEqual(
+        await answer(await knock(aud, body, { "x-edge-token": token(other) })),
+        [403, { ok: false, error: "token_audience" }],
+        `${aud}: a token for the other mail door opens nothing here`,
+      );
+      assert.deepEqual(
+        await answer(await knock(aud, body, { "x-edge-token": token(aud, { secret: "not-the-secret" }) })),
+        [403, { ok: false, error: "token_signature" }],
+        aud,
+      );
       assert.deepEqual(await answer(await knock(aud, body, {})), [403, { ok: false }], aud);
-      assert.deepEqual(await answer(await knock(aud, body, { "x-edge-token": "garbage", "x-diag-key": KEY })), [403, { ok: false, error: "token_malformed" }], `${aud}: no falling back from a bad token to a key`);
-      assert.deepEqual(await answer(await knock(aud, { ...body, tenant_id: B })), [403, { ok: false, error: "workspace_mismatch" }], `${aud}: a token about A may not speak for B`);
+      assert.deepEqual(
+        await answer(await knock(aud, body, { "x-edge-token": "garbage", "x-diag-key": KEY })),
+        [403, { ok: false, error: "token_malformed" }],
+        `${aud}: no falling back from a bad token to a key`,
+      );
+      assert.deepEqual(
+        await answer(await knock(aud, { ...body, tenant_id: B })),
+        [403, { ok: false, error: "workspace_mismatch" }],
+        `${aud}: a token about A may not speak for B`,
+      );
       // Minted while the edge still has the secret, presented once it does not.
       const minted = token(aud);
       await keyed(async () => {
-        assert.deepEqual(await answer(await knock(aud, body, { "x-diag-key": "not-the-key" })), [403, { ok: false }], aud);
-        assert.deepEqual(await answer(await knock(aud, body, { "x-edge-token": minted })), [403, { ok: false }], `${aud}: a token ahead of the secret opens nothing on its own`);
+        assert.deepEqual(
+          await answer(await knock(aud, body, { "x-diag-key": "not-the-key" })),
+          [403, { ok: false }],
+          aud,
+        );
+        assert.deepEqual(
+          await answer(await knock(aud, body, { "x-edge-token": minted })),
+          [403, { ok: false }],
+          `${aud}: a token ahead of the secret opens nothing on its own`,
+        );
       });
     }
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
   assert.equal(db.seen.length, 0, "nothing was read for any of it");
   assert.equal(net.seen.length, 0, "and nothing was sent");
 });
@@ -136,9 +218,18 @@ test("both doors: without the platform's mailbox they say so and read nothing; w
   const net = unreachable("a door with nowhere to send must not reach the transport");
   try {
     for (const aud of [SETUP, SIGNUP]) {
-      for (const patch of [{ LEAD_TO: undefined }, { LEAD_FROM: undefined }, { LEAD_TO: "" }, { LEAD_TO: undefined, LEAD_FROM: undefined }]) {
+      for (const patch of [
+        { LEAD_TO: undefined },
+        { LEAD_FROM: undefined },
+        { LEAD_TO: "" },
+        { LEAD_TO: undefined, LEAD_FROM: undefined },
+      ]) {
         await withEnv(patch, async () => {
-          assert.deepEqual(await answer(await knock(aud, plain(aud))), [503, { ok: false, error: "no_platform_mailbox" }], `${aud} ${JSON.stringify(patch)}`);
+          assert.deepEqual(
+            await answer(await knock(aud, plain(aud))),
+            [503, { ok: false, error: "no_platform_mailbox" }],
+            `${aud} ${JSON.stringify(patch)}`,
+          );
         });
       }
     }
@@ -147,7 +238,9 @@ test("both doors: without the platform's mailbox they say so and read nothing; w
     for (const aud of [SETUP, SIGNUP]) {
       assert.deepEqual(await answer(await knock(aud, plain(aud))), [503, { ok: false, error: "no_database" }], aud);
     }
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
   assert.equal(net.seen.length, 0);
 });
 
@@ -169,11 +262,22 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.deepEqual(await answer(await knock(SETUP, { what: ["line"] })), bad, "not a string");
     assert.deepEqual(await answer(await knock(SETUP, "not json")), bad);
     await keyed(async () => {
-      assert.deepEqual(await answer(await knock(SETUP, { what: "line" }, { "x-diag-key": KEY })), bad, "a key holder is about no workspace: the body must name one");
-      assert.deepEqual(await answer(await knock(SETUP, { what: "line", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })), bad, "and name it by id");
+      assert.deepEqual(
+        await answer(await knock(SETUP, { what: "line" }, { "x-diag-key": KEY })),
+        bad,
+        "a key holder is about no workspace: the body must name one",
+      );
+      assert.deepEqual(
+        await answer(await knock(SETUP, { what: "line", tenant_id: "harbor-moving" }, { "x-diag-key": KEY })),
+        bad,
+        "and name it by id",
+      );
     });
     assert.equal(db.seen.length, 0, "refused before the workspace is read");
-    assert.deepEqual(await answer(await knock(SETUP, { what: "line" }, { "x-edge-token": token(SETUP, { workspace: GHOST }) })), [404, { ok: false, error: "no such workspace" }]);
+    assert.deepEqual(
+      await answer(await knock(SETUP, { what: "line" }, { "x-edge-token": token(SETUP, { workspace: GHOST }) })),
+      [404, { ok: false, error: "no such workspace" }],
+    );
     assert.equal(net.seen.length, 0, "nothing sent for any refusal");
 
     const readsBefore = db.seen.length;
@@ -184,18 +288,32 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.equal(req.url, "https://api.resend.com/emails");
     assert.equal(req.method, "POST");
     assert.equal(req.headers.Authorization, "Bearer re_test_only");
-    assert.ok(req.signal instanceof AbortSignal, "with a timeout on the request: this is a 60s invocation that still has to answer");
+    assert.ok(
+      req.signal instanceof AbortSignal,
+      "with a timeout on the request: this is a 60s invocation that still has to answer",
+    );
     const m = req.body;
     assert.equal(m.from, "Pager <pager@platform.test>");
-    assert.deepEqual(m.to, ["ops@platform.test", "second@platform.test"], "the platform's own mailboxes, every one of them: this is about a workspace, not addressed to one");
+    assert.deepEqual(
+      m.to,
+      ["ops@platform.test", "second@platform.test"],
+      "the platform's own mailboxes, every one of them: this is about a workspace, not addressed to one",
+    );
     assert.equal(m.subject, "Harbor Moving asked for a phone line");
     assert.equal(
       m.text,
       `Harbor Moving (harbor-moving) asked for a phone line.\nRequested by: ada@example.com\nWorkspace id: ${A}\n\n${HOW}\n`,
       "the workspace's own name and id, who asked (trimmed), and how to set the line up: from the edge, dry run first",
     );
-    assert.deepEqual(asked(db).slice(readsBefore), ["tenants.select"], "the workspace's row is the only thing read: no contact, no message, no conversation is anywhere near this");
-    assert.ok(asked(db).every((q) => q === "tenants.select"), "and nothing else was, for any refusal either");
+    assert.deepEqual(
+      asked(db).slice(readsBefore),
+      ["tenants.select"],
+      "the workspace's row is the only thing read: no contact, no message, no conversation is anywhere near this",
+    );
+    assert.ok(
+      asked(db).every((q) => q === "tenants.select"),
+      "and nothing else was, for any refusal either",
+    );
     assert.deepEqual(tables.notifications, [], "a platform notice has no workspace and so no bell");
 
     // Nobody named: a member.
@@ -203,49 +321,87 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.match(net.mail()[1].text, /\nRequested by: a member\n/);
     // A key holder naming the workspace -- support, from the console -- gets the same mail about that workspace.
     await keyed(async () => {
-      assert.deepEqual(await answer(await knock(SETUP, { what: "line", tenant_id: B, by: "support" }, { "x-diag-key": KEY })), [200, { ok: true, what: "line", tenant: "billing-probe" }]);
+      assert.deepEqual(
+        await answer(await knock(SETUP, { what: "line", tenant_id: B, by: "support" }, { "x-diag-key": KEY })),
+        [200, { ok: true, what: "line", tenant: "billing-probe" }],
+      );
     });
     assert.equal(net.mail()[2].subject, "Billing probe asked for a phone line");
-    assert.match(net.mail()[2].text, new RegExp(`^Billing probe \\(billing-probe\\) asked for a phone line\\.\\nRequested by: support\\nWorkspace id: ${B}\\n`));
+    assert.match(
+      net.mail()[2].text,
+      new RegExp(
+        `^Billing probe \\(billing-probe\\) asked for a phone line\\.\\nRequested by: support\\nWorkspace id: ${B}\\n`,
+      ),
+    );
     // The token's own workspace named in the body is fine.
     assert.equal((await knock(SETUP, { what: "line", tenant_id: A })).status, 200);
     assert.equal(net.mail().length, 4);
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
 });
 
 test("setup-request: a port and a repair each tell the platform what was asked for and what to do next (S8, S14)", async () => {
   use(world());
   const net = wire();
   try {
-    assert.deepEqual(await answer(await knock(SETUP, { what: "port", by: "ada@example.com" })), [200, { ok: true, what: "port", tenant: "harbor-moving" }], "REGRESSION: a port was a `what` nobody offers");
-    assert.deepEqual(await answer(await knock(SETUP, { what: "repair", by: "ada@example.com" })), [200, { ok: true, what: "repair", tenant: "harbor-moving" }]);
+    assert.deepEqual(
+      await answer(await knock(SETUP, { what: "port", by: "ada@example.com" })),
+      [200, { ok: true, what: "port", tenant: "harbor-moving" }],
+      "REGRESSION: a port was a `what` nobody offers",
+    );
+    assert.deepEqual(await answer(await knock(SETUP, { what: "repair", by: "ada@example.com" })), [
+      200,
+      { ok: true, what: "repair", tenant: "harbor-moving" },
+    ]);
     const [port, repair] = net.mail();
     assert.equal(port.subject, "Harbor Moving asked to bring their phone number");
     assert.match(port.text, /port-out PIN/, "what the carrier will ask for");
     assert.match(port.text, /keep their current service/, "and the one thing that loses a number");
     assert.equal(repair.subject, "Harbor Moving asked for their business settings to be repaired");
     assert.match(repair.text, /broken\.issues/, "where the problems are listed");
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
 });
 
 test("setup-request: a transport that refuses is a 502 the dashboard shrugs at -- the ask is already on record -- and without the transport's key nothing is even attempted", async () => {
   use(world());
   const refused = wire(() => ({ status: 401, body: { statusCode: 401, message: "API key is invalid" } }));
   try {
-    assert.deepEqual(await answer(await knock(SETUP, { what: "line" })), [502, { ok: false, what: "line", tenant: "harbor-moving" }], "asked, and Resend said no");
+    assert.deepEqual(
+      await answer(await knock(SETUP, { what: "line" })),
+      [502, { ok: false, what: "line", tenant: "harbor-moving" }],
+      "asked, and Resend said no",
+    );
     assert.equal(refused.seen.length, 1);
-  } finally { refused.restore(); }
-  const down = wire(() => { throw new TypeError("fetch failed"); });
+  } finally {
+    refused.restore();
+  }
+  const down = wire(() => {
+    throw new TypeError("fetch failed");
+  });
   try {
-    assert.deepEqual(await answer(await knock(SETUP, { what: "line" })), [502, { ok: false, what: "line", tenant: "harbor-moving" }], "a transport that cannot be reached is the same shrug, not a throw");
-  } finally { down.restore(); }
+    assert.deepEqual(
+      await answer(await knock(SETUP, { what: "line" })),
+      [502, { ok: false, what: "line", tenant: "harbor-moving" }],
+      "a transport that cannot be reached is the same shrug, not a throw",
+    );
+  } finally {
+    down.restore();
+  }
   const none = unreachable("without a key nothing may be attempted");
   try {
     await withEnv({ RESEND_API_KEY: undefined }, async () => {
-      assert.deepEqual(await answer(await knock(SETUP, { what: "line" })), [502, { ok: false, what: "line", tenant: "harbor-moving" }]);
+      assert.deepEqual(await answer(await knock(SETUP, { what: "line" })), [
+        502,
+        { ok: false, what: "line", tenant: "harbor-moving" },
+      ]);
     });
     assert.equal(none.seen.length, 0, "no key, no request");
-  } finally { none.restore(); }
+  } finally {
+    none.restore();
+  }
 });
 
 /* ------------------------------ signup-notify ----------------------------- */
@@ -260,10 +416,19 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
     assert.deepEqual(await answer(await knock(SIGNUP, { email: "   " })), bad, "a blank one");
     assert.deepEqual(await answer(await knock(SIGNUP, "not json")), bad);
     await keyed(async () => {
-      assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" }, { "x-diag-key": KEY })), bad, "a key holder must name the workspace");
+      assert.deepEqual(
+        await answer(await knock(SIGNUP, { email: "owner@example.com" }, { "x-diag-key": KEY })),
+        bad,
+        "a key holder must name the workspace",
+      );
     });
     assert.equal(db.seen.length, 0, "refused before the workspace is read");
-    assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" }, { "x-edge-token": token(SIGNUP, { workspace: GHOST }) })), [404, { ok: false, error: "no such workspace" }]);
+    assert.deepEqual(
+      await answer(
+        await knock(SIGNUP, { email: "owner@example.com" }, { "x-edge-token": token(SIGNUP, { workspace: GHOST }) }),
+      ),
+      [404, { ok: false, error: "no such workspace" }],
+    );
     assert.equal(net.seen.length, 0, "nothing sent for any refusal");
 
     const readsBefore = db.seen.length;
@@ -275,7 +440,11 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
     assert.equal(req.headers.Authorization, "Bearer re_test_only");
     const m = req.body;
     assert.equal(m.from, "Pager <pager@platform.test>");
-    assert.deepEqual(m.to, ["ops@platform.test", "second@platform.test"], "the platform's own mailboxes: about a workspace, not addressed to one");
+    assert.deepEqual(
+      m.to,
+      ["ops@platform.test", "second@platform.test"],
+      "the platform's own mailboxes: about a workspace, not addressed to one",
+    );
     assert.equal(m.subject, "New workspace: Harbor Moving");
     assert.equal(
       m.text,
@@ -283,29 +452,47 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
       "the owner's address as given, trimmed; the workspace's own facts; no customer content exists yet and none is here",
     );
     assert.deepEqual(asked(db).slice(readsBefore), ["tenants.select"], "the workspace's row is the only thing read");
-    assert.ok(asked(db).every((q) => q === "tenants.select"), "and nothing else was, for any refusal either");
+    assert.ok(
+      asked(db).every((q) => q === "tenants.select"),
+      "and nothing else was, for any refusal either",
+    );
     assert.deepEqual(tables.notifications, [], "a platform notice has no workspace and so no bell");
 
     await keyed(async () => {
-      assert.deepEqual(await answer(await knock(SIGNUP, { tenant_id: B, email: "b@example.com" }, { "x-diag-key": KEY })), [200, { ok: true, tenant: "billing-probe" }]);
+      assert.deepEqual(
+        await answer(await knock(SIGNUP, { tenant_id: B, email: "b@example.com" }, { "x-diag-key": KEY })),
+        [200, { ok: true, tenant: "billing-probe" }],
+      );
     });
     assert.equal(net.mail()[1].subject, "New workspace: Billing probe");
     assert.match(net.mail()[1].text, /\nOwner: b@example\.com\nTime zone: Europe\/Madrid\n/);
-  } finally { net.restore(); }
+  } finally {
+    net.restore();
+  }
 });
 
 test("signup-notify: a transport that refuses is a 502 -- the workspace exists and its owner is in it -- and without the transport's key nothing is attempted", async () => {
   use(world());
   const refused = wire(() => ({ status: 500, body: { message: "internal" } }));
   try {
-    assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" })), [502, { ok: false, tenant: "harbor-moving" }]);
+    assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" })), [
+      502,
+      { ok: false, tenant: "harbor-moving" },
+    ]);
     assert.equal(refused.seen.length, 1);
-  } finally { refused.restore(); }
+  } finally {
+    refused.restore();
+  }
   const none = unreachable("without a key nothing may be attempted");
   try {
     await withEnv({ RESEND_API_KEY: undefined }, async () => {
-      assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" })), [502, { ok: false, tenant: "harbor-moving" }]);
+      assert.deepEqual(await answer(await knock(SIGNUP, { email: "owner@example.com" })), [
+        502,
+        { ok: false, tenant: "harbor-moving" },
+      ]);
     });
     assert.equal(none.seen.length, 0, "no key, no request");
-  } finally { none.restore(); }
+  } finally {
+    none.restore();
+  }
 });

@@ -60,9 +60,15 @@ export async function peekTypes(db, plan) {
   const out = [];
   for (const item of plan) {
     const { data, error } = await db.storage.from("media").createSignedUrl(item.storage_path, 60);
-    if (error || !data?.signedUrl) { out.push({ id: item.id, from: item.from, to: null, why: `sign: ${error?.message ?? "no link"}` }); continue; }
+    if (error || !data?.signedUrl) {
+      out.push({ id: item.id, from: item.from, to: null, why: `sign: ${error?.message ?? "no link"}` });
+      continue;
+    }
     const r = await fetch(data.signedUrl, { headers: { Range: "bytes=0-11" } });
-    if (!r.ok) { out.push({ id: item.id, from: item.from, to: null, why: `read: HTTP ${r.status}` }); continue; }
+    if (!r.ok) {
+      out.push({ id: item.id, from: item.from, to: null, why: `read: HTTP ${r.status}` });
+      continue;
+    }
     out.push({ id: item.id, from: item.from, to: sniffAudioType(await r.arrayBuffer(), item.from) });
   }
   return out;
@@ -78,16 +84,33 @@ export async function retype(db, plan) {
   const retyped = [];
   const skipped = [];
   for (const item of plan) {
-    const { data: row, error: readErr } = await db.from("calls").select("recording").eq("id", item.id).eq("tenant_id", item.tenant_id).maybeSingle();
-    if (readErr) { skipped.push({ id: item.id, why: `read: ${readErr.message}` }); continue; }
+    const { data: row, error: readErr } = await db
+      .from("calls")
+      .select("recording")
+      .eq("id", item.id)
+      .eq("tenant_id", item.tenant_id)
+      .maybeSingle();
+    if (readErr) {
+      skipped.push({ id: item.id, why: `read: ${readErr.message}` });
+      continue;
+    }
     const rec = row?.recording;
-    if (!rec || rec.fetch_state !== "stored" || rec.storage_path !== item.storage_path) { skipped.push({ id: item.id, why: "no longer stored at the planned path" }); continue; }
+    if (!rec || rec.fetch_state !== "stored" || rec.storage_path !== item.storage_path) {
+      skipped.push({ id: item.id, why: "no longer stored at the planned path" });
+      continue;
+    }
     const got = await db.storage.from("media").download(item.storage_path);
-    if (got.error || !got.data) { skipped.push({ id: item.id, why: `download: ${got.error?.message ?? "empty"}` }); continue; }
+    if (got.error || !got.data) {
+      skipped.push({ id: item.id, why: `download: ${got.error?.message ?? "empty"}` });
+      continue;
+    }
     const bytes = await got.data.arrayBuffer();
     const to = sniffAudioType(bytes, item.from);
     const put = await db.storage.from("media").upload(item.storage_path, bytes, { contentType: to, upsert: true });
-    if (put.error) { skipped.push({ id: item.id, why: `upload: ${put.error.message}` }); continue; }
+    if (put.error) {
+      skipped.push({ id: item.id, why: `upload: ${put.error.message}` });
+      continue;
+    }
     // Guarded on the state it was read in, and counted: an update that matched
     // nothing is not a success.
     const { data: marked, error: writeErr } = await db
@@ -97,8 +120,14 @@ export async function retype(db, plan) {
       .eq("tenant_id", item.tenant_id)
       .filter("recording->>fetch_state", "eq", "stored")
       .select("id");
-    if (writeErr) { skipped.push({ id: item.id, why: `write: ${writeErr.message}` }); continue; }
-    if (!marked?.length) { skipped.push({ id: item.id, why: "write matched no row" }); continue; }
+    if (writeErr) {
+      skipped.push({ id: item.id, why: `write: ${writeErr.message}` });
+      continue;
+    }
+    if (!marked?.length) {
+      skipped.push({ id: item.id, why: "write matched no row" });
+      continue;
+    }
     retyped.push({ id: item.id, from: item.from, to });
   }
   return { retyped, skipped };
@@ -122,7 +151,10 @@ async function main() {
       .filter("recording->>fetch_state", "eq", "stored")
       .order("started_at", { ascending: true })
       .range(from, from + 499);
-    if (error) { console.error(`read calls: ${error.message}`); process.exit(1); }
+    if (error) {
+      console.error(`read calls: ${error.message}`);
+      process.exit(1);
+    }
     rows.push(...(data ?? []));
     if (!data || data.length < 500) break;
   }
@@ -143,7 +175,13 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `recordings-retype-${stamp}.jsonl`);
   const planned = new Set(plan.map((p) => p.id));
-  writeFileSync(backupPath, rows.filter((r) => planned.has(r.id)).map((r) => JSON.stringify(r)).join("\n") + "\n");
+  writeFileSync(
+    backupPath,
+    rows
+      .filter((r) => planned.has(r.id))
+      .map((r) => JSON.stringify(r))
+      .join("\n") + "\n",
+  );
   console.log(`backup: ${plan.length} rows -> ${backupPath}`);
 
   const { retyped, skipped } = await retype(db, plan);

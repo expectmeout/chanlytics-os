@@ -34,7 +34,7 @@ import { phoneTail } from "../lib/packages/contracts.js";
 
 export const config = { maxDuration: 60 };
 
-const EMPTY_TWIML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>";
+const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twiml = (status: number) => text(status, EMPTY_TWIML, { "content-type": "text/xml" });
 
 export async function POST(request: Request): Promise<Response> {

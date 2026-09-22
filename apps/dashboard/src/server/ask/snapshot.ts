@@ -15,7 +15,14 @@ import {
   type MessageDto,
 } from "@chanlytics/contracts";
 import type { AskReadSet } from "@chanlytics/contracts";
-import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
+import {
+  CALL_COLUMNS,
+  CONVERSATION_COLUMNS,
+  MESSAGE_COLUMNS,
+  groupMessages,
+  toCallDto,
+  toConversationDto,
+} from "../dto";
 import { runTool, type ToolContext } from "./tools";
 
 /**
@@ -38,18 +45,60 @@ const CALLS = 8;
 const HELD = 6;
 
 export interface Snapshot {
-  counts: { needs_you: number; held_drafts: number; calls_today: number; missed_today: number; abandoned_today: number; messages_in_today: number };
-  needs_you: Array<{ conversation_id: string; route: string; who: string; reason: string; since: string; quote: string | null }>;
-  held_drafts: Array<{ message_id: string; conversation_id: string; route: string; who: string; text: string; sends_at: string | null }>;
-  threads: Array<{ conversation_id: string; route: string; who: string; person_route: string | null; state: string; last_at: string | null; recent: Array<{ from: string; text: string; at: string }> }>;
-  calls_today: Array<{ call_id: string; route: string; who: string; person_route: string | null; at: string; duration: string | null; outcome: string; abandoned?: true; summary: string | null }>;
+  counts: {
+    needs_you: number;
+    held_drafts: number;
+    calls_today: number;
+    missed_today: number;
+    abandoned_today: number;
+    messages_in_today: number;
+  };
+  needs_you: Array<{
+    conversation_id: string;
+    route: string;
+    who: string;
+    reason: string;
+    since: string;
+    quote: string | null;
+  }>;
+  held_drafts: Array<{
+    message_id: string;
+    conversation_id: string;
+    route: string;
+    who: string;
+    text: string;
+    sends_at: string | null;
+  }>;
+  threads: Array<{
+    conversation_id: string;
+    route: string;
+    who: string;
+    person_route: string | null;
+    state: string;
+    last_at: string | null;
+    recent: Array<{ from: string; text: string; at: string }>;
+  }>;
+  calls_today: Array<{
+    call_id: string;
+    route: string;
+    who: string;
+    person_route: string | null;
+    at: string;
+    duration: string | null;
+    outcome: string;
+    abandoned?: true;
+    summary: string | null;
+  }>;
   scoped: unknown;
   note: string;
 }
 
 function dayStartUtc(tz: string, now: Date): Date {
   try {
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).split("-").map(Number);
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+      .format(now)
+      .split("-")
+      .map(Number);
     return new Date(localToUtcMs(tz, parts[0], parts[1], parts[2], 0, 0));
   } catch {
     const d = new Date(now);
@@ -70,10 +119,18 @@ const fmtTime = (iso: string | null | undefined, tz: string): string => {
 const fmtWhen = (iso: string | null | undefined, tz: string, now: Date): string => {
   if (!iso) return "";
   const d = new Date(iso);
-  const sameDay = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d) === new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
+  const sameDay =
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d) ===
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
   if (sameDay) return fmtTime(iso, tz);
   try {
-    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(d);
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz,
+    }).format(d);
   } catch {
     return iso;
   }
@@ -93,11 +150,40 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   const now = t.now;
   const dayStart = dayStartUtc(timezone, now).toISOString();
   const [convs, escs, held, calls, inbound] = await Promise.all([
-    supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", t.tenantId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS),
-    supabase.from("escalations").select("id, reason, details, state, created_at, conversation_id").eq("tenant_id", t.tenantId).eq("state", "open").order("created_at", { ascending: false }).limit(20),
-    supabase.from("messages").select(MESSAGE_COLUMNS).eq("tenant_id", t.tenantId).eq("sender", "ai").eq("status", "queued").order("created_at", { ascending: false }).limit(HELD),
-    supabase.from("calls").select(CALL_COLUMNS).eq("tenant_id", t.tenantId).gte("started_at", dayStart).order("started_at", { ascending: false }).limit(CALLS),
-    supabase.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", t.tenantId).eq("direction", "inbound").gte("created_at", dayStart),
+    supabase
+      .from("conversations")
+      .select(CONVERSATION_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(THREADS),
+    supabase
+      .from("escalations")
+      .select("id, reason, details, state, created_at, conversation_id")
+      .eq("tenant_id", t.tenantId)
+      .eq("state", "open")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .eq("sender", "ai")
+      .eq("status", "queued")
+      .order("created_at", { ascending: false })
+      .limit(HELD),
+    supabase
+      .from("calls")
+      .select(CALL_COLUMNS)
+      .eq("tenant_id", t.tenantId)
+      .gte("started_at", dayStart)
+      .order("started_at", { ascending: false })
+      .limit(CALLS),
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", t.tenantId)
+      .eq("direction", "inbound")
+      .gte("created_at", dayStart),
   ]);
   for (const r of [convs, escs, held, calls]) if (r.error) throw new Error(r.error.message);
 
@@ -108,13 +194,18 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   const listed = new Set(convRows.map((c) => c.id));
   const missing = [...byConv.keys()].filter((id) => !listed.has(id)).slice(0, 10);
   const extra = missing.length
-    ? (await supabase.from("conversations").select(CONVERSATION_COLUMNS).in("id", missing)).data ?? []
+    ? ((await supabase.from("conversations").select(CONVERSATION_COLUMNS).in("id", missing)).data ?? [])
     : [];
   const allConvs = [...convRows, ...extra];
   const ids = allConvs.map((c) => c.id);
   let msgs = new Map<string, MessageDto[]>();
   if (ids.length) {
-    const m = await supabase.from("messages").select(MESSAGE_COLUMNS).in("conversation_id", ids).order("created_at", { ascending: false }).limit(ids.length * 10);
+    const m = await supabase
+      .from("messages")
+      .select(MESSAGE_COLUMNS)
+      .in("conversation_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(ids.length * 10);
     if (m.error) throw new Error(m.error.message);
     msgs = groupMessages(m.data ?? []);
   }
@@ -156,19 +247,35 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
   });
 
   const heldRows = ((held.data ?? []) as Array<Record<string, unknown>>)
-    .map((row) => ({ id: row.id as string, conversation_id: row.conversation_id as string, direction: row.direction as MessageDto["direction"], sender: row.sender as MessageDto["sender"], type: row.type as string, body: row.body as string | null, media: null, meta: row.meta as MessageDto["meta"], status: row.status as string | undefined, created_at: row.created_at as string, channel_ts: row.channel_ts as string | null }))
+    .map((row) => ({
+      id: row.id as string,
+      conversation_id: row.conversation_id as string,
+      direction: row.direction as MessageDto["direction"],
+      sender: row.sender as MessageDto["sender"],
+      type: row.type as string,
+      body: row.body as string | null,
+      media: null,
+      meta: row.meta as MessageDto["meta"],
+      status: row.status as string | undefined,
+      created_at: row.created_at as string,
+      channel_ts: row.channel_ts as string | null,
+    }))
     .filter((m) => isHeldDraft(m as MessageDto))
     .map((m) => {
       const d = dtos.find((x) => x.id === m.conversation_id);
       t.read.thread.add(m.conversation_id);
-      const delay = m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number" ? (m.meta as { delay_ms: number }).delay_ms : null;
+      const delay =
+        m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
+          ? (m.meta as { delay_ms: number }).delay_ms
+          : null;
       return {
         message_id: m.id,
         conversation_id: m.conversation_id,
         route: `inbox/th-${m.conversation_id}`,
         who: d ? contactName(d) : "a customer",
         text: (m.body ?? "").slice(0, 200),
-        sends_at: delay !== null ? fmtWhen(new Date(Date.parse(m.created_at) + delay).toISOString(), timezone, now) : null,
+        sends_at:
+          delay !== null ? fmtWhen(new Date(Date.parse(m.created_at) + delay).toISOString(), timezone, now) : null,
       };
     });
 
@@ -192,14 +299,19 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
 
   let scoped: unknown = null;
   if (scope && scope.kind !== "page") {
-    const run = scope.kind === "call"
-      ? { name: "get_call", input: { call_id: scope.id } }
-      : scope.kind === "person"
-        ? { name: "get_person", input: { contact_id: scope.id } }
-        : { name: "get_thread", input: { conversation_id: scope.id, more: false } };
+    const run =
+      scope.kind === "call"
+        ? { name: "get_call", input: { call_id: scope.id } }
+        : scope.kind === "person"
+          ? { name: "get_person", input: { contact_id: scope.id } }
+          : { name: "get_thread", input: { conversation_id: scope.id, more: false } };
     const out = await runTool(t, run);
     if (!out.isError) {
-      try { scoped = JSON.parse(out.result); } catch { scoped = null; }
+      try {
+        scoped = JSON.parse(out.result);
+      } catch {
+        scoped = null;
+      }
     }
   }
 
@@ -253,12 +365,18 @@ export async function snapshotFor(t: ToolContext, timezone: string, scope: AskSc
   const nowMs = t.now.getTime();
   const hit = recent.get(key);
   if (hit && nowMs - hit.at < SNAPSHOT_TTL_MS && nowMs >= hit.at) {
-    for (const kind of Object.keys(hit.read) as (keyof AskReadSet)[]) for (const id of hit.read[kind]) t.read[kind].add(id);
+    for (const kind of Object.keys(hit.read) as (keyof AskReadSet)[])
+      for (const id of hit.read[kind]) t.read[kind].add(id);
     return hit.block;
   }
   const block = snapshotBlock(await buildSnapshot(t, timezone, scope));
   // The snapshot is the turn's first read, so the read set holds exactly its rows here.
-  const read: ReadIds = { thread: [...t.read.thread], conversation: [...t.read.conversation], call: [...t.read.call], person: [...t.read.person] };
+  const read: ReadIds = {
+    thread: [...t.read.thread],
+    conversation: [...t.read.conversation],
+    call: [...t.read.call],
+    person: [...t.read.person],
+  };
   recent.set(key, { at: nowMs, block, read });
   if (recent.size > RECENT_MAX) recent.delete(recent.keys().next().value as string);
   return block;

@@ -43,12 +43,23 @@ export type IngressVerdict =
   | { action: "refuse"; status: 400 | 401; log: string }
   | { action: "ignore"; log: string }
   | { action: "abort_foreign"; apifyRunId: string; log: string }
-  | { action: "schedule_final"; runRowId: string; tenantId: string; apifyRunId: string; fill: { datasetId: string | null } | null };
+  | {
+      action: "schedule_final";
+      runRowId: string;
+      tenantId: string;
+      apifyRunId: string;
+      fill: { datasetId: string | null } | null;
+    };
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+const obj = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 
-export function planApifyIngress(input: { runRow: IngressRunRow | null; tokenOk: boolean; body: unknown }): IngressVerdict {
+export function planApifyIngress(input: {
+  runRow: IngressRunRow | null;
+  tokenOk: boolean;
+  body: unknown;
+}): IngressVerdict {
   const { runRow, tokenOk } = input;
   if (!runRow) return { action: "ignore", log: "apify_webhook_unknown_run" };
   if (!tokenOk) return { action: "refuse", status: 401, log: "apify_webhook_bad_token" };
@@ -58,8 +69,10 @@ export function planApifyIngress(input: { runRow: IngressRunRow | null; tokenOk:
   if (!eventType || !APIFY_FINAL_EVENTS.has(eventType)) return { action: "ignore", log: "apify_webhook_not_final" };
   const resource = obj(body.resource);
   const pointer = str(obj(body.eventData)?.actorRunId) ?? str(resource?.id);
-  if (!pointer || !/^[A-Za-z0-9]{1,40}$/.test(pointer)) return { action: "refuse", status: 400, log: "apify_webhook_no_run" };
-  if (runRow.apify_run_id && runRow.apify_run_id !== pointer) return { action: "abort_foreign", apifyRunId: pointer, log: "apify_webhook_other_run" };
+  if (!pointer || !/^[A-Za-z0-9]{1,40}$/.test(pointer))
+    return { action: "refuse", status: 400, log: "apify_webhook_no_run" };
+  if (runRow.apify_run_id && runRow.apify_run_id !== pointer)
+    return { action: "abort_foreign", apifyRunId: pointer, log: "apify_webhook_other_run" };
   return {
     action: "schedule_final",
     runRowId: runRow.id,

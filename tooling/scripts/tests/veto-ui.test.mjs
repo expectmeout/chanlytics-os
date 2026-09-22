@@ -27,11 +27,22 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").jo
 
 const NOW = new Date("2026-08-29T12:00:00.000Z");
 const msg = (over = {}) => ({
-  id: "m1", direction: "outbound", sender: "ai", type: "text", body: "Hi! We open at 9.",
-  media: null, meta: null, status: "sent", created_at: "2026-08-29T11:59:30.000Z", ...over,
+  id: "m1",
+  direction: "outbound",
+  sender: "ai",
+  type: "text",
+  body: "Hi! We open at 9.",
+  media: null,
+  meta: null,
+  status: "sent",
+  created_at: "2026-08-29T11:59:30.000Z",
+  ...over,
 });
 const conv = (messages) => ({
-  id: "c1", state: "open", paused_until: null, last_message_at: null,
+  id: "c1",
+  state: "open",
+  paused_until: null,
+  last_message_at: null,
   contact: { id: "k1", display_name: "Ana", wa_profile_name: null, phone_e164: "+13475550101" },
   messages,
 });
@@ -63,7 +74,9 @@ test("a draft with no recorded delay is due immediately, never never", () => {
 test("a held draft surfaces in the mockup's own veto shape", () => {
   const vm = toInboxThreadVM(
     conv([msg({ id: "m9", status: "queued", meta: { delay_ms: 30_000 }, body: "We open at 9." })]),
-    null, ZONE, NOW,
+    null,
+    ZONE,
+    NOW,
   );
   assert.ok(vm.veto, "the VetoBar and Composer both key on thread.veto");
   assert.equal(vm.veto.draft, "We open at 9.");
@@ -81,11 +94,10 @@ test("no held draft means no veto controls at all", () => {
 test("the newest draft is the one offered", () => {
   // If two ever coexist, the newer is what the customer would receive.
   const vm = toInboxThreadVM(
-    conv([
-      msg({ id: "old", status: "queued", body: "first" }),
-      msg({ id: "new", status: "queued", body: "second" }),
-    ]),
-    null, ZONE, NOW,
+    conv([msg({ id: "old", status: "queued", body: "first" }), msg({ id: "new", status: "queued", body: "second" })]),
+    null,
+    ZONE,
+    NOW,
   );
   assert.equal(vm.heldDraft.messageId, "new");
 });
@@ -142,7 +154,10 @@ test("REGRESSION: the composer fills when a draft ARRIVES, not only on mount", (
   // receptionist writes while the operator is already looking at the
   // conversation, so the draft always arrives AFTER mount and the composer
   // stayed empty: "Edit" focused a blank box.
-  assert.match(thread, /React\.useEffect\(\(\) => \{[\s\S]{0,200}?setText\(\(cur\) => \(cur && cur\.trim\(\) \? cur : reply\)\);/);
+  assert.match(
+    thread,
+    /React\.useEffect\(\(\) => \{[\s\S]{0,200}?setText\(\(cur\) => \(cur && cur\.trim\(\) \? cur : reply\)\);/,
+  );
 });
 
 test("an arriving draft never overwrites what the operator is typing", () => {

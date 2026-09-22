@@ -16,7 +16,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voiceLlmCreateBody, voiceAgentCreateBody, VOICE_AGENT_DEFAULTS, greetingFor, GREETING_DEFAULT } from "@chanlytics/channels";
+import {
+  voiceLlmCreateBody,
+  voiceAgentCreateBody,
+  VOICE_AGENT_DEFAULTS,
+  greetingFor,
+  GREETING_DEFAULT,
+} from "@chanlytics/channels";
 import { readRaw } from "./_source.mjs";
 
 const module_ = readRaw("packages/channels/src/voice-provision.ts");
@@ -38,13 +44,20 @@ test("the provisioned prompt is a shell over the live variables", () => {
     assert.ok(llm.general_prompt.includes(v), `the prompt must read ${v}`);
   }
   assert.equal(llm.begin_message, "{{greeting}}", "even the opening line is composed");
-  assert.equal(llm.general_tools.find((t) => t.name === "transfer_to_staff").transfer_destination.number, "{{handoff_number}}", "the transfer dials the per-call variable, never a typed number");
+  assert.equal(
+    llm.general_tools.find((t) => t.name === "transfer_to_staff").transfer_destination.number,
+    "{{handoff_number}}",
+    "the transfer dials the per-call variable, never a typed number",
+  );
 });
 
 test("what remains is the SHAPE of a call, not its content", () => {
   // Tools, silence timeout, the voice — none of which the business profile
   // can express and none of which goes stale when a business moves.
-  assert.deepEqual(llm.general_tools.map((t) => t.name), ["end_call", "transfer_to_staff", "send_booking_link", "check_availability"]);
+  assert.deepEqual(
+    llm.general_tools.map((t) => t.name),
+    ["end_call", "transfer_to_staff", "send_booking_link", "check_availability"],
+  );
   const agent = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
   assert.equal(agent.end_call_after_silence_ms, VOICE_AGENT_DEFAULTS.end_call_after_silence_ms);
   assert.equal(agent.voice_id, VOICE_AGENT_DEFAULTS.voice_id);
@@ -70,7 +83,11 @@ test("the greeting is a whole sentence, not a name to interpolate", () => {
   // Retell leaves a variable it cannot fill in the prompt VERBATIM. "Thank you
   // for calling {{business_name}}" read down a phone line is worse than any
   // wording, so the webhook composes the entire line.
-  assert.equal(GREETING_DEFAULT, greetingFor(null), "the shell's default is the sentence the webhook composes, with no name in it");
+  assert.equal(
+    GREETING_DEFAULT,
+    greetingFor(null),
+    "the shell's default is the sentence the webhook composes, with no name in it",
+  );
   assert.ok(!JSON.stringify(llm).includes("{{business_name}}"), "the name alone is never a variable");
 });
 

@@ -29,7 +29,13 @@ import {
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
 
-interface Call { callId: string; who: string; missed: boolean; live: boolean; startedAtMs: number | null }
+interface Call {
+  callId: string;
+  who: string;
+  missed: boolean;
+  live: boolean;
+  startedAtMs: number | null;
+}
 
 export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
@@ -46,14 +52,22 @@ const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
 
 export function surfaceFor(page: string): AskSurface {
   switch (page) {
-    case "today": return "today";
-    case "inbox": return "inbox";
-    case "clients": return "people";
-    case "conversations": return "conversations";
-    case "live": return "live";
-    case "reports": return "reports";
-    case "admin": return "settings";
-    default: return "other";
+    case "today":
+      return "today";
+    case "inbox":
+      return "inbox";
+    case "clients":
+      return "people";
+    case "conversations":
+      return "conversations";
+    case "live":
+      return "live";
+    case "reports":
+      return "reports";
+    case "admin":
+      return "settings";
+    default:
+      return "other";
   }
 }
 
@@ -62,11 +76,21 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
   const out: JumpEntry[] = [...ASK_PAGES];
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
-    out.push({ label: `${t.who} — thread`, to: `inbox/${t.id}`, kind: "thread", sub: t.needsYou ? "needs you" : undefined });
+    out.push({
+      label: `${t.who} — thread`,
+      to: `inbox/${t.id}`,
+      kind: "thread",
+      sub: t.needsYou ? "needs you" : undefined,
+    });
   }
   for (const p of w.__PEOPLE?.rows ?? []) out.push({ label: p.name, to: `clients/${p.id}`, kind: "person" });
   for (const c of [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])]) {
-    out.push({ label: `${c.who} — call`, to: `conversations/cv-${c.callId}`, kind: "call", sub: c.live ? "live" : c.missed ? "missed" : undefined });
+    out.push({
+      label: `${c.who} — call`,
+      to: `conversations/cv-${c.callId}`,
+      kind: "call",
+      sub: c.live ? "live" : c.missed ? "missed" : undefined,
+    });
   }
   return out;
 }
@@ -85,7 +109,11 @@ export function askPalette(win: Window, storage: Storage | null) {
   const w = win as unknown as PaletteGlobals;
   const rememberLanguage = (l: AskLanguage) => {
     if (l === "other") return;
-    try { storage?.setItem(LAST_LANGUAGE_KEY, l); } catch { /* fine */ }
+    try {
+      storage?.setItem(LAST_LANGUAGE_KEY, l);
+    } catch {
+      /* fine */
+    }
   };
   const lastLanguage = (): AskLanguage => {
     try {
@@ -119,14 +147,23 @@ export function askPalette(win: Window, storage: Storage | null) {
         language: lang ?? lastLanguage(),
         needsYou: feed.filter((i) => i.kind === "needs_you").length,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
-        missedToday: tz ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length : 0,
+        missedToday: tz
+          ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
+          : 0,
         liveNow: calls().filter((c) => c.live).length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
         canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
       });
     },
-    fast: (question: string): FastPath => fastPath(question, { feed: rightNow(), calls: calls(), now: Date.now(), language: language(question), timezone: activeWorkspace()?.timezone ?? null }),
+    fast: (question: string): FastPath =>
+      fastPath(question, {
+        feed: rightNow(),
+        calls: calls(),
+        now: Date.now(),
+        language: language(question),
+        timezone: activeWorkspace()?.timezone ?? null,
+      }),
     scopeFor: (page: string, param: string | null, label?: string | null) => scopeFromRoute(page, param, label),
     surfaceFor,
     language,

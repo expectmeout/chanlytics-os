@@ -40,7 +40,15 @@ export async function POST(request: Request): Promise<Response> {
     for (const t of tenants ?? []) zones.set(t.id, t.timezone || "America/New_York");
   };
 
-  const out = { listings_due: 0, listings_read: 0, profiles_due: 0, profiles_synced: 0, fresh: 0, counted: 0, failed: 0 };
+  const out = {
+    listings_due: 0,
+    listings_read: 0,
+    profiles_due: 0,
+    profiles_synced: 0,
+    fresh: 0,
+    counted: 0,
+    failed: 0,
+  };
   if (places) {
     let due;
     try {
@@ -54,8 +62,11 @@ export async function POST(request: Request): Promise<Response> {
     for (const row of due) {
       try {
         const r = await checkListing(db, row, zones.get(row.tenant_id) ?? "America/New_York", now);
-        if (r.ok) { out.listings_read += 1; out.fresh += r.fresh; out.counted += r.counted; }
-        else out.failed += 1;
+        if (r.ok) {
+          out.listings_read += 1;
+          out.fresh += r.fresh;
+          out.counted += r.counted;
+        } else out.failed += 1;
       } catch (e) {
         out.failed += 1;
         L.error("google_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });
@@ -75,11 +86,16 @@ export async function POST(request: Request): Promise<Response> {
     for (const conn of due) {
       try {
         const r = await syncProfile(db, conn, zones.get(conn.tenant_id) ?? "America/New_York", now);
-        if (r.ok) { out.profiles_synced += 1; out.fresh += r.fresh; }
-        else out.failed += 1;
+        if (r.ok) {
+          out.profiles_synced += 1;
+          out.fresh += r.fresh;
+        } else out.failed += 1;
       } catch (e) {
         out.failed += 1;
-        L.error("google_profile_sweep_failed", { tenant_id: conn.tenant_id, error: e instanceof Error ? e.message : String(e) });
+        L.error("google_profile_sweep_failed", {
+          tenant_id: conn.tenant_id,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
   }

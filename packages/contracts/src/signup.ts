@@ -12,7 +12,11 @@ export const SIGNUP_NAME_MAX = 120;
 
 export const SignupSchema = z
   .object({
-    name: z.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
+    name: z
+      .string()
+      .trim()
+      .min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.")
+      .max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
     email: z.string().trim().toLowerCase().email("Enter a work email address.").max(254),
     /**
      * The credential, and the reason it is OPTIONAL here rather than required.
@@ -81,7 +85,13 @@ export const PendingWorkspaceSchema = z.object({
   name: z.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z.string().trim().min(1).max(64).nullish().transform((v) => (v && isTimezone(v) ? v : null)),
+  timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .nullish()
+    .transform((v) => (v && isTimezone(v) ? v : null)),
 });
 export type PendingWorkspace = z.infer<typeof PendingWorkspaceSchema>;
 
@@ -117,7 +127,8 @@ export const SIGNUP_WORDS = {
    * typed waits on their account for the sign-in that makes the workspace.
    */
   notSentTitle: "We could not send your code",
-  notSent: "We could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
+  notSent:
+    "We could not send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page — nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -125,8 +136,10 @@ export const SIGNUP_WORDS = {
    * registrations per customer, and doing that badly at volume is worse for
    * the people already inside than making the next ones wait. */
   waitlistTitle: "Join the list",
-  waitlistLead: "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
-  waitlistSent: (email: string) => `You are on the list. We will write to ${email} when there is room — usually within a week.`,
+  waitlistLead:
+    "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
+  waitlistSent: (email: string) =>
+    `You are on the list. We will write to ${email} when there is room — usually within a week.`,
   waitlistCta: "Join the list",
   /** Under the business's name on the first-workspace screen: the list writes to the address the person signed in with. */
   waitlistWriteTo: (email: string) => `We will write to ${email} when there is room.`,
@@ -145,7 +158,8 @@ export const SIGNUP_WORDS = {
   or: "or, with your work email",
   googleNext: "You'll name your workspace on the next screen.",
   googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
-  firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace.",
+  firstWorkspaceCode:
+    "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace.",
   /* ------------------------------------------------------- confirming the address
    * The code step now lives ON the sign-up page rather than on sign-in.
    * Somebody who has just chosen a password and is then sent to a screen
@@ -244,7 +258,9 @@ export function emailNotConfirmed(e: { code?: string; message?: string } | null 
  * quietly resurrects the wrong screen. */
 
 /** The device's zone when the runtime knows one; otherwise nothing, and the database defaults it. */
-export function deviceTimezone(resolve: () => string | undefined = () => Intl.DateTimeFormat().resolvedOptions().timeZone): string | undefined {
+export function deviceTimezone(
+  resolve: () => string | undefined = () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+): string | undefined {
   try {
     const tz = resolve();
     return tz && tz.length <= 64 ? tz : undefined;
@@ -266,10 +282,15 @@ export function deviceTimezone(resolve: () => string | undefined = () => Intl.Da
  */
 export type FirstWorkspaceDoor = { open: true } | { open: false; code: "forbidden"; message: string };
 
-export function firstWorkspaceDoor(o: { posture: SignupPosture; memberships: number; codeMatches: boolean }): FirstWorkspaceDoor {
+export function firstWorkspaceDoor(o: {
+  posture: SignupPosture;
+  memberships: number;
+  codeMatches: boolean;
+}): FirstWorkspaceDoor {
   if (o.memberships > 0) return { open: true };
   if (o.posture === "waitlist") return { open: false, code: "forbidden", message: SIGNUP_WORDS.waitlistLead };
-  if (o.posture === "invite" && !o.codeMatches) return { open: false, code: "forbidden", message: SIGNUP_WORDS.codeWrong };
+  if (o.posture === "invite" && !o.codeMatches)
+    return { open: false, code: "forbidden", message: SIGNUP_WORDS.codeWrong };
   return { open: true };
 }
 
@@ -288,7 +309,11 @@ export function googleCallbackUrl(origin: string, next: string): string {
 export const SIGNIN_RESEND_COOLDOWN_S = 60;
 
 /** Seconds until "Resend code" may be pressed again; 0 when it may, or when no code was sent. */
-export function resendLeft(sentAtMs: number | null | undefined, nowMs: number, seconds = SIGNIN_RESEND_COOLDOWN_S): number {
+export function resendLeft(
+  sentAtMs: number | null | undefined,
+  nowMs: number,
+  seconds = SIGNIN_RESEND_COOLDOWN_S,
+): number {
   if (sentAtMs == null) return 0;
   return Math.max(0, Math.ceil((sentAtMs + seconds * 1000 - nowMs) / 1000));
 }
@@ -315,12 +340,15 @@ export function resendLeft(sentAtMs: number | null | undefined, nowMs: number, s
  * complete fix is a CAPTCHA on the auth endpoints, which needs a provider
  * account and is flagged rather than silently half-done.
  */
-export function requestCodeWords(e: { code?: string; status?: number; message?: string } | null | undefined): string | null {
+export function requestCodeWords(
+  e: { code?: string; status?: number; message?: string } | null | undefined,
+): string | null {
   const message = e?.message ?? "";
   const wait = /after (\d+) seconds/.exec(message);
   if (wait) return `Please wait ${wait[1]}s before requesting another code.`;
   if (sendFailureIsOurs(e)) return SIGNUP_WORDS.notSent;
-  if (/security purposes|rate limit|too many/i.test(message)) return "Too many requests just now — wait a minute and try again.";
+  if (/security purposes|rate limit|too many/i.test(message))
+    return "Too many requests just now — wait a minute and try again.";
   // Anything that distinguishes "no such account" from "code sent" is
   // deliberately swallowed. A genuine outage still surfaces below.
   if (/signup|otp_disabled|not allowed|not found|invalid/i.test(message)) return null;

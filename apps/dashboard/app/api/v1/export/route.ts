@@ -22,7 +22,7 @@ export const GET = read({
   handle: async ({ ctx, member }) => {
     const { supabase, userId } = ctx;
     const tenantId = member.tenantId;
-    const rows = async <T,>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> => {
+    const rows = async <T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> => {
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       return data ?? [];
@@ -98,7 +98,13 @@ export const GET = read({
     await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "workspace" });
     return attachmentStream(
       `workspace-${safeName(name)}-${dateTag(now, timezone)}.json`,
-      workspaceBundle(readers, { workspaceId: tenantId, business: name, tz: timezone, exportedAt: now, page: BUNDLE_PAGE }),
+      workspaceBundle(readers, {
+        workspaceId: tenantId,
+        business: name,
+        tz: timezone,
+        exportedAt: now,
+        page: BUNDLE_PAGE,
+      }),
       "application/json",
     );
   },

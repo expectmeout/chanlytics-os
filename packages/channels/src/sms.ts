@@ -67,7 +67,14 @@ export function smsAsWaMessage(s: SmsInbound, nowMs = Date.now()): WaRawMessage 
   const digits = s.from.replace(/[^\d]/g, "");
   const words = s.body.trim();
   const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1000)) };
-  if (words) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words } };
+  if (words)
+    return {
+      ...base,
+      type: "text",
+      text: {
+        body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words,
+      },
+    };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
 }
 
@@ -129,7 +136,8 @@ export function smsBody(reply: string, isFirstReply: boolean): string {
 
 /** The hold while the carriers have not approved the line: the Inbox's reason and its words. */
 export const SMS_HELD_REASON = "carriers";
-export const SMS_HELD_DETAILS = "This text arrived on your line before the carriers approved it for texting, so the receptionist did not answer. It is kept here; answer it yourself, or wait for the approval on Setup.";
+export const SMS_HELD_DETAILS =
+  "This text arrived on your line before the carriers approved it for texting, so the receptionist did not answer. It is kept here; answer it yourself, or wait for the approval on Setup.";
 
 /** Where a line's texts arrive: beside the voice webhooks, on the same edge. */
 export function smsInboundUrl(fnUrl: string): string {
@@ -181,26 +189,39 @@ export function smsStatusFrom(form: Record<string, string>): SmsStatus | null {
  */
 export function smsStatusToRow(status: string): "sent" | "delivered" | "read" | "failed" | null {
   switch (status) {
-    case "sent": return "sent";
-    case "delivered": return "delivered";
-    case "read": return "read";
+    case "sent":
+      return "sent";
+    case "delivered":
+      return "delivered";
+    case "read":
+      return "read";
     case "undelivered":
     case "failed":
-    case "canceled": return "failed";
-    default: return null;
+    case "canceled":
+      return "failed";
+    default:
+      return null;
   }
 }
 
 /** The exact string Twilio signs: the URL as requested, then each POST field sorted by name with its value appended. */
 export function twilioSignedString(url: string, form: Record<string, string>): string {
-  return url + Object.keys(form).sort().map((k) => `${k}${form[k]}`).join("");
+  return (
+    url +
+    Object.keys(form)
+      .sort()
+      .map((k) => `${k}${form[k]}`)
+      .join("")
+  );
 }
 
 const enc = new TextEncoder();
 
 /** HMAC-SHA1 of the signed string with the auth token, base64 — the value of X-Twilio-Signature. */
 export async function twilioSignature(authToken: string, url: string, form: Record<string, string>): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
+    "sign",
+  ]);
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(twilioSignedString(url, form)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
@@ -213,7 +234,12 @@ export function sameSignature(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function verifyTwilioSignature(authToken: string, url: string, form: Record<string, string>, header: string | null): Promise<boolean> {
+export async function verifyTwilioSignature(
+  authToken: string,
+  url: string,
+  form: Record<string, string>,
+  header: string | null,
+): Promise<boolean> {
   if (!header) return false;
   return sameSignature(await twilioSignature(authToken, url, form), header);
 }

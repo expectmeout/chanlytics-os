@@ -31,14 +31,16 @@ export function centroidsOf(text) {
   const geoid = header.indexOf("GEOID");
   const lat = header.indexOf("INTPTLAT");
   const lng = header.indexOf("INTPTLONG");
-  if (geoid < 0 || lat < 0 || lng < 0) throw new Error("not the ZCTA gazetteer: GEOID, INTPTLAT and INTPTLONG are the columns it must have");
+  if (geoid < 0 || lat < 0 || lng < 0)
+    throw new Error("not the ZCTA gazetteer: GEOID, INTPTLAT and INTPTLONG are the columns it must have");
   const rows = [];
   for (const line of lines.slice(1)) {
     const cells = line.split("\t");
     const zip = (cells[geoid] ?? "").trim();
     const la = Number(cells[lat]);
     const lo = Number(cells[lng]);
-    if (!/^\d{5}$/.test(zip) || !Number.isFinite(la) || !Number.isFinite(lo)) throw new Error(`a row that is not a ZCTA: ${line.slice(0, 40)}`);
+    if (!/^\d{5}$/.test(zip) || !Number.isFinite(la) || !Number.isFinite(lo))
+      throw new Error(`a row that is not a ZCTA: ${line.slice(0, 40)}`);
     rows.push([zip, Math.round(la * 10_000) / 10_000, Math.round(lo * 10_000) / 10_000]);
   }
   rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));

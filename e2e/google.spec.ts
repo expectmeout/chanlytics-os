@@ -41,7 +41,9 @@ test.describe("Google on a real workspace", () => {
     } else {
       await expect(row).toBeVisible();
       await expect(row).toContainText("Your Google listing");
-      await expect(row.locator(".cl-attn-status .lead")).toHaveText(linked ? /^(Ready|Waiting on Google)$/ : "Not started");
+      await expect(row.locator(".cl-attn-status .lead")).toHaveText(
+        linked ? /^(Ready|Waiting on Google)$/ : "Not started",
+      );
       if (!linked) await expect(row.getByTestId("setup-verb")).toHaveText(ready ? "Find it" : "Connect");
     }
 
@@ -56,7 +58,8 @@ test.describe("Google on a real workspace", () => {
     } else {
       const tiles = page.getByTestId("google-tiles").locator(".rp2-tile");
       await expect(tiles).toHaveCount(4);
-      for (const v of await tiles.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+(\.\d)?|—|just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2})$/);
+      for (const v of await tiles.locator(".rp2-tile-value").allInnerTexts())
+        expect(v.trim()).toMatch(/^(\d+(\.\d)?|—|just now|\d+[smhd] ago|[A-Z][a-z]{2} \d{1,2})$/);
     }
 
     await page.goto("/#/admin/integrations");
@@ -69,10 +72,14 @@ test.describe("Google on a real workspace", () => {
     if (!profile) await expect(profileRow).toContainText("Later");
     if (!ready) await expect(listingRow).toContainText("Later");
     if (ready) await expect(listingRow).toContainText(linked ? /Watched|Could not be read/ : "Your listing on Google");
-    await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(/refresh_token|access_token|credentials_ref/);
+    await expect(JSON.stringify(await (await apiGet(page, "/api/v1/google")).json())).not.toMatch(
+      /refresh_token|access_token|credentials_ref/,
+    );
   });
 
-  test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({ page }) => {
+  test("the way to Google refuses politely where the door is closed, and never leaks the state key", async ({
+    page,
+  }) => {
     // An account with more than one workspace must say which; the app's own calls always do.
     const ws = await (await page.request.get("/api/v1/workspaces")).json();
     const id = ws.data.activeWorkspaceId ?? ws.data.workspaces[0]?.id;
@@ -89,7 +96,9 @@ test.describe("Google on a real workspace", () => {
       expect(to).not.toMatch(/client_secret/);
     }
     // A forged state is refused before anything is trusted.
-    const back = await page.request.get(`/api/v1/google/callback?code=x&state=forged.forged&workspace=${id}`, { maxRedirects: 0 });
+    const back = await page.request.get(`/api/v1/google/callback?code=x&state=forged.forged&workspace=${id}`, {
+      maxRedirects: 0,
+    });
     expect(back.status()).toBe(302);
     expect(back.headers()["location"] ?? "").toMatch(/google=error&why=(state_signature|not_available)/);
   });

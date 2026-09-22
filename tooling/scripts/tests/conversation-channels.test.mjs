@@ -32,10 +32,14 @@ test("a tab per wire this workspace has threads on, and none for a wire it does 
   // The day texting is switched on, and the day email is.
   assert.deepEqual(ids(true, ["whatsapp", "sms"]), ["all", "phone", "whatsapp", "sms"]);
   assert.deepEqual(ids(true, ["whatsapp", "sms", "email"]), ["all", "phone", "whatsapp", "sms", "email"]);
-  assert.deepEqual(conversationTabs(false, ["email"]), [
-    { id: "all", label: "All" },
-    { id: "email", label: "Email" },
-  ], "a workspace reached only by email gets the Email tab and no Calls tab");
+  assert.deepEqual(
+    conversationTabs(false, ["email"]),
+    [
+      { id: "all", label: "All" },
+      { id: "email", label: "Email" },
+    ],
+    "a workspace reached only by email gets the Email tab and no Calls tab",
+  );
   // Nothing at all is still a strip: All, and whatever calls there are.
   assert.deepEqual(ids(false, []), ["all"]);
   assert.deepEqual(ids(true, []), ["all", "phone"]);
@@ -61,8 +65,11 @@ test("the words are the ones the rest of the product uses for those wires", () =
 
 globalThis.window ??= {};
 globalThis.React = {
-  useState: () => [null, () => {}], useMemo: (f) => f(), useEffect: () => {},
-  createElement: () => null, Fragment: "Fragment",
+  useState: () => [null, () => {}],
+  useMemo: (f) => f(),
+  useEffect: () => {},
+  createElement: () => null,
+  Fragment: "Fragment",
 };
 globalThis.Icon = () => null;
 globalThis.StatStrip = () => null;
@@ -114,10 +121,14 @@ test("REGRESSION: every tab a workspace is given is a filter in the address, nev
   for (const { id } of conversationTabs(true, ["whatsapp", "sms", "email"])) {
     assert.deepEqual(route(id), { channel: id, id: null }, `"${id}" is a tab`);
   }
-  for (const id of ["phone", "chats", "mail"]) assert.deepEqual(route(id), { channel: id, id: null }, `the mockup's "${id}"`);
+  for (const id of ["phone", "chats", "mail"])
+    assert.deepEqual(route(id), { channel: id, id: null }, `the mockup's "${id}"`);
   assert.deepEqual(route(undefined), { channel: "all", id: null }, "the bare address is everything");
   // A row's id stays an id: a conversation's, a call's, and a word only an object inherits.
-  assert.deepEqual(route("5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10"), { channel: "all", id: "5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10" });
+  assert.deepEqual(route("5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10"), {
+    channel: "all",
+    id: "5b0c6a52-8f1e-4d7a-9c1b-2e7f3a9d4c10",
+  });
   assert.deepEqual(route("cv-4"), { channel: "all", id: "cv-4" });
   assert.deepEqual(route("constructor"), { channel: "all", id: "constructor" });
 });

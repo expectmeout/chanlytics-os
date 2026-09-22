@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { AppError, SPEND_NUMBER, err, ok, whyCannotSpend, type BillingMode, type BillingStatus, type SpendWords } from "@chanlytics/contracts";
+import {
+  AppError,
+  SPEND_NUMBER,
+  err,
+  ok,
+  whyCannotSpend,
+  type BillingMode,
+  type BillingStatus,
+  type SpendWords,
+} from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -75,14 +84,17 @@ export function withRoute<T>(
       // where a link preview or a prefetch legitimately arrives cross-site.
       if (req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
         console.log(JSON.stringify({ level: "warn", route, event: "cross_site_write_refused" }));
-        return NextResponse.json(
-          err("forbidden", "This request did not come from the app."),
-          { status: 403, headers: PRIVATE },
-        );
+        return NextResponse.json(err("forbidden", "This request did not come from the app."), {
+          status: 403,
+          headers: PRIVATE,
+        });
       }
       const params = routeCtx?.params ? await routeCtx.params : {};
       const supabase = await createClient();
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authErr,
+      } = await supabase.auth.getUser();
       if (!user) {
         // "We could not ask" is not "you are not signed in".
         //
@@ -95,18 +107,29 @@ export function withRoute<T>(
         // session alone.
         if (isRetryableAuthError(authErr)) {
           console.error(JSON.stringify({ level: "error", route, event: "auth_unavailable", error: authErr?.message }));
-          return NextResponse.json(
-            err("upstream_auth", "Could not verify your session just now — try again."),
-            { status: 503, headers: PRIVATE },
-          );
+          return NextResponse.json(err("upstream_auth", "Could not verify your session just now — try again."), {
+            status: 503,
+            headers: PRIVATE,
+          });
         }
         return NextResponse.json(err("unauthorized", "Sign in required."), { status: 401, headers: PRIVATE });
       }
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
-      const undoOf = undoOfHeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(undoOfHeader) ? undoOfHeader : undefined;
+      const undoOf =
+        undoOfHeader && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(undoOfHeader)
+          ? undoOfHeader
+          : undefined;
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-      const data = await handler(req, { supabase, userId: user.id, email: user.email, metadata, params, ...(via ? { via } : {}), ...(undoOf ? { undoOf } : {}) });
+      const data = await handler(req, {
+        supabase,
+        userId: user.id,
+        email: user.email,
+        metadata,
+        params,
+        ...(via ? { via } : {}),
+        ...(undoOf ? { undoOf } : {}),
+      });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
       // through as it is. Its cache-control is overwritten with the no-store
@@ -124,7 +147,10 @@ export function withRoute<T>(
     } catch (e) {
       if (e instanceof AppError) {
         console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
-        return NextResponse.json(err(e.code, e.message, e.details), { status: e.status, headers: { ...PRIVATE, ...refusalHeaders(e) } });
+        return NextResponse.json(err(e.code, e.message, e.details), {
+          status: e.status,
+          headers: { ...PRIVATE, ...refusalHeaders(e) },
+        });
       }
       console.error(JSON.stringify({ level: "error", route, error: e instanceof Error ? e.message : String(e) }));
       return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
@@ -175,9 +201,7 @@ export async function memberContext(
   // person's home workspace does not move because a tenant was renamed, which
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
-  const m = wanted
-    ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted)
-    : rows[0];
+  const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
 
   return {
@@ -198,9 +222,7 @@ export function requireRole(member: MemberContext, atLeast: MemberContext["role"
   if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
     throw new AppError(
       "forbidden",
-      atLeast === "owner"
-        ? "Only an owner can do this."
-        : "Viewers can see everything and change nothing.",
+      atLeast === "owner" ? "Only an owner can do this." : "Viewers can see everything and change nothing.",
       403,
       // The role the door wanted, so a page can title the refusal "Owner only"
       // rather than guess it from the sentence.
@@ -216,8 +238,11 @@ export function requireRole(member: MemberContext, atLeast: MemberContext["role"
  */
 export function refusalHeaders(e: AppError): Record<string, string> {
   if (e.code !== "rate_limited") return {};
-  const s = e.details && typeof e.details === "object" ? (e.details as { retry_after_s?: unknown }).retry_after_s : undefined;
-  return typeof s === "number" && Number.isFinite(s) && s >= 0 ? { "retry-after": String(Math.max(1, Math.ceil(s))) } : {};
+  const s =
+    e.details && typeof e.details === "object" ? (e.details as { retry_after_s?: unknown }).retry_after_s : undefined;
+  return typeof s === "number" && Number.isFinite(s) && s >= 0
+    ? { "retry-after": String(Math.max(1, Math.ceil(s))) }
+    : {};
 }
 
 /**
@@ -239,7 +264,11 @@ export function refusalHeaders(e: AppError): Record<string, string> {
  * fix, because a refusal at the moment somebody is trying to give you money has
  * to say what to do about it.
  */
-export async function requireSpend(ctx: RouteContext, member: MemberContext, doing: SpendWords = SPEND_NUMBER): Promise<void> {
+export async function requireSpend(
+  ctx: RouteContext,
+  member: MemberContext,
+  doing: SpendWords = SPEND_NUMBER,
+): Promise<void> {
   const { data, error } = await ctx.supabase
     .from("billing_accounts")
     .select("mode, status")
@@ -249,7 +278,8 @@ export async function requireSpend(ctx: RouteContext, member: MemberContext, doi
   // (create_workspace_for), so its absence means something is wrong with this
   // workspace, not that it may spend freely.
   if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
-  if (!data) throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
+  if (!data)
+    throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
   const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
   if (why) throw new AppError("payment_required", why, 402);
 }

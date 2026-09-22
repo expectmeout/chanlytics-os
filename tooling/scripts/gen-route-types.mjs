@@ -30,7 +30,10 @@ export function generate(root) {
   })(path.join(root, API));
   const entries = [];
   for (const f of files.sort()) {
-    const rel = path.relative(path.join(root, API), f).replace(/\\/g, "/").replace(/\/route\.ts$/, "");
+    const rel = path
+      .relative(path.join(root, API), f)
+      .replace(/\\/g, "/")
+      .replace(/\/route\.ts$/, "");
     const src = fs.readFileSync(f, "utf8");
     for (const m of METHODS) {
       if (!new RegExp(`^export const ${m} = `, "m").test(src)) continue;
@@ -43,7 +46,9 @@ export function generate(root) {
     "",
     "/** Every handler under /api/v1, keyed the way route-policy.json keys it. */",
     "export const ROUTES = {",
-    ...entries.map((e) => `  ${JSON.stringify(e.key)}: { method: ${JSON.stringify(e.method)}, path: ${JSON.stringify(e.path)} },`),
+    ...entries.map(
+      (e) => `  ${JSON.stringify(e.key)}: { method: ${JSON.stringify(e.method)}, path: ${JSON.stringify(e.path)} },`,
+    ),
     "} as const;",
     "",
     "/** The handler each key names, as a type: what it takes and answers rides on it (route.ts, Shape). */",

@@ -38,7 +38,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
-const { calendarWeek, previewFeed, itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/server/calendar.ts"));
+const { calendarWeek, previewFeed, itemsToDays, MAX_ITEMS_PER_DAY } = await import(
+  at("apps/dashboard/src/server/calendar.ts")
+);
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 
 const TZ = "America/New_York";
@@ -47,7 +49,15 @@ const NOW = new Date("2026-09-08T16:00:00.000Z"); // Tuesday noon in New York
 const ny = (y, m, d, hh, mm = 0) => localToUtcMs(TZ, y, m, d, hh, mm);
 const vevent = (lines) => ["BEGIN:VEVENT", ...lines, "END:VEVENT"];
 const ics = (...events) => ["BEGIN:VCALENDAR", ...events.flat(), "END:VCALENDAR"].join("\r\n");
-const ONE = ics(vevent(["UID:a1", "SUMMARY:Ana Ruiz · Balayage", "DESCRIPTION:Ana Ruiz +1 (917) 555-0100", "DTSTART;TZID=America/New_York:20260908T140000", "DTEND;TZID=America/New_York:20260908T153000"]));
+const ONE = ics(
+  vevent([
+    "UID:a1",
+    "SUMMARY:Ana Ruiz · Balayage",
+    "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+    "DTSTART;TZID=America/New_York:20260908T140000",
+    "DTEND;TZID=America/New_York:20260908T153000",
+  ]),
+);
 
 const DAY = 86_400_000;
 
@@ -95,8 +105,16 @@ test("midnight is one clock, across both daylight-saving edges", () => {
     assert.equal(zoneMidnight(TZ, key), localToUtcMs(TZ, y, m, d, 0, 0), key);
   }
   // And the instants themselves, so the rewrite cannot quietly shift a day.
-  assert.equal(zoneMidnight(TZ, "2026-03-08"), Date.UTC(2026, 2, 8, 5, 0), "the day the clocks go forward still starts at 05:00Z");
-  assert.equal(zoneMidnight(TZ, "2026-11-01"), Date.UTC(2026, 10, 1, 4, 0), "the day they go back still starts at 04:00Z");
+  assert.equal(
+    zoneMidnight(TZ, "2026-03-08"),
+    Date.UTC(2026, 2, 8, 5, 0),
+    "the day the clocks go forward still starts at 05:00Z",
+  );
+  assert.equal(
+    zoneMidnight(TZ, "2026-11-01"),
+    Date.UTC(2026, 10, 1, 4, 0),
+    "the day they go back still starts at 04:00Z",
+  );
 });
 
 /** A scripted network: a URL answers what the test says, and every call is counted. */
@@ -110,43 +128,117 @@ globalThis.fetch = async (url) => {
   if (a instanceof Error) throw a;
   return new Response(a.body, { status: a.status ?? 200, headers: { "content-type": "text/calendar" } });
 };
-after(() => { globalThis.fetch = realFetch; });
-beforeEach(() => { forgetFeeds(); answers = new Map(); fetched = []; setRateStore(memoryStore()); });
+after(() => {
+  globalThis.fetch = realFetch;
+});
+beforeEach(() => {
+  forgetFeeds();
+  answers = new Map();
+  fetched = [];
+  setRateStore(memoryStore());
+});
 
 /** Time, movable: the loader's caches are keyed on Date.now(). */
 async function later(ms, fn) {
   const real = Date.now;
   Date.now = () => real() + ms;
-  try { return await fn(); } finally { Date.now = real; }
+  try {
+    return await fn();
+  } finally {
+    Date.now = real;
+  }
 }
 
-const profile = { hours: { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" }, wed: { open: "09:00", close: "18:00" }, thu: { open: "09:00", close: "18:00" }, fri: { open: "09:00", close: "18:00" }, sat: {}, sun: {} }, closures: [], services: [{ name: "Balayage", duration_min: 90 }], booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 } };
+const profile = {
+  hours: {
+    mon: { open: "09:00", close: "18:00" },
+    tue: { open: "09:00", close: "18:00" },
+    wed: { open: "09:00", close: "18:00" },
+    thu: { open: "09:00", close: "18:00" },
+    fri: { open: "09:00", close: "18:00" },
+    sat: {},
+    sun: {},
+  },
+  closures: [],
+  services: [{ name: "Balayage", duration_min: 90 }],
+  booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+};
 const tables = (url, role = "owner") => ({
   memberships: [{ user_id: "u1", tenant_id: T, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" }],
   tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
-  tenant_config: [{ tenant_id: T, config: { ...(url ? { calendar: { ical_url: url } } : {}), brain: { business_name: "Harbor", booking_link: "https://book.example/harbor", system_prompt: "Answer as the front desk of Harbor: brief, warm, and never a price or a booking.", fallbacks: { greeting: "g", error: "e", non_text: "n" }, profile } } }],
+  tenant_config: [
+    {
+      tenant_id: T,
+      config: {
+        ...(url ? { calendar: { ical_url: url } } : {}),
+        brain: {
+          business_name: "Harbor",
+          booking_link: "https://book.example/harbor",
+          system_prompt: "Answer as the front desk of Harbor: brief, warm, and never a price or a booking.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile,
+        },
+      },
+    },
+  ],
   policies: [],
 });
-const ctxFor = (t, rpcs = {}) => ({ supabase: fakeDb(t, {}, { people_list: () => [], ...rpcs }), userId: "u1", email: "ada@example.com", params: {} });
+const ctxFor = (t, rpcs = {}) => ({
+  supabase: fakeDb(t, {}, { people_list: () => [], ...rpcs }),
+  userId: "u1",
+  email: "ada@example.com",
+  params: {},
+});
 
 test("the address rule: the public internet over https, webcal in a hat, and nothing private, local or of another scheme", () => {
-  assert.equal(feedUrlOk("https://calendar.google.com/calendar/ical/x/private-abc/basic.ics"), "https://calendar.google.com/calendar/ical/x/private-abc/basic.ics");
+  assert.equal(
+    feedUrlOk("https://calendar.google.com/calendar/ical/x/private-abc/basic.ics"),
+    "https://calendar.google.com/calendar/ical/x/private-abc/basic.ics",
+  );
   assert.equal(feedUrlOk("webcal://p1.example.com/cal.ics"), "https://p1.example.com/cal.ics", "webcal is https");
   assert.equal(feedUrlOk("http://plain.example.com/cal.ics"), "http://plain.example.com/cal.ics");
-  for (const bad of ["http://localhost/cal.ics", "https://127.0.0.1/cal.ics", "http://10.0.0.5/x", "http://192.168.1.2/x", "http://172.16.0.9/x", "http://172.31.255.1/x", "http://169.254.169.254/latest/meta-data", "http://[::1]/x", "https://db.internal/x", "https://printer.local/x", "ftp://example.com/cal.ics", "not a url", "", null, undefined]) {
+  for (const bad of [
+    "http://localhost/cal.ics",
+    "https://127.0.0.1/cal.ics",
+    "http://10.0.0.5/x",
+    "http://192.168.1.2/x",
+    "http://172.16.0.9/x",
+    "http://172.31.255.1/x",
+    "http://169.254.169.254/latest/meta-data",
+    "http://[::1]/x",
+    "https://db.internal/x",
+    "https://printer.local/x",
+    "ftp://example.com/cal.ics",
+    "not a url",
+    "",
+    null,
+    undefined,
+  ]) {
     assert.equal(feedUrlOk(bad), null, `${bad} is refused`);
   }
   assert.equal(feedUrlOk("http://172.32.0.1/x"), "http://172.32.0.1/x", "172.32 is not the private range");
 });
 
 test("one sentence per way a feed fails, naming what to do", () => {
-  assert.equal(feedProblemWords("address"), "The calendar feed needs to be a full https:// or webcal:// address on the internet.");
+  assert.equal(
+    feedProblemWords("address"),
+    "The calendar feed needs to be a full https:// or webcal:// address on the internet.",
+  );
   assert.equal(feedProblemWords("unreachable"), "The calendar could not be reached. Check the address and try again.");
-  assert.equal(feedProblemWords("http", 404), "The calendar answered 404. It is usually the private iCal address, not the calendar's web page.");
-  assert.equal(feedProblemWords("http"), "The calendar answered an error. It is usually the private iCal address, not the calendar's web page.");
+  assert.equal(
+    feedProblemWords("http", 404),
+    "The calendar answered 404. It is usually the private iCal address, not the calendar's web page.",
+  );
+  assert.equal(
+    feedProblemWords("http"),
+    "The calendar answered an error. It is usually the private iCal address, not the calendar's web page.",
+  );
   assert.equal(feedProblemWords("too_large"), "That feed is too large to read (over 2 MB).");
   assert.match(feedProblemWords("not_ical"), /^That address is not an iCal feed\. In Google Calendar it is Settings/);
-  assert.equal(feedProblemWords("settings"), "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.");
+  assert.equal(
+    feedProblemWords("settings"),
+    "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.",
+  );
   assert.equal(feedProblemWords(null), null);
   assert.equal(feedProblemWords(undefined), null);
 });
@@ -193,19 +285,37 @@ test("the loader: a good read, a refusal remembered for a minute, the last good 
 });
 
 test("the preview refuses in the same words: an address, an answer, a web page, a weight; and reads what it can", async () => {
-  await assert.rejects(previewFeed("http://10.1.1.1/cal.ics", TZ, NOW), (e) => e.code === "validation" && e.message === feedProblemWords("address"));
+  await assert.rejects(
+    previewFeed("http://10.1.1.1/cal.ics", TZ, NOW),
+    (e) => e.code === "validation" && e.message === feedProblemWords("address"),
+  );
   answers.set("https://cal.example/404.ics", { body: "nope", status: 404 });
-  await assert.rejects(previewFeed("https://cal.example/404.ics", TZ, NOW), (e) => e.code === "upstream_meta" && e.status === 502 && e.message === feedProblemWords("http", 404));
+  await assert.rejects(
+    previewFeed("https://cal.example/404.ics", TZ, NOW),
+    (e) => e.code === "upstream_meta" && e.status === 502 && e.message === feedProblemWords("http", 404),
+  );
   answers.set("https://cal.example/page.ics", { body: "<html>" });
-  await assert.rejects(previewFeed("https://cal.example/page.ics", TZ, NOW), (e) => e.code === "validation" && e.message === feedProblemWords("not_ical"));
+  await assert.rejects(
+    previewFeed("https://cal.example/page.ics", TZ, NOW),
+    (e) => e.code === "validation" && e.message === feedProblemWords("not_ical"),
+  );
   answers.set("https://cal.example/big.ics", { body: "x".repeat(2_000_001) });
-  await assert.rejects(previewFeed("https://cal.example/big.ics", TZ, NOW), (e) => e.code === "validation" && e.message === feedProblemWords("too_large"));
+  await assert.rejects(
+    previewFeed("https://cal.example/big.ics", TZ, NOW),
+    (e) => e.code === "validation" && e.message === feedProblemWords("too_large"),
+  );
   answers.set("https://cal.example/down.ics", new Error("timeout"));
-  await assert.rejects(previewFeed("https://cal.example/down.ics", TZ, NOW), (e) => e.code === "upstream_meta" && e.message === feedProblemWords("unreachable"));
+  await assert.rejects(
+    previewFeed("https://cal.example/down.ics", TZ, NOW),
+    (e) => e.code === "upstream_meta" && e.message === feedProblemWords("unreachable"),
+  );
   answers.set("https://cal.example/ok.ics", { body: ONE });
   const ok = await previewFeed("webcal://cal.example/ok.ics", TZ, NOW);
   assert.equal(ok.events, 1);
-  assert.deepEqual(ok.next.map((n) => n.title), ["Ana Ruiz · Balayage"]);
+  assert.deepEqual(
+    ok.next.map((n) => n.title),
+    ["Ana Ruiz · Balayage"],
+  );
   assert.match(ok.next[0].start, /Tue, Sep 8, 2:00 PM/);
 });
 
@@ -216,8 +326,15 @@ test("settings that will not parse are a calendar that could not be read, never 
   const broken = tables("https://cal.example/ok.ics");
   broken.tenant_config[0].config.calendar.ical_url_before_filler = "https://cal.example/old.ics";
   const lost = await calendarWeek(ctxFor(broken), T, { from: "2026-09-07", days: 7 }, NOW);
-  assert.deepEqual([lost.feed.state, lost.feed.present, lost.feed.reason, lost.feed.problem], ["unavailable", true, "settings", feedProblemWords("settings")]);
-  assert.equal(toCalendarVM(lost, NOW).feed.problem, feedProblemWords("settings"), "and the card has a sentence to show, not an empty space");
+  assert.deepEqual(
+    [lost.feed.state, lost.feed.present, lost.feed.reason, lost.feed.problem],
+    ["unavailable", true, "settings", feedProblemWords("settings")],
+  );
+  assert.equal(
+    toCalendarVM(lost, NOW).feed.problem,
+    feedProblemWords("settings"),
+    "and the card has a sentence to show, not an empty space",
+  );
 
   // Narrower than "the config did not parse", on purpose: a row refused over something that is not the calendar,
   // in a workspace that never connected one, has lost nothing. It stays silent — no calendar is not a fault.
@@ -232,8 +349,16 @@ test("the board's module: no feed says none; a failed feed says why; a good feed
   assert.deepEqual([none.feed.state, none.feed.problem, none.days.length], ["none", null, 7]);
 
   answers.set("https://cal.example/404.ics", { body: "nope", status: 404 });
-  const failed = await calendarWeek(ctxFor(tables("https://cal.example/404.ics")), T, { from: "2026-09-07", days: 7 }, NOW);
-  assert.deepEqual([failed.feed.state, failed.feed.reason, failed.feed.status, failed.feed.problem], ["unavailable", "http", 404, feedProblemWords("http", 404)]);
+  const failed = await calendarWeek(
+    ctxFor(tables("https://cal.example/404.ics")),
+    T,
+    { from: "2026-09-07", days: 7 },
+    NOW,
+  );
+  assert.deepEqual(
+    [failed.feed.state, failed.feed.reason, failed.feed.status, failed.feed.problem],
+    ["unavailable", "http", 404, feedProblemWords("http", 404)],
+  );
   assert.equal(failed.feed.stale, false);
   const vmFailed = toCalendarVM(failed, NOW);
   assert.equal(vmFailed.feed.problem, feedProblemWords("http", 404), "the page's card reads the sentence");
@@ -259,11 +384,17 @@ test("REGRESSION (C1): the board's read carries the receptionist's next open tim
   const url = "https://cal.example/next.ics";
   answers.set(url, { body: ONE });
   const t = tables(url);
-  const first = { start: new Date(ny(2026, 9, 8, 15, 30)).toISOString(), end: new Date(ny(2026, 9, 8, 18)).toISOString() };
+  const first = {
+    start: new Date(ny(2026, 9, 8, 15, 30)).toISOString(),
+    end: new Date(ny(2026, 9, 8, 18)).toISOString(),
+  };
   const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual(week.next_opening, first, "after Ana's appointment, this afternoon");
   const december = await calendarWeek(ctxFor(t), T, { from: "2026-11-30", days: 7 }, NOW);
-  assert.ok(december.days.every((d) => d.windows.length === 0), "December is past what the receptionist offers");
+  assert.ok(
+    december.days.every((d) => d.windows.length === 0),
+    "December is past what the receptionist offers",
+  );
   assert.deepEqual(december.next_opening, first, "REGRESSION: a span with no open times had no next opening");
   assert.equal(toCalendarVM(december, NOW).stats.next, "today 3:30 PM");
   const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
@@ -300,7 +431,12 @@ test("(C2) the board's read and the route can ask for a fresh read, and the answ
   assert.equal(fetched.length, 1, "an ordinary read: the cache");
   await later(20_000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW, { fresh: true }));
   assert.equal(fetched.length, 2, "a fresh one asks the calendar again");
-  await later(40_000, () => route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7&fresh=1`), ctxFor(t)));
+  await later(40_000, () =>
+    route.GET.run(
+      new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7&fresh=1`),
+      ctxFor(t),
+    ),
+  );
   assert.equal(fetched.length, 3, "and so does the route's fresh=1");
   const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.equal(none.feed.checked_at, null, "no calendar: never tried");
@@ -312,7 +448,9 @@ test("the last good read is served when the calendar goes away, and the chip and
   const t = tables(url);
   await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
   answers.set(url, { body: "nope", status: 503 });
-  const stale = await later(6 * 60 * 1000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, new Date(NOW.getTime() + 6 * 60 * 1000)));
+  const stale = await later(6 * 60 * 1000, () =>
+    calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, new Date(NOW.getTime() + 6 * 60 * 1000)),
+  );
   assert.equal(stale.feed.state, "ok", "the last good read, not a blank board");
   assert.deepEqual([stale.feed.stale, stale.feed.reason, stale.feed.status], [true, "http", 503]);
   assert.equal(stale.days.find((d) => d.key === "2026-09-08").items.length, 1);
@@ -324,58 +462,143 @@ test("the last good read is served when the calendar goes away, and the chip and
 
 test("an owner's read puts the people the feed names in People through the door; one refused number costs one person; a viewer's read adds nobody", async () => {
   const url = "https://cal.example/two.ics";
-  answers.set(url, { body: ics(
-    vevent(["UID:b1", "SUMMARY:Ana Ruiz · Balayage", "DESCRIPTION:+1 (917) 555-0100", "DTSTART;TZID=America/New_York:20260908T140000", "DTEND;TZID=America/New_York:20260908T153000"]),
-    vevent(["UID:b2", "SUMMARY:Bo Chen · Cut", "DESCRIPTION:+1 (917) 555-0101", "DTSTART;TZID=America/New_York:20260909T100000", "DTEND;TZID=America/New_York:20260909T110000"]),
-  ) });
+  answers.set(url, {
+    body: ics(
+      vevent([
+        "UID:b1",
+        "SUMMARY:Ana Ruiz · Balayage",
+        "DESCRIPTION:+1 (917) 555-0100",
+        "DTSTART;TZID=America/New_York:20260908T140000",
+        "DTEND;TZID=America/New_York:20260908T153000",
+      ]),
+      vevent([
+        "UID:b2",
+        "SUMMARY:Bo Chen · Cut",
+        "DESCRIPTION:+1 (917) 555-0101",
+        "DTSTART;TZID=America/New_York:20260909T100000",
+        "DTEND;TZID=America/New_York:20260909T110000",
+      ]),
+    ),
+  });
   const made = [];
   const rpcs = {
     people_list: () => [],
     create_person: (args) => {
       made.push(args);
-      if (args.p_phone_e164 === "+19175550101") { const e = new Error("bad number"); e.code = "22023"; throw e; }
+      if (args.p_phone_e164 === "+19175550101") {
+        const e = new Error("bad number");
+        e.code = "22023";
+        throw e;
+      }
       return { contact_id: "p-ana", existed: false };
     },
   };
   const ctx = ctxFor(tables(url), rpcs);
   const dto = await calendarWeek(ctx, T, { from: "2026-09-07", days: 7 }, NOW, { canAct: true });
   assert.equal(made.length, 2, "both numbers offered to the door");
-  assert.deepEqual(made[0], { p_tenant_id: T, p_phone_e164: "+19175550100", p_display_name: "Ana Ruiz", p_source: "calendar", p_title: "Ana Ruiz · Balayage" });
+  assert.deepEqual(made[0], {
+    p_tenant_id: T,
+    p_phone_e164: "+19175550100",
+    p_display_name: "Ana Ruiz",
+    p_source: "calendar",
+    p_title: "Ana Ruiz · Balayage",
+  });
   const ana = dto.days.find((d) => d.key === "2026-09-08").items[0];
-  assert.deepEqual(ana.person, { id: "p-ana", name: "Ana Ruiz", via: "phone" }, "the board links the person it just made");
+  assert.deepEqual(
+    ana.person,
+    { id: "p-ana", name: "Ana Ruiz", via: "phone" },
+    "the board links the person it just made",
+  );
   const bo = dto.days.find((d) => d.key === "2026-09-09").items[0];
   assert.equal(bo.person, null, "the refused number is one person, not the board");
 
   forgetFeeds();
   const quiet = [];
-  const viewer = ctxFor(tables(url, "viewer"), { people_list: () => [], create_person: (a) => { quiet.push(a); return { contact_id: "x", existed: false }; } });
+  const viewer = ctxFor(tables(url, "viewer"), {
+    people_list: () => [],
+    create_person: (a) => {
+      quiet.push(a);
+      return { contact_id: "x", existed: false };
+    },
+  });
   await calendarWeek(viewer, T, { from: "2026-09-07", days: 7 }, NOW, { canAct: false });
   assert.equal(quiet.length, 0, "a viewer's read changes nothing");
 });
 
 test("a day carries at most what the board draws; the rest are counted and said", () => {
   const items = [];
-  for (let n = 0; n < MAX_ITEMS_PER_DAY + 3; n++) items.push({ start: ny(2026, 9, 8, 9) + n * 60_000, end: ny(2026, 9, 8, 9) + n * 60_000 + 30 * 60_000, title: `e${n}`, allDay: false, uid: `u${n}`, description: null, location: null, attendees: [] });
+  for (let n = 0; n < MAX_ITEMS_PER_DAY + 3; n++)
+    items.push({
+      start: ny(2026, 9, 8, 9) + n * 60_000,
+      end: ny(2026, 9, 8, 9) + n * 60_000 + 30 * 60_000,
+      title: `e${n}`,
+      allDay: false,
+      uid: `u${n}`,
+      description: null,
+      location: null,
+      attendees: [],
+    });
   const { days, dropped } = itemsToDays(items, "2026-09-07", 7, TZ, [], new Set(), []);
   assert.equal(days.find((d) => d.key === "2026-09-08").items.length, MAX_ITEMS_PER_DAY);
   assert.equal(dropped, 3);
-  const vm = toCalendarVM({ timezone: TZ, from: "2026-09-07", to: "2026-09-13", feed: { present: true, state: "ok", read_at: NOW.toISOString(), events: 103, recurring_expanded: 0, skipped_recurring: 0, dropped: 3 }, hours: profile.hours, closures: [], rules: null, services: [], booking_link: null, days: days.map((d) => ({ ...d, windows: [] })) }, NOW);
+  const vm = toCalendarVM(
+    {
+      timezone: TZ,
+      from: "2026-09-07",
+      to: "2026-09-13",
+      feed: {
+        present: true,
+        state: "ok",
+        read_at: NOW.toISOString(),
+        events: 103,
+        recurring_expanded: 0,
+        skipped_recurring: 0,
+        dropped: 3,
+      },
+      hours: profile.hours,
+      closures: [],
+      rules: null,
+      services: [],
+      booking_link: null,
+      days: days.map((d) => ({ ...d, windows: [] })),
+    },
+    NOW,
+  );
   assert.ok(vm.feed.line.endsWith("· 103 events"), vm.feed.line);
-  assert.equal(vm.feed.notes.find((n) => n.id === "undrawn")?.title, "3 more events aren't drawn.", "what the day left out is said once, by its note");
+  assert.equal(
+    vm.feed.notes.find((n) => n.id === "undrawn")?.title,
+    "3 more events aren't drawn.",
+    "what the day left out is said once, by its note",
+  );
 });
 
 test("the route: the answer carries the feed's state and never its address; a viewer's read adds nobody", async () => {
   const url = "https://cal.example/route.ics";
   answers.set(url, { body: ONE });
   const made = [];
-  const ctx = ctxFor(tables(url, "viewer"), { people_list: () => [], create_person: (a) => { made.push(a); return { contact_id: "x", existed: false }; } });
-  const out = await route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`), ctx);
+  const ctx = ctxFor(tables(url, "viewer"), {
+    people_list: () => [],
+    create_person: (a) => {
+      made.push(a);
+      return { contact_id: "x", existed: false };
+    },
+  });
+  const out = await route.GET.run(
+    new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`),
+    ctx,
+  );
   assert.equal(out.calendar.feed.state, "ok");
   assert.equal(out.calendar.days.length, 7);
   assert.ok(!JSON.stringify(out).includes("cal.example"), "the address never reaches the browser");
   assert.equal(made.length, 0);
   forgetFeeds();
-  const owner = ctxFor(tables(url, "owner"), { people_list: () => [], create_person: (a) => { made.push(a); return { contact_id: "p1", existed: false }; } });
+  const owner = ctxFor(tables(url, "owner"), {
+    people_list: () => [],
+    create_person: (a) => {
+      made.push(a);
+      return { contact_id: "p1", existed: false };
+    },
+  });
   await route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`), owner);
   assert.equal(made.length, 1, "an owner's read adds the person the feed names");
 });
@@ -383,7 +606,16 @@ test("the route: the answer carries the feed's state and never its address; a vi
 test("the save refuses an address every fetch would refuse, in the same words", () => {
   const bad = TenantConfigWriteSchema.safeParse({ calendar: { ical_url: "http://169.254.169.254/latest/meta-data" } });
   assert.equal(bad.success, false);
-  assert.deepEqual(bad.error.issues.map((i) => [i.path.join("."), i.message]), [["calendar.ical_url", feedProblemWords("address")]]);
-  assert.equal(TenantConfigWriteSchema.safeParse({ calendar: { ical_url: "webcal://cal.example/x.ics" } }).success, true);
-  assert.equal(TenantConfigWriteSchema.safeParse({ calendar: { ical_url: "https://printer.local/x.ics" } }).success, false);
+  assert.deepEqual(
+    bad.error.issues.map((i) => [i.path.join("."), i.message]),
+    [["calendar.ical_url", feedProblemWords("address")]],
+  );
+  assert.equal(
+    TenantConfigWriteSchema.safeParse({ calendar: { ical_url: "webcal://cal.example/x.ics" } }).success,
+    true,
+  );
+  assert.equal(
+    TenantConfigWriteSchema.safeParse({ calendar: { ical_url: "https://printer.local/x.ics" } }).success,
+    false,
+  );
 });

@@ -24,11 +24,18 @@ export const POST = write({
     const body = (await req.json().catch(() => ({}))) as { place_id?: unknown };
     const placeId = typeof body.place_id === "string" ? body.place_id.trim() : "";
     if (!PLACE_ID.test(placeId)) throw new AppError("validation", "Pick a listing from the search first.", 400);
-    const a = await edgeGoogle({ op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId }, 25_000);
+    const a = await edgeGoogle(
+      { op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId },
+      25_000,
+    );
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true) {
       const reason = typeof b.error === "string" ? b.error : "failed";
-      throw new AppError(reason === "no_places_key" ? "conflict" : "internal", SAID[reason] ?? `The listing could not be linked (${reason}).`, reason === "no_places_key" ? 409 : 502);
+      throw new AppError(
+        reason === "no_places_key" ? "conflict" : "internal",
+        SAID[reason] ?? `The listing could not be linked (${reason}).`,
+        reason === "no_places_key" ? 409 : 502,
+      );
     }
     return { listing: b.listing ?? null, read: readOutcome(b.read) };
   },
@@ -41,7 +48,12 @@ export const DELETE = write({
   handle: async ({ member }) => {
     const a = await edgeGoogle({ op: "unlink", tenant_id: member.tenantId }, 15_000);
     const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true) throw new AppError("internal", typeof b.error === "string" ? SAID[b.error] ?? b.error : "The listing could not be removed. Try again.", 502);
+    if (a.status !== 200 || b.ok !== true)
+      throw new AppError(
+        "internal",
+        typeof b.error === "string" ? (SAID[b.error] ?? b.error) : "The listing could not be removed. Try again.",
+        502,
+      );
     return { removed: b.removed === true };
   },
 });

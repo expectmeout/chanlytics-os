@@ -46,7 +46,9 @@ const INVENTED = [
  * surfaces behind it, so half of what a signed-in person could open was
  * never walked for invented names.
  */
-const REAL_ROUTES = Object.entries(SURFACE_STATES).filter(([, state]) => state === "real").map(([route]) => `#/${route}`);
+const REAL_ROUTES = Object.entries(SURFACE_STATES)
+  .filter(([, state]) => state === "real")
+  .map(([route]) => `#/${route}`);
 
 async function assertNothingInvented(page: Page, where: string) {
   const text = await page.locator("body").innerText();
@@ -83,7 +85,9 @@ test.describe("a signed-in session never sees the mockup", () => {
       try {
         const t = await page.locator("body").innerText();
         for (const seed of INVENTED) if (t.includes(seed)) seen.push(seed);
-      } catch { /* mid-navigation */ }
+      } catch {
+        /* mid-navigation */
+      }
     }, 60);
 
     await page.goto("/#/admin/workspace");
