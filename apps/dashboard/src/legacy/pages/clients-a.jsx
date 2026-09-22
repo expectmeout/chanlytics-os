@@ -1458,7 +1458,9 @@ const plUndoList = async (id, name, flash) => {
 // What a selection can become: people on a list, a yes on record, a file.
 // Adding to a list and recording a yes are owner-or-operator on the server;
 // the bar shows what the role allows and says why when it does not.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null }) => {
+// `phone`: the bar is docked along the foot of a phone's pane and scrolls sideways, so its menus are placed against the
+// window (MoreMenu escape), which that scroll cannot cut off.
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1579,6 +1581,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Add to list"
           title="Add to a list"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -1608,6 +1611,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && window.__setPersonConsentMany && sources.length > 0 && !slips && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Record a yes"
           title="Which yes, and how it was given — the two are separate answers"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -1630,6 +1634,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && isOwner && window.__setPersonReceptionistMany && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Receptionist"
           title="What the receptionist does for these people"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -2937,6 +2942,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
+  // Whether anyone shown is selected: the bar shows then, and on a phone a tap on a row selects it rather than opening
+  // the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = shown.some((p) => sel.has(p.id));
   // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
   // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
   // list open, that list's own acts.
@@ -3091,7 +3099,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={onSort}
-            onOpen={onOpenProfile}
+            onOpen={phone && selecting ? toggleSel : onOpenProfile}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             scrolled={scrolledX}
@@ -3107,7 +3115,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
         </div>
         {/* The bar counts, and acts on, the people shown and selected. */}
-        {shown.some((p) => sel.has(p.id)) && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
+        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} />}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
             everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
         {listsOpen && (

@@ -707,6 +707,26 @@ test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no s
   assert.equal(idsShown(tree).length, 2);
 }));
 
+test("on a phone the face is the checkbox, and while anyone is selected a tap on a row selects them rather than opening them", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  let tree = draw();
+  byTestId(rowOf(tree, "p1"), "row-select").props.onChange();
+  tree = draw();
+  assert.match(rowOf(tree, "p1").props.className, /\bselected\b/);
+  const before = opened.length;
+  rowOf(tree, "p2").props.onClick();
+  tree = draw();
+  assert.equal(opened.length, before, "a tap while selecting does not open the person");
+  assert.match(rowOf(tree, "p2").props.className, /\bselected\b/, "it selects them");
+  const bar = byTestId(tree, "bulk-bar");
+  assert.ok(bar, "the bar");
+  assert.equal(find(bar, (n) => n.type === globalThis.MoreMenu).props.escape, true, "its menus are placed against the window: the docked row scrolls, and would cut them off");
+  click(byTestId(tree, "bulk-clear"));
+  tree = draw();
+  rowOf(tree, "p2").props.onClick();
+  assert.equal(opened.at(-1), "p2", "cleared, a tap opens again");
+}));
+
 test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () => onPhone(async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw();

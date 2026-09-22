@@ -2183,3 +2183,24 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .cl-table tbody tr:not([id]):has(> td[colspan]) { display: block; padding: 0; }
   .cl-table tbody tr:not([id]) > td[colspan] { display: block; padding: 20px 16px; }
 }
+
+@media (max-width: 900px) {
+  /* The face is the checkbox (tap a face to select): the row's own box lies over the face, a thumb wide and unseen, so a
+     tap there selects and a tap on the rest opens the person. While anyone is selected every face is a ring and a
+     picked one the ink with its tick, and a tap anywhere on a row selects it (clients-a.jsx, the table's onOpen). */
+  .pl-table tbody tr.pl-card-row > td.cl-sel { position: absolute; left: 10px; top: 6px; z-index: 1; display: block; width: 44px; height: 44px; padding: 0; border: 0; }
+  .pl-table tbody tr.pl-card-row > td.cl-sel .cl-check { display: block; width: 44px; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
+  .pl-table tbody tr.pl-card-row:has(.cl-check:focus-visible) .pl-card-face { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pl-table-wrap.selecting tr.pl-card-row .pl-card-face { background: transparent; border: 1.5px solid var(--line-strong); }
+  .pl-table-wrap.selecting tr.pl-card-row .pl-card-initials, .pl-table-wrap.selecting tr.pl-card-row .pl-card-glyph { visibility: hidden; }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-face { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-tick { display: block; }
+  .pl-table tbody tr.pl-card-row.selected .pl-card-initials, .pl-table tbody tr.pl-card-row.selected .pl-card-glyph { display: none; }
+  /* The selection's bar, docked: full width along the foot of the pane, one row that scrolls sideways, its menus placed
+     against the window (MoreMenu escape) so that scroll cannot cut them off. It stood at left: 50% with the width the
+     browser left it -- 188px on a 375px phone -- and its seven controls stacked into a 312px pill over the rows. The
+     list keeps room under its last row for it. PR 2 finishes it: the count, Add to list and one more-sheet. */
+  .clients:not(.leads-scope) .cl-bulk { left: 0; right: 0; bottom: 0; transform: none; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 8px 16px; border-width: 1px 0 0; border-radius: 0; box-shadow: 0 -10px 28px -14px oklch(0 0 0 / 0.45); animation: none; }
+  .clients:not(.leads-scope) .cl-bulk > * { flex: none; }
+  .clients:not(.leads-scope) .pl-table-wrap.selecting { margin-bottom: 64px; }
+}
