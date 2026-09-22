@@ -17,14 +17,10 @@
  * persists across reloads) and die with the tab.
  */
 
+import { clearTabMemory } from "./tab-memory";
+
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
 const CACHE_NAME = "chanlytics.surfaces.v1";
-/**
- * What a page keeps in the tab for itself, beside the surfaces: where the owner was in each view of Leads, and a Find
- * they had half-written (legacy/pages/clients-a.jsx LD_PLACE_SLOT, LD_FINDER_SLOT). Their own words, not customers',
- * but the session's all the same, so they go when the cache goes.
- */
-const PAGE_SLOTS = ["chanlytics.leads.place.v1", "chanlytics.leads.finder.v1"];
 const BUILD = process.env.NEXT_PUBLIC_BUILD_SHA || "dev";
 /** A payload larger than this isn't worth the main-thread cost to parse. */
 const MAX_BYTES = 2_000_000;
@@ -131,7 +127,8 @@ export function cachedTenant(): string | null {
 export function clearSurfaceCache(): void {
   try {
     sessionStorage.removeItem(CACHE_NAME);
-    for (const slot of PAGE_SLOTS) sessionStorage.removeItem(slot);
+    // What the pages kept in this tab (a view's place, a draft) goes with the rows it was kept beside.
+    clearTabMemory(sessionStorage);
   } catch {
     /* nothing to clear */
   }

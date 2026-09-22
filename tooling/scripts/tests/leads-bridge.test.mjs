@@ -428,6 +428,25 @@ test("a view the surface has already read paints at once on the way back, with i
   assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-nurture", NURTURE.length]);
 });
 
+test("REGRESSION: the surface names the view its rows are of -- a refresh of the old view that lands while a new one is on its way leaves it on its way", async () => {
+  // In a browser over the real bridge: a rail pick to a view never read, while the refresh behind the view on screen
+  // was still out. That refresh landed first and published the OLD rows under the NEW view's route, so the page took
+  // the view for landed: the dim ended at ~200ms and the last view's rows stood under the new title until ~650ms.
+  wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1) });
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  await globalThis.window.__leadsView("clients/leads");
+  const w = wire({ keep: true, searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : q.list === "nurture" ? NURTURE : PAGE1), hold: true });
+  const back = globalThis.window.__leadsView("clients/leads:l-ready"); // held: painted at once, refreshed behind (parked)
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length]);
+  const cold = globalThis.window.__leadsView("clients/leads:l-nurture"); // never read: on its way (parked)
+  w.release((u) => u.includes("list=ready") || u.includes("lead-searches"));
+  await back;
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-ready", READY.length], "REGRESSION: Ready's rows were published under Nurture's route, and the page said Nurture had landed");
+  w.release(() => true);
+  await cold;
+  assert.deepEqual([L().route, L().rows.length], ["clients/leads:l-nurture", NURTURE.length], "the new view lands under its own name");
+});
+
 test("a view held stays held across a write: a Keep on one view does not make the way back to another a read again", async () => {
   wire({ searches: [SEARCH_DONE], counts: COUNTS, rows: (q) => (q.list === "ready" ? READY : [REVIEW, ...PAGE1]) });
   await globalThis.window.__leadsView("clients/leads:l-ready");

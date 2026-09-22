@@ -3014,3 +3014,12 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 
 /* Under a thumb the quiet "No" beside a Confirm's button is 14px wide: the 44px floor gives it height, not width. */
 @media (pointer: coarse) { .confirm-acts .cl-bucket-link { padding-left: 12px; padding-right: 12px; } }
+
+/* A view on its way -- the loading standard's one rule, for any page whose view is being read: what is on screen stays
+   (never a blank, never a skeleton over rows already there), and what the view marks data-dims fades a little and
+   takes no presses until the view lands. The view itself wears data-loading, and aria-busy for a screen reader. The
+   fade waits 150ms, so a view painted from what the tab already holds never dims at all; the rows that land come
+   back at once (the delay is the dimmed state's own transition, so it applies on the way in only). */
+[data-dims] { transition: opacity 120ms ease; }
+[data-loading] [data-dims] { opacity: 0.45; pointer-events: none; transition-delay: 150ms; }
+@media (prefers-reduced-motion: reduce) { [data-dims] { transition: none; } }

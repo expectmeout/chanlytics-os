@@ -677,50 +677,26 @@ const plLoadView = (scope) => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people, JSON.stringify(v)); } catch { /* private mode */ } };
-// Where the owner was in each view of Leads: the words in the box, the row the cursor was on, whether the map was
-// open and how far the list was scrolled ({ q, cursor, map, top }). Keyed by the workspace and the view's own route,
-// the last twelve of them. It is the TAB's storage, as the surface cache is: a refresh and a trip to the Inbox keep
-// it, it goes with the tab, and signing out clears it (legacy-bridge/surface-cache.ts). A selection is not part of
-// it: one that came back unseen after a refresh is the kind of thing a bulk act should never find.
-const LD_PLACE_SLOT = "chanlytics.leads.place.v1";
-const LD_PLACE_MAX = 12;
-const ldPlaceId = (view) => { const m = /^\/w\/([^/]+)/.exec((window.location && window.location.pathname) || ""); return `${m ? m[1] : "-"}|${view}`; };
-const ldPlaces = () => { try { return JSON.parse(window.sessionStorage.getItem(LD_PLACE_SLOT) || "{}") || {}; } catch { return {}; } };
-const ldPlaceLoad = (view) => ldPlaces()[ldPlaceId(view)] || null;
-const ldPlaceSave = (view, place) => {
-  try {
-    const all = ldPlaces();
-    const id = ldPlaceId(view);
-    delete all[id];
-    // A view left the way it opens is not remembered at all, and the newest is last, so the oldest is what goes.
-    if (place.q || place.cursor || place.map || place.top) all[id] = place;
-    const ids = Object.keys(all);
-    for (const old of ids.slice(0, Math.max(0, ids.length - LD_PLACE_MAX))) delete all[old];
-    window.sessionStorage.setItem(LD_PLACE_SLOT, JSON.stringify(all));
-  } catch { /* a private window: the place lives for the page */ }
-};
-// A Find that is half-written, for this tab and this workspace: the words, and the plan Claude wrote for them with
-// the card it came on. A plan cost a wait to get, and approving one only posts it (legacy-bridge ask/commit.ts), so
-// it is as good after a refresh as before. A turn still being read, or one being started, is not: it comes back as
-// its words. A day old, it is forgotten.
-const LD_FINDER_SLOT = "chanlytics.leads.finder.v1";
-const LD_FINDER_TTL_MS = 24 * 60 * 60 * 1000;
-const ldFinderLoad = () => {
-  try {
-    const d = JSON.parse(window.sessionStorage.getItem(LD_FINDER_SLOT) || "null");
-    if (!d || d.ws !== ldPlaceId("") || !(Date.now() - d.at < LD_FINDER_TTL_MS)) return null;
-    return d;
-  } catch { return null; }
-};
+// Where the owner was in each view of Leads -- the words in the box, the row the cursor was on, whether the map was
+// open and how far the list was scrolled ({ q, cursor, map, top }) -- and a Find half-written: both in the tab's one
+// store for what pages keep (legacy-bridge/tab-memory.ts, window.__tabMemory), which keys them by the workspace, keeps
+// a page's last twelve views, forgets a draft a day old and goes at sign-out. A selection is not part of the place:
+// one that came back unseen after a refresh is the kind of thing a bulk act should never find. Where no store is
+// published (the standalone harness), the place and the draft live for the page.
+const ldPlaceLoad = (view) => (window.__tabMemory ? window.__tabMemory.place("leads", view) : null);
+const ldPlaceSave = (view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace("leads", view, place); };
+// The Find kept is its words, and the plan Claude wrote for them with the card it came on. A plan cost a wait to get,
+// and approving one only posts it (legacy-bridge ask/commit.ts), so it is as good after a refresh as before. A turn
+// still being read, or one being started, is not: it comes back as its words.
+const ldFinderLoad = () => (window.__tabMemory ? window.__tabMemory.draft("leads-find") : null);
 const ldFinderSave = (f) => {
-  try {
-    const planned = f.stage === "plan" && !!f.plan;
-    if (!f.words && !planned) { window.sessionStorage.removeItem(LD_FINDER_SLOT); return; }
-    window.sessionStorage.setItem(LD_FINDER_SLOT, JSON.stringify({
-      ws: ldPlaceId(""), at: Date.now(), open: !!f.open, words: f.words || "",
-      stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
-    }));
-  } catch { /* a private window: the draft lives for the page */ }
+  if (!window.__tabMemory) return;
+  const planned = f.stage === "plan" && !!f.plan;
+  if (!f.words && !planned) { window.__tabMemory.dropDraft("leads-find"); return; }
+  window.__tabMemory.keepDraft("leads-find", {
+    open: !!f.open, words: f.words || "",
+    stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
+  });
 };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
 // page's latest closures through `acts`, so the object itself is kept across draws (in `kept`) and a memoised row
