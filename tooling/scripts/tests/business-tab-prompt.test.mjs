@@ -298,15 +298,20 @@ test("the prompt carried into a blank box is found, because the sheet cuts with 
   assert.ok(textOf(own).includes(W.__SETTINGS.config.brain.system_prompt));
 });
 
-test("a phone reads the share on each block's head, where the rail's bar was", () => {
+test("a phone reads the share on each block's head, as the rail's bar, with the words kept for a screen reader", () => {
   // Under 761px the rail is not drawn (settings.css; the journey measures it at 390px), so each block's head carries
-  // its share in contracts' words, and that is its one cost indicator there too.
+  // the rail's own bar: the same one quiet indicator at every width. The share in contracts' words was on the glass
+  // there once, and "less than a tenth of everything it reads" stood under most heads; the words are a screen
+  // reader's now (visually hidden on a phone, not drawn above it, where the entry's description says it).
   const tree = drawPrompt();
   const total = W.__SETTINGS.prompt.whatsapp.length;
   for (const b of cut("whatsapp")) {
     const head = find(byTestId(tree, `rec-prompt-block-${b.id}`), (n) => classes(n).includes("bt-prompt-block-head"));
+    const bar = find(head, (n) => classes(n).includes("bt-prompt-block-bar"));
+    assert.equal(bar.props["aria-hidden"], "true", `${b.id}: the bar is not read`);
+    assert.equal(find(bar, (n) => classes(n).includes("bt-prompt-bar-fill")).props.style.width, `${b.share * 100}%`);
     const share = find(head, (n) => classes(n).includes("bt-prompt-block-share"));
-    assert.equal(textOf(share), blockShareWords(b.chars, total), `${b.id}`);
+    assert.equal(textOf(share), blockShareWords(b.chars, total), `${b.id}: the words, for a reader`);
   }
   assert.ok(
     find(sheetOf(tree), (n) => n.type === "nav" && classes(n).includes("bt-prompt-rail")),

@@ -703,7 +703,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(page.locator(".rec-fold:not([hidden]), .rec-inline:not([hidden])")).toHaveCount(0);
     }
 
-    // On a phone: no contents beside the blocks, each block's head says its share, the head holds still over the
+    // On a phone: no contents beside the blocks, each block's head carries its share, the head holds still over the
     // blocks, the foot is Close, nothing scrolls sideways, and nothing in it is loud.
     await page.setViewportSize({ width: 390, height: 844 });
     for (const channel of ["WhatsApp", "Phone"]) {
@@ -715,7 +715,18 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(page.getByTestId("rec-prompt-contents")).toBeHidden();
       const n = await blocks.count();
       expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
-      for (let i = 0; i < n; i++) await expect(blocks.nth(i).locator(".bt-prompt-block-share")).toBeVisible();
+      // Each head carries the rail's bar, drawn, and its share in words kept for a screen reader, off the glass.
+      for (let i = 0; i < n; i++) {
+        await expect(blocks.nth(i).locator(".bt-prompt-block-bar")).toBeVisible();
+        const words = await blocks
+          .nth(i)
+          .locator(".bt-prompt-block-share")
+          .evaluate((el) => ({
+            w: Math.round(el.getBoundingClientRect().width),
+            clipped: getComputedStyle(el).clipPath !== "none",
+          }));
+        expect(words, `${channel}: a block's share in words is on the glass`).toEqual({ w: 1, clipped: true });
+      }
       // Nothing hovers here, so every door is drawn.
       expect(
         await sheet

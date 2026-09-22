@@ -10,8 +10,8 @@
 // happened to a live salon.
 //
 // Built to the owner's 22 September rule (the plan's Task 4.0): a block's cost is a SHARE, drawn as one thin bar in
-// the contents and, on a phone, where there is no room for the contents, as contracts' share words on the block's own
-// head. The exact count is in the entry's accessible description and its tip, never on the glass. The prompt is set in
+// the contents and, on a phone, where there is no room for the contents, as the same bar under the block's own label,
+// with contracts' share words for a screen reader. The exact count is in the entry's accessible description and its tip, never on the glass. The prompt is set in
 // the page's own face. No colour, no pill, no gradient.
 //
 // Three things, read from window as the page draws:
@@ -139,9 +139,10 @@ const btpDoor = (block, prompt, canEdit) => {
  *   contents  "Written by": an entry per block, labelled by its row, with ONE quiet indicator of what it costs -- a thin
  *             bar as long as its share -- and the exact count in its description and its tip. The whole prompt's length
  *             is the contents' own name. An entry takes the reader to its block. Not drawn on a phone (settings.css).
- *   blocks    each keyed by its id, not its row (the platform's text is drawn twice on a call): its label, its share in
- *             words (shown on a phone only, where the contents are not), its door back to its row, its text in the
- *             page's own face with its line breaks, and its note as contracts wrote it.
+ *   blocks    each keyed by its id, not its row (the platform's text is drawn twice on a call): its label, its share
+ *             (on a phone only, where the contents are not: the rail's bar under the label, and the words for a screen
+ *             reader), its door back to its row, its text in the page's own face with its line breaks, and its note as
+ *             contracts wrote it.
  *   now       what is sent beside the prompt, rebuilt every time, under a dashed rule with the reason it is apart.
  *   foot      Close: there is nothing here to save. Shown on a phone, where the head's Close is a reach.
  *
@@ -193,6 +194,11 @@ const BtPromptSheet = ({ prompt, brain, canEdit = true }) => {
           >
             <header className="bt-prompt-block-head">
               <h3 className="bt-prompt-block-label" id={`bt-prompt-label-${b.id}`}>{b.label}</h3>
+              {/* A phone's indicator, where the contents are not drawn: the rail's own bar, and its share in words for a
+                  screen reader (settings.css draws neither above 760px, where the entry says it). */}
+              <span className="bt-prompt-bar bt-prompt-block-bar" aria-hidden="true">
+                <span className="bt-prompt-bar-fill" style={{ width: `${b.share * 100}%` }} />
+              </span>
               <span className="bt-prompt-block-share">{tab.blockShareWords(b.chars, total)}</span>
               {btpDoor(b, prompt, canEdit)}
             </header>

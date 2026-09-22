@@ -1371,8 +1371,10 @@ html.legacy-on .bt-link { position: relative; }
    in its own column and the door never drops under them. */
 .bt-prompt-block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; }
 .bt-prompt-block-label { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
-/* The share in words: a phone's indicator, where the contents are not drawn (below). */
-.bt-prompt-block-share { grid-column: 1 / -1; grid-row: 2; display: none; font-size: var(--text-xs); color: var(--ink-dim); }
+/* A phone's share, where the contents are not drawn (below): the rail's bar under the label, and the words for a
+   screen reader. Neither above 760px, where the entry in the contents says it. */
+.bt-prompt-block-bar { grid-column: 1 / -1; grid-row: 2; display: none; margin: 0; }
+.bt-prompt-block-share { display: none; }
 .bt-prompt-door { grid-column: 2; grid-row: 1; font-size: var(--text-sm); }
 /* Latent at rest, drawn on approach, as a row's act is (record.css .rec-row-act; the spec's §11): eight underlined
    Changes down the page's most text-heavy surface were eight controls at rest. Opacity alone, so every door stays in
@@ -1552,7 +1554,10 @@ html.legacy-on .bt-link { position: relative; }
   .bt-prompt { display: block; padding-top: 12px; }
   .bt-prompt-rail { display: none; }
   .bt-prompt-blocks { gap: 18px; }
-  .bt-prompt-block-share { display: block; }
+  /* The same bar the rail draws, under each label: one quiet indicator at every width. In words the same sentence
+     stood under most heads ("less than a tenth of everything it reads"), so the words are a screen reader's here. */
+  .bt-prompt-block-bar { display: block; }
+  .bt-prompt-block-share { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .bt-prompt-sheet .rec-sheet-foot { display: flex; }
   .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
 }
