@@ -2637,6 +2637,66 @@ EOF
 )"
 ```
 
+**Changed in execution (22 Sep).** Shipped test-first on `design/what-it-can-do`, under Task 4.0's quiet rule, in four
+commits. The shape the rule forced: **one row at rest, the strengths in the fold.** Four rows of badge-and-sentence at
+rest would have been a paragraph of nouns where the row states one fact, and on a phone most of a screen.
+
+- **The fold's four switches each wear one badge** (`ruleStrength(key).chip`) beside the label, and the strength's
+  sentence under it (`b36a7a6b`). `.bt-rule-chip` was a filled `--info-soft` capsule — it is a muted word now, no
+  border, no fill, no colour of its own, and the photos switch's "gives it a power" is the same word in the same shape.
+- **The form's own hint is gone from the four.** Two sentences on one switch — what the rule asks for, then how far it
+  goes — is the clutter the owner named. The strength's sentence says both, and the health rule's hint WAS its
+  strength's sentence word for word already. The photos switch keeps its hint: it is the one switch whose sentence
+  says what each position does, and it is still the only ability among five limits.
+- **Under 761px the sentence leaves the glass and stays in the tree.** `.bt-rule-says` is visually hidden and the
+  switch names it with `aria-describedby`, so a screen reader hears the guarantee at every width. `RecordSwitch` gained
+  a `describedBy` prop for it (the kit's only change this task).
+- **The checked rule draws both channels** as two short muted lines from `checkedOn`, side by side where there is room.
+  They open with the channel's name, and that name is `ABILITY_CHANNEL_WORDS`' — the const moved above `STRENGTHS` so
+  the abilities card and the rules fold say "in chat" once between them, rather than twice.
+- **M-2, the record that composes nothing, in two halves.** The fold's note and the prompt view's note are one
+  sentence now (`NO_FIELDS_COMPOSED_WORDS` in `config.ts`, beside the `hasProfile` that decides whether either is
+  said), built into both (`1b64bfc7`). And **the row at rest is contracts'** (`rulesKept`, `99ff5674`), derived from
+  the three strengths rather than from the switches: a **checked** rule is named whatever the switch says, because the
+  detector runs either way; an **instructed** rule is a line in a prompt and nothing else, so a record composing
+  nothing does not claim it; a **structural** rule changes its words rather than going — "Cannot book anything", since
+  the switch decides only whether it is told not to CLAIM it booked. So such a record's row reads *Never quotes a
+  price · Cannot book anything · Won't look at photos*, which is the second of the two options this task was given:
+  name only what holds. The first (saying the fold's sentence at rest) was refused — it is 200 characters, and it
+  would have put a paragraph where the row states a fact.
+- **Task 3.5's price chip is settled by the same rule**, and settled wider than asked: the price word stays with the
+  switch off (it is checked), and the booking word changes with it (it is structural). A row that dropped either would
+  read as if prices went through or bookings were made.
+- **M-1, the standing line on a call** (`c40bdadc`). `standingLine` now takes `calls`, required and checked as it
+  runs like `abilityRows`' inputs, and the clause names the difference once: *"It offers a consult or the booking link
+  instead of a price — in chat before the reply is sent, on a call as a correction right after."* A chat-only
+  workspace reads the exact sentence and hears nothing about a line it does not have. Still three clauses either way.
+  The page reads `calls` off the voice line the settings read resolved (`__FACTS.voice_line`), as *How it answers*
+  already reads it for the hand-off row that names both channels — it arrives with the record the page cannot draw
+  without, so the band never has to guess, which `capabilityStatus` over `__SETUP` would have had to on a cold boot.
+
+**Decided differently, and why.**
+
+- **M-1 names the difference rather than saying only what holds on both.** "It corrects a price" is what holds on
+  both, and it is weaker than the truth in chat, where the customer never sees the figure. The clause keeps the exact
+  chat promise and says what a call does instead.
+- **M-1's other two imprecisions are not the standing line's.** With the price switch off nothing tells the phone
+  agent to leave a service's price note unread — the correction still catches it, which the clause now says. And with
+  Autonomy's FAQ row on *ask*, a price question gets a callback promise instead: that is the abilities card's hold
+  sentence (Task 4.1b) and the Autonomy tab's, and a fourth clause here would make the band a paragraph.
+- **No warning beside the price switch when it is off.** The plan asked for none, and the row says why without one:
+  the badge says checked, the sentence says the detector runs either way, and the two channel lines say what each does.
+
+**Proof.** `corepack pnpm test` 4165 (4152 before: eight in contracts, five on the page).
+`corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` both 12/12, the journey's
+`expectQuiet` sweep included. Photographed on the salon record at 390x844 and 1280x900 (`_gen/task42-shots.mjs`): the
+row at rest, the fold open, the fold open with the price switch stored off, and the standing line. Inside the open
+fold at 390px: **0** sideways scroll (page, pane and fold), **0** gradients, **1** font family, **0** bordered pills
+and **0** colours outside the ink/accent/line/ok tokens except the fold's own Save and Close, which are the kit's
+buttons rather than badges; **5** badges, one to a switch; **4** strength sentences drawn, **0** of them on screen and
+**4** named by their switch; **2** channel lines, on the price rule alone; **1** dashed separator. At rest: **0**
+strength words on the row, and the same four chips plus "+1 more" whether the price switch is stored on or off.
+
 ---
 
 ## Phase 5 — The prompt sheet (PR 5: "The prompt is a table of contents")

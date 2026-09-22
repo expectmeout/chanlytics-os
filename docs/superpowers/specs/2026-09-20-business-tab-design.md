@@ -63,6 +63,8 @@ Last changed by Ruben, just now
 
 Three clauses, not a meter: what it can answer, what it deliberately will not, and what is missing — the last one a link to the row that fixes it. Derived from which fields are filled against `BRAIN_INTENTS` (booking, pricing, hours, services, location, complaint, smalltalk, other). A percentage would be a number nobody can act on.
 
+> **Amended 22 Sep, in execution (Task 4.2, the plan's M-1).** The second clause names the difference between the two channels on a workspace that answers calls, because it lands differently on each: in chat a draft sits between the model and the customer and `violatesNoPrices` swaps the words before the reply is sent; on a call the figure has been heard and `spokenBreach` corrects it in the next turn (`policy.ts`'s own header). So "It offers a consult or the booking link instead of a price." becomes "… — in chat before the reply is sent, on a call as a correction right after." where there is a call, and stays exactly as it was where there is not. Still one clause, and the line is still three. `standingLine` takes which lines the workspace answers on as a required argument, checked as it runs, so an untyped page that left it out cannot quietly read the chat sentence over a phone.
+
 ### 4.2 Who you are
 
 | Row | Source | Gesture |
@@ -115,6 +117,10 @@ Its voice (the new field) · Languages · Rules it always keeps · Hands you a c
 The vision toggle is separated by a dashed rule and labelled as an ability, not a limit — it is the only one that starts off.
 
 > **Amended 22 Sep, in execution (Task 3.5).** Not the only one: "Never give health advice" is opt-in too (`GuardrailsSchema`, and the form's own "absent means on" for the other three). The photos switch starts off because it gives the receptionist an ability, and its hint says that, not that the four limits start on.
+
+> **Amended 22 Sep, in execution (Task 4.2), under the owner's quiet rule.** The three strengths live in the fold, not on the row. Each switch wears its strength as ONE muted word (`ruleStrength(key).chip`) and carries its sentence under the label — under 761px that sentence is off the glass and on the switch's `aria-describedby`, since four of them is most of a phone's screen. The form's own hint is gone from the four: two sentences on one switch (what the rule asks for, then how far it goes) is the clutter, and the strength's sentence says both. The checked rule alone draws its two `checkedOn` lines, opening with the channel's name in the abilities card's words.
+>
+> **At rest the row stays one row**, and what it may name is derived from the strengths rather than the switches (`rulesKept`): the **checked** rule is named whether its switch is on or off, because the detector runs either way (the owner's decision, 20 Sep 2026) and a row that dropped the word would read as if prices went through; an **instructed** rule is a prompt line and nothing else, so it is named only where the record composes a prompt to put it in; the **structural** rule changes its words rather than going — *Cannot book anything* — because the switch decides only whether it is told not to CLAIM it booked, and the product has no appointments table either way. On a record whose details compose nothing the row therefore reads *Never quotes a price · Cannot book anything*, and the fold goes on saying the rest once (the plan's M-2).
 
 ### 4.7 What it can do
 
