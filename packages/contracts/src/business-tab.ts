@@ -852,9 +852,32 @@ export interface AbilityRowVM {
   /** The row on this page that supplies it. Null when nothing does. */
   runsOn: { label: string; row: string } | null;
   ready: boolean;
+  /**
+   * What stops this ability is a row of THIS page, still empty (or a switch still off).
+   *
+   * The difference between a sentence worth drawing and one worth keeping out of the way: a
+   * transfer with no number takes a message instead, and the number is two cards up, so the
+   * card says so and offers the row. A channel that is not connected, bookings held, replies
+   * held -- none of those is filled in here, and each is one cause the card states once,
+   * rather than six rows saying the same thing six times.
+   */
+  missing: boolean;
   /** Only the opt-in ability carries this. */
   on?: boolean;
 }
+
+/**
+ * What each of a row's two channel glyphs is called.
+ *
+ * The card draws chat and phone beside every ability, lit for a channel that has it and dim
+ * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
+ * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
+ * rather than in the JSX that draws them -- one spelling for the four states.
+ */
+export const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", { has: string; not: string }> = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" },
+};
 
 /**
  * The card: its rows, and what holds the whole card back, said once.
@@ -949,6 +972,8 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
+      // The facts it answers from are the standing line's subject, at the top of the page.
+      missing: false,
     },
     {
       id: "open_times",
@@ -967,6 +992,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed,
     },
     {
       id: "booking_link",
@@ -977,6 +1003,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
+      missing: !i.hasBookingLink,
     },
     {
       id: "transfer",
@@ -988,6 +1015,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber,
     },
     {
       id: "handoff",
@@ -1000,6 +1028,8 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
       ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false,
     },
     {
       id: "vision",
@@ -1011,6 +1041,8 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
       on: i.visionOn,
     },
   ];

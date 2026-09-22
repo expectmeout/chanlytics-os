@@ -13827,6 +13827,10 @@ var BOOLEAN_INPUTS = {
   visionOn: true,
   bookingHeld: true
 };
+var ABILITY_CHANNEL_WORDS = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
 function heldFor(pauseHours) {
   const hours = Math.max(1, Math.round(pauseHours));
   if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
@@ -13867,7 +13871,9 @@ function abilityRows(i) {
       detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
-      ready: answering
+      ready: answering,
+      // The facts it answers from are the standing line's subject, at the top of the page.
+      missing: false
     },
     {
       id: "open_times",
@@ -13879,7 +13885,8 @@ function abilityRows(i) {
       detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
-      ready: answering && i.hasCalendarFeed
+      ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed
     },
     {
       id: "booking_link",
@@ -13889,7 +13896,8 @@ function abilityRows(i) {
       // workspace whose replies are held has no channel here at all.
       channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes
+      ready: linkGoes,
+      missing: !i.hasBookingLink
     },
     {
       id: "transfer",
@@ -13900,7 +13908,8 @@ function abilityRows(i) {
       // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
-      ready: i.voiceLive && i.hasHandoffNumber
+      ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber
     },
     {
       id: "handoff",
@@ -13912,7 +13921,9 @@ function abilityRows(i) {
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: chatAnswers
+      ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false
     },
     {
       id: "vision",
@@ -13922,6 +13933,8 @@ function abilityRows(i) {
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
       on: i.visionOn
     }
   ];
@@ -16499,6 +16512,7 @@ function csvCell(v) {
 }
 export {
   ABANDONED_MS,
+  ABILITY_CHANNEL_WORDS,
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,

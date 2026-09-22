@@ -18,6 +18,7 @@ import {
   ruleStrength,
   GUARDRAIL_KEYS,
   standingLine,
+  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
   POLICY_MODES,
@@ -505,6 +506,54 @@ test("on Sends it or Holds it, nothing is held and the card says nothing", () =>
     assert.deepEqual(vm.rows, abilityRows({ ...live, replyMode: "auto" }).rows, `${mode} answers as auto does`);
     assert.equal(idOf(vm).handoff.channels.whatsapp, true);
   }
+});
+
+test("each channel on a row is named in words, so the dark one is not read as a colour", () => {
+  // The card draws two glyphs per row, lit and dim. Dim is a colour, and a colour says
+  // nothing to a screen reader or to anyone who cannot tell the two inks apart, so each
+  // glyph is named -- here, once, rather than in the JSX that draws it.
+  assert.deepEqual(Object.keys(ABILITY_CHANNEL_WORDS).sort(), ["voice", "whatsapp"]);
+  assert.deepEqual(ABILITY_CHANNEL_WORDS.whatsapp, { has: "in chat", not: "not in chat" });
+  assert.deepEqual(ABILITY_CHANNEL_WORDS.voice, { has: "on a call", not: "not on a call" });
+  for (const w of Object.values(ABILITY_CHANNEL_WORDS)) {
+    assert.notEqual(w.has, w.not, "the two states do not say the same thing");
+    for (const said of [w.has, w.not]) assert.match(said, /^[a-z ]+$/, said);
+  }
+});
+
+test("a row says when what stops it is on this page, and when it is not", () => {
+  // The card draws a sentence and a door only where the owner can act HERE. Everything else
+  // -- a channel that is not connected, the Autonomy tab's hold -- is the card's to say once,
+  // not six rows' to repeat, so those rows stay at their title and their two glyphs.
+  const missingOf = (over) => Object.fromEntries(abilityRows({ ...live, ...over }).rows.map((r) => [r.id, r.missing]));
+  assert.deepEqual(missingOf({}), {
+    answer: false,
+    open_times: false,
+    booking_link: false,
+    transfer: false,
+    handoff: false,
+    vision: true,
+  });
+  assert.equal(missingOf({ hasCalendarFeed: false }).open_times, true);
+  assert.equal(missingOf({ hasBookingLink: false }).booking_link, true);
+  assert.equal(missingOf({ hasHandoffNumber: false }).transfer, true);
+  assert.equal(missingOf({ visionOn: true }).vision, false);
+  // The reasons widen a hand-off; they do not switch it on, so none of them is missing.
+  assert.equal(missingOf({ hasEscalateWhen: false }).handoff, false);
+  // A dead line, held bookings and held replies are not this page's rows to fill.
+  for (const over of [
+    { voiceLive: false, whatsappLive: false },
+    { whatsappLive: false },
+    { bookingHeld: true },
+    { replyMode: "ask" },
+  ]) {
+    const missing = missingOf(over);
+    assert.equal(missing.booking_link, false, JSON.stringify(over));
+    assert.equal(missing.handoff, false, JSON.stringify(over));
+    assert.equal(missing.open_times, false, JSON.stringify(over));
+  }
+  // And a row whose input IS missing still says so on a dead line: filling it is still the fix.
+  assert.equal(missingOf({ whatsappLive: false, hasBookingLink: false }).booking_link, true);
 });
 
 test("an input left out throws and says which, rather than drawing a card that lies", () => {
