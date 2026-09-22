@@ -13,7 +13,7 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, stageArgs, toLeadPeekVM, toLeadRowVM,
+  LEAD_SORTS, leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, stageArgs, toLeadPeekVM, toLeadRowVM,
   type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -204,6 +204,24 @@ export async function warmLeadsView(to: string): Promise<void> {
   }
 }
 
+/**
+ * The view a cold boot reads: the one the address names (all leads, off the page), in the order this tab last read,
+ * which the surface cache put back before anything mounted -- the view the page asks for as it mounts, so the two
+ * are one read. The bridge started from its own default instead, so a refresh on a search's Needs review read all
+ * 500 leads first and drew them over the restored rows of the view on screen. An order the server does not know is
+ * never sent; the lead open over a view is no part of it.
+ */
+export function leadsBootView(hash: string, restored: unknown): LeadsView {
+  const parsed = parseLeadsRoute((hash || "").replace(/^#\/?/, ""));
+  const was = (restored as { view?: { sort?: unknown; dir?: unknown } } | null | undefined)?.view;
+  const known = !!was && typeof was === "object" && (LEAD_SORTS as readonly unknown[]).includes(was.sort) && (was.dir === "asc" || was.dir === "desc");
+  return {
+    ...DEFAULT_VIEW,
+    ...(parsed ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips> } : {}),
+    ...(known ? { sort: was.sort as LeadSort, dir: was.dir as "asc" | "desc" } : {}),
+  };
+}
+
 /** The same view again, after a write or a Realtime change: patch, keep the pages, offer the rest. */
 async function refreshView(): Promise<void> {
   const L = leadsLoaded;
@@ -244,6 +262,7 @@ export const leadsOverride: SurfaceOverride = {
   debounceMs: 800,
   apply: async () => {
     try {
+      if (!leadsLoaded) view = leadsBootView(window.location.hash, (window as unknown as { __LEADS?: unknown }).__LEADS);
       await (leadsLoaded ? refreshView() : readView(view));
     } catch (e) {
       publishLeads(true);
