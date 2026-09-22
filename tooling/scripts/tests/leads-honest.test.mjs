@@ -1413,19 +1413,28 @@ const bar = (over = {}) => {
   cells = []; seq = 0;
   return globalThis.window.LeadsPhoneBar({
     scope: "leads", onScope() {}, listLabel: "All leads · 322", onLists() {}, listsOpen: false,
-    q: "", onQ() {}, searchRef: { current: null }, onFind() {}, canFind: true, ...over,
+    q: "", onQ() {}, searchRef: { current: null }, searchOpen: false, onSearchOpen() {}, onFind() {}, canFind: true, ...over,
   });
 };
 
-test("on a phone the switch, search and Find are one bar, and the switch is a tablist with Leads chosen", () => {
+test("on a phone the switch, the list, search and Find are one bar; search is a button that opens the bar into the field", () => {
   fresh();
   const t = bar();
   const tabs = all(t, (n) => n.props?.role === "tab");
   assert.deepEqual(tabs.map((n) => [textOf(n), n.props["aria-selected"]]), [["People", false], ["Leads", true]]);
-  assert.equal(byTestId(t, "leads-phone-search").props["aria-label"], "Search leads");
+  assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
+  assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
   assert.equal(byTestId(t, "leads-phone-find").props["aria-label"], "Find leads");
   assert.equal(textOf(byTestId(t, "leads-phone-lists")), "All leads · 322");
   assert.equal(all(t, (n) => n.props?.["data-testid"] === "leads-phone-bar").length, 1, "one bar, not a row of controls");
+  const open = bar({ searchOpen: true });
+  const field = byTestId(open, "leads-phone-search");
+  assert.equal(field.props["aria-label"], "Search leads");
+  assert.equal(field.props.autoFocus, true, "pressed, the field takes focus, so the keyboard comes up");
+  assert.equal(byTestId(open, "leads-phone-lists"), null, "and the bar is the field");
+  const kept = byTestId(bar({ q: "pilates" }), "leads-phone-search");
+  assert.equal(kept.props.value, "pilates", "a view's own words keep the field open");
+  assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
 });
 
 test("Find on a phone is the gate's for anyone who may not find", () => {

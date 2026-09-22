@@ -778,6 +778,18 @@ const plDownload = (name, text) => {
 };
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
+// The sorts a phone offers from its more-menu, in the words it says them in. A desktop sorts by its headings, which a
+// phone does not draw: its one button only turned the order round ("Z → A"), whatever the sort was.
+const PL_PHONE_SORTS = [
+  { by: "state", dir: "desc", label: "Needs you first" },
+  { by: "last", dir: "desc", label: "Latest contact first" },
+  { by: "name", dir: "asc", label: "Name, A to Z" },
+  { by: "name", dir: "desc", label: "Name, Z to A" },
+  { by: "visits", dir: "asc", label: "Soonest visit first", needs: (x) => x.withCalendar },
+];
+// An empty Add a person and an empty list draft: the phone's sheets' drafts are the page's state.
+const PL_ADD_EMPTY = { name: "", phone: "", busy: false, error: null };
+const PL_LIST_EMPTY = { name: "", busy: false, error: null };
 
 // A stable empty list, so a workspace without saved lists does not re-run the
 // table's memo on every render.
@@ -885,6 +897,38 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
   );
 };
 
+// A list's acts, one door each, for a desktop's title line and the phone's sheet alike: what the door answered, and the
+// sentence to show where it refused. Rename and delete were written into their two components, and a list made with
+// people on it into two more (Save these, the bulk bar's New list); the phone's sheet would have been a fifth copy.
+const plRenameList = async (list, name) => {
+  const r = await window.__lists.rename(list.id, name);
+  return r.ok ? { ok: true } : { ok: false, error: r.message || "Could not rename the list." };
+};
+const plDeleteList = async (list) => {
+  const r = await window.__lists.remove(list.id);
+  return r.ok ? { ok: true } : { ok: false, error: r.message || "The list could not be deleted." };
+};
+// Made, then filled. A list whose filling the server refused (more people than it takes at once, say) is taken back,
+// so no empty list is left behind. `made` is the make's answer, `filled` the fill's (null when nothing was made).
+const plMakeListWith = async (name, ids) => {
+  const made = await window.__lists.create(name);
+  if (!made.ok) return { made, filled: null, id: null };
+  const id = plMadeId(made, name);
+  const filled = id ? await window.__lists.add(id, ids) : { ok: false, message: "The list was made but not found again." };
+  if (!filled.ok && id) await window.__lists.remove(id);
+  return { made, filled, id };
+};
+// Somebody the business meets before they ever write or call, added by hand through the door the calendar sweep uses:
+// a number already here opens that person rather than making a second one. The desktop's form and the phone's sheet
+// add through this and say it the same way.
+const plAddPerson = async ({ name, phone }) => {
+  const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+  if (r.ok) return { ok: true, id: r.data.contact_id, existed: !!r.data.existed };
+  // The field's own sentence where the route named one, else the refusal's.
+  return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them." };
+};
+const plAddedWords = ({ name, phone }, existed) => (existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</>);
+
 // Deleting a list keeps the people; only the grouping goes. Asked once,
 // inline, in the words that say so. A refusal keeps the question open and
 // says why: it used to close with no word, the list still on screen.
@@ -896,9 +940,9 @@ const DeleteListButton = ({ list, onDeleted }) => {
     if (!window.__lists || busy) return;
     setBusy(true);
     setError(null);
-    const r = await window.__lists.remove(list.id);
+    const r = await plDeleteList(list);
     setBusy(false);
-    if (!r.ok) { setError(r.message || "The list could not be deleted."); return; }
+    if (!r.ok) { setError(r.error); return; }
     setArm(false);
     onDeleted();
   };
@@ -924,9 +968,9 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
     if (!n || busy || !window.__lists) return;
     if (n === list.name) { setEditing(false); return; }
     setBusy(true); setError(null);
-    const r = await window.__lists.rename(list.id, n);
+    const r = await plRenameList(list, n);
     setBusy(false);
-    if (!r.ok) { setError(r.message || "Could not rename the list."); return; }
+    if (!r.ok) { setError(r.error); return; }
     setEditing(false);
     onRenamed(n);
   };
@@ -1070,11 +1114,20 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 
 // The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's (LeadsRailRows,
 // leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
-const PeopleRail = ({ scope = "people", onScope = () => {}, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
+// `scopeTabs` is false in the phone's sheet, whose bar has the switch; `everyone` ({ count, active, onPick }) is the
+// sheet's first row, the way back to everyone.
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
   <aside className="cl-rail">
-    <PeopleScopeTabs scope={scope} onScope={onScope} />
+    {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} />}
     {scope === "leads" ? children : (
     <>
+    {/* The way back to everyone, first, where a phone looks for it: a desktop's is Show everyone on the list's title
+        line, which a phone does not draw. */}
+    {everyone && (
+      <div className="cl-rail-section cl-rail-everyone">
+        <RailRow label="Everyone" count={everyone.count} active={everyone.active} onPick={everyone.onPick} testid="rail-everyone" />
+      </div>
+    )}
     <RailSection label="Smart lists" icon="sparkle">
       {groups.map((g) => {
         const own = lists.filter((l) => (l.group || "reach") === g.id);
@@ -1110,11 +1163,10 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, children = null, lis
 // The strip drew the same two people the table's own first rows drew, with the same sentences; "Needs you" was
 // said in four places at once (the rail, a stat card, a tab, and every matching row's pill). Every number it
 // held is still on the page: the rail counts each state, and each row says its own.
-// On a phone, where the rail is not drawn, the line also holds the way to the lists: one word, or the name of
-// the list that is open, and a tap brings the rail up as a sheet. Hidden on a desktop, whose rail is beside it.
+// On a phone the list being shown is the bar's (PeoplePhoneBar); the line keeps the counts.
 // Under Leads the line is leadsStanding's (contracts leads.ts, Task 4.6): "322 leads · 272 ready · 3 searches",
 // and "1 search needs you" is the tap that opens the search waiting on an answer.
-const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown = false, onNeeds, onLists = null, listWord = null }) => (
+const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown = false, onNeeds }) => (
   scope === "leads" ? (
     <div className="pl-standing" data-testid="leads-standing">
       <span className="pl-standing-total">{leads.total}</span>
@@ -1156,17 +1208,65 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
         <span className="pl-standing-reached">{agg.reachedWeek} reached this week</span>
       </span>
     )}
-    {onLists && (
-      <span className="pl-standing-part pl-standing-lists">
-        <span className="pl-standing-dot" aria-hidden="true">·</span>
-        <button type="button" className={`pl-standing-needs ${listWord ? "on" : ""}`} onClick={onLists} data-testid="people-lists-pick">
-          {listWord || "Lists"} <Icon name="chevron-down" size={10} />
-        </button>
-      </span>
-    )}
   </div>
   )
 );
+
+// The phone's one bar (900px and under, the band the rows and the Lists sheet use), the same for both scopes of
+// People: the People | Leads switch, the list being shown, search behind a button, and the scope's own last control
+// -- People's more-menu, Leads' Find. Nothing sits above the rows but the one line under it: the phone shows the work
+// first. Searching, the bar is the field, full width and 16px, so a phone never zooms into it, and Cancel gives the
+// bar back; words in the box keep it open (a view of Leads comes back with its own) without taking focus. The search
+// was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
+// state is the page's (`searchOpen`), so the tests' stub React counts one hook order.
+const PeoplePhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
+  const id = (part) => `${testid}-phone-${part}`;
+  if (searchOpen || q) {
+    return (
+      <div className="pp-bar is-searching" data-testid={id("bar")}>
+        <label className="pp-bar-field">
+          <Icon name="search" size={16} />
+          <input
+            ref={searchRef}
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoFocus={searchOpen}
+            value={q}
+            placeholder={searchLabel}
+            aria-label={searchLabel}
+            onChange={(e) => onQ(e.target.value)}
+            data-testid={id("search")}
+          />
+          {q ? (
+            <button type="button" className="pp-bar-clear" aria-label="Clear the search" onClick={() => { onQ(""); if (searchRef && searchRef.current) searchRef.current.focus(); }} data-testid={id("search-clear")}>
+              <Icon name="x" size={12} />
+            </button>
+          ) : null}
+        </label>
+        <button type="button" className="pp-bar-cancel" onClick={() => { onQ(""); onSearchOpen(false); }} data-testid={id("search-cancel")}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <div className="pp-bar" data-testid={id("bar")}>
+      <div className="pt-scope" role="tablist" aria-label="Which people">
+        <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
+        <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
+      </div>
+      <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
+        <span className="pp-bar-pick-words">{listLabel}</span>
+        <Icon name="chevron-down" size={11} />
+      </button>
+      <span className="pp-bar-gap" />
+      <button type="button" className="pp-bar-icon" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
+        <Icon name="search" size={18} />
+      </button>
+      {trailing}
+    </div>
+  );
+};
 
 // The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
 // chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
@@ -1306,6 +1406,42 @@ const PL_COLUMNS = [
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
+// A person on a phone, in one cell (900px and under): the Inbox's row. Their face, their name and their state on the
+// first line; on the second, why they need a person when they do, else their own last words; on the third, when they
+// are coming and when you last spoke. The desktop's columns say the same things; a phone says them once, in this order,
+// and leaves the answer to offers, the receptionist's word, where they came from and their lists to their page, one tap
+// away. It was the desktop's cells re-gridded into a box: 119 to 168px a person, the face squeezed to an oval, the state
+// 36px tall against the box's edge, the visit broken over two lines, three left edges in one card. The member's
+// desktop columns do not reach it: whatever they hid, the row says the state.
+const plCardCell = (p, { attention }) => {
+  const byNumber = plIsNumber(p.name);
+  const glyph = byNumber ? "phone" : plIsAddress(p) ? "mail" : null;
+  const said = attention && attention[p.id];
+  const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
+  const asks = p.state === "needs_you" || p.state === "waiting_on_you";
+  const lead = asks && p.stateDetail ? p.stateDetail : words;
+  const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
+  return (
+    <td key="card" className="pl-card-cell">
+      <div className="pl-card">
+        <div className={`ix-thread-avatar pl-card-face${glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
+          {glyph ? <Icon name={glyph} size={12} className="pl-card-glyph" /> : <span className="pl-card-initials">{p.initials}</span>}
+          <Icon name="check" size={14} className="pl-card-tick" />
+        </div>
+        <div className={`pl-card-name${byNumber ? " tabular" : ""}`}>{p.name}</div>
+        <PeopleStatePill state={p.state} label={p.stateLabel} />
+        {lead ? <div className="pl-card-lead" data-testid={asks && p.stateDetail ? "row-state-detail" : "row-words"}>{lead}</div> : null}
+        <div className="pl-card-facts">
+          {p.nextVisitDay ? <span className="pl-card-visit" data-testid="row-next-visit"><Icon name="calendar" size={11} />{time ? `${p.nextVisitDay} · ${time}` : p.nextVisitDay}</span> : null}
+          <span className="pl-card-last">{p.lastContact.label}</span>
+        </div>
+      </div>
+    </td>
+  );
+};
+// A phone's one column, and the class its rows wear (clients.css draws the row from it).
+const PL_PHONE_COLUMNS = [{ key: "card", label: "Person", sortable: false, pinned: true, cell: plCardCell }];
+const plCardRowClass = () => "pl-card-row";
 // The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
 const PL_BATCH = 50;
 // The loaded rows and what a search found past them, each person once.
@@ -1322,7 +1458,9 @@ const plUndoList = async (id, name, flash) => {
 // What a selection can become: people on a list, a yes on record, a file.
 // Adding to a list and recording a yes are owner-or-operator on the server;
 // the bar shows what the role allows and says why when it does not.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null }) => {
+// `phone`: the bar is docked along the foot of a phone's pane and scrolls sideways, so its menus are placed against the
+// window (MoreMenu escape), which that scroll cannot cut off.
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1371,14 +1509,10 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
-    const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const madeId = plMadeId(c, n);
-    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
-    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
-    if (!a.ok && madeId) await window.__lists.remove(madeId);
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setNaming(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, madeId ? `${n} was not made` : "Not added to the new list"));
+    flash(filled.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, id ? `${n} was not made` : "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
   // separate answers and only one of them puts a person on a broadcast. This
@@ -1447,6 +1581,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Add to list"
           title="Add to a list"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -1476,6 +1611,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && window.__setPersonConsentMany && sources.length > 0 && !slips && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Record a yes"
           title="Which yes, and how it was given — the two are separate answers"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -1498,6 +1634,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       {canEdit && isOwner && window.__setPersonReceptionistMany && (
         <MoreMenu
           btnClass="btn btn-sm"
+          escape={phone}
           label="Receptionist"
           title="What the receptionist does for these people"
           gated={busy ? "One moment — the last change is still saving" : null}
@@ -1532,14 +1669,10 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
-    const c = await window.__lists.create(n);
-    if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const madeId = plMadeId(c, n);
-    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
-    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
-    if (!a.ok && madeId) await window.__lists.remove(madeId);
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
     setBusy(false); setOpen(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, "Not kept as a list"));
+    flash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, "Not kept as a list"));
   };
   if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
   return (
@@ -1565,13 +1698,12 @@ const AddPersonButton = ({ onAdded, flash }) => {
   const submit = async () => {
     if (busy || !phone.trim() || !window.__addPerson) return;
     setBusy(true); setError(null);
-    const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+    const r = await plAddPerson({ name, phone });
     setBusy(false);
-    // The field's own sentence where the route named one, else the refusal's.
-    if (!r.ok) { setError((r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them."); return; }
-    flash({ msg: r.data.existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</> });
+    if (!r.ok) { setError(r.error); return; }
+    flash({ msg: plAddedWords({ name, phone }, r.existed) });
     close();
-    onAdded(r.data.contact_id);
+    onAdded(r.id);
   };
   if (!open) {
     return <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} data-testid="add-person"><Icon name="plus" size={12} /> Add a person</button>;
@@ -1584,6 +1716,65 @@ const AddPersonButton = ({ onAdded, flash }) => {
       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={close}>Cancel</button>
       <window.FieldError id="add-person-error" message={error} testid="add-person-error" />
     </span>
+  );
+};
+
+// A sheet from the bottom of a phone for People's own small jobs -- Add a person, and the open list's rename, delete
+// and "Save these": a handle, a title, one way out, and the job. The page's own dialog: `pl-sheet` keeps it out of
+// PL_OVERLAY, and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
+const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", testid, children }) => (
+  <>
+    <div className="sb-sheet-backdrop" onClick={onClose} />
+    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
+      <div className="pp-sheet-handle" aria-hidden="true" />
+      <div className="pp-sheet-head">
+        <h2 className="pp-sheet-title">{title}</h2>
+        {closeLabel && <button type="button" className="pp-sheet-close" onClick={onClose} data-testid={`${testid}-close`}>{closeLabel}</button>}
+      </div>
+      <div className="pp-sheet-body">{children}</div>
+    </div>
+  </>
+);
+
+// Add a person on a phone: the two fields stacked, 16px, a number pad for the number, one wide button. The desktop's
+// form stands inline in its controls row; on a phone it was that row, 479px wide on a 365px screen, with Add and
+// Cancel past the edge and the page scrolling sideways.
+const PeopleAddSheet = ({ draft, onDraft, onAdd, onClose }) => (
+  <PhoneSheet title="Add a person" onClose={onClose} testid="add-person-sheet">
+    <label className="pp-field">
+      <span className="pp-field-label">Name <span className="pp-field-opt">(optional)</span></span>
+      <input className="pp-input" autoFocus value={draft.name} maxLength={80} autoComplete="name" disabled={draft.busy} onChange={(e) => onDraft({ name: e.target.value })} data-testid="add-person-name" />
+    </label>
+    <label className="pp-field">
+      <span className="pp-field-label">Mobile number</span>
+      <input className="pp-input" type="tel" inputMode="tel" autoComplete="tel" value={draft.phone} maxLength={24} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "add-person-error" : undefined} onChange={(e) => onDraft({ phone: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onAdd(); }} data-testid="add-person-phone" />
+    </label>
+    <window.FieldError id="add-person-error" message={draft.error} testid="add-person-error" />
+    <p className="pp-sheet-hint">A number that is already here opens that person instead of adding them twice.</p>
+    <button type="button" className="btn btn-primary pp-sheet-go" disabled={draft.busy || !draft.phone.trim()} onClick={onAdd} data-testid="add-person-save">{draft.busy ? "Adding…" : "Add"}</button>
+  </PhoneSheet>
+);
+
+// The open list's own acts on a phone, from the more-menu: rename it, delete it, or keep what is shown as a list. A
+// desktop does these on the list's title line, which a phone does not draw. The doors are the desktop's.
+const PeopleListActSheet = ({ act, list, count, draft, onDraft, onGo, onClose }) => {
+  if (act === "delete") {
+    return (
+      <PhoneSheet title="Delete the list" onClose={onClose} closeLabel={null} testid="list-act-sheet">
+        <Confirm block question={`Delete “${list.name}”?`} detail="The people stay." yes="Yes, delete" danger busy={draft.busy} error={draft.error} onYes={onGo} onNo={onClose} testid="delete-list" />
+      </PhoneSheet>
+    );
+  }
+  const renaming = act === "rename";
+  return (
+    <PhoneSheet title={renaming ? "Rename the list" : `Save these ${count} as a list`} onClose={onClose} testid="list-act-sheet">
+      <label className="pp-field">
+        <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
+        <input className="pp-input" autoFocus value={draft.name} maxLength={60} disabled={draft.busy} aria-invalid={draft.error ? true : undefined} aria-describedby={draft.error ? "list-act-error" : undefined} onChange={(e) => onDraft({ name: e.target.value, error: null })} onKeyDown={(e) => { if (e.key === "Enter") onGo(); }} data-testid={renaming ? "list-rename-name" : "save-shown-name"} />
+      </label>
+      <window.FieldError id="list-act-error" message={draft.error} testid="list-act-error" />
+      <button type="button" className="btn btn-primary pp-sheet-go" disabled={draft.busy || !draft.name.trim()} onClick={onGo} data-testid={renaming ? "list-rename-save" : "save-shown-save"}>{draft.busy ? "Saving…" : renaming ? "Save" : "Keep it"}</button>
+    </PhoneSheet>
   );
 };
 
@@ -1627,6 +1818,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
   const [listsOpen, setListsOpen] = useState(false);
   const [newListSignal, setNewListSignal] = useState(0);
+  // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
+  const [searchOpen, setSearchOpen] = useState(false);
+  // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their
+  // drafts. The page holds them, so the sheets are hookless and the stub React's one hook order holds.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
+  const [listAct, setListAct] = useState(null);
+  const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   const [phone, setPhone] = useState(plPhoneNow);
   React.useEffect(() => {
     const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
@@ -1638,7 +1837,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
-      if (window.matchMedia && window.matchMedia("(max-width: 720px)").matches) setListsOpen(true);
+      // The rail is hidden at 900px and under (mobile.css), so there the box opens in the sheet: this asked 720px, and
+      // from 721 to 900 it opened inside a rail nobody could see.
+      if (plPhoneNow()) setListsOpen(true);
     };
     window.addEventListener("segments:new", onNew);
     return () => window.removeEventListener("segments:new", onNew);
@@ -1962,7 +2163,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const hasCenter = onLeads && leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
   const colCtx = onLeads ? { hasCenter } : { withCalendar };
   // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
-  const columns = React.useMemo(() => plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
+  // On a phone People draws one cell a person (plCardCell); Leads keeps its cards of every column (#789).
+  const columns = React.useMemo(() => (!onLeads && phone ? PL_PHONE_COLUMNS : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
   const colOptions = plColumnOptions(cols, colChoices, colCtx);
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
@@ -2011,6 +2213,49 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
   React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
+  // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
+  // page opens, as the desktop's form does.
+  const addOnPhone = async () => {
+    const d = addDraft;
+    if (d.busy || !d.phone.trim() || !window.__addPerson) return;
+    setAddDraft({ ...d, busy: true, error: null });
+    const r = await plAddPerson(d);
+    if (!r.ok) { setAddDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+    plFlash({ msg: plAddedWords(d, r.existed) });
+    setAddOpen(false);
+    setAddDraft(PL_ADD_EMPTY);
+    onOpenProfile(r.id);
+  };
+  const closePhoneSheet = () => { setAddOpen(false); setAddDraft(PL_ADD_EMPTY); setListAct(null); setListDraft(PL_LIST_EMPTY); };
+  // The open list's acts on a phone (the more-menu's): the desktop's doors, the page's draft, the desktop's words.
+  const listActGo = async () => {
+    const d = listDraft;
+    if (d.busy || !window.__lists) return;
+    const n = d.name.trim();
+    if (listAct !== "delete" && !n) return;
+    if (listAct !== "save" && !activeSaved) return;
+    if (listAct === "rename" && n === activeSaved.name) { closePhoneSheet(); return; }
+    setListDraft({ ...d, busy: true, error: null });
+    if (listAct === "delete") {
+      const r = await plDeleteList(activeSaved);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      setSavedId(null);
+      return;
+    }
+    if (listAct === "rename") {
+      const r = await plRenameList(activeSaved, n);
+      if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      closePhoneSheet();
+      plFlash({ msg: <>Renamed to <b>{n}</b></> });
+      return;
+    }
+    const ids = shownIds;
+    const { made, filled, id } = await plMakeListWith(n, ids);
+    if (!made.ok) { setListDraft((x) => ({ ...x, busy: false, error: made.message || "Could not make the list." })); return; }
+    closePhoneSheet();
+    plFlash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, plFlash) } : window.refusalToast(filled, "Not kept as a list"));
+  };
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
   // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
@@ -2194,7 +2439,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
       if (k.menuOpen && plPhoneNow()) k.closeMenu();
       else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
-      if (k.sheetOpen) return;
+      // The phone's sheets hold every key; the Lists sheet closes on its own Esc listener, People's own two on this one.
+      if (k.sheetOpen) { if (e.key === "Escape" && k.closeSheet) { e.preventDefault(); k.closeSheet(); } return; }
       // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
       // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
       if (document.querySelector(PL_OVERLAY)) return;
@@ -2417,8 +2663,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
     selected: sel.size > 0,
     clearSel: () => setSel(new Set()),
-    focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
-    sheetOpen: listsOpen,
+    // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
+    focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
+    sheetOpen: listsOpen || addOpen || !!listAct,
+    closeSheet: addOpen || listAct ? closePhoneSheet : null,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
@@ -2521,6 +2769,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         q={q}
         onQ={setQ}
         searchRef={searchRef}
+        searchOpen={searchOpen}
+        onSearchOpen={setSearchOpen}
         scrollRef={scrollRef}
         scrolled={scrolledX}
         onScrolled={setScrolledX}
@@ -2692,6 +2942,29 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
+  // Whether anyone shown is selected: the bar shows then, and on a phone a tap on a row selects it rather than opening
+  // the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = shown.some((p) => sel.has(p.id));
+  // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
+  // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
+  // list open, that list's own acts.
+  const phoneMenu = [
+    ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+    { header: "Sort" },
+    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => { viewTouched.current = true; setSortBy(s.by); setSortDir(s.dir); } })),
+    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
+    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(activeSaved && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+      { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
+    ] : []),
+    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+    ] : []),
+  ];
+
   return (
     <div className="clients">
       <PeopleRail
@@ -2712,15 +2985,32 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
 
       <div className="cl-main">
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
+          {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */}
+          {phone && (
+            <PeoplePhoneBar
+              scope="people"
+              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              onLists={() => setListsOpen(true)}
+              listsOpen={listsOpen}
+              q={q}
+              onQ={setQ}
+              searchRef={searchRef}
+              searchOpen={searchOpen}
+              onSearchOpen={setSearchOpen}
+              searchLabel="Search by name or phone"
+              testid="people"
+              trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+            />
+          )}
           <PeopleStanding
             scope="people"
             agg={agg}
             needsShown={tab === "needs_you"}
             onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
-            onLists={() => setListsOpen(true)}
-            listWord={activeSaved ? activeSaved.name : activeList ? activeList.label : null}
           />
 
+          {!phone && (
           <div className="cl-controls">
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
@@ -2742,8 +3032,13 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
               </button>
             </div>
           </div>
+          )}
 
+          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
+              list's own acts. A list's own step stays, one card. */}
+          {(!phone || listStep) && (
           <div className="cl-section">
+            {!phone && (
             <div className="cl-section-head">
               <div className="cl-section-lead">
                 {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
@@ -2774,6 +3069,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
                   : (filtered ? "Filtered" : "")}
               </span>
             </div>
+            )}
             {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
                 said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
             {listStep && (
@@ -2785,6 +3081,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
               </div>
             )}
           </div>
+          )}
 
           <PeopleTable
             noun="person"
@@ -2797,11 +3094,12 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             cursor={cursor}
             onCursor={setCursor}
             rows={shown}
+            rowClass={phone ? plCardRowClass : null}
             total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={onSort}
-            onOpen={onOpenProfile}
+            onOpen={phone && selecting ? toggleSel : onOpenProfile}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             scrolled={scrolledX}
@@ -2817,13 +3115,15 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
         </div>
         {/* The bar counts, and acts on, the people shown and selected. */}
-        {shown.some((p) => sel.has(p.id)) && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
-        {/* The phone's rail, as a sheet (the rail itself is not drawn under 720px). Last in the tree, after everything
-            whose state a stub React keys by order. */}
+        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} />}
+        {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
+            everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
         {listsOpen && (
           <PeopleListsSheet onClose={() => setListsOpen(false)}>
             <PeopleRail
               scope="people"
+              scopeTabs={false}
+              everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
               onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
               lists={lists}
               groups={people.groups || PL_DEFAULT_GROUPS}
@@ -2839,6 +3139,13 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             />
           </PeopleListsSheet>
         )}
+        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
+        {phone && addOpen && (
+          <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
+        )}
+        {phone && listAct && (listAct === "save" || activeSaved) && (
+          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+        )}
         {toastNode}
       </div>
     </div>
@@ -2853,4 +3160,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, RailSection, RailGroup, RailRow, railToggle });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, RailSection, RailGroup, RailRow, railToggle });

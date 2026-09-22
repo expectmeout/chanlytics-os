@@ -1723,6 +1723,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .more-item:hover { background: var(--bg-hover); }
 .more-item:focus-visible { outline: none; background: var(--bg-hover); box-shadow: inset 0 0 0 2px var(--accent-soft); }
 .more-item .icon { width: 16px; height: 16px; }
+/* One of a set (MoreMenu `checked`): the tick beside the one chosen and none beside the rest, the words in one column.
+   The Columns menu's rule (clients.css .pl-cols), for any menu. */
+.more-item[aria-checked="false"] .icon { visibility: hidden; }
 .more-item .icon { color: var(--ink-dim); flex-shrink: 0; }
 .more-item:hover .icon { color: var(--ink); }
 .more-item-label { flex: 1; min-width: 0; }

@@ -76,7 +76,9 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   assert.ok(!readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("segments-real"), "REGRESSION: a second page of the same people");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"), "the demo's page under the name the shell draws");
   const p = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  for (const id of ["saved-filter", "list-rename", "list-rename-name", "list-action", "row-drop-list", "bulk-drop-list", "show-everyone", "people-lists-pick", "people-lists-sheet"]) {
+  // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
+  // behind the bar's list button"), not a testid read here.
+  for (const id of ["saved-filter", "list-rename", "list-rename-name", "list-action", "row-drop-list", "bulk-drop-list", "show-everyone", "people-lists-sheet"]) {
     assert.ok(p.includes(`data-testid="${id}"`), id);
   }
   assert.ok(p.includes('window.addEventListener("segments:new", onNew);'), "the shell's and a profile's New list open the box");

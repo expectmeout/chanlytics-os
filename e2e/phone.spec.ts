@@ -192,4 +192,52 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByTestId("bc-send-no").click();
     await expect(page.getByTestId("bc-send")).toBeVisible();
   });
+
+  /**
+   * People on a phone (docs/superpowers/specs/2026-09-22-people-on-a-phone-design.md): one bar, one line and the
+   * rows. On 22 Sep the first person stood 299px down under a search box and three text buttons, each person a boxed
+   * card 119 to 168px tall with the face squeezed to an oval and the state 36px tall, and Add a person opened a form
+   * 479px wide on a 375px screen.
+   */
+  test("People is one bar, one line and the rows: a face is round, a state one line, nothing past the edge", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const bar = page.getByTestId("people-phone-bar");
+    await expect(bar).toBeVisible();
+    for (const id of ["people-phone-lists", "people-phone-search-open"]) await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(".cl-controls")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), "nothing past the edge").toBe(0);
+    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    test.skip((await row.count()) === 0, "nobody on this workspace");
+    await expect(row).toBeInViewport({ ratio: 1 });
+    expect((await row.boundingBox())!.y, "the first person is on the first screen, under one bar and one line").toBeLessThan(240);
+    const face = (await row.locator(".pl-card-face").boundingBox())!;
+    expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
+    expect((await row.locator(".pl-card > .pill").boundingBox())!.height, "a state is a pill, not a 36px button").toBeLessThanOrEqual(22);
+    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    await bar.getByTestId("people-phone-search-open").click();
+    const field = page.getByTestId("people-phone-search");
+    await expect(field).toBeFocused();
+    expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+    await page.getByTestId("people-phone-search-cancel").click();
+    await expect(bar.getByTestId("people-phone-lists")).toBeVisible();
+    // A list picked in the sheet closes it and leaves no tip behind: the tap focused its row, the sheet took the row
+    // away, and the tip was placed at the corner of the top bar 280ms later.
+    await bar.getByTestId("people-phone-lists").click();
+    const sheet = page.getByTestId("people-lists-sheet");
+    await expect(sheet).toBeVisible();
+    await sheet.getByTestId("rail-everyone").click();
+    await expect(sheet).toHaveCount(0);
+    await page.waitForTimeout(400);
+    await expect(page.locator(".ui-tip.show")).toHaveCount(0);
+    // Add a person: a sheet whose one button is on the screen.
+    await bar.locator(".more-wrap > button").click();
+    const add = page.getByRole("menuitem", { name: "Add a person" });
+    test.skip((await add.count()) === 0, "this member cannot add people");
+    await add.click();
+    await expect(page.getByTestId("add-person-sheet")).toBeVisible();
+    await expect(page.getByTestId("add-person-save")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("add-person-sheet-close").click();
+    await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
+  });
 });

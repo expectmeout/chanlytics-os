@@ -553,34 +553,199 @@ test("a list kept by hand is the page's title when open, with its rename, its de
   assert.equal(byTestId(tree, "row-drop-list"), null, "and nobody can be taken off a list that is not open");
 });
 
-test("on a phone the rail's lists are behind one tap on the standing line, as a sheet; a pick closes it, and New list opens the box in it", async () => {
+/* ------------------------------ People on a phone (the phone pass, 22 Sep) ------------------------------ */
+
+/** A phone's width for the page's life: set before the first draw, as a phone opens the page. */
+const onPhone = async (fn) => {
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  try { return await fn(); } finally { delete globalThis.window.matchMedia; }
+};
+const idsShown = (tree) => all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+
+test("REGRESSION: on a phone People is one bar, one line and the people -- a 57px search box, three text buttons and an 'Everyone' title stood between them", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  let tree = draw();
+  const bar = byTestId(tree, "people-phone-bar");
+  assert.ok(bar, "the bar");
+  assert.deepEqual(all(bar, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]), [["People", true], ["Leads", false]]);
+  assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
+  assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search by name or phone");
+  assert.ok(find(bar, (n) => n.type === globalThis.MoreMenu), "and the page's more-menu");
+  assert.equal(find(tree, (n) => n.props?.className === "cl-controls"), null, "REGRESSION: the controls row");
+  assert.equal(find(tree, (n) => n.props?.className === "cl-section-head"), null, "REGRESSION: the list head, under a bar that names the list");
+  const standing = byTestId(tree, "people-standing");
+  assert.match(textOf(standing), /2 people/, "the one line stays");
+  assert.equal(byTestId(standing, "people-lists-pick"), null, "the line holds counts; the list is the bar's");
+  // A pick in the sheet names the list in the bar.
+  click(byTestId(tree, "people-phone-lists"));
+  tree = draw();
+  click(find(byTestId(tree, "people-lists-sheet"), (n) => n.type === "button" && textOf(n).includes("Regulars")));
+  tree = draw();
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars");
+  assert.deepEqual(idsShown(tree), ["person-p1"]);
+}));
+
+test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  assert.equal(byTestId(tree, "people-phone-bar"), null);
+  assert.ok(find(tree, (n) => n.props?.className === "cl-controls"));
+  assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
+});
+
+test("on a phone search is a button that opens the bar into the field; Cancel gives the bar back and clears the words", () => onPhone(async () => {
+  await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
+  let tree = draw();
+  assert.equal(byTestId(tree, "people-phone-search"), null, "no box until asked");
+  click(byTestId(tree, "people-phone-search-open"));
+  tree = draw();
+  const field = byTestId(tree, "people-phone-search");
+  assert.equal(field.props.type, "search");
+  assert.equal(field.props.autoFocus, true);
+  assert.equal(byTestId(tree, "people-phone-lists"), null, "the bar is the field while searching");
+  field.props.onChange({ target: { value: "rosa" } });
+  tree = draw();
+  assert.deepEqual(idsShown(tree), ["person-p1"]);
+  click(byTestId(tree, "people-phone-search-cancel"));
+  tree = draw();
+  assert.ok(byTestId(tree, "people-phone-lists"), "Cancel gives the bar back");
+  assert.equal(idsShown(tree).length, 2, "and clears the words");
+  // The page's / opens it too.
+  press("/");
+  assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
+}));
+
+const phoneMenuOf = (tree) => find(byTestId(tree, "people-phone-bar"), (n) => n.type === globalThis.MoreMenu).props.items;
+
+test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headings do, and holds the open list's own acts", () => onPhone(async () => {
+  await freshPage({ people: [person(1, { display_name: "Zed" }), person(2, { display_name: "Abe" })], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }] });
+  const calls = [];
+  globalThis.window.__lists = lists({
+    rename: async (id, name) => { calls.push(["rename", id, name]); return { ok: true, data: {} }; },
+    remove: async (id) => { calls.push(["remove", id]); return { ok: true, data: {} }; },
+  });
+  globalThis.window.__addPerson = async (body) => { calls.push(["add", body]); return { ok: true, data: { contact_id: "p9", existed: false } }; };
+  try {
+    let tree = draw();
+    assert.deepEqual(phoneMenuOf(tree).filter((i) => typeof i.checked === "boolean").map((i) => [i.label, i.checked]), [
+      ["Needs you first", false], ["Latest contact first", true], ["Name, A to Z", false], ["Name, Z to A", false],
+    ], "the sorts a desktop's headings give, the one in use ticked; Soonest visit only with a calendar");
+    phoneMenuOf(tree).find((i) => i.label === "Name, A to Z").onClick();
+    tree = draw();
+    assert.deepEqual(idsShown(tree), ["person-p2", "person-p1"], "A to Z");
+    // Add a person: a sheet, not the desktop's row, which was 479px wide on a 365px screen.
+    phoneMenuOf(tree).find((i) => i.label === "Add a person").onClick();
+    tree = draw();
+    const sheet = byTestId(tree, "add-person-sheet");
+    assert.equal(sheet.props.role, "dialog");
+    assert.equal(byTestId(sheet, "add-person-phone").props.type, "tel", "a phone's number pad");
+    byTestId(sheet, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
+    tree = draw();
+    await byTestId(tree, "add-person-save").props.onClick();
+    tree = draw();
+    assert.deepEqual(calls.at(-1), ["add", { phone: "+1 786 555 0100" }]);
+    assert.equal(byTestId(tree, "add-person-sheet"), null, "added: the sheet closes");
+    assert.equal(opened.at(-1), "p9", "and their page opens, as the desktop's form does");
+    // A list open: its rename and its delete are the menu's.
+    tree = draw({ initialSaved: "s1" });
+    tree = draw({ initialSaved: "s1" });
+    phoneMenuOf(tree).find((i) => i.label === "Rename this list").onClick();
+    tree = draw({ initialSaved: "s1" });
+    const name = byTestId(byTestId(tree, "list-act-sheet"), "list-rename-name");
+    assert.equal(name.props.value, "Regulars", "the name to change, in the box");
+    name.props.onChange({ target: { value: "VIP" } });
+    tree = draw({ initialSaved: "s1" });
+    await byTestId(tree, "list-rename-save").props.onClick();
+    tree = draw({ initialSaved: "s1" });
+    assert.deepEqual(calls.at(-1), ["rename", "s1", "VIP"]);
+    assert.equal(byTestId(tree, "list-act-sheet"), null);
+    assert.ok(flashes.some((f) => textOf(f.msg).includes("VIP")), "said");
+    phoneMenuOf(tree).find((i) => i.label === "Delete this list…").onClick();
+    tree = draw({ initialSaved: "s1" });
+    const confirm = find(byTestId(tree, "list-act-sheet"), (n) => n.type === globalThis.Confirm);
+    assert.equal(confirm.props.detail, "The people stay.", "asked through the one Confirm");
+    await confirm.props.onYes();
+    tree = draw({ initialSaved: "s1" });
+    assert.deepEqual(calls.at(-1), ["remove", "s1"]);
+    assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone", "the list gone, everyone shown");
+  } finally {
+    delete globalThis.window.__addPerson;
+  }
+}));
+
+test("Esc closes the phone's own sheet, and the page holds its keys while one is open", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  globalThis.window.__addPerson = async () => ({ ok: true, data: { contact_id: "p9" } });
+  try {
+    let tree = draw();
+    phoneMenuOf(tree).find((i) => i.label === "Add a person").onClick();
+    tree = draw();
+    assert.ok(byTestId(tree, "add-person-sheet"));
+    assert.equal(press("j"), false, "J walks nothing behind the sheet");
+    assert.equal(press("Escape"), true);
+    assert.equal(byTestId(draw(), "add-person-sheet"), null, "Esc closed it");
+  } finally {
+    delete globalThis.window.__addPerson;
+  }
+}));
+
+test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  let tree = draw({ initialSaved: "s1" });
+  tree = draw({ initialSaved: "s1" });
+  click(byTestId(tree, "people-phone-lists"));
+  tree = draw({ initialSaved: "s1" });
+  const sheet = byTestId(tree, "people-lists-sheet");
+  assert.equal(byTestId(sheet, "people-scope"), null, "one switch, the bar's");
+  const everyone = byTestId(sheet, "rail-everyone");
+  assert.match(textOf(everyone), /Everyone\s*2/, "Everyone, first, with everyone's count");
+  assert.equal(everyone.props["aria-current"], undefined, "not current while a list is open");
+  click(everyone);
+  tree = draw({ initialSaved: "s1" });
+  assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes the sheet");
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Everyone");
+  assert.equal(idsShown(tree).length, 2);
+}));
+
+test("on a phone the face is the checkbox, and while anyone is selected a tap on a row selects them rather than opening them", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  let tree = draw();
+  byTestId(rowOf(tree, "p1"), "row-select").props.onChange();
+  tree = draw();
+  assert.match(rowOf(tree, "p1").props.className, /\bselected\b/);
+  const before = opened.length;
+  rowOf(tree, "p2").props.onClick();
+  tree = draw();
+  assert.equal(opened.length, before, "a tap while selecting does not open the person");
+  assert.match(rowOf(tree, "p2").props.className, /\bselected\b/, "it selects them");
+  const bar = byTestId(tree, "bulk-bar");
+  assert.ok(bar, "the bar");
+  assert.equal(find(bar, (n) => n.type === globalThis.MoreMenu).props.escape, true, "its menus are placed against the window: the docked row scrolls, and would cut them off");
+  click(byTestId(tree, "bulk-clear"));
+  tree = draw();
+  rowOf(tree, "p2").props.onClick();
+  assert.equal(opened.at(-1), "p2", "cleared, a tap opens again");
+}));
+
+test("on a phone the lists are behind the bar's list button, as a sheet; a pick closes it, and New list opens the box in it", () => onPhone(async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw();
   assert.equal(byTestId(tree, "people-lists-sheet"), null, "closed until asked");
-  const pick = byTestId(tree, "people-lists-pick");
-  assert.ok(pick && textOf(pick).includes("Lists"), "the standing line's way to the lists");
-  click(pick);
+  click(byTestId(tree, "people-phone-lists"));
   tree = draw();
   const sheet = byTestId(tree, "people-lists-sheet");
   assert.ok(sheet, "the sheet");
-  assert.ok(find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"), "the same rail, drawn in the sheet as well");
+  assert.ok(find(sheet, (n) => n.type === "aside" && n.props?.className === "cl-rail"), "the rail's own rows, in the sheet");
   click(find(sheet, (n) => n.type === "button" && textOf(n).includes("Regulars")));
   tree = draw();
   assert.equal(byTestId(tree, "people-lists-sheet"), null, "a pick closes it");
-  assert.ok(textOf(byTestId(tree, "saved-filter")).includes("Regulars"), "with the list open");
-  assert.ok(textOf(byTestId(tree, "people-lists-pick")).includes("Regulars"), "and the line names it");
+  assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
   // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
-  globalThis.window.matchMedia = () => ({ matches: true });
-  try {
-    globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
-    tree = draw();
-    tree = draw();
-    assert.ok(byTestId(tree, "people-lists-sheet"), "the sheet");
-    assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
-  } finally {
-    delete globalThis.window.matchMedia;
-  }
-});
+  globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
+  tree = draw();
+  tree = draw();
+  assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
+}));
 
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
@@ -860,10 +1025,10 @@ test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl
   assert.equal(byTestId(tree, "bulk-bar"), null, "and nobody was selected");
 });
 
-test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", async () => {
+test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", () => onPhone(async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   byTestId(draw(), "select-all").props.onChange();
-  click(byTestId(draw(), "people-lists-pick"));
+  click(byTestId(draw(), "people-phone-lists"));
   assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
   press("Escape");
   let tree = draw();
@@ -872,7 +1037,7 @@ test("Esc closes the phone's lists sheet first, and the selection stays; the nex
   assert.equal(press("Escape"), true);
   tree = draw();
   assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
-});
+}));
 
 test("x and Space select nobody for a member who can neither edit lists nor export, and the foot's keys say what the member's keys do", async () => {
   await freshPage({ people: [person(1), person(2)] });
@@ -1391,35 +1556,31 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   }
 });
 
-test("REGRESSION: a member's columns are a desktop's, and a phone keeps its cards -- with State and Offers hidden, the cards lost the state and the answer to offers, and no phone can reach the Columns menu to put them back", async () => {
+test("REGRESSION: a desktop builds no cell of a column the member turned off -- four hidden cells were built, cloned and inserted per row for a desktop to hide", async () => {
   const needsYou = person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
-  const people = [needsYou, person(2)];
-  /** A row's cells as a card draws them: every cell drawn, whatever mark a desktop reads. */
-  const cardCells = (tree, id) => rowOf(tree, id).props.children.filter((k) => k && k.type === "td").map((td) => String(td.props.className).replace(/\s*\bpl-col-off\b/g, "").trim());
-  // On a phone: a desktop no longer builds a cell it hides, so the cards are the phone's own drawing.
-  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
-  try {
-  await freshPage({ people });
-  let tree = draw();
-  const byDefault = ["p1", "p2"].map((id) => cardCells(tree, id));
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
-  tree = draw();
-  assert.deepEqual(["p1", "p2"].map((id) => cardCells(tree, id)), byDefault, "REGRESSION: each row draws the cells it draws by default, whatever the member chose");
-  assert.deepEqual(headings(tree), ["Person", "Last contact", "Receptionist", "Came from"], "and a desktop leaves State and Offers out");
-  const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
-  assert.ok(colOff(state) && colOff(byTestId(rowOf(tree, "p1"), "row-offers")), "the state and the answer to offers are drawn, marked for a desktop to hide");
-  assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
-  const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
-  assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
-  } finally {
-    delete globalThis.window.matchMedia;
-  }
-  // And a desktop builds none of them: State, Offers, Email and Lists are not in the row at all.
-  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  await freshPage({ people: [needsYou, person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
   const desk = draw();
-  assert.equal(all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length, 0, "REGRESSION: four hidden cells were built, cloned and inserted per row for a desktop to hide");
+  assert.equal(all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length, 0, "State, Offers, Email and Lists are not in the row at all");
   assert.deepEqual(headings(desk), ["Person", "Last contact", "Receptionist", "Came from"]);
 });
+
+test("REGRESSION: a phone row is one cell -- the face, the name and the state; why they need a person, or their own words; the visit and the last contact -- and the member's desktop columns never reach it", () => onPhone(async () => {
+  const needs = person(1, { display_name: "Zoe M.", needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  await freshPage({ people: [needs, person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  const tree = draw();
+  const row = rowOf(tree, "p1");
+  assert.match(row.props.className, /\bpl-card-row\b/);
+  const tds = row.props.children.filter((k) => k && k.type === "td");
+  assert.deepEqual(tds.map((td) => String(td.props.className)), ["cl-sel", "pl-card-cell"], "REGRESSION: the desktop's cells re-gridded into a box, 119 to 168px a person");
+  const card = tds[1];
+  const pill = find(card, (n) => /\bpill\b/.test(String(n.props?.className || "")));
+  assert.equal(pill.props["data-state"], "needs_you", "the state, whatever the member hid on a desktop");
+  assert.ok(byTestId(card, "row-state-detail"), "why they need a person");
+  assert.equal(byTestId(card, "row-offers"), null, "the answer to offers is on their page (Ruben, 22 Sep)");
+  assert.ok(find(card, (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))), "their face");
+  assert.match(textOf(byTestId(rowOf(tree, "p2"), "row-words")), /Saturday/, "a person who needs nobody says their own words");
+  assert.match(textOf(card), /Zoe M\./, "and their name");
+}));
 
 /* ------------------------- the table, after its review (18 September) ------------------------- */
 

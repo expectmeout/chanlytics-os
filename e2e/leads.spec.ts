@@ -224,17 +224,17 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.getByTestId("lead-finder")).toHaveCount(0);
   });
 
-  test("at a phone's width the switch, search and Find are one bar and the first lead is on the first screen", async ({ page }) => {
+  test("at a phone's width the switch, the list, search and Find are one bar and the first lead is on the first screen", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("leads-phone-bar");
     await expect(bar).toBeVisible();
-    await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
+    await expect(bar.getByTestId("leads-phone-search-open")).toBeVisible();
     await expect(bar.getByTestId("leads-phone-find")).toBeVisible();
     // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
     // track shared its class), and a clipped control still has a box, so it still passed as visible.
-    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await expect(bar.getByTestId("leads-phone-search-open")).toBeInViewport({ ratio: 1 });
     await expect(bar.getByTestId("leads-phone-find")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
@@ -256,6 +256,11 @@ test.describe("Leads on a real workspace", () => {
     expect(card.strays, "a cell the card draws has no area in its template").toEqual([]);
     expect(Math.abs(card.callGap), "Call ends at the card's right edge").toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+    // Search is the bar's button; pressed, the bar is one full-width field (it was a 64px box that said "Sear").
+    await bar.getByTestId("leads-phone-search-open").click();
+    await expect(page.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("leads-phone-search-cancel").click();
+    await expect(bar.getByTestId("leads-phone-lists")).toBeVisible();
   });
 
   test("Find leads turns words into a plan card, and nothing is started when it is closed", async ({ page }) => {
