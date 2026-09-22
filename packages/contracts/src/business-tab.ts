@@ -94,7 +94,13 @@ export interface RuleStrengthVM {
   checkedOn: { channel: "whatsapp" | "voice"; label: string; words: string }[] | null;
 }
 
-const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
+/*
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: `channelOpens` below makes this an expression the
+ * bundler cannot prove has no side effect, and a side effect at the top level is one it must KEEP. Left bare, this
+ * table and everything it reaches shipped into the four dists that bundle contracts and never draw this tab --
+ * jobs carried it six times, once per package re-bundled into it.
+ */
+const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "It cannot anyway",
@@ -144,7 +150,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     sentence: "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment.",
     checkedOn: null,
   },
-};
+}))();
 
 export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
   return STRENGTHS[key];
@@ -903,8 +909,12 @@ export function fallbacksWords(
  * Its opening sentence is NO_FIELDS_COMPOSED_WORDS (config.ts), which the prompt view's note over the same record's
  * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
  * two that happen to agree (the plan's M-2).
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a template literal with a substitution in it is an
+ * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-export const RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
+  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
 
 /**
  * What the receptionist can do, and what it cannot.

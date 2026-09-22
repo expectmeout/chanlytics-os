@@ -13536,7 +13536,7 @@ var channelOpens = (c) => {
   const w = ABILITY_CHANNEL_WORDS[c].has;
   return w.charAt(0).toUpperCase() + w.slice(1);
 };
-var STRENGTHS = {
+var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "It cannot anyway",
@@ -13582,7 +13582,7 @@ var STRENGTHS = {
     sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
     checkedOn: null
   }
-};
+}))();
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
@@ -13861,7 +13861,7 @@ function fallbacksWords(fallbacks) {
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -14156,7 +14156,10 @@ var PROMPT = {
   startsWith: "",
   // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
   // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
-  note: `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`
+  //
+  // Marked pure for the reason business-tab.ts gives beside GUARDRAIL_KEYS: a substitution makes this an expression
+  // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
+  note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)()
 };
 var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 var AUTONOMY = {

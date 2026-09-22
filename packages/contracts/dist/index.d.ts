@@ -10941,8 +10941,11 @@ declare function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_
  * Its opening sentence is NO_FIELDS_COMPOSED_WORDS (config.ts), which the prompt view's note over the same record's
  * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
  * two that happen to agree (the plan's M-2).
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a template literal with a substitution in it is an
+ * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-declare const RULES_WITHOUT_FIELDS_WORDS = "None of the details on this page are composed into what it reads yet. These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+declare const RULES_WITHOUT_FIELDS_WORDS: string;
 /**
  * What the receptionist can do, and what it cannot.
  *

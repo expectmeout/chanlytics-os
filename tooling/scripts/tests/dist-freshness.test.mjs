@@ -69,3 +69,41 @@ test("contracts really does resolve to dist — if that ever changes, so must th
     "if contracts starts resolving to src, this guard is obsolete rather than wrong — delete it deliberately",
   );
 });
+
+/**
+ * Contracts is bundled INTO the four packages that import it, so a top-level
+ * expression the bundler cannot prove pure is a side effect it has to keep.
+ * One Business-tab sentence table dragged 715 lines of a tab no edge handler
+ * and no job runner ever draws into channels, core, db and jobs — and jobs
+ * carried the rules fold six times, once per package re-bundled into it.
+ *
+ * `packages/contracts/src/business-tab.ts` states the fix beside GUARDRAIL_KEYS,
+ * which met this first: build the value inside a call marked `/* @__PURE__ *\/`,
+ * so esbuild may drop the whole thing where nothing reads it.
+ *
+ * Read as text, and with `fs` rather than `_source.mjs`: the fact under test IS
+ * the compiled bundle's contents, which has no seam to execute, and `_source`
+ * is for reading src. The remedy when this fails is never to widen the list —
+ * it is to mark the new initializer pure.
+ */
+const TAB_ONLY = ["GUARDRAIL_KEYS", "STRENGTHS", "RULES_WITHOUT_FIELDS_WORDS"];
+
+test("the Business tab's sentence tables stay out of the four bundles that never draw it", () => {
+  const carried = [];
+  for (const pkg of PACKAGES.filter((p) => p !== "contracts")) {
+    const dist = path.join(ROOT, "packages", pkg, "dist", "index.js");
+    if (!fs.existsSync(dist)) continue;
+    const text = fs.readFileSync(dist, "utf8");
+    for (const name of TAB_ONLY) {
+      // Counted by splitting rather than by a regex: the name is a plain identifier, and a hand-escaped
+      // word boundary in a template literal is the one thing that could make this guard silently pass.
+      const n = text.split(name).length - 1;
+      if (n > 0) carried.push(`${pkg}: ${name} x${n}`);
+    }
+  }
+  assert.deepEqual(
+    carried,
+    [],
+    "mark the initializer /* @__PURE__ */ in contracts and rebuild — do not add the name to this list",
+  );
+});
