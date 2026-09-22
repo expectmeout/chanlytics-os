@@ -74,9 +74,11 @@
 .rec-chip[data-more="true"] { border-color: transparent; color: var(--ink-dim); }
 
 /* ---------- A fold: a set of fields, opened under its row ---------- */
-/* The accent left edge is the page's one accent, and it marks the fold that is open. The fold reaches both edges of
-   the card, so its head and its fields line up with the rows above and below it. */
-.rec-fold { margin-inline: calc(-1 * var(--rec-gutter)); padding-inline: calc(var(--rec-gutter) - 2px) var(--rec-gutter); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: linear-gradient(to right, var(--bg-sunken), var(--bg-raised) 380px); }
+/* The accent left edge is the page's one accent, and it marks the fold that is open (spec 5). The fold reaches both
+   edges of the card, so its head and its fields line up with the rows above and below it. Its ground is flat: it was a
+   gradient fading out at 380px, which on a 720px column read as a smear across the open fold and moved with the
+   window, and which nothing about the fold needs -- the edge is what marks it. */
+.rec-fold { margin-inline: calc(-1 * var(--rec-gutter)); padding-inline: calc(var(--rec-gutter) - 2px) var(--rec-gutter); border-top: 1px solid var(--line); border-left: 2px solid var(--accent); background: var(--bg-sunken); }
 .rec-fold-head { display: flex; align-items: baseline; gap: 16px; padding: 11px 0 4px; }
 .rec-fold-label { flex: 0 0 var(--rec-key); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .rec-fold-hint { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }

@@ -258,18 +258,16 @@
    The shape of the log rather than a sentence about it, so the card does not
    resize under the reader when the rows land. */
 .act-waiting .act-glyph::before { display: none; }
+/* A flat dim block, not a sweeping one: the motion grammar refuses a skeleton shimmer here (the design spec's 9), and
+   a gradient that travels is the loudest thing on a settings page while it says the least. */
 .act-bone {
   display: block;
   height: 9px;
   width: 100%;
   border-radius: var(--radius-xs);
-  background: linear-gradient(90deg, var(--bg-sunken) 0%, var(--bg-hover) 50%, var(--bg-sunken) 100%);
-  background-size: 200% 100%;
-  animation: act-bone-sweep 1.4s var(--ease-out) infinite;
+  background: var(--bg-sunken);
 }
 .act-bone-day { width: 96px; height: 10px; }
-@keyframes act-bone-sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-@media (prefers-reduced-motion: reduce) { .act-bone { animation: none; } }
 .act-more { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
 .act-so-far { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .act-day {
@@ -1317,8 +1315,10 @@ html.legacy-on .bt-link { position: relative; }
 .bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
 /* One day's track. A closed day is hatched and holds no bar: shut, and looks it at a glance, which seven identical
    rows of switches never did. */
+/* A closed day is this track with no bar on it. It wore diagonal stripes, which at a phone's width is seven pieces of
+   hatching over a card of sentences; the day's own words say it is closed, on the ribbon by its dimmed name and in the
+   fold by "Closed". */
 .bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-sunken); overflow: hidden; }
-.bt-week-track[data-open="false"] { background: repeating-linear-gradient(135deg, var(--bg-sunken), var(--bg-sunken) 5px, var(--bg-active) 5px, var(--bg-active) 10px); }
 .bt-ribbon-bar { position: absolute; top: 0; bottom: 0; box-sizing: border-box; border-radius: var(--radius-xs); background: var(--ok-soft); border: 1px solid color-mix(in oklab, var(--ok) 40%, transparent); }
 .bt-ribbon .bt-week-track { height: 18px; }
 
