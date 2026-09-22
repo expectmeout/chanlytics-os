@@ -596,6 +596,38 @@ test("a note's own line that reads like a section the record does not have is st
   }
 });
 
+test("a note with a blank line in it still cannot open a section that comes before the notes (M-5, the review's case)", () => {
+  // A blank line inside a note satisfies "after a blank line", so that rule alone let "Park at the back.\n\nServices:
+  // ask us." cut a Services block on a record with no services. The composer writes its openings in one fixed order,
+  // so an opening the prompt view has already passed the place of cannot be the composer's.
+  const noted = {
+    ...profile,
+    services: undefined,
+    hours: undefined,
+    notes: [
+      { title: "Parking", text: "Park at the back.\n\nServices: ask us." },
+      { title: "Evenings", text: "Late on Fridays.\n\nOpening hours: see the door." },
+    ],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, noted, channel, tz, NOW);
+    const blocks = promptBlocks(text, channel, { profile: noted });
+    assert.deepEqual(
+      blocks.filter((b) => b.row === "services" || b.row === "hours").map((b) => b.id),
+      [],
+      `${channel}: no block for a row the record does not fill`,
+    );
+    const notes = blocks.find((b) => b.row === "notes").text;
+    assert.match(notes, /^Services: ask us\.$/m, `${channel}: the note keeps its line`);
+    assert.match(notes, /^Opening hours: see the door\.$/m, `${channel}: and its other one`);
+    assert.equal(
+      blocks.reduce((n, b) => n + b.chars, 0),
+      text.length,
+      `${channel}: every character still belongs to one block`,
+    );
+  }
+});
+
 /* ---- The hand-off ---- */
 
 test("the hand-off is one row on both channels, and carries the owner's reasons on both", () => {

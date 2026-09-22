@@ -215,14 +215,20 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   // one, because the composer writes every opening as `\n${heading}` (and the resolver its rules after a blank line
   // too): a note's second line that reads "Services: ..." on a record with no services follows the note's first line,
   // and was cut into a Services block of its own, charged to a row the record does not fill (the plan's M-5).
+  // And only in the composer's own order, which BLOCK_MARKS keeps: a note can hold a blank line of its own, and "Park
+  // at the back.", a blank line, then "Services: ask us." passed the first rule; but it comes after the notes' opening,
+  // and the composer writes Services before the notes, so an opening the cut has already gone past the place of cannot
+  // be the composer's. Each is taken once, the first time it is met in order. What order cannot tell apart is a note's
+  // line that reads like a LATER section the record does not have ("Booking rules:" after a blank line in a note, on a
+  // record with none): nothing in the text says the composer did not write it.
   const found: { at: number; mark: BlockMark }[] = [];
-  const seen = new Set<string>();
+  let passed = -1;
   lines.forEach((line, n) => {
     if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
-    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
-    if (!mark || seen.has(mark.startsWith)) return;
-    seen.add(mark.startsWith);
-    found.push({ at: n, mark });
+    const at = marks.findIndex((m) => line.trim().startsWith(m.startsWith));
+    if (at <= passed) return;
+    passed = at;
+    found.push({ at: n, mark: marks[at] });
   });
 
   // The composer always writes the platform's lines: the medium line and the

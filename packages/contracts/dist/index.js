@@ -14248,13 +14248,13 @@ function promptBlocks(text, channel, from) {
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
   const found = [];
-  const seen = /* @__PURE__ */ new Set();
+  let passed = -1;
   lines.forEach((line, n) => {
     if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
-    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
-    if (!mark || seen.has(mark.startsWith)) return;
-    seen.add(mark.startsWith);
-    found.push({ at: n, mark });
+    const at2 = marks.findIndex((m) => line.trim().startsWith(m.startsWith));
+    if (at2 <= passed) return;
+    passed = at2;
+    found.push({ at: n, mark: marks[at2] });
   });
   let starts;
   let head;
