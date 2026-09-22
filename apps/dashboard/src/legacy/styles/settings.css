@@ -172,7 +172,7 @@
    dot, a chip, a path or a switch gave nothing back. */
 .settings .pol-dot:active, .settings .cl-attn-cta:active,
 .settings .cl-bucket-link:active, .settings .setup-path:active, .settings .biz-choice:active,
-.settings .setup-number:active, .settings .set-prompt-tab:active { transform: scale(0.97); }
+.settings .setup-number:active { transform: scale(0.97); }
 .settings .set-switch:active { filter: brightness(0.96); }
 .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); }
 .settings .set-switch.on:hover { background: color-mix(in oklab, var(--ink) 10%, var(--ok)); }
@@ -763,83 +763,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-input::placeholder { color: var(--ink-dim); }
 .set-input:hover { border-color: var(--line-strong); }
 .set-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
-
-/* ── What the receptionist is told ────────────────────────────────────────
-   The composed prompt, verbatim. Generously leaded because it is read to CHECK
-   something — "does it still know my address", "why did it say we open Sunday"
-   — not skimmed. In the page's own face: it was monospace, on the argument
-   that it is a listing, and it is not — it is sentences about a business, and
-   a second typeface on this page is the first thing an owner notices about it.
-   Collapsed by default: six thousand characters is a wall. */
-.set-prompt-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px 14px;
-  font-size: 12px;
-  color: var(--ink-dim);
-}
-.set-prompt-count {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-muted);
-  font-weight: 600;
-}
-.set-prompt-sep { color: var(--ink-dim); }
-/* The count sits with the text it counts, inside the opened section, so the head at rest is a heading, a phrase and
-   one door. */
-.set-prompt-meta-open { padding-top: 2px; }
-
-.set-prompt-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 0 16px 12px;
-}
-.set-prompt-tab {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink-dim);
-  border-radius: var(--radius-full);
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out),
-              border-color var(--duration-fast) var(--ease-out);
-}
-.set-prompt-tab:hover { background: var(--bg-hover); color: var(--ink); }
-.set-prompt-tab.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--ink);
-}
-.set-prompt-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-.set-prompt-body {
-  margin: 0 16px;
-  padding: 14px 16px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: var(--leading-relaxed);
-  color: var(--ink-muted);
-  /* Long, and the page must never scroll sideways because of it. */
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 420px;
-  overflow-y: auto;
-}
-.set-prompt-body-sm { max-height: none; color: var(--ink-dim); }
-
-.set-prompt-now { padding-top: 14px; }
-.set-prompt-now-label {
-  padding: 0 16px 8px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
 
 /* ── Create your workspace ────────────────────────────────────────────────
    Rendered INSTEAD of the app, for an account that belongs to nowhere. It

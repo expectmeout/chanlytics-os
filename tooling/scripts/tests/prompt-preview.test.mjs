@@ -16,6 +16,25 @@
  * the prompt — it is the prompt, from the same function the edge calls. A
  * preview free to drift is worse than none: a screen telling an owner their
  * receptionist knows something it does not.
+ *
+ * What an owner sees of it is the Business tab's prompt sheet since Phase 5
+ * (pages/business-tab-prompt.jsx), where PromptPreview's <pre> stood. This file
+ * read the page's and the bridge's source for five guarantees; each is now held by
+ * drawing the sheet, in business-tab-prompt.test.mjs, and named where it went:
+ *   - the page reads only what the server composed, and composes nothing:
+ *     "the sheet draws what the server composed, word for word, and nothing
+ *     when it composed nothing" (and business-tab-bridge.test.mjs runs the
+ *     bridge's composedPrompt; e2e-harness.test.mjs holds the fixture's to it);
+ *   - nothing is shown when there is nothing true to show: the same test, with
+ *     the composition gone -- no told section and no door. The record itself
+ *     is drawn only over a brain (BusinessTab returns null without one);
+ *   - the clock is shown separately, because it is sent separately: "what is
+ *     sent beside the prompt is drawn apart, and says why";
+ *   - both channels can be read: "the head says what it is and who reads it,
+ *     and counts nothing" and "every block is keyed by its id, and on a call the
+ *     platform's text is drawn twice", each drawn on WhatsApp and on Phone.
+ * Two stay here, on the stylesheet this file reads: no gradient and no second
+ * typeface on the record, and the prompt's own layout rule.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -32,8 +51,6 @@ const { composePromptPreview, openingsBlock } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/prompt-preview.ts")).href
 );
 
-const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
 const css = readCode("apps/dashboard/src/legacy/styles/settings.css");
 
 /** A Monday at 10:00 in New York. */
@@ -173,43 +190,6 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
   }
 });
 
-test("the card reads only what the server composed", () => {
-  // That the card's text is the server's, word for word, is executed in business-tab-bridge.test.mjs.
-  assert.ok(verbs.includes("return { text: prompt[channel], now: prompt.now, tz: prompt.tz };"));
-});
-
-test("the page asks for the prompt — it does not build one", () => {
-  assert.ok(pane.includes("window.__composedPrompt"));
-  for (const forbidden of ["Opening hours:", "Rules you must follow", "composeSystemPrompt"]) {
-    assert.ok(!pane.includes(forbidden), `the page is composing its own prompt (${forbidden})`);
-  }
-});
-
-test("nothing is shown when there is nothing true to show", () => {
-  // A card that renders an empty box on a workspace with no config is a card
-  // that says "your receptionist is told nothing", which is a different claim.
-  assert.ok(verbs.includes("if (!prompt) return null;"));
-  assert.ok(pane.includes("if (!composed) return null;"));
-  // Drawn only under the record, which PaneWorkspace draws only for a workspace whose config holds a brain: never over
-  // the mockup's business, and never over a config the parser refused (Task 3.7 made the three states three returns).
-  assert.ok(pane.includes("if (real) {") && pane.includes("<PromptPreview />"), "never rendered over mockup data");
-});
-
-test("the clock is shown SEPARATELY, because it is sent separately", () => {
-  // Concatenating them here would quietly teach an owner that the timestamp is
-  // part of the cached prompt. It is not, and that distinction is the reason
-  // their prompt cache survives.
-  assert.ok(pane.includes("{composed.text}"));
-  assert.ok(pane.includes("{composed.now}"));
-  assert.ok(!pane.includes("composed.text + composed.now"));
-  assert.ok(/rebuilt for every message/i.test(pane));
-});
-
-test("both channels can be read, since they are not the same text", () => {
-  assert.ok(pane.includes('["whatsapp", "WhatsApp"], ["voice", "Phone"]'));
-  assert.ok(pane.includes("window.__composedPrompt(channel)"), "the toggle must recompose");
-});
-
 test("the record's own rules in settings.css paint no gradient and set no second typeface", () => {
   // The owner named these two before he read a word of the page (the plan's Task 4.0), and both live only in CSS,
   // which the suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. The journey proves it
@@ -238,19 +218,21 @@ test("the record's own rules in settings.css paint no gradient and set no second
   );
 });
 
-test("six thousand characters cannot break the page layout", () => {
-  // Both ends are found, and in that order, BEFORE the slice: `indexOf` answers -1 for a rule that was renamed, and
-  // `slice(-1, -1)` is the empty string while `slice(0, -1)` is very nearly the whole stylesheet -- either way the
-  // four assertions below would stop being about `.set-prompt-body` without saying so.
-  const from = css.indexOf(".set-prompt-body");
-  const to = css.indexOf(".set-prompt-body-sm");
-  assert.ok(from > -1, "the rule this test is about is still called .set-prompt-body");
-  assert.ok(to > from, "and .set-prompt-body-sm still follows it, which is where the slice ends");
+test("six thousand characters cannot break the sheet's layout", () => {
+  // The rule the prompt's text is set by, on the stylesheet this file already reads. Found and bounded BEFORE the
+  // slice: `indexOf` answers -1 for a rule that was renamed, and a slice from -1 is the empty string, so the
+  // assertions below would stop being about the prompt without saying so.
+  const from = css.indexOf(".bt-prompt-block-text {");
+  assert.ok(from > -1, "the rule this test is about is still called .bt-prompt-block-text");
+  const to = css.indexOf("}", from);
+  assert.ok(to > from, "and it closes");
   const body = css.slice(from, to);
   assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
-  assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the page");
-  assert.ok(body.includes("overflow-y: auto"));
+  assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the sheet");
   // The page reads in ONE typeface. The prompt is sentences somebody wrote about their business, not a listing, and a
   // second face here is the "font changes" an owner sees before he reads a word of it.
-  assert.ok(!body.includes("font-mono"), "the prompt is set in the page's own face");
+  assert.ok(body.includes("font-family: inherit"), "the prompt is set in the page's own face");
+  assert.ok(!/font-mono|--mono/.test(body));
+  // Where the <pre> scrolled inside the page (max-height 420px, overflow-y auto), the sheet's own body scrolls now:
+  // the kit's (record.css .rec-sheet-body), which the 390px journey measures (e2e/settings-business.spec.ts).
 });
