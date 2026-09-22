@@ -992,6 +992,14 @@ test("each block of the brain a save goes on is resolved once for that brain, by
     tab.consequenceOf = (block, brain, channel) => { asked.push([block, channel, brain === moved.brain ? "base" : "next"]); return real(block, brain, channel); };
     S.willSay({ was: moved.brain, next: nextOf("17:00"), sections: "hours", channel: "whatsapp" });
     assert.deepEqual(asked.filter((a) => a[2] === "base"), [["hours", "whatsapp", "base"]]);
+    // And a new preview under the SAME brain (a zone saved, the settings read again, the config object kept) forgets
+    // them too: consequenceOf resolves with the preview's inputs, so a block kept from the old preview would have read
+    // the new zone's heading as a change of this save.
+    asked.length = 0;
+    W.__SETTINGS = { ...W.__SETTINGS, prompt: { ...W.__SETTINGS.prompt, tz: "America/Chicago" } };
+    const zoned = S.willSay({ was: moved.brain, next: nextOf("17:00"), sections: "hours", channel: "whatsapp" });
+    assert.deepEqual(asked.filter((a) => a[2] === "base"), [["hours", "whatsapp", "base"]], "REGRESSION: the base's block was the old preview's");
+    assert.match(zoned.whole, /America\/Chicago/);
   } finally {
     tab.consequenceOf = real;
     delete W.__SETTINGS;

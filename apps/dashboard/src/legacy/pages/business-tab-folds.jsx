@@ -648,9 +648,13 @@ const btFoldJob = (fold, draft, job) => {
 
 // Each block as the brain a save goes on writes it, by channel and block: resolved once for that brain rather than on
 // every keystroke, since each asks the bridge to parse a whole brain and resolve a full prompt. The saver hands back the
-// same base while nothing moves, so the brain's identity is the key; a new base forgets them all. One cache for the
-// page: each row once kept its own, and twelve folds would have kept twelve more.
-let btSaidOn = { brain: null, blocks: {} };
+// same base while nothing moves, so the brain's identity is the key, AND the settings read's preview's: consequenceOf
+// resolves with the preview's inputs (the zone, the Autonomy rows), so a zone saved and read back under the same config
+// object would have kept the old zone's block for the base, and the new heading read as a change of the next save. A
+// new base or a new preview forgets them all. One cache for the page: each row once kept its own, and twelve folds
+// would have kept twelve more.
+let btSaidOn = { brain: null, prompt: null, blocks: {} };
+const btPreview = () => (window.__SETTINGS && window.__SETTINGS.prompt) || null;
 const btBlockLines = (b) => (b && typeof b.text === "string" ? b.text.split("\n").filter((l) => l.trim() !== "") : []);
 
 /**
@@ -703,7 +707,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
   const removed = [];
   const whole = [];
   if (channel && tab.consequenceOf) {
-    if (btSaidOn.brain !== was) btSaidOn = { brain: was, blocks: {} };
+    if (btSaidOn.brain !== was || btSaidOn.prompt !== btPreview()) btSaidOn = { brain: was, prompt: btPreview(), blocks: {} };
     const stored = btSaidOn.blocks;
     for (const block of [].concat(sections)) {
       const key = `${channel}:${block}`;
