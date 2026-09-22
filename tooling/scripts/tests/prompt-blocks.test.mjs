@@ -551,6 +551,38 @@ test("a heading repeated inside a later block does not start a second block", ()
   }
 });
 
+test("a note's own line that reads like a section the record does not have is still the note's (M-5)", () => {
+  // Found in the Phase 1 re-review: "each opening is taken once" guards only a heading the composer HAS written. On a
+  // record with no services, a note whose second line opened "Services:" was the first such line, so it became a
+  // Services block of its own, charged to a row the record does not fill. The composer writes every opening after a
+  // blank line (`\n${heading}`), and a note's second line never follows one.
+  const noted = {
+    ...profile,
+    services: undefined,
+    notes: [
+      { title: "Parking", text: "Street parking only.\nServices: we also do lashes on Fridays." },
+      { title: "Cards", text: "We take cards.\nBooking rules: none, walk in any time." },
+    ],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, noted, channel, tz, NOW);
+    const blocks = promptBlocks(text, channel, { profile: noted });
+    assert.deepEqual(
+      blocks.filter((b) => b.row === "services" || b.row === "booking_rules").map((b) => b.id),
+      [],
+      `${channel}: no block for a row the record does not fill`,
+    );
+    const notes = blocks.find((b) => b.row === "notes").text;
+    assert.match(notes, /^Services: we also do lashes on Fridays\.$/m, `${channel}: the note keeps its line`);
+    assert.match(notes, /^Booking rules: none, walk in any time\.$/m, `${channel}: and its other one`);
+    assert.equal(
+      blocks.reduce((n, b) => n + b.chars, 0),
+      text.length,
+      `${channel}: every character still belongs to one block`,
+    );
+  }
+});
+
 /* ---- The hand-off ---- */
 
 test("the hand-off is one row on both channels, and carries the owner's reasons on both", () => {

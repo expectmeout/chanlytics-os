@@ -14232,7 +14232,7 @@ function promptBlocks(text, channel, from) {
   const found = [];
   const seen = /* @__PURE__ */ new Set();
   lines.forEach((line, n) => {
-    if (insideOwn(n)) return;
+    if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
     const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
     if (!mark || seen.has(mark.startsWith)) return;
     seen.add(mark.startsWith);

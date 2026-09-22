@@ -205,11 +205,14 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   const insideOwn = (n: number) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
 
-  // Each opening the composer wrote, once each and never inside the owner's words.
+  // Each opening the composer wrote, once each and never inside the owner's words. And only on a line after a blank
+  // one, because the composer writes every opening as `\n${heading}` (and the resolver its rules after a blank line
+  // too): a note's second line that reads "Services: ..." on a record with no services follows the note's first line,
+  // and was cut into a Services block of its own, charged to a row the record does not fill (the plan's M-5).
   const found: { at: number; mark: BlockMark }[] = [];
   const seen = new Set<string>();
   lines.forEach((line, n) => {
-    if (insideOwn(n)) return;
+    if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
     const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
     if (!mark || seen.has(mark.startsWith)) return;
     seen.add(mark.startsWith);
