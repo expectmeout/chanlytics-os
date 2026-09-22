@@ -282,8 +282,11 @@ const press = (key) => {
     });
   return taken;
 };
-/** The three counts over the board, in their order: what is on the calendar, the open times, the next open time. */
-const stats = (tree) => ["cal-count-taken", "cal-count-open", "cal-count-next"].map((id) => byTestId(tree, id));
+/** The open times the board draws: the ones the service picker leaves, on the days on screen. */
+const openTimes = (tree) => all(tree, (n) => n.props?.["data-testid"] === "cal-window");
+/** The board's columns, by day. */
+const columns = (tree) => all(tree, (n) => n.props?.["data-testid"] === "cal-col");
+const classes = (n) => String(n.props.className).split(" ");
 
 test("REGRESSION (D14): an appointment opens as a dialog named by its title; Escape closes it, and the board holds still behind it", () => {
   fresh();
@@ -382,7 +385,10 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
     cols.every((c) => !/\bloading\b/.test(c.props.className)),
     `REGRESSION: unread days stayed dimmed as loading: ${cols.map((c) => c.props.className).join(" | ")}`,
   );
-  assert.equal(stats(tree)[0].props.value, "—", "a count over days that could not be read is not a count");
+  assert.ok(
+    cols.every((c) => classes(c).includes("unread")),
+    "the board marks the days it could not read",
+  );
 
   byTestId(tree, "cal-failed-retry").props.onClick();
   await settle();
@@ -397,31 +403,31 @@ test("REGRESSION (B11): days that could not be read say so with a Retry, and are
   assert.equal(byTestId(tree, "cal-failed"), null, "a read that lands takes the line away");
 });
 
-test("REGRESSION (B12): the strip names the days on screen -- it said 'This week' of next week and 'This month' of any month", () => {
+test("REGRESSION (B12): the range names the days on screen in every view -- a line over the board said 'This week' of next week and 'This month' of any month", () => {
   fresh();
   let tree = page();
-  const label = () => stats(tree)[0].props.label;
+  const label = () => textOf(byTestId(tree, "cal-range"));
   const go = (id) => {
     byTestId(tree, id).props.onClick();
     tree = page();
   };
-  assert.equal(label(), "This week");
+  assert.equal(label(), "Sep 7 – 13");
   go("cal-next");
-  assert.equal(label(), "Week of Sep 14");
+  assert.equal(label(), "Sep 14 – 20");
   go("cal-today");
-  assert.equal(label(), "This week");
+  assert.equal(label(), "Sep 7 – 13");
   go("cal-view-month");
-  assert.equal(label(), "This month");
+  assert.equal(label(), "September 2026");
   go("cal-next");
   assert.equal(label(), "October 2026");
   go("cal-today");
   go("cal-view-agenda");
-  assert.equal(label(), "Next 14 days");
+  assert.equal(label(), "Sep 8 – 21");
   go("cal-next");
-  assert.equal(label(), "14 days from Sep 22");
+  assert.equal(label(), "Sep 22 – Oct 5");
   go("cal-today");
   go("cal-view-day");
-  assert.equal(label(), "Today");
+  assert.equal(label(), "Tue · Sep 8");
   go("cal-next");
   assert.equal(label(), "Wed · Sep 9");
 });
@@ -485,12 +491,6 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   );
   assert.ok(byTestId(tree, "cal-feed-note-repeats"), "the repeats explained on the page");
   assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
-  const next = stats(tree).find((c) => c.props.label === "Next open time");
-  assert.equal(
-    next.props.note,
-    "at least 2h notice",
-    "the rule that decides how soon, not the whole sentence under a number",
-  );
 });
 
 test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid four times the screen's width", () => {
@@ -692,7 +692,7 @@ test("REGRESSION (C1): the feed line says what was read and leaves what was left
   );
 });
 
-test("REGRESSION (C1): the strip counts only what it read -- an unreadable calendar showed '0 · on your calendar', and days still on their way counted as empty", () => {
+test("REGRESSION (C1): the page says only what it read -- an unreadable calendar showed '0 · on your calendar', and days still on their way counted as empty", () => {
   const empty = dto().days.map((d) => ({ ...d, items: [], windows: [] }));
   fresh(
     dto({
@@ -707,31 +707,24 @@ test("REGRESSION (C1): the strip counts only what it read -- an unreadable calen
       days: empty,
     }),
   );
-  let strip = stats(page());
-  assert.deepEqual(
-    [strip[0].props.value, strip[0].props.meta],
-    ["—", "could not be read"],
-    "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'",
-  );
+  let tree = page();
+  assert.match(textOf(byTestId(tree, "cal-feed-card")), /Your calendar could not be read\./);
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
       days: empty,
     }),
   );
-  strip = stats(page());
-  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "no calendar connected"]);
+  tree = page();
+  assert.match(textOf(byTestId(tree, "cal-feed-card")), /No calendar connected\./);
   fresh();
-  let tree = page();
+  tree = page();
   byTestId(tree, "cal-next").props.onClick();
   tree = page();
-  strip = stats(tree);
-  assert.deepEqual(
-    [strip[0].props.value, strip[0].props.meta],
-    ["—", "reading those days"],
-    "REGRESSION: next week, still on its way, said nothing was on the calendar",
+  assert.ok(
+    columns(tree).every((c) => classes(c).includes("loading")),
+    "REGRESSION: next week, still on its way, read as a week with nothing on the calendar",
   );
-  assert.deepEqual([strip[1].props.value, strip[1].props.meta], ["—", "reading those days"]);
 });
 
 test("REGRESSION (C1): a day past what the receptionist offers says so, and the legend names the last day it offers -- the agenda said 'nothing the receptionist would offer', as if the day were booked solid", () => {
@@ -753,22 +746,6 @@ test("REGRESSION (C1): a day past what the receptionist offers says so, and the 
     "a day inside the offer with no times still says that",
   );
   assert.match(textOf(byTestId(tree, "cal-legend")), /through Sep 14/, "the legend names the last day it offers");
-  byTestId(tree, "cal-next").props.onClick();
-  tree = page();
-  const ahead = stats(tree)[1];
-  assert.deepEqual(
-    [ahead.props.value, ahead.props.meta],
-    ["—", "it offers times up to 7 days ahead"],
-    "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in",
-  );
-  byTestId(tree, "cal-view-day").props.onClick();
-  tree = page();
-  byTestId(tree, "cal-today").props.onClick();
-  tree = page();
-  byTestId(tree, "cal-prev").props.onClick();
-  tree = page();
-  const gone = stats(tree)[1];
-  assert.deepEqual([gone.props.value, gone.props.meta], ["—", "these days have passed"]);
 });
 
 test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today's -- a board left on another month took Today's day and its next opening with it", async () => {
@@ -1117,12 +1094,7 @@ const withNext = (over = {}) =>
 test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
-  assert.deepEqual(
-    stats(tree).map((c) => c.props.label),
-    ["This week", "Open times", "Next open time"],
-    "REGRESSION: 'Open windows' and 'Next opening'",
-  );
-  assert.equal(stats(tree)[2].props.value, "today 3:30 PM");
+  assert.match(textOf(byTestId(tree, "cal-legend")), /Open — the receptionist would offer it/);
   assert.equal(
     byTestId(tree, "cal-service").props["aria-label"],
     "Open times that fit a service",
@@ -1164,14 +1136,11 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
       unread.every((n) => textOf(n).includes("couldn't read")),
       `REGRESSION: 'not read': ${textOf(unread[0])}`,
     );
-    assert.deepEqual(
-      stats(tree)
-        .slice(0, 2)
-        .map((c) => c.props.meta),
-      ["couldn't read those days", "couldn't read those days"],
-      "REGRESSION: 'couldn't be read', the words of a calendar that can't be read",
+    assert.match(
+      textOf(byTestId(tree, "cal-failed")),
+      /Couldn't read those days/,
+      "beside the Retry line, which says it the same way",
     );
-    assert.ok(byTestId(tree, "cal-failed"), "beside the Retry line, which says it the same way");
   } finally {
     honourDeps = false;
   }
@@ -1447,15 +1416,10 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
     assert.ok(byTestId(bar, id), `${id} is in the one bar`);
   const title = find(bar, (n) => n.type === "label" && !!byTestId(n, "cal-jump"));
   assert.ok(title && byTestId(title, "cal-range"), "the range and the date field are one control");
-  // The counts as one line of text, each saying what it counts, its number, and what the number means.
-  const line = byTestId(tree, "cal-counts");
-  assert.equal(line.type, "p", "one line of text");
-  assert.ok(stats(line).every(Boolean), "the three counts are in it");
-  for (const c of stats(line)) {
-    const said = textOf(c);
-    for (const part of [c.props.label, c.props.value, c.props.meta, c.props.note].filter((p) => p != null))
-      assert.ok(said.includes(String(part)), `"${said}" says ${part}`);
-  }
+  // The bar is the whole head: a line of counts under it said again what the board draws (22 Sep).
+  const head = find(tree, (n) => n.props?.className === "cal-head");
+  const inHead = [head.props.children].flat().filter(Boolean);
+  assert.ok(inHead.length === 1 && inHead[0] === bar, "the head holds the bar and nothing else");
   // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
   const about = () => byTestId(tree, "cal-about");
   const toggle = () => byTestId(tree, "cal-about-toggle");
@@ -1489,11 +1453,6 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   tree = page();
   assert.ok(byTestId(tree, "cal-feed-card") && byTestId(tree, "cal-feed-retry"), "the card and its Retry");
   assert.equal(byTestId(about(), "cal-feed-card"), null, "over the board, not behind the toggle");
-  assert.deepEqual(
-    stats(tree).map((c) => (c ? [c.props.label, c.props.value, c.props.meta] : null)),
-    [["This week", "—", "could not be read"], null, null],
-    "one count and why: two more dashes said 'needs the calendar' under the card that says so",
-  );
 });
 
 /* ---------------- C5b: a service that needs a consultation first ---------------- */
@@ -1515,11 +1474,7 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   let tree = page();
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
   tree = page();
-  assert.deepEqual(
-    [stats(tree)[1].props.value, stats(tree)[1].props.note],
-    [2, "for a consultation"],
-    "REGRESSION: '0 · that fit Color correction'",
-  );
+  assert.equal(openTimes(tree).length, 2, "REGRESSION: no open time fit Color correction");
   assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for a consultation, through Sep 21/);
   assert.match(
     textOf(byTestId(tree, "cal-consult-note")),
@@ -1539,7 +1494,8 @@ test("REGRESSION (C5b): the board sizes a consultation-first service's open time
   tree = page();
   byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
   tree = page();
-  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.note], [1, "that fit Balayage"]);
+  assert.equal(openTimes(tree).length, 1);
+  assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for Balayage,/);
 });
 
 test("the page publishes how long it keeps a read and its words for a read that gives no reason, and says those words itself", () => {

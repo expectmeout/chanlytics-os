@@ -2313,15 +2313,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     });
   }, [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
 
-  const sortLabels = {
-    last: ["Latest contact first", "Oldest contact first"],
-    first: ["Newest people first", "Oldest people first"],
-    name: ["Z → A", "A → Z"],
-    state: ["By state", "By state · reversed"],
-    visits: ["Latest visit first", "Soonest visit first"],
-    offers: ["Said no first", "Said yes first"],
-  };
-  const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
@@ -3262,10 +3253,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
+              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
+                  them only turned round an order the table already shows and changes. */}
               <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
-              <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
-                <Icon name="sort" size={12} /> {sortLabel}
-              </button>
             </div>
           </div>
           )}

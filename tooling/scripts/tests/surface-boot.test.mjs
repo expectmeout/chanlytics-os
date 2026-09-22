@@ -295,6 +295,87 @@ test("a return to the tab reads the surface on screen first and the rest behind 
   }
 });
 
+/** A live feed the test holds: what each join asked for, whether it was left, and the change it can send. */
+function liveFeed() {
+  const joins = [];
+  const join = (onChange, opts) => {
+    const joined = { onChange, opts, left: false };
+    joins.push(joined);
+    return () => {
+      joined.left = true;
+    };
+  };
+  return { joins, join };
+}
+
+test("once the boot is in, the runner joins the live feed the page handed it -- this workspace's, once -- routes each change to the surfaces that watch its table, and leaves it when stopped", async () => {
+  // It reached for the Supabase browser client itself. In a node test that client has no URL or key, so a boot that
+  // finished while its test was still running threw, un-awaited, and failed the test as an unhandled rejection --
+  // only when the machine was slow enough for the boot to finish in time, which is why it came and went.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const asked = [];
+  const surface = (key, watches) => ({
+    key,
+    debounceMs: 1,
+    ...watches,
+    apply: async () => {
+      asked.push(key);
+    },
+  });
+  const feed = liveFeed();
+  const stop = startSurfaces(
+    [
+      surface("inbox", { refreshOnMessageInserts: true }),
+      surface("live", { refreshOnTables: ["calls"] }),
+      surface("settings"),
+    ],
+    feed.join,
+  );
+  try {
+    await settle(20);
+    assert.deepEqual([...asked].sort(), ["inbox", "live", "settings"], "every surface booted");
+    assert.equal(feed.joins.length, 1, "one feed for the runner, joined once the boot is in");
+    const [{ onChange, opts }] = feed.joins;
+    assert.equal(opts.tenantId, "id-a", "filtered to the workspace on screen");
+    assert.match(opts.topic, /:id-a$/, "on a topic that names it");
+    asked.length = 0;
+    onChange({ conversation_id: "c1", tenant_id: "id-a" }, "messages", "INSERT");
+    await settle(20);
+    assert.deepEqual(asked, ["inbox"], "a message repaints what watches messages, and nothing else");
+  } finally {
+    stop();
+  }
+  assert.equal(feed.joins[0].left, true, "a stopped runner leaves its feed");
+});
+
+test("a runner stopped before its boot is in never joins the feed, however late the boot ends", async () => {
+  let finish = () => {};
+  const slow = {
+    key: "inbox",
+    refreshOnMessageInserts: true,
+    apply: () =>
+      new Promise((r) => {
+        finish = r;
+      }),
+  };
+  const feed = liveFeed();
+  const stop = startSurfaces([slow], feed.join);
+  await settle(2);
+  stop();
+  finish();
+  await settle(20);
+  assert.equal(feed.joins.length, 0);
+});
+
+test("surfaces that watch the feed, started with no feed to join, are refused at the call rather than when the boot ends", () => {
+  const watching = { key: "inbox", refreshOnMessageInserts: true, apply: async () => {} };
+  assert.throws(() => startSurfaces([watching]), /need a feed to join/);
+  const stop = startSurfaces([{ key: "settings", apply: async () => {} }]);
+  stop();
+});
+
 test("identity leads even on a workspace page, where nothing waits for it", async () => {
   // The shell reads __ME to decide what a role may see. Queued behind three
   // strangers it would draw the nav for the wrong role and then correct it.
@@ -366,29 +447,4 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "its own surface first, then what it draws in the order it draws them, before Settings or anyone's list",
   );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
-});
-
-test("a boot that cannot make the live feed's client says the feed is down, and nothing is left rejecting", async () => {
-  // With no client address (every node test), a boot that finished before its test called stop() threw out of the
-  // runner's own promise chain, and node charged the rejection to whichever test was running: inbox-list-honest's
-  // act-behind-a-re-read, which passed only while the boot was still waiting on its 800 ms retry.
-  const { getConnection, setConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
-  const said = [];
-  const keepError = console.error;
-  console.error = (...a) => said.push(a[0]);
-  win.location.pathname = "/w/acme";
-  win.location.hash = "";
-  win.__ACTIVE_WORKSPACE = "id-a";
-  setConnection({ realtimeDown: false });
-  let stop = () => {};
-  try {
-    stop = startSurfaces([{ key: "inbox", refreshOnMessageInserts: true, apply: async () => {} }]);
-    await settle(20);
-    assert.equal(getConnection().realtimeDown, true, "the shell's line says live updates are not coming through");
-    assert.equal(said.filter((w) => w === "realtime_client_unavailable").length, 1, "and the console says why, once");
-  } finally {
-    console.error = keepError;
-    stop();
-    setConnection({ realtimeDown: false });
-  }
 });

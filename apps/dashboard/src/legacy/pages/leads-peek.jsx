@@ -1,4 +1,4 @@
-/* global React, Icon, LeadShape, LeadSlotShape, StatePill */
+/* global React, Icon, LeadShape, LeadSlotShape, StatePill, LeadCallMenu */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
 // without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
 // draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is ClientsAReal's
@@ -521,10 +521,12 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             : null))}
         </div>
       </div>
-      {/* The act never scrolls away (D5): Call when there is a number, else the draft. Copy is the email row's (D8). */}
+      {/* The act never scrolls away (D5): Call when there is a number, else the draft. Copy is the email row's (D8).
+          Call asks how, as it does on the lead's row (LeadCallMenu): from your phone, copy the number, or log a call
+          you already made -- the button says the number, so the menu does not say it again. */}
       <div className="pk-foot pk-act" data-testid="peek-act">
         {vm.reach.phone && vm.reach.phone.tel
-          ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={13} />{`${W.call} ${vm.reach.phone.value}`}</button>
+          ? <LeadCallMenu name={vm.name} number={vm.reach.phone.value} onDial={() => on.onCall(vm.id)} onCopy={() => on.onCopyPhone(vm.id)} onLog={() => on.onLogCall(vm.id)} btnClass="btn btn-primary pk-act-main" label={<><Icon name="phone" size={13} />{`${W.call} ${vm.reach.phone.value}`}</>} heading={false} size={13} testid="peek-act-call" />
           : vm.reach.email.canDraft
             ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={13} />{W.draft}</button>
             : <span className="pk-rn pk-act-none" data-testid="peek-act-none">Nothing to press yet: no number and no address.</span>}
@@ -608,6 +610,8 @@ const LeadPeekActions = (p) => {
     onCopyPhone: p.copyPhone,
     // The owner's own phone dials; the question waits until they are back at the tab.
     onCall: () => { armFor("call"); dial(vm.reach.phone ? vm.reach.phone.tel : null); },
+    // A call made from a desk phone: the same question, and nobody rung.
+    onLogCall: () => armFor("call"),
     onOutcome: (outcome) => p.setArmed({ ...p.armed, outcome }),
     onNote: (note) => p.setArmed({ ...p.armed, note: note.slice(0, window.__LEAD_WORDS.noteMax) }),
     onCancelCall: () => p.setArmed(null),
