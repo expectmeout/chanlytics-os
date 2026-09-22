@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
   newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, BOOKING_DEFAULTS,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -80,7 +80,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
-    "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "foldName", "needsConsultation", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
+    "BOOKING_DEFAULTS", "BOOKING_RULE_HINTS", "GUARDRAIL_KEYS", "abilityRows", "blockShareWords", "bookingHeld", "bookingRulesWords", "bookingTemplate", "cannotRows", "closuresAheadWords", "consequenceOf", "foldName", "needsConsultation", "openWeekWords", "profileCrossing", "promptBlocks", "ruleStrength", "saveIssues", "servicesSaveWords", "servicesToldWords", "servicesWords", "standingLine",
   ]);
   assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
   // The When you're open card's two sentences with a number in them.
@@ -95,6 +95,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.equal(tab.blockShareWords(1190, 4345), blockShareWords(1190, 4345));
   assert.deepEqual(tab.bookingRulesWords(STORED.profile.booking_rules), bookingRulesWords(STORED.profile.booking_rules));
   assert.deepEqual(tab.BOOKING_RULE_HINTS, BOOKING_RULE_HINTS);
+  assert.deepEqual(tab.BOOKING_DEFAULTS, BOOKING_DEFAULTS, "what an empty booking rule means, which its refusal says");
   // The rules the services sheet marks and searches by are the Calendar's and the phone tool's own.
   for (const name of ["Color correction", " color CORRECTION ", "Colour correction"]) assert.equal(tab.needsConsultation(name, STORED.profile.booking_rules), needsConsultation(name, STORED.profile.booking_rules), name);
   assert.equal(tab.foldName("Uñas de Gel"), foldName("Uñas de Gel"));
