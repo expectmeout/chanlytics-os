@@ -23,6 +23,10 @@ import {
   THEME_COLORS,
 } from "../../../packages/contracts/src/chrome.ts";
 import { paintThemeColor } from "../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
+import * as manifestModule from "../../../apps/dashboard/app/manifest.ts";
+
+// TypeScript loaded through tsx, which may hand its default export back wrapped once more.
+const manifest = typeof manifestModule.default === "function" ? manifestModule.default : manifestModule.default.default;
 
 /**
  * A document with a head, as the page ships it: the theme-color metas the markup declared, none by default beyond
@@ -240,4 +244,18 @@ test("the app paints the bars the boot script would have, so hydration changes n
 
 test("a document the app cannot write to costs it nothing: the page still runs", () => {
   assert.doesNotThrow(() => paintThemeColor({}, "light"));
+});
+
+test("the installed app launches on the paper its first page paints, not on a third colour", () => {
+  // The manifest is read before any page: background_color is the splash an installed app opens on, theme_color the
+  // bar the OS paints until the page's own meta is read. They were a dark green-black neither theme's page is, left
+  // over from the doors' old palette, so every launch went from that green to the page's paper. A device that has
+  // chosen nothing is what a fresh install is, and on either device setting the page it opens paints this.
+  const { background_color, theme_color } = manifest();
+  for (const systemDark of [false, true]) {
+    const first = boot({ stored: null, systemDark }).bars;
+    const where = `a fresh install on a ${systemDark ? "dark" : "light"} device`;
+    assert.equal(background_color, first, `${where}: the splash is the page's paper`);
+    assert.equal(theme_color, first, `${where}: and so is the bar above it`);
+  }
 });
