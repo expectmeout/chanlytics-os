@@ -44,6 +44,7 @@ import {
   handoffWords,
   fallbacksWords,
   guardrailsInForce,
+  rulesKept,
   hoursLines,
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
@@ -166,6 +167,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "profileRefusal",
     "promptBlocks",
     "ruleStrength",
+    "rulesKept",
     "saveIssues",
     "serviceUndoName",
     "servicesFoundWords",
@@ -189,6 +191,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
   for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true }])
     assert.deepEqual(tab.guardrailsInForce(g), guardrailsInForce(g), JSON.stringify(g));
+  // Which rules the row at rest may name is contracts' too, over the same reading of the stored ones.
+  for (const g of [undefined, {}, { never_quote_prices: false }, { never_confirm_booking: false }])
+    for (const composes of [true, false]) {
+      const i = { rules: guardrailsInForce(g), vision: false, composes };
+      assert.deepEqual(tab.rulesKept(i), rulesKept(i), `${JSON.stringify(g)} ${composes}`);
+    }
   assert.deepEqual(
     tab.handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
     handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),

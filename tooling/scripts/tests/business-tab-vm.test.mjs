@@ -17,6 +17,8 @@ import {
   SOURCE_WORDS,
   ruleStrength,
   GUARDRAIL_KEYS,
+  rulesKept,
+  RULES_AT_REST_WORDS,
   standingLine,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
@@ -140,6 +142,80 @@ test("a price is caught whatever the switch says, and the rule says so", () => {
   // What the detector actually knows (policy.ts PRICE_PATTERNS): euros and pounds pass it.
   assert.match(s, /dollars or pesos/);
   assert.doesNotMatch(s, /WhatsApp|call/i, "the channels are checkedOn's to say");
+});
+
+test("the row at rest names only what the receptionist actually keeps", () => {
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  // A record whose details compose: every rule in force is a line it reads, so every one is named.
+  assert.deepEqual(rulesKept({ rules: all, vision: false, composes: true }), [
+    "Never quotes a price",
+    "Never confirms a booking",
+    "Says it's an assistant",
+    "No health advice",
+    "Won't look at photos",
+  ]);
+  // The checked rule stays with its switch off. The owner decided (20 Sep 2026) that a receptionist never states a
+  // price: the detector runs either way, and a row that dropped the word would read as if prices went through.
+  assert.ok(
+    rulesKept({ rules: { ...all, never_quote_prices: false }, vision: false, composes: true }).includes(
+      "Never quotes a price",
+    ),
+  );
+  // A told-and-trusted rule is a line in a prompt and nothing else, so switching it off takes the word with it.
+  for (const key of ["disclose_ai", "no_health_advice"]) {
+    const kept = rulesKept({ rules: { ...all, [key]: false }, vision: false, composes: true });
+    assert.equal(kept.length, 4, key);
+  }
+  // The structural one is not a promise it keeps but a thing it cannot do, so with the line gone the words change
+  // rather than the fact: it may still CLAIM it booked, which is the only part the switch decides.
+  assert.deepEqual(rulesKept({ rules: { ...all, never_confirm_booking: false }, vision: true, composes: true }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Says it's an assistant",
+    "No health advice",
+    "Looks at photos",
+  ]);
+});
+
+test("M-2: on a record that composes nothing the row names only what holds, and never a line it does not read", () => {
+  // The resolver hands such a record its stored prompt plus Autonomy's rules (config.ts resolveSystemPrompt's
+  // no-profile branch), so none of the four is a line it reads. The fold says that once
+  // (RULES_WITHOUT_FIELDS_WORDS); the row at rest says nothing it cannot back, which leaves the two that hold
+  // whatever it is told: the detector, and the appointments table that does not exist.
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  assert.deepEqual(rulesKept({ rules: all, vision: false, composes: false }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Won't look at photos",
+  ]);
+  // Every switch off changes nothing about it: neither of the two is the switch's to decide.
+  const none = { never_quote_prices: false, never_confirm_booking: false, disclose_ai: false, no_health_advice: false };
+  assert.deepEqual(rulesKept({ rules: none, vision: false, composes: false }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Won't look at photos",
+  ]);
+  // And it is derived from the three strengths, not a second list to keep in step: a rule that is only instructed is
+  // named at rest only where the record composes it.
+  for (const key of GUARDRAIL_KEYS) {
+    const named = rulesKept({ rules: all, vision: false, composes: false }).length;
+    assert.equal(named, 3, key);
+    if (ruleStrength(key).strength === "instructed") {
+      assert.ok(!rulesKept({ rules: all, vision: false, composes: false }).includes(RULES_AT_REST_WORDS[key]), key);
+    }
+  }
+});
+
+test("rulesKept refuses an input the page left out, rather than naming a rule it cannot back", () => {
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  assert.throws(() => rulesKept({ rules: all, vision: false }), TypeError, "composes");
+  assert.throws(() => rulesKept({ rules: all, composes: true }), TypeError, "vision");
+  assert.throws(() => rulesKept({ rules: null, vision: false, composes: true }), TypeError, "the rules themselves");
+  assert.throws(
+    () => rulesKept({ rules: { ...all, disclose_ai: undefined }, vision: false, composes: true }),
+    TypeError,
+    "a rule read as false is a rule the row silently drops",
+  );
 });
 
 /* ---- The standing line ---- */

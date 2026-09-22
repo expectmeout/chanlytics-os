@@ -25,6 +25,8 @@ import {
   hasProfile,
   GUARDRAIL_KEYS,
   ruleStrength,
+  rulesKept,
+  guardrailsInForce,
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
@@ -424,7 +426,14 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     },
   });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  assert.deepEqual(chips, ["Never quotes a price", "Says it's an assistant", "Won't look at photos"]);
+  // The booking rule's word changes rather than going: the switch decides only whether it is told not to CLAIM it
+  // booked, and the product has no appointments table either way (contracts rulesKept).
+  assert.deepEqual(chips, [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Says it's an assistant",
+    "Won't look at photos",
+  ]);
   // Past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit), the rest are said as "+N more",
   // in contracts' own words: five chips wrapped three deep at a phone's width.
   tree = drawTab({ config: { features: { vision: true } } });
@@ -604,6 +613,61 @@ test("on a record whose details compose nothing, the rules fold says why once, a
     "and a switch that reaches nothing says nothing it will be told",
   );
   assert.equal(all(tree, (n) => ownWords(n) === RULES_WITHOUT_FIELDS_WORDS).length, 1);
+});
+
+test("at rest the rules are ONE row: the words are contracts', and no strength is said on it", () => {
+  // The four strengths live in the fold. At rest this row states one fact -- which rules it keeps -- and Task 4.0's
+  // rule allows it one quiet signal, not four badges and four sentences stacked under a chevron nobody pressed.
+  const tree = drawTab();
+  const row = byTestId(tree, "rec-row-guardrails");
+  assert.deepEqual(
+    all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf),
+    rulesKept({ rules: guardrailsInForce(melany.guardrails), vision: false, composes: true })
+      .slice(0, 4)
+      .concat(chipsMoreWords(1)),
+    "the words are contracts', capped by the kit",
+  );
+  const words = textOf(row);
+  for (const key of GUARDRAIL_KEYS) {
+    const r = ruleStrength(key);
+    assert.doesNotMatch(words, new RegExp(escape(r.chip)), `${key}'s strength waits in the fold`);
+    assert.doesNotMatch(words, new RegExp(escape(r.sentence.slice(0, 40))), `${key}'s sentence waits in the fold`);
+  }
+  assert.doesNotMatch(words, /In chat|On a call/, "and so do the two channels");
+});
+
+test("M-2: on a record that composes nothing, the row names only what holds, in contracts' words", () => {
+  // The fold says once that the four switches change nothing it is told (RULES_WITHOUT_FIELDS_WORDS). At rest the row
+  // must not then list those four as if they were lines it reads: what is left is the detector and the appointments
+  // table that does not exist.
+  const profile = { guardrails: melany.guardrails, handoff_number: "+16469325775" };
+  assert.equal(hasProfile(profile), false, "the fixture composes nothing");
+  const tree = drawTab({ profile });
+  const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.deepEqual(chips, ["Never quotes a price", "Cannot book anything", "Won't look at photos"]);
+  assert.deepEqual(
+    chips,
+    rulesKept({ rules: guardrailsInForce(profile.guardrails), vision: false, composes: false }),
+    "contracts', not the page's",
+  );
+  // And a record that DOES compose says the two it is told as well.
+  const told = all(byTestId(drawTab(), "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.ok(told.includes("Says it's an assistant"));
+  assert.ok(told.includes("Never confirms a booking"), "a line it reads, so the claim is covered too");
+});
+
+test("at rest the price rule keeps its word with the switch off, and the booking rule changes its words", () => {
+  // Task 3.5's review: a row that dropped "Never quotes a price" with the switch off would read as if prices went
+  // through. They do not -- the detector runs either way (the owner's decision, 20 Sep 2026).
+  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const chips = (t) => all(byTestId(t, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.ok(chips(drawTab({ profile: off })).includes("Never quotes a price"));
+  // The structural one is different: the switch decides only whether it is told not to CLAIM it booked, so the fact
+  // that stays is what it cannot do.
+  const noBooking = { ...melany, guardrails: { ...melany.guardrails, never_confirm_booking: false } };
+  const said = chips(drawTab({ profile: noBooking }));
+  assert.ok(said.includes("Cannot book anything"));
+  assert.ok(!said.includes("Never confirms a booking"));
 });
 
 /* --- the three strengths, in the fold (Task 4.2) --- */

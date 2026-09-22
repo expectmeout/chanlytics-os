@@ -18,6 +18,7 @@ import {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  rulesKept,
   GUARDRAIL_KEYS,
   promptBlocks,
   resolveSystemPrompt,
@@ -275,9 +276,12 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
 // which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
-// force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by.
+// force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by,
+// and rulesKept is which of them the row at rest may name -- derived from the three strengths, since a checked rule
+// holds with its switch off and an instructed one holds only where the record composes a prompt to put it in.
 export const BUSINESS_TAB = {
   standingLine,
+  rulesKept,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,

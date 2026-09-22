@@ -13586,6 +13586,33 @@ var STRENGTHS = {
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var RULES_AT_REST_WORDS = {
+  never_quote_prices: "Never quotes a price",
+  never_confirm_booking: "Never confirms a booking",
+  disclose_ai: "Says it's an assistant",
+  no_health_advice: "No health advice"
+};
+var CANNOT_BOOK_WORDS = "Cannot book anything";
+var PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
+function rulesKept(i) {
+  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  }
+  const rules = i.rules;
+  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
+  for (const key of GUARDRAIL_KEYS) {
+    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
+  }
+  const kept = [];
+  for (const key of GUARDRAIL_KEYS) {
+    const { strength } = ruleStrength(key);
+    const told = i.composes && rules[key];
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
+  }
+  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
+  return kept;
+}
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
 function standingLine(i) {
@@ -16877,6 +16904,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
   RUN_REPORT_STEPS,
@@ -17366,6 +17394,7 @@ export {
   roleGate,
   ruleParts,
   ruleStrength,
+  rulesKept,
   rulesLine,
   runDueNow,
   runningTotal,

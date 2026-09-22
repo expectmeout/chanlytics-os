@@ -22,6 +22,7 @@ import {
   FALLBACK_DEFAULTS,
   GuardrailsSchema,
   NO_FIELDS_COMPOSED_WORDS,
+  type GuardrailsInForce,
   INSTRUCTIONS_MAX,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -147,6 +148,79 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
 
 export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
   return STRENGTHS[key];
+}
+
+/**
+ * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an
+ * instruction to the receptionist ("Never quote or confirm a price"); this is what the receptionist does.
+ */
+export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
+  never_quote_prices: "Never quotes a price",
+  never_confirm_booking: "Never confirms a booking",
+  disclose_ai: "Says it's an assistant",
+  no_health_advice: "No health advice",
+};
+
+/**
+ * The structural rule where nothing tells it not to claim: what it CANNOT do, rather than what it will not say.
+ *
+ * There is no appointments table in this product, so a booking is beyond it whatever it reads. The switch decides only
+ * whether it is told not to claim it had -- so with that line gone (switched off, or a record whose details compose
+ * nothing) the row says the part that still holds and drops the part that does not.
+ */
+const CANNOT_BOOK_WORDS = "Cannot book anything";
+
+/** The photos switch at rest. An ability, so both ways round are worth saying: it is the one that starts off. */
+const PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" } as const;
+
+export interface RulesKeptInputs {
+  /** The four, as the fold opens them: `guardrailsInForce` over the stored record, never the raw guardrails. */
+  rules: GuardrailsInForce;
+  /** `features.vision`. An ability rather than a limit, and it reaches the receptionist without the prompt. */
+  vision: boolean;
+  /** Whether the record's details compose anything at all (config.ts `hasProfile`). */
+  composes: boolean;
+}
+
+/**
+ * What the row says at rest: the rules the receptionist actually keeps, in the order the schema keeps them.
+ *
+ * Derived from the three strengths rather than from the switches alone, because the switches do not all decide the
+ * same amount (the plan's Task 4.2, and M-2):
+ *
+ * - **checked** -- named whatever the switch says. The detector reads every reply (`violatesNoPrices` in chat,
+ *   `spokenBreach` on a call) whether the switch is on or off, and whatever the profile holds; the switch adds or
+ *   removes the one prompt line. A row that dropped the word with the switch off would read as if prices went through
+ *   (Task 3.5's review).
+ * - **instructed** -- a line in a prompt and nothing else, so it is named only where the record composes one AND the
+ *   switch is on. On a record whose details compose nothing the resolver hands back the stored prompt plus Autonomy's
+ *   rules (`resolveSystemPrompt`'s no-profile branch), so there is no line to name.
+ * - **structural** -- named either way, in different words: the line decides only whether it is told not to CLAIM it
+ *   booked, and the product cannot book regardless.
+ *
+ * Every input is required and checked as it runs, as `abilityRows` is and for the same reason: the page that calls
+ * this is untyped JSX, and a rule it left out would read as false -- a rule quietly dropped from the row with nothing
+ * to say it had gone.
+ */
+export function rulesKept(i: RulesKeptInputs): string[] {
+  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  }
+  const rules = i.rules;
+  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
+  for (const key of GUARDRAIL_KEYS) {
+    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
+  }
+  const kept: string[] = [];
+  for (const key of GUARDRAIL_KEYS) {
+    const { strength } = ruleStrength(key);
+    // A line it actually reads: the switch on, over a record the resolver composes from.
+    const told = i.composes && rules[key];
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
+  }
+  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
+  return kept;
 }
 
 /** The subset of the brain the standing line reads. */

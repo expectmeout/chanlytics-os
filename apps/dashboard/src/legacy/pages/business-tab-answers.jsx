@@ -501,13 +501,18 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   // health advice and photos), so the row and the fold never read a stored rule two ways. Without the bridge to ask,
   // the row names no rule it cannot back.
   const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", stored) : null;
-  const ruleChips = rules
-    ? BTA_RULES.filter(([key]) => rules[key]).map(([, , short]) => ({ label: short })).concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }])
-    : [];
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on. Without the bridge to ask, nothing is claimed.
   const on = (base && base.brain) || brain;
   const composes = typeof tab.hasProfile === "function" ? tab.hasProfile(on.profile || null) : true;
+  // Which of them the row may name, and in what words: contracts', off the three strengths (rulesKept). Not every
+  // switch decides the same amount -- the price detector runs with its switch off, the two told-and-trusted rules are
+  // lines in a prompt a record composing nothing never gets, and a booking is beyond the product either way. So the
+  // row never lists a rule as kept that the receptionist was never told and cannot keep on its own.
+  const ruleChips =
+    rules && typeof tab.rulesKept === "function"
+      ? tab.rulesKept({ rules, vision: rules.vision === true, composes }).map((label) => ({ label }))
+      : [];
   // The transfer number as the settings read resolved it, read as the Who you are row reads it (its factOf): the fact
   // when the read carried one, and what is typed only when it carried none (an older server).
   const transferFact = F.handoff_number || { value: profile.handoff_number || null };
