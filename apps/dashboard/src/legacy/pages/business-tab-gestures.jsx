@@ -75,6 +75,9 @@ const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }) => {
   };
 };
 
+// What a toast's Undo says when it can put nothing back: the fold it was in has closed, or its save is out.
+const BT_UNDO_CLOSED = "Not put back — the editor it was in has closed. Open it again to change it.";
+const BT_UNDO_SAVING = "Not put back — this is being saved.";
 // What a Save says when its own checks could not run: nothing was sent, and the editor stays open with what was typed.
 const BT_UNCHECKED = "Not saved — this could not be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
 
@@ -391,9 +394,17 @@ const BtFold = ({
     ask.disarm();
     return true;
   };
+  // A toast's Undo outlives the fold that made the change: pressed after the fold has closed (cancelled, or saved and
+  // closed by its save), the draft it would put something back into is gone, and pressed while the save is out nothing
+  // is typed into it. Either way it says so, in the warn tone: an Undo that did nothing and said nothing read as broken.
   const undo = (fn) => {
     const at = live.current.opening;
-    return () => (live.current.open && live.current.opening === at ? update(fn) : false);
+    return () => {
+      if (!live.current.open || live.current.opening !== at) { flash({ tone: "warn", msg: <>{BT_UNDO_CLOSED}</> }); return false; }
+      if (update(fn)) return true;
+      flash({ tone: "warn", msg: <>{BT_UNDO_SAVING}</> });
+      return false;
+    };
   };
   const change = (fn, words = {}) => {
     if (!update(fn, words.keys)) return false;

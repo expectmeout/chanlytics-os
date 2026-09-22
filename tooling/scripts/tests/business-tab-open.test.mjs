@@ -311,15 +311,31 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   openFold(tree, "hours");
   tree = redrawTab(flash);
   assert.match(textOf(find(byTestId(tree, "rec-hours-copy"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu")), /^Copy Tuesday to…/);
-  // An Undo pressed after the fold has closed puts nothing back: the draft it would go into went with the fold.
+  // An Undo pressed after the fold has closed puts nothing back: the draft it would go into went with the fold. It
+  // says so, rather than doing nothing and saying nothing.
   tree = copyTo(tree, flash, "Every day");
+  const copied = flashes.at(-1);
   cancelFoldOf(tree, "hours");
   tree = redrawTab(flash);
   press(byTestId(tree, "rec-fold-hours-cancel-yes"));
   tree = redrawTab(flash);
-  flashes.at(-1).undo();
+  copied.undo();
   tree = redrawTab(flash);
   assert.deepEqual([openFolds(tree), W.__settingsUnsaved()], [[], false]);
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["warn", "Not put back — the editor it was in has closed. Open it again to change it."]);
+  // And one pressed while the fold's save is out: nothing is typed into a save on its way, and that is said too.
+  W.__saveSettings = () => new Promise(() => {});
+  tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  tree = copyTo(tree, flash, "Every day");
+  const undoCopy = flashes.at(-1).undo;
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  undoCopy();
+  tree = redrawTab(flash);
+  assert.equal(byTestId(tree, "rec-hours-switch-sun").props["aria-checked"], true, "Sunday is still open: nothing was put back under the save");
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["warn", "Not put back — this is being saved."]);
 });
 
 test("the hours fold says what the receptionist will be told as the draft stands, what goes, and when a week is the last thing a record composes from", () => {
