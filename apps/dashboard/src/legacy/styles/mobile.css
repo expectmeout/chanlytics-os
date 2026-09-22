@@ -324,15 +324,21 @@
      three quarters of the screen tall with its day heads at the top. */
   .cal-body { flex: none; min-height: 0; overflow: visible; }
   .cal-scroll { max-height: 75vh; max-height: 75dvh; }
-  /* The head on a phone: the range and the steps on one row, the views and the service on the next, the counts under
-     them, and then the first day. The steps keep the right edge, so a thumb finds them wherever the range's words end. */
-  .cal-head { padding-top: var(--space-3); }
+  /* The head on a phone: the range and the steps on one row, the views on the next, the counts as one muted line under
+     them, and then the first day. The steps keep the right edge, so a thumb finds them wherever the range's words
+     end. The service picker is a desk's tool (open times long enough for a service); a phone's glance is the day. A
+     count's tail ("on your calendar", "that fit Balayage", "at least 2h notice") is a desk's word too; one that says
+     why there is no number (`meta`, not `note`) stays. */
+  .cal-head { padding-top: var(--space-2); }
   .cal-when { flex: 1 1 100%; justify-content: space-between; margin-right: 0; }
   .cal-when .cal-steps { order: 2; }
   .cal-tools { flex: 1 1 100%; }
   .cal-views { flex: 1 1 auto; }
   .cal-views .cl-tab { flex: 1 1 0; padding-left: 4px; padding-right: 4px; }
-  .cal-tools .cal-service { order: 2; flex: 0 1 auto; min-width: 0; max-width: 40%; }
+  .cal-tools .cal-service { display: none; }
+  .cal-counts { column-gap: var(--space-2); }
+  .cal-count + .cal-count::before { content: "·"; margin-right: var(--space-2); color: var(--ink-faint); }
+  .cal-count-note { display: none; }
   /* A notice over the board on a phone: its words take the width and its buttons go under them, where they read as
      a column a few words wide beside the buttons. */
   .cal-feed-card { flex-wrap: wrap; align-items: flex-start; row-gap: 10px; }

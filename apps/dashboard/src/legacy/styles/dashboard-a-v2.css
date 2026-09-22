@@ -1330,11 +1330,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where(.dash-a-v2) .tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
 
 /* Worth a look: the tag in words, not a red mono label; the arithmetic in the
-   mono, where a count reads as a count; a neutral tile, amber only where a
-   person is waiting. */
+   page's own type (the mono read as a second font on a phone, Ruben 22 Sep);
+   a neutral tile, amber only where a person is waiting. On a phone the
+   sentence is the door to its arithmetic, and wears the page's own sign that a
+   word has more behind it, the dotted rule of .cal-count-label[data-tip]. */
 .tl-tag { font-family: inherit; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
 .tl-row.tl-danger .tl-tag, .tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
-.tl-math { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0; }
+.tl-math { font-family: inherit; font-size: 11.5px; letter-spacing: 0; }
+.tl-text-door { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 4px; background: none; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
+.tl-text-door:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .tl-glyph.tl-danger, .tl-glyph.tl-warn, .tl-glyph.tl-info { color: var(--ink-muted); background: var(--bg-sunken); }
 .tl-row.tl-danger .tl-glyph, .tl-row.tl-warn .tl-glyph { color: var(--warn-ink); background: var(--warn-soft); }
 
