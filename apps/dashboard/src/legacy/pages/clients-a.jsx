@@ -1839,6 +1839,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // A page of people that could not be read says so: Show more used to go quiet and stay.
     try { await window.__peopleMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more people loaded")); } finally { setLoadingMore(false); }
   };
+  // The Leads scope's next page, the same way: its own flag, so the button says Loading… while THIS is out and not
+  // while a Keep is (it read leadBusy), and a second press while it loads asks for nothing.
+  const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
+  const leadsMore = async () => {
+    if (!window.__leadsMore || leadsMoreBusy) return;
+    setLeadsMoreBusy(true);
+    try { await window.__leadsMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more leads loaded")); } finally { setLeadsMoreBusy(false); }
+  };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
   // D5: a list that is moving shows no hover: the pane carries data-scrolling while the list scrolls, and the tips and
@@ -2101,7 +2109,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
   // only on the next -- the browser re-anchored the list as the words shrank it: 500 became 122 on production.
   // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
-  const viewLanded = onLeads && leads.route === viewRoute;
+  // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
+  // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
+  const viewLanded = onLeads && leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
   React.useEffect(() => {
     const due = placeDue.current;
     if (!onLeads || !due || due.view !== viewRoute) return;
@@ -2444,6 +2454,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
     // derivations bag), and until then the page's own file, published beside the component that draws it.
     const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
+    // "12 new": the view read again in its order. The strip's door and the list head's are this one.
+    const takeOffered = () => window.__leadsTakeOffered && window.__leadsTakeOffered();
     const onStripAction = (id, arg) => {
       const s = openSearch;
       if (!s) return;
@@ -2463,7 +2475,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
       // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the
       // page's own state and the effect above asks the surface for it (E8).
       if (id === "sort_fit") { setSortBy("fit"); setSortDir("asc"); return undefined; }
-      if (id === "take_offered") return window.__leadsTakeOffered && window.__leadsTakeOffered();
+      if (id === "take_offered") return takeOffered();
       return undefined;
     };
     // What the phone's bar says it is showing: the search that is open, or the list, with its count (Task 18).
@@ -2485,8 +2497,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
-        // The rows drawn are the last view's until the surface holds the one the address names (a view it has read
-        // before paints at once; one it has not is on its way): said, not left looking right and being wrong.
+        // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
+        // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
+        // right and being wrong.
         loading={!viewLanded}
         total={leads.counts[leadView.list] ?? leads.counts.all}
         columns={columns}
@@ -2645,8 +2658,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onCopy={copyLead}
         onCopyPhone={copyPhone}
         onStripAction={onStripAction}
-        onMore={() => window.__leadsMore && window.__leadsMore()}
-        loadingMore={leadBusy}
+        onTakeOffered={takeOffered}
+        onMore={leadsMore}
+        loadingMore={leadsMoreBusy}
         firstDay={leads.searches.length === 0 && !leads.readFailed}
         // The three ways claim only what THIS tab has read: the line is the setup
         // surface's, which this route does not load on a cold open, so it is passed

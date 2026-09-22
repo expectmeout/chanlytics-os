@@ -824,6 +824,9 @@ const LeadsScope = (p) => {
               <div className="cl-section-lead">
                 <span className="cl-section-title" data-testid="leads-list-title">{p.listTitle}</span>
                 {p.view.list !== "all" ? <button type="button" className="cl-bucket-link" onClick={() => p.onPickList("all")} data-testid="leads-show-all">Show all leads</button> : null}
+                {/* What a refresh found and the surface is holding back (E8: nothing re-sorts under the owner). An open
+                    search says it in its strip; here the head does, with the strip's own words and door. */}
+                {L.offered > 0 ? <button type="button" className="cl-bucket-link ld-offered" onClick={p.onTakeOffered} data-testid="leads-offered">{L.offered} new</button> : null}
               </div>
             </div>
           ) : null}
