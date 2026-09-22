@@ -1332,3 +1332,36 @@ test("after the calendar's address is saved, nothing is said of a read until the
     delete W.__calendar;
   }
 });
+
+test("a re-read after the calendar's address is saved that fails says so, with its Retry, and never leaves the row blank", () => {
+  // Task 3.3's re-review. The row says nothing of a read from before the save, and asked that before whether the read
+  // had failed, so a re-read that FAILED left the row blank for good: the read in the window stays the old calendar's.
+  const sent = saving();
+  const asked = [];
+  const was = W.__surfaceFailed;
+  W.__calendar = { refresh: () => { asked.push("refresh"); return new Promise(() => {}); } };
+  try {
+    W.__CALENDAR = calendarRead(readOk());
+    let tree = drawTab();
+    openFold(tree, "calendar");
+    tree = redrawTab();
+    find(foldOf(tree, "calendar"), (n) => classes(n).includes("rec-input")).props.onChange({ target: { value: "https://calendar.google.com/calendar/ical/new/private-xyz/basic.ics" } });
+    tree = redrawTab();
+    saveFoldOf(tree, "calendar");
+    W.__SETTINGS = { ...W.__SETTINGS, config: sent[0].config, version: 8 };
+    tree = redrawTab();
+    assert.deepEqual([byTestId(tree, "rec-calendar-read"), byTestId(tree, "rec-calendar-unread")], [null, null], "while the save's re-read is on its way, nothing");
+    // The save's own re-read fails: the runner marks the surface failed, and the old calendar's read stays in the window.
+    W.__surfaceFailed = (key) => key === "calendar";
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-calendar-unread")), /Couldn't read what its last read found/, "REGRESSION: the row was blank for good");
+    assert.equal(byTestId(tree, "rec-calendar-read"), null, "and the old calendar's read is still not stated as this one's");
+    assert.equal(asked.length, 0);
+    press(byTestId(tree, "rec-calendar-unread-retry"));
+    assert.equal(asked.length, 1, "its Retry asks again");
+  } finally {
+    delete W.__CALENDAR;
+    delete W.__calendar;
+    if (was) W.__surfaceFailed = was; else delete W.__surfaceFailed;
+  }
+});

@@ -1663,6 +1663,9 @@ html.legacy-on .bt-link { position: relative; }
   .bt-week-row > .bt-week-times { grid-column: 1 / -1; grid-row: 3; width: auto; }
   .bt-week-row > .field-error { grid-column: 1 / -1; }
   .bt-week-axis { display: none; }
+  /* No label column to line up with: the copy menu starts at the fold's edge. calc(var(--bt-week-key) + 12px) still
+     added the column's gap with the column at 0px, and set the menu 12px in from everything above it. */
+  .bt-week-copy { padding-left: 0; }
   .bt-closure { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
   /* The dates share the first line with the remove; the reason (the third box) takes the next. */
   .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }

@@ -1461,3 +1461,24 @@ test("a fold's save the server refuses while another row's ask waits: the questi
   tree = redrawTab(flash);
   assert.deepEqual([openFolds(tree), openRows(tree)], [[], ["website"]], "answered, the row asked for opens");
 });
+
+test("a row saved through its own door offers no press on a disagreement: it has no commit to save the other answer through", () => {
+  // Task 3.3's re-review. A dispute's press called the row's `commit`, which a row with a `door` (the zone's) does not
+  // have, and threw as it was pressed. The will-say block already asked for a commit before calling it.
+  drawTab();
+  unmount();
+  const tree = W.React.createElement(W.BtRow, {
+    id: "timezone",
+    label: "Timezone",
+    brain: W.__SETTINGS.config.brain,
+    value: "New York",
+    initial: "America/New_York",
+    storedAs: (d) => d,
+    door: { save: () => {}, pending: () => false },
+    disputed: { value: "Chicago", source: "workspace", use: "America/Chicago" },
+    body: () => null,
+  });
+  const row = byTestId(tree, "rec-row-timezone");
+  assert.ok(find(row, (n) => classes(n).includes("rec-row-dispute")), "the disagreement is still there to read");
+  assert.equal(find(row, (n) => n.type === "button" && classes(n).includes("btn")), null, "REGRESSION: a press that called a commit the row does not have");
+});

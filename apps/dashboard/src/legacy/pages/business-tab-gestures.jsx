@@ -202,14 +202,16 @@ const BtRow = ({
   // A disagreement, as the kit draws one: the other answer, in the resolver's own sentence when there is one, and one
   // press that takes it, saved through this row's own commit and gated like every press on the row. A role that may not
   // change the business reads the disagreement and is offered no press, as it is offered no act; nor is anyone, where
-  // the other answer is information rather than a fill (btDispute's `use` is null).
+  // the other answer is information rather than a fill (btDispute's `use` is null). Nor where the row has no `commit`
+  // to save it through (a row with a `door`, the zone's), as the will-say block asks too: the press called commit and
+  // threw.
   const other = disputed ? {
     value: disputed.value,
     source: disputed.source,
     severity: disputed.severity,
     sentence: disputed.sentence,
     useLabel: disputed.useLabel,
-    onUse: canEdit && disputed.use != null ? () => {
+    onUse: canEdit && commit && disputed.use != null ? () => {
       if (busy) return;
       const bad = check(disputed.use);
       if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
@@ -332,7 +334,9 @@ const BtRow = ({
  *   the focus      `name(i)` names row i, and the body spreads `row(i)` on the element that holds its boxes. A row that
  *                  was just added takes focus in its first box (the kit's useRecFocus, through RecordFold's focusOn):
  *                  it stayed on Add.
- * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too.
+ * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too. A list is changed through
+ * rows(), never through `update`: rows() is where the cap, the Undo and the index live, and a body that added or
+ * removed a row with `update` had none of the three.
  *
  * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
  * act's words and its name where "Change" or "Add one" and the label say nothing together.

@@ -483,6 +483,8 @@ const btoShortFeed = (url) => {
  * calendar's, whatever it found. The save reads the calendar again (refresh-map.ts), so nothing is asked for it here.
  * The surface carries no address to hold a read against (the address never leaves the server), so the moment of the
  * save is the one thing the row can know it by. A read that says no calendar is connected is said nothing of either.
+ * And a re-read after the save that FAILED is said, as a failed read is, with its Retry: the read still in the window
+ * is the old calendar's, so waiting for a newer one to land waited for good.
  */
 const BtoFeedRead = ({ stored }) => {
   const [, setTick] = useBtoState(0);
@@ -532,9 +534,12 @@ const BtoFeedRead = ({ stored }) => {
   }, [stored, fresh, before, canAsk, visible]);
 
   if (!stored) return null;
-  // From before the address was saved: nothing of it is stated, and the save's own re-read is on its way.
-  if (before) return null;
-  const failed = !fresh && (flight.current.failed || !!(window.__surfaceFailed && window.__surfaceFailed("calendar")));
+  const surfaceFailed = !!(window.__surfaceFailed && window.__surfaceFailed("calendar"));
+  // From before the address was saved: nothing of it is stated, and the save's own re-read is on its way. Unless that
+  // re-read failed, which is said where the read would be, as any failed read is: asked first, a failed re-read left the
+  // row blank for good, since the read in the window stays the old calendar's and `before` never stops being true.
+  if (before && !surfaceFailed) return null;
+  const failed = before || (!fresh && (flight.current.failed || surfaceFailed));
   if (failed) {
     return <window.FailedRead kind="line" what="what its last read found" onRetry={canAsk ? ask : null} busy={flight.current.out} surface="calendar" testid="rec-calendar-unread" />;
   }
