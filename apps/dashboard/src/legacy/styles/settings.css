@@ -1664,6 +1664,16 @@ html.legacy-on .bt-link { position: relative; }
   .bt-week-row > .field-error { grid-column: 1 / -1; }
   .bt-week-axis { display: none; }
   .bt-closure { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
-  .bt-closure > input:not([type="date"]) { grid-column: 1 / 3; grid-row: 2; }
+  /* The dates share the first line with the remove; the reason (the third box) takes the next. */
+  .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
   .bt-closure-head { display: none; }
+}
+
+/* WCAG's reflow width, 320px: nothing runs past the edge. The ribbon's days shrink under their 30px rather than push
+   the card wide, and a shift's two time boxes share the line, each taking what is left of it. */
+@media (max-width: 400px) {
+  .bt-ribbon { grid-template-columns: repeat(7, minmax(0, 46px)); gap: 3px; }
+  .bt-week-shift { width: 100%; }
+  .bt-week-shift > .rec-box { flex: 1 1 0; min-width: 0; }
+  .bt-time { width: 100%; min-width: 0; }
 }
