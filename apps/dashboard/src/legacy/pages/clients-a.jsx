@@ -2813,8 +2813,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     clearSel: clearSelection,
     // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
     focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
-    sheetOpen: listsOpen || addOpen || !!listAct || !!bulkSheet,
-    closeSheet: addOpen || listAct ? closePhoneSheet : bulkSheet ? () => setBulkSheet(null) : null,
+    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
+    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
+    closeSheet: addOpen || listAct ? closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
