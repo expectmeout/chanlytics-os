@@ -227,7 +227,7 @@ export interface ServicesWordsVM {
   line: string | null;
   /** How they are priced, in one sentence; null with none. */
   priced: string | null;
-  /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180m" where it has a duration. */
+  /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
   chips: { name: string; takes: string | null }[];
   /** "+29 more" past the four; null when every one is a chip. */
   more: string | null;
@@ -269,7 +269,7 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
       : "None names a price.";
   const chips = list.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min}m` : null,
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null,
   }));
   return { count: n, line: `${count(n)} on record`, priced, chips, more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null };
 }

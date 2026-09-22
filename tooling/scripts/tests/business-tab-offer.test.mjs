@@ -54,7 +54,7 @@ test("the services row counts them and says how they are priced", () => {
   const vm = servicesWords(many.services);
   assert.equal(textOf(byTestId(row, "rec-services-priced")), vm.priced);
   assert.equal(vm.priced, "Every one quoted at consult — none names a price.", "the canvas's sentence");
-  assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), ["Service 130m", "Service 231m", "Service 332m", "Service 433m", "+29 more"]);
+  assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), ["Service 130 min", "Service 231 min", "Service 332 min", "Service 433 min", "+29 more"]);
 });
 
 test("the sheet holds every service, and the search narrows them", () => {

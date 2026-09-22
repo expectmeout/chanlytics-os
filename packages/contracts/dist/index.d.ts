@@ -10517,7 +10517,7 @@ interface ServicesWordsVM {
     line: string | null;
     /** How they are priced, in one sentence; null with none. */
     priced: string | null;
-    /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180m" where it has a duration. */
+    /** The first four in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
     chips: {
         name: string;
         takes: string | null;

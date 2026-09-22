@@ -439,7 +439,8 @@ test("the services row counts them, names the first four with how long each take
   assert.equal(vm.count, 33);
   assert.equal(vm.line, "33 on record", "the canvas's words");
   // In the stored order, which is the order the receptionist reads them in: never sorted.
-  assert.deepEqual(vm.chips, [{ name: "Balayage", takes: "180m" }, { name: "Highlights", takes: "45m" }, { name: "Haircut", takes: null }, { name: "Blowout", takes: "120m" }]);
+  // "180 min", never "180m", which a screen reader may say as metres.
+  assert.deepEqual(vm.chips, [{ name: "Balayage", takes: "180 min" }, { name: "Highlights", takes: "45 min" }, { name: "Haircut", takes: null }, { name: "Blowout", takes: "120 min" }]);
   assert.equal(vm.more, "+29 more");
   // Four or fewer are all chips, with no "more".
   assert.deepEqual([servicesWords(MANY.slice(0, 4)).chips.length, servicesWords(MANY.slice(0, 4)).more], [4, null]);

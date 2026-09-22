@@ -1437,12 +1437,12 @@ test("a sheet given a Save draws the fold's own foot: the ask above it, and noth
 test("a row of chips names each thing its value counts, with its measure beside it, and how many more", () => {
   unmount();
   // Children as React hands them, after the props: the stub's createElement sets `children` from these.
-  const chipRow = W.React.createElement(W.RecordChips, { chips: [{ label: "Balayage", meta: "180m" }, { label: "Haircut", meta: null }], more: "+31 more" });
+  const chipRow = W.React.createElement(W.RecordChips, { chips: [{ label: "Balayage", meta: "180 min" }, { label: "Haircut", meta: null }], more: "+31 more" });
   const tree = W.React.createElement(W.RecordRow, { id: "services", label: "Services", value: "33 on record" }, chipRow);
   const chips = all(tree, (n) => classes(n).includes("rec-chip"));
-  assert.deepEqual(chips.map(textOf), ["Balayage180m", "Haircut", "+31 more"]);
+  assert.deepEqual(chips.map(textOf), ["Balayage180 min", "Haircut", "+31 more"]);
   assert.deepEqual(chips.map((c) => c.props["data-more"]), [undefined, undefined, "true"]);
-  assert.equal(textOf(find(chips[0], (n) => classes(n).includes("rec-chip-meta"))), "180m");
+  assert.equal(textOf(find(chips[0], (n) => classes(n).includes("rec-chip-meta"))), "180 min");
   assert.equal(find(tree, (n) => classes(n).includes("rec-row")).props.className, "rec-row rec-row-top", "a row with chips under its value is a tall row");
   assert.equal(all(draw(W.RecordChips, { chips: [] }), (n) => classes(n).includes("rec-chip")).length, 0);
 });

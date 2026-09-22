@@ -11298,7 +11298,7 @@ function servicesWords(services) {
   const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
   const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min}m` : null
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
   }));
   return { count: n, line: `${count(n)} on record`, priced, chips, more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null };
 }
