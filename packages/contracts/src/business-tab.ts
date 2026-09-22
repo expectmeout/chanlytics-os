@@ -872,6 +872,12 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // something else promises it only here: with no WhatsApp to send it by, no link, or
   // bookings held on the Autonomy tab, "then the link" would not be true.
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  // ...and whether the row ABOVE may promise it without naming a channel. The link goes by WhatsApp on
+  // both channels, but a call sends it as a template, so a workspace on both lines with no approved
+  // booking-link template sends it in chat and not on a call (retell-fn's deliver has no template to
+  // send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
   // What is missing on this page is said first, because it is what this page can fix.
   // Then the Autonomy tab's hold: with Booking not on auto, a call's send is refused
   // (outbound-gate.ts), and a chat reply CLASSED AS A BOOKING has the link taken back out
@@ -911,11 +917,11 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       // them, so this says only what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed
         ? linkGoes
-          ? "No calendar to read, so it does not guess at open times — it sends the link instead."
+          ? `No calendar to read, so it does not guess at open times —${inChat} it sends the link instead.`
           : "No calendar to read, so it does not guess at open times."
         : i.bookingHeld
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
-          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
+          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,

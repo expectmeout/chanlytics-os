@@ -13849,6 +13849,8 @@ function abilityRows(i) {
   const answering = i.voiceLive || i.whatsappLive;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   return [
     {
@@ -13867,7 +13869,7 @@ function abilityRows(i) {
       // With bookings held, check_availability offers a caller no times (retell-availability.ts),
       // while the call still starts with the openings (call-start.ts) and chat is still handed
       // them, so this says only what holds on both: it has them, and a request to book gets no link.
-      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
+      detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: both,
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed

@@ -317,6 +317,32 @@ test("with a calendar, the link follows the times only where it can go", () => {
   );
 });
 
+test("with both lines and no approved message, the link that follows the times is chat's alone (M-3)", () => {
+  // linkGoes asked only whether the LINK could go at all -- a booking link, WhatsApp connected,
+  // bookings not held -- and never whether the CALL could send it. So a workspace on both lines
+  // with no approved booking-link template was told, on the row about a call asking the calendar,
+  // that the call offers times "then the link". outbound-gate refuses that send (retell-fn's
+  // deliver needs the template), and the booking-link row two lines down already says so.
+  const noTemplate = { ...live, hasBookingTemplate: false };
+  assert.match(
+    idOf(abilityRows(noTemplate)).open_times.detail,
+    /It offers up to three that fit, then the link in chat\.$/,
+  );
+  assert.equal(
+    idOf(abilityRows({ ...noTemplate, hasCalendarFeed: false })).open_times.detail,
+    "No calendar to read, so it does not guess at open times — in chat it sends the link instead.",
+  );
+  // A workspace with no call to speak of needs no such clause: there is only chat to send it on.
+  assert.match(
+    idOf(abilityRows({ ...noTemplate, voiceLive: false })).open_times.detail,
+    /It offers up to three that fit, then the link\.$/,
+  );
+  assert.equal(
+    idOf(abilityRows({ ...noTemplate, voiceLive: false, hasCalendarFeed: false })).open_times.detail,
+    "No calendar to read, so it does not guess at open times — it sends the link instead.",
+  );
+});
+
 test("on WhatsApp alone, the link goes in the thread", () => {
   const b = idOf(abilityRows({ ...live, voiceLive: false })).booking_link;
   assert.equal(b.detail, "It sends it in the thread.");
