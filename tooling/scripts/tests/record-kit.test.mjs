@@ -1019,6 +1019,71 @@ test("a fold says what saving it writes as an inline editor does: what goes besi
   );
 });
 
+test("what saving writes is drawn a line at a time, and only the lines the page names as changed are marked", () => {
+  // Spec §9, item 3: when the block changes as the draft changes, only the changed clause washes, once. Which clause
+  // changed is the page's to work out (it holds the block before and after); the kit draws each line as its own span,
+  // in the same text, and marks the ones it is told, for record.css to wash. Never a re-layout: the words are the
+  // same words, line for line.
+  const says = "Booking rules:\n- At least 3 hours' notice for any appointment.\n- Up to 14 days ahead.";
+  const gone = "- At least 2 hours' notice for any appointment.";
+  const tree = draw(
+    W.RecordFold,
+    bookingRules({ says, gone, goneLabel: "It will no longer be told", changed: [1], goneChanged: [0] }),
+  );
+  const block = find(tree, (n) => n.props?.["data-testid"] === "rec-fold-says-booking_rules");
+  const part = (name) => find(block, (n) => n.props?.["data-part"] === name);
+  const lines = (p) =>
+    all(
+      find(p, (n) => n.type === "pre"),
+      (n) => classes(n).includes("rec-says-line"),
+    );
+  assert.equal(textOf(find(part("says"), (n) => n.type === "pre")), says, "the same text, newlines and all");
+  assert.deepEqual(
+    lines(part("says")).map((l) => [textOf(l), l.props["data-changed"]]),
+    [
+      ["Booking rules:", undefined],
+      ["- At least 3 hours' notice for any appointment.", "true"],
+      ["- Up to 14 days ahead.", undefined],
+    ],
+    "the one changed line, and only it",
+  );
+  assert.deepEqual(
+    lines(part("gone")).map((l) => l.props["data-changed"]),
+    ["true"],
+    "what goes is marked by its own list",
+  );
+  // Told nothing, it marks nothing: a block drawn as the fold opens has not changed.
+  const plain = draw(W.RecordFold, bookingRules({ says }));
+  assert.deepEqual(
+    all(plain, (n) => n.props?.["data-changed"] !== undefined && classes(n).includes("rec-says-line")),
+    [],
+  );
+  // A changed line is keyed by its words, so a line rewritten is a new line to the browser and washes once, where a
+  // line that stays keeps its element and does not wash again.
+  const keys = all(
+    find(part("says"), (n) => n.type === "pre"),
+    (n) => n.type === W.React.Fragment,
+  ).map((f) => f.props.key);
+  assert.equal(new Set(keys).size, 3, "each line its own key");
+  assert.ok(keys[1].includes("3 hours"), "keyed by what it says");
+  // The inline editor draws its lines the same way, through the same RecordSays.
+  const row = draw(W.RecordInline, {
+    id: "website",
+    label: "Website",
+    open: true,
+    says: "Website: https://melanys.example",
+    saysLabel: "It will say",
+    changed: [0],
+    onSave: () => {},
+    onCancel: () => {},
+  });
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-says-line")).props["data-changed"],
+    "true",
+    "and marks what it is told",
+  );
+});
+
 test("a fold kept while closed is hidden whole, its head and its Close with it", () => {
   const foldOf = (tree) => find(tree, (n) => classes(n).includes("rec-fold"));
   const closed = foldOf(draw(W.RecordFold, bookingRules({ open: false })));

@@ -448,7 +448,28 @@ const recKeys = ({ onCancel, onSave, saving, refused }) => (e) => {
 // takes away, under a second (`goneLabel`); and a sentence of the page's own before them (`note`), where the change
 // reaches past its lines. Nothing to say draws nothing, never an empty block. `inline` sets each eyebrow beside its
 // lines, as an inline editor's row does on a desktop; a fold, and every phone, stacks them.
-const RecordSays = ({ id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null, inline = false }) => {
+//
+// Each line is a span of its own inside the block's <pre>, in the same text, newlines and all. `changed` and
+// `goneChanged` are the indexes of the lines of `text` and of `gone` that the draft has just changed: the page works
+// that out, since it holds the block before and after (business-tab-gestures.jsx), and the kit marks those lines
+// `data-changed` for record.css's wash (spec §9, item 3: only the changed clause, once). A line is keyed by its words,
+// so a line rewritten is a new element and washes as it arrives, and a line that stays keeps its element and never
+// washes again, whatever else is marked.
+const recSaysLines = (text, marks) => {
+  const on = new Set(Array.isArray(marks) ? marks : []);
+  const seen = new Map();
+  return text.split("\n").map((line, i) => {
+    const n = (seen.get(line) || 0) + 1;
+    seen.set(line, n);
+    return (
+      <React.Fragment key={`${n}:${line}`}>
+        {i ? "\n" : null}
+        <span className="rec-says-line" data-changed={on.has(i) ? "true" : undefined}>{line}</span>
+      </React.Fragment>
+    );
+  });
+};
+const RecordSays = ({ id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null, inline = false, changed = null, goneChanged = null }) => {
   const writes = typeof text === "string" && text.trim() !== "";
   const drops = typeof gone === "string" && gone.trim() !== "";
   if (!writes && !drops && !note) return null;
@@ -458,13 +479,13 @@ const RecordSays = ({ id = null, testid = null, text = null, label = null, gone 
       {writes ? (
         <div className="rec-says-part" data-part="says">
           {label ? <span className="rec-says-eyebrow">{label}</span> : null}
-          <pre>{text}</pre>
+          <pre>{recSaysLines(text, changed)}</pre>
         </div>
       ) : null}
       {drops ? (
         <div className="rec-says-part" data-part="gone">
           {goneLabel ? <span className="rec-says-eyebrow">{goneLabel}</span> : null}
-          <pre>{gone}</pre>
+          <pre>{recSaysLines(gone, goneChanged)}</pre>
         </div>
       ) : null}
     </div>
@@ -511,11 +532,12 @@ const RecordFoot = ({
 // changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
 // `focusOn` ({ row }) names a row a list in it has just been given, by the data-rec-row the page put on it: focus goes
 // to that row's first box. A new object each time, so the same row named twice is focused twice.
+// `changed` and `goneChanged` are the lines of `says` and `gone` the draft has just changed, for RecordSays to mark.
 // Not while it saves: nothing asks whether to discard a change that is on its way (the header says what happens to an
 // ask meanwhile), and the fold says it is busy.
 const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
-  footNote = null, confirm = null, focusOn = null,
+  footNote = null, confirm = null, focusOn = null, changed = null, goneChanged = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
   gate = null, wide = false, children = null,
 }) => {
@@ -535,7 +557,7 @@ const RecordFold = ({
   // Close, the foot's Cancel and a press on a phone's wash are one Cancel, and none acts while the fold saves (recKeys
   // says why): Close once cancelled then, where the foot's Cancel and Escape did not.
   const cancel = (e) => { if (saving) { if (e && e.preventDefault) e.preventDefault(); return; } if (onCancel) onCancel(e); };
-  const told = <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} />;
+  const told = <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} />;
   const foot = (
     <RecordFoot
       saveTestid={`rec-fold-save-${id}`}
@@ -675,7 +697,7 @@ const RecordFold = ({
 const RecordInline = ({
   id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
   confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
-  keys = "Esc cancels · ⌘↵ saves", gate = null, children = null,
+  keys = "Esc cancels · ⌘↵ saves", gate = null, changed = null, goneChanged = null, children = null,
 }) => {
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
@@ -702,7 +724,7 @@ const RecordInline = ({
       <div className="rec-inline-body">
         {disputed && Dispute ? <Dispute disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
         {children}
-        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} inline />
+        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} inline />
         {ask}
         <RecordFoot
           saveTestid={`rec-inline-save-${id}`}

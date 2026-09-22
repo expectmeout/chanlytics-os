@@ -821,11 +821,31 @@ const btWillSay = ({ was, next, sections, channel }) => {
   };
 };
 
+/**
+ * Which lines of `now` are new since `was`: the indexes, in `now.split("\n")`, of the lines `was` did not have, each
+ * line of `was` answering for one line of `now` with the same words (so a line said twice where it was said once is one
+ * new line). Blank lines are never new. Nothing is new where there was nothing before, or where nothing moved: a block
+ * that appears is arriving, not changing. What a row or a fold marks as the line its draft just changed (spec §9, item
+ * 3: only the changed clause washes), from the block it drew last and the one it draws now; pure.
+ */
+const btChangedLines = (was, now) => {
+  if (typeof was !== "string" || typeof now !== "string" || was === now) return [];
+  const left = new Map();
+  for (const l of was.split("\n")) left.set(l, (left.get(l) || 0) + 1);
+  const out = [];
+  now.split("\n").forEach((l, i) => {
+    const n = left.get(l) || 0;
+    if (n > 0) left.set(l, n - 1);
+    else if (l.trim() !== "") out.push(i);
+  });
+  return out;
+};
+
 // Added to window.__businessTabSave, the object business-tab-save.jsx published: each fold's paths and keys (PATHS_OF,
 // KEYS_OF), its helpers (draftOf, saveProblems and its two halves, saveFold, holdsChanges, foldJob), how much of each thing the save
 // takes (LIMITS, and RULES: each booking rule's key, least, most and sentence), which sections say their block in runs
 // (RUN_BLOCKS), the lines of a box as a save writes them (linesOf), and what a row's or a fold's save will tell the
-// receptionist (willSay).
+// receptionist (willSay), and which lines of a block are new since the one drawn before it (changedLines).
 if (!window.__businessTabSave) throw new Error("business-tab-folds.jsx loads after business-tab-save.jsx: window.__businessTabSave is not there.");
 Object.assign(window.__businessTabSave, {
   PATHS_OF: BT_PATHS_OF,
@@ -845,4 +865,5 @@ Object.assign(window.__businessTabSave, {
   // The lines of a box, as its save writes them (the hand-off's reasons): a fold that says what a draft means asks this.
   linesOf: btLines,
   willSay: btWillSay,
+  changedLines: btChangedLines,
 });

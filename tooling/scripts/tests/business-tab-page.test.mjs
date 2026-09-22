@@ -2274,3 +2274,88 @@ test("on a phone the sheet slot is still the page's last child: a row's sheet is
     width.put();
   }
 });
+
+/* ------------------------------------ motion: what the stub can see of it ------------------------------------ */
+
+// Spec §9. The stub draws no frame and runs no stylesheet, so the motions themselves are the journey's to prove, by
+// computed style (e2e/settings-business.spec.ts). What the page decides is here: WHICH line of what a save will tell
+// the receptionist has just changed, which is the one line record.css washes.
+const saysLines = (tree, id, part = "says") =>
+  all(
+    find(byTestId(tree, `rec-fold-says-${id}`), (n) => n.props?.["data-part"] === part),
+    (n) => classes(n).includes("rec-says-line"),
+  ).map((l) => [textOf(l), l.props["data-changed"] === "true"]);
+const ruleBox = (tree, key) => find(byTestId(tree, `rec-rule-${key}`), (n) => n.type === "input");
+
+test("as the draft changes, only the line of what it will be told that changed is marked, and only until the next change", () => {
+  let tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  const opened = saysLines(tree, "booking_rules");
+  assert.ok(opened.length > 1, "the whole block is drawn as the fold opens");
+  assert.deepEqual(
+    opened.filter(([, on]) => on),
+    [],
+    "nothing has changed yet: the block the fold opens with is not a change",
+  );
+
+  ruleBox(tree, "lead_hours").props.onChange({ target: { value: "3" } });
+  tree = redrawTab();
+  const once = saysLines(tree, "booking_rules");
+  const was = opened.map(([l]) => l);
+  // The lines the draft changed, worked out from the block before and after, as the page must.
+  const fresh = once.filter(([l]) => l.trim() !== "" && !was.includes(l)).map(([l]) => l);
+  assert.equal(fresh.length, 1, `one line of the block says the notice: ${JSON.stringify(fresh)}`);
+  assert.match(fresh[0], /3 hours/);
+  assert.deepEqual(
+    once.filter(([, on]) => on).map(([l]) => l),
+    fresh,
+    "that line is marked, and no other",
+  );
+
+  // Drawn again with nothing changed, the mark stays where it is: it is the same line, and does not wash twice.
+  tree = redrawTab();
+  assert.deepEqual(saysLines(tree, "booking_rules"), once);
+
+  // The next change marks its own line, and the last one's mark goes.
+  ruleBox(tree, "party_max").props.onChange({ target: { value: "6" } });
+  tree = redrawTab();
+  const twice = saysLines(tree, "booking_rules");
+  const marked = twice.filter(([, on]) => on).map(([l]) => l);
+  assert.equal(marked.length, 1, JSON.stringify(marked));
+  assert.match(marked[0], /6 people/);
+  assert.ok(!/3 hours/.test(marked[0]), "the notice's line, changed a keystroke ago, washes no more");
+
+  // Closed and opened again, the block is new to the person, and nothing in it is a change.
+  press(byTestId(tree, "rec-fold-cancel-booking_rules"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-booking_rules-cancel-yes"));
+  tree = redrawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual(
+    saysLines(tree, "booking_rules").filter(([, on]) => on),
+    [],
+  );
+});
+
+test("a row's own line of what it will say is marked as it changes, not as it first appears", () => {
+  let tree = drawTab();
+  press(byTestId(tree, "rec-row-act-website"));
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  const lines = () =>
+    all(byTestId(tree, "rec-inline-says-website"), (n) => classes(n).includes("rec-says-line")).map((l) => [
+      textOf(l),
+      l.props["data-changed"] === "true",
+    ]);
+  const first = lines().filter(([l]) => l.includes("melanys.example"));
+  assert.equal(first.length, 1, "it says the new address");
+  assert.equal(first[0][1], false, "what arrives with the block is not a change of it");
+  typeInto(tree, "website", "https://melanys.example/book");
+  tree = redrawTab();
+  const marked = lines().filter(([, on]) => on);
+  assert.deepEqual(marked.length, 1);
+  assert.match(marked[0][0], /melanys\.example\/book/, "the line the keystroke changed");
+});

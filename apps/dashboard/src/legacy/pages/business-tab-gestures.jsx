@@ -78,6 +78,20 @@ const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }) => {
   };
 };
 
+/**
+ * Which lines of a block of what a save will say the draft has just changed, for the kit to mark (RecordSays'
+ * `changed`) and record.css to wash, once (spec §9, item 3). The block drawn last is kept, and a new one is compared
+ * with it as it is drawn (changedLines): the answer holds until the block changes again, so a draw that changes
+ * nothing leaves the mark where it is, on the same line, which does not wash twice. A block that goes (the editor
+ * closed, or a draft its checks refuse) is forgotten, so the next one to appear is arriving, not changing.
+ */
+const useBtChanged = (text) => {
+  const seen = useBtgRef({ text: null, changed: [] });
+  const now = typeof text === "string" && text !== "" ? text : null;
+  if (now !== seen.current.text) seen.current = { text: now, changed: window.__businessTabSave.changedLines(seen.current.text, now) };
+  return seen.current.changed;
+};
+
 // What a toast's Undo says when it can put nothing back: the fold it was in has closed, or its save is out, or the list
 // the row came from was replaced whole since (a day's hours copied over another's).
 const BT_UNDO_CLOSED = "Not put back — the editor it was in has closed. Open it again to change it.";
@@ -279,6 +293,9 @@ const BtRow = ({
     gate,
   } : null;
 
+  const changed = useBtChanged(says ? says.says : null);
+  const goneChanged = useBtChanged(says ? says.gone : null);
+
   // The field is named by the row's own label, where the label stays (the canvas's editing row), rather than by a
   // second copy of it over the box; what it will say describes the box too. Both ids are the kit's (RecordInline).
   const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined, readOnly: busy || undefined };
@@ -319,6 +336,8 @@ const BtRow = ({
         onCancel={asks.cancel}
         saving={busy}
         gate={gate}
+        changed={changed}
+        goneChanged={goneChanged}
       >
         {inner}
       </window.RecordInline>
@@ -670,6 +689,9 @@ const BtFold = ({
   const has = !(row.value == null || row.value === "" || row.value === false);
   const will = e.will;
   const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
+  const says = will ? (lines ? will.added : will.whole) : null;
+  const changed = useBtChanged(says);
+  const goneChanged = useBtChanged(will ? will.removed : null);
   return (
     <>
       {e.open ? null : rest ? rest({ request: e.request, can: e.can }) : (
@@ -691,7 +713,9 @@ const BtFold = ({
         hint={hint}
         open={e.open}
         wide={wide}
-        says={will ? (lines ? will.added : will.whole) : null}
+        says={says}
+        changed={changed}
+        goneChanged={goneChanged}
         saysLabel={lines ? "It will be told" : "Your receptionist will be told"}
         gone={will ? will.removed : null}
         goneLabel="It will no longer be told"

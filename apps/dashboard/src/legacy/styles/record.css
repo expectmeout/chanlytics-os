@@ -116,6 +116,14 @@
    typeface: these are sentences about a business, and a second face on a card of sentences is the first thing an
    owner notices about the page. */
 .rec-says pre { flex: 1; min-width: 0; margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The line the draft has just changed (RecordSays marks it; the page works out which), washed in the kit's one
+   on-and-ok tint and let go to nothing over 400ms, once (spec §9, item 3): the eye goes to the clause that moved and
+   the rest of the block holds still. No keyframe: the line is a new element whenever its words change (keyed by
+   them), so a transition from where it starts plays as it arrives, and a line that stays never plays again. Only its
+   ground moves, never its box: an inline span with no padding, so nothing re-lays out, and the wash follows a
+   wrapped line onto the next. */
+.rec-says-line[data-changed="true"] { border-radius: var(--radius-xs); -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-color calc(2 * var(--duration-base)) var(--ease-out); }
+@starting-style { .rec-says-line[data-changed="true"] { background-color: var(--ok-soft); } }
 .rec-says[data-inline="true"] { padding: 9px 11px; }
 .rec-says[data-inline="true"] .rec-says-part { flex-direction: row; align-items: flex-start; gap: 9px; }
 .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 2px; }
