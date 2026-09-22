@@ -679,8 +679,8 @@ const BT_RUN_BLOCKS = ["hours"];
  * consequenceOf knows (the bridge's FOLD_BLOCK), and `channel` the one its words are read on; a null channel is no
  * channel that reads them on this workspace, and nothing is resolved.
  *
- * It answers { note, added, removed, whole }, each a string or null, all in the composer's own words, resolved as the
- * edge resolves them (the bridge's consequenceOf); nothing here writes a word of them:
+ * It answers { note, added, removed, whole, chars }, each a string or null but `chars`, all in the composer's own words,
+ * resolved as the edge resolves them (the bridge's consequenceOf); nothing here writes a word of them:
  *   added    the lines the save adds or rewrites, which a row draws under "It will say";
  *   removed  the lines it takes away, under "It will no longer say": a line rewritten is one of each, and a save that
  *            drops one thing and adds another says both, where showing only what it adds hid what goes. A block the
@@ -688,6 +688,8 @@ const BT_RUN_BLOCKS = ["hours"];
  *            whose lines are runs (RUN_BLOCKS) says nothing comes or goes while it stays: its lines are not facts;
  *   whole    every line of its blocks as the save would leave them, which a fold draws under "Your receptionist will
  *            be told" for as long as it is open, changed or not;
+ *   chars    those blocks' share of the prompt in characters (PromptBlockVM.chars), or null with no block: what a list
+ *            too long to quote whole says in place of its lines (the services sheet's foot);
  *   note     the sentence for a save that crosses the resolver's own line between composing a prompt and answering
  *            with the stored one (hasProfile, decided in the bridge's profileCrossing): emptying the last field it
  *            composes from drops the hand-off and every rule line, far beyond the save's own lines, and the first such
@@ -706,6 +708,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
   const added = [];
   const removed = [];
   const whole = [];
+  let chars = 0;
   if (channel && tab.consequenceOf) {
     if (btSaidOn.brain !== was || btSaidOn.prompt !== btPreview()) btSaidOn = { brain: was, prompt: btPreview(), blocks: {} };
     const stored = btSaidOn.blocks;
@@ -720,6 +723,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
       }
       const now = btBlockLines(after);
       whole.push(after.text);
+      chars += after.chars;
       // A run block that stays says nothing line by line; one that appears whole is every line new, as one that goes
       // whole is every line gone.
       if (BT_RUN_BLOCKS.includes(block) && before.length) continue;
@@ -732,6 +736,7 @@ const btWillSay = ({ was, next, sections, channel }) => {
     added: added.length ? added.join("\n") : null,
     removed: removed.length ? removed.join("\n") : null,
     whole: whole.length ? whole.join("\n\n") : null,
+    chars: whole.length ? chars : null,
   };
 };
 

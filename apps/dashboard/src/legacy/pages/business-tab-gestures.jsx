@@ -1,21 +1,24 @@
 /* global React */
-// Chanlytics — Settings › Business: the page's two gestures.
+// Chanlytics — Settings › Business: the page's three gestures.
 //
-// A row edited in its place (BtRow, over the kit's RecordInline) and a set of fields folded open under its row (BtFold,
-// over the kit's RecordFold), and the two questions both ask before anything typed is thrown away (useBtAsk, btAsks).
-// The kit (components/record-*.jsx) holds the gesture itself -- focus, keys, the foot, the registry that keeps one editor
-// open; what is the page's is here, once, for every row and fold of every card: the draft, what stops a save, the save
-// through the tab's one saver (business-tab-save.jsx) or a row's own door, and what the receptionist will be told
-// (business-tab-folds.jsx willSay). A card (business-tab-who.jsx, business-tab-open.jsx, and the cards Tasks 3.4 and
-// 3.5 bring) draws its rows' values and its folds' fields, and nothing of this.
+// A row edited in its place (BtRow, over the kit's RecordInline), a set of fields folded open under its row (BtFold,
+// over the kit's RecordFold), and a list too long for a fold, in a sheet beside the page (BtSheet, over the kit's
+// RecordSheet); the two questions every one asks before anything typed is thrown away (useBtAsk, btAsks); and the
+// editor a fold and a sheet both are (useBtEditor), written once. The kit (components/record-*.jsx) holds the gesture
+// itself -- focus, keys, the foot, the registry that keeps one editor open; what is the page's is here, once, for every
+// row, fold and sheet of every card: the draft, what stops a save, the save through the tab's one saver
+// (business-tab-save.jsx) or a row's own door, and what the receptionist will be told (business-tab-folds.jsx willSay).
+// A card (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx, and the card Task 3.5 brings) draws its
+// rows' values and its folds' and sheets' fields, and nothing of this.
 //
-// Loaded after business-tab-folds.jsx and before the cards (both load lists); the cards read window.BtRow and
-// window.BtFold as they draw. Its top-level names are bt-prefixed and its hook aliases its own (useBtg*), and no
-// pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. The tests' stub React
-// (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order, so a component holding
-// hooks that is drawn on one render and not the next moves every cell after it: both gestures are drawn on every
-// render (closed, the kit hides them whole), and what comes and goes inside them (a row at rest, a Confirm, a note)
-// holds none. That is the stub's rule, not React's.
+// Loaded after business-tab-folds.jsx and before the cards (both load lists); the cards read window.BtRow,
+// window.BtFold and window.BtSheet as they draw. Its top-level names are bt-prefixed and its hook aliases its own
+// (useBtg*), and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. The tests' stub
+// React (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order, so a component
+// holding hooks that is drawn on one render and not the next moves every cell after it: the row and the fold are drawn
+// on every render (closed, the kit hides them whole), and what comes and goes inside them (a row at rest, a Confirm, a
+// note) holds none. The sheet's editor is drawn on every render too; the kit's sheet, drawn only while it is open, is
+// the page's LAST hook-holding child (BtSheet says how). That is the stub's rule, not React's.
 
 const { useState: useBtgState, useEffect: useBtgEffect, useRef: useBtgRef } = React;
 
@@ -267,89 +270,52 @@ const BtRow = ({
   );
 };
 
-/* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
+
+/* ------------------------------------ a set of fields: the editor a fold and a sheet both are ------------------------------------ */
 
 /**
- * One of this page's folds: at rest a RecordRow, and while it is edited the kit's fold (RecordFold, record-fold.jsx),
- * which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the page's is here,
- * once, for every fold: the draft, what stops a save, the save through the tab's one saver, what the receptionist
- * will be told, and the two asks. A card draws its fields (`body`) and what its row says at rest (`row`); nothing else.
+ * The editor behind one of this page's folds, and behind its sheet: the draft, what stops a save, the save through the
+ * tab's one saver, what the receptionist will be told, the two asks, and every rule a list in the draft has. A fold
+ * draws it under its row (BtFold, below); a list too long for a fold draws it in a sheet beside the page (BtSheet,
+ * below). Both are the same editor, written once, because the services sheet needed every rule a fold keeps -- the cap
+ * through an Undo, the removal said only when it happened, the row back at its index, one editor open at a time, the
+ * asks -- and a second copy of them would be the one that drifts. A card never calls this: it hands BtFold or BtSheet
+ * its fields.
  *
- * It follows business-tab-folds.jsx's contract to the letter, because a fold that did not would lose a colleague's
+ * It follows business-tab-folds.jsx's contract to the letter, because an editor that did not would lose a colleague's
  * change or a workspace's prompt without a word:
- *   as it opens     the draft is draftOf(id, saver.base()), kept as `opened`. Until the fold is typed in, `opened` is
+ *   as it opens     the draft is draftOf(id, saver.base()), kept as `opened`. Until the editor is typed in, `opened` is
  *                   taken again from the base on every draw: an untouched fold FOLLOWS what is stored, so a colleague's
  *                   change read back into this tab is shown as it stands, said as nothing that goes, and the first
  *                   keystroke after it is a change to the week as it is now, not a save refused as "changed after you
  *                   opened it". Typed in, or while its save is out, `opened` holds still, and foldJob's refusal stands;
- *   unsaved changes the draft is not the one it opened with, asked by the registry however the fold was opened (its own
- *                   act, or its id from the standing line's door), by the Settings rail, by the browser, and by Cancel.
- *                   NOT holdsChanges, which judges what the save would WRITE: a shift typed half-way, a closed day's
- *                   note with no date yet, a day switched on with no times and (Task 3.4) a service with no name are
- *                   all dropped by the save, so they read as nothing, and Cancel threw them away without a question.
- *                   The form this replaces counted any change, and so does this. Asking once too often loses nothing;
+ *   unsaved changes the draft is not the one it opened with, asked by the registry however the editor was opened (its
+ *                   own act, or its id from the standing line's door), by the Settings rail, by the browser, and by
+ *                   Cancel. NOT holdsChanges, which judges what the save would WRITE: a shift typed half-way, a closed
+ *                   day's note with no date yet, a day switched on with no times and a service with no name are all
+ *                   dropped by the save, so they read as nothing, and Cancel threw them away without a question. The
+ *                   form this replaces counted any change, and so does this. Asking once too often loses nothing;
  *   on Save         the page's own checks first (problemsOf), each sentence under its field: a shift typed half-way is
  *                   dropped by the save, so a week that "changes nothing" because of one must still be refused, never
  *                   closed as if saved. Then nothing to write (holdsChanges, which stays the test for whether Save
- *                   sends anything) is nothing to send, and the fold closes. Then the save's
- *                   own schema (saveProblems). Only then saver.save(foldJob(...)), never a hand-written patch. A fold
- *                   nobody typed in closes at once: nothing was asked of it, so nothing of it is judged (a non-owner's
+ *                   sends anything) is nothing to send, and the editor closes. Then the save's own schema
+ *                   (saveProblems). Only then saver.save(foldJob(...)), never a hand-written patch. An editor nobody
+ *                   typed in closes at once: nothing was asked of it, so nothing of it is judged (a non-owner's
  *                   calendar address arrives masked, and would be refused as no address at all);
  *   it will say     willSay on saveFold(id, saver.base(), draft).brain, only while it is open and only for a draft the
  *                   page's own checks pass: the whole block under "Your receptionist will be told", the lines that go,
- *                   and the sentence for a save that crosses the resolver's line. `channel` null draws none (the
- *                   calendar's address and the zone are in no draft of the brain).
+ *                   the block's share of the prompt (`chars`), and the sentence for a save that crosses the resolver's
+ *                   line. `channel` null says none (the calendar's address and the zone are in no draft of the brain).
  *
- * `body` draws the fields. It is drawn on every render, open or not: a body may hold hooks (a menu, a field's id), and
- * the tests' stub React keeps every hook on the page as a cell in one order (this file's header). So a body whose rows
- * come and go draws them hookless. It is handed all of this, and takes nothing else from its card, `flash` least of all:
- *   draft                 the draft as it stands: what is stored, while the fold is closed;
- *   open                  whether the fold is open, for a body that draws less while it is not;
- *   problems              what stopped the last Save, by field key;
- *   readOnly              the fold's save is out: every box takes it (record-fold.jsx says why);
- *   update(fn, keys)      the draft as `fn` makes it of the LATEST one. `keys` are the field keys whose sentences the
- *                         change answers; left out, all of them. It ANSWERS WHETHER IT TOOK THE CHANGE: while the save
- *                         is out it takes none, and whoever would say "Removed…" says it only of a change that was made;
- *   change(fn, words)     a change that is said: taken, it toasts `words.said`, with an Undo when `words.back` is given
- *                         (the draft as `back` makes it of the latest one; it does nothing once the fold has closed,
- *                         since the draft it would put something back into went with it). Refused, it says nothing: a
- *                         body that toasted for itself said "Removed the Mon shift at 14:00", with an Undo, of a shift
- *                         that was still there. `words.keys` as for update;
- *   rows(list)            a list inside the draft, with every rule a list has, ONCE: see below;
- *   press(fn)             the props of a press that changes the draft (an add, a remove). While the fold saves it
- *                         refuses the way Save does: focusable, aria-disabled (never `disabled`, which lets go of
- *                         focus), and doing nothing:  <button type="button" {...press(() => shifts.removeAt(n, said))}>
- *
- * `rows({ name, max, blank, keysOf, key, full, list, put })` answers { canAdd, add(), setAt(i, patch), removeAt(i, said),
- * row(i) } for one list of the draft: the closed days (the draft itself), or one day's shifts (`list` reads it out of the draft and
- * `put` writes it back; left out, the draft is the list). Each body once had to remember all of this, and the cap was
- * forgotten in the one place nobody looks: a toast's Undo put a fifth shift on a Monday that takes four.
- *   the cap        `max`, in all three places: `canAdd` is what the body offers Add by, `add()` appends `blank()` only
- *                  while there is room, and a removed row is PUT BACK only while there is room, the Undo saying `full`
- *                  when there is not;
- *   the removal    the row is captured from the latest draft before it goes, comes back at its own index, and
- *                  `said(row)` is toasted only when the change was taken;
- *   the sentences  `keysOf(i)` are row i's field keys and `key` the list's own (too many). A change to row i answers
- *                  its keys; a removal moves every later row up a place, so it answers them all;
- *   the focus      `name(i)` names row i, and the body spreads `row(i)` on the element that holds its boxes. A row that
- *                  was just added takes focus in its first box (the kit's useRecFocus, through RecordFold's focusOn):
- *                  it stayed on Add.
- * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too. A list is changed through
- * rows(), never through `update`: rows() is where the cap, the Undo and the index live, and a body that added or
- * removed a row with `update` had none of the three.
- *
- * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
- * act's words and its name where "Change" or "Add one" and the label say nothing together.
+ * `prefix` names its two asks' Confirms (rec-fold-<id>, rec-sheet-<id>). What a body is handed is `fields` in what it
+ * answers, which BtFold's contract says in full.
  */
-const BtFold = ({
-  id, label, hint = null, row = {}, wide = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {}, saver = null, body,
-}) => {
+const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver = null, said = BT_SAVED, channel = "whatsapp", prefix }) => {
   const S = window.__businessTabSave;
   const [draft, setDraft] = useBtgState(null);
   const [problems, setProblems] = useBtgState(null);
   const ask = useBtAsk();
-  // The row a list was just given, for the kit to put focus in (rows' add).
+  // The row a list was just given, or any row the body names (focus), for the kit to put focus in (rows' add).
   const [focusOn, setFocusOn] = useBtgState(null);
   // What the registry, an Undo and a keystroke read: the latest draft, whatever the page has drawn since.
   const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0 });
@@ -361,9 +327,9 @@ const BtFold = ({
     return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
   };
   const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
-  // The draft as what is stored opens it, which the body is drawn with while the fold is closed. Tried, like everything
-  // else here that is worked out as the fold draws (btWorkedOut): a fold whose part of the record cannot be read has no
-  // editor and offers no act, and its row still says what it says.
+  // The draft as what is stored opens it, which the body is drawn with while the editor is closed. Tried, like
+  // everything else here that is worked out as it draws (btWorkedOut): an editor whose part of the record cannot be
+  // read opens nothing and offers no act, and its row still says what it says.
   const stored = btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: S.draftOf(id, base || {}) }));
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
   // read to save onto.
@@ -373,7 +339,7 @@ const BtFold = ({
   const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBtgEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) live.current.opening += 1;
-  // Untouched and not saving, the fold opens with what is stored NOW (the header says why); typed in, what it opened
+  // Untouched and not saving, the editor opens with what is stored NOW (the header says why); typed in, what it opened
   // with holds still, since that is what its save is judged against.
   if (open && (live.current.opened == null || (draft == null && live.current.draft == null && !busy))) live.current.opened = stored.draft;
   live.current.open = open;
@@ -398,9 +364,9 @@ const BtFold = ({
     ask.disarm();
     return true;
   };
-  // A toast's Undo outlives the fold that made the change: pressed after the fold has closed (cancelled, or saved and
-  // closed by its save), the draft it would put something back into is gone, and pressed while the save is out nothing
-  // is typed into it. Either way it says so, in the warn tone: an Undo that did nothing and said nothing read as broken.
+  // A toast's Undo outlives the editor that made the change: pressed after it has closed (cancelled, or saved and closed
+  // by its save), the draft it would put something back into is gone, and pressed while the save is out nothing is
+  // typed into it. Either way it says so, in the warn tone: an Undo that did nothing and said nothing read as broken.
   const undo = (fn) => {
     const at = live.current.opening;
     return () => {
@@ -415,7 +381,7 @@ const BtFold = ({
     if (words.said) flash({ msg: words.said, undo: words.back ? undo(words.back) : undefined });
     return true;
   };
-  const rows = ({ name = null, max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l }) => {
+  const rows = ({ name = null, max = Infinity, blank = () => ({}), keysOf = () => [], key = null, full = null, list = (d) => d, put = (d, l) => l, restored = null }) => {
     const latest = () => list(live.current.draft != null ? live.current.draft : live.current.opened) || [];
     const own = (keys) => (key ? keys.concat([key]) : keys);
     return {
@@ -428,6 +394,9 @@ const BtFold = ({
         return taken;
       },
       setAt: (i, patch) => update((d) => put(d, list(d).map((x, j) => (j === i ? { ...x, ...patch } : x))), own(keysOf(i))),
+      // Answers the Undo it toasted (false when nothing was removed), for a body that offers the same Undo where the
+      // row was: a sheet, whose Tab ring the toast is outside (record-sheet.jsx). Whichever is pressed first puts the row
+      // back, once; the other then has nothing left to put back, and the row is where it was either way.
       removeAt: (i, said) => {
         const gone = latest()[i];
         if (gone === undefined) return false;
@@ -435,14 +404,17 @@ const BtFold = ({
         const moved = latest().flatMap((_, j) => (j >= i ? keysOf(j) : []));
         if (!update((d) => put(d, list(d).filter((_, j) => j !== i)), own(moved))) return false;
         const back = undo((d) => put(d, [...list(d).slice(0, i), gone, ...list(d).slice(i)]));
-        flash({
-          msg: typeof said === "function" ? said(gone) : said,
-          undo: () => {
-            if (live.current.open && latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
-            return back();
-          },
-        });
-        return true;
+        let putBack = false;
+        const again = () => {
+          if (putBack) return true;
+          if (live.current.open && latest().length >= max) { if (full) flash({ tone: "warn", msg: <>Not put back — {full}</> }); return false; }
+          if (!back()) return false;
+          putBack = true;
+          if (restored) restored(gone, i);
+          return true;
+        };
+        flash({ msg: typeof said === "function" ? said(gone) : said, undo: again });
+        return again;
       },
     };
   };
@@ -452,7 +424,7 @@ const BtFold = ({
   });
   const close = () => { reset(); fold.close(); };
   const refused = !!(gate && gate["aria-disabled"]);
-  const asks = btAsks({ ask, fold, prefix: `rec-fold-${id}`, busy, dirty, close, reset });
+  const asks = btAsks({ ask, fold, prefix, busy, dirty, close, reset });
   const submit = () => {
     if (busy || !open || refused) return;
     if (draft == null) { close(); return; }
@@ -473,15 +445,87 @@ const BtFold = ({
     saver.save(judged.job);
   };
 
-  // What it will say is worked out as the fold draws, so it is tried: a draft the helpers throw on draws no block.
+  // What it will say is worked out as it draws, so it is tried: a draft the helpers throw on draws no block.
   const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => (
     Object.keys(S.problemsOf(id, now)).length ? null : S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel })
   )) : null;
 
+  // What a body is handed (BtFold's contract says each). `focus(row)` puts focus in the first box of the row the body
+  // named `row` (its data-rec-row), as an added row takes it; `opened` is the draft the editor opened with, and
+  // `opening` counts the times it has opened, so what a body keeps of its own for one opening (a sheet's search, the
+  // rows it has taken out) is known to be from an earlier one.
+  const fields = {
+    draft: now, open, problems: found, readOnly: busy, update, change, rows, press,
+    focus: (row) => setFocusOn({ row }), opened: live.current.opened, opening: live.current.opening,
+  };
+  return { open, busy, stored, fields, will, asks, submit, focusOn, request: fold.request };
+};
+
+/* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
+
+/**
+ * One of this page's folds: at rest a RecordRow, and while it is edited the kit's fold (RecordFold, record-fold.jsx),
+ * which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the page's is the
+ * editor (useBtEditor, above), once, for every fold and the sheet: the draft, what stops a save, the save through the
+ * tab's one saver, what the receptionist will be told, and the two asks. A card draws its fields (`body`) and what its
+ * row says at rest (`row`); nothing else.
+ *
+ * `body` draws the fields. It is drawn on every render, open or not: a body may hold hooks (a menu, a field's id), and
+ * the tests' stub React keeps every hook on the page as a cell in one order (this file's header). So a body whose rows
+ * come and go draws them hookless. It is handed all of this, and takes nothing else from its card, `flash` least of all:
+ *   draft                 the draft as it stands: what is stored, while the fold is closed;
+ *   open                  whether the fold is open, for a body that draws less while it is not;
+ *   problems              what stopped the last Save, by field key;
+ *   readOnly              the fold's save is out: every box takes it (record-fold.jsx says why);
+ *   update(fn, keys)      the draft as `fn` makes it of the LATEST one. `keys` are the field keys whose sentences the
+ *                         change answers; left out, all of them. It ANSWERS WHETHER IT TOOK THE CHANGE: while the save
+ *                         is out it takes none, and whoever would say "Removed…" says it only of a change that was made;
+ *   change(fn, words)     a change that is said: taken, it toasts `words.said`, with an Undo when `words.back` is given
+ *                         (the draft as `back` makes it of the latest one; it does nothing once the fold has closed,
+ *                         since the draft it would put something back into went with it). Refused, it says nothing: a
+ *                         body that toasted for itself said "Removed the Mon shift at 14:00", with an Undo, of a shift
+ *                         that was still there. `words.keys` as for update;
+ *   rows(list)            a list inside the draft, with every rule a list has, ONCE: see below;
+ *   press(fn)             the props of a press that changes the draft (an add, a remove). While the fold saves it
+ *                         refuses the way Save does: focusable, aria-disabled (never `disabled`, which lets go of
+ *                         focus), and doing nothing:  <button type="button" {...press(() => shifts.removeAt(n, said))}>
+ *   focus(row)            focus to the first box of the element the body spread `data-rec-row={row}` on;
+ *   opened, opening       the draft it opened with, and how many times it has opened (useBtEditor says why).
+ *
+ * `rows({ name, max, blank, keysOf, key, full, list, put, restored })` answers { canAdd, add(), setAt(i, patch),
+ * removeAt(i, said), row(i) } for one list of the draft: the closed days (the draft itself), or one day's shifts (`list`
+ * reads it out of the draft and `put` writes it back; left out, the draft is the list). Each body once had to remember
+ * all of this, and the cap was forgotten in the one place nobody looks: a toast's Undo put a fifth shift on a Monday
+ * that takes four.
+ *   the cap        `max`, in all three places: `canAdd` is what the body offers Add by, `add()` appends `blank()` only
+ *                  while there is room, and a removed row is PUT BACK only while there is room, the Undo saying `full`
+ *                  when there is not;
+ *   the removal    the row is captured from the latest draft before it goes, comes back at its own index, and
+ *                  `said(row)` is toasted only when the change was taken. removeAt answers the toast's Undo itself
+ *                  (false when nothing went), for a body that offers it where the row was too; either puts it back
+ *                  once, and `restored(row, i)` is told when it is;
+ *   the sentences  `keysOf(i)` are row i's field keys and `key` the list's own (too many). A change to row i answers
+ *                  its keys; a removal moves every later row up a place, so it answers them all;
+ *   the focus      `name(i)` names row i, and the body spreads `row(i)` on the element that holds its boxes. A row that
+ *                  was just added takes focus in its first box (the kit's useRecFocus, through RecordFold's focusOn):
+ *                  it stayed on Add.
+ * The caps themselves are business-tab-folds.jsx's LIMITS, which the save's checks read too. A list is changed through
+ * rows(), never through `update`: rows() is where the cap, the Undo and the index live, and a body that added or
+ * removed a row with `update` had none of the three.
+ *
+ * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
+ * act's words and its name where "Change" or "Add one" and the label say nothing together.
+ */
+const BtFold = ({
+  id, label, hint = null, row = {}, wide = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
+  canEdit = true, gate = null, flash = () => {}, saver = null, body,
+}) => {
+  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, prefix: `rec-fold-${id}` });
+  const found = e.fields.problems;
   const has = !(row.value == null || row.value === "" || row.value === false);
   return (
     <>
-      {open ? null : (
+      {e.open ? null : (
         <window.RecordRow
           id={id}
           label={label}
@@ -489,7 +533,7 @@ const BtFold = ({
           empty={row.empty}
           hint={row.hint}
           wrong={row.wrong}
-          act={canEdit && stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => fold.request(), gate } : null}
+          act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
         >
           {row.children || null}
         </window.RecordRow>
@@ -498,24 +542,24 @@ const BtFold = ({
         id={id}
         label={label}
         hint={hint}
-        open={open}
+        open={e.open}
         wide={wide}
-        says={will ? will.whole : null}
+        says={e.will ? e.will.whole : null}
         saysLabel="Your receptionist will be told"
-        gone={will ? will.removed : null}
+        gone={e.will ? e.will.removed : null}
         goneLabel="It will no longer be told"
-        note={will ? will.note : null}
+        note={e.will ? e.will.note : null}
         footNote={footNote}
-        focusOn={focusOn}
-        confirm={asks.confirm}
-        onSave={submit}
-        onCancel={asks.cancel}
-        saving={busy}
+        focusOn={e.focusOn}
+        confirm={e.asks.confirm}
+        onSave={e.submit}
+        onCancel={e.asks.cancel}
+        saving={e.busy}
         saveLabel={saveLabel}
         gate={gate}
       >
         {/* With no draft to hand it (btWorkedOut, above) the body is not drawn: it would throw on nothing. */}
-        {stored ? body({ draft: now, open, problems: found, readOnly: busy, update, change, rows, press }) : null}
+        {e.stored ? body(e.fields) : null}
         {/* A refusal that is not this fold's to fix (a stored day that closes before it opens, met while saving the
             closures) stops this save too, and is said once, here, naming where. */}
         <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-fold-${id}-elsewhere`} />
@@ -524,6 +568,78 @@ const BtFold = ({
   );
 };
 
-// The two gestures, and the words every row of words says once its change is saved, for the cards that live in files
+/* ------------------------------------ a list you scroll, beside the page ------------------------------------ */
+
+/**
+ * One of this page's sheets: the kit's RecordSheet (record-sheet.jsx), a modal dialog beside the page (from the bottom,
+ * on a phone), over the same editor a fold is (useBtEditor): the one open at a time, the asks, the draft, the checks,
+ * the one job and the saver. It is not a fold, and the registry opens it just the same: it holds the registry under its
+ * id as a fold does (useRecordFold, inside the editor), and is open while the registry says so. So opening it with a
+ * fold open asks about that fold's changes, opening a fold with it open asks about its own, and the standing line's
+ * door opens it by its id, guarded like any row.
+ *
+ * It has no row of its own. A card draws the row that states the list, whose act asks the registry for this id
+ * (window.__recordFolds.request); the page draws the sheet.
+ *
+ * The page draws it LAST of everything on it that holds a hook. It holds its editor's hooks on every draw, and the kit's
+ * RecordSheet holds more and is drawn only while it is open, and the tests' stub React keeps every hook on the page as
+ * a cell in one order (this file's header): a component with hooks that appears drawn before another's shifts every
+ * cell after it, so a sheet drawn before a card read that card's cells as its own. Drawn after every card, only the tail
+ * of the order comes and goes. Its rows are drawn hookless for the same reason: they come and go before RecordSheet's
+ * own hooks.
+ *
+ * Escape and the head's Close are the foot's Cancel, with its ask: nothing typed is thrown away unasked, and nothing
+ * cancels a save that is out. The asks are drawn in the sheet, above its Save, since Tab never leaves a modal dialog.
+ * `tools(fields)`, `body(fields)` and `told(fields)` are the page's: the strip above the rows, the rows, and a line of
+ * its own above the foot (what it will be told); each is handed what a fold's body is (BtFold's contract) and `will`,
+ * what willSay answers. `saveLabel` is words, or a function of the fields. Nothing of them is drawn while it is closed.
+ */
+const BtSheet = ({
+  id, title, sub = null, className = "", saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
+  canEdit = true, gate = null, flash = () => {}, saver = null, tools = null, told = null, body,
+}) => {
+  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, prefix: `rec-sheet-${id}` });
+  // The registry counts what is on the page by id, and lets go of the open id when the last of them goes, as it does for
+  // a fold (record-fold.jsx drawn). The sheet is drawn only while it is open, so this, which is drawn on every draw, is
+  // what the page's going takes with it: the rail's "Yes, leave" left the sheet the open one, and it opened again by
+  // itself when the tab was next drawn.
+  useBtgEffect(() => (window.__recordFolds && window.__recordFolds.drawn ? window.__recordFolds.drawn(id) : undefined), [id]);
+  if (!e.open || !e.stored) return null;
+  const f = { ...e.fields, will: e.will };
+  const found = f.problems;
+  return (
+    <window.RecordSheet
+      id={id}
+      title={title}
+      sub={sub}
+      className={className}
+      onClose={e.asks.cancel}
+      focusOn={e.focusOn}
+      busy={e.busy}
+      tools={tools ? tools(f) : null}
+      foot={(
+        <>
+          {told ? told(f) : null}
+          <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-sheet-${id}-elsewhere`} />
+          {e.busy ? null : e.asks.confirm}
+          <window.RecordFoot
+            saveTestid={`rec-sheet-save-${id}`}
+            cancelTestid={`rec-sheet-cancel-${id}`}
+            onSave={e.submit}
+            onCancel={e.asks.cancel}
+            saving={e.busy}
+            saveLabel={typeof saveLabel === "function" ? saveLabel(f) : saveLabel}
+            gate={gate}
+            footNote={footNote}
+          />
+        </>
+      )}
+    >
+      {body(f)}
+    </window.RecordSheet>
+  );
+};
+
+// The three gestures, and the words every row of words says once its change is saved, for the cards that live in files
 // of their own and read them as they draw.
-Object.assign(window, { BtRow, BtFold, BT_SAVED });
+Object.assign(window, { BtRow, BtFold, BtSheet, BT_SAVED });
