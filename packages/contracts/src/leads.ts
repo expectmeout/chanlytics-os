@@ -39,9 +39,9 @@ import {
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
 import type { Tone } from "./tone";
-import { agoShort } from "./time";
+import { agoShort, agoWords } from "./time";
 import { formatPhoneDisplay } from "./phone";
-import { clockDateYear, clockTime } from "./clock";
+import { clockDate, clockDateYear, clockTime } from "./clock";
 
 /**
  * One home per set. Release A declares all six in `lead-search.ts` and `schema-sets.ts:122` holds
@@ -2077,6 +2077,9 @@ export interface LeadRowVM {
   stage: LeadStage;
   stageLabel: string;
   foundLabel: string;
+  /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
+   *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
+  foundLine: string;
   foundAt: string;
   distance: string;
   source: string;
@@ -2261,6 +2264,9 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
     foundLabel: agoShort(foundMs, nowMs),
+    foundLine: Number.isFinite(foundMs)
+      ? `Found ${agoWords(foundMs, nowMs, { date: (at) => clockDate(at, tz, nowMs) })}`
+      : "",
     foundAt: `${clockDateYear(foundMs, tz)} · ${clockTime(foundMs, tz)}`,
     distance: milesLabel(m.distance_m),
     source: LEAD_SOURCE_WORD,

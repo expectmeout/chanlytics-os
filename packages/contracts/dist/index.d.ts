@@ -12474,6 +12474,9 @@ interface LeadRowVM {
     stage: LeadStage;
     stageLabel: string;
     foundLabel: string;
+    /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
+     *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
+    foundLine: string;
     foundAt: string;
     distance: string;
     source: string;

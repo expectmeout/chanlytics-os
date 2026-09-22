@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, LEAD_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
+   PL_NO_SEL, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -1418,31 +1418,44 @@ const PL_COLUMNS = [
 // away. It was the desktop's cells re-gridded into a box: 119 to 168px a person, the face squeezed to an oval, the state
 // 36px tall against the box's edge, the visit broken over two lines, three left edges in one card. The member's
 // desktop columns do not reach it: whatever they hid, the row says the state.
+// A row on a phone, the same for a person and a lead (the phone pass, D8): the face, the name and the state; one line
+// of detail; one line of facts. People's cell (plCardCell) and Leads' (ldCardCell, leads-scope.jsx) are drawn by this
+// one function, so the two scopes' lists are one list to the eye, part for part. `face` is initials or a glyph, and a
+// picture over them (a lead's listing photo) that, failing to load, leaves the initials showing. The face is also the
+// row's checkbox (clients.css): a tap there selects, and a tap on the rest opens.
+const plRowCard = ({ face, name, numeric = false, pill, lead = null, leadTestid = "row-words", facts }) => (
+  <td key="card" className="pl-card-cell">
+    <div className="pl-card">
+      <div className={`ix-thread-avatar pl-card-face${face.glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
+        {face.glyph ? <Icon name={face.glyph} size={12} className="pl-card-glyph" /> : <span className="pl-card-initials">{face.initials}</span>}
+        {face.image ? <img className="pl-card-photo" src={face.image} alt="" loading="lazy" decoding="async" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
+        <Icon name="check" size={14} className="pl-card-tick" />
+      </div>
+      <div className={`pl-card-name${numeric ? " tabular" : ""}`}>{name}</div>
+      {pill}
+      {lead ? <div className="pl-card-lead" data-testid={leadTestid}>{lead}</div> : null}
+      <div className="pl-card-facts">{facts}</div>
+    </div>
+  </td>
+);
 const plCardCell = (p, { attention }) => {
   const byNumber = plIsNumber(p.name);
-  const glyph = byNumber ? "phone" : plIsAddress(p) ? "mail" : null;
   const said = attention && attention[p.id];
   const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
-  const lead = asks && p.stateDetail ? p.stateDetail : words;
   const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
-  return (
-    <td key="card" className="pl-card-cell">
-      <div className="pl-card">
-        <div className={`ix-thread-avatar pl-card-face${glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
-          {glyph ? <Icon name={glyph} size={12} className="pl-card-glyph" /> : <span className="pl-card-initials">{p.initials}</span>}
-          <Icon name="check" size={14} className="pl-card-tick" />
-        </div>
-        <div className={`pl-card-name${byNumber ? " tabular" : ""}`}>{p.name}</div>
-        <PeopleStatePill state={p.state} label={p.stateLabel} />
-        {lead ? <div className="pl-card-lead" data-testid={asks && p.stateDetail ? "row-state-detail" : "row-words"}>{lead}</div> : null}
-        <div className="pl-card-facts">
-          {p.nextVisitDay ? <span className="pl-card-visit" data-testid="row-next-visit"><Icon name="calendar" size={11} />{time ? `${p.nextVisitDay} · ${time}` : p.nextVisitDay}</span> : null}
-          <span className="pl-card-last">{p.lastContact.label}</span>
-        </div>
-      </div>
-    </td>
-  );
+  return plRowCard({
+    face: { initials: p.initials, glyph: byNumber ? "phone" : plIsAddress(p) ? "mail" : null },
+    name: p.name,
+    numeric: byNumber,
+    pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
+    lead: asks && p.stateDetail ? p.stateDetail : words,
+    leadTestid: asks && p.stateDetail ? "row-state-detail" : "row-words",
+    facts: [
+      p.nextVisitDay ? <span key="visit" className="pl-card-visit" data-testid="row-next-visit"><Icon name="calendar" size={11} />{time ? `${p.nextVisitDay} · ${time}` : p.nextVisitDay}</span> : null,
+      <span key="last" className="pl-card-last">{p.lastContact.label}</span>,
+    ],
+  });
 };
 // A phone's one column, and the class its rows wear (clients.css draws the row from it).
 const PL_PHONE_COLUMNS = [{ key: "card", label: "Person", sortable: false, pinned: true, cell: plCardCell }];
@@ -2310,8 +2323,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const hasCenter = onLeads && leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
   const colCtx = onLeads ? { hasCenter } : { withCalendar };
   // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
-  // On a phone People draws one cell a person (plCardCell); Leads keeps its cards of every column (#789).
-  const columns = React.useMemo(() => (!onLeads && phone ? PL_PHONE_COLUMNS : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
+  // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-scope.jsx) for a
+  // lead, one plRowCard between them. Leads' cards of every column (#789) were a second look for the same list.
+  const columns = React.useMemo(() => (phone ? (onLeads ? LEAD_PHONE_COLUMNS : PL_PHONE_COLUMNS) : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
   const colOptions = plColumnOptions(cols, colChoices, colCtx);
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
@@ -3084,7 +3098,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onArmed={setArmed}
         draft={draft}
         onDraftState={setDraft}
-        onPeek={setPeekId}
+        // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
+        onPeek={phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId}
         onPeekId={setPeekId}
         onOpenPerson={onOpenProfile}
         flash={plFlash}
@@ -3350,4 +3365,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, RailSection, RailGroup, RailRow, railToggle });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle });

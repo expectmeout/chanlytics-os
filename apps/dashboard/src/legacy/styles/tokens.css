@@ -83,6 +83,31 @@
   --rail-nav: 220px;
   --rail-list: 340px;
 
+  /* ---------- A list row on a phone (900px and under) ----------
+     Four lists show a person, a lead, a conversation and a call, and each had
+     invented its own row. Measured on production at 375px, 22 Sep: People 84px
+     tall, the Inbox 83, Conversations 100, Leads 131 — and inside them two name
+     sizes, three gutters, two faces and a 56px photograph. One after another
+     they read as four products rather than four lists.
+
+     People's row is the one they share: a 32px face, then a line of who and how
+     they stand, a line of what was said, and a line of the facts under it. A
+     sheet picks these tokens; it does not restate the numbers. What each list
+     puts on the three lines is still its own — the Inbox keeps its channel, its
+     wait and its agent, a lead keeps its reach and its rating.
+
+     Only a phone. Above 900px each list keeps the row it has: a rail beside an
+     open thread is not a list you scan with a thumb. */
+  --row-pad-y: 12px;
+  --row-pad-x: 16px;
+  --row-face: 32px;
+  --row-gap: 12px; /* the face to the words, and one fact to the next */
+  --row-line-gap: 2px; /* one line of a row to the line under it */
+  --row-name-line: 20px; /* who it is, at --text-base --weight-medium */
+  --row-said-line: 18px; /* what was said, at --text-sm */
+  --row-facts: 11.5px; /* the facts under it, and how tall their line is */
+  --row-facts-line: 17px;
+
   /* ---------- Radii ---------- */
   --radius-xs: 4px;
   --radius-sm: 6px;

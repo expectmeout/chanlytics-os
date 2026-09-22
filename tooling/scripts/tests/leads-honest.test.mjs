@@ -523,7 +523,7 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
-for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape", "LeadSlotShape"])
+for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_PHONE_COLUMNS", "LEAD_SORT_KEYS", "LeadShape", "LeadSlotShape"])
   globalThis[k] = globalThis.window[k];
 for (const k of ["LeadsFirstDay", "LeadSuggestion", "LeadWayCard"]) globalThis[k] = globalThis.window[k];
 
@@ -827,10 +827,10 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   // The page asks the band once, at mount, and listens: a phone is a page opened on one.
   fresh();
   globalThis.__phone = true;
-  assert.match(
-    String(byTestId(rowOf(draw(), "l4"), "lead-stage").props.className),
-    /pl-col-off/,
-    "a phone draws every column for its cards (#789), the ones off marked",
+  assert.equal(
+    byTestId(rowOf(draw(), "l4"), "lead-stage"),
+    null,
+    "a phone draws one cell a lead, People's row (the phone pass): no column of the desktop's",
   );
   globalThis.__phone = false;
   assert.equal(
@@ -2482,6 +2482,71 @@ test("Export these N is a link to the search's own view of the export route", ()
 
 /* ------------------------------------- the phone ------------------------------------- */
 
+test("REGRESSION: on a phone a lead's row is People's row -- one cell of the face, the name and its state; where it is, what it waits on or what left it out; its reach, its rating and when it was found. Leads' cards were their own: a 40px tile, three columns and a 44px Call", () => {
+  fresh();
+  globalThis.__phone = true;
+  try {
+    let tree = draw();
+    const clsOf = (k) => String((k && (k.rendered || k).props?.className) || "");
+    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-card");
+    const tr = rowOf(tree, "l1");
+    assert.ok(String(tr.props.className).split(/\s+/).includes("pl-card-row"), "the row People's rows wear");
+    assert.deepEqual(
+      all(tr, (n) => n.type === "td").map((td) => String(td.props.className)),
+      ["cl-sel", "pl-card-cell"],
+      "one cell beside the face's box, as a person's row",
+    );
+    const card = cardOf("l1");
+    assert.deepEqual(
+      card.props.children.filter(Boolean).map(clsOf),
+      ["ix-thread-avatar pl-card-face", "pl-card-name", "pill", "pl-card-lead", "pl-card-facts"],
+      "a person's row, part for part",
+    );
+    assert.equal(
+      textOf(find(card, (n) => n.props?.className === "pl-card-initials")),
+      ROWS[0].tile.initials,
+      "the face: its initials, under the listing's photo when there is one",
+    );
+    assert.equal(textOf(find(card, (n) => n.props?.className === "pl-card-name")), "Zilker Strength Lab");
+    assert.equal(textOf(byTestId(card, "lead-state")), "Ready", "its state, as a person's row says theirs");
+    assert.equal(textOf(byTestId(card, "lead-sub")), ROWS[0].sub, "where it is");
+    const facts = find(card, (n) => n.props?.className === "pl-card-facts");
+    assert.equal(
+      all(facts, (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))).length,
+      2,
+      "whether the phone and the mailbox reach them, as shapes",
+    );
+    assert.match(textOf(byTestId(facts, "lead-rated")), /5\.0 · 16/, "how it is rated");
+    assert.equal(textOf(byTestId(facts, "lead-found")), ROWS[0].foundLine, "and when it was found, in words");
+    assert.equal(
+      byTestId(tr, "lead-call"),
+      null,
+      "REGRESSION: a 44px Call on every card; it is the lead's own page's first button now",
+    );
+    assert.equal(
+      find(tr, (n) => /\bcl-actions-cell\b/.test(String(n.props?.className || ""))),
+      null,
+      "and no column of the desktop's",
+    );
+    // A lead that waits says on what, in the warn tone; a left-out one says what left it out, and was never checked.
+    assert.equal(textOf(byTestId(cardOf("l3"), "lead-sub")), ROWS[2].waitsOn);
+    assert.equal(clsOf(byTestId(cardOf("l3"), "lead-state")), "pill pill-warn");
+    assert.equal(textOf(byTestId(cardOf("l4"), "lead-sub")), "Chain");
+    assert.equal(textOf(byTestId(cardOf("l4"), "lead-state")), ROWS[3].stateTag);
+    assert.equal(byTestId(cardOf("l4"), "lead-reach"), null, "nothing about a left-out place was checked");
+    // The face is the checkbox, and while anyone is selected a tap on a row selects it rather than opening it.
+    byTestId(rowOf(tree, "l1"), "row-select").props.onChange();
+    tree = draw();
+    const before = peeks.length;
+    rowOf(tree, "l2").props.onClick();
+    tree = draw();
+    assert.equal(peeks.length, before, "a tap while selecting does not open the lead");
+    assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /2 selected/, "it selects it");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
 const bar = (over = {}) => {
   cells = [];
   seq = 0;
@@ -3073,19 +3138,23 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   assert.equal(cls(tagOf("p7", "lead-fit-tag")), "pill", "a look is plain");
   assert.equal(textOf(tagOf("p7", "lead-fit-tag")), rows.find((r) => r.id === "p7").fitLabel);
 
-  // The Stage column, off by default and drawn on a phone (a desktop builds no cell it hides): People's State column
-  // is this same pill.
+  // On a phone the row is People's (the phone pass), and its pill is the row's state -- Ready too, as a person's row
+  // always says theirs -- in the same registry tones.
   fresh({ leads: surface({ searches: [open], rows }) });
   globalThis.__phone = true;
   const ph = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   globalThis.__phone = false;
-  const stage = (id) => find(byTestId(rowOf(ph, id), "lead-stage"), (n) => cls(n).split(" ").includes("pill"));
+  const pillOf = (id) => byTestId(rowOf(ph, id), "lead-state");
   assert.deepEqual(
-    ["p1", "p2", "p3", "p5"].map((id) => cls(stage(id))),
-    ["pill", "pill pill-info", "pill pill-ok", "pill"],
-    "ready, contacted, talking, said no",
+    ["p1", "p2", "p3", "p4", "p5", "p6"].map((id) => cls((pillOf(id) || {}).rendered || pillOf(id))),
+    ["pill", "pill pill-info", "pill pill-ok", "pill pill-warn", "pill", "pill"],
+    "ready, contacted, talking, needs review, said no, left out",
   );
-  assert.equal(stage("p6"), null, "a left-out lead has no stage to show");
+  assert.deepEqual(
+    ["p1", "p4", "p5", "p6"].map((id) => textOf(pillOf(id))),
+    ["Ready", rows[3].stateTag, "Said no", rows[5].stateTag],
+    "in the row's own words",
+  );
 
   // And nothing of the private family is left to disagree with it.
   assert.equal(
