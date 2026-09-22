@@ -514,7 +514,9 @@ const BtoFeedRead = ({ stored }) => {
   };
   useBtoEffect(() => {
     if (!stored || !fresh) return undefined;
-    const timer = window.setTimeout(() => { flight.current.expired = at; bump(); }, at + keeps.refreshMs - Date.now());
+    // Named, so a test that holds the clock can tell this timer from a toast's.
+    const btoReadExpires = () => { flight.current.expired = at; bump(); };
+    const timer = window.setTimeout(btoReadExpires, at + keeps.refreshMs - Date.now());
     return () => window.clearTimeout(timer);
   }, [stored, at, keeps.refreshMs]);
   useBtoEffect(() => {

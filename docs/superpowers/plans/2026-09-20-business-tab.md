@@ -71,7 +71,9 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |
 | `tooling/scripts/tests/record-kit.test.mjs` | The record kit, executed (Phase 2). Named apart from the page's file, since the kit serves every Settings tab. |
-| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed (Phase 3 creates it). |
+| `tooling/scripts/tests/_business-tab-harness.mjs` | The page as every test draws it: the stub, the globals, the fixture, `drawTab`, the presses. Not named `*.test.mjs`, so the runner skips it (Task 3.3's quality review). |
+| `tooling/scripts/tests/business-tab-page.test.mjs` | The page, executed: the head, the standing line, the saver, *Who you are*, and the gestures. Each card's tests are a file of their own over the harness. |
+| `tooling/scripts/tests/business-tab-open.test.mjs` | *When you're open*, executed (Task 3.3). Tasks 3.4 and 3.5 add `business-tab-offer.test.mjs` and `business-tab-answers.test.mjs` the same way. |
 | `tooling/scripts/tests/business-tab-folds.test.mjs` | Each fold patches only its own keys. |
 
 **Modified**
