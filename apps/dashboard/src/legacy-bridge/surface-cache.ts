@@ -52,14 +52,17 @@ function read(): CacheBlob | null {
 
 function write(blob: CacheBlob): void {
   try {
-    const raw = JSON.stringify(blob);
-    if (raw.length > MAX_BYTES) {
-      // Dropping the write silently would leave the OLDER snapshot behind to
-      // be painted as current on the next boot. Stale-forever is worse than
-      // cold, so remove it.
-      console.warn("surface_cache_oversize", raw.length);
-      sessionStorage.removeItem(CACHE_NAME);
-      return;
+    let raw = JSON.stringify(blob);
+    // Too big to be worth parsing on the next boot: shed the biggest surfaces until it fits. It used to be removed
+    // whole, so a Leads view of 500 rows and a Show more emptied Today, Inbox and People with it, and the owners
+    // it hit were the ones using the finder most. Dropping the write silently would be worse than either: the
+    // OLDER snapshot would stay behind to be painted as current.
+    while (raw.length > MAX_BYTES) {
+      const sizes = Object.entries(blob.surfaces).map(([k, v]) => [k, JSON.stringify(v).length] as const).sort((a, b) => b[1] - a[1]);
+      if (!sizes.length) { sessionStorage.removeItem(CACHE_NAME); return; }
+      console.warn("surface_cache_oversize", raw.length, sizes[0][0]);
+      delete blob.surfaces[sizes[0][0]];
+      raw = JSON.stringify(blob);
     }
     sessionStorage.setItem(CACHE_NAME, raw);
   } catch {
@@ -97,13 +100,17 @@ function globalsNow(globals: string[]): Record<string, unknown> {
   return snap;
 }
 
-/** Persist the globals a surface owns, after its apply succeeded. */
-export function snapshotSurface(key: string, globals: string[], tenant: string | null): void {
+/**
+ * Persist the globals a surface owns, after its apply succeeded. `trim` is the surface's own say over what the cache
+ * holds of it (Leads: its first hundred rows, which is all an instant paint needs); the window's globals are untouched.
+ */
+export function snapshotSurface(key: string, globals: string[], tenant: string | null, trim?: (snap: Record<string, unknown>) => Record<string, unknown>): void {
   if (!globals.length) return;
   const blob = read() ?? { build: BUILD, tenant, surfaces: {} };
   blob.build = BUILD;
   if (tenant) blob.tenant = tenant;
-  blob.surfaces[key] = globalsNow(globals);
+  const snap = globalsNow(globals);
+  blob.surfaces[key] = trim ? trim(snap) : snap;
   write(blob);
 }
 

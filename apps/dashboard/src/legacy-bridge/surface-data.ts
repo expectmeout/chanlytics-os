@@ -32,6 +32,8 @@ export interface SurfaceOverride {
    * hardcoding a list in the cache) keeps flipping a surface a one-file change.
    */
   globals?: string[];
+  /** What of its globals the cache holds, when not all of them: given the snapshot, answers the one to keep. */
+  trimSnapshot?: (snap: Record<string, unknown>) => Record<string, unknown>;
   /** Fetch real data and write it into the surface's window globals. */
   apply: () => Promise<void>;
   /** Mockup events to dispatch after apply so mounted components re-render. */

@@ -124,7 +124,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const tenantId = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
 
   const persist = (o: SurfaceOverride) => {
-    if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId());
+    if (o.globals?.length) snapshotSurface(o.key, o.globals, tenantId(), o.trimSnapshot);
   };
 
   const refresh = async (o: SurfaceOverride, phase: "boot" | "refresh") => {

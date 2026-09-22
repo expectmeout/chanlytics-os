@@ -153,3 +153,31 @@ test("signing out clears where the owner was in Leads and the Find they had half
   assert.equal(globalThis.sessionStorage.getItem("something.else"), "kept", "and only what is the app's own");
   globalThis.sessionStorage.removeItem("something.else");
 });
+
+test("a cache that would be too big sheds its biggest surfaces until it fits, rather than everything: Leads at 500 rows used to empty Today, Inbox and People with it", () => {
+  clearSurfaceCache();
+  const big = (n) => ({ rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, words: "x".repeat(2000) })) });
+  globalThis.window.__TODAY_PROBE = { small: true };
+  globalThis.window.__PEOPLE_PROBE = big(120);   // ~240 KB
+  globalThis.window.__LEADS_PROBE = big(1000);   // ~2 MB: over the line on its own
+  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
+  snapshotSurface("leads", ["__LEADS_PROBE"], TID);
+  const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null");
+  assert.ok(kept, "REGRESSION: the whole cache was removed, and every page booted cold");
+  assert.deepEqual(Object.keys(kept.surfaces).sort(), ["people", "today"], "the surface that did not fit is the one left out");
+  assert.ok(globalThis.sessionStorage.getItem(CACHE).length < 2_000_000);
+  delete globalThis.window.__TODAY_PROBE; delete globalThis.window.__PEOPLE_PROBE; delete globalThis.window.__LEADS_PROBE;
+  clearSurfaceCache();
+});
+
+test("a surface may say what of itself the cache holds: Leads keeps its first hundred rows, which is all an instant paint needs", () => {
+  clearSurfaceCache();
+  globalThis.window.__LEADS_PROBE = { rows: Array.from({ length: 500 }, (_, i) => ({ id: `l${i}` })), next: { key: "k", id: "l499" }, offered: 12, view: { list: "all" } };
+  snapshotSurface("leads", ["__LEADS_PROBE"], TID, (snap) => ({ ...snap, __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 } }));
+  const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces.leads.__LEADS_PROBE;
+  assert.deepEqual([kept.rows.length, kept.next, kept.offered, kept.view], [100, null, 0, { list: "all" }], "the first hundred, no page after them and nothing offered: the read that follows says the rest");
+  assert.equal(globalThis.window.__LEADS_PROBE.rows.length, 500, "and the page's own rows are untouched");
+  delete globalThis.window.__LEADS_PROBE;
+  clearSurfaceCache();
+});
