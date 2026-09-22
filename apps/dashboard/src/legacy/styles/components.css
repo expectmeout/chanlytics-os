@@ -1096,7 +1096,7 @@ a.btn { text-decoration: none; }
     stroke-dashoffset: 0 !important;
   }
   .rp-revbar, .rp-mix-fill, .conf-meter-fill,
-  .rec-says-line[data-changed="true"] { transition: none !important; }
+  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint { transition: none !important; }
 }
 
 

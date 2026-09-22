@@ -144,6 +144,15 @@
    names it), and RecordField keeps its 5px gap under the label it leaves empty. */
 .rec-inline-key { flex: 0 0 var(--rec-key); padding-top: 12px; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-inline-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+/* The value becomes its field (spec §9, item 2): the label holds its place on the row's line, and what stood beside it
+   gives way to the box in a 120ms cross-fade, as the editor appears (a transition from @starting-style, no keyframe).
+   The box's focus ring is drawn inside what fades, so it is not seen on the first frame, and arrives with the second;
+   the caret is put at the end of the value as focus lands (record-fold.jsx recFocusIn). A fold's head does the same
+   where the value was, its hint, while its fields unfold under it. */
+.rec-inline-body, .rec-fold-hint { transition: opacity var(--duration-fast) var(--ease-out); }
+@starting-style {
+  .rec-inline:not([hidden]) .rec-inline-body, .rec-fold:not([hidden]) .rec-fold-hint { opacity: 0; }
+}
 
 /* ---------- A sheet: a list you scroll, beside the page ---------- */
 /* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
