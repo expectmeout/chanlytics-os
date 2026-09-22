@@ -219,12 +219,14 @@ const BtwServicesSheet = ({ brain, canEdit, flash, saver }) => {
   };
 
   // What it will be told, in contracts' words: how many services the save writes, their block's share of the prompt
-  // (willSay's chars, over the whole prompt the settings read resolved on WhatsApp), and, where the save crosses the
-  // resolver's line, the sentence for it. The list's own refusal (too many) is said here too, by the Save it stops.
+  // (willSay's chars, over the whole prompt the draft would give it on WhatsApp, willSay's total: both after the save;
+  // the stored prompt's length put a block after the save over a prompt before it, and a large edit skewed the share),
+  // and, where the save crosses the resolver's line, the sentence for it. The list's own refusal (too many) is said here
+  // too, by the Save it stops.
   const told = (f) => {
-    const prompt = window.__SETTINGS && window.__SETTINGS.prompt;
-    const total = prompt && typeof prompt.whatsapp === "string" ? prompt.whatsapp.length : null;
-    const words = tab.servicesToldWords ? tab.servicesToldWords({ count: written(f.draft), chars: f.will ? f.will.chars : null, total }) : null;
+    const words = tab.servicesToldWords
+      ? tab.servicesToldWords({ count: written(f.draft), chars: f.will ? f.will.chars : null, total: f.will ? f.will.total : null })
+      : null;
     return (
       <div className="bt-services-told" data-testid="rec-sheet-services-told">
         {f.will && f.will.note ? <p className="bt-services-note" data-testid="rec-sheet-services-note">{f.will.note}</p> : null}

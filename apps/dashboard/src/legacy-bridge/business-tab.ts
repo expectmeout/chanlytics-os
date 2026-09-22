@@ -68,6 +68,9 @@ export const FOLD_BLOCK = {
 
 export type FoldSection = keyof typeof FOLD_BLOCK;
 
+/** A block of the prompt a draft would give the receptionist, and the length of that whole prompt. */
+export type ConsequenceVM = PromptBlockVM & { total: number };
+
 /** What consequenceFor reads off the window: the settings read's preview, with the inputs it was resolved with. */
 export interface ConsequenceWindow {
   __SETTINGS?: { prompt?: PromptPreviewDto | null } | null;
@@ -107,6 +110,12 @@ export interface ConsequenceWindow {
  * where the resolver put them: their own, or the stored prompt carried into
  * their place (whoseWords, config.ts).
  *
+ * The block comes with `total`, the length of the whole prompt it was cut
+ * from: the prompt the draft would give the receptionist, which is what a
+ * block's share of everything it reads is measured over. Measured over the
+ * stored prompt instead, a sheet with half its services taken out divided a
+ * block after the save by a prompt from before it.
+ *
  * `section` and `channel` are checked as it runs, because the page is untyped:
  * a fold it does not know, or a channel that is not one, is a TypeError naming it.
  */
@@ -116,7 +125,7 @@ export function consequenceFor(
   next: unknown,
   channel: "whatsapp" | "voice",
   now: Date,
-): PromptBlockVM | null {
+): ConsequenceVM | null {
   if (!Object.prototype.hasOwnProperty.call(FOLD_BLOCK, section)) {
     throw new TypeError(`consequenceOf knows no fold named ${JSON.stringify(section)}. It knows ${Object.keys(FOLD_BLOCK).join(", ")}.`);
   }
@@ -133,11 +142,12 @@ export function consequenceFor(
   if (!parsed.success || !parsed.data.brain) return null;
   const brain = parsed.data.brain;
   const text = resolveSystemPrompt(brain, channel, prompt.tz, now, prompt.inputs.policy, prompt.inputs.known);
-  return promptBlocks(text, channel, brain).find((b) => b.row === row) ?? null;
+  const block = promptBlocks(text, channel, brain).find((b) => b.row === row);
+  return block ? { ...block, total: text.length } : null;
 }
 
 /** consequenceFor over this tab's window, at this moment: the one the page calls. */
-function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" | "voice"): PromptBlockVM | null {
+function consequenceOf(section: FoldSection, next: unknown, channel: "whatsapp" | "voice"): ConsequenceVM | null {
   return consequenceFor(window as unknown as ConsequenceWindow, section, next, channel, new Date());
 }
 

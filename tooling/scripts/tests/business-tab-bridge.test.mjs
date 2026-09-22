@@ -73,7 +73,12 @@ const preview = (brain) => composePromptPreview(brain, FACTS, new Date());
 /** The page's window after the settings read of a stored record. */
 const settle = (stored = STORED) => { W.__SETTINGS = { config: { brain: stored }, prompt: preview(stored) }; };
 /** The block the server's preview of a brain cuts for a row: what the edge would send, were that brain saved. */
-const served = (brain, channel, row) => promptBlocks(preview(brain)[channel], channel, brain).find((b) => b.row === row) ?? null;
+// With the length of the whole prompt it was cut from, which a block's share of everything the receptionist reads is over.
+const served = (brain, channel, row) => {
+  const text = preview(brain)[channel];
+  const block = promptBlocks(text, channel, brain).find((b) => b.row === row);
+  return block ? { ...block, total: text.length } : null;
+};
 
 /** The real rows whose effect never reaches the cached prompt. */
 const NOWHERE = ["fallbacks", "calendar", "vision", "timezone"];
@@ -133,7 +138,9 @@ test("for the record as stored, every fold shows the block the server's preview 
     const cut = promptBlocks(W.__SETTINGS.prompt[channel], channel, STORED);
     for (const [section, row] of Object.entries(FOLD_BLOCK)) {
       const block = tab.consequenceOf(section, STORED, channel);
-      assert.deepEqual(block, row ? cut.find((b) => b.row === row) ?? null : null, `${section} on ${channel}`);
+      const want = row ? cut.find((b) => b.row === row) ?? null : null;
+      // With the whole prompt's length, which the stored record gives it on this channel.
+      assert.deepEqual(block, want ? { ...want, total: W.__SETTINGS.prompt[channel].length } : null, `${section} on ${channel}`);
       if (row) assert.ok(block, `${section} on ${channel}: this record writes a ${row} block`);
     }
   }

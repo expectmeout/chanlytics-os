@@ -7,7 +7,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
-import { W, cancelFoldOf, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
+import { W, cancelFoldOf, composePromptPreview, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -215,14 +215,28 @@ test("the foot's count, characters and share are the services block's, over ever
   press(byTestId(tree, "rec-service-remove-0"));
   tree = redrawTab();
   const S = W.__businessTabSave;
-  const next = S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(1)).brain;
-  assert.equal(words(), servicesToldWords({ count: 32, chars: block(next).chars, total }));
+  const draftOf = () => S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(1)).brain;
+  const next = draftOf();
+  // Over the whole prompt the draft would give it (the bridge resolves it with the block), never the stored one.
+  assert.equal(words(), servicesToldWords({ count: 32, chars: block(next).chars, total: block(next).total }));
   assert.ok(block(next).chars < stored.chars);
+  assert.equal(block(next).total, composePromptPreview(next, { tz: W.__SETTINGS.prompt.tz, policy: {}, known: W.__SETTINGS.prompt.inputs.known, openings: null }).whatsapp.length, "the draft's own prompt");
   assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
   // A row nobody named is not one the save writes, so it is not counted.
   press(byTestId(tree, "rec-services-add"));
   tree = redrawTab();
   assert.equal(textOf(byTestId(tree, "rec-sheet-save-services")), "Save 32 services");
+
+  // A large edit: fifty of sixty taken out. The block is after the save, and so is the prompt it is a share of: over the
+  // stored prompt, the share was of a prompt that no longer exists.
+  tree = openSheet(drawTab({ profile: full }));
+  const before = W.__SETTINGS.prompt.whatsapp.length;
+  for (let n = 0; n < 50; n += 1) { press(byTestId(tree, "rec-service-remove-0")); tree = redrawTab(); }
+  const kept = S.saveFold("services", S.saver.base(), S.draftOf("services", S.saver.base()).slice(50)).brain;
+  const right = servicesToldWords({ count: 10, chars: block(kept).chars, total: block(kept).total });
+  const skewed = servicesToldWords({ count: 10, chars: block(kept).chars, total: before });
+  assert.equal(words(), right);
+  assert.notEqual(right, skewed, "the fixture is one where the two denominators say different things");
 });
 
 test("the search reads names only, and never reorders: what it leaves out is hidden in place", () => {
