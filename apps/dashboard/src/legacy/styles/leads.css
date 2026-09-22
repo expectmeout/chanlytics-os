@@ -552,13 +552,8 @@
    nothing-found colour, so a check in flight and a search that found no address were the same mark. */
 .leads-scope { --lead-ok: var(--ok-ink); --lead-part: var(--warn-ink); --lead-none: var(--ink-dim); --lead-bad: var(--danger-ink); --lead-wait: var(--info-ink); }
 
-/* A view on its way: the rows drawn are the last view's, so they fade a little and hold still, and come back the
-   moment the surface holds the view the address names (the table wears aria-busy for a screen reader). The fade
-   waits 150ms, so a view painted from what the tab already holds never dims at all. */
-.leads-scope .cl-table tbody { transition: opacity 120ms ease 150ms; }
-.leads-scope[data-loading] .cl-table tbody { opacity: 0.45; pointer-events: none; }
-.leads-scope[data-loading] .cl-table tbody tr { cursor: progress; }
-@media (prefers-reduced-motion: reduce) { .leads-scope .cl-table tbody { transition: none; } }
+/* A view on its way is the standard's one rule (components.css, [data-loading] [data-dims]): .leads-scope wears
+   data-loading, the table's rows are what it dims. */
 
 /* The row: 62px, so the tile has room and the sub-line breathes. */
 .leads-scope .cl-table tbody tr.ld-row td { padding-top: 7px; padding-bottom: 7px; }

@@ -19,6 +19,7 @@ import {
 import { api } from "./api";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
+import { heldViews } from "./held-views";
 import { type SurfaceOverride } from "./surface-data";
 import { unwrap, type ApiResult, type RouteKey } from "../client/api";
 
@@ -105,21 +106,15 @@ let view: LeadsView = DEFAULT_VIEW;
  * be a round trip each way, with the old view's rows under the new title until it landed. A view held here paints
  * at once, its Show more pages with it, and is read again behind, patched. Not the read cache (read-cache.ts): that
  * is emptied by every write, and a held view is safe across one, because it is read again the moment it is shown.
- * In memory only: signing out and a workspace change are both a new document.
+ * In memory only: signing out and a workspace change are both a new document. The standard's one helper
+ * (held-views.ts), which also says whether a read that lands is still the newest asked.
  */
-const held = new Map<string, LeadsLoaded>();
-const HELD_MAX = 8;
-function hold(l: LeadsLoaded): void {
-  held.delete(l.key);
-  held.set(l.key, l);
-  while (held.size > HELD_MAX) held.delete(held.keys().next().value as string);
-}
-/** The views this tab holds go: what the runner asks on a workspace change, and a test on a new wire. */
+const held = heldViews<LeadsLoaded>(8);
+const hold = (l: LeadsLoaded): void => held.hold(l.key, l);
+/** The views this tab holds go: a test on a new wire (a workspace change is a new document). */
 export function forgetLeadsViews(): void {
-  held.clear();
+  held.forget();
 }
-/** Bumped by every read that replaces the rows; a read that finishes under a newer number is dropped. */
-let reads = 0;
 
 /** The key a read is made under: the workspace and every part of the view. */
 function viewKey(v: LeadsView): string {
@@ -138,6 +133,10 @@ function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Reco
 function publishLeads(failed = false): void {
   const now = new Date();
   const L = leadsLoaded;
+  // The view these rows are of -- the one read, never one asked for since, which is still on its way. A refresh of
+  // the old view that landed first published the old rows under the new view's route: the page took the new view for
+  // landed, its rows stopped dimming, and the last view's rows stood under the new title until the read came back.
+  const shown = L?.view ?? view;
   (window as unknown as { __LEADS?: LeadsSurface }).__LEADS = {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
@@ -145,8 +144,8 @@ function publishLeads(failed = false): void {
     rows: (L?.rows ?? []).map((r) => toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null)),
     next: L?.next ?? null,
     offered: L?.offered.length ?? 0,
-    view,
-    route: leadsRoute(view),
+    view: shown,
+    route: leadsRoute(shown),
     suggestions: L?.suggestions ?? null,
     month: L?.month ?? null,
     tz: L?.tz ?? "UTC",
@@ -173,7 +172,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
  * one it does not is page one under its key, and the old rows go with the old key.
  */
 async function readView(v: LeadsView): Promise<void> {
-  const mine = ++reads;
+  const ask = held.ask();
   const have = held.get(viewKey(v));
   if (have) {
     leadsLoaded = have;
@@ -184,7 +183,7 @@ async function readView(v: LeadsView): Promise<void> {
   }
   const loaded = await readPageOne(v);
   hold(loaded);
-  if (mine !== reads) return; // superseded: a newer view asked after this one
+  if (!ask.still()) return; // superseded: a newer view asked after this one
   leadsLoaded = loaded;
   publishLeads();
 }

@@ -142,12 +142,19 @@ test("with no workspace active, a save writes nothing into the cache -- not even
   }
 });
 
-test("signing out clears where the owner was in Leads and the Find they had half-written, with the cache: nothing the tab kept outlives the session that kept it", () => {
-  // The page's own keys (clients-a.jsx LD_PLACE_SLOT, LD_FINDER_SLOT): an owner's words in a box, and a plan they had not approved.
+test("signing out clears what the pages kept in the tab -- a view's place, a half-written draft -- with the cache: nothing the tab kept outlives the session that kept it", async () => {
+  // The pages' one store (tab-memory.ts): an owner's words in a box, and a plan they had not approved.
+  const { tabMemoryFor } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+  const tm = tabMemoryFor({ location: { pathname: "/w/salon" }, sessionStorage: globalThis.sessionStorage });
+  tm.keepPlace("leads", "clients/leads", { q: "nail", top: 380 });
+  tm.keepDraft("leads-find", { words: "dentists in Queens" });
+  // And the two slots Leads kept before the store, which a tab open across the deploy still holds.
   globalThis.sessionStorage.setItem("chanlytics.leads.place.v1", JSON.stringify({ "salon|clients/leads": { q: "nail", top: 380 } }));
   globalThis.sessionStorage.setItem("chanlytics.leads.finder.v1", JSON.stringify({ ws: "salon|", words: "dentists in Queens" }));
   globalThis.sessionStorage.setItem("something.else", "kept");
   clearSurfaceCache();
+  assert.equal(tm.place("leads", "clients/leads"), null);
+  assert.equal(tm.draft("leads-find"), null);
   assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.place.v1"), null);
   assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.finder.v1"), null);
   assert.equal(globalThis.sessionStorage.getItem("something.else"), "kept", "and only what is the app's own");

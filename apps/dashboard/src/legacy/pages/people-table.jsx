@@ -87,7 +87,8 @@ const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpe
               ))}
             </tr>
           </thead>
-          <tbody>
+          {/* What a view on its way dims (components.css [data-loading] [data-dims]): the rows, never the heads. */}
+          <tbody data-dims>
             {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}

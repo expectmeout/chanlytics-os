@@ -182,6 +182,9 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.window.React = globalThis.React;
+// The tab's one store for what pages keep, as LegacyApp installs it before the pages mount.
+const { installTabMemory, clearTabMemory } = await import("../../../apps/dashboard/src/legacy-bridge/tab-memory.ts");
+installTabMemory(globalThis.window);
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"]) globalThis[k] = globalThis.window[k];
 // Menus and questions as their props, hookless, so the page's own hook order is all the stub counts.
@@ -337,8 +340,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   globalThis.window.location.href = "";
   globalThis.localStorage.removeItem("chanlytics-people-view");
   globalThis.localStorage.removeItem("chanlytics-leads-view");
-  globalThis.sessionStorage.removeItem("chanlytics.leads.place.v1");
-  globalThis.sessionStorage.removeItem("chanlytics.leads.finder.v1");
+  clearTabMemory(globalThis.sessionStorage);
   delete globalThis.window.__saveView;
 };
 const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ scope: "leads", leadsRoute: "leads", onNavigate: (to) => went.push(to), onOpenProfile: (id) => opened.push(id), ...props }); };
@@ -1208,7 +1210,7 @@ test("a Find keeps only what can still be used: a turn that was still being read
   draw();
   await finders.at(-1).onApprove(PLAN);
   draw();
-  assert.equal(globalThis.sessionStorage.getItem("chanlytics.leads.finder.v1"), null, "nothing of a search that is already running waits to be started again");
+  assert.equal(globalThis.window.__tabMemory.draft("leads-find"), null, "nothing of a search that is already running waits to be started again");
   assert.equal(finderAfter(comeBack), null, "and the finder is closed on the way back");
 });
 

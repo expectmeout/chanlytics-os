@@ -32,6 +32,7 @@ import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
+import { installTabMemory } from "./tab-memory";
 import { installLists } from "./people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
@@ -57,6 +58,8 @@ import CreateWorkspace from "./CreateWorkspace";
 
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
+// What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
+installTabMemory();
 installInboxVerbs();
 installPeopleCourier();
 // The Leads scope of People: its surface reads by view and patches what is
