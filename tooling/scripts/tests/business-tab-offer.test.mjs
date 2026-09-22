@@ -968,3 +968,17 @@ test("every box of What you offer is named by the words on screen beside it, so 
   boxes.forEach((box, i) => assert.match(heard(tree, box), new RegExp(head[i], "i"), `${heard(tree, box)} holds ${head[i]}`));
   assert.match(heard(tree, boxes[1]), /min/, "and the minutes box its unit, min, as it is on screen");
 });
+
+test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
+  const sent = saving();
+  let tree = openSheet(drawTab({ profile: many }));
+  typeAt(tree, "Service 3 takes, in minutes", "75");
+  tree = redrawTab();
+  const box = labelled(tree, "Service 3 takes, in minutes");
+  find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown({
+    key: "Enter", ctrlKey: true, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, currentTarget: { contains: () => true }, target: box,
+  });
+  assert.equal(sent.length, 1, "REGRESSION: the sheet had no key to save it");
+  assert.equal(sent[0].config.brain.profile.services[2].duration_min, 75);
+  assert.equal(sheetOf(redrawTab()), null, "taken, and closed");
+});

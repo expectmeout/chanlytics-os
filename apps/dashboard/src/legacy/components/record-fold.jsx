@@ -368,7 +368,7 @@ const useRecDrawn = (id) => useFoldEffect(() => recFolds.drawn(id), [id]);
 // say the change was thrown away. Only its own keys: a portal's bubble through React from outside its DOM (a sheet
 // drawn from a field inside it), and its Ctrl+Enter would save it.
 const recKeys = ({ onCancel, onSave, saving, refused }) => (e) => {
-  if (e.defaultPrevented || !e.currentTarget.contains(e.target)) return;
+  if (e.defaultPrevented || !e.currentTarget || !e.currentTarget.contains(e.target)) return;
   if (e.key === "Escape" && onCancel && !saving) { e.preventDefault(); onCancel(); return; }
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && onSave && !saving && !refused) { e.preventDefault(); onSave(); }
 };
@@ -582,4 +582,5 @@ const RecordInline = ({
 // Cancel (record-sheet.jsx takes its foot from the page, and the Business tab's sheet draws this one in it).
 // useRecFocusHold and useRecFocusOn are the sheet's (record-sheet.jsx), which keeps a fold's focus rules but enters and
 // leaves as a modal dialog.
-Object.assign(window, { RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, __recordFolds: recFolds });
+// recKeys too: the sheet saves with Ctrl or Cmd and Enter by the same rule.
+Object.assign(window, { RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, recKeys, __recordFolds: recFolds });

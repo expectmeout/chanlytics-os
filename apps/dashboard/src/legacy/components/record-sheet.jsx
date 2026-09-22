@@ -8,6 +8,13 @@
 //
 //   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
 //
+// A sheet that saves as a fold does takes the fold's foot props instead of drawing its own: `onSave`, `saving`,
+// `saveLabel`, `savingLabel`, `cancelLabel`, `gate`, `footNote` and `confirm`, as RecordFold takes them. Then the kit
+// draws the fold's foot (RecordFoot) after the page's `foot`, with the page's ask above it, not while the save is out;
+// Cancel is `onClose`; and while the save is out nothing cancels it (Escape, the head's Close, Cancel) and Ctrl or Cmd
+// with Enter saves, by the fold's rule (recKeys). A sheet with a foot of its own (the playbook composer's) passes none
+// of them and is drawn as it was.
+//
 // `className` is a page's own class beside the kit's (a wider sheet, a body of its own), and `testid` names the sheet
 // when the page's tests know it by another name than `rec-sheet-<id>`.
 //
@@ -30,8 +37,8 @@
 // on the page's body, outside the dialog, where Tab walks the page behind it, and then on the dialog itself. Focus a
 // person put somewhere is left there. `focusOn` ({ row }) names an element of the sheet by the data-rec-row the page
 // put on it, and focus goes to its first tab stop: a row a list has just been given, or the Undo left where a row was
-// taken out. A new object each time, as RecordFold's is, so the same row named twice is focused twice. `busy` says the
-// sheet's save is out (aria-busy, which record.css draws its boxes by, as it does a fold's).
+// taken out. A new object each time, as RecordFold's is, so the same row named twice is focused twice. `saving` says
+// the sheet's save is out (aria-busy, which record.css draws its boxes by, as it does a fold's).
 //
 // It is drawn in the app's root (.app-root) rather than where the page put it. There, People's row keys hold still
 // while it is open, as they do for the phone's lists sheet and for any dialog in .app-root (PL_OVERLAY,
@@ -42,10 +49,12 @@ const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCal
 
 const RecordSheet = ({
   id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", className = "", testid = null,
-  focusOn = null, busy = false, children = null,
+  focusOn = null, onSave = null, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
+  gate = null, footNote = null, confirm = null, children = null,
 }) => {
   const closeRef = useSheetRef(onClose);
-  closeRef.current = onClose;
+  // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.
+  closeRef.current = saving ? null : onClose;
   const opener = useSheetRef(null);
   // The sheet as it is on the page, for the fold's focus rules below: a callback ref (place) sets it.
   const box = useSheetRef(null);
@@ -93,10 +102,14 @@ const RecordSheet = ({
         aria-labelledby={titleId}
         aria-label={titleId ? undefined : typeof title === "string" ? title : undefined}
         aria-describedby={subId}
-        aria-busy={busy || undefined}
+        aria-busy={saving || undefined}
         tabIndex={-1}
         onFocus={hold ? hold.onFocus : undefined}
-        onKeyDown={(e) => { if (e.key === "Tab") window.trapTab(e, e.currentTarget); else onEscape(e); }}
+        onKeyDown={(e) => {
+          if (e.key === "Tab") { window.trapTab(e, e.currentTarget); return; }
+          if (e.key === "Enter" && onSave && window.recKeys) { window.recKeys({ onSave, saving, refused: !!(gate && gate["aria-disabled"]) })(e); return; }
+          onEscape(e);
+        }}
         data-testid={testid || (id ? `rec-sheet-${id}` : undefined)}
       >
         <header className="rec-sheet-head">
@@ -104,13 +117,37 @@ const RecordSheet = ({
             <h2 className="rec-sheet-title" id={titleId}>{title}</h2>
             {sub ? <p className="rec-sheet-sub" id={subId}>{sub}</p> : null}
           </div>
-          <button type="button" className="rec-sheet-close" aria-label={closeLabel} onClick={onClose}>
+          <button
+            type="button" className="rec-sheet-close" aria-label={closeLabel} aria-disabled={saving || undefined}
+            onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onClose) onClose(e); }}
+          >
             <Icon name="x" size={13} />
           </button>
         </header>
         {tools ? <div className="rec-sheet-tools">{tools}</div> : null}
         <div className="rec-sheet-body">{children}</div>
-        {foot ? <footer className="rec-sheet-foot">{foot}</footer> : null}
+        {foot || onSave ? (
+          <footer className="rec-sheet-foot">
+            {foot}
+            {onSave ? (
+              <>
+                {saving ? null : confirm}
+                <window.RecordFoot
+                  saveTestid={id ? `rec-sheet-save-${id}` : undefined}
+                  cancelTestid={id ? `rec-sheet-cancel-${id}` : undefined}
+                  onSave={onSave}
+                  onCancel={onClose}
+                  saving={saving}
+                  saveLabel={saveLabel}
+                  savingLabel={savingLabel}
+                  cancelLabel={cancelLabel}
+                  gate={gate}
+                  footNote={footNote}
+                />
+              </>
+            ) : null}
+          </footer>
+        ) : null}
       </section>
     </>
   );

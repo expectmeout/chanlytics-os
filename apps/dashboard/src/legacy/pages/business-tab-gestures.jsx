@@ -689,7 +689,9 @@ const BtFold = ({
  * own hooks.
  *
  * Escape and the head's Close are the foot's Cancel, with its ask: nothing typed is thrown away unasked, and nothing
- * cancels a save that is out. The asks are drawn in the sheet, above its Save, since Tab never leaves a modal dialog.
+ * cancels a save that is out; Ctrl or Cmd with Enter saves. The foot, its asks and its keys are the kit's, as a fold's
+ * are (RecordSheet takes RecordFold's foot props), drawn in the sheet, above its Save, since Tab never leaves a modal
+ * dialog.
  * `tools(fields)`, `body(fields)` and `told(fields)` are the page's: the strip above the rows, the rows, and a line of
  * its own above the foot (what it will be told); each is handed what a fold's body is (BtFold's contract) and `will`,
  * what willSay answers. `saveLabel` is words, or a function of the fields. Nothing of them is drawn while it is closed.
@@ -706,7 +708,9 @@ const BtSheet = ({
   useBtgEffect(() => (window.__recordFolds && window.__recordFolds.drawn ? window.__recordFolds.drawn(id) : undefined), [id]);
   if (!e.open || !e.stored) return null;
   const f = { ...e.fields, will: e.will };
-  const found = f.problems;
+  // The foot is the kit's, as a fold's is (RecordSheet takes RecordFold's foot props): Save and Cancel, the ask above
+  // them and not while the save is out. What is the page's above it: what it will be told, and a refusal that is not
+  // this list's to fix, said once, as a fold says it.
   return (
     <window.RecordSheet
       id={id}
@@ -715,25 +719,19 @@ const BtSheet = ({
       className={className}
       onClose={e.asks.cancel}
       focusOn={e.focusOn}
-      busy={e.busy}
       tools={tools ? tools(f) : null}
       foot={(
         <>
           {told ? told(f) : null}
-          <window.FieldError id={`bt-${id}-elsewhere`} message={found.elsewhere || null} testid={`rec-sheet-${id}-elsewhere`} />
-          {e.busy ? null : e.asks.confirm}
-          <window.RecordFoot
-            saveTestid={`rec-sheet-save-${id}`}
-            cancelTestid={`rec-sheet-cancel-${id}`}
-            onSave={e.submit}
-            onCancel={e.asks.cancel}
-            saving={e.busy}
-            saveLabel={typeof saveLabel === "function" ? saveLabel(f) : saveLabel}
-            gate={gate}
-            footNote={footNote}
-          />
+          <window.FieldError id={`bt-${id}-elsewhere`} message={f.problems.elsewhere || null} testid={`rec-sheet-${id}-elsewhere`} />
         </>
       )}
+      onSave={e.submit}
+      saving={e.busy}
+      saveLabel={typeof saveLabel === "function" ? saveLabel(f) : saveLabel}
+      gate={gate}
+      footNote={footNote}
+      confirm={e.asks.confirm}
     >
       {body(f)}
     </window.RecordSheet>

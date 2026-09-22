@@ -1390,20 +1390,48 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   }
 });
 
-test("a sheet whose save is out says so, and its foot is the fold's", () => {
-  const busy = find(draw(W.RecordSheet, offer({ busy: true })), (n) => classes(n).includes("rec-sheet"));
-  assert.equal(busy.props["aria-busy"], true, "record.css draws its boxes read-only by it, as a fold's");
-  assert.equal(find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet")).props["aria-busy"], undefined);
-  // The one foot, for a sheet as for a fold: Save busy and still a button while it saves, Cancel doing nothing then.
-  assert.equal(typeof W.RecordFoot, "function");
+test("a sheet given a Save draws the fold's own foot: the ask above it, and nothing while its save is out; Escape and Close cancel, Ctrl or Cmd with Enter saves", () => {
+  // The quality review: the Business tab's sheet built its own foot (RecordFoot, the ask hidden while saving), which a
+  // fold's kit owns. The sheet takes RecordFold's foot props, optional, so a sheet with a foot of its own (the playbook
+  // composer's) is drawn as it was.
   const saves = [];
   const cancels = [];
-  const foot = draw(W.RecordFoot, { onSave: () => saves.push(1), onCancel: () => cancels.push(1), saving: true, saveLabel: "Save 33 services", saveTestid: "save", cancelTestid: "cancel" });
-  const save = byTestId(foot, "save");
+  const ask = W.React.createElement("span", { className: "confirm", "data-testid": "ask" }, "Discard your changes?");
+  const props = (over = {}) => offer({ id: "services", onClose: () => cancels.push(1), onSave: () => saves.push(1), saveLabel: "Save 33 services", footNote: "Removing one offers an undo.", confirm: ask, ...over });
+  let tree = draw(W.RecordSheet, props());
+  const foot = () => find(tree, (n) => classes(n).includes("rec-sheet-foot"));
+  assert.equal(textOf(byTestId(foot(), "rec-sheet-save-services")), "Save 33 services");
+  assert.match(textOf(foot()), /Removing one offers an undo\./);
+  const kids = all(foot(), (n) => n.props?.["data-testid"] === "ask" || n.type === W.RecordFoot);
+  assert.deepEqual(kids.map((n) => (n.type === W.RecordFoot ? "foot" : "ask")), ["ask", "foot"], "the ask above Save, where the changes it asks about are");
+  press(byTestId(foot(), "rec-sheet-save-services"));
+  press(byTestId(foot(), "rec-sheet-cancel-services"));
+  assert.deepEqual([saves.length, cancels.length], [1, 1], "Save saves, and Cancel is the sheet's close, with its ask");
+  const sheet = () => find(tree, (n) => classes(n).includes("rec-sheet"));
+  const key = (over) => ({ key: "Enter", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, currentTarget: { contains: () => true }, target: {}, ...over });
+  sheet().props.onKeyDown(key({ ctrlKey: true }));
+  sheet().props.onKeyDown(key({ metaKey: true }));
+  sheet().props.onKeyDown(key({}));
+  assert.equal(saves.length, 3, "Ctrl or Cmd with Enter saves, as a fold's does; Enter alone does not");
+
+  // While its save is out: busy, still a button, the ask not drawn, and nothing cancels it.
+  tree = draw(W.RecordSheet, props({ saving: true }));
+  assert.equal(sheet().props["aria-busy"], true, "record.css draws its boxes read-only by it, as a fold's");
+  const save = byTestId(foot(), "rec-sheet-save-services");
   assert.deepEqual([save.type, save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)], ["button", undefined, true, true, "Saving…"]);
+  assert.equal(byTestId(foot(), "ask"), null, "nothing asks whether to discard what is on its way");
   press(save);
-  press(byTestId(foot, "cancel"));
-  assert.deepEqual([saves.length, cancels.length], [0, 0]);
+  press(byTestId(foot(), "rec-sheet-cancel-services"));
+  press(find(tree, (n) => n.props?.["aria-label"] === "Close"));
+  const esc = { key: "Escape", defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  sheet().props.onKeyDown(esc);
+  sheet().props.onKeyDown(key({ ctrlKey: true }));
+  assert.deepEqual([saves.length, cancels.length], [3, 1], "Save, Cancel, Close, Escape and Ctrl+Enter do nothing while it saves");
+
+  // With no Save given, the page's own foot, as the playbook composer draws it: no kit foot, and aria-busy absent.
+  tree = draw(W.RecordSheet, offer({ foot: W.React.createElement("button", { type: "button" }, "Start it") }));
+  assert.equal(find(tree, (n) => n.type === W.RecordFoot), null);
+  assert.equal(sheet().props["aria-busy"], undefined);
 });
 
 test("a row of chips names each thing its value counts, with its measure beside it, and how many more", () => {
