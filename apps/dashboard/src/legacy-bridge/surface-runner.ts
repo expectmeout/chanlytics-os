@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
+import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { routeSurfaceFor } from "./surface-registry";
@@ -228,10 +229,17 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const wanted = surfaceOnScreen(window);
   const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : o.key === wanted ? 1 : 2);
   const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
+  // Surfaces read the same lists in turn -- the calls, the templates, the contacts, and on Leads the page the view
+  // asks for again as it mounts. Measured on the salon's Leads page: 31 reads at boot, 20 distinct, because a read
+  // that had settled was not shared with the one asking a moment later. Every answer is held until the last surface
+  // is in, and let go before the live feed is joined: nothing can change inside the hold without a write (which lets
+  // go of it) or an event the feed would not yet have delivered anyway.
+  const releaseAnswers = api().holdAnswers();
   const booted = workspaceFirst
     ? boot(workspaceFirst).then(() => inLanes(queued.filter((o) => o !== workspaceFirst), BOOT_LANES, boot))
     : inLanes(queued, BOOT_LANES, boot);
   void booted.then(() => {
+    releaseAnswers();
     if (cancelled) return;
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
@@ -284,6 +292,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
 
   return () => {
     cancelled = true;
+    releaseAnswers();
     activeRefresh = null;
     activeOverrides = [];
     document.removeEventListener("visibilitychange", onVisible);

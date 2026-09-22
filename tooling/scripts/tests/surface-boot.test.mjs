@@ -24,6 +24,7 @@ globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 const { startSurfaces } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
+const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n) => { for (let i = 0; i < n; i += 1) await tick(); };
@@ -116,6 +117,29 @@ test("a route with no surface of its own changes nothing: the order is only a pr
   await settle(40);
   stop();
   assert.deepEqual([...order].sort(), [...keys].sort(), "all of them, and none twice");
+});
+
+test("the boot holds every answer until its last surface is in: two surfaces reading one list ask the server once", async () => {
+  // Measured on the salon's Leads page: 31 reads at boot, 20 distinct. A surface in the second lane asked for a list
+  // a surface in the first had been answered a moment before, because a settled read was dropped as it settled.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const sent = [];
+  win.fetch = async (url) => { sent.push(url); await tick(); return new Response(JSON.stringify({ ok: true, data: { templates: [] } }), { status: 200 }); };
+  let firstIn = () => {};
+  const first = new Promise((r) => { firstIn = r; });
+  const overrides = [
+    { key: "inbox", apply: async () => { await read("GET templates"); firstIn(); } },
+    { key: "people", apply: async () => { await first; await tick(); await read("GET templates"); } },
+  ];
+  const stop = startSurfaces(overrides);
+  await settle(20);
+  const asked = () => sent.filter((u) => u.startsWith("/api/v1/templates")).length;
+  assert.equal(asked(), 1, "the second surface read the answer the first had just been given");
+  await read("GET templates");
+  assert.equal(asked(), 2, "once the boot is in, a read asks the server: what follows is the live feed's and a write's to refresh");
+  stop();
 });
 
 test("identity leads even on a workspace page, where nothing waits for it", async () => {

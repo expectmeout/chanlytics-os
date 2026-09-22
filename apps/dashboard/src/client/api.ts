@@ -93,7 +93,9 @@ const WRITE_TIMEOUT_MS = 30_000;
 
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
-  const inFlight = new Map<string, { p: Promise<unknown>; at: number }>();
+  // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
+  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean }>();
+  let holds = 0;
 
   function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
     const params = (opts.params ?? {}) as Record<string, string>;
@@ -126,7 +128,7 @@ export function createApi(deps: ApiDeps) {
     const url = urlFor(key, opts);
     if (isRead) {
       const hit = inFlight.get(url);
-      if (hit && now() - hit.at < INFLIGHT_MS) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
+      if (hit && (hit.kept || now() - hit.at < INFLIGHT_MS)) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
     const p = (async (): Promise<ApiResult<OutputOf<Routes[K]>>> => {
       let res: Response;
@@ -167,11 +169,37 @@ export function createApi(deps: ApiDeps) {
       return { ok: true, data: j.data as OutputOf<Routes[K]> };
     })();
     if (isRead) {
-      // A rejection must not be shared beyond its burst: drop the entry as it settles.
-      inFlight.set(url, { p, at: now() });
-      p.finally(() => { if (inFlight.get(url)?.p === p) inFlight.delete(url); }).catch(() => {});
+      // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
+      // entry as it settles, or keep it for whoever asks next while the hold lasts.
+      const entry: { p: Promise<unknown>; at: number; kept?: boolean } = { p, at: now() };
+      inFlight.set(url, entry);
+      p.then(
+        (r) => {
+          if (inFlight.get(url) !== entry) return;
+          if (holds > 0 && r.ok) entry.kept = true;
+          else inFlight.delete(url);
+        },
+        () => { if (inFlight.get(url) === entry) inFlight.delete(url); },
+      );
     }
     return p;
+  }
+
+  /**
+   * Hold every answer until the returned release: a read that asks after an identical one has settled shares its
+   * answer rather than asking again. The boot, where the surfaces read the same lists in turn -- the runner holds
+   * from its first read to its last, before the live feed is joined, so no change can land inside the hold unheard.
+   * A write still forgets everything held. Releasing twice is releasing once.
+   */
+  function holdAnswers(): () => void {
+    holds += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      holds -= 1;
+      if (holds === 0) for (const [url, e] of inFlight) if (e.kept) inFlight.delete(url);
+    };
   }
 
   /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
@@ -186,7 +214,7 @@ export function createApi(deps: ApiDeps) {
     inFlight.clear();
   }
 
-  return Object.assign(send, { raw, url: urlFor, forget });
+  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers });
 }
 
 export type Api = ReturnType<typeof createApi>;
