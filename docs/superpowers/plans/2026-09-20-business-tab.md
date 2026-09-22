@@ -61,9 +61,12 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/setting
 | `apps/dashboard/src/legacy/components/record-fold.jsx` | `RecordFold`, `RecordInline` (lifted from the page in Task 3.2's review) + the one-open-at-a-time registry. |
 | `apps/dashboard/src/legacy/components/record-sheet.jsx` | `RecordSheet`. |
 | `apps/dashboard/src/legacy/styles/record.css` | The kit's styles. Nothing page-specific. |
-| `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: standing line and the four groups. |
-| `apps/dashboard/src/legacy/pages/business-tab-save.jsx` | What the page's saves write: the one saver, each row's check and patch, and each fold's helpers (Task 3.6). Split from the page in Task 3.2's review; loads before it. |
-| `apps/dashboard/src/legacy/pages/business-tab-open.jsx` | The *When you're open* card: the week, the zone, the closed days, the calendar it reads (Task 3.3). Loads before the page. |
+| `apps/dashboard/src/legacy/pages/business-tab.jsx` | The page: the head, the standing line, and the cards composed. |
+| `apps/dashboard/src/legacy/pages/business-tab-save.jsx` | What the page's saves write: the one saver, the zone's own door, each row's check and patch (Task 3.2's review). Loads first. |
+| `apps/dashboard/src/legacy/pages/business-tab-folds.jsx` | Each fold's helpers (Task 3.6), and what a save will say (`willSay`, Task 3.3). |
+| `apps/dashboard/src/legacy/pages/business-tab-gestures.jsx` | The page's two gestures, `BtRow` and `BtFold`, and the two questions both ask (Task 3.3's quality review). Load order: save → folds → gestures → the cards → the page, in BOTH lists. |
+| `apps/dashboard/src/legacy/pages/business-tab-who.jsx` | The *Who you are* card (Task 3.2), a file of its own since Task 3.3's quality review; `window.BtWhoCard`. |
+| `apps/dashboard/src/legacy/pages/business-tab-open.jsx` | The *When you're open* card: the week, the zone, the closed days, the calendar it reads (Task 3.3); `window.BtOpenCard`. |
 | `apps/dashboard/src/legacy/pages/business-can.jsx` | The *What it can do* card and the prompt sheet. |
 | `tooling/scripts/tests/business-tab-vm.test.mjs` | The sentence tables, as pure functions. |
 | `tooling/scripts/tests/prompt-blocks.test.mjs` | The prompt view, whose words are in it, and the resolver's equivalence. |

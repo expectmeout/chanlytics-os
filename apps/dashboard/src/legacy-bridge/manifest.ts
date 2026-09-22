@@ -102,6 +102,8 @@ import "@/legacy/pages/setup.jsx";
 // one-key save and how a number is written, which the old card in settings.jsx uses too.
 import "@/legacy/pages/business-tab-save.jsx";
 import "@/legacy/pages/business-tab-folds.jsx";
+import "@/legacy/pages/business-tab-gestures.jsx";
+import "@/legacy/pages/business-tab-who.jsx";
 import "@/legacy/pages/business-tab-open.jsx";
 import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";

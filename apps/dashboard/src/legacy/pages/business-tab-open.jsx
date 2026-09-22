@@ -14,11 +14,13 @@
 // (window.__hoursLines, as the old card's hoursSummary calls it, never a second implementation); the zone's words are
 // contracts' (window.__tz); what the calendar's last read found is the Calendar page's own view model
 // (window.__CALENDAR, contracts toCalendarVM). What a fold opens with, refuses and writes is business-tab-folds.jsx's,
-// and the gesture every fold shares is BtFold (business-tab.jsx), read from window as each card draws.
+// and the gestures every row and fold share are BtRow and BtFold (business-tab-gestures.jsx), read from window as each
+// card draws.
 //
-// Loaded after business-tab-folds.jsx and before business-tab.jsx (both load lists). Its top-level names are
-// bto-prefixed, and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. And the rule of
-// the tests' stub React holds here as it does on the page (business-tab.jsx's header): every component that holds a
+// Loaded after business-tab-gestures.jsx and before business-tab.jsx (both load lists), and read there as
+// window.BtOpenCard. Its top-level names are bto-prefixed, and no pattern in it holds an object rest, for the reasons
+// business-tab-save.jsx gives. And the rule of the tests' stub React holds here as it does for the gestures
+// (business-tab-gestures.jsx's header): every component that holds a
 // hook is drawn on every render, so the rows that come and go inside a fold (a day's shifts, the closed days) are
 // drawn hookless, as plain boxes wearing the kit's class, and the one menu is always drawn.
 

@@ -45,7 +45,7 @@ const btfSame = (a, b) => window.__businessTabSave.same(a, b);
  *
  * holdsChanges(fold, base, draft): whether Save has anything to SEND. It is not the fold's unsaved-changes test: a
  * fold asks before it throws away anything typed, which is "the draft is not the one it opened with" (BtFold,
- * business-tab.jsx), since what a save drops (half a shift, a closed day with no date, a service with no name) is
+ * business-tab-gestures.jsx), since what a save drops (half a shift, a closed day with no date, a service with no name) is
  * still something a person typed. What it would write is not what the draft it would open with writes, the rows'
  * rule (storedAs). Some records are stored the way no fold writes them back -- a day the hours leave out (written as
  * {}), two of the four rules left to their defaults (all four written out), a prompt carried into the instructions

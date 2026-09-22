@@ -57,6 +57,9 @@ await import(`${L}/pages/calendar-real.jsx`);
 // What the tab's saves write and the one saver they go through, before the page, as both load lists have them.
 await import(`${L}/pages/business-tab-save.jsx`);
 await import(`${L}/pages/business-tab-folds.jsx`);
+// The page's two gestures, then each card, then the page: the order both load lists keep.
+await import(`${L}/pages/business-tab-gestures.jsx`);
+await import(`${L}/pages/business-tab-who.jsx`);
 await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
