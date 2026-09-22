@@ -789,6 +789,9 @@ const PL_PHONE_SORTS = [
 ];
 // An empty Add a person and an empty list draft: the phone's sheets' drafts are the page's state.
 const PL_ADD_EMPTY = { name: "", phone: "", busy: false, error: null };
+// How a yes was given, as a phone's Record a yes draws it: a person, a phone, a form. A tick on every row read as a
+// list already ticked.
+const PL_SOURCE_GLYPH = { in_person: "user", phone: "phone", form: "content" };
 const PL_LIST_EMPTY = { name: "", busy: false, error: null };
 
 // A stable empty list, so a workspace without saved lists does not re-run the
@@ -1614,11 +1617,11 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
         body: (
           <div className="pp-sheet-rows">
             <div className="pp-sheet-rows-h">To messages about their visit</div>
-            {sources.map((s) => <PhoneSheetRow key={s.id} icon="check" label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("conversational", s)} testid={`bulk-yes-conversational-${s.id}`} />)}
+            {sources.map((s) => <PhoneSheetRow key={s.id} icon={PL_SOURCE_GLYPH[s.id] || "check"} label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("conversational", s)} testid={`bulk-yes-conversational-${s.id}`} />)}
             {window.__setPersonMarketingConsentMany && offersSources.length > 0 ? (
               <>
                 <div className="pp-sheet-rows-h">To offers and news</div>
-                {offersSources.map((s) => <PhoneSheetRow key={s.id} icon="tag" label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("marketing", s)} testid={`bulk-yes-marketing-${s.id}`} />)}
+                {offersSources.map((s) => <PhoneSheetRow key={s.id} icon={PL_SOURCE_GLYPH[s.id] || "tag"} label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("marketing", s)} testid={`bulk-yes-marketing-${s.id}`} />)}
               </>
             ) : null}
           </div>
