@@ -11679,6 +11679,28 @@ declare const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right no
  * A sentence the server also says is not here: the routes' toasts are the routes' own.
  */
 declare const LEAD_WORDS: {
+    /**
+     * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+     * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+     * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+     *
+     * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+     * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+     * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+     */
+    readonly callWays: {
+        readonly dial: {
+            readonly label: "Call from your phone";
+        };
+        readonly copy: {
+            readonly label: "Copy the number";
+        };
+        /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+        readonly log: {
+            readonly label: "Log a call you already made";
+            readonly meta: "how did it go?";
+        };
+    };
     readonly close: "Close";
     readonly open: "Open";
     readonly stageLabel: "Stage";

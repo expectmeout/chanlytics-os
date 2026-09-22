@@ -1437,6 +1437,52 @@ test("a sort is the surface's to read, not the page's to re-order: the rows hold
   );
 });
 
+test("REGRESSION: Call asks how, instead of ringing a business the moment a thumb lands on a row -- and the receptionist is not one of the ways, because it never rings a customer", () => {
+  fresh();
+  menus.length = 0;
+  const tree = draw();
+  const l1 = rowOf(tree, "l1");
+  assert.ok(byTestId(l1, "lead-call"), "a lead with a phone still has Call where it was");
+  const ways = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  assert.ok(ways, "REGRESSION: it dialled on press; it opens the ways of calling now");
+  assert.equal(ways.icon, "phone", "and still looks like calling -- a ⋯ would hide what the button is for");
+
+  const W = globalThis.window.__LEAD_WORDS.callWays;
+  assert.deepEqual(
+    ways.items.map((i) => i.header ?? i.label),
+    [ways.items[0].header, W.dial.label, W.copy.label, W.log.label],
+    "the number you would dial, then the three ways -- the words are contracts'",
+  );
+  assert.match(String(ways.items[0].header), /512/, "the heading is the number itself");
+
+  // The receptionist answers the line and never rings a customer (business-tab.ts CANNOT_ROWS, "outbound_call"),
+  // which the Business page tells the owner in those words. No way here may promise otherwise.
+  const said = ways.items.map((i) => `${i.label ?? ""} ${i.meta ?? ""} ${i.header ?? ""}`).join(" ");
+  assert.equal(
+    /receptionist|assistant|agent|for me|on my behalf|auto/i.test(said),
+    false,
+    "REGRESSION: a way that promises what the product says two pages away it cannot do",
+  );
+
+  // Nothing rang by drawing the menu, and each way does its own thing.
+  assert.equal(globalThis.window.location.href, "", "drawing the ways dials nobody");
+  const way = (label) => ways.items.find((i) => i.label === label);
+  way(W.dial.label).onClick();
+  draw();
+  assert.match(globalThis.window.location.href, /^tel:/, "Call from your phone dials");
+  assert.equal(peeks.at(-1).vm.id, "l1", "and opens the lead, where the six outcomes are asked");
+
+  // A call made from a desk phone: the same sheet, nothing rung. There was no way to record one at all.
+  fresh();
+  menus.length = 0;
+  draw();
+  const again = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  again.items.find((i) => i.label === W.log.label).onClick();
+  draw();
+  assert.equal(globalThis.window.location.href, "", "REGRESSION: logging a call you already made rang them again");
+  assert.equal(peeks.at(-1).vm.id, "l1", "it opens the lead on the same question");
+});
+
 test("a click on a lead's row peeks it, as Enter does", () => {
   fresh();
   const tree = draw();
