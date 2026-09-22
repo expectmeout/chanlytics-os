@@ -1513,7 +1513,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     setBusy(true);
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
-    setBusy(false); setNaming(false); setName("");
+    setBusy(false); setNaming(false); setName(""); onSheet(null);
     flash(filled.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, id ? `${n} was not made` : "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
@@ -1541,6 +1541,8 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     keepRest,
     );
   };
+  // With a list kept by hand open, the selection can leave it; the people stay.
+  const dropFromList = () => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); });
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
   const [noting, setNoting] = React.useState(false);
@@ -1550,7 +1552,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const [slips, setSlips] = React.useState(null);
   const [slipsNote, setSlipsNote] = React.useState("");
   const yesBy = (purpose, s) => (s.id === "form" ? () => { setSlips({ purpose, source: s }); setSlipsNote(""); } : () => yes(purpose, s));
-  const closeSlips = () => { setSlips(null); setSlipsNote(""); };
+  const closeSlips = () => { setSlips(null); setSlipsNote(""); onSheet(null); };
   const recordSlips = () => {
     const line = slipsNote.trim();
     if (!line || !slips || busy) return;
@@ -1571,15 +1573,134 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     const r = await window.__appendPersonNotesMany(batch, line);
     setBusy(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b>{restWords}</> : <>{r.message}</> });
-    if (r.ok) { setNoting(false); setNote(""); if (rest.length) onKeep(rest); else onClear(); }
+    if (r.ok) { setNoting(false); setNote(""); onSheet(null); if (rest.length) onKeep(rest); else onClear(); }
   };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
   // A yes to offers is written (00100), so the only way a desk records one for a
   // whole selection is the form they signed.
   const offersSources = (window.__offersYesSources || []).filter((s) => s.id !== "customer_message");
+  // On a phone (spec 4.5): one row docked along the foot of the pane -- ✕, the count, Add to list and ⋯ -- and a sheet
+  // with the rest, where an act that asks something first asks it as a step. The step is the page's (`sheet`), so its
+  // one keyboard listener shuts the sheet on Esc; the drafts are this bar's, as on a desktop. The row stacked seven
+  // controls into a 312px pill over the rows, and each of its three forms ran off the screen's edge.
+  if (phone) {
+    const n = ids.length;
+    const back = () => onSheet("more");
+    // A spoken yes is recorded at the tap; a sign-up form's waits for the note that says which forms.
+    const yesOnPhone = (purpose, s) => () => {
+      if (s.id === "form") { setSlips({ purpose, source: s }); setSlipsNote(""); onSheet("slips"); return; }
+      onSheet(null);
+      yes(purpose, s);
+    };
+    const newList = () => { setName(""); onSheet("naming"); };
+    const steps = {
+      more: {
+        title: `${n} selected`,
+        body: (
+          <div className="pp-sheet-rows">
+            {onSelectAll && n < rows.length ? <PhoneSheetRow icon="check" label={`Select all ${rows.length}`} onClick={() => { onSheet(null); onSelectAll(); }} testid="bulk-select-all" /> : null}
+            {canEdit && window.__setPersonConsentMany && sources.length > 0 ? <PhoneSheetRow icon="shield" label="Record a yes" next disabled={busy} onClick={() => onSheet("yes")} testid="bulk-yes" /> : null}
+            {canEdit && isOwner && window.__setPersonReceptionistMany ? <PhoneSheetRow icon="agents" label="Receptionist" next disabled={busy} onClick={() => onSheet("receptionist")} testid="bulk-receptionist" /> : null}
+            {canEdit && window.__appendPersonNotesMany ? <PhoneSheetRow icon="edit" label="Add a note" next disabled={busy} onClick={() => { setNote(""); onSheet("note"); }} testid="bulk-note" /> : null}
+            {canExport ? <PhoneSheetRow icon="external" label="Export" meta="CSV" disabled={busy} onClick={() => { onSheet(null); exportCsv(); }} testid="bulk-export" /> : null}
+            {canEdit && window.__lists && activeSaved ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
+            {!canEdit ? <p className="pp-sheet-hint pp-sheet-rows-note">Only an owner or operator can add to lists or record a yes.</p> : null}
+          </div>
+        ),
+      },
+      yes: {
+        title: "Record a yes",
+        onBack: back,
+        body: (
+          <div className="pp-sheet-rows">
+            <div className="pp-sheet-rows-h">To messages about their visit</div>
+            {sources.map((s) => <PhoneSheetRow key={s.id} icon="check" label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("conversational", s)} testid={`bulk-yes-conversational-${s.id}`} />)}
+            {window.__setPersonMarketingConsentMany && offersSources.length > 0 ? (
+              <>
+                <div className="pp-sheet-rows-h">To offers and news</div>
+                {offersSources.map((s) => <PhoneSheetRow key={s.id} icon="tag" label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("marketing", s)} testid={`bulk-yes-marketing-${s.id}`} />)}
+              </>
+            ) : null}
+          </div>
+        ),
+      },
+      slips: {
+        title: "Which forms they signed",
+        onBack: () => { setSlips(null); setSlipsNote(""); onSheet("yes"); },
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={slipsNote} placeholder="Which slips, e.g. Saturday's" maxLength={200} disabled={busy} aria-label="Which forms they signed" onChange={(e) => setSlipsNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") recordSlips(); if (e.key === "Escape") closeSlips(); }} data-testid="bulk-form-note" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !slipsNote.trim()} onClick={recordSlips} data-testid="bulk-form-save">Record</button>
+          </>
+        ),
+      },
+      receptionist: {
+        title: "Receptionist",
+        onBack: back,
+        body: (
+          <div className="pp-sheet-rows">
+            <div className="pp-sheet-rows-h">For these people</div>
+            {PL_MODES.map((m) => <PhoneSheetRow key={m.id} icon={m.icon} label={plModeWord(m.id)} disabled={busy} onClick={() => { onSheet(null); receptionist({ ...m, label: plModeWord(m.id) }); }} testid={`bulk-mode-${m.id}`} />)}
+          </div>
+        ),
+      },
+      note: {
+        title: "Add a note",
+        onBack: back,
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={note} placeholder="One line, under their notes" maxLength={200} disabled={busy} aria-label="The note" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addNote(); if (e.key === "Escape") { setNote(""); onSheet(null); } }} data-testid="bulk-note-line" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !note.trim()} onClick={addNote} data-testid="bulk-note-save">Add</button>
+          </>
+        ),
+      },
+      naming: {
+        title: "New list",
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} aria-label="The list's name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createAndAdd(); if (e.key === "Escape") { setName(""); onSheet(null); } }} data-testid="bulk-list-name" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !name.trim()} onClick={createAndAdd} data-testid="bulk-list-save">Make it</button>
+          </>
+        ),
+      },
+    };
+    const step = n > 0 && sheet ? steps[sheet] : null;
+    return (
+      <>
+        <div className="cl-bulk pp-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
+          <button type="button" className="pp-bar-icon" aria-label="Clear the selection" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={18} /></button>
+          <span className="cl-bulk-count">{n ? <><b>{n}</b> selected</> : "Tap people to select them"}</span>
+          {canEdit && window.__lists && n > 0 && (
+            <MoreMenu
+              btnClass="btn btn-sm"
+              escape
+              label="Add to list"
+              title="Add to a list"
+              gated={busy ? "One moment — the last change is still saving" : null}
+              items={savedRead ? [
+                { header: "Add to" },
+                ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+                { label: "New list…", icon: "plus", onClick: newList },
+              ] : [
+                // Lists that could not be read are not offered; a new one can still be made.
+                { header: "Your saved lists couldn't be read" },
+                { label: "New list…", icon: "plus", onClick: newList },
+              ]}
+            />
+          )}
+          {n > 0 && <button type="button" className="pp-bar-icon" aria-label={`More for the ${n} selected`} aria-haspopup="dialog" onClick={() => onSheet("more")} data-testid="bulk-more"><Icon name="more" size={18} /></button>}
+        </div>
+        {step && (
+          <PhoneSheet title={step.title} onBack={step.onBack || null} onClose={() => onSheet(null)} testid="bulk-sheet">
+            {step.body}
+          </PhoneSheet>
+        )}
+      </>
+    );
+  }
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
-      <span className="cl-bulk-count">{ids.length || !phone ? <><b>{ids.length}</b> selected</> : "Tap people to select them"}</span>
+      <span className="cl-bulk-count"><b>{ids.length}</b> selected</span>
       {canEdit && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
@@ -1606,7 +1727,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       )}
       {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them. */}
       {canEdit && window.__lists && activeSaved && !naming && (
-        <button className="btn btn-sm" disabled={busy} onClick={() => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); })} data-testid="bulk-drop-list">
+        <button className="btn btn-sm" disabled={busy} onClick={dropFromList} data-testid="bulk-drop-list">
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
       )}

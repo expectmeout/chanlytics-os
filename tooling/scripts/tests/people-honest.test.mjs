@@ -754,6 +754,156 @@ test("Esc ends a Select-people selection; a member who may neither edit nor expo
   }
 }));
 
+/** A class token, whole: pp-sheet-row, not pp-sheet-row-words. */
+const hasClass = (n, c) => String(n?.props?.className || "").split(/\s+/).includes(c);
+/** The sheet's rows, in order, by their test ids. */
+const sheetRows = (sheet) => all(sheet, (n) => n.type === "button" && hasClass(n, "pp-sheet-row")).map((n) => n.props["data-testid"]);
+/** A phone's selection of p1 and p2 by their faces, and its sheet opened with ⋯. */
+const bulkSheetOpen = () => {
+  byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+  byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
+  click(byTestId(draw(), "bulk-more"));
+  return draw();
+};
+
+test("REGRESSION: on a phone a selection is one row -- ✕, the count, Add to list and ⋯ -- its seven controls stacked into a 312px pill over the rows", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2), person(3)], lists: [{ id: "s1", name: "Regulars", ids: [] }] });
+  globalThis.window.__setPersonConsentMany = async () => ({ ok: true, done: 2 });
+  globalThis.window.__appendPersonNotesMany = async () => ({ ok: true, done: 2 });
+  try {
+    byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+    byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
+    const tree = draw();
+    const bar = byTestId(tree, "bulk-bar");
+    assert.ok(hasClass(bar, "pp-bulk"), "the phone's row");
+    const controls = bar.props.children.filter(Boolean).map((k) => k.props?.["data-testid"] || (k.type === globalThis.MoreMenu ? `menu:${k.props.label}` : k.props?.className));
+    assert.deepEqual(controls, ["bulk-clear", "cl-bulk-count", "menu:Add to list", "bulk-more"], "four things, in one row");
+    assert.equal(textOf(find(bar, (n) => hasClass(n, "cl-bulk-count"))), "2 selected");
+    for (const id of ["bulk-note", "bulk-form-note", "bulk-list-name", "bulk-export"]) assert.equal(byTestId(bar, id), null, `${id} is the sheet's, not the row's`);
+    assert.equal(find(bar, (n) => n.type === globalThis.MoreMenu && n.props.label !== "Add to list"), null, "REGRESSION: Record a yes and Receptionist were menus in the row");
+    const add = find(bar, (n) => n.type === globalThis.MoreMenu);
+    assert.equal(add.props.escape, true, "placed against the window");
+    assert.deepEqual(add.props.items.map((i) => i.label || i.header), ["Add to", "Regulars", "New list…"]);
+    assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
+  } finally {
+    delete globalThis.window.__setPersonConsentMany;
+    delete globalThis.window.__appendPersonNotesMany;
+  }
+}));
+
+test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›, Add a note ›, Export -- and a step asks, acts, then shuts", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  const said = [];
+  globalThis.window.__setPersonConsentMany = async (ids, body) => { said.push(["yes", ids, body]); return { ok: true, done: ids.length }; };
+  globalThis.window.__appendPersonNotesMany = async (ids, line) => { said.push(["note", ids, line]); return { ok: true, done: ids.length }; };
+  globalThis.window.__href = () => "";
+  try {
+    let tree = bulkSheetOpen();
+    let sheet = byTestId(tree, "bulk-sheet");
+    assert.equal(sheet.props["aria-label"], "2 selected");
+    assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-yes", "bulk-note", "bulk-export"]);
+    assert.equal(textOf(byTestId(sheet, "bulk-select-all")), "Select all 3");
+    // Record a yes, on a sign-up form: the step asks which forms, then records, then the sheet shuts.
+    click(byTestId(sheet, "bulk-yes"));
+    tree = draw();
+    sheet = byTestId(tree, "bulk-sheet");
+    assert.equal(sheet.props["aria-label"], "Record a yes");
+    assert.deepEqual(sheetRows(sheet), ["bulk-yes-conversational-in_person", "bulk-yes-conversational-phone", "bulk-yes-conversational-form"]);
+    click(byTestId(sheet, "bulk-yes-conversational-form"));
+    tree = draw();
+    byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "Saturday's slips" } });
+    await byTestId(draw(), "bulk-form-save").props.onClick();
+    await settle();
+    tree = draw();
+    assert.deepEqual(said.at(-1), ["yes", ["p1", "p2"], { consent: "opted_in", source: "form", note: "Saturday's slips" }]);
+    assert.equal(byTestId(tree, "bulk-sheet"), null, "the sheet shuts once it lands");
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "the selection stays, as on a desktop");
+    // A spoken yes is recorded at the tap.
+    click(byTestId(tree, "bulk-more"));
+    click(byTestId(draw(), "bulk-yes"));
+    click(byTestId(draw(), "bulk-yes-conversational-in_person"));
+    await settle();
+    assert.deepEqual(said.at(-1), ["yes", ["p1", "p2"], { consent: "opted_in", source: "in_person" }]);
+    assert.equal(byTestId(draw(), "bulk-sheet"), null);
+    // Add a note: one line, Add; noted, the selection is done with.
+    click(byTestId(draw(), "bulk-more"));
+    click(byTestId(draw(), "bulk-note"));
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-sheet").props["aria-label"], "Add a note");
+    byTestId(tree, "bulk-note-line").props.onChange({ target: { value: "Called about the move" } });
+    await byTestId(draw(), "bulk-note-save").props.onClick();
+    await settle();
+    assert.deepEqual(said.at(-1), ["note", ["p1", "p2"], "Called about the move"]);
+    assert.equal(byTestId(draw(), "bulk-bar"), null, "noted, the selection clears, as on a desktop");
+  } finally {
+    delete globalThis.window.__setPersonConsentMany;
+    delete globalThis.window.__appendPersonNotesMany;
+    delete globalThis.window.__href;
+  }
+}));
+
+test("on a phone Esc shuts the selection's sheet and keeps the selection; Back walks a step back; Select all picks everyone shown", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  globalThis.window.__setPersonConsentMany = async () => ({ ok: true, done: 1 });
+  try {
+    let tree = bulkSheetOpen();
+    click(byTestId(tree, "bulk-yes"));
+    tree = draw();
+    click(byTestId(tree, "bulk-sheet-back"));
+    tree = draw();
+    assert.ok(byTestId(tree, "bulk-select-all"), "back at the list");
+    assert.equal(byTestId(tree, "bulk-sheet-back"), null, "the list has no way back of its own");
+    assert.equal(press("j"), false, "the sheet holds the keys: J walks nothing behind it");
+    assert.equal(press("Escape"), true);
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-sheet"), null, "Esc shut the sheet");
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and not the selection behind it");
+    click(byTestId(tree, "bulk-more"));
+    click(byTestId(draw(), "bulk-select-all"));
+    tree = draw();
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/);
+    assert.equal(byTestId(tree, "bulk-sheet"), null, "Select all shuts the sheet");
+    assert.equal(press("Escape"), true);
+    assert.equal(byTestId(draw(), "bulk-bar"), null, "and the next Esc clears the selection");
+  } finally {
+    delete globalThis.window.__setPersonConsentMany;
+  }
+}));
+
+test("on a phone Add to list › New list… names the list in the sheet; a member who may only export gets Export and the reason", () => onPhone(async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  const made = [];
+  globalThis.window.__lists = lists({ create: async (n) => { made.push(n); return { ok: true, data: { id: "s9" } }; }, add: async () => ({ ok: true, data: {} }) });
+  byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+  let tree = draw();
+  find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu).props.items.find((i) => i.label === "New list…").onClick();
+  tree = draw();
+  assert.equal(byTestId(tree, "bulk-sheet").props["aria-label"], "New list", "the name is asked in the sheet, not in the row");
+  byTestId(tree, "bulk-list-name").props.onChange({ target: { value: "Saturday" } });
+  await byTestId(draw(), "bulk-list-save").props.onClick();
+  await settle();
+  assert.deepEqual(made, ["Saturday"]);
+  tree = draw();
+  assert.equal(byTestId(tree, "bulk-sheet"), null, "made, the sheet shuts");
+  assert.match(textOf(flashes.at(-1).msg), /1 on the new list Saturday/);
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  globalThis.window.__href = () => "";
+  try {
+    await freshPage({ people: [person(1), person(2)] });
+    byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+    tree = draw();
+    assert.equal(find(byTestId(tree, "bulk-bar"), (n) => n.type === globalThis.MoreMenu), null, "no Add to list for a member who may not edit");
+    click(byTestId(tree, "bulk-more"));
+    const sheet = byTestId(draw(), "bulk-sheet");
+    assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-export"]);
+    assert.match(textOf(sheet), /Only an owner or operator can add to lists or record a yes\./);
+  } finally {
+    globalThis.window.__ME = me;
+    delete globalThis.window.__href;
+  }
+}));
+
 test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () => onPhone(async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw({ initialSaved: "s1" });
