@@ -1273,8 +1273,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    own words -- is the part that loses. So Today's rows stack: who and when, then
    what they said, then what the receptionist could not finish, then the verbs
    under it. The markup is unchanged and still AttnRow's, so People's strip and
-   Today keep one component; only Today's copy of it is laid out this way. */
-.tq .cl-attn-row {
+   Today keep one component; only Today's copy of it is laid out this way.
+   Today's copy is named by its page. .tq is also the card Setup's rows sit in
+   (setup.jsx), so a row rule on .tq alone reached Setup too: the hidden disc
+   took its glyph, and every row's words fell into the glyph's 36px column.
+   :where() weighs nothing, so each rule weighs what it did on .tq alone. */
+:where(.dash-a-v2) .tq .cl-attn-row {
   grid-template-columns: minmax(0, 1fr);
   height: auto;
   align-items: start;
@@ -1283,15 +1287,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 /* The canvas names the person and drops the initials disc: at this size the two
    words carry it, and the row gains the whole column. */
-.tq .cl-attn-avatar { display: none; }
-.tq .cl-attn-body { gap: 6px; }
-.tq .cl-attn-name { font-size: 13.5px; }
-.tq .cl-attn-meta { font-size: 12.5px; }
-.tq .cl-attn-sentence { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+:where(.dash-a-v2) .tq .cl-attn-avatar { display: none; }
+:where(.dash-a-v2) .tq .cl-attn-body { gap: 6px; }
+:where(.dash-a-v2) .tq .cl-attn-name { font-size: 13.5px; }
+:where(.dash-a-v2) .tq .cl-attn-meta { font-size: 12.5px; }
+:where(.dash-a-v2) .tq .cl-attn-sentence { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
 /* What is left over may take a second line here; pinned right it could not. */
-.tq .cl-attn-status { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
-.tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
-.tq .cl-attn-cta { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
+:where(.dash-a-v2) .tq .cl-attn-status { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
+:where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
+:where(.dash-a-v2) .tq .cl-attn-cta { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
 
 /* One surface, not a bar over a list: the head loses its sunken fill and its rule,
    and the sentence sits under the title instead of beside it. */
@@ -1341,10 +1345,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The queue's row: the page's verb first, the customer's words plain (the
    quotation marks already say whose they are), and the state as one calm line
    rather than a coloured lead with a tinted tail. */
-.tq .cl-attn-cta.primary { order: -1; }
-.tq .cl-attn-sentence.quoted { font-style: normal; }
-.tq .cl-attn-status, .tq .cl-attn-status span { color: var(--ink-muted); }
-.tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
+:where(.dash-a-v2) .tq .cl-attn-cta.primary { order: -1; }
+:where(.dash-a-v2) .tq .cl-attn-sentence.quoted { font-style: normal; }
+:where(.dash-a-v2) .tq .cl-attn-status, :where(.dash-a-v2) .tq .cl-attn-status span { color: var(--ink-muted); }
+:where(.dash-a-v2) .tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
 
 /* Worth a look: the tag in words, not a red mono label; the arithmetic in the
    mono, where a count reads as a count; a neutral tile, amber only where a
@@ -1392,15 +1396,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    and that shape is what tells a run from a person in the same list. On a phone
    the verbs would squeeze the sentence to a sliver, so there a run stacks like
    a person does. */
-.tq .cl-attn-row[data-testid="brief-run-row"], .tq .cl-attn-row[data-testid="brief-run-soon"] { padding: 10px 18px; }
-.tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-body, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-body { gap: 2px; }
-.tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-sentence, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-sentence { font-size: 12.5px; color: var(--ink-muted); }
+:where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"], :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] { padding: 10px 18px; }
+:where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-body, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-body { gap: 2px; }
+:where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-sentence, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-sentence { font-size: 12.5px; color: var(--ink-muted); }
 @media (min-width: 700px) {
-  .tq .cl-attn-row[data-testid="brief-run-row"], .tq .cl-attn-row[data-testid="brief-run-soon"] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-acts, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-acts { grid-column: 2; grid-row: 1; padding-top: 0; }
+  :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"], :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-acts, :where(.dash-a-v2) .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-acts { grid-column: 2; grid-row: 1; padding-top: 0; }
 }
 
 /* Every row leads with its own verb, not only the row that carries the page's
    primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
    button AttnRow marks attention-cta; the second word follows it. */
-.tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
+:where(.dash-a-v2) .tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
