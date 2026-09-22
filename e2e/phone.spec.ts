@@ -240,4 +240,41 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByTestId("add-person-sheet-close").click();
     await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
   });
+  /**
+   * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one row standing on the tab
+   * bar -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
+   * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
+   */
+  test("a selection is one row on the tab bar, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    test.skip((await row.count()) === 0, "nobody on this workspace");
+    const pick = row.getByTestId("row-select");
+    test.skip((await pick.count()) === 0, "this member can neither edit nor export people");
+    // The box is laid over the face at no opacity: the face is what a finger sees.
+    await pick.click({ force: true });
+    const bar = page.getByTestId("bulk-bar");
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText("1 selected");
+    const vp = page.viewportSize()!;
+    const box = (await bar.boundingBox())!;
+    expect(box.x, "edge to edge").toBeLessThanOrEqual(0.5);
+    expect(box.x + box.width).toBeGreaterThanOrEqual(vp.width - 0.5);
+    expect(box.height, "one row").toBeLessThanOrEqual(64);
+    expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth), "nothing past its edge").toBeLessThanOrEqual(1);
+    const tabs = (await page.getByTestId("phone-tabs").boundingBox())!;
+    expect(box.y + box.height, "it stands on the tab bar, not under it").toBeLessThanOrEqual(tabs.y + 1);
+    await bar.getByTestId("bulk-more").click();
+    const sheet = page.getByTestId("bulk-sheet");
+    await expect(sheet).toBeVisible();
+    const rows = sheet.locator(".pp-sheet-row");
+    expect(await rows.count(), "the rest of what a selection can become").toBeGreaterThan(0);
+    await expect(rows.last()).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("bulk-sheet-close").click();
+    await expect(sheet).toHaveCount(0);
+    await expect(bar, "Cancel shuts the sheet and keeps the selection").toContainText("1 selected");
+    await bar.getByTestId("bulk-clear").click();
+    await expect(bar).toHaveCount(0);
+  });
 });

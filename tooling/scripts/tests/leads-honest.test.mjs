@@ -1269,6 +1269,73 @@ test("the bulk bar acts on the leads loaded and selected; Select all N that matc
   assert.equal(textOf(flashes.at(-1).msg), "Copied 3 emails; 2 had none you can use", "what was copied, and what could not be");
 });
 
+test("REGRESSION: Esc after Select all N that match lets go of the view too -- the next lead selected was counted, and acted on, as the whole view", () => {
+  fresh();
+  byTestId(draw(), "select-all").props.onChange();
+  click(byTestId(draw(), "leads-select-matching"));
+  assert.match(textOf(byTestId(draw(), "leads-bulk-bar")), /322 selected/);
+  assert.equal(press("Escape"), true);
+  assert.equal(byTestId(draw(), "leads-bulk-bar"), null, "Esc cleared the selection");
+  press("j");
+  draw();
+  assert.equal(press("x"), true, "x selects the lead under the cursor");
+  const bar = byTestId(draw(), "leads-bulk-bar");
+  assert.match(textOf(bar), /^1 selected/, "REGRESSION: 322 selected -- the view Esc should have let go of");
+});
+
+test("REGRESSION: the bulk bar draws Check N again for a lead to check again, with its cost -- it read V, which nothing in its scope defines, and the page threw", () => {
+  fresh();
+  globalThis.window.__leadCheckAgain = async (ids) => { calls.push(["check_again", ids]); return ok({ scheduled: ids.length, skipped: 0, toast: "Checking 1 again." }); };
+  try {
+    byTestId(rowOf(draw(), "l3"), "row-select").props.onChange();
+    const tree = draw();
+    const again = byTestId(tree, "leads-bulk-check-again");
+    assert.ok(again, "Check again, for the lead whose mail server would not answer");
+    assert.match(textOf(again), /Check 1 again · about 1¢/, "with what it costs");
+  } finally {
+    delete globalThis.window.__leadCheckAgain;
+  }
+});
+
+test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark contacted, ⋯ -- and Not a fit asks its five whys in the sheet; the why list was the peek's, drawn full screen", async () => {
+  fresh();
+  globalThis.__phone = true;
+  try {
+    byTestId(draw(), "select-all").props.onChange();
+    let tree = draw();
+    const bar = byTestId(tree, "leads-bulk-bar");
+    assert.ok(String(bar.props.className).split(/\s+/).includes("pp-bulk"), "the phone's row");
+    assert.deepEqual(bar.props.children.filter(Boolean).map((k) => k.props?.["data-testid"] || k.props?.className), ["leads-bulk-clear", "cl-bulk-count", "leads-bulk-contacted", "leads-bulk-more"], "four things, in one row");
+    assert.equal(byTestId(bar, "leads-bulk-copy"), null, "the rest are the sheet's");
+    click(byTestId(tree, "leads-bulk-more"));
+    tree = draw();
+    const sheet = byTestId(tree, "leads-bulk-sheet");
+    assert.equal(sheet.props["aria-label"], "5 selected");
+    const rows = all(sheet, (n) => (n.type === "button" || n.type === "a") && String(n.props?.className || "").split(/\s+/).includes("pp-sheet-row")).map((n) => n.props["data-testid"]);
+    assert.deepEqual(rows, ["leads-select-matching", "leads-bulk-copy", "leads-bulk-not-a-fit", "leads-bulk-export"]);
+    click(byTestId(sheet, "leads-bulk-not-a-fit"));
+    tree = draw();
+    assert.equal(byTestId(tree, "peek-why"), null, "REGRESSION: the peek's own list, which a phone draws full screen");
+    const whys = byTestId(tree, "leads-bulk-why");
+    assert.ok(whys, "the five whys, as the sheet's step");
+    assert.ok(byTestId(whys, "leads-bulk-why-back"), "with a way back to the list");
+    click(byTestId(whys, "leads-bulk-why-chain"));
+    await settle();
+    // bulkNotAFit sends LeadsBulkSchema's body, which carries no reason: the ids shown and selected.
+    assert.deepEqual(calls.at(-1), ["bulk", { by: "ids", action: "not_a_fit", ids: ["l1", "l2", "l3", "l4", "l5"] }]);
+    assert.equal(byTestId(draw(), "leads-bulk-why"), null, "the sheet shuts on the pick");
+    // Esc shuts the sheet and keeps the selection; the next Esc clears it.
+    click(byTestId(draw(), "leads-bulk-more"));
+    assert.ok(byTestId(draw(), "leads-bulk-sheet"));
+    assert.equal(press("Escape"), true);
+    tree = draw();
+    assert.equal(byTestId(tree, "leads-bulk-sheet"), null);
+    assert.ok(byTestId(tree, "leads-bulk-bar"), "the selection stays");
+  } finally {
+    globalThis.__phone = false;
+  }
+});
+
 /* ------------------------------------ the words ------------------------------------ */
 
 test("no word the Leads scope says names the vendor, and no number on it is a dollar amount", () => {

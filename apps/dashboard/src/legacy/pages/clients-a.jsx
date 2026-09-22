@@ -789,6 +789,9 @@ const PL_PHONE_SORTS = [
 ];
 // An empty Add a person and an empty list draft: the phone's sheets' drafts are the page's state.
 const PL_ADD_EMPTY = { name: "", phone: "", busy: false, error: null };
+// How a yes was given, as a phone's Record a yes draws it: a person, a phone, a form. A tick on every row read as a
+// list already ticked.
+const PL_SOURCE_GLYPH = { in_person: "user", phone: "phone", form: "content" };
 const PL_LIST_EMPTY = { name: "", busy: false, error: null };
 
 // A stable empty list, so a workspace without saved lists does not re-run the
@@ -1462,7 +1465,7 @@ const plUndoList = async (id, name, flash) => {
 // the bar shows what the role allows and says why when it does not.
 // `phone`: the bar is docked along the foot of a phone's pane and scrolls sideways, so its menus are placed against the
 // window (MoreMenu escape), which that scroll cannot cut off.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false }) => {
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null, phone = false, sheet = null, onSheet = () => {}, onSelectAll = null }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1513,7 +1516,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     setBusy(true);
     const { made, filled, id } = await plMakeListWith(n, ids);
     if (!made.ok) { setBusy(false); flash({ tone: "danger", msg: <>{made.message || "Could not make the list."}</> }); return; }
-    setBusy(false); setNaming(false); setName("");
+    setBusy(false); setNaming(false); setName(""); onSheet(null);
     flash(filled.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(id, n, flash) } : window.refusalToast(filled, id ? `${n} was not made` : "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
@@ -1541,6 +1544,8 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     keepRest,
     );
   };
+  // With a list kept by hand open, the selection can leave it; the people stay.
+  const dropFromList = () => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); });
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
   const [noting, setNoting] = React.useState(false);
@@ -1550,7 +1555,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const [slips, setSlips] = React.useState(null);
   const [slipsNote, setSlipsNote] = React.useState("");
   const yesBy = (purpose, s) => (s.id === "form" ? () => { setSlips({ purpose, source: s }); setSlipsNote(""); } : () => yes(purpose, s));
-  const closeSlips = () => { setSlips(null); setSlipsNote(""); };
+  const closeSlips = () => { setSlips(null); setSlipsNote(""); onSheet(null); };
   const recordSlips = () => {
     const line = slipsNote.trim();
     if (!line || !slips || busy) return;
@@ -1571,12 +1576,131 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
     const r = await window.__appendPersonNotesMany(batch, line);
     setBusy(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b>{restWords}</> : <>{r.message}</> });
-    if (r.ok) { setNoting(false); setNote(""); if (rest.length) onKeep(rest); else onClear(); }
+    if (r.ok) { setNoting(false); setNote(""); onSheet(null); if (rest.length) onKeep(rest); else onClear(); }
   };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
   // A yes to offers is written (00100), so the only way a desk records one for a
   // whole selection is the form they signed.
   const offersSources = (window.__offersYesSources || []).filter((s) => s.id !== "customer_message");
+  // On a phone (spec 4.5): one row docked along the foot of the pane -- ✕, the count, Add to list and ⋯ -- and a sheet
+  // with the rest, where an act that asks something first asks it as a step. The step is the page's (`sheet`), so its
+  // one keyboard listener shuts the sheet on Esc; the drafts are this bar's, as on a desktop. The row stacked seven
+  // controls into a 312px pill over the rows, and each of its three forms ran off the screen's edge.
+  if (phone) {
+    const n = ids.length;
+    const back = () => onSheet("more");
+    // A spoken yes is recorded at the tap; a sign-up form's waits for the note that says which forms.
+    const yesOnPhone = (purpose, s) => () => {
+      if (s.id === "form") { setSlips({ purpose, source: s }); setSlipsNote(""); onSheet("slips"); return; }
+      onSheet(null);
+      yes(purpose, s);
+    };
+    const newList = () => { setName(""); onSheet("naming"); };
+    const steps = {
+      more: {
+        title: `${n} selected`,
+        body: (
+          <div className="pp-sheet-rows">
+            {onSelectAll && n < rows.length ? <PhoneSheetRow icon="check" label={`Select all ${rows.length}`} onClick={() => { onSheet(null); onSelectAll(); }} testid="bulk-select-all" /> : null}
+            {canEdit && window.__setPersonConsentMany && sources.length > 0 ? <PhoneSheetRow icon="shield" label="Record a yes" next disabled={busy} onClick={() => onSheet("yes")} testid="bulk-yes" /> : null}
+            {canEdit && isOwner && window.__setPersonReceptionistMany ? <PhoneSheetRow icon="agents" label="Receptionist" next disabled={busy} onClick={() => onSheet("receptionist")} testid="bulk-receptionist" /> : null}
+            {canEdit && window.__appendPersonNotesMany ? <PhoneSheetRow icon="edit" label="Add a note" next disabled={busy} onClick={() => { setNote(""); onSheet("note"); }} testid="bulk-note" /> : null}
+            {canExport ? <PhoneSheetRow icon="external" label="Export" meta="CSV" disabled={busy} onClick={() => { onSheet(null); exportCsv(); }} testid="bulk-export" /> : null}
+            {canEdit && window.__lists && activeSaved ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
+            {!canEdit ? <p className="pp-sheet-hint pp-sheet-rows-note">Only an owner or operator can add to lists or record a yes.</p> : null}
+          </div>
+        ),
+      },
+      yes: {
+        title: "Record a yes",
+        onBack: back,
+        body: (
+          <div className="pp-sheet-rows">
+            <div className="pp-sheet-rows-h">To messages about their visit</div>
+            {sources.map((s) => <PhoneSheetRow key={s.id} icon={PL_SOURCE_GLYPH[s.id] || "check"} label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("conversational", s)} testid={`bulk-yes-conversational-${s.id}`} />)}
+            {window.__setPersonMarketingConsentMany && offersSources.length > 0 ? (
+              <>
+                <div className="pp-sheet-rows-h">To offers and news</div>
+                {offersSources.map((s) => <PhoneSheetRow key={s.id} icon={PL_SOURCE_GLYPH[s.id] || "tag"} label={s.label} next={s.id === "form"} disabled={busy} onClick={yesOnPhone("marketing", s)} testid={`bulk-yes-marketing-${s.id}`} />)}
+              </>
+            ) : null}
+          </div>
+        ),
+      },
+      slips: {
+        title: "Which forms they signed",
+        onBack: () => { setSlips(null); setSlipsNote(""); onSheet("yes"); },
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={slipsNote} placeholder="Which slips, e.g. Saturday's" maxLength={200} disabled={busy} aria-label="Which forms they signed" onChange={(e) => setSlipsNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") recordSlips(); if (e.key === "Escape") closeSlips(); }} data-testid="bulk-form-note" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !slipsNote.trim()} onClick={recordSlips} data-testid="bulk-form-save">Record</button>
+          </>
+        ),
+      },
+      receptionist: {
+        title: "Receptionist",
+        onBack: back,
+        body: (
+          <div className="pp-sheet-rows">
+            <div className="pp-sheet-rows-h">For these people</div>
+            {PL_MODES.map((m) => <PhoneSheetRow key={m.id} icon={m.icon} label={plModeWord(m.id)} disabled={busy} onClick={() => { onSheet(null); receptionist({ ...m, label: plModeWord(m.id) }); }} testid={`bulk-mode-${m.id}`} />)}
+          </div>
+        ),
+      },
+      note: {
+        title: "Add a note",
+        onBack: back,
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={note} placeholder="One line, under their notes" maxLength={200} disabled={busy} aria-label="The note" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addNote(); if (e.key === "Escape") { setNote(""); onSheet(null); } }} data-testid="bulk-note-line" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !note.trim()} onClick={addNote} data-testid="bulk-note-save">Add</button>
+          </>
+        ),
+      },
+      naming: {
+        title: "New list",
+        body: (
+          <>
+            <input className="pp-input" autoFocus value={name} placeholder="Name the list" maxLength={60} disabled={busy} aria-label="The list's name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createAndAdd(); if (e.key === "Escape") { setName(""); onSheet(null); } }} data-testid="bulk-list-name" />
+            <button type="button" className="btn btn-primary pp-sheet-go" disabled={busy || !name.trim()} onClick={createAndAdd} data-testid="bulk-list-save">Make it</button>
+          </>
+        ),
+      },
+    };
+    const step = n > 0 && sheet ? steps[sheet] : null;
+    return (
+      <>
+        <div className="cl-bulk pp-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
+          <button type="button" className="pp-bar-icon" aria-label="Clear the selection" onClick={onClear} data-testid="bulk-clear"><Icon name="x" size={18} /></button>
+          <span className="cl-bulk-count">{n ? <><b>{n}</b> selected</> : "Tap people to select them"}</span>
+          {canEdit && window.__lists && n > 0 && (
+            <MoreMenu
+              btnClass="btn btn-sm"
+              escape
+              label="Add to list"
+              title="Add to a list"
+              gated={busy ? "One moment — the last change is still saving" : null}
+              items={savedRead ? [
+                { header: "Add to" },
+                ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+                { label: "New list…", icon: "plus", onClick: newList },
+              ] : [
+                // Lists that could not be read are not offered; a new one can still be made.
+                { header: "Your saved lists couldn't be read" },
+                { label: "New list…", icon: "plus", onClick: newList },
+              ]}
+            />
+          )}
+          {n > 0 && <button type="button" className="pp-bar-icon" aria-label={`More for the ${n} selected`} aria-haspopup="dialog" onClick={() => onSheet("more")} data-testid="bulk-more"><Icon name="more" size={18} /></button>}
+        </div>
+        {step && (
+          <PhoneSheet title={step.title} onBack={step.onBack || null} onClose={() => onSheet(null)} testid="bulk-sheet">
+            {step.body}
+          </PhoneSheet>
+        )}
+      </>
+    );
+  }
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
       <span className="cl-bulk-count"><b>{ids.length}</b> selected</span>
@@ -1606,7 +1730,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       )}
       {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them. */}
       {canEdit && window.__lists && activeSaved && !naming && (
-        <button className="btn btn-sm" disabled={busy} onClick={() => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); })} data-testid="bulk-drop-list">
+        <button className="btn btn-sm" disabled={busy} onClick={dropFromList} data-testid="bulk-drop-list">
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
       )}
@@ -1721,21 +1845,34 @@ const AddPersonButton = ({ onAdded, flash }) => {
   );
 };
 
-// A sheet from the bottom of a phone for People's own small jobs -- Add a person, and the open list's rename, delete
-// and "Save these": a handle, a title, one way out, and the job. The page's own dialog: `pl-sheet` keeps it out of
-// PL_OVERLAY, and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
-const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", testid, children }) => (
+// A sheet from the bottom of a phone for People's own small jobs -- Add a person, the open list's rename, delete and
+// "Save these", and what a selection can become: a handle, a title, one way out, and the job. A step inside a sheet
+// (`onBack`) has a way back to the list it came from. The page's own dialog: `pl-sheet` keeps it out of PL_OVERLAY,
+// and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
+const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", onBack = null, testid, children }) => (
   <>
     <div className="sb-sheet-backdrop" onClick={onClose} />
     <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
       <div className="pp-sheet-handle" aria-hidden="true" />
       <div className="pp-sheet-head">
+        {onBack && <button type="button" className="pp-sheet-back" onClick={onBack} aria-label="Back" data-testid={`${testid}-back`}><Icon name="chevron" size={18} /></button>}
         <h2 className="pp-sheet-title">{title}</h2>
         {closeLabel && <button type="button" className="pp-sheet-close" onClick={onClose} data-testid={`${testid}-close`}>{closeLabel}</button>}
       </div>
       <div className="pp-sheet-body">{children}</div>
     </div>
   </>
+);
+
+// One row of a phone sheet's list: its glyph, its words, what it holds (a file's kind), and a chevron when it opens a
+// step of its own. `gate` is window.gate's answer for a row the member's role refuses: focusable, described, inert.
+const PhoneSheetRow = ({ icon = null, label, meta = null, next = false, danger = false, disabled = false, onClick, testid, gate = null }) => (
+  <button type="button" className={`pp-sheet-row${danger ? " danger" : ""}`} disabled={disabled} onClick={onClick} data-testid={testid} {...(gate || {})}>
+    {icon ? <Icon name={icon} size={16} /> : null}
+    <span className="pp-sheet-row-words">{label}</span>
+    {meta ? <span className="pp-sheet-row-meta">{meta}</span> : null}
+    {next ? <Icon name="chevron" size={14} className="pp-sheet-row-next" /> : null}
+  </button>
 );
 
 // Add a person on a phone: the two fields stacked, 16px, a number pad for the number, one wide button. The desktop's
@@ -1828,6 +1965,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
   const [listAct, setListAct] = useState(null);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
+  // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
+  // nobody picked yet. The page's, so its one keyboard listener shuts the sheet on Esc and the sheet is hookless.
+  const [bulkSheet, setBulkSheet] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
   const [phone, setPhone] = useState(plPhoneNow);
   React.useEffect(() => {
     const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
@@ -2212,7 +2353,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // two more and clears it again still has their forty. Both bars count and act on only the rows they show
   // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
   // is shown, so the words do take that back.
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, viewRoute, chip]);
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); }, [tab, listId, savedId, viewRoute, chip]);
   React.useEffect(() => { setAllMatching(false); }, [q]);
   const shownIds = rowsShown.map((r) => r.id);
   // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
@@ -2653,6 +2794,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
   const leadCellActs = React.useRef({});
   const leadCellKept = React.useRef(null);
+  // Clearing a selection lets go of everything that came with it: the view "all N that match" stood for, the
+  // Select-people mode and the sheet's step. Esc, ✕ and Clear all clear it here. Esc left "all N that match" set, and
+  // the next lead selected was counted, and acted on, as the whole view.
+  const clearSelection = () => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); };
   // What the keyboard's one listener reads: this render's rows, cursor and doors.
   keys.current = {
     ids: shownIds,
@@ -2663,12 +2808,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     toggle: toggleSel,
     canSelect: onLeads ? canFind || canExport : canEditLists || canExport,
     // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
-    selected: sel.size > 0,
-    clearSel: () => setSel(new Set()),
+    // A Select-people selection with nobody picked yet is one too.
+    selected: sel.size > 0 || (phone && selectMode),
+    clearSel: clearSelection,
     // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
     focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
-    sheetOpen: listsOpen || addOpen || !!listAct,
-    closeSheet: addOpen || listAct ? closePhoneSheet : null,
+    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
+    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
+    closeSheet: addOpen || listAct ? closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
@@ -2807,7 +2954,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         sel={sel}
         onToggle={toggleSel}
         onToggleAll={toggleAll}
-        onClearSel={() => { setSel(new Set()); setAllMatching(false); }}
+        onClearSel={clearSelection}
         onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
         // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
         // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
@@ -2832,6 +2979,8 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onBulk={bulkLeads}
         bulkWhy={bulkWhy}
         onBulkWhy={setBulkWhy}
+        bulkSheet={phone ? bulkSheet : null}
+        onBulkSheet={setBulkSheet}
         onBulkNotAFit={bulkNotAFit}
         onCopyEmails={copyEmails}
         cursor={cursor}
@@ -2945,13 +3094,15 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
     );
   }
 
-  // Whether anyone shown is selected: the bar shows then, and on a phone a tap on a row selects it rather than opening
-  // the person (Gmail's way; the face is the checkbox, clients.css).
-  const selecting = shown.some((p) => sel.has(p.id));
+  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
+  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
   // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
   // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
   // list open, that list's own acts.
   const phoneMenu = [
+    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
+    ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
     ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => { viewTouched.current = true; setSortBy(s.by); setSortDir(s.dir); } })),
@@ -3103,6 +3254,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
             sortDir={sortDir}
             onSort={onSort}
             onOpen={phone && selecting ? toggleSel : onOpenProfile}
+            selectMode={phone && selectMode}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             scrolled={scrolledX}
@@ -3118,7 +3270,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
         </div>
         {/* The bar counts, and acts on, the people shown and selected. */}
-        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} />}
+        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={clearSelection} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} sheet={phone ? bulkSheet : null} onSheet={setBulkSheet} onSelectAll={() => setSel(new Set(shownIds))} />}
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
             everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
         {listsOpen && (
@@ -3163,4 +3315,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, RailSection, RailGroup, RailRow, railToggle });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, RailSection, RailGroup, RailRow, railToggle });

@@ -611,7 +611,10 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
 // a file. Each acts on the rows shown AND selected; the header box's "Select all N that match" hands the view's
 // filters to the server instead of a list of ids, so a view of 1,240 does not become 1,240 ids in a request.
-const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null }) => {
+const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null, phone = false, sheet = null, onSheet = () => {} }) => {
+  // The view models, for what a check costs. Check again read V with no V in its scope (the other `const V` in this
+  // file are other functions' own), so a selection of leads to check again threw as the bar drew.
+  const V = window.__LEAD_VM || {};
   const picked = rows.filter((l) => sel.has(l.id));
   const ids = picked.map((l) => l.id);
   const count = allMatching ? total : ids.length;
@@ -622,6 +625,52 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
   // and Find an email draw only where their couriers exist, so nothing here is ever a dead control.
   const acts = review && !allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
   const gate = canFind ? {} : window.gate("find", "work these leads");
+  // On a phone (spec 4.5): People's row -- ✕, the count, the act most selections get (Mark contacted) and ⋯ -- and a
+  // sheet with the rest. Not a fit asks its five whys as the sheet's step: the peek's own list (LeadNotFitWhy) wears
+  // .pl-peek, which a phone draws full screen (leads.css), so from this bar it covered the page. The whys are the peek's
+  // words, from their one list (__LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard listener shuts
+  // the sheet on Esc.
+  if (phone) {
+    const Sheet = window.PhoneSheet;
+    const Row = window.PhoneSheetRow;
+    const W = window.__LEAD_WORDS || {};
+    const scope = (action) => (allMatching ? { by: "view", action, view } : { by: "ids", action, ids });
+    const shut = (fn) => () => { onSheet(null); fn(); };
+    return (
+      <>
+        <div className="cl-bulk ld-bulk pp-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
+          <button type="button" className="pp-bar-icon" aria-label="Clear the selection" onClick={onClear} data-testid="leads-bulk-clear"><Icon name="x" size={18} /></button>
+          <span className="cl-bulk-count"><b>{count.toLocaleString()}</b> selected{hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}</span>
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onContacted(scope("contacted"))} data-testid="leads-bulk-contacted" {...(canFind ? {} : window.gate("find", "mark these leads contacted"))}>Mark contacted</button>
+          <button type="button" className="pp-bar-icon" aria-label={`More for the ${count} selected`} aria-haspopup="dialog" onClick={() => onSheet("more")} data-testid="leads-bulk-more"><Icon name="more" size={18} /></button>
+        </div>
+        {sheet === "more" && (
+          <Sheet title={`${count.toLocaleString()} selected`} onClose={() => onSheet(null)} testid="leads-bulk-sheet">
+            <div className="pp-sheet-rows">
+              {!allMatching && total > rows.length ? <Row icon="check" label={`Select all ${total.toLocaleString()} that match`} onClick={shut(onSelectAllMatching)} testid="leads-select-matching" /> : null}
+              {acts.includes("check_again") && review.canCheckAgain ? <Row icon="refresh" label={`Check ${ids.length} again`} meta={`about ${V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length}¢`} disabled={busy} onClick={shut(() => review.onCheckAgain(ids))} testid="leads-bulk-check-again" gate={canFind ? null : gate} /> : null}
+              {acts.includes("find_email") && review.canFindEmail ? <Row icon="search" label={`Find ${ids.length === 1 ? "an email" : `${ids.length} emails`}`} disabled={busy} onClick={shut(() => review.onFindEmail(ids))} testid="leads-bulk-find-email" gate={canFind ? null : gate} /> : null}
+              {acts.includes("keep") ? <Row icon="check" label={`Keep ${ids.length}`} disabled={busy} onClick={shut(() => review.onKeep(ids))} testid="leads-bulk-keep" gate={canFind ? null : gate} /> : null}
+              {acts.includes("exclude") ? <Row icon="x" label={`Exclude ${ids.length}`} disabled={busy} onClick={shut(() => review.onExclude(ids))} testid="leads-bulk-exclude" gate={canFind ? null : gate} /> : null}
+              <Row icon="copy" label="Copy emails" disabled={busy} onClick={shut(() => onCopyEmails(picked))} testid="leads-bulk-copy" />
+              <Row icon="ban" label="Not a fit" next disabled={busy} onClick={() => onSheet("why")} testid="leads-bulk-not-a-fit" gate={canFind ? null : window.gate("find", "mark these leads not a fit")} />
+              {canExport
+                ? <a className="pp-sheet-row" href={exportHref} download onClick={() => onSheet(null)} data-testid="leads-bulk-export"><Icon name="external" size={16} /><span className="pp-sheet-row-words">Export</span><span className="pp-sheet-row-meta">CSV</span></a>
+                : <Row icon="external" label="Export" meta="CSV" gate={window.gate("export", "export these leads")} testid="leads-bulk-export" />}
+              {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
+            </div>
+          </Sheet>
+        )}
+        {sheet === "why" && (
+          <Sheet title={W.notFitTitle || "Not a fit"} onBack={() => onSheet("more")} onClose={() => onSheet(null)} testid="leads-bulk-why">
+            <div className="pp-sheet-rows">
+              {(W.whys || []).map((w) => <Row key={w.id} label={w.label} disabled={busy} onClick={shut(() => onNotAFit(w.id, scope("not_a_fit")))} testid={`leads-bulk-why-${w.id}`} />)}
+            </div>
+          </Sheet>
+        )}
+      </>
+    );
+  }
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
       <span className="cl-bulk-count"><b>{count}</b> selected{hidden > 0 ? <span data-testid="leads-bulk-hidden"> · {hidden} more not shown</span> : null}</span>
@@ -973,6 +1022,9 @@ const LeadsScope = (p) => {
             whyOpen={p.bulkWhy}
             onWhyOpen={p.onBulkWhy}
             exportHref={p.exportHref}
+            phone={phone}
+            sheet={p.bulkSheet}
+            onSheet={p.onBulkSheet}
           />
         )}
         {/* The peek (Task 12): the page's state and its setters, so its own acts (LeadPeekActions) are built
