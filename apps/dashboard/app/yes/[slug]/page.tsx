@@ -141,9 +141,15 @@ export default async function ConsentPage({ params }: { params: Promise<{ slug: 
               </li>
             ))}
           </ul>
+          {/* What the business is before what can be booked: the ninth refusal (30919) asked for the business model. */}
+          {(business.about || business.services.length > 0) && <h2 className="yes-ask-title">What we do</h2>}
+          {business.about && (
+            <p className="yes-who-about" data-testid="yes-who-about">
+              {business.about}
+            </p>
+          )}
           {business.services.length > 0 && (
             <>
-              <h2 className="yes-ask-title">What we do</h2>
               <ul data-testid="yes-who-services">
                 {business.services.slice(0, SERVICES_SHOWN).map((s) => (
                   <li key={s.name}>

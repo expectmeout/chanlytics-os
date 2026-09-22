@@ -65,6 +65,8 @@ const mockFiled = (over = {}) => ({
 const RECORD = {
   ...emptyBusinessRecord({ websiteUrl: "https://harbormoving.example", email: "ada@example.com" }),
   legal_name: "Harbor Moving LLC",
+  about:
+    "A moving company in Brooklyn: homes and small offices across New York, packing and storage. Customers book a free estimate and pay per move.",
   trade_name: "Harbor Moving",
   ein: "12-3456789",
   street: "193 Jamaica Ave",

@@ -171,9 +171,20 @@ const BusinessRecordForm = ({ line, flash }) => {
                 const problem = problems[f.name] || null;
                 const problemId = `biz-${f.name}-problem`;
                 return (
-                  <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
+                  <label className={`biz-field${f.multiline ? " biz-field-wide" : ""}`} key={f.name} data-testid={`biz-${f.name}`}>
                     <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
-                    {f.options ? (
+                    {f.multiline ? (
+                      <textarea
+                        className={`biz-input biz-area${problem ? " biz-bad" : ""}`}
+                        rows={3}
+                        value={record[f.name] ?? ""}
+                        placeholder={f.placeholder || ""}
+                        disabled={!owner || busy}
+                        aria-invalid={problem ? true : undefined}
+                        aria-describedby={problem ? problemId : undefined}
+                        onChange={(e) => set(f.name, e.target.value)}
+                      />
+                    ) : f.options ? (
                       <select className={`biz-input${problem ? " biz-bad" : ""}`} value={record[f.name] ?? ""} disabled={!owner || busy} aria-invalid={problem ? true : undefined} aria-describedby={problem ? problemId : undefined} onChange={(e) => set(f.name, e.target.value)}>
                         {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
                       </select>

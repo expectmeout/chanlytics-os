@@ -27,6 +27,8 @@
  * fixtures.
  */
 import { formatPhoneDisplay } from "./phone";
+import { industryWords } from "./a2p-enums";
+import { ABOUT_MIN } from "./business-record";
 import { notFoundPageMetadata, type PublicPageMetadata } from "./chrome";
 
 /**
@@ -78,6 +80,15 @@ export interface BusinessPageFacts {
   publicPhoneE164: string | null;
   /** Their own website, when they have one. The page links to it rather than replacing it. */
   websiteUrl: string | null;
+  /**
+   * What the business does, in the owner's words (`business_records.about`). A list of
+   * services says what can be booked, not what the business is. The ninth refusal of
+   * the live campaign (30919, 22 Sep 2026) asked for "the products, services, and
+   * industry", and the services alone could not say it.
+   */
+  about: string;
+  /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`. */
+  industry: string;
   /** What they do, from the receptionist's own profile. */
   services: readonly { name: string; durationMin?: number | null; priceNote?: string | null }[];
   /** Where a customer says yes: `/yes/<slug>`. */
@@ -93,8 +104,10 @@ export interface BusinessPageVM {
   title: string;
   /** One line: who this is and why the page exists. */
   lead: string;
-  /** The four facts a reviewer scans for, as label/value pairs. */
+  /** The facts a reviewer scans for, as label/value pairs. */
   identity: { label: string; value: string; href?: string }[];
+  /** What the business does, in its own words; null when the owner has not said. */
+  about: string | null;
   services: { name: string; detail: string | null }[];
   smsLead: string;
   smsClauses: readonly string[];
@@ -128,6 +141,9 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
   const identity: BusinessPageVM["identity"] = [];
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
+  // The vertical the brand was registered under, so the page and the filing say one industry.
+  const industry = (f.industry ?? "").trim();
+  if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
   const where = addressLine(f);
   if (where) identity.push({ label: "Address", value: where });
   const phone = formatPhoneDisplay(f.publicPhoneE164);
@@ -143,6 +159,7 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
       ? "This business has not finished setting up yet."
       : `${known} answers its customers by phone, on WhatsApp and by text. This page says who they are and what those messages are.`,
     identity,
+    about: (f.about ?? "").trim() || null,
     services: f.services.slice(0, 40).map((s) => ({
       name: s.name,
       detail:
@@ -278,12 +295,14 @@ export interface PreflightFacts {
   city: string;
   /** Their own site, when they gave one. */
   websiteUrl: string | null;
+  /** What the business does, in the owner's words. */
+  about: string;
   /** Whether a customer has any way to say yes: a number the opt-in page can name. */
   hasOptInNumber: boolean;
 }
 
 export interface PreflightProblem {
-  id: "name_mismatch" | "no_identity" | "no_opt_in_number" | "website_unusable";
+  id: "name_mismatch" | "no_identity" | "no_about" | "no_opt_in_number" | "website_unusable";
   /** What a reviewer will see, in the owner's words. */
   what: string;
   /** What to do about it. */
@@ -325,6 +344,18 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
       id: "no_identity",
       what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
       fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first.",
+    });
+  }
+
+  // What the business DOES. The pages show it and the campaign description opens with it. Without it, a
+  // reviewer reads "appointments" and "replies" and cannot tell what the business sells or to whom, which
+  // is what the ninth refusal of the live campaign said (30919, 22 Sep 2026: "verify the operational
+  // business model ... describe the products, services, and industry clearly").
+  if ((f.about ?? "").trim().length < ABOUT_MIN) {
+    out.push({
+      id: "no_about",
+      what: "The carriers can't tell what this business does: your page and your registration have no description of it.",
+      fix: "Fill in “What the business does” above in two or three sentences: what you sell, who buys it, and how they pay.",
     });
   }
 

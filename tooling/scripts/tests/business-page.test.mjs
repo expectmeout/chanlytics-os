@@ -31,6 +31,7 @@ import { readCode, readRaw } from "./_source.mjs";
 
 const salon = {
   legalName: "Melany Beauty Corp",
+  about: "A beauty salon in Brooklyn: hair, colour, nails and brows for walk-in and booked clients, who pay per visit.",
   tradeName: "Melany's Beauty Salon",
   street: "2581 Pitkin Ave",
   streetSecondary: null,
@@ -240,6 +241,7 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
 const ready = (over = {}) => ({
   workspaceName: "Melany's Beauty Salon",
   legalName: "Melany Beauty Corp",
+  about: "A beauty salon in Brooklyn: hair, colour, nails and brows for walk-in and booked clients, who pay per visit.",
   tradeName: "Melany's Beauty Salon",
   street: "2581 Pitkin Ave",
   city: "Brooklyn",
@@ -420,4 +422,34 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   );
   // The same floor as the page beside it: nobody identified, nothing published.
   assert.equal(textingTermsVM({ ...salon, legalName: "" }).empty, true);
+});
+
+test("what the business does, and its industry, before what can be booked", () => {
+  // The ninth refusal of the live campaign (30919, 22 Sep 2026): the reviewers could not "verify the
+  // operational business model" and asked for "the products, services, and industry". A services list
+  // names what can be booked without saying what kind of business books it.
+  const vm = businessPageVM({ ...salon, industry: "PROFESSIONAL_SERVICES" });
+  assert.equal(vm.about, salon.about);
+  const identity = Object.fromEntries(vm.identity.map((f) => [f.label, f.value]));
+  assert.equal(identity["Industry"], "Professional services", "the vertical the brand was registered under, in words");
+  assert.deepEqual(
+    vm.identity.map((f) => f.label),
+    ["Legal name", "Industry", "Address", "Phone", "Email"],
+  );
+
+  // Nothing said is nothing shown: no empty paragraph, no industry row.
+  const bare = businessPageVM({ ...salon, about: "  ", industry: "" });
+  assert.equal(bare.about, null);
+  assert.ok(!bare.identity.some((f) => f.label === "Industry"));
+});
+
+test("a filing waits until the business has said what it does", () => {
+  const [p, ...rest] = registrationPreflight(ready({ about: "" }));
+  assert.equal(rest.length, 0);
+  assert.equal(p.id, "no_about");
+  assert.match(p.fix, /What the business does/, "the fix names the box that answers it");
+  assert.equal(registrationPreflight(ready({ about: "Hair." }))[0].id, "no_about", "a word is not a business model");
+  // An older caller that never passed it is asked too: a filing without it is the one that was refused.
+  const { about: _gone, ...older } = ready();
+  assert.equal(registrationPreflight(older)[0].id, "no_about");
 });
