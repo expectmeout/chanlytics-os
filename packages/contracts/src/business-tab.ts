@@ -123,6 +123,12 @@ export interface StandingVM {
   missing: { sentence: string; row: string } | null;
 }
 
+/**
+ * What a receptionist with no services cannot do, in ONE place: the standing line's gap says it ("It cannot say what you
+ * offer."), and so does the services sheet's foot once the last one is taken out (servicesToldWords).
+ */
+const CANNOT_SAY_SERVICES = "cannot say what you offer";
+
 const has = (v: unknown): boolean =>
   typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v as object).length > 0;
 
@@ -140,7 +146,7 @@ export function standingLine(i: StandingInputs): StandingVM {
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
   if (!has(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
   if (!has(p.tone)) gaps.push({ sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" });
 
@@ -293,11 +299,11 @@ export function blockShareWords(chars: number, total: number): string | null {
 /**
  * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
  * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
- * prompt's length. With none it says what that costs, in the standing line's words for it.
+ * prompt's length. With none it says what that costs, in the standing line's own words for it (CANNOT_SAY_SERVICES).
  */
 export function servicesToldWords(i: { count: number; chars: number | null; total: number | null }): string {
   const n = i.count;
-  if (!n) return "No services, so it cannot say what you offer.";
+  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
   const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
   return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` — ${share}` : ""}.`;

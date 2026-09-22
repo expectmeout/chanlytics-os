@@ -11247,6 +11247,7 @@ var STRENGTHS = {
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
 function standingLine(i) {
   const p = i.profile ?? {};
@@ -11254,7 +11255,7 @@ function standingLine(i) {
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
   if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has2(p.services)) gaps.push({ sentence: "It cannot say what you offer.", row: "services" });
+  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
   if (!has2(p.tone)) gaps.push({ sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" });
   const answers = [];
@@ -11323,7 +11324,7 @@ function blockShareWords(chars, total) {
 }
 function servicesToldWords(i) {
   const n = i.count;
-  if (!n) return "No services, so it cannot say what you offer.";
+  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
   const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
   return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;

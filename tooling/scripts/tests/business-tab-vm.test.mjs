@@ -486,6 +486,10 @@ test("the services sheet's foot says how many it will be told of, how long they 
   assert.equal(servicesToldWords({ count: 3, chars: null, total: 4000 }), "3 services.", "with no block to measure, the count alone");
   assert.equal(servicesToldWords({ count: 3, chars: 120, total: null }), "3 services, 120 characters.");
   assert.equal(servicesToldWords({ count: 0, chars: null, total: 4000 }), "No services, so it cannot say what you offer.");
+  // One sentence, one home: the foot says what the standing line's gap says of a receptionist with no services.
+  const gap = standingLine({ business_name: "A", booking_link: "https://a.example", profile: { hours: { mon: { open: "09:00", close: "17:00" } } } }).missing;
+  assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
+  assert.equal(servicesToldWords({ count: 0, chars: null, total: null }), `No services, so it ${gap.sentence.slice("It ".length)}`);
   assert.deepEqual([33, 1, 0].map(servicesSaveWords), ["Save 33 services", "Save 1 service", "Save with no services"]);
 });
 

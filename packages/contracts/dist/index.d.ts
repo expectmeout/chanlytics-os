@@ -10550,7 +10550,7 @@ declare function blockShareWords(chars: number, total: number): string | null;
 /**
  * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
  * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
- * prompt's length. With none it says what that costs, in the standing line's words for it.
+ * prompt's length. With none it says what that costs, in the standing line's own words for it (CANNOT_SAY_SERVICES).
  */
 declare function servicesToldWords(i: {
     count: number;
