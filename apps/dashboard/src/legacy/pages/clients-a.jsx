@@ -1046,7 +1046,9 @@ const RailGroup = ({ label, testid = null, children }) => (
  * the pick, never a button inside a button, and the pick fills the row, so a press anywhere on it but the acts picks
  * it. While the row is being named, `edit` stands in for the pick and its acts; `after` hangs under it (a Confirm).
  */
-const RailRow = ({ label, count = null, active = false, onPick, smart = false, tip = null, mark = null, menu = null, edit = null, after = null, testid = null, className = "", pickClass = "" }) => {
+// `onWarm` is the row under the pointer, or reached by Tab: a scope may read the view its press would open ahead of
+// the press (the Leads scope does), as the Settings rail warms a tab. A press asks for nothing of its own.
+const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, smart = false, tip = null, mark = null, menu = null, edit = null, after = null, testid = null, className = "", pickClass = "" }) => {
   const cls = `cl-rail-row${smart ? " smart" : ""}${active ? " active" : ""}${className ? ` ${className}` : ""}`;
   const said = (
     <>
@@ -1056,12 +1058,12 @@ const RailRow = ({ label, count = null, active = false, onPick, smart = false, t
     </>
   );
   if (!menu && !edit && !after) {
-    return <button type="button" className={cls} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>;
+    return <button type="button" className={cls} onClick={onPick} onPointerEnter={onWarm || undefined} onFocus={onWarm || undefined} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>;
   }
   return (
     <div className={`${cls} has-acts`}>
       {edit || (
-        <button type="button" className={`cl-rail-pick${pickClass ? ` ${pickClass}` : ""}`} onClick={onPick} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>
+        <button type="button" className={`cl-rail-pick${pickClass ? ` ${pickClass}` : ""}`} onClick={onPick} onPointerEnter={onWarm || undefined} onFocus={onWarm || undefined} aria-current={active ? "true" : undefined} data-tip={tip || undefined} data-testid={testid || undefined}>{said}</button>
       )}
       {edit ? null : menu}
       {after}
@@ -1837,6 +1839,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     // A page of people that could not be read says so: Show more used to go quiet and stay.
     try { await window.__peopleMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more people loaded")); } finally { setLoadingMore(false); }
   };
+  // The Leads scope's next page, the same way: its own flag, so the button says Loading… while THIS is out and not
+  // while a Keep is (it read leadBusy), and a second press while it loads asks for nothing.
+  const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
+  const leadsMore = async () => {
+    if (!window.__leadsMore || leadsMoreBusy) return;
+    setLeadsMoreBusy(true);
+    try { await window.__leadsMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more leads loaded")); } finally { setLeadsMoreBusy(false); }
+  };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
   // D5: a list that is moving shows no hover: the pane carries data-scrolling while the list scrolls, and the tips and
@@ -2099,7 +2109,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
   // only on the next -- the browser re-anchored the list as the words shrank it: 500 became 122 on production.
   // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
-  const viewLanded = onLeads && leads.route === viewRoute;
+  // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
+  // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
+  const viewLanded = onLeads && leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
   React.useEffect(() => {
     const due = placeDue.current;
     if (!onLeads || !due || due.view !== viewRoute) return;
@@ -2433,12 +2445,17 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
       canFind,
     };
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
+    // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
+    const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
+    const pickSearchRoute = (id) => window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null });
     // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
     // make a new round open the plan card instead, because nothing that counts against the month may start
     // without the owner approving what runs.
     // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
     // derivations bag), and until then the page's own file, published beside the component that draws it.
     const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
+    // "12 new": the view read again in its order. The strip's door and the list head's are this one.
+    const takeOffered = () => window.__leadsTakeOffered && window.__leadsTakeOffered();
     const onStripAction = (id, arg) => {
       const s = openSearch;
       if (!s) return;
@@ -2458,7 +2475,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
       // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the
       // page's own state and the effect above asks the surface for it (E8).
       if (id === "sort_fit") { setSortBy("fit"); setSortDir("asc"); return undefined; }
-      if (id === "take_offered") return window.__leadsTakeOffered && window.__leadsTakeOffered();
+      if (id === "take_offered") return takeOffered();
       return undefined;
     };
     // What the phone's bar says it is showing: the search that is open, or the list, with its count (Task 18).
@@ -2480,6 +2497,10 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
+        // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
+        // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
+        // right and being wrong.
+        loading={!viewLanded}
         total={leads.counts[leadView.list] ?? leads.counts.all}
         columns={columns}
         colOptions={colOptions}
@@ -2563,8 +2584,11 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
         // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
         // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
-        onPickList={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null })); }}
-        onPickSearch={(id) => { setChip(null); nav(window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null })); }}
+        onPickList={(id) => { setChip(null); nav(pickListRoute(id)); }}
+        onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id)); }}
+        // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
+        onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
+        onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
         onPickClass={(cls) => { setChip(null); goto({ cls }); }}
         chip={chip}
         onPickChip={setChip}
@@ -2634,8 +2658,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onCopy={copyLead}
         onCopyPhone={copyPhone}
         onStripAction={onStripAction}
-        onMore={() => window.__leadsMore && window.__leadsMore()}
-        loadingMore={leadBusy}
+        onTakeOffered={takeOffered}
+        onMore={leadsMore}
+        loadingMore={leadsMoreBusy}
         firstDay={leads.searches.length === 0 && !leads.readFailed}
         // The three ways claim only what THIS tab has read: the line is the setup
         // surface's, which this route does not load on a cold open, so it is passed

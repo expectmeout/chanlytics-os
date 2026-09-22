@@ -266,6 +266,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
     __leadsView: async (v) => { calls.push(["view", v]); },
+    __leadsWarm: async (route) => { calls.push(["warm", route]); },
     __leadsMore: async () => { calls.push(["more", null]); },
     __leadsTakeOffered: async () => { calls.push(["takeOffered", null]); },
     __leadKeep: async (s, id) => { calls.push(["keep", { search_id: s, id }]); return refuse || ok({ op_id: "op-k", version: 4 }); },
@@ -497,6 +498,98 @@ test("the Leads rail picks one row at a time, as People's does: a list leaves an
   assert.equal(all(byTestId(row, `leads-search-${SEARCH_A}`), (n) => n.type === "button").length, 1, "the pick holds no other button");
   // A name cut off at the rail's width is read whole on hover, with when it was asked: the shared tip (data-tip).
   assert.match(byTestId(row, `leads-search-${SEARCH_A}`).props["data-tip"], /^You asked on Sep 18: “.+”\.$/);
+});
+
+test("a rail row under the pointer, or reached by Tab, warms the view its press would open, and the press itself warms nothing more", () => {
+  fresh();
+  const tree = draw();
+  const rows = all(tree, (n) => n.type === "button" && String(n.props?.className || "").split(/\s+/).some((c) => c === "cl-rail-row" || c === "cl-rail-pick"));
+  const ready = rows.find((b) => b.props["data-testid"] === "leads-list-ready");
+  const searchA = rows.find((b) => b.props["data-testid"] === `leads-search-${SEARCH_A}`);
+  assert.ok(ready && searchA, "both kinds of row are drawn");
+  ready.props.onPointerEnter();
+  searchA.props.onFocus();
+  assert.deepEqual(calls.filter(([w]) => w === "warm").map(([, r]) => r), ["clients/leads:l-ready", `clients/leads:s-${SEARCH_A}`], "each warms the route its press goes to");
+  const warmed = calls.filter(([w]) => w === "warm").length;
+  click(ready);
+  assert.deepEqual(went.at(-1), "clients/leads:l-ready", "the press goes there");
+  assert.equal(calls.filter(([w]) => w === "warm").length, warmed, "and asks for no warm of its own");
+  // The row that is already open warms nothing: its press goes back to all leads, which is on the screen.
+  const tree2 = draw({ leadsRoute: "leads:l-ready" });
+  const openRow = all(tree2, (n) => n.type === "button" && n.props?.["data-testid"] === "leads-list-ready")[0];
+  openRow.props.onPointerEnter();
+  assert.deepEqual(calls.filter(([w]) => w === "warm").at(-1)[1], "clients/leads", "the row picked again shows all leads, so that is what is warmed");
+});
+
+test("a view on its way says so: the rows on screen are the last view's, dimmed and marked busy, until the surface holds the one the address names", () => {
+  fresh();
+  const scopeOf = (tree) => find(tree, (n) => n.type === "div" && String(n.props?.className || "").split(" ").includes("leads-scope"));
+  const tableOf = (tree) => find(tree, (n) => n.props?.["data-testid"] === "people-table-scroll");
+  let tree = draw();
+  assert.deepEqual([scopeOf(tree).props["data-loading"], tableOf(tree).props["aria-busy"]], [undefined, undefined], "the view on screen is the one the address names: nothing is said");
+  // The address moved to a search the surface does not hold: its rows are still all leads.
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.deepEqual([scopeOf(tree).props["data-loading"], tableOf(tree).props["aria-busy"]], ["1", "true"], "REGRESSION: the old view's rows sat under the new title for up to a second, looking right and being wrong");
+  assert.equal(names(tree).length, 5, "and the rows are still drawn: nothing flashes empty");
+  // The surface lands the view.
+  globalThis.window.__LEADS = surface({ view: { searchId: SEARCH_A, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, route: `clients/leads:s-${SEARCH_A}` });
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.deepEqual([scopeOf(tree).props["data-loading"], tableOf(tree).props["aria-busy"]], [undefined, undefined]);
+});
+
+test("a sort is a read too: the rows hold their order and say they are on their way, until the surface holds the view in that order", () => {
+  fresh();
+  const scopeOf = (tree) => find(tree, (n) => n.type === "div" && String(n.props?.className || "").split(" ").includes("leads-scope"));
+  let tree = draw();
+  assert.equal(scopeOf(tree).props["data-loading"], undefined);
+  sortByHeading(tree, "Rated");
+  tree = draw();
+  assert.deepEqual([scopeOf(tree).props["data-loading"], names(tree)[0]], ["1", "Zilker Strength Lab"], "the rows hold their order (a sort is the surface's to read, never the page's to re-order), and say so");
+  globalThis.window.__LEADS = surface({ view: { searchId: null, list: "all", cls: null, chips: {}, sort: "rating", dir: "desc" } });
+  tree = draw();
+  assert.equal(scopeOf(tree).props["data-loading"], undefined, "landed in that order");
+});
+
+test("Show more says it is loading while the next page is on its way, takes no second press, and a Keep meanwhile does not make it say so", async () => {
+  fresh({ leads: surface({ next: { key: "k", id: "l5" } }) });
+  let land;
+  globalThis.window.__leadsMore = () => { calls.push(["more", null]); return new Promise((r) => { land = r; }); };
+  const more = (tree) => find(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "leads-more-btn");
+  let tree = draw();
+  assert.deepEqual([textOf(more(tree)).trim(), !!more(tree).props.disabled], ["Show more", false]);
+  click(more(tree));
+  tree = draw();
+  assert.deepEqual([textOf(more(tree)).trim(), !!more(tree).props.disabled], ["Loading…", true], "REGRESSION: the button read Show more and stayed live while the page loaded, and read Loading… during an unrelated Keep");
+  click(more(tree));
+  assert.equal(calls.filter(([w]) => w === "more").length, 1, "a second press while it loads asks for nothing");
+  land();
+  await settle();
+  tree = draw();
+  assert.deepEqual([textOf(more(tree)).trim(), !!more(tree).props.disabled], ["Show more", false]);
+  // A Keep in flight is not the next page.
+  let keepLand;
+  globalThis.window.__leadKeep = () => new Promise((r) => { keepLand = r; });
+  find(tree, (n) => n.props?.["data-testid"] === "lead-keep").props.onClick({ stopPropagation() {}, preventDefault() {} });
+  tree = draw();
+  assert.equal(textOf(more(tree)).trim(), "Show more");
+  keepLand(ok({ op_id: "op-k", version: 4 }));
+  await settle();
+});
+
+test("leads a refresh found but did not sort in are offered on all leads too, in the list's head, with the same words and the same door as the strip's", () => {
+  fresh({ leads: surface({ offered: 12 }) });
+  let tree = draw();
+  const pill = byTestId(tree, "leads-offered");
+  assert.ok(pill, "REGRESSION: the count was computed and never shown outside an open search, so new leads never appeared on All leads under a fit sort");
+  assert.equal(textOf(pill).trim(), "12 new");
+  click(pill);
+  assert.deepEqual(calls.at(-1), ["takeOffered", null], "one press reads the view again in its order, as the strip's does");
+  fresh({ leads: surface({ offered: 0 }) });
+  assert.equal(byTestId(draw(), "leads-offered"), null, "nothing offered, nothing said");
+  fresh({ leads: surface({ offered: 3, view: { searchId: SEARCH_A, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" }, route: `clients/leads:s-${SEARCH_A}` }) });
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.equal(byTestId(tree, "leads-offered"), null, "an open search says it in its strip, once");
 });
 
 test("the People | Leads switch is a tablist in both scopes, and picking the other one navigates to it", () => {

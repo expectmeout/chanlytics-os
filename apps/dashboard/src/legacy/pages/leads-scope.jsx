@@ -282,12 +282,12 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
 // is: one row at a time, a list or a search. The lists, then the searches, each with its count, a live dot while it
 // runs and a "?" in the accent while it waits on the owner. Renaming and removing are asked where the search is, so
 // the rail never loses the row that is being named.
-const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew }) => (
+const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, onWarmList = () => {}, onWarmSearch = () => {}, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew }) => (
   <>
     {/* "Lists", not "Leads": the switch right above already says which scope this is. */}
     <RailSection label="Lists" testid="leads-lists">
       {rail.lists.map((l) => (
-        <RailRow key={l.id} label={l.label} count={l.count} active={!searchId && list === l.id} onPick={() => onPickList(l.id)} testid={`leads-list-${l.id}`} />
+        <RailRow key={l.id} label={l.label} count={l.count} active={!searchId && list === l.id} onPick={() => onPickList(l.id)} onWarm={() => onWarmList(l.id)} testid={`leads-list-${l.id}`} />
       ))}
     </RailSection>
     <RailSection label="Searches" testid="leads-searches">
@@ -300,6 +300,7 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
           count={s.count}
           active={searchId === s.id}
           onPick={() => onPickSearch(s.id)}
+          onWarm={() => onWarmSearch(s.id)}
           // Most names are cut off at the rail's width; the row names the whole ask, and when, on hover (the shared tip).
           tip={wordsFor(s.id).askedLine || null}
           testid={`leads-search-${s.id}`}
@@ -717,6 +718,8 @@ const LeadsScope = (p) => {
           wordsFor={p.searchWordsFor}
           onPickList={p.onPickList}
           onPickSearch={p.onPickSearch}
+          onWarmList={p.onWarmList}
+          onWarmSearch={p.onWarmSearch}
           renaming={p.renaming}
           onRename={p.onRename}
           onRenameSave={p.onRenameSave}
@@ -736,7 +739,7 @@ const LeadsScope = (p) => {
   );
   const ListsSheet = window.PeopleListsSheet;
   return (
-    <div className="clients leads-scope">
+    <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
       {/* At a phone's width the rail is the bar's list button instead (the stylesheet hides .cl-rail at 900px
           anyway, and the switch the rail heads is the bar's own). */}
       {!phone && <PeopleRail scope="leads" onScope={p.onScope}>{railRows}</PeopleRail>}
@@ -821,6 +824,9 @@ const LeadsScope = (p) => {
               <div className="cl-section-lead">
                 <span className="cl-section-title" data-testid="leads-list-title">{p.listTitle}</span>
                 {p.view.list !== "all" ? <button type="button" className="cl-bucket-link" onClick={() => p.onPickList("all")} data-testid="leads-show-all">Show all leads</button> : null}
+                {/* What a refresh found and the surface is holding back (E8: nothing re-sorts under the owner). An open
+                    search says it in its strip; here the head does, with the strip's own words and door. */}
+                {L.offered > 0 ? <button type="button" className="cl-bucket-link ld-offered" onClick={p.onTakeOffered} data-testid="leads-offered">{L.offered} new</button> : null}
               </div>
             </div>
           ) : null}
@@ -908,6 +914,7 @@ const LeadsScope = (p) => {
             )
             : (
               <PeopleTable
+                busy={!!p.loading}
                 noun="lead"
                 columns={p.columns}
                 ctx={p.cellCtx}

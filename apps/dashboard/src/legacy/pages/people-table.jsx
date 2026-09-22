@@ -31,12 +31,14 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // the header sticks to its top and the pinned column to its left, and the hairline beside that column shows once it
 // has scrolled sideways (`scrolled`, the page's state). Hookless on purpose: the tests' stub React keys state by call
 // order, and a list's own controls above the table come and go.
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null }) => {
+// `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
+// the page's stylesheet dims them (Leads: leads.css [data-loading]).
+const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
   const selecting = rows.some((p) => sel.has(p.id));
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
-      <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} data-testid="people-table-scroll">
+      <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} aria-busy={busy ? "true" : undefined} data-testid="people-table-scroll">
         {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
             sideways scroll and stack, so the state is on the row instead of off the
             right edge. The seeded page, Leads and Lists keep the table. */}
