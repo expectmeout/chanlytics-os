@@ -13,7 +13,7 @@
  * wrote it, is `prompt-blocks.ts`.
  */
 
-import { BookingRulesSchema, DAYS, GuardrailsSchema, type Closure, type Hours } from "./config";
+import { BookingRulesSchema, DAYS, FALLBACK_DEFAULTS, GuardrailsSchema, INSTRUCTIONS_MAX, type Closure, type Hours } from "./config";
 import { hardLimitsWords, violatesNoPrices } from "./policy";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
@@ -450,6 +450,194 @@ export const PROFILE_CROSSING_WORDS = {
 
 export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 
+/* ---- How it answers ---- */
+
+/**
+ * The three voices the voice's fold offers to start from (the canvas's Group-Answers board): a press puts the sentence
+ * in the box, and the owner makes it their own from there. Each is what the prompt then says after "Tone: ", for any
+ * trade, and well inside the 200 characters the profile keeps (BusinessProfileSchema.tone; a vm test holds them to it).
+ */
+export const TONE_PRESETS: readonly { label: string; tone: string }[] = [
+  { label: "Warm and brief", tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked." },
+  { label: "Professional, no small talk", tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks." },
+  { label: "Chatty, first names", tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk." },
+];
+
+/**
+ * When the receptionist hands a customer over whatever the owner wrote: the composer's own triggers, on both channels
+ * (config.ts, the two hand-off blocks: a person asked for, someone upset, a question its instructions do not cover), in
+ * the words the page says them in. One clause, for the ability card and the hand-off row alike.
+ */
+const HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+
+/**
+ * Words cut to at most `max` characters at a word boundary, with an ellipsis where anything was cut: a row at rest
+ * quotes the opening of something long, never the middle of a word.
+ */
+const cutAtWord = (text: string, max: number): string => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at = head.lastIndexOf(" ");
+  const cut = (at > 0 ? head.slice(0, at) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}…`;
+};
+
+/**
+ * What happens when a WhatsApp customer is handed over, checked against the edge: the composer teaches the model to end
+ * its reply with the [[HUMAN]] token (config.ts, the chat hand-off block), and a reply carrying it is sent with the token
+ * taken out; then the thread is paused for the Autonomy reply row's pause_hours (whatsapp/inbound.ts, a day when
+ * nothing is stored), an escalation is opened, which is what turns the thread Needs you in the Inbox, and the alert goes
+ * to the addresses the Notifications tab sets (notify.ts chooseAddressing: notifications.escalation_emails). After the
+ * pause it answers the next message itself. The canvas said "It stops answering, marks the thread Needs you and emails
+ * your staff": the email goes to whoever is on that list, which may be nobody, and the pause ends.
+ *
+ * The ability card's hand-off row and the hand-off row's fold both say it, so it is written once, here. `pauseHours` is
+ * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
+ */
+export function handoffChatWords(i: { hasEscalateWhen: boolean; pauseHours: unknown }): string {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+
+/**
+ * What a call does with a caller who needs a person (config.ts, the call hand-off block: "Use transfer_to_staff during
+ * opening hours -- it rings the line a person answers, and you stay on until they pick up"), for the ability card's
+ * transfer row and the hand-off row's fold alike.
+ */
+function transferWords(hasHandoffNumber: boolean): string {
+  return hasHandoffNumber
+    ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
+    : "No number yet, so it takes a message instead — which is better than a number nobody picks up.";
+}
+
+/**
+ * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
+ * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
+ * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
+ */
+export function handoffCallWords(i: { hasHandoffNumber: boolean; hasEscalateWhen: boolean }): string {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+
+/** The hand-off row at rest: one line for each channel, under its chip. */
+export interface HandoffWordsVM {
+  /** "on 2 reasons — They ask for a person, for the owner · They are upset…"; with none, when it hands over anyway. */
+  chat: string;
+  /** "transfers to +1 (646) 932-5775", or "takes a message" with no number. */
+  phone: string;
+}
+
+/** How many characters of the reasons the row quotes at rest, joined, before it cuts at a word. */
+const HANDOFF_REASONS_SHOWN = 64;
+
+/**
+ * The hand-off row at rest (the canvas's Record board): how many reasons the owner gave and the opening of them, and
+ * what a call does. `transfer` is the transfer number as the page shows it (the settings read's resolved fact, written
+ * for people); the row only states it, and the Who you are row is where it is changed. A stored list that is not one
+ * (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
+ */
+export function handoffWords(reasons: readonly string[] | null | undefined, transfer: string | null | undefined): HandoffWordsVM {
+  const list = (Array.isArray(reasons) ? reasons : []).filter((r): r is string => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
+  const n = list.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  return {
+    chat: n ? `on ${plural(n, "reason", "reasons")} — ${cutAtWord(list.join(" · "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    phone: number ? `transfers to ${number}` : "takes a message",
+  };
+}
+
+/** The notes row at rest: the first titles as chips, and how many more. */
+export interface NotesWordsVM {
+  count: number;
+  /** The first four titles, in the stored order, which is the order the receptionist reads them in. */
+  chips: string[];
+  /** "+3 more" past the four; null when every one is a chip. */
+  more: string | null;
+}
+
+const NOTE_CHIPS = 4;
+
+/**
+ * The notes row at rest (the canvas's Record board): each note by its title, four at most, and "+N more" past them. A
+ * note with no title is a row nobody finished (the schema needs one), and is not counted; a stored list that is not one
+ * is none.
+ */
+export function notesWords(notes: readonly ({ title?: string | null } | null | undefined)[] | null | undefined): NotesWordsVM {
+  const titles = (Array.isArray(notes) ? notes : []).map((n) => (n && typeof n.title === "string" ? n.title.trim() : "")).filter((t) => t !== "");
+  const n = titles.length;
+  return { count: n, chips: titles.slice(0, NOTE_CHIPS), more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null };
+}
+
+/** The owner's own words, at rest and in their box. */
+export interface InstructionsWordsVM {
+  /** "1,180 characters"; null with nothing written. */
+  size: string | null;
+  /** Their opening, quoted and cut at a word; null with nothing written. */
+  opening: string | null;
+  /** "16,400 of 20,000 characters", past four fifths of what the receptionist takes (INSTRUCTIONS_MAX); null under it. */
+  nearFull: string | null;
+}
+
+/** How many characters of the owner's words the row quotes at rest, before it cuts at a word. */
+const OPENING_SHOWN = 72;
+
+/**
+ * "In your own words", said with its size (the canvas's Record board: "1,180 characters" and the opening, quoted), and,
+ * once the box holds more than four fifths of what the receptionist takes, how close it is to the end: the old form's
+ * count, under the box, whose number is the save's own limit (INSTRUCTIONS_MAX).
+ */
+export function instructionsWords(text: string | null | undefined): InstructionsWordsVM {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { size: null, opening: null, nearFull: null };
+  const n = t.length;
+  return {
+    size: plural(n, "character", "characters"),
+    opening: `“${cutAtWord(t, OPENING_SHOWN)}”`,
+    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null,
+  };
+}
+
+/** The fallbacks row at rest. */
+export interface FallbacksWordsVM {
+  /** "3 messages sent in your name". */
+  line: string;
+  /** How many are not the product's wording: "2 differ from the default wording", or "all in the default wording". */
+  own: string;
+}
+
+/**
+ * The three messages sent in the business's name when the receptionist cannot answer, at rest: how many there are, and
+ * how many are not the product's wording (FALLBACK_DEFAULTS). "Differ from", not the canvas's "you wrote": a workspace
+ * set up before the default wording was written was given messages with its details copied in (config.ts, S5), which
+ * are not the default and were not written by the owner either. A message stored empty is sent in the default wording
+ * (fallbackMessages), so it counts as the default; so does a workspace that stores none.
+ */
+export function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined): FallbacksWordsVM {
+  const keys = Object.keys(FALLBACK_DEFAULTS) as (keyof typeof FALLBACK_DEFAULTS)[];
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
+    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+  }).length;
+  return {
+    line: `${count(keys.length)} messages sent in your name`,
+    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording",
+  };
+}
+
+/**
+ * What the rules fold says, once, on a record whose details compose nothing (config.ts hasProfile false). The resolver
+ * answers such a record with its stored prompt as it stands, and adds after it only the Autonomy tab's rules
+ * (resolveSystemPrompt's first branch), so none of the four switches reaches the receptionist, and there is no rules
+ * block for the fold to show. The prompt view says the same of that prompt (prompt-blocks.ts: "None of the details on
+ * this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it with these
+ * words too (the plan's M-2).
+ */
+export const RULES_WITHOUT_FIELDS_WORDS =
+  "Nothing on this page is composed into what it reads yet, so these four rules do not reach it: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+
 /**
  * What the receptionist can do, and what it cannot.
  *
@@ -565,14 +753,6 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
             ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
             : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 
-  // The base triggers hold with no reasons at all -- they asked for a person, or it
-  // cannot help -- so the owner's reasons widen the hand-off; they do not switch it on.
-  const handoffWhen = i.hasEscalateWhen
-    ? "On your reasons, or when a customer asks for a person or it can't help, it"
-    : "When a customer asks for a person or it can't help, it";
-  // The stored pause, as the Autonomy pane and the edge read it: nothing stored is a day.
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
-
   return [
     {
       id: "answer",
@@ -612,11 +792,8 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
     {
       id: "transfer",
       title: "Put a caller through",
-      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
-      // answers, and you stay on until they pick up."
-      detail: i.hasHandoffNumber
-        ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
-        : "No number yet, so it takes a message instead — which is better than a number nobody picks up.",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
       // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
       runsOn: { label: "The transfer number", row: "handoff" },
@@ -625,9 +802,11 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
     {
       id: "handoff",
       title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
-      // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Your reasons", row: "handoff" },
       ready: i.whatsappLive,

@@ -11392,6 +11392,71 @@ var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
 };
+var TONE_PRESETS = [
+  { label: "Warm and brief", tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked." },
+  { label: "Professional, no small talk", tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks." },
+  { label: "Chatty, first names", tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk." }
+];
+var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+var cutAtWord = (text, max) => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at2 = head.lastIndexOf(" ");
+  const cut = (at2 > 0 ? head.slice(0, at2) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}\u2026`;
+};
+function handoffChatWords(i) {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+function transferWords(hasHandoffNumber) {
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
+}
+function handoffCallWords(i) {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+var HANDOFF_REASONS_SHOWN = 64;
+function handoffWords(reasons, transfer) {
+  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
+  const n = list2.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  return {
+    chat: n ? `on ${plural6(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    phone: number ? `transfers to ${number}` : "takes a message"
+  };
+}
+var NOTE_CHIPS = 4;
+function notesWords(notes) {
+  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
+  const n = titles.length;
+  return { count: n, chips: titles.slice(0, NOTE_CHIPS), more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null };
+}
+var OPENING_SHOWN = 72;
+function instructionsWords(text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { size: null, opening: null, nearFull: null };
+  const n = t.length;
+  return {
+    size: plural6(n, "character", "characters"),
+    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
+    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null
+  };
+}
+function fallbacksWords(fallbacks) {
+  const keys = Object.keys(FALLBACK_DEFAULTS);
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? f[k].trim() : "";
+    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+  }).length;
+  return {
+    line: `${count(keys.length)} messages sent in your name`,
+    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording"
+  };
+}
+var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four rules do not reach it: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -11419,8 +11484,6 @@ function abilityRows(i) {
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
   const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const handoffWhen = i.hasEscalateWhen ? "On your reasons, or when a customer asks for a person or it can't help, it" : "When a customer asks for a person or it can't help, it";
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
   return [
     {
       id: "answer",
@@ -11454,9 +11517,8 @@ function abilityRows(i) {
     {
       id: "transfer",
       title: "Put a caller through",
-      // config.ts: "Use transfer_to_staff during opening hours -- it rings the line a person
-      // answers, and you stay on until they pick up."
-      detail: i.hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
       channels: { voice: i.voiceLive, whatsapp: false },
       // One row on the page holds both halves of a hand-off (spec 4.5), and so does the prompt.
       runsOn: { label: "The transfer number", row: "handoff" },
@@ -11465,9 +11527,11 @@ function abilityRows(i) {
     {
       id: "handoff",
       title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts);
-      // after that the receptionist answers the next message itself, Needs you or not.
-      detail: `${handoffWhen} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`,
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
       channels: { voice: false, whatsapp: i.whatsappLive },
       runsOn: { label: "Your reasons", row: "handoff" },
       ready: i.whatsappLive
@@ -13811,6 +13875,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
   RUN_REPORT_STEPS,
   RenameLeadSearchSchema,
@@ -13861,6 +13926,7 @@ export {
   TODAY_LEAK_MAX,
   TODAY_QUEUE_MAX,
   TONES2 as TONES,
+  TONE_PRESETS,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WABA_FIELDS,
@@ -14008,6 +14074,7 @@ export {
   extractContacts,
   factConflicts,
   fallbackMessages,
+  fallbacksWords,
   fastPath,
   feedBodyProblem,
   feedNotes,
@@ -14046,7 +14113,10 @@ export {
   guardrailsInForce,
   guessName,
   guessSlotKind,
+  handoffCallWords,
+  handoffChatWords,
   handoffE164,
+  handoffWords,
   hardLimitsWords,
   hasProfile,
   hoursLines2 as hoursLines,
@@ -14061,6 +14131,7 @@ export {
   initialsOf,
   injectedTurn,
   instructionsDraft,
+  instructionsWords,
   inviteState,
   invoiceStatusWords,
   isActivityNoise,
@@ -14169,6 +14240,7 @@ export {
   normalizeNavigate,
   normalizePhone,
   notFoundPageMetadata,
+  notesWords,
   numberHealth,
   offerFor,
   offerLead,

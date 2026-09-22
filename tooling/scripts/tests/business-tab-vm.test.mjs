@@ -32,6 +32,19 @@ import {
   BookingRulesSchema,
   BOOKING_DEFAULTS,
   violatesNoPrices,
+  TONE_PRESETS,
+  handoffWords,
+  handoffChatWords,
+  handoffCallWords,
+  notesWords,
+  instructionsWords,
+  fallbacksWords,
+  RULES_WITHOUT_FIELDS_WORDS,
+  BusinessProfileSchema,
+  FALLBACK_DEFAULTS,
+  INSTRUCTIONS_MAX,
+  promptBlocks,
+  resolveSystemPrompt,
 } from "@chanlytics/contracts";
 
 /* ---- A fact says where it came from ---- */
@@ -567,4 +580,101 @@ test("the services search says how many rows it found, for a screen reader to he
   assert.equal(servicesFoundWords(1, 1), "1 of 1 service");
   assert.equal(servicesFoundWords(0, 33), "No service is called that.");
   assert.equal(servicesFoundWords(0, 0), "No services yet.");
+});
+
+/* ---- How it answers ---- */
+
+test("the voice's three starting points are sentences the profile keeps, each named as the canvas names it", () => {
+  assert.deepEqual(TONE_PRESETS.map((p) => p.label), ["Warm and brief", "Professional, no small talk", "Chatty, first names"]);
+  for (const p of TONE_PRESETS) {
+    assert.ok(BusinessProfileSchema.safeParse({ tone: p.tone }).success, `${p.label} is a voice the save takes`);
+    assert.match(p.tone, /^[A-Z].*\.$/, `${p.label} is a sentence`);
+  }
+  assert.equal(new Set(TONE_PRESETS.map((p) => p.tone)).size, 3, "three different voices");
+});
+
+test("the hand-off row at rest counts the reasons and quotes their opening, and says what a call does", () => {
+  const two = handoffWords(["They ask for a person, for the owner", "They are upset, or have a complaint"], "+1 (646) 932-5775");
+  assert.equal(two.phone, "transfers to +1 (646) 932-5775");
+  assert.equal(two.chat, "on 2 reasons — They ask for a person, for the owner · They are upset, or have a…", "cut at a word");
+  assert.equal(handoffWords(["Refunds"], null).chat, "on 1 reason — Refunds", "short enough to say whole, with no ellipsis");
+  // With no reasons it still hands over, on the composer's own triggers, in the words the ability card says them in.
+  const none = handoffWords([], "  ");
+  assert.equal(none.chat, "when a customer asks for a person or it can't help");
+  assert.equal(none.phone, "takes a message");
+  assert.ok(handoffChatWords({ hasEscalateWhen: false, pauseHours: undefined }).startsWith(`When ${none.chat.slice("when ".length)}, it`));
+  // A hand-edited record whose list is not one is no reasons, never a throw.
+  assert.equal(handoffWords("Refunds", undefined).chat, none.chat);
+  assert.equal(handoffWords([" ", null, 3], undefined).chat, none.chat);
+});
+
+test("the hand-off sentences are the ability card's own, written once", () => {
+  // What the fold says happens on WhatsApp and what a transfer does ARE the ability card's two rows: one sentence each.
+  for (const hasEscalateWhen of [true, false]) {
+    for (const pauseHours of [undefined, 4, 72]) {
+      assert.equal(handoffChatWords({ hasEscalateWhen, pauseHours }), idOf(abilityRows({ ...live, hasEscalateWhen, pauseHours })).handoff.detail);
+    }
+  }
+  assert.match(handoffChatWords({ hasEscalateWhen: true, pauseHours: undefined }), /the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed\. It holds off for a day, then answers/);
+  assert.doesNotMatch(handoffChatWords({ hasEscalateWhen: true, pauseHours: 24 }), /your staff/, "REGRESSION: the canvas emailed a staff the Notifications tab never named");
+  for (const hasHandoffNumber of [true, false]) {
+    assert.ok(handoffCallWords({ hasHandoffNumber, hasEscalateWhen: true }).endsWith(idOf(abilityRows({ ...live, hasHandoffNumber })).transfer.detail));
+  }
+});
+
+test("on a call the reasons count too, as the composer writes them there", () => {
+  // The canvas said the phone agent's own transfer kept the reasons from reaching it. The composer writes them under the
+  // call's hand-off heading too ("and whenever:").
+  const brain = { business_name: "Northside Studio", booking_link: "https://example.com/book", system_prompt: "x", fallbacks: FALLBACK_DEFAULTS, profile: { escalate_when: ["They want a refund"], handoff_number: "+16465550100" } };
+  assert.match(resolveSystemPrompt(brain, "voice", "America/New_York", new Date(), {}, null), /- They want a refund/);
+  assert.match(handoffCallWords({ hasHandoffNumber: true, hasEscalateWhen: true }), /^Your reasons reach a call too\. During opening hours it rings the number you gave/);
+  assert.doesNotMatch(handoffCallWords({ hasHandoffNumber: true, hasEscalateWhen: true }), /do not reach it/);
+  assert.equal(handoffCallWords({ hasHandoffNumber: false, hasEscalateWhen: false }), "No number yet, so it takes a message instead — which is better than a number nobody picks up.");
+});
+
+test("the notes row names the first four by title, and how many more", () => {
+  const six = ["Parking", "Gift cards", "Second location", "Wi-Fi", "Pets", "Payment"].map((title) => ({ title, text: "…" }));
+  assert.deepEqual(notesWords(six), { count: 6, chips: ["Parking", "Gift cards", "Second location", "Wi-Fi"], more: "+2 more" });
+  assert.equal(notesWords(six.slice(0, 4)).more, null);
+  assert.deepEqual(notesWords([]), { count: 0, chips: [], more: null });
+  assert.deepEqual(notesWords([{ title: " ", text: "half" }, null, { title: "Parking" }]).chips, ["Parking"], "a note with no title is a row nobody finished");
+  assert.deepEqual(notesWords("Parking"), { count: 0, chips: [], more: null });
+});
+
+test("the owner's own words are said by their size and their opening, cut at a word, and counted near the end", () => {
+  const words = "Never discuss competitors. A first name is all the personal data you need, and nothing is ever booked by text.";
+  const said = instructionsWords(`  ${words}  `);
+  assert.equal(said.size, `${words.length} characters`);
+  assert.equal(said.opening, "“Never discuss competitors. A first name is all the personal data you…”");
+  assert.equal(said.nearFull, null, "far from the end, nothing is counted");
+  assert.equal(instructionsWords("Short.").opening, "“Short.”", "short enough to quote whole");
+  assert.equal(instructionsWords("One").size, "3 characters");
+  assert.equal(instructionsWords("x".repeat(1180)).size, "1,180 characters");
+  assert.deepEqual(instructionsWords("   "), { size: null, opening: null, nearFull: null });
+  // Past four fifths of what the receptionist takes, the box says how close it is: the old form's count.
+  const near = "x".repeat(INSTRUCTIONS_MAX * 0.8 + 1);
+  assert.equal(instructionsWords(near).nearFull, `${near.length.toLocaleString("en-US")} of ${INSTRUCTIONS_MAX.toLocaleString("en-US")} characters`);
+  assert.equal(instructionsWords("x".repeat(INSTRUCTIONS_MAX * 0.8)).nearFull, null, "at four fifths exactly, not yet");
+});
+
+test("the three messages say how many differ from the default wording, never who wrote them", () => {
+  assert.deepEqual(fallbacksWords(FALLBACK_DEFAULTS), { line: "3 messages sent in your name", own: "all in the default wording" });
+  assert.equal(fallbacksWords(null).own, "all in the default wording", "a workspace that stores none sends the default");
+  assert.equal(fallbacksWords({ ...FALLBACK_DEFAULTS, error: "Sorry, something went wrong on our side." }).own, "1 differs from the default wording");
+  assert.equal(fallbacksWords({ greeting: "Hi!", error: "Sorry.", non_text: "Thanks." }).own, "3 differ from the default wording");
+  assert.equal(fallbacksWords({ ...FALLBACK_DEFAULTS, error: `  ${FALLBACK_DEFAULTS.error}\n` }).own, "all in the default wording", "space around a message is not a word of it");
+  assert.equal(fallbacksWords({ ...FALLBACK_DEFAULTS, error: "" }).own, "all in the default wording", "a message stored empty is sent in the default wording");
+  assert.doesNotMatch(fallbacksWords({ greeting: "Hi!" }).own, /you wrote/);
+});
+
+test("a record whose details compose nothing is told the stored prompt and Autonomy's rules, and the rules fold's sentence says so", () => {
+  const brain = { business_name: "Northside Studio", booking_link: "https://example.com/book", system_prompt: "You answer for Northside Studio.", fallbacks: FALLBACK_DEFAULTS, profile: { guardrails: { never_quote_prices: false } } };
+  const text = resolveSystemPrompt(brain, "whatsapp", "America/New_York", new Date(), { booking: { mode: "ask" } }, null);
+  const blocks = promptBlocks(text, "whatsapp", brain);
+  assert.deepEqual(blocks.map((b) => b.row), ["extra_instructions", "autonomy"], "the stored prompt as it stands, then only Autonomy's rules");
+  assert.equal(blocks.find((b) => b.row === "guardrails"), undefined, "no rules block for the fold to show");
+  // The fold's sentence agrees with the prompt view's note on the same page: nothing on it is composed yet.
+  assert.match(blocks[0].note, /None of the details on this page are composed into it yet/);
+  assert.match(RULES_WITHOUT_FIELDS_WORDS, /^Nothing on this page is composed into what it reads yet/);
+  assert.match(RULES_WITHOUT_FIELDS_WORDS, /stored instructions, followed only by any rules your Autonomy tab adds\.$/);
 });
