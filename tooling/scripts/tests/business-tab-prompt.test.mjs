@@ -260,6 +260,13 @@ test("the head says what it is and who reads it, and counts nothing", () => {
     const sheet = sheetOf(tree);
     const head = find(sheet, (n) => classes(n).includes("rec-sheet-head"));
     assert.doesNotMatch(textOf(head), /\d/, `${channel}: no count in the head`);
+    // Who reads it is said ONCE in the sheet (PromptPreview carried it twice while open, Task 4.0's I3). The told section
+    // behind says it too, but a modal dialog is all a screen reader is given while it is open (aria-modal).
+    assert.equal(
+      textOf(sheet).split(PROMPT_READERS[channel]).length - 1,
+      1,
+      `${channel}: who reads it, once in the sheet`,
+    );
     // The channel switch is the kit's toggle group, in the sheet's tools.
     const toggle = byTestId(sheet, "rec-prompt-channel");
     assert.equal(toggle.props.role, "radiogroup");
