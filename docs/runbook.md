@@ -55,6 +55,42 @@ supabase stop --no-backup
 Point anything at it with `SUPABASE_URL=http://127.0.0.1:54321` and the keys
 `supabase status` prints. They are the published local-stack keys, not secrets.
 
+### See a real page
+
+**Run the app. Do not judge a page by the standalone mockup.**
+`Chanlytics.html` (`serve-legacy.mjs`) loads every legacy file over
+`data/bridge-stubs.jsx`, so the surfaces fed by the bridge never mount in it:
+Today, the real Calendar, People, Leads and Live render a `soon` placeholder or
+the seeded mockup instead. Its data is the demo's, at a density nobody has, and
+a screenshot of it is not evidence about the product. It is for the shell, the
+seeded pages, and checking that a new file loads in both lists -- nothing else.
+
+To see what a member sees, run the dashboard against a real project and open a
+workspace:
+
+```bash
+corepack pnpm --filter @chanlytics/dashboard dev
+# then, in the browser, the workspace in the PATH:
+#   http://localhost:3100/w/<workspace-slug>/
+```
+
+Three things trip this up, in this order:
+
+1. **`apps/dashboard/.env.local` needs `SUPABASE_SERVICE_ROLE_KEY`**, not only
+   the two `NEXT_PUBLIC_` keys. Without it `/api/v1/*` answers 500
+   (`supabaseKey is required`) and every surface falls back to its seed: the
+   page renders, so it looks like a quiet day rather than a broken read. The
+   Calendar says "Couldn't read the calendar" -- believe it.
+2. **The workspace goes in the path.** The typed client reads it from `/w/<slug>/`.
+   An account in more than one workspace gets "This account belongs to more than
+   one workspace -- say which one first" on every surface, and `/` alone will not
+   do.
+3. **A page renders before its surfaces land.** Wait for the thing you came to
+   look at, not for the shell.
+
+A page that a spec should hold is still a spec (`e2e:local`, below); this is for
+looking at one while you change it.
+
 ## Format it
 
 Prettier owns formatting (`.prettierrc.json`); `.prettierignore` names what it

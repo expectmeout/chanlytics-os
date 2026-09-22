@@ -1,4 +1,4 @@
-/* global React, Icon, EmptyState, FailedRead, StatePill */
+/* global React, Icon, EmptyState, FailedRead, StatePill, AgendaItem, AgendaItems, AgendaOpen */
 // Calendar, real: the owner's calendar as the receptionist reads it.
 //
 // One loaded window of days, four views sliced from it. The page keeps two
@@ -354,47 +354,62 @@ const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
 
 // The agenda: days as a list — what is taken, then what the receptionist
 // would offer — the way a phone-first owner reads a day.
-const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => (
-  <div className="cal-agenda" data-testid="cal-agenda">
-    {frames.map((d) => {
-      const windows = d.windows.filter(fit);
-      const items = [...d.allDay, ...d.blocks];
-      return (
-        <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} data-testid="cal-agenda-day">
-          <div className="cal-agenda-head">
-            <span className="cal-dow">{d.dow}</span>
-            <span className="cal-date tabular">{d.date}</span>
-            {d.today && <span className="cal-today-chip">Today</span>}
-            {d.closed.yes && <span className="cal-closed-chip">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
+//
+// Its rows ARE Today's rows (components/day-agenda.jsx): the same time column, the same rail, the person first
+// with the service and the length under them. It drew its own before — a 120px span, the event's whole title,
+// the name again underneath — so the same appointment read one way here and another on Today, and the customer's
+// name appeared twice in both. The day's heading, what a press opens, and the Open line below are still the
+// Calendar's own.
+const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => {
+  const cal = window.__calendar || {};
+  const clock = cal.clockLabel || ((t) => String(t));
+  const howLong = cal.durationLabel || (() => "");
+  return (
+    <div className="cal-agenda" data-testid="cal-agenda">
+      {frames.map((d) => {
+        const windows = d.windows.filter(fit);
+        const items = [...d.allDay.map((b) => [b, true]), ...d.blocks.map((b) => [b, false])];
+        return (
+          <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} data-testid="cal-agenda-day">
+            <div className="cal-agenda-head">
+              <span className="cal-dow">{d.dow}</span>
+              <span className="cal-date tabular">{d.date}</span>
+              {d.today && <span className="cal-today-chip">Today</span>}
+              {d.closed.yes && <span className="cal-closed-chip">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
+            </div>
+            {items.length > 0 && (
+              <AgendaItems>
+                {items.map(([b, allDay]) => (
+                  <AgendaItem
+                    key={b.id}
+                    time={allDay ? "All day" : clock(b.t)}
+                    name={b.person ? b.person.name : b.service}
+                    service={b.person ? b.service : null}
+                    dur={allDay ? null : howLong(b.dur)}
+                    onOpen={() => onOpen(b)}
+                    hint={b.time}
+                    testid="cal-agenda-item"
+                  />
+                ))}
+              </AgendaItems>
+            )}
+            {d.loading && <span className="ag-none">Reading this day…</span>}
+            {d.unread && <span className="ag-none">Couldn't read this day.</span>}
+            {!d.loading && !d.unread && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
+            {!d.loading && !d.unread && !d.closed.yes && feedOk && !d.past && (
+              <AgendaOpen label={`Open${service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}:`}>
+                {/* Past the last day it offers, a free day read as a day with nothing to offer (C1). */}
+                {d.beyondOffer
+                  ? <span className="ag-none">not offered yet — it offers times up to {offer.days} days ahead</span>
+                  : windows.length ? windows.map((w) => <span key={w.label} className="ag-window">{w.label}</span>) : <span className="ag-none">{service && service.consultFirst ? "the receptionist offers a consultation for this, not the service" : "nothing the receptionist would offer"}</span>}
+              </AgendaOpen>
+            )}
           </div>
-          {items.length > 0 && (
-            <div className="cal-agenda-items">
-              {items.map((b) => (
-                <button key={b.id} className="cal-agenda-item" onClick={() => onOpen(b)}>
-                  <span className="cal-agenda-time tabular">{b.time}</span>
-                  <span className="cal-agenda-title">{b.title}</span>
-                  {b.person && <span className="cal-agenda-person">{b.person.name}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          {d.loading && <span className="cal-agenda-none">Reading this day…</span>}
-          {d.unread && <span className="cal-agenda-none">Couldn't read this day.</span>}
-          {!d.loading && !d.unread && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
-          {!d.loading && !d.unread && !d.closed.yes && feedOk && !d.past && (
-            <div className="cal-agenda-open">
-              <span className="cal-agenda-open-label">Open{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}:</span>
-              {/* Past the last day it offers, a free day read as a day with nothing to offer (C1). */}
-              {d.beyondOffer
-                ? <span className="cal-agenda-none">not offered yet — it offers times up to {offer.days} days ahead</span>
-                : windows.length ? windows.map((w) => <span key={w.label} className="cal-agenda-window">{w.label}</span>) : <span className="cal-agenda-none">{service && service.consultFirst ? "the receptionist offers a consultation for this, not the service" : "nothing the receptionist would offer"}</span>}
-            </div>
-          )}
-        </div>
-      );
-    })}
-  </div>
-);
+        );
+      })}
+    </div>
+  );
+};
 
 const CalendarReal = ({ initialDay = null }) => {
   const C = useCalendar();

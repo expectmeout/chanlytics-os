@@ -3342,6 +3342,16 @@ function nextOpenWords(startIso, tz, todayKey) {
   if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock2}`;
   return `${shortDate(day.key)}, ${clock2}`;
 }
+function serviceOf(title, personName2) {
+  const whole = (title || "").trim();
+  const name = (personName2 || "").trim();
+  if (!whole || !name) return whole;
+  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
+  const edge = String.raw`(?![\p{L}\p{N}])`;
+  const cut = whole.replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "").replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "").trim();
+  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
+}
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -3352,6 +3362,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
+    service: serviceOf(item.title || "Busy", item.person?.name ?? null),
     time: spanLabel2(t, tEnd),
     person: item.person ? {
       id: item.person.id,
@@ -6098,6 +6109,7 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     time: b.time,
     dur: allDay ? "" : durationLabel(b.dur),
     title: b.title,
+    service: b.service,
     person: b.person ? { id: b.person.id, name: b.person.name } : null,
     allDay,
     phase,
@@ -11458,6 +11470,11 @@ function resolveTheme(pref, systemDark) {
 var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
+var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
+function themeColorOf(theme) {
+  return THEME_COLORS[theme === "light" ? "light" : "dark"];
+}
+var THEME_COLOR_META = 'meta[name="theme-color"]';
 function themeBootScript() {
   const known = JSON.stringify(THEME_OPTIONS.map((o) => o.id));
   return [
@@ -11465,7 +11482,11 @@ function themeBootScript() {
     `var p=${JSON.stringify(DEFAULT_THEME_PREF)};`,
     `try{var s=JSON.parse(localStorage.getItem(${JSON.stringify(DEVICE_PREFS_STORAGE)})||"{}");if(s&&${known}.indexOf(s.theme)>=0)p=s.theme}catch(e){}`,
     'var d=!!(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);',
-    'document.documentElement.dataset.theme=p==="system"?(d?"dark":"light"):p;',
+    'var t=p==="system"?(d?"dark":"light"):p;',
+    "document.documentElement.dataset.theme=t;",
+    `var l=document.querySelectorAll(${JSON.stringify(THEME_COLOR_META)});`,
+    'if(!l.length){var m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);l=[m]}',
+    `for(var i=0;i<l.length;i++)l[i].setAttribute("content",${JSON.stringify(THEME_COLORS)}[t]);`,
     "}catch(e){}"
   ].join("");
 }
@@ -16966,6 +16987,8 @@ export {
   TENANT_STATUSES,
   TEXTING_NEEDS_RECORD_CLAUSE,
   TEXTING_NEEDS_RECORD_SENTENCE,
+  THEME_COLORS,
+  THEME_COLOR_META,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
   TOAST_ICONS,
@@ -17435,6 +17458,7 @@ export {
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
+  serviceOf,
   serviceUndoName,
   servicesFoundWords,
   servicesSaveWords,
@@ -17509,6 +17533,7 @@ export {
   textingWords,
   themeBootScript,
   themeButtonWords,
+  themeColorOf,
   themePrefOf,
   threadChannelOf,
   threadChannelWords,

@@ -1407,6 +1407,8 @@ export interface DayFrameLike {
     dur: number;
     time: string;
     title: string;
+    /** The title with the person's name taken out of it (calendar.ts serviceOf). */
+    service: string;
     person: { id: string; name: string } | null;
   }>;
   allDay: Array<{
@@ -1415,6 +1417,8 @@ export interface DayFrameLike {
     dur: number;
     time: string;
     title: string;
+    /** The title with the person's name taken out of it (calendar.ts serviceOf). */
+    service: string;
     person: { id: string; name: string } | null;
   }>;
   windows: Array<{ label: string }>;
@@ -1443,6 +1447,9 @@ export interface TodayDayItemVM {
   /** "3h" · "1h 30m" · "45m"; empty for all-day. */
   dur: string;
   title: string;
+  /** What it is FOR, with the person's name taken out of the title (calendar.ts serviceOf): the row names them
+   *  once. "Gloss" from "Gloss · Emily Chen". */
+  service: string;
   person: { id: string; name: string } | null;
   allDay: boolean;
   /** Where it sits against the clock, today only: past · now · next · later. */
@@ -1532,6 +1539,7 @@ export function todayDay(
     time: b.time,
     dur: allDay ? "" : durationLabel(b.dur),
     title: b.title,
+    service: b.service,
     person: b.person ? { id: b.person.id, name: b.person.name } : null,
     allDay,
     phase,

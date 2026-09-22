@@ -309,21 +309,40 @@
   text-overflow: ellipsis;
   max-width: 60%;
 }
+/* The badges beside the name. They give way BEFORE the name does: the customer is the row's subject, and a
+   teammate's address in a "<who> has it" pill can be longer than the name it was crowding out. The wait keeps its
+   size -- it is four characters and it is why the row is here -- and the name pill takes the squeeze. */
 .ix-thread-meta {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-left: auto;
-  flex-shrink: 0;
+  min-width: 0;
+}
+.ix-thread-meta > .ix-wait,
+.ix-thread-meta > .ix-state-pill:not(.ix-name-pill) {
+  flex: none;
+}
+/* A teammate with no display name is said by their address (contracts memberWords), which on a 340px rail is
+   longer than the customer's name it stands beside. It ends in an ellipsis rather than being cut mid-word:
+   inline-block, because the label is a bare text node and a flex box will not ellipsis one. */
+.ix-thread-meta > .ix-name-pill {
+  display: inline-block;
+  min-width: 0;
+  max-width: 45%;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
 /* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
-.ix-sending { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
+.ix-sending { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
 .ix-sending .ix-veto-dot { width: 6px; height: 6px; }
-/* The thread's state is the shared pill (StatePill); the list keeps it small. */
-.ix-state-pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
-/* A name keeps its own letters: an email in capitals is shouting (I4). */
-.ix-state-pill.ix-name-pill { text-transform: none; letter-spacing: 0; }
+/* The thread's state is the shared pill (StatePill) at the size every other list draws it: 20px tall, 11px, the
+   words as they are written. It used to shrink to 16px in CAPITALS here alone, so the same state read one way on a
+   thread's row and another on the same conversation in Conversations, on a person's row and on a lead's. The class
+   stays as the row's hook; it has nothing left to override. `.ix-name-pill` is the same: it existed to undo the
+   capitals for an address, and there are none to undo. */
 
 .ix-thread-subject {
   font-size: 12px;
@@ -1621,18 +1640,26 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
 .ix-stake-oldest.warn { color: var(--warn); background: var(--warn-soft); }
 
 /* Waiting chip on list rows */
+/* How long it has waited, and when a snoozed thread wakes: the same chip as the state beside it (components.css
+   .pill), so a row carries one size of badge and not two. It was 9.5px on its own ground next to a 16px pill next
+   to nothing at all. Amber takes the tone's INK on the tone's ground, as .pill-warn does -- the raw --warn on
+   --warn-soft is 2.1:1, which is what that rule was written to stop. */
 .ix-wait {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 9.5px;
-  color: var(--ink-dim);
-  background: var(--bg-active);
-  border-radius: var(--radius-full);
-  padding: 1px 7px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
   white-space: nowrap;
 }
-.ix-wait.warn { color: var(--warn); background: var(--warn-soft); }
+.ix-wait.warn { color: var(--warn-ink); background: var(--warn-soft); border-color: transparent; }
 
 /* Resolution line on done rows */
 .ix-thread-resolution {

@@ -300,6 +300,10 @@ export interface CalendarBlockVM {
   /** Minutes. */
   dur: number;
   title: string;
+  /** What the appointment is FOR, with the person's name taken out of it: "Gloss" from "Gloss · Emily Chen".
+   *  A business writes the customer into the event's own title, so a row that also names them said them twice.
+   *  The whole title when nobody is matched, or when taking the name out would leave nothing. */
+  service: string;
   /** "2 – 3:30 PM" */
   time: string;
   /** Who it is for; `threadId` is the Inbox thread a booking link is texted into ("th-…"), `replyOpen` whether a plain text still reaches them. */
@@ -472,6 +476,34 @@ function nextOpenWords(startIso: string | null, tz: string, todayKey: string): s
   return `${shortDate(day.key)}, ${clock}`;
 }
 
+/**
+ * The appointment's title with the person's name taken out of it, so a row that names them does not say them
+ * twice: "Gloss · Emily Chen" beside Emily Chen is "Gloss". A salon writes the customer into the event title,
+ * so the feed hands us both, and the Today card and the Calendar's agenda each rendered the pair.
+ *
+ * Whole words only, either end, and the separator with it -- a dot, a dash, a pipe, a comma, a colon, or the
+ * words "with" and "for". What is left of "Emily Chen" in "Emily Chenoweth" is not a match. If taking the name
+ * out leaves nothing but punctuation, the title stands as it is: a row saying "Gloss" is better than a row
+ * saying nothing, and an event titled only with the name has no service to show.
+ */
+export function serviceOf(title: string, personName: string | null | undefined): string {
+  const whole = (title || "").trim();
+  const name = (personName || "").trim();
+  if (!whole || !name) return whole;
+  const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  // The join between a service and a name: spaces, and at most one of a dash, a middle dot, a pipe, a comma, a
+  // colon, or the word "with" or "for".
+  const gap = String.raw`\s*(?:[-–—·|,:]|\bwith\b|\bfor\b)?\s*`;
+  // Whole words only, so "Emily Chen" does not cut into "Emily Chenoweth".
+  const edge = String.raw`(?![\p{L}\p{N}])`;
+  const cut = whole
+    .replace(new RegExp(`^${gap}${quoted}${edge}${gap}`, "iu"), "")
+    .replace(new RegExp(`${gap}(?<![\\p{L}\\p{N}])${quoted}${gap}$`, "iu"), "")
+    .trim();
+  // Nothing but punctuation left means the title WAS the name, and there is no service to show.
+  return cut.replace(/[-–—·|,:\s]/gu, "") ? cut : whole;
+}
+
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
   const s = Math.max(Date.parse(item.start), dayStartMs);
   const e = Math.min(Date.parse(item.end), dayEndMs);
@@ -482,6 +514,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     t,
     dur: Math.max(15, Math.round((tEnd - t) * 60)),
     title: item.title || "Busy",
+    service: serviceOf(item.title || "Busy", item.person?.name ?? null),
     time: spanLabel(t, tEnd),
     person: item.person
       ? {

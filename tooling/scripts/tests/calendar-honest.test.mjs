@@ -186,6 +186,9 @@ globalThis.window = {
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
+// One appointment on a list, the row Today's day and the agenda both wear.
+await import("../../../apps/dashboard/src/legacy/components/day-agenda.jsx");
+for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 // A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
 globalThis.window.__chrome = { state: stateOf };
@@ -503,6 +506,43 @@ test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid 
   }
   fresh();
   assert.equal(byTestId(page(), "cal-view-week").props["aria-pressed"], true, "a desk keeps the week");
+});
+
+test("the agenda's rows ARE Today's rows, and a customer is named once: it drew its own grid, the event's whole title, and the name again under it", () => {
+  fresh();
+  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  let tree;
+  try {
+    tree = page();
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+  const row = all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-item")[0];
+  assert.ok(row, "the agenda draws rows");
+  // The shared row (components/day-agenda.jsx), not a second one of the Calendar's own.
+  const cls = (n) => String((n && (n.rendered || n).props?.className) || "");
+  assert.match(cls(row), /\bag-item\b/, "the one row every list of appointments wears");
+  assert.equal(
+    all(tree, (n) => /\bcal-agenda-item\b/.test(cls(n))).length,
+    0,
+    "REGRESSION: the Calendar drew its own row beside Today's",
+  );
+  const part = (c) => textOf(find(row, (n) => cls(n).split(" ").includes(c)));
+  assert.equal(part("ag-item-name"), "Ana Ruiz", "who it is for, first");
+  assert.equal(
+    part("ag-item-sub"),
+    "Color · 1h 30m",
+    "REGRESSION: what it is FOR and how long -- the event is titled 'Ana Ruiz · Color', and the row printed that whole title and then her name again",
+  );
+  assert.equal(textOf(row).split("Ana Ruiz").length - 1, 1, "REGRESSION: her name was on the row twice");
+  // An appointment nobody is matched to has the service as its headline and nothing under it but the length.
+  const allDay = all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-item").find((n) =>
+    textOf(n).includes("Team training"),
+  );
+  assert.ok(allDay, "the all-day entry is on the list");
+  assert.equal(textOf(find(allDay, (n) => cls(n).split(" ").includes("ag-item-name"))), "Team training");
+  assert.ok(!find(allDay, (n) => cls(n).split(" ").includes("ag-item-sub")), "no service line of its own");
+  assert.equal(textOf(allDay).trim(), "All dayTeam training", "the time column, then the entry: nothing else");
 });
 
 test("a link can name a day: the page opens it in Day view, on a phone too", () => {

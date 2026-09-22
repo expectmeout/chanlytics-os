@@ -219,13 +219,14 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     'if (C.vm.feed.state !== "ok") return null;',
     "window.__today.day(C.vm, P ? P.rows : null, people || null)",
     'data-testid="today-day-frame"',
-    'data-testid="today-day-item"',
+    'testid="today-day-item"',
     'nav(b.person ? `clients/${b.person.id}` : "calendar")',
     'data-testid="today-day-reminders"',
-    'className="td-item-rail"',
-    "data-phase={b.phase}",
-    'className="td-item-flag"',
-    "b.person ? b.person.name : b.title",
+    "<AgendaItems>",
+    "phase={b.phase}",
+    "flag={b.flag}",
+    "b.person ? b.person.name : b.service",
+    "service={b.person ? b.service : null}",
     'data-testid="today-day-more"',
     "d.moreLine",
   ])
@@ -249,10 +250,6 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   assert.ok(
     css.includes(".td-day {") &&
       css.includes(".td-frame.today .td-frame-label") &&
-      css.includes(".td-items::before {") &&
-      css.includes("grid-template-columns: 56px 12px minmax(0, 1fr) auto;") &&
-      css.includes("-webkit-line-clamp: 2;") &&
-      css.includes(".td-item.now .td-item-rail::after") &&
       !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") &&
       css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"),
   );

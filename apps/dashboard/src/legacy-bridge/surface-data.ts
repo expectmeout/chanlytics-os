@@ -255,7 +255,12 @@ const REAL_BUCKETS = [
     icon: "flag",
     accent: true,
   },
-  { id: "done", label: "Handled", hint: "Answered by the receptionist — nothing owed", icon: "check" },
+  {
+    id: "done",
+    label: "Handled",
+    hint: "Answered by the receptionist, or a teammate has it — nothing for you to do",
+    icon: "check",
+  },
   { id: "snoozed", label: "Snoozed", hint: "Hidden until they wake", icon: "clock" },
 ];
 

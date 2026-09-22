@@ -385,17 +385,35 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
     "REGRESSION: it counted the thread you have and Ana's too, under a badge that said 1",
   );
   assert.equal(counted.at(-1), 1, "the badge's own number");
-  assert.deepEqual([chip("done"), chip("snoozed")], [1, 0], "the other chips count what they hold");
+  assert.deepEqual(
+    [chip("done"), chip("snoozed")],
+    [3, 0],
+    "and the chip counts what its own list holds: Handled has the answered one, the thread you took over and Ana's",
+  );
+  // The chip cannot say a number its list does not hold -- the two came apart once, three rows under a chip of two.
+  assert.equal(
+    seen.list.threads.length,
+    chip("escalated"),
+    "REGRESSION: the list filtered on the thread's STATE, which stays escalated whoever holds it, while the chip asked what waits on you",
+  );
 });
 
-test("Needs you lists what needs you first, then the threads you have, then a teammate's -- and opens on the one that needs you", () => {
-  const { seen } = page([anas, mine, rosa]);
+test("Needs you holds what waits on you and nothing else: the thread you took over and a teammate's are Handled", () => {
+  const { seen, render } = page([anas, mine, rosa]);
   assert.deepEqual(
     seen.list.threads.map((t) => t.who),
-    ["Rosa Díaz", "Nina Park", "Ada Lovelace"],
-    "REGRESSION: in the order they last moved, a teammate's thread above the one waiting on you",
+    ["Rosa Díaz"],
+    "REGRESSION: it listed all three -- the list read the thread's STATE, which stays escalated whoever holds it, while the chip over it counted what waits on you",
   );
   assert.equal(seen.pane.thread.id, rosa.id, "REGRESSION: the pane opened on Ada's thread, which Ana is answering");
+  // They are not hidden: Handled has them, each row still saying whose it is, yours before a teammate's (ixRank).
+  seen.list.onBucketChange("done");
+  render();
+  assert.deepEqual(
+    seen.list.threads.map((t) => t.who),
+    ["Nina Park", "Ada Lovelace"],
+    "the one you took over, then the one Ana has",
+  );
 });
 
 test("opening a thread that needs you keeps its dot: on a real thread the dot means it needs you, not that it is unread", () => {
@@ -567,16 +585,17 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
   assert.equal(seen.list.activeBucket, "escalated");
   assert.deepEqual(
     seen.list.threads.map((t) => t.who),
-    ["Jess Park", "Rosa Díaz", "Nina Park", "Ada Lovelace"],
-    "first, above what needs a person",
+    ["Jess Park", "Rosa Díaz"],
+    "first, above what needs a person -- and only what waits on you is in the bucket with them",
   );
   assert.equal(seen.pane.thread.who, "Jess Park", "and it is the thread the page opens on");
   const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
   assert.deepEqual(
     [chip("escalated"), chip("done")],
-    [2, 1],
-    "the chip counts it, and Handled does not while it counts down",
+    [2, 3],
+    "the chip counts it and matches its own list; Handled holds the rest and not this one while it counts down",
   );
+  assert.equal(seen.list.threads.length, chip("escalated"), "the chip is the length of the list under it");
   assert.equal(counted.at(-1), 2, "the sidebar badge is sent that same number");
   inboxWith([rosa, mine, anas, unsent, jess]);
   assert.equal(W.sbNeedsCount(), 2, "and reads the same rule when the Inbox is not mounted");

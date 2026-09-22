@@ -21,6 +21,7 @@ import {
   type SidebarPref,
 } from "@chanlytics/contracts";
 import { authErrorInHash } from "@/auth/hash-error";
+import { paintThemeColor } from "./theme-color";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -179,7 +180,7 @@ import { installSurfaceRegistry, routeSurfaceFor } from "./surface-registry";
  * effects run. Installing the gate in a useEffect therefore left it undefined
  * at the only moment it mattered, `routeReady()` fell back to `true`, and a
  * cold boot painted the seeded mockup hero ($1,840 revenue, a fabricated
- * operator) for one frame — then a skeleton, then the truth. Strictly worse
+ * operator) for one frame — then the reading pane, then the truth. Strictly worse
  * than no gate at all.
  *
  * Module scope runs before React renders anything, so the very first frame is
@@ -334,9 +335,12 @@ export default function LegacyApp() {
     });
   }, []);
 
-  // Theme stamp + viewport scoping, exactly what the inline boot script did.
+  // Theme stamp + viewport scoping, exactly what the inline boot script did —
+  // the browser's own bars included, so switching the theme moves them with the
+  // page instead of leaving the phone's address bar in the other one's paper.
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    paintThemeColor(document, theme);
   }, [theme]);
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");

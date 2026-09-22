@@ -68,6 +68,41 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(fab).toBeVisible();
   });
 
+  test("the drawer is off the page when shut, a dialog while open, and off the page again once it has closed", async ({
+    page,
+  }) => {
+    // Safari on iOS 26 colours its own status-bar strip from the fixed element under the top edge and keeps that
+    // colour for as long as the element that gave it is still rendered (WebKit, Page::updateFixedContainerEdges).
+    // A drawer parked at translateX(-102%) is rendered, so the scrim's grey outlived the drawer until a reload; one
+    // that is display: none is not. The scrim carries a backdrop-filter, which that sampler reads as glass and leaves
+    // the strip alone, as it does for the Ask sheet. Safari's bar itself is Ruben's to look at; this proves the shape
+    // the bar reads.
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const sidebar = page.locator(".side-wrap .sidebar");
+    const rendered = () => sidebar.evaluate((el) => el.getClientRects().length > 0);
+    await expect(sidebar).toBeHidden();
+    expect(await rendered(), "shut, the drawer has no box").toBe(false);
+
+    await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
+    await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(1);
+    await expect(sidebar).toBeVisible();
+    await expect
+      .poll(async () => (await sidebar.boundingBox())?.x, { message: "the drawer slides in to the edge" })
+      .toBe(0);
+    const scrim = page.locator(".nav-backdrop");
+    await expect(scrim).toBeVisible();
+    expect(await scrim.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
+    expect(await scrim.evaluate((el) => getComputedStyle(el).backdropFilter), "the scrim is glass to the bar").not.toBe(
+      "none",
+    );
+
+    await scrim.click({ position: { x: 370, y: 500 } });
+    await expect(sidebar, "once the slide-out has ended, the drawer has no box").toBeHidden();
+    expect(await rendered()).toBe(false);
+    await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
+  });
+
   test("the tab bar replaces the menu button, and the Inbox shows one pane at a time", async ({ page }) => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
