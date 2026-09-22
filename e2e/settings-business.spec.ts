@@ -652,6 +652,14 @@ test.describe("Settings › Business on a real workspace", () => {
     const block = page.getByTestId(`rec-prompt-block-${id}`);
     await expect(block).toBeInViewport();
     await expect(block, "the block it walked to takes focus, so a keyboard reads on from it").toBeFocused();
+    // A block's door is latent until the block is approached (spec §11): walked to and focused, its door is drawn.
+    const settled = () =>
+      page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+    const opacity = (l: Locator) => l.evaluate((el) => getComputedStyle(el).opacity);
+    if (await block.locator(".bt-prompt-door").count()) {
+      await settled();
+      expect(await opacity(block.locator(".bt-prompt-door")), "the focused block's door is drawn").toBe("1");
+    }
 
     // Escape closes the sheet, and focus goes back to the door that opened it.
     await page.keyboard.press("Escape");
@@ -674,6 +682,16 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(sheet).toHaveCount(0);
       await expect(door).toBeFocused();
     } else {
+      // At rest, with the pointer away from every block, no door is drawn; the pointer on a block draws its door.
+      await page.mouse.move(0, 0);
+      await settled();
+      expect(
+        await sheet.locator(".bt-prompt-door").evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity)),
+        "a door drawn at rest on a desktop",
+      ).toEqual(Array(await sheet.locator(".bt-prompt-door").count()).fill("0"));
+      await rowDoors.first().locator("xpath=ancestor::section[1]").hover();
+      await settled();
+      expect(await opacity(rowDoors.first()), "the door of the block under the pointer is drawn").toBe("1");
       await rowDoors.first().click();
       await expect(sheet).toHaveCount(0);
       await expectFocusInside(
@@ -698,6 +716,13 @@ test.describe("Settings › Business on a real workspace", () => {
       const n = await blocks.count();
       expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
       for (let i = 0; i < n; i++) await expect(blocks.nth(i).locator(".bt-prompt-block-share")).toBeVisible();
+      // Nothing hovers here, so every door is drawn.
+      expect(
+        await sheet
+          .locator(".bt-prompt-door")
+          .evaluateAll((els) => els.filter((el) => getComputedStyle(el).opacity !== "1").length),
+        `${channel}: a door hidden on a phone`,
+      ).toBe(0);
       await expectNoSidewaysScroll(page, `the prompt sheet on a phone, ${channel}`, [PANE, ".rec-sheet-body"]);
       await expectPromptSheetQuiet(page, `the prompt sheet on a phone, ${channel}`);
       const body = page.locator(".rec-sheet-body");

@@ -1374,6 +1374,16 @@ html.legacy-on .bt-link { position: relative; }
 /* The share in words: a phone's indicator, where the contents are not drawn (below). */
 .bt-prompt-block-share { grid-column: 1 / -1; grid-row: 2; display: none; font-size: var(--text-xs); color: var(--ink-dim); }
 .bt-prompt-door { grid-column: 2; grid-row: 1; font-size: var(--text-sm); }
+/* Latent at rest, drawn on approach, as a row's act is (record.css .rec-row-act; the spec's §11): eight underlined
+   Changes down the page's most text-heavy surface were eight controls at rest. Opacity alone, so every door stays in
+   the tab order and :focus-within draws it -- a block walked to from the contents is focused, and its door shows. Only
+   where there is a pointer that hovers and room beside the block: under a finger, and at a phone's width, every door is
+   drawn, since nothing hovers there. */
+@media (hover: hover) and (pointer: fine) and (min-width: 761px) {
+  .bt-prompt-door { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+  .bt-prompt-block:hover .bt-prompt-door, .bt-prompt-block:focus-within .bt-prompt-door { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .bt-prompt-door { transition: none; } }
 /* The prompt itself, in the page's own face: sentences about a business, not a listing. It has real line breaks and
    keeps them, and an unbroken booking address must never widen the sheet. */
 .bt-prompt-block-text { margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }

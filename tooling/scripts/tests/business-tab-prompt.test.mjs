@@ -349,6 +349,8 @@ test("every block a row of this page wrote opens that row, and the platform's op
     const tree = drawPrompt();
     const door = byTestId(tree, `rec-prompt-door-${id}`);
     assert.ok(door, `${id} has a door`);
+    // The class the latent-until-approached rule reads (settings.css; the journey measures it by computed style).
+    assert.ok(classes(door).includes("bt-prompt-door"), `${id}: a door, drawn on approach on a desktop`);
     press(door);
     const next = redrawTab();
     assert.equal(sheetOf(next), null, `${id}: the sheet closes`);
