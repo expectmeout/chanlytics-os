@@ -330,6 +330,19 @@ const BtRow = ({
 /* ------------------------------------ a set of fields: the editor a fold and a sheet both are ------------------------------------ */
 
 /**
+ * What an editor opens over, and whether it can open at all: the config its save will go on (the saver's base), the
+ * draft its part of it opens as, which the body is drawn with while it is closed, and `can`, which needs both. The
+ * draft is tried, like everything else worked out as the page draws (btWorkedOut): an editor whose part of the record
+ * cannot be read opens nothing and offers no act, and its row still says what it says. One test, for the editor and for
+ * a row that opens a sheet drawn elsewhere (BtSheet.opens): the row once asked a copy of it.
+ */
+const btOpening = (id, saver) => {
+  const base = saver ? saver.base() : null;
+  const stored = btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: window.__businessTabSave.draftOf(id, base || {}) }));
+  return { base, stored, can: !!base && !!stored };
+};
+
+/**
  * The editor behind one of this page's folds, and behind its sheet: the draft, what stops a save, the save through the
  * tab's one saver, what the receptionist will be told, the two asks, and every rule a list in the draft has. A fold
  * draws it under its row (BtFold, below); a list too long for a fold draws it in a sheet beside the page (BtSheet,
@@ -378,20 +391,16 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // Undo by its id, and `produced` each list as its own rows() last left it (rows, below).
   const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0, backs: BtPutBacks.none, agains: new Map(), produced: new Map(), seq: 0 });
   const busy = saver ? saver.pending(id) : false;
-  const base = saver ? saver.base() : null;
+  const { base, stored, can } = btOpening(id, saver);
   // Anything typed is something to ask about, whether or not the save would write it (the header says why).
   const holds = () => {
     const l = live.current;
     return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
   };
   const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
-  // The draft as what is stored opens it, which the body is drawn with while the editor is closed. Tried, like
-  // everything else here that is worked out as it draws (btWorkedOut): an editor whose part of the record cannot be
-  // read opens nothing and offers no act, and its row still says what it says.
-  const stored = btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: S.draftOf(id, base || {}) }));
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
-  // read to save onto.
-  const open = fold.open && canEdit && !!base && !!stored;
+  // read to save onto, nor a part of the record its draft cannot be worked out of (btOpening).
+  const open = fold.open && canEdit && can;
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; live.current.opened = null; live.current.backs = BtPutBacks.none; live.current.agains = new Map(); live.current.produced = new Map(); setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
@@ -740,14 +749,11 @@ const BtSheet = ({
 
 /**
  * Whether the sheet `id` could open over the saver's base: a read to save onto, and a draft its part of the record can
- * be worked out as. The editor's own test (useBtEditor's `open` and `stored`), for the row that opens a sheet the page
+ * be worked out as. The editor's own test (btOpening, which useBtEditor asks), for the row that opens a sheet the page
  * draws elsewhere, last: a fold offers no act while its draft cannot be worked out, and the row that opens a sheet
  * offered one that opened nothing.
  */
-BtSheet.opens = (id, saver) => {
-  const base = saver ? saver.base() : null;
-  return !!base && !!btWorkedOut(`the draft the ${id} fold opens with`, () => ({ draft: window.__businessTabSave.draftOf(id, base) }));
-};
+BtSheet.opens = (id, saver) => btOpening(id, saver).can;
 
 // The three gestures, the put-backs every list of them keeps (BtPutBacks, published for its own tests), and the words
 // every row of words says once its change is saved, for the cards that live in files
