@@ -162,7 +162,7 @@ _Fix:_ this is the reply slice, in flight now. Until it lands the notification c
 _And it is reachable by an HR event:_ nothing anywhere clears `assignee_user_id` when a membership is deleted (`service.ts:555`), so the thread reads as "theirs" to every remaining member, for ever.
 _Fix:_ clear the assignee when a membership is removed; give the sweeper a second limb for a pause long past its time whose escalation is older than some ceiling; or stop treating a stale assignee as a live claim at the wire.
 
-**G4. ✅ The Booking autonomy dial is not honoured on the phone.** On text it is enforced twice — in the prompt, and in `layerTwo` (`apps/edge/lib/whatsapp/steps.ts:100-112`), which _strips the booking link out of the reply_ and escalates. On voice, `retell-fn.ts:173` reads `rt.policy?.reply?.mode` — the **reply** class, not `booking` — and `retell-availability.ts` reads no policy at all.
+**G4. ✅ The Booking autonomy dial is not honoured on the phone.** On text it is enforced twice — in the prompt, and in `layerTwo` (`packages/core/src/inbound/steps.ts:100-112`), which _strips the booking link out of the reply_ and escalates. On voice, `retell-fn.ts:173` reads `rt.policy?.reply?.mode` — the **reply** class, not `booking` — and `retell-availability.ts` reads no policy at all.
 _What happens:_ a workspace that set "Ask me first" on bookings still has its phone agent reading open times aloud and texting the booking link, while its WhatsApp receptionist is being muzzled for the same request.
 _Fix:_ read `policy.booking` in both voice endpoints, the way `policyAskClass` does on text.
 

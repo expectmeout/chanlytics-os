@@ -1,30 +1,38 @@
 /**
- * Everything the WhatsApp handler reaches outside itself, as one object.
+ * Everything the receptionist reaches outside itself, as one object.
  *
- * handleInbound is the customer path: seven hundred lines of decisions, most
- * of them pure steps (./steps.ts), joined to the world by a dozen module
- * imports -- the database, the memory, the tenant runtime, the sink and the
- * sender, the alerts, the pager, the model. Those imports were why no test
- * could run it and fifty source reads pinned its text instead.
+ * answerInbound (packages/core/src/inbound/answer.ts) is the customer path:
+ * nine hundred lines of decisions, most of them pure steps, joined to the
+ * world by a dozen modules -- the database, the memory, the tenant runtime,
+ * the sink and the sender, the alerts, the pager, the model. Those were module
+ * imports inside the handler, which is why no test could run it and fifty
+ * source reads pinned its text instead.
  *
  * The real modules are the default, so the runtime changes nothing; a test
  * hands in fakes and the handler's control flow runs for real against them.
  * Nothing here decides anything.
+ *
+ * `InboundPorts` is the core verb's shape minus the three the EDGE supplies
+ * itself, so the two cannot drift: the logger factory, the credentials
+ * resolver and the lead description are added by corePorts() below rather than
+ * asked of every caller, which is what keeps a test's world exactly what it
+ * has always been.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode } from "../packages/db.js";
-import { loadTenantRuntime } from "../tenant-runtime.js";
+import { readLeadContext, personReplyMode, describeLead } from "../packages/db.js";
+import { loadTenantRuntime, waCfgFor } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
 import { pgThread, pgIngest, pgSink, queueReply } from "./persist.js";
 import { alertStaff } from "./alerts.js";
 import { pageOperator } from "../ops/page-operator.js";
-import { whatsappSender } from "../packages/core.js";
+import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
+import { logger } from "../log.js";
 import { env } from "../env.js";
 
-export interface InboundPorts {
+export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads"> {
   /** The database, or null when this deployment persists nothing. */
   db: () => SupabaseClient<Database> | null;
   /** The control plane's one door: the workspace's persona, policy, credentials. */
@@ -48,8 +56,8 @@ export interface InboundPorts {
 
 /**
  * A test's world, handed in the way setPg hands in a database: while one is
- * set, realPorts() answers with it, so a door that reaches handleInbound runs
- * over fakes when it is called exactly as production calls it. Nothing in
+ * set, realPorts() answers with it, so a door that reaches the receptionist
+ * runs over fakes when it is called exactly as production calls it. Nothing in
  * production sets it; null puts the real modules back.
  *
  * A module-level door, not a second parameter on the webhook's POST, which is
@@ -84,5 +92,22 @@ export function realPorts(): InboundPorts {
       allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",
       modelKey: env.ANTHROPIC_API_KEY,
     },
+  };
+}
+
+/**
+ * The verb's world, from this one.
+ *
+ * Three things the body reaches for that a verb may not import: the edge's
+ * logger FACTORY (it binds the tenant once, where it becomes known), the
+ * credentials resolver, and the lead description, which is a VALUE from the db
+ * package. Added here so a test's ports stay the shape they have always been.
+ */
+export function corePorts(p: InboundPorts): CoreInboundPorts {
+  return {
+    ...p,
+    leads: { ...p.leads, describe: describeLead },
+    log: logger,
+    waCfg: waCfgFor,
   };
 }

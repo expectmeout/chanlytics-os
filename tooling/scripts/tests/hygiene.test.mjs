@@ -206,7 +206,7 @@ test("a core verb knows no database, framework, provider or environment", () => 
   // apps/dashboard/src/server/core-ports.ts is where the tables are. Its
   // imports are contracts, db types, and each other.
   const offenders = [];
-  for (const group of ["conversations", "messages", "campaigns"]) {
+  for (const group of ["conversations", "messages", "campaigns", "inbound"]) {
     const dir = path.join(here, `../../../packages/core/src/${group}`);
     for (const f of fs.readdirSync(dir)) {
       // Prettier prints a long import over several lines, so each import
@@ -216,7 +216,12 @@ test("a core verb knows no database, framework, provider or environment", () => 
         const ok =
           /from "\.\.?\//.test(line) ||
           /from "@chanlytics\/contracts"/.test(line) ||
-          /^import type .* from "@chanlytics\/db"/.test(line);
+          /^import type .* from "@chanlytics\/db"/.test(line) ||
+          // The normalised inbound message is the channels package's shape
+          // and the inbound verb speaks it, so the TYPE crosses. A VALUE
+          // from channels would be a provider inside a verb, which is a
+          // port, not a widening.
+          /^import type .* from "@chanlytics\/channels"/.test(line);
         if (!ok) offenders.push(`${group}/${f}: ${line.trim()}`);
       }
     }

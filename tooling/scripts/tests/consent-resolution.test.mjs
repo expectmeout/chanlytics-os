@@ -21,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { resolveConsent } = await import(
-  pathToFileURL(path.join(here, "../../../apps/edge/lib/receptionist/consent.ts")).href
+  pathToFileURL(path.join(here, "../../../packages/core/src/inbound/consent.ts")).href
 );
 
 /** Postgres answered and nobody opted out — the ordinary case. */

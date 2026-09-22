@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spokenBreach, ruleStrength } from "@chanlytics/contracts";
-import { layerTwo } from "../../../apps/edge/lib/whatsapp/steps.ts";
+import { layerTwo } from "../../../packages/core/src/inbound/steps.ts";
 
 const brainCfg = (guardrails) => ({
   business_name: "Melany's Beauty Salon",

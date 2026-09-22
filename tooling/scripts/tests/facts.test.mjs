@@ -157,7 +157,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // provisioned line spoken in their prompts -- are run in eval-door.test.mjs
   // and steer-door.test.mjs.
   for (const [file, call] of [
-    ["apps/edge/lib/whatsapp/inbound.ts", "rt?.known"],
+    ["packages/core/src/inbound/answer.ts", "rt?.known"],
     ["apps/edge/lib/voice/call-start.ts", "rt.known"],
   ]) {
     const src = readCode(file);

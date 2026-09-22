@@ -560,7 +560,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
         edge,
       ),
   );
-  const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
+  const wa = readCode("packages/core/src/inbound/answer.ts");
   assert.ok(
     wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") &&
       wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"),
