@@ -1587,6 +1587,11 @@ html.legacy-on .bt-link { position: relative; }
 .bt-inline-note { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-inline-note b { font-weight: var(--weight-medium); color: var(--ink); }
 
+/* ---- A workspace with no receptionist (pages/business-tab-create.jsx) ---- */
+/* The number to give out, in the create fold: its label over the same choice and box the Who you are row draws,
+   spaced as the kit spaces a field's label and box. */
+.bt-create-number { display: flex; flex-direction: column; gap: 5px; }
+
 /* ---- When you're open (pages/business-tab-open.jsx) ---- */
 /* The week has a shape (the canvas's Record and Group-Open): a day's open stretches are bars on ONE scale, 6 AM to
    10 PM, placed from their times by the page, at rest in the ribbon and again in the fold beside the boxes that draw

@@ -364,7 +364,8 @@ const btOpening = (id, saver) => {
  *                   day's note with no date yet, a day switched on with no times and a service with no name are all
  *                   dropped by the save, so they read as nothing, and Cancel threw them away without a question. The
  *                   form this replaces counted any change, and so does this. Asking once too often loses nothing;
- *   on Save         the page's own checks first (problemsOf), each sentence under its field: a shift typed half-way is
+ *   on Save         the page's own checks first (problemsOf, and the card's `check` for what only the page knows: the
+ *                   line the workspace answers on), each sentence under its field: a shift typed half-way is
  *                   dropped by the save, so a week that "changes nothing" because of one must still be refused, never
  *                   closed as if saved. Then nothing to write (holdsChanges, which stays the test for whether Save
  *                   sends anything) is nothing to send, and the editor closes. Then the save's own schema
@@ -380,8 +381,11 @@ const btOpening = (id, saver) => {
  * `prefix` names its two asks' Confirms (rec-fold-<id>, rec-sheet-<id>). What a body is handed is `fields` in what it
  * answers, which BtFold's contract says in full.
  */
-const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver = null, said = BT_SAVED, channel = "whatsapp", prefix }) => {
+const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver = null, said = BT_SAVED, channel = "whatsapp", check = null, nothingYet = false, prefix }) => {
   const S = window.__businessTabSave;
+  // The page's own checks: the fold's (problemsOf, pure) and the card's (`check`), for what the draft does not hold
+  // and only the page knows (the line the workspace answers on). The card's wins under a field both would speak of.
+  const pageProblems = (d) => Object.assign({}, S.problemsOf(id, d), check ? check(d) || {} : {});
   const [draft, setDraft] = useBtgState(null);
   const [problems, setProblems] = useBtgState(null);
   const ask = useBtAsk();
@@ -537,16 +541,22 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   const asks = btAsks({ ask, fold, prefix, busy, dirty, close, reset });
   const submit = () => {
     if (busy || !open || refused) return;
-    if (draft == null) { close(); return; }
+    // A fold nobody typed in closes at once: nothing was asked of it, so nothing of it is judged (a non-owner's
+    // calendar address arrives masked, and would be refused as no address at all). Except a fold that states no fact
+    // yet (`nothingYet`, the create card's): there is nothing stored for a check to judge wrongly, and every box in it
+    // is one the receptionist cannot answer anyone without, so an untouched Save says what is missing under each box
+    // rather than closing as if it had saved -- which is what the create form it replaces did.
+    if (draft == null && !nothingYet) { close(); return; }
+    const typed = draft != null ? draft : live.current.opened;
     // The checks are the helpers', and a draft they throw on is one they cannot judge: said, in the danger tone, and
     // nothing sent. `judged` is what to do next; null is a check that could not run.
     const judged = btWorkedOut(`whether the ${id} fold may be saved`, () => {
-      const own = S.problemsOf(id, draft);
+      const own = pageProblems(typed);
       if (Object.keys(own).length) return { problems: own };
-      if (!S.holdsChanges(id, base, draft)) return { nothing: true };
-      const all = S.saveProblems(id, base, draft);
+      if (!S.holdsChanges(id, base, typed)) return { nothing: true };
+      const all = S.saveProblems(id, base, typed);
       if (Object.keys(all).length) return { problems: all };
-      return { job: S.foldJob(id, draft, { opened: live.current.opened, said, done: close, flash }) };
+      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: close, flash }) };
     });
     if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
     if (judged.problems) { setProblems(judged.problems); return; }
@@ -561,7 +571,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // that composes nothing, carried into the owner's field, S4), and the fold said the details would start being given
   // of a Save that then sent nothing (the review's probe P1).
   const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => {
-    if (Object.keys(S.problemsOf(id, now)).length) return null;
+    if (Object.keys(pageProblems(now)).length) return null;
     const said = S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel });
     return said && said.note && !S.holdsChanges(id, base, now) ? { ...said, note: null } : said;
   }) : null;
@@ -632,7 +642,14 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * removed a row with `update` had none of the three.
  *
  * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
- * act's words and its name where "Change" or "Add one" and the label say nothing together.
+ * act's words and its name where "Change" or "Add one" and the label say nothing together. `rest({ request, can })`
+ * draws something else at rest in the row's place, for a fold with no fact to state yet (the create card's empty
+ * state): hookless, and its act carries the fold's id as `data-rec-act`, where the fold gives focus back as it closes.
+ * `can` is whether there is anything to open it onto, as a row's act asks before it offers one; NOT whether the role
+ * may, since what a `rest` draws is a card's primary act, which is shown to a role that may not press it and says why
+ * at the press, where a row's own act is simply absent. A fold with a `rest` states no fact yet, so its untouched Save
+ * is judged rather than closed (useBtEditor's `nothingYet`).
+ * `check(draft)` is the card's own check, beside problemsOf: { fieldKey: sentence } for what the draft does not hold.
  *
  * What it will say is its blocks whole, under "Your receptionist will be told", with the lines that go under "It will
  * no longer be told", and before them the sentence for a save that crosses the resolver's line and each block's own
@@ -643,17 +660,17 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * was typed.
  */
 const BtFold = ({
-  id, label, hint = null, row = {}, wide = false, lines = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {}, saver = null, body,
+  id, label, hint = null, row = {}, rest = null, wide = false, lines = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
+  canEdit = true, gate = null, flash = () => {}, saver = null, check = null, body,
 }) => {
-  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, prefix: `rec-fold-${id}` });
+  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, check, nothingYet: !!rest, prefix: `rec-fold-${id}` });
   const found = e.fields.problems;
   const has = !(row.value == null || row.value === "" || row.value === false);
   const will = e.will;
   const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
   return (
     <>
-      {e.open ? null : (
+      {e.open ? null : rest ? rest({ request: e.request, can: !!e.stored }) : (
         <window.RecordRow
           id={id}
           label={label}

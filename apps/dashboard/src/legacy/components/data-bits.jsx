@@ -535,6 +535,9 @@ const EmptyState = ({ kind = "card", glyph = null, title = null, body = null, ac
       className={kind === "line" ? "cl-bucket-link" : primary ? (kind === "page" ? "btn btn-primary btn-sm" : "btn btn-sm") : "btn btn-ghost btn-sm"}
       onClick={go(a)}
       data-testid={a.testid || undefined}
+      // An act that opens a record fold carries the fold's id, where the fold gives focus back as it closes
+      // (record-fold.jsx data-rec-act): the Business tab's "Set up the receptionist".
+      data-rec-act={a.recAct || undefined}
       {...(a.gate || {})}
     >
       {a.label}{kind === "line" && <Icon name="arrow-right" size={10} />}

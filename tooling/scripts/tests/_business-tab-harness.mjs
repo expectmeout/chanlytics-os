@@ -68,6 +68,9 @@ await import(`${L}/pages/business-tab-open.jsx`);
 await import(`${L}/pages/business-tab-offer.jsx`);
 await import(`${L}/pages/business-tab-answers.jsx`);
 await import(`${L}/pages/business-tab-services.jsx`);
+// The card a workspace with no receptionist is shown, which PaneWorkspace draws in the page's place
+// (business-tab-create.test.mjs draws it); in both load lists here, after the cards and before the page.
+await import(`${L}/pages/business-tab-create.jsx`);
 await import(`${L}/pages/business-tab.jsx`);
 const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.

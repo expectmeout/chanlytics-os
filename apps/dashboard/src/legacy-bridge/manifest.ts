@@ -108,6 +108,7 @@ import "@/legacy/pages/business-tab-open.jsx";
 import "@/legacy/pages/business-tab-offer.jsx";
 import "@/legacy/pages/business-tab-answers.jsx";
 import "@/legacy/pages/business-tab-services.jsx";
+import "@/legacy/pages/business-tab-create.jsx";
 import "@/legacy/pages/business-tab.jsx";
 import "@/legacy/pages/settings.jsx";
 import "@/legacy/pages/billing-real.jsx";
