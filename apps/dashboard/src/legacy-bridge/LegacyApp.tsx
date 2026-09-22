@@ -180,7 +180,7 @@ import { installSurfaceRegistry, routeSurfaceFor } from "./surface-registry";
  * effects run. Installing the gate in a useEffect therefore left it undefined
  * at the only moment it mattered, `routeReady()` fell back to `true`, and a
  * cold boot painted the seeded mockup hero ($1,840 revenue, a fabricated
- * operator) for one frame — then a skeleton, then the truth. Strictly worse
+ * operator) for one frame — then the reading pane, then the truth. Strictly worse
  * than no gate at all.
  *
  * Module scope runs before React renders anything, so the very first frame is
