@@ -1721,21 +1721,34 @@ const AddPersonButton = ({ onAdded, flash }) => {
   );
 };
 
-// A sheet from the bottom of a phone for People's own small jobs -- Add a person, and the open list's rename, delete
-// and "Save these": a handle, a title, one way out, and the job. The page's own dialog: `pl-sheet` keeps it out of
-// PL_OVERLAY, and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
-const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", testid, children }) => (
+// A sheet from the bottom of a phone for People's own small jobs -- Add a person, the open list's rename, delete and
+// "Save these", and what a selection can become: a handle, a title, one way out, and the job. A step inside a sheet
+// (`onBack`) has a way back to the list it came from. The page's own dialog: `pl-sheet` keeps it out of PL_OVERLAY,
+// and the page's one keyboard listener closes it on Esc. Hookless: the page holds what is in it.
+const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", onBack = null, testid, children }) => (
   <>
     <div className="sb-sheet-backdrop" onClick={onClose} />
     <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
       <div className="pp-sheet-handle" aria-hidden="true" />
       <div className="pp-sheet-head">
+        {onBack && <button type="button" className="pp-sheet-back" onClick={onBack} aria-label="Back" data-testid={`${testid}-back`}><Icon name="chevron" size={18} /></button>}
         <h2 className="pp-sheet-title">{title}</h2>
         {closeLabel && <button type="button" className="pp-sheet-close" onClick={onClose} data-testid={`${testid}-close`}>{closeLabel}</button>}
       </div>
       <div className="pp-sheet-body">{children}</div>
     </div>
   </>
+);
+
+// One row of a phone sheet's list: its glyph, its words, what it holds (a file's kind), and a chevron when it opens a
+// step of its own. `gate` is window.gate's answer for a row the member's role refuses: focusable, described, inert.
+const PhoneSheetRow = ({ icon = null, label, meta = null, next = false, danger = false, disabled = false, onClick, testid, gate = null }) => (
+  <button type="button" className={`pp-sheet-row${danger ? " danger" : ""}`} disabled={disabled} onClick={onClick} data-testid={testid} {...(gate || {})}>
+    {icon ? <Icon name={icon} size={16} /> : null}
+    <span className="pp-sheet-row-words">{label}</span>
+    {meta ? <span className="pp-sheet-row-meta">{meta}</span> : null}
+    {next ? <Icon name="chevron" size={14} className="pp-sheet-row-next" /> : null}
+  </button>
 );
 
 // Add a person on a phone: the two fields stacked, 16px, a number pad for the number, one wide button. The desktop's
@@ -3163,4 +3176,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, RailSection, RailGroup, RailRow, railToggle });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, RailSection, RailGroup, RailRow, railToggle });

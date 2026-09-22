@@ -2163,6 +2163,21 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pp-sheet .confirm-block .confirm-q { font-size: var(--text-md); color: var(--ink); }
 .pp-sheet .confirm-block .confirm-acts { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .pp-sheet .confirm-block .confirm-acts .btn { height: 48px; justify-content: center; font-size: var(--text-md); }
+/* A step's way back, before its title: the chevron, turned. */
+.pp-sheet-back { flex: none; width: 36px; height: 44px; margin-left: -10px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.pp-sheet-back .icon { transform: scaleX(-1); }
+/* A sheet's list (PhoneSheetRow): 48px rows within the sheet's gutter, the glyph in the muted ink, a chevron on a row
+   that opens a step, and a small heading over a group. */
+.pp-sheet-rows { display: flex; flex-direction: column; margin: 0 -8px; }
+.pp-sheet-rows-h { padding: 12px 8px 4px; font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.pp-sheet-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 8px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); text-align: left; text-decoration: none; cursor: pointer; }
+.pp-sheet-row:hover, .pp-sheet-row:active { background: var(--bg-hover); }
+.pp-sheet-row:disabled { opacity: 0.5; cursor: default; }
+.pp-sheet-row .icon { flex: none; color: var(--ink-muted); }
+.pp-sheet-row.danger, .pp-sheet-row.danger .icon { color: var(--danger); }
+.pp-sheet-row-words { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-sheet-row-meta { flex: none; font-size: var(--text-sm); color: var(--ink-dim); }
+.pp-sheet-row .pp-sheet-row-next { color: var(--ink-faint); }
 
 @media (max-width: 900px) {
   /* People's rows: one card cell each (plCardCell), edge to edge, a hairline between -- the Inbox's list. The wrap's

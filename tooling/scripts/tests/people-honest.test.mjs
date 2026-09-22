@@ -689,6 +689,28 @@ test("Esc closes the phone's own sheet, and the page holds its keys while one is
   }
 }));
 
+test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
+  const Row = globalThis.window.PhoneSheetRow;
+  const Sheet = globalThis.window.PhoneSheet;
+  let pressed = 0;
+  const row = Row({ icon: "edit", label: "Add a note", next: true, onClick: () => { pressed += 1; }, testid: "r" });
+  assert.equal(row.type, "button");
+  assert.match(row.props.className, /\bpp-sheet-row\b/);
+  assert.ok(find(row, (n) => n.props?.className === "pp-sheet-row-next"), "a row that opens a step says so");
+  click(row);
+  assert.equal(pressed, 1);
+  // A row the member's role refuses is the gate's: focusable, described, inert.
+  const refused = Row({ label: "Export", onClick: () => { pressed += 1; }, gate: { "aria-disabled": true, onClick: () => {} } });
+  click(refused);
+  assert.equal(pressed, 1, "the gate's press, not the act");
+  assert.equal(refused.props["aria-disabled"], true);
+  let backs = 0;
+  const s = Sheet({ title: "Record a yes", onClose: () => {}, onBack: () => { backs += 1; }, testid: "x", children: [] });
+  click(byTestId(s, "x-back"));
+  assert.equal(backs, 1, "Back walks to the list the step came from");
+  assert.equal(byTestId(Sheet({ title: "3 selected", onClose: () => {}, testid: "y", children: [] }), "y-back"), null, "the first step has no way back");
+});
+
 test("REGRESSION: on a phone the Lists sheet starts with Everyone and draws no second People | Leads -- the switch was in the sheet and, beside the bar's, would be twice", () => onPhone(async () => {
   await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   let tree = draw({ initialSaved: "s1" });
