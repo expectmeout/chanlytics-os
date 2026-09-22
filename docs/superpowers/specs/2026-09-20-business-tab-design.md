@@ -159,6 +159,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 
 **Fold.** Opens under its row inside the card, `grid-template-rows: 0fr → 1fr`. The accent left edge marks it. Its footer carries the composed block and its own Save. One at a time: opening another closes a clean fold and asks about a dirty one. The rows below are pushed, never covered, and the fold's top edge does not move.
 
+> **Amended 22 Sep, in execution (Task 6.2b).** On a phone (760px and under) an open fold rises from the bottom as a sheet instead: the same head, fields, composed block and Save, in the sheet's frame, modal, as tall as what it holds up to 88% of the screen. A press on the wash behind it is its Cancel, so reaching for another row asks about what was typed. The inline editor stays in its row at every width: one value, already the row's full width on a phone.
+
 **Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
 
 > **Amended 22 Sep, in execution (Task 5.1).** The prompt's sheet has no search and nothing to save. Its head is the title and who reads it (no count); its tools the channel, WhatsApp or Phone; its body the contents ("Written by", an entry per block with ONE thin bar as long as the block's share, the exact count only in the entry's accessible description and tip) beside the blocks (each its row's label, its door back to that row, its text in the page's face, its note), then what is sent beside the prompt under a dashed rule with the reason it is apart. On a phone the contents are not drawn, each block's head says its share in words, and the foot is one Close; on a desktop it has no foot. Both sheets go through one slot, drawn last on the page, which draws one of them or neither.
@@ -180,6 +182,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 | `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |
 | `RecordTip` / `RecordTipCard` | `set-mark` + `window.__tip`, formalised as two tiers |
 | `RecordCombobox` | the 418-option timezone `<select>`, and the language add |
+
+> **Amended 22 Sep, in execution (Task 6.2b).** `RecordFold` is one component with two frames: under the phone query it draws itself in `RecordSheet`'s phone frame (a dialog in the app's root) and above it folds inline, with the same hooks either way, so a page calls it the same way at every width. `RecordSheet` itself is unchanged.
 
 Not built, and why: DatePicker (native `type="date"` is deliberate — 31 November cannot be typed), DataTable (`PeopleTable` is one; Settings has no table), Command (⌘K is Ask, shell-owned), Pagination, Drawer, Progress, Carousel, Menubar, Message/Bubble.
 
