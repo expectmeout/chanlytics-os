@@ -344,3 +344,27 @@ test("what the page on screen draws from other surfaces follows its own surface,
   );
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
+
+test("a boot that cannot make the live feed's client says the feed is down, and nothing is left rejecting", async () => {
+  // With no client address (every node test), a boot that finished before its test called stop() threw out of the
+  // runner's own promise chain, and node charged the rejection to whichever test was running: inbox-list-honest's
+  // act-behind-a-re-read, which passed only while the boot was still waiting on its 800 ms retry.
+  const { getConnection, setConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+  const warned = [];
+  const keepWarn = console.warn;
+  console.warn = (...a) => warned.push(a[0]);
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  setConnection({ realtimeDown: false });
+  const stop = startSurfaces([{ key: "inbox", refreshOnMessageInserts: true, apply: async () => {} }]);
+  try {
+    await settle(20);
+    assert.equal(getConnection().realtimeDown, true, "the shell's line says live updates are not coming through");
+    assert.ok(warned.includes("realtime_client_unavailable"), "and the console says why, once");
+  } finally {
+    console.warn = keepWarn;
+    stop();
+    setConnection({ realtimeDown: false });
+  }
+});

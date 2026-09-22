@@ -255,7 +255,17 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
     if (cancelled) return;
     if (guardTenant()) return;
     if (!realtimeOverrides.length) return;
-    const supabase = createClient();
+    let supabase: ReturnType<typeof createClient>;
+    try {
+      supabase = createClient();
+    } catch (e) {
+      // A build with no address for the client cannot join the live feed. That is the feed being down, and the
+      // shell's line says so (live updates not coming through); it was a rejection nothing was waiting on, which
+      // node charged to whichever test was running once a boot finished before its test's stop().
+      console.warn("realtime_client_unavailable", e instanceof Error ? e.message : e);
+      setConnection({ realtimeDown: true });
+      return;
+    }
     // Scoped to the workspace this tab shows. RLS authorises the events
     // server-side; the filter is what makes the subscription this
     // workspace's and nobody else's, so a member of two workspaces neither
