@@ -326,11 +326,17 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
  * list: nobody to send to is true of both, and only a missing yes is fixed by
  * getting one (playbookReachDoor).
  */
-export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard";
+export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard" | "uncounted";
 
-export function playbookReach(p: { state: string; candidates: number; held: number; waiting?: unknown }): PlaybookReach {
+/**
+ * `candidates` and `held` are null when the moment could not be counted (the
+ * server's read failed): "uncounted", which claims no reach at all. It read
+ * "nobody", said "nobody to send to" and offered the QR over a failed read.
+ */
+export function playbookReach(p: { state: string; candidates: number | null; held: number | null; waiting?: unknown }): PlaybookReach {
   if (p.waiting) return "waiting";
   if (p.state !== "running") return "paused";
+  if (p.candidates === null || p.held === null) return "uncounted";
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
@@ -355,8 +361,8 @@ export function playbookReachDoor(reach: PlaybookReach, named: { pool: number; s
  * card's own count stands -- who a run reaches now, the shorthand People uses.
  * It read "0 people on the list said yes" about a list whose yes had no number.
  */
-export function playbookNoNumberWords(p: Pick<PlaybookDto, "policy_class"> & { candidates: number; held: number }, named: { saidYes: number } | null): string | null {
-  if (!named || named.saidYes === 0 || p.candidates + p.held > 0) return null;
+export function playbookNoNumberWords(p: Pick<PlaybookDto, "policy_class"> & { candidates: number | null; held: number | null }, named: { saidYes: number } | null): string | null {
+  if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0) return null;
   return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
 }
 
@@ -367,6 +373,8 @@ export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {
   sends: null,
   nobody: "nobody to send to",
   "all-heard": "waiting out the week's gap",
+  // The page says once, over the cards, that who each moment reaches could not be read.
+  uncounted: null,
 };
 
 export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {

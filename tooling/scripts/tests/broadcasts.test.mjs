@@ -134,7 +134,9 @@ test("an audience is a People list, a list kept by hand, or everyone — each cr
   assert.deepEqual(eligibleFor(rows, "saved", null, new Set(["c", "d"])).map((r) => r.id), ["d"], "a hand-kept list, of those who said yes");
   assert.deepEqual(eligibleFor(rows, "saved", null, null), []);
   assert.ok(PEOPLE_LISTS.some((l) => l.id === "quiet"));
-  assert.equal(EVERYONE_LABEL, "Everyone who said yes");
+  // The audience's name names the pool, as every other audience's does, and makes no claim its count can contradict:
+  // "Everyone who said yes 0" stood over "1 person on it said yes to offers, with no number to send to".
+  assert.equal(EVERYONE_LABEL, "Everyone");
 });
 
 test("the words a person will read, and the values Meta will accept", () => {

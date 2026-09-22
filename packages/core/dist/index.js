@@ -3773,7 +3773,7 @@ var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
-var EVERYONE_LABEL = "Everyone who said yes";
+var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
   return audienceMembers(rows, kind, id, savedIds).filter((r) => mayReceive(r, purpose));
 }

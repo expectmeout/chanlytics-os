@@ -131,15 +131,17 @@ export interface TriggerPool {
  * the one page of People it had loaded, which slice D of the data program had
  * made a page of a thousand.
  */
-export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, tz: string, now: Date): Promise<{ pools: Record<string, TriggerPool>; calendar: "ok" | "unavailable" | "none" }> {
-  // The pools are a reading, never the page: a People read that fails leaves
-  // the chips at zero and the playbooks themselves untouched.
+export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, tz: string, now: Date): Promise<{ pools: Record<string, TriggerPool | null>; calendar: "ok" | "unavailable" | "none" }> {
+  // The pools are a reading, never the page: a read that fails leaves the
+  // playbooks themselves untouched. A moment it could not count is null, never
+  // a zero: the page drew empty pools as "0 of 0" and "nobody to send to", and
+  // offered the QR for a yes nobody knew was missing.
   let rows: PersonRowDto[];
   try {
     rows = await everyone(ctx, tenantId);
   } catch (e) {
     console.error("playbook_pools_people_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    return { pools: {}, calendar: "none" };
+    return { pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])), calendar: "none" };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
     console.error("playbook_pools_visits_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
@@ -149,9 +151,14 @@ export async function triggerPools(ctx: RouteContext, tenantId: string, touched:
   const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now));
   const breath = { byThis: new Map<string, number>(), byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])) };
   // One pass per moment, the runner's own: who it would pick, who waits for the
-  // week's breath, and who it names and leaves out whatever the week.
-  const pools: Record<string, TriggerPool> = {};
+  // week's breath, and who it names and leaves out whatever the week. A moment
+  // the calendar names is not counted when the calendar could not be read.
+  const pools: Record<string, TriggerPool | null> = {};
   for (const t of PLAYBOOK_TRIGGERS) {
+    if (t.kind === "visit" && !pv) {
+      pools[t.id] = null;
+      continue;
+    }
     const { reach, saidYes } = playbookRunReach(vms, { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, breath, now.getTime());
     pools[t.id] = { candidates: reach.will, held: reach.heardAny, pool: reach.pool, noYes: reach.noYes, stopped: reach.stopped, noNumber: reach.noNumber, saidYes };
   }

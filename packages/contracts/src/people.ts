@@ -924,10 +924,22 @@ export interface PeopleListAction {
  */
 export const GET_YES_ROUTE = "broadcasts/get-yes";
 
-const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean; text?: string }> = {
+/** A list's broadcast, where the list is an audience of its own: a list kept by hand, and New this week once answered. */
+const USE_IN_A_BROADCAST = "Use in a broadcast";
+
+// Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer opens on
+// Everyone, and the button says who that reaches. It said "New broadcast" here and "Use in a broadcast" on Lists,
+// and opened an audience with another name.
+const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true };
+
+/**
+ * `answered`: what a step that is a door to the yes to offers becomes once everyone on the list has given it. Asking
+ * again would ask for an answer they gave (#663's rule), so the step is the list's broadcast instead.
+ */
+const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean; text?: string; answered?: { cta: string; to: string } }> = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts.", answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" } },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
@@ -936,11 +948,8 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
-  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes." },
-  // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
-  // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
-  // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
-  offers_ok: { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true },
+  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes.", answered: OFFERS_STEP },
+  offers_ok: OFFERS_STEP,
 };
 
 /**
@@ -956,6 +965,7 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
 export function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null {
   const step = LIST_STEPS[id];
   if (!step) return null;
+  if (step.answered && members.length > 0 && members.every((m) => saidYesTo(m, "marketing"))) return broadcastStep(step.answered.cta, step.answered.to, members);
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
   return broadcastStep(step.cta, step.to, members);
 }
@@ -966,7 +976,7 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
  * which is where both live now (the Lists page folded into it).
  */
 export function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction {
-  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+  return broadcastStep(USE_IN_A_BROADCAST, `broadcasts/${id}`, members);
 }
 
 /**

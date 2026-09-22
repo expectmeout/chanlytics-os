@@ -604,6 +604,16 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // The two doors that said "Broadcasts" and meant the QR go to the QR.
   assert.equal(peopleListAction("opted_in", [talkOnly]).to, GET_YES_ROUTE);
   assert.equal(peopleListAction("new_week", [talkOnly]).to, GET_YES_ROUTE);
+  assert.equal(peopleListAction("opted_in", [yes, talkOnly]).to, GET_YES_ROUTE, "while anyone on it has the yes to give, the door stays");
+  assert.deepEqual(peopleListAction("new_week", []), { text: "Their yes to offers is the phrase and the QR on Broadcasts.", cta: "Get their yes", to: GET_YES_ROUTE, enabled: false }, "an empty list has answered nothing: its door waits, as before");
+  // REGRESSION: once everyone on the list has given that yes, the door asked for an answer they gave (#663's rule).
+  // The step is the list's broadcast, in the words every list's broadcast step says it.
+  assert.deepEqual(peopleListAction("new_week", [yes]), { text: "1 of 1 on this list said yes to offers — a broadcast reaches them.", cta: "Use in a broadcast", to: "broadcasts/new_week", enabled: true });
+  assert.deepEqual(peopleListAction("opted_in", [yes]), { text: "1 of 1 on this list said yes to offers — a broadcast reaches them.", cta: "Broadcast to everyone who said yes", to: "broadcasts", enabled: true }, "the Can receive offers list's own step");
+  // Everyone said it and nobody has a number: the broadcast waits, and says what is missing.
+  const answeredNoNumber = peopleListAction("opted_in", [yesNoNumber]);
+  assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["broadcasts", false]);
+  assert.match(answeredNoNumber.text, /a recorded yes with a number to send to/);
   assert.deepEqual(peopleListAction("booked_week", [week]), { text: "Their appointments are on the Calendar.", cta: "See the week", to: "calendar", enabled: true });
   assert.equal(peopleListAction("asked_never_booked", [yes]).to, "broadcasts/asked_never_booked");
   assert.equal(peopleListAction("booked", [week]), null, "no step for a fact that needs none");

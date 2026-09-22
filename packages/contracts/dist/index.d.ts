@@ -3427,11 +3427,16 @@ declare function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_
  * list: nobody to send to is true of both, and only a missing yes is fixed by
  * getting one (playbookReachDoor).
  */
-type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard";
+type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard" | "uncounted";
+/**
+ * `candidates` and `held` are null when the moment could not be counted (the
+ * server's read failed): "uncounted", which claims no reach at all. It read
+ * "nobody", said "nobody to send to" and offered the QR over a failed read.
+ */
 declare function playbookReach(p: {
     state: string;
-    candidates: number;
-    held: number;
+    candidates: number | null;
+    held: number | null;
     waiting?: unknown;
 }): PlaybookReach;
 /**
@@ -3458,8 +3463,8 @@ declare function playbookReachDoor(reach: PlaybookReach, named: {
  * It read "0 people on the list said yes" about a list whose yes had no number.
  */
 declare function playbookNoNumberWords(p: Pick<PlaybookDto, "policy_class"> & {
-    candidates: number;
-    held: number;
+    candidates: number | null;
+    held: number | null;
 }, named: {
     saidYes: number;
 } | null): string | null;
@@ -3605,7 +3610,13 @@ interface Audience {
      */
     reach?: RunReach;
 }
-declare const EVERYONE_LABEL = "Everyone who said yes";
+/**
+ * The audience of everyone in People, named for its pool as every other audience is ("Regulars", "Lapsed"); its
+ * count is who the message reaches, and the lines under it say who said yes. It was "Everyone who said yes", which
+ * beside a reach of 0 claimed nobody had, over "1 person on it said yes to offers, with no number to send to". A run
+ * keeps the label it was sent under.
+ */
+declare const EVERYONE_LABEL = "Everyone";
 /**
  * The people a broadcast may reach: the audience crossed with mayReceive.
  * The route enrols exactly these; the page shows exactly these counts.

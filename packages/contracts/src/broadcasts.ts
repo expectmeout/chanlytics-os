@@ -78,7 +78,13 @@ export interface Audience {
   reach?: RunReach;
 }
 
-export const EVERYONE_LABEL = "Everyone who said yes";
+/**
+ * The audience of everyone in People, named for its pool as every other audience is ("Regulars", "Lapsed"); its
+ * count is who the message reaches, and the lines under it say who said yes. It was "Everyone who said yes", which
+ * beside a reach of 0 claimed nobody had, over "1 person on it said yes to offers, with no number to send to". A run
+ * keeps the label it was sent under.
+ */
+export const EVERYONE_LABEL = "Everyone";
 
 /**
  * The people a broadcast may reach: the audience crossed with mayReceive.

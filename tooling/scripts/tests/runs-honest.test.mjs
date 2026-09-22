@@ -49,6 +49,8 @@ const playbook = (over = {}) => ({
   policy_class: "reengage", state: "running", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30,
   last_run_for: "2026-09-14", last_run_at: iso(-D), created_at: iso(-30 * D),
   triggerLabel: "Quiet 30 days", triggerHint: "anyone quiet for a month", schedule: "daily at 10:00", next: "tomorrow 10:00", candidates: 4, held: 0,
+  // Everyone its moment names, as the route counts them (server/playbooks.ts triggerPools); null only when it could not.
+  named: { pool: 6, noYes: 2, stopped: 0, noNumber: 0, saidYes: 4 },
   totals: { runs: 2, sent: 6, delivered: 4, replied: 1, held: 0, lastRun: { id: "b-run-0", state: "sent", run_for: "2026-09-14", recipient_count: 3 }, waiting: null, history: [runOf(0), runOf(1)] },
   ...over,
 });
@@ -59,7 +61,7 @@ const TEMPLATE = {
 };
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()], templates: [TEMPLATE],
-  triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
+  triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0, named: { pool: 6, noYes: 2, stopped: 0, noNumber: 0, saidYes: 4 } }],
   timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
 });
@@ -534,6 +536,63 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
     assert.equal(textOf(byTestId(noYes, "pb-reach-door")), "Get their yes");
     // Nobody on it at all: there is no yes to get.
     assert.equal(byTestId(drawn("pb-phoned"), "pb-reach-door"), null);
+  } finally {
+    for (const k of installed) delete globalThis.window[k];
+    globalThis.window.fetch = kept;
+  }
+});
+
+test("REGRESSION: counts that could not be read are said once, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
+  const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
+  const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  // The route's answer when its People read failed (server/playbooks.ts triggerPools): no moment was counted.
+  const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  const answer = (data) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const kept = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    if (path === "/api/v1/playbooks") return answer({ playbooks: [route], pools, timezone: ZONE, calendar: "none" });
+    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
+    if (path === "/api/v1/channels") return answer({ channels: [] });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+  };
+  const installed = ["__playbooks", "__refreshPlaybooks", "__playbookReach", "__playbookReachWords", "__playbookReachDoor", "__playbookNoNumberWords", "__reachLines", "__poolWords", "__playbookName"];
+  installPlaybooks();
+  try {
+    await playbooksOverride.apply();
+    fresh();
+    let page = globalThis.window.OutboundPage({});
+    assert.match(textOf(byTestId(page, "pb-counts-failed")), /Couldn't read who each moment reaches/, "said once, over the cards");
+    assert.ok(!/anyone to send to/.test(textOf(byTestId(page, "pb-standing"))), `REGRESSION: ${textOf(byTestId(page, "pb-standing"))}`);
+    assert.equal(byTestId(page, "pb-tile-reach"), null, "REGRESSION: the tile drew '0 of 0 who said yes'");
+    const slots = all(page, (n) => n.props?.["data-testid"] === "pb-slot");
+    assert.ok(slots.length > 0);
+    for (const s of slots) assert.ok(!/nobody today|people today|person today/i.test(textOf(s)), `REGRESSION: ${textOf(s)}`);
+    // The card says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
+    const opened = card(globalThis.window.__PLAYBOOKS.rows[0]);
+    const said = textOf(find(opened, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+    assert.ok(/Next run/.test(said), said);
+    assert.ok(!said.includes("on the list said yes") && !said.includes("nobody to send to"), `REGRESSION: ${said}`);
+    assert.equal(byTestId(opened, "pb-reach-door"), null);
+    // Nor does the composer, where a moment is picked by who it reaches.
+    fresh();
+    page = globalThis.window.OutboundPage({});
+    find(all(page, (n) => n.props?.["data-testid"] === "pb-slot")[0], (n) => n.props?.["data-testid"] === "pb-slot-start").props.onClick();
+    seq = 0;
+    page = globalThis.window.OutboundPage({});
+    // Its "Who it's for" section (the sheet around it is record-sheet.jsx, not loaded here).
+    const who = byTestId(page, "pb-who");
+    assert.ok(who, "the composer opens");
+    assert.equal(byTestId(who, "pb-reach"), null, "REGRESSION: the composer drew '0 of 0'");
+    // And its moments, listed: none says how many it reaches today.
+    find(who, (n) => String(n.props?.className || "").includes("pb-pick") && typeof n.props?.onClick === "function").props.onClick({});
+    seq = 0;
+    page = globalThis.window.OutboundPage({});
+    const options = all(page, (n) => n.props?.role === "option");
+    assert.ok(options.length > 0, "the moments are listed");
+    for (const o of options) assert.ok(!/nobody today|\d+ today/i.test(textOf(o)), `REGRESSION: ${textOf(o)}`);
   } finally {
     for (const k of installed) delete globalThis.window[k];
     globalThis.window.fetch = kept;

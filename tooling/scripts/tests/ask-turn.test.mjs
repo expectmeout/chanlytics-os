@@ -415,7 +415,7 @@ test("the proposal builders run against the database in memory: each kind is a c
 
   const broadcast = await p("propose_broadcast", { template_id: TPL, audience_kind: "everyone", params: [] });
   assert.equal(broadcast.isError, false, broadcast.result);
-  assert.deepEqual([broadcast.proposal.kind, broadcast.proposal.payload.count, broadcast.proposal.payload.audience_label], ["broadcast", 1, "Everyone who said yes"]);
+  assert.deepEqual([broadcast.proposal.kind, broadcast.proposal.payload.count, broadcast.proposal.payload.audience_label], ["broadcast", 1, EVERYONE_LABEL]);
   assert.match((await p("propose_broadcast", { template_id: TPL, audience_kind: "list", audience_id: "nope" })).result, /audience_id must be a People list id/);
   assert.match((await p("propose_broadcast", { template_id: TPL, audience_kind: "everyone", params: ["extra"] })).result, /takes 0 values/);
 
