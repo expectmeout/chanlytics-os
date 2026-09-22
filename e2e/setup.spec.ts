@@ -27,9 +27,9 @@ test.describe("Setup on a real workspace", () => {
     const rows = page.getByTestId("setup-rows").locator(".cl-attn-row");
     await expect(rows).toHaveCount(google.google.ready.places ? 10 : 9);
     for (const row of await rows.all()) {
-      // The row reads across: its glyph, then its words, then its verbs. Today's queue hides its own disc with a
-      // rule on .tq, the card these rows sit in too; when that rule reached Setup, every row's words fell into the
-      // glyph's 36px column and its title was cut to four letters.
+      // The row reads across: its glyph, then its words, then its verbs. Today's queue hides its own disc, and while
+      // that rule named only .tq -- the card these rows sit in too -- it hid Setup's glyphs as well: every row's
+      // words fell into the glyph's 36px column and its title was cut to four letters.
       await expect(row.locator(".cl-attn-avatar")).toBeVisible();
       expect(await row.locator(".cl-attn-who").evaluate((el) => el.scrollWidth <= el.clientWidth), "the title is whole").toBe(true);
       await expect(row.locator(".cl-attn-status .lead")).toHaveText(/^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/);
