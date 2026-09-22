@@ -706,9 +706,10 @@ const LeadsScope = (p) => {
   const chips = ldExcludedChips(L.rows);
   const search = p.search;
   // The same band People's cards use (clients.css) and the same one the page's listener judges the Columns menu
-  // by. Read on every draw, not stored: a window resized past it must draw the other shape on the next state
-  // change, and nothing here is a hook.
-  const phone = !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+  // by. The page hands it down (plPhone, clients-a.jsx): it listens to the query, so a window resized past the band
+  // draws the other shape at once, where this read it on every draw and drew the other shape only on the next state
+  // change. Nothing here is a hook.
+  const phone = !!p.phone;
   const railRows = (
     <LeadsRailRows
           rail={rail}
@@ -915,6 +916,7 @@ const LeadsScope = (p) => {
             : (
               <PeopleTable
                 busy={!!p.loading}
+                phone={phone}
                 noun="lead"
                 columns={p.columns}
                 ctx={p.cellCtx}

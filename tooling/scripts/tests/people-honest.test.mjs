@@ -1388,6 +1388,9 @@ test("REGRESSION: a member's columns are a desktop's, and a phone keeps its card
   const people = [needsYou, person(2)];
   /** A row's cells as a card draws them: every cell drawn, whatever mark a desktop reads. */
   const cardCells = (tree, id) => rowOf(tree, id).props.children.filter((k) => k && k.type === "td").map((td) => String(td.props.className).replace(/\s*\bpl-col-off\b/g, "").trim());
+  // On a phone: a desktop no longer builds a cell it hides, so the cards are the phone's own drawing.
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  try {
   await freshPage({ people });
   let tree = draw();
   const byDefault = ["p1", "p2"].map((id) => cardCells(tree, id));
@@ -1400,6 +1403,14 @@ test("REGRESSION: a member's columns are a desktop's, and a phone keeps its card
   assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
   const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
   assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+  // And a desktop builds none of them: State, Offers, Email and Lists are not in the row at all.
+  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  const desk = draw();
+  assert.equal(all(rowOf(desk, "p1"), (n) => n.type === "td" && colOff(n)).length, 0, "REGRESSION: four hidden cells were built, cloned and inserted per row for a desktop to hide");
+  assert.deepEqual(headings(desk), ["Person", "Last contact", "Receptionist", "Came from"]);
 });
 
 /* ------------------------- the table, after its review (18 September) ------------------------- */

@@ -349,7 +349,12 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.ok(find(slot("l2", "mailbox"), (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))), "the state is a shape as well as a word, never colour alone");
   assert.match(textOf(byTestId(rowOf(tree, "l4"), "lead-reach")), /Not checked/, "a left-out place's contacts were never checked, and the row says so");
   assert.match(labelOf(slot("l1", "phone")), /^Phone: Checked, \+1/, "Maps and their website agree on the number: Checked");
-  assert.match(String(byTestId(rowOf(tree, "l4"), "lead-stage").props.className), /pl-col-off/, "Stage is a column off by default (D5): a row wears its state as a tag instead");
+  assert.equal(byTestId(rowOf(tree, "l4"), "lead-stage"), null, "Stage is a column off by default (D5): a row wears its state as a tag instead, and on a desktop the cell is not built at all");
+  // The page asks the band once, at mount, and listens: a phone is a page opened on one.
+  fresh();
+  globalThis.__phone = true;
+  assert.match(String(byTestId(rowOf(draw(), "l4"), "lead-stage").props.className), /pl-col-off/, "a phone draws every column for its cards (#789), the ones off marked");
+  globalThis.__phone = false;
   assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"), true, "the table calls its rows leads");
   assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-sub")), "Chain", "Excluded's one line is the criterion that left it out, in the owner's words");
   assert.ok(byTestId(rowOf(tree, "l1"), "lead-photo"), "the tile is a button that expands the photo");
@@ -1700,8 +1705,13 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   assert.equal(cls(tagOf("p7", "lead-fit-tag")), "pill", "a look is plain");
   assert.equal(textOf(tagOf("p7", "lead-fit-tag")), rows.find((r) => r.id === "p7").fitLabel);
 
-  // The Stage column, off by default but drawn: People's State column is this same pill.
-  const stage = (id) => find(tagOf(id, "lead-stage"), (n) => cls(n).split(" ").includes("pill"));
+  // The Stage column, off by default and drawn on a phone (a desktop builds no cell it hides): People's State column
+  // is this same pill.
+  fresh({ leads: surface({ searches: [open], rows }) });
+  globalThis.__phone = true;
+  const ph = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  globalThis.__phone = false;
+  const stage = (id) => find(byTestId(rowOf(ph, id), "lead-stage"), (n) => cls(n).split(" ").includes("pill"));
   assert.deepEqual(["p1", "p2", "p3", "p5"].map((id) => cls(stage(id))), ["pill", "pill pill-info", "pill pill-ok", "pill"], "ready, contacted, talking, said no");
   assert.equal(stage("p6"), null, "a left-out lead has no stage to show");
 

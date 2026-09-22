@@ -721,6 +721,11 @@ const ldFinderSave = (f) => {
     }));
   } catch { /* a private window: the draft lives for the page */ }
 };
+// Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
+// menu is judged by. Asked once, with a listener, so a window resized past it draws the other shape at once rather
+// than on the next state change; and the table then builds only what a desktop shows.
+const PL_PHONE_QUERY = "(max-width: 900px)";
+const plPhoneNow = () => !!(window.matchMedia && window.matchMedia(PL_PHONE_QUERY).matches);
 // The box that scrolls: on a desktop the table's own (people-table.jsx pl-table-scroll), on a phone the pane itself.
 const ldScroller = (pane) => {
   if (!pane) return null;
@@ -1630,6 +1635,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
   const [listsOpen, setListsOpen] = useState(false);
   const [newListSignal, setNewListSignal] = useState(0);
+  const [phone, setPhone] = useState(plPhoneNow);
+  React.useEffect(() => {
+    const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
+    if (!mq || !mq.addEventListener) return undefined;
+    const on = () => setPhone(!!mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   React.useEffect(() => {
     const onNew = () => {
       setNewListSignal((n) => n + 1);
@@ -2182,7 +2195,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
       // and the key is the page's as ever: it held every key but Esc, the lists sheet's Esc included. The phone's lists
       // sheet listens for its own Esc.
-      if (k.menuOpen && window.matchMedia && window.matchMedia("(max-width: 900px)").matches) k.closeMenu();
+      if (k.menuOpen && k.phone) k.closeMenu();
       else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
       if (k.sheetOpen) return;
       // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
@@ -2406,6 +2419,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     clearSel: () => setSel(new Set()),
     focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
     sheetOpen: listsOpen,
+    phone,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
     peekOpen: onLeads && (!!peekId || !!lightboxId),
@@ -2497,6 +2511,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
+        phone={phone}
         // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
         // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
         // right and being wrong.
@@ -2782,6 +2797,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
 
           <PeopleTable
             noun="person"
+            phone={phone}
             columns={columns}
             ctx={cellCtx}
             selectable={canEditLists || canExport}

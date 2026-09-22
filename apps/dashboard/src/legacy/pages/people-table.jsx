@@ -33,8 +33,12 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // order, and a list's own controls above the table come and go.
 // `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
 // the page's stylesheet dims them (Leads: leads.css [data-loading]).
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false }) => {
+// `phone`: a phone draws every column, the ones off marked pl-col-off, so its cards keep the facts they draw by
+// default (#789). A desktop hid those with the same mark, so every cell of a column turned off was built, cloned and
+// inserted for nothing -- seven of the Leads scope's twelve, on every row, on every draw. It draws only what shows.
+const PeopleTable = ({ columns: given, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, phone = false }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
+  const columns = phone ? given : given.filter((c) => !c.off);
   const selecting = rows.some((p) => sel.has(p.id));
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
