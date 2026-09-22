@@ -21,6 +21,7 @@ import {
   type SidebarPref,
 } from "@chanlytics/contracts";
 import { authErrorInHash } from "@/auth/hash-error";
+import { paintThemeColor } from "./theme-color";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -334,9 +335,12 @@ export default function LegacyApp() {
     });
   }, []);
 
-  // Theme stamp + viewport scoping, exactly what the inline boot script did.
+  // Theme stamp + viewport scoping, exactly what the inline boot script did —
+  // the browser's own bars included, so switching the theme moves them with the
+  // page instead of leaving the phone's address bar in the other one's paper.
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    paintThemeColor(document, theme);
   }, [theme]);
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");

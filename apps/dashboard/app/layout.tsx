@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { themeBootScript } from "@chanlytics/contracts";
+import { themeBootScript, themeColorOf } from "@chanlytics/contracts";
 import "./globals.css";
 
 /**
@@ -39,12 +39,16 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Draw under the notch and the home bar; the shell pads with the safe-area insets.
   viewportFit: "cover",
-  // The browser's own chrome, in each theme's paper (tokens.css --bg, as sRGB): one dark green-black tinted every
-  // workspace's bars, a light one's too, and matched neither theme's page.
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfaf8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0d0f" },
-  ],
+  // The browser's own chrome -- a phone's address bar, the tab strip, the installed shell's status bar -- in the
+  // paper of the theme the document says it is (contracts THEME_COLORS, tokens.css --bg as sRGB).
+  //
+  // It was a pair keyed off (prefers-color-scheme), which is the DEVICE's setting, and the app's theme is not: it is
+  // the data-theme below, resolved from the member's stored preference. Anyone whose two disagreed read every screen
+  // through a strip of the other theme, for good, because nothing in the app ever re-read the meta. One colour
+  // stands here now, the dark the document below also stands in, and it is what a device running no script keeps;
+  // the boot script writes the resolved theme's over it before first paint, and LegacyApp's paintThemeColor writes
+  // it again on every change.
+  themeColor: themeColorOf("dark"),
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
