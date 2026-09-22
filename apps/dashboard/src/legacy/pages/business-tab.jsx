@@ -279,7 +279,11 @@ const BtRow = ({
  *
  * It follows business-tab-folds.jsx's contract to the letter, because a fold that did not would lose a colleague's
  * change or a workspace's prompt without a word:
- *   as it opens     the draft is draftOf(id, saver.base()), kept as `opened` for as long as it stays open;
+ *   as it opens     the draft is draftOf(id, saver.base()), kept as `opened`. Until the fold is typed in, `opened` is
+ *                   taken again from the base on every draw: an untouched fold FOLLOWS what is stored, so a colleague's
+ *                   change read back into this tab is shown as it stands, said as nothing that goes, and the first
+ *                   keystroke after it is a change to the week as it is now, not a save refused as "changed after you
+ *                   opened it". Typed in, or while its save is out, `opened` holds still, and foldJob's refusal stands;
  *   unsaved changes the draft is not the one it opened with, asked by the registry however the fold was opened (its own
  *                   act, or its id from the standing line's door), by the Settings rail, by the browser, and by Cancel.
  *                   NOT holdsChanges, which judges what the save would WRITE: a shift typed half-way, a closed day's
@@ -368,7 +372,10 @@ const BtFold = ({
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; live.current.opened = null; setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBizEffect(() => { if (!open) reset(); }, [open]);
-  if (open && live.current.opened == null) { live.current.opened = stored.draft; live.current.opening += 1; }
+  if (open && live.current.opened == null) live.current.opening += 1;
+  // Untouched and not saving, the fold opens with what is stored NOW (the header says why); typed in, what it opened
+  // with holds still, since that is what its save is judged against.
+  if (open && (live.current.opened == null || (draft == null && live.current.draft == null && !busy))) live.current.opened = stored.draft;
   live.current.open = open;
   const now = open ? (draft != null ? draft : live.current.opened) : (stored ? stored.draft : null);
   const dirty = open && draft != null && !S.same(draft, live.current.opened);

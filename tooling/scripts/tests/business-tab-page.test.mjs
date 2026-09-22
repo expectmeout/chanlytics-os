@@ -2811,3 +2811,46 @@ test("Cancel's question and another row's are one question: answered once, asked
   tree = redrawTab();
   assert.deepEqual(asks(tree, (t) => inline(t, "website")), []);
 });
+
+test("an untouched fold follows what is stored: a colleague's change read back is shown, said as it stands, and the first keystroke after it is not refused", () => {
+  // The quality review's probe. `opened` was taken once, as the fold opened. The hours fold left open with nothing typed
+  // while a colleague's Tuesday was read back still showed 18:00, drew "It will no longer be told … Tuesday", and
+  // refused the first Save after one keystroke as "changed after you opened it".
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Tuesday closes").props.value, "18:00");
+  // A colleague's save, read back into this tab: Tuesday closes at 20:00, version 8.
+  const theirs = settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } });
+  W.__SETTINGS = { ...theirs, version: 8 };
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Tuesday closes").props.value, "20:00", "REGRESSION: the open fold still showed the Tuesday it opened with");
+  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-hours")).map(([eyebrow]) => eyebrow), ["Your receptionist will be told"], "nothing goes: the week is as stored");
+  assert.equal(W.__settingsUnsaved(), false, "and it holds no changes");
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Tuesday closes").props.value, "20:00", "typed into, the draft is the week as read back, with the change");
+  saveFoldOf(tree, "hours");
+  assert.equal(sent.length, 1, "REGRESSION: refused as changed after it opened");
+  assert.equal(sent[0].version, 8);
+  assert.deepEqual(sent[0].config.brain.profile.hours, { ...melany.hours, mon: { open: "09:30", close: "17:00" }, tue: { open: "09:30", close: "20:00" } });
+  assert.equal(flashes.filter((f) => f.tone === "danger").length, 0);
+
+  // A fold that HAS been typed in keeps its draft, and is refused as before: their change is not put back as it was.
+  tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  W.__SETTINGS = { ...settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } }), version: 8 };
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Tuesday closes").props.value, "18:00", "what was typed over stays as it was typed over");
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.equal(sent.length, 1);
+  assert.match(textOf({ props: { children: flashes.at(-1).msg } }), /changed after you opened it/);
+  assert.deepEqual(openFolds(tree), ["hours"]);
+});
