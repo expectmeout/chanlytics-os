@@ -1403,3 +1403,61 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   assert.match(textOf({ props: { children: flashes.at(-1).msg } }), /changed after you opened it/);
   assert.deepEqual(openFolds(tree), ["hours"]);
 });
+
+test("a fold whose own part of the settings moved after it was typed in is refused as moved: said, nothing sent, the fold open with its draft", () => {
+  // foldJob's refusal, drawn through a fold: a colleague's Tuesday is read back after Monday was typed over, and the
+  // save would have put their Tuesday back as it was.
+  const sent = [];
+  W.__saveSettings = (config) => { sent.push(config); return new Promise(() => {}); };
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  W.__SETTINGS = { ...settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } }), version: 8 };
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  assert.equal(sent.length, 0, "nothing sent");
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["danger", "Not saved — this changed after you opened it. Close it and open it again to see what is there now."]);
+  assert.deepEqual([openFolds(tree), foldOf(tree, "hours").props["aria-busy"]], [["hours"], undefined], "open, and not busy");
+  assert.deepEqual([labelled(tree, "Monday closes").props.value, labelled(tree, "Tuesday closes").props.value], ["17:00", "18:00"], "with the draft as typed: their Tuesday is not shown over it");
+  // Closed and opened again, it is the week as stored now.
+  cancelFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+  tree = redrawTab(flash);
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  assert.equal(labelled(tree, "Tuesday closes").props.value, "20:00");
+});
+
+test("a fold's save the server refuses while another row's ask waits: the question is drawn then, once, and is true again", async () => {
+  let refuse = null;
+  W.__saveSettings = () => new Promise((resolve) => { refuse = () => resolve({ ok: false, code: "internal", message: "The server said no." }); });
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawTab({ flash });
+  openFold(tree, "hours");
+  tree = redrawTab(flash);
+  typeAt(tree, "Monday closes", "17:00");
+  tree = redrawTab(flash);
+  saveFoldOf(tree, "hours");
+  tree = redrawTab(flash);
+  openFold(tree, "website");
+  tree = redrawTab(flash);
+  assert.deepEqual(W.__recordFolds.asking(), { holding: "hours", wants: "website" }, "the ask is recorded");
+  assert.equal(all(foldOf(tree, "hours"), (n) => n.type === W.Confirm).length, 0, "and not drawn while the save is out");
+  refuse();
+  await settle();
+  tree = redrawTab(flash);
+  assert.deepEqual([flashes.at(-1).tone, textOf({ props: { children: flashes.at(-1).msg } })], ["danger", "The server said no."]);
+  const asks = all(foldOf(tree, "hours"), (n) => n.type === W.Confirm);
+  assert.deepEqual(asks.map((n) => n.props.testid), ["rec-fold-hours-ask"], "one question, drawn now that nothing is saving, and true: nothing was saved");
+  assert.deepEqual([foldOf(tree, "hours").props["aria-busy"], W.__settingsSaving(), labelled(tree, "Monday closes").props.value], [undefined, false, "17:00"]);
+  press(byTestId(tree, "rec-fold-hours-ask-yes"));
+  tree = redrawTab(flash);
+  assert.deepEqual([openFolds(tree), openRows(tree)], [[], ["website"]], "answered, the row asked for opens");
+});
