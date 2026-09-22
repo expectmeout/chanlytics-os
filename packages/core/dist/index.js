@@ -3202,6 +3202,9 @@ function whyNotReceive(r, purpose) {
   if (said2.ok) return null;
   return said2.reason === "opted_out" ? "stopped" : "no_yes";
 }
+function saidYesTo(r, purpose) {
+  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+}
 var PEOPLE_LISTS = [
   { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
   { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
@@ -3230,6 +3233,10 @@ var PEOPLE_LISTS = [
   { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
+var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+function noNumberWords(who, purpose) {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
+}
 var DAY_MS42 = 24 * 3600 * 1e3;
 var DAY_MS52 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS52;
@@ -3796,8 +3803,9 @@ function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
-function emptyAudienceRefusal(purpose) {
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+function emptyAudienceRefusal(purpose, label, pool) {
+  if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
 var LIMIT_TIERS2 = {
   TIER_50: 50,
@@ -6939,7 +6947,7 @@ async function createBroadcast(ports, cmd) {
   }
   const purpose = purposeOfTemplate(tpl.category);
   const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
-  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind, audienceId, savedIds)), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);

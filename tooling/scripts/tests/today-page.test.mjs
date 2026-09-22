@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, todayPeriodLine, todayRunWords, todayRunApproved, todayLeaks, unreadCount, zoneDayKey, clockTime, feedProblemWords } from "@chanlytics/contracts";
+import { toTodayVM, todayPeriodLine, todayRunWords, todayRunApproved, todayLeaks, unreadCount, zoneDayKey, clockTime, feedProblemWords, toPersonRowVM, PEOPLE_LISTS, peopleListAction } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
 const ZONE = "America/New_York";
@@ -74,7 +74,7 @@ const reports = () => ({
 });
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const people = () => ({
-  rows: [{ id: "k-cv-a", state: "needs_you", hasChat: true, calls: 0 }],
+  rows: [{ id: "k-cv-a", state: "needs_you", hasChat: true, calls: 0, consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "Reply · Sep 10", source: "reply", marketing: "unknown", marketingSource: null, marketingSub: "never asked about offers", marketingLabel: "Not asked" } }],
   lists: [list("asked_never_booked", "Asked, never booked", 16, { text: "", cta: "Text the booking link", to: "broadcasts/asked_never_booked", enabled: true }), list("opted_in", "Said yes to messages", 7, { text: "", cta: "Get their yes to offers", to: "broadcasts/get-yes", enabled: true }), list("offers_ok", "Can receive offers", 0, null), list("quiet", "Quiet 30+ days", 6, { text: "", cta: "Reach out", to: "broadcasts/quiet", enabled: true })],
   aggregates: { total: 28 },
 });
@@ -388,6 +388,47 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   assert.match(textOf(byTestId(draw(W.TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
   assert.equal(draw(W.TodayLeaks).rendered, null, "not read yet is not failed");
+});
+
+test("REGRESSION: worth a look over People's real rows -- a yes to offers with no number to send one to is not 'nobody has said yes', and there is no door to ask for it again", () => {
+  clear();
+  const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
+  const row = (id, name, over = {}) => toPersonRowVM({
+    id, display_name: name, wa_profile_name: null, phone_e164: null, email: null,
+    consent: "opted_in", consent_source: "in_person", consent_updated_at: at(20), dnc: false,
+    marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null,
+    channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+    latest_conversation_id: null, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
+    last_message_at: at(3), last_message_direction: "inbound", last_message_sender: "customer", last_inbound_text: "Thanks!", last_inbound_at: at(3),
+    last_call_at: null, call_count: 0, call_seconds: 0, first_contact_at: at(30), earliest_row_at: at(30), has_backfill: false, has_chat: true, queued_reply_at: null,
+    ...over,
+  }, ZONE, NOW);
+  const rows = [
+    row("p1", "Rosa Diaz", { phone_e164: "+13055550101" }), row("p2", "Mia Chen", { phone_e164: "+13055550102" }), row("p3", "Ivy Park", { phone_e164: "+13055550103" }),
+    // Wrote in by email and said yes to both there: an address, and no number.
+    row("p4", "Ana Reyes", { email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: at(20) }),
+  ];
+  // The People surface as the bridge publishes it (surface-data.ts publishPeople), with no calendar.
+  const P = {
+    rows,
+    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar).map((l) => {
+      const members = rows.filter(l.test);
+      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+    }),
+    aggregates: { total: rows.length },
+  };
+  // A week that booked and answered, so the reach row is not under the cap.
+  const R = { ...reports(), vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } }, booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 } };
+  set({ TODAY_DATA: busy(), __REPORTS: R, __PEOPLE: P });
+  const reach = byTestId(draw(W.TodayLeaks), "today-leak-unreachable");
+  assert.ok(reach, "nobody can be sent an offer: the row stands");
+  const want = todayLeaks(R, P).rows.find((l) => l.id === "unreachable");
+  assert.equal(textOf(find(reach, (n) => classes(n).includes("tl-text"))), want.text);
+  assert.equal(textOf(find(reach, (n) => classes(n).includes("tl-math"))), want.math);
+  assert.ok(!/has said yes to offers/.test(textOf(reach)), `REGRESSION: Ana said yes to offers, and the row said nobody had: ${textOf(reach)}`);
+  assert.deepEqual(buttons(reach, "Get their yes"), [], "REGRESSION: a door asking Ana for the yes she gave");
+  press(buttons(reach, "Open People")[0]);
+  assert.equal(went.at(-1), "clients/seg:opted_in", "the number is People's list, and the door opens it");
 });
 
 /* ------------------------------------ while you were away ------------------------------------ */

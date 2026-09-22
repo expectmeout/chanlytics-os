@@ -817,13 +817,26 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
   // broadcasts/get-yes: the section that answers "nobody has said yes to
-  // offers", brought into view -- it sits under the composer, where a person
-  // sent here to find the QR would otherwise have to scroll for it.
-  React.useEffect(() => {
-    if (!initialYes || typeof document === "undefined") return;
-    const el = document.getElementById("bc-optin");
+  // offers", brought into view -- it sits on the ledger under the runs, where a
+  // person sent here to find the QR would otherwise have to scroll for it.
+  const showYes = () => {
+    const el = typeof document !== "undefined" && document.getElementById ? document.getElementById("bc-optin") : null;
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
-  }, [initialYes]);
+  };
+  React.useEffect(() => { if (initialYes) showYes(); }, [initialYes]);
+  // The send screen's own door to it: the ledger drawn in the send's place, then
+  // the section brought into view the same way. Counted, so that every press
+  // lands, whether or not the address changes -- a send written from
+  // broadcasts/get-yes keeps its address.
+  const [yesAsked, setYesAsked] = React.useState(0);
+  React.useEffect(() => { if (yesAsked) showYes(); }, [yesAsked]);
+  const toYes = () => { setWriting(false); setYesAsked((n) => n + 1); window.CHANLY.nav(data.getYes); };
+  // That door, in the sentence that says nobody has the yes: drawn when the
+  // ledger draws the card, which takes a number to put in the QR. The sentence
+  // pointed at "the phrase and QR below", and nothing is below the send.
+  const yesDoor = data.optIn && data.optIn.link && data.getYes
+    ? <>, or <button type="button" className="bc-nobody-door" onClick={toYes} data-testid="bc-nobody-door">get their yes with the phrase and the QR</button></>
+    : null;
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
   const [stopping, setStopping] = React.useState(null);
@@ -888,6 +901,16 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
   // and then the composer shows the example values as it always did.
   const sample = (active && active.preview && active.preview[purpose]) || null;
   const people = sample ? sample.people : BC_NONE;
+  // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
+  // People's words (#663), with no door -- asking for their yes would ask for an answer they gave.
+  const noNumber = active && activeCount === 0 && sample && sample.saidYes > 0 && window.__broadcasts && window.__broadcasts.noNumberWords
+    ? window.__broadcasts.noNumberWords(`“${active.label}”`, purpose)
+    : null;
+  // How many on it said yes, for the line under the audience (contracts saidYesWords): who it reaches, and who said
+  // yes when nobody can be sent it -- "0 people … said yes" stood right over the no-number line, and was false.
+  const yesWords = active && window.__broadcasts && window.__broadcasts.saidYesWords
+    ? window.__broadcasts.saidYesWords(`“${active.label}”`, purpose, activeCount, (sample && sample.saidYes) || 0)
+    : null;
   const person = people.length ? people[Math.min(who, people.length - 1)] : null;
   // What this person really reads. A first-name slot takes THEIR name, and the
   // words the wire uses when nobody has one -- "Hi there" (contracts
@@ -1117,9 +1140,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             <div className="bc-meta">
               <Icon name="shield" size={11} />
               <span>
-                {active
-                  ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
-                  : "Pick who this goes to"}
+                {active ? yesWords : "Pick who this goes to"}
                 {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
               </span>
             </div>
@@ -1132,9 +1153,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
             )}
             {canSend && active && activeCount === 0 && (
               <div className="bc-excl-hint" data-testid="bc-nobody">
-                {purpose === "marketing"
-                  ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and QR below.</>
-                  : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and QR below.</>}
+                {noNumber
+                  ? noNumber
+                  : purpose === "marketing"
+                  ? <>Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile{yesDoor}.</>
+                  : <>Nobody on “{active.label}” has said yes to messages yet. Record it on their profile{yesDoor}.</>}
               </div>
             )}
           </div>

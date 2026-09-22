@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, toBroadcastVM, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, toBroadcastVM, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows, toPersonRowVM, PEOPLE_LISTS, peopleListAction, GET_YES_ROUTE } from "@chanlytics/contracts";
 // The mockup's sample is a real ReportsSurface (reportDto through toReportVM): the round trip the period line is tested on.
 import { reportsSample } from "../../../apps/dashboard/src/legacy-bridge/reports-sample.ts";
 
@@ -31,6 +31,22 @@ const reports = (over = {}) => ({
   ...(({ vm: _vm, ...rest }) => rest)(over),
 });
 
+const NOW = new Date("2026-09-21T16:00:00Z");
+const at = (days) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
+/** A person as the People surface holds them: the database's row through contracts' toPersonRowVM. A yes to messages. */
+const personRow = (id, name, over = {}) => toPersonRowVM({
+  id, display_name: name, wa_profile_name: null, phone_e164: null, email: null,
+  consent: "opted_in", consent_source: "in_person", consent_updated_at: at(20), dnc: false,
+  marketing_consent: null, marketing_consent_source: null, marketing_consent_updated_at: null,
+  channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+  latest_conversation_id: null, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null,
+  last_message_at: at(3), last_message_direction: "inbound", last_message_sender: "customer", last_inbound_text: "Thanks!", last_inbound_at: at(3),
+  last_call_at: null, call_count: 0, call_seconds: 0, first_contact_at: at(30), earliest_row_at: at(30), has_backfill: false, has_chat: true, queued_reply_at: null,
+  ...over,
+}, "America/New_York", NOW);
+/** The seven under the salon's reach numbers below: a number each, a yes to messages, nothing to offers. */
+const saidYesToMessages = Array.from({ length: 7 }, (_, i) => personRow(`k-${i}`, `Guest ${i}`, { phone_e164: `+1305555010${i}` }));
+
 const people = (over = []) => ({
   lists: over.length ? over : [
     list("asked_never_booked", "Asked, never booked", 17, act("Text the booking link", "broadcasts/asked_never_booked")),
@@ -39,6 +55,7 @@ const people = (over = []) => ({
     list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet")),
   ],
   aggregates: { total: 28 },
+  rows: saidYesToMessages,
 });
 
 test("the leak that costs a customer comes first, and it carries the arithmetic that makes it believable", () => {
@@ -82,9 +99,9 @@ test("every rule has a floor, and each floor is a number somebody chose", () => 
   // One person who said yes is not yet a list nobody can mail.
   const healthy = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
   const few = [list("opted_in", "Said yes to messages", 2, act("Get their yes to offers", "broadcasts")), list("offers_ok", "Can receive offers", 0, null)];
-  assert.ok(!ids(healthy, { lists: few }).includes("unreachable"));
+  assert.ok(!ids(healthy, { lists: few, rows: saidYesToMessages.slice(0, 2) }).includes("unreachable"));
   few[0].count = 3;
-  assert.ok(ids(healthy, { lists: few }).includes("unreachable"));
+  assert.ok(ids(healthy, { lists: few, rows: saidYesToMessages.slice(0, 3) }).includes("unreachable"));
 
   // Four people gone quiet is a slow week; five is a list to reach.
   const quiet = (n) => ({ lists: [list("quiet", "Quiet 30+ days", n, act("Reach out", "broadcasts/quiet"))] });
@@ -108,6 +125,50 @@ test("a list nobody can be mailed, and a list gone quiet -- the two that cost a 
   assert.deepEqual(out[1].also, { label: "Reach out", to: "broadcasts/quiet" }, "the list's own step, when the list can run it");
   const held = todayLeaks(quietBooks, { lists: [list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet", false))] }, 4);
   assert.equal(held[0].also, null, "a step nobody can take is not offered");
+});
+
+test("REGRESSION: a yes to offers with no number to send one to is not 'nobody has said yes to offers' -- the reach row says what is missing, and asks nobody for an answer they gave", () => {
+  const row = personRow;
+  /** The People surface over these rows, as the bridge publishes it (surface-data.ts publishPeople), with no calendar. */
+  const surface = (rows) => ({
+    rows,
+    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar).map((l) => {
+      const members = rows.filter(l.test);
+      return { id: l.id, label: l.label, group: l.group, count: members.length, ids: members.map((r) => r.id), action: peopleListAction(l.id, members) };
+    }),
+    aggregates: { total: rows.length },
+  });
+  // Three with a number who said yes to messages and nothing to offers: the nightly's own workspace.
+  const three = [row("p1", "Rosa Diaz", { phone_e164: "+13055550101" }), row("p2", "Mia Chen", { phone_e164: "+13055550102" }), row("p3", "Ivy Park", { phone_e164: "+13055550103" })];
+  const bookedWell = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
+  const reach = (rows) => todayLeaksV2(bookedWell, surface(rows)).rows.find((l) => l.id === "unreachable");
+
+  // Nobody said yes to offers: the sentence the nightly pins, and the door to the QR, where that yes is got.
+  const none = reach(three);
+  assert.equal(none.text, "3 people have said yes to messages, but nobody has said yes to offers.");
+  assert.equal(none.math, "a broadcast reaches only the second yes · 0 can receive one");
+  assert.deepEqual(none.also, { label: "Get their yes to offers", to: GET_YES_ROUTE });
+
+  // Ana wrote in by email and said yes to both there: nobody can be sent an offer still, and it is not for want of a
+  // yes. Said as People's list step and the send screen say it (#663, #811) -- and no door to the QR, which would ask
+  // her for the yes she gave.
+  const ana = row("p4", "Ana Reyes", { email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent: "opted_in", marketing_consent_source: "customer_message", marketing_consent_updated_at: at(20) });
+  const noNumber = reach([...three, ana]);
+  assert.equal(noNumber.text, "4 people have said yes to messages, but nobody can be sent an offer yet.", "REGRESSION: '4 people have said yes to messages, but nobody has said yes to offers.'");
+  assert.equal(noNumber.math, "a broadcast reaches only a recorded yes with a number to send to · 0 can receive one");
+  assert.equal(noNumber.also, null, "REGRESSION: a door asking Ana for the yes she gave");
+  assert.deepEqual(noNumber.cta, { label: "Open People", to: "clients/seg:opted_in" }, "the number is People's list, and the door opens it");
+  assert.equal(noNumber.ask, "4 people have said yes to messages, but nobody can be sent an offer yet. A broadcast reaches only a recorded yes with a number to send to · 0 can receive one. Why is that?");
+
+  // The yes is anyone's in the workspace, as the broadcast to everyone counts it: Cleo said yes to offers on a paper
+  // form and to nothing else, so she is on no list of People's -- and the sentence may not say nobody did.
+  const cleo = row("p5", "Cleo Park", { consent: null, consent_source: null, consent_updated_at: null, channels: [], has_chat: false, marketing_consent: "opted_in", marketing_consent_source: "form", marketing_consent_updated_at: at(5) });
+  const outside = reach([...three, cleo]);
+  assert.equal(outside.text, "3 people have said yes to messages, but nobody can be sent an offer yet.");
+  assert.equal(outside.also, null);
+  // A yes to offers that was taken back with a STOP is no yes at all.
+  const stopped = row("p6", "Dee Wolf", { consent: "opted_out", consent_source: "customer_message", marketing_consent: "opted_in" });
+  assert.equal(reach([...three, stopped]).text, "3 people have said yes to messages, but nobody has said yes to offers.");
 });
 
 /* --------------------------- while you were away ------------------------- */

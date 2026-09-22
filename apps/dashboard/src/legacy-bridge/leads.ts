@@ -13,7 +13,7 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, toLeadPeekVM, toLeadRowVM,
+  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, stageArgs, toLeadPeekVM, toLeadRowVM,
   type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -55,8 +55,12 @@ interface LeadCallOptions {
   params?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
-  /** false: nothing is re-read after it (a draft changes nothing anyone is looking at). */
-  refresh?: false;
+  /**
+   * false: nothing is re-read after it (a draft changes nothing anyone is looking at). "behind": the surface is
+   * re-read all the same, but the act answers when the door accepts (client/api.ts), so the next press in a list
+   * being worked down does not wait for two reads.
+   */
+  refresh?: false | "behind";
 }
 
 /**
@@ -80,7 +84,7 @@ async function leadRead<O>(key: string, query?: Record<string, string>): Promise
 /* --------------------------------------------------------- what is loaded */
 
 /** What the Leads surface holds between reads. */
-let leadsLoaded: {
+interface LeadsLoaded {
   tz: string;
   view: LeadsView;
   key: string;
@@ -92,8 +96,27 @@ let leadsLoaded: {
   next: { key: string; id: string } | null;
   offered: LeadRowDto[];
   suggestions: LeadSuggestionsDto | null;
-} | null = null;
+}
+let leadsLoaded: LeadsLoaded | null = null;
 let view: LeadsView = DEFAULT_VIEW;
+/**
+ * The views this tab has read, by their key (the workspace and the whole view), the last eight: a rail pick used to
+ * be a round trip each way, with the old view's rows under the new title until it landed. A view held here paints
+ * at once, its Show more pages with it, and is read again behind, patched. Not the read cache (read-cache.ts): that
+ * is emptied by every write, and a held view is safe across one, because it is read again the moment it is shown.
+ * In memory only: signing out and a workspace change are both a new document.
+ */
+const held = new Map<string, LeadsLoaded>();
+const HELD_MAX = 8;
+function hold(l: LeadsLoaded): void {
+  held.delete(l.key);
+  held.set(l.key, l);
+  while (held.size > HELD_MAX) held.delete(held.keys().next().value as string);
+}
+/** The views this tab holds go: what the runner asks on a workspace change, and a test on a new wire. */
+export function forgetLeadsViews(): void {
+  held.clear();
+}
 /** Bumped by every read that replaces the rows; a read that finishes under a newer number is dropped. */
 let reads = 0;
 
@@ -131,21 +154,53 @@ function publishLeads(failed = false): void {
   };
 }
 
-/** A new view: page one under its key. The old rows go with the old key. */
-async function readView(v: LeadsView): Promise<void> {
-  const mine = ++reads;
+/** Page one of a view, read under its key: what a first read and a warm both do. */
+async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const key = viewKey(v);
   const [searches, page, tz] = await Promise.all([
     leadRead<LeadSearchesAnswer>("GET lead-searches"),
     leadRead<LeadsPageAnswer>("GET leads", queryOf(v)),
     workspaceZone(),
   ]);
-  if (mine !== reads) return; // superseded: a newer view asked after this one
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
   const suggestions = searches.searches.length === 0 ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null) : leadsLoaded?.suggestions ?? null;
-  if (mine !== reads) return;
-  leadsLoaded = { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
+  return { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
+}
+
+/**
+ * A new view. One this tab holds paints at once and is read again behind (a refresh: patched, its pages kept);
+ * one it does not is page one under its key, and the old rows go with the old key.
+ */
+async function readView(v: LeadsView): Promise<void> {
+  const mine = ++reads;
+  const have = held.get(viewKey(v));
+  if (have) {
+    leadsLoaded = have;
+    publishLeads();
+    window.dispatchEvent(new CustomEvent("surface:leads"));
+    await refreshView();
+    return;
+  }
+  const loaded = await readPageOne(v);
+  hold(loaded);
+  if (mine !== reads) return; // superseded: a newer view asked after this one
+  leadsLoaded = loaded;
   publishLeads();
+}
+
+/** A view the owner may pick next (a rail row under the pointer): read into what is held, and nothing on the page moves. */
+export async function warmLeadsView(to: string): Promise<void> {
+  const parsed = parseLeadsRoute(to);
+  if (!parsed) return;
+  const v: LeadsView = { ...DEFAULT_VIEW, searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips as Partial<LeadChips>, sort: view.sort, dir: view.dir };
+  // A warm that fails costs nothing; the pick reads for itself. Two warms in flight, or a warm and the pick that
+  // follows it, are one request: the client shares an identical read for two seconds.
+  if (held.has(viewKey(v))) return;
+  try {
+    hold(await readPageOne(v));
+  } catch {
+    /* the pick reads for itself */
+  }
 }
 
 /** The same view again, after a write or a Realtime change: patch, keep the pages, offer the rest. */
@@ -213,31 +268,92 @@ export async function leadsMore(): Promise<void> {
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
-/** "12 new": the owner asked for them, so the view is read again in its order. */
+/** "12 new": the owner asked for them, so the view is read again in its order -- page one afresh, in place, so the view held keeps up. */
 export async function leadsTakeOffered(): Promise<void> {
-  await readView(view);
+  const L = leadsLoaded;
+  if (!L) return readView(view);
+  const key = L.key;
+  const fresh = await readPageOne(L.view);
+  if (!leadsLoaded || leadsLoaded.key !== key) return;
+  Object.assign(L, { searches: fresh.searches, counts: fresh.counts, month: fresh.month, rows: fresh.rows, next: fresh.next, offered: [] });
+  publishLeads();
   window.dispatchEvent(new CustomEvent("surface:leads"));
 }
 
 /* --------------------------------------------------------------- the acts */
 // Named functions, one per door, in people-detail.ts's style: the page calls window.__leadX, the tests call these.
+// Every one answers when its door accepts, with the re-read behind it ("behind"): the owner is working down a list.
+
+type LeadMember = LeadRowDto["member"];
+
+/**
+ * An act the owner sees at once: the loaded row is changed the way the press itself says, the page is told, and the
+ * door is asked; a door that refuses puts the row back as it was. Only what the press names is changed -- the class
+ * it puts the place in, and whether it counts. The month, the counts and everything a rule decides are the
+ * re-read's to say, a moment later. A re-read that no longer holds the row (Needs review, once kept) leaves this one
+ * as it is, so the lead stays kept where the owner left it rather than standing there still offering Keep.
+ */
+async function actAtOnce<R extends { ok: boolean }>(ids: string[], change: (row: LeadRowDto) => LeadRowDto, send: () => Promise<R>): Promise<R> {
+  const L = leadsLoaded;
+  const wanted = new Set(ids);
+  const was = L ? L.rows.filter((r) => wanted.has(r.id)) : [];
+  if (!L || !was.length) return send();
+  const tell = () => { publishLeads(); window.dispatchEvent(new CustomEvent("surface:leads")); };
+  const changed = new Map(was.map((r) => [r, change(r)]));
+  L.rows = L.rows.map((r) => changed.get(r) ?? r);
+  tell();
+  const r = await send();
+  // Refused: back as it was -- unless the view moved on, or a re-read has already said what a row is now.
+  if (!r.ok && leadsLoaded === L) {
+    const back = new Map([...changed].map(([before, after]) => [after, before]));
+    if (L.rows.some((row) => back.has(row))) {
+      L.rows = L.rows.map((row) => back.get(row) ?? row);
+      tell();
+    }
+  }
+  return r;
+}
+const member = (m: LeadMember, patch: Partial<LeadMember>): LeadMember => ({ ...m, ...patch });
+const kept = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "qualified", counted: true }) });
+const leftOut = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "excluded", counted: false }) });
+/** The stage a press asks for, as the door will spell it: only that. A person, a count, the month are the door's. */
+const staged = (input: LeadStageInput) => (r: LeadRowDto): LeadRowDto => {
+  const a = stageArgs(input);
+  return a.p_stage ? { ...r, stage: a.p_stage as LeadRowDto["stage"], closed_reason: a.p_reason } : r;
+};
+const bulked = (action: "contacted" | "not_a_fit" | "keep" | "exclude") => (r: LeadRowDto): LeadRowDto => {
+  switch (action) {
+    case "contacted": return staged({ kind: "stage", stage: "nurture" })(r);
+    case "not_a_fit": return { ...r, stage: "archived", closed_reason: "not_a_fit" };
+    case "keep": return kept(r);
+    case "exclude": return leftOut(r);
+  }
+};
 
 export async function setLeadStage(id: string, input: LeadStageInput) {
   // An Interested call makes a person, so People is stale too: `refresh-map.ts`
   // names both surfaces for this one route.
-  return call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input });
+  return actAtOnce([id], staged(input), () => call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input, refresh: "behind" }));
 }
-export async function keepLead(searchId: string, id: string) { return api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId } }); }
-export async function excludeLead(searchId: string, id: string) { return api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId } }); }
-export async function putBackLead(searchId: string, id: string) { return api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId } }); }
+export async function keepLead(searchId: string, id: string) {
+  return actAtOnce([id], kept, () => api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
+export async function excludeLead(searchId: string, id: string) {
+  return actAtOnce([id], leftOut, () => api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
+export async function putBackLead(searchId: string, id: string) {
+  return actAtOnce([id], kept, () => api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
 export async function undoLeadOperation(opId: string, version: number) { return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } }); }
 export async function draftForLead(id: string, input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } }) {
   return call<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", { params: { id }, body: input, refresh: false });
 }
 export async function eraseLead(id: string) { return call<{ erased: true }>("DELETE leads/[id]", { params: { id } }); }
-/** The selected ids, or the view for "Select all N that match" (S13). */
-export async function bulkLeads(body: LeadsBulkInput) { return call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body }); }
+/** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
+export async function bulkLeads(body: LeadsBulkInput) {
+  return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () => call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body, refresh: "behind" }));
+}
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) { return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } }); }
 /** Include amends the plan, so it carries the version the owner approved; Keep and Stop carry none (§7.2). */
@@ -261,6 +377,7 @@ export function peekVMFor(leadId: string): LeadPeekVM | null {
 
 export function installLeadsCourier(): void {
   window.__leadsView = leadsView;
+  window.__leadsWarm = warmLeadsView;
   window.__leadsMore = leadsMore;
   window.__leadsTakeOffered = leadsTakeOffered;
   // The three the page derives its address, its rail and its standing line from: contracts', handed over, never re-spelled.
@@ -299,6 +416,7 @@ declare global {
   interface Window {
     __LEADS?: LeadsSurface;
     __leadsView?: typeof leadsView;
+    __leadsWarm?: typeof warmLeadsView;
     __leadsMore?: typeof leadsMore;
     __leadsTakeOffered?: typeof leadsTakeOffered;
     __leadsRouteOf?: typeof leadsRoute;

@@ -68,9 +68,6 @@ jobs:
           REQUIRE_SERVICE_CREDENTIALS: "1"
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
-          # The disaster-recovery profile the edge holds, so the golden that
-          # holds it against the stored row runs here rather than skipping.
-          DR_FALLBACK_BRAIN_JSON: ${{ secrets.DR_FALLBACK_BRAIN_JSON }}
       # The run's own workspace, made or put back in its known state before any
       # spec signs in. The signed-in specs used to run as the owner's account in
       # a live customer's workspace, writing to it and spending Ask tokens there.

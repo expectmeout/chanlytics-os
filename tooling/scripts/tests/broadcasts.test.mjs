@@ -87,9 +87,11 @@ test("THE PURPOSE IS REQUIRED, because a default is what broke this", () => {
 });
 
 test("the refusal names the yes that was actually missing", () => {
-  assert.match(emptyAudienceRefusal("marketing"), /offers/i);
-  assert.match(emptyAudienceRefusal("conversational"), /yes to messages/i);
-  assert.doesNotMatch(emptyAudienceRefusal("conversational"), /said yes to offers/i,
+  // Nobody on it said either yes; a yes with no number to send to is core-campaigns.test.mjs's, through the route.
+  const nobody = [person({ consent: { state: "unknown", dnc: false, marketing: "unknown" } })];
+  assert.match(emptyAudienceRefusal("marketing", "Regulars", nobody), /offers/i);
+  assert.match(emptyAudienceRefusal("conversational", "Regulars", nobody), /yes to messages/i);
+  assert.doesNotMatch(emptyAudienceRefusal("conversational", "Regulars", nobody), /said yes to offers/i,
     "a utility refusal must not send the owner to record a consent this message does not need");
 });
 
@@ -379,7 +381,7 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
   assert.ok(pr.includes('name: "propose_broadcast"') && pr.includes('case "propose_broadcast": return await proposeBroadcast(t, input);'));
   assert.ok(pr.includes("const purpose = purposeOfTemplate(tpl.category);"), "the proposal asks for the same yes the route will");
-  assert.ok(pr.includes("if (count === 0) return refuse(`nobody on \"${label}\" can receive this message: ${emptyAudienceRefusal(purpose)}"), "a broadcast to nobody is refused, not proposed");
+  // A broadcast to nobody is refused, not proposed, with the cause it has: ask-turn.test.mjs runs it.
   assert.ok(pr.includes('if (!tpl || tpl.meta_status !== "approved") return refuse('), "only an approved template");
   assert.ok(pr.includes('kind: "broadcast",') && pr.includes('needs: "operator",'));
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");

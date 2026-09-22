@@ -22,38 +22,29 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import { optInConfirmation, formatPhoneDisplay } from "@chanlytics/contracts";
 
-// The disaster-recovery fallback is CONFIGURATION now, not source: the edge
-// reads it from the environment once, at module load (lib/tenant-fallback.ts).
-// Set here, before the import below, so these cases run the real path — a
-// deployment that has been given the env-default workspace's profile, exactly
-// as production holds it. Unset, the module answers with its neutral default,
-// which states no business fact (dr-fallback.test.mjs covers that).
-process.env.DR_FALLBACK_BRAIN_JSON = JSON.stringify({
-  business_name: "Riverside Studio",
-  booking_link: "https://booking.example/riverside",
-  system_prompt: "You are the assistant for Riverside Studio, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
-  fallbacks: {
-    greeting: "Thanks for writing to Riverside Studio. Book anytime at https://booking.example/riverside, or reply here with any question.",
-    error: "Thanks for writing to Riverside Studio! A member of the team will reply here soon.",
-    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
-  },
-});
-process.env.DR_FALLBACK_ESCALATION_EMAILS = "owner@riverside.example";
-process.env.DR_FALLBACK_FROM = "Riverside Studio <hello@platform.test>";
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { handleInbound } = await import(at("apps/edge/lib/whatsapp/inbound.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
-const { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } = await import(at("apps/edge/lib/tenant-fallback.ts"));
 
 const GREETING = "Thanks for writing to Harbor Nails. A person will be with you shortly.";
+const NOTIFICATIONS = () => ({ escalation_emails: ["owner@riverside.example"], from: "Riverside Studio <hello@platform.test>" });
+const BRAIN = () => ({
+  business_name: "Harbor Nails",
+  booking_link: "https://booking.example/riverside",
+  system_prompt: "You are the assistant for Harbor Nails, answering inbound customer messages. Be warm, brief and honest, and offer to have a person follow up.",
+  fallbacks: {
+    greeting: GREETING,
+    error: "Thanks for writing to Harbor Nails! A member of the team will reply here soon.",
+    non_text: "Thanks for your message! A member of the team will take a look and reply here soon.",
+  },
+});
 const FROM = "13055550100";
 const routed = { channelId: "c1", tenantId: "t1", kind: "whatsapp", externalId: "p1", numberE164: "+13055550199", credentialsRef: null, config: {} };
 const runtime = (over = {}) => ({
   tenantId: "t1",
-  brain: { ...FALLBACK_BRAIN, business_name: "Harbor Nails", fallbacks: { ...FALLBACK_BRAIN.fallbacks, greeting: GREETING } },
-  notifications: FALLBACK_NOTIFICATIONS,
+  brain: BRAIN(),
+  notifications: NOTIFICATIONS(),
   calendar: null,
   features: null,
   policy: { reply: { mode: "auto", limits: {} } },
@@ -137,7 +128,7 @@ function world(over = {}) {
       const rec = await recordIngest(db, tenant, n, channel);
       return rec && { ...rec, is_new: rec.is_new === false ? false : isNew, paused_until: memory.pausedUntil ? new Date(memory.pausedUntil).toISOString() : null };
     };
-    return handleInbound(m, value, "t1", routed, !!over.isEnvDefault, false, over.carrier ?? null, { ...ports, ...extra });
+    return handleInbound(m, value, "t1", routed, !!over.isEnvDefault, over.carrier ?? null, { ...ports, ...extra });
   };
   const thread = () => structuredClone(memory);
   return { run, seen, thread };
@@ -396,7 +387,7 @@ test("an opt-in confirmation that did not send is not remembered as said, and so
 });
 
 test("a workspace whose settings could not be READ is not told it has no persona", async () => {
-  // loadTenantRuntime's DR stub carries loadFailed and no brain, so an outage
+  // loadTenantRuntime's failed read carries loadFailed and no brain, so an outage
   // read as "No brain profile configured" and sent the owner to Settings to fix
   // a database blip.
   const w = world({ rt: runtime({ brain: null, policy: {}, loadFailed: true }) });

@@ -51,7 +51,7 @@ const broadcastsSurface = (over = {}) => ({
     { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
   ],
   templates: [], rows: [toBroadcastVM(dto(), ZONE)], more: false, heldReasons: contracts.HELD_REASONS,
-  chunk: contracts.BROADCAST_CHUNK, number: null, optIn: null, listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
+  chunk: contracts.BROADCAST_CHUNK, number: null, optIn: null, getYes: contracts.GET_YES_ROUTE, listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
 });
 const playbook = (over = {}) => ({
   id: "pb-1", name: "Win-back", trigger: "quiet_30", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
@@ -182,6 +182,10 @@ const answers = new Map();
 globalThis.window.__broadcasts = {
   // The bridge's words for why a whole broadcast stopped, and a run's report (broadcast-verbs.ts), as the verbs publish them.
   failureWords: (code) => contracts.broadcastFailureWords(code),
+  // And for a list whose yeses have no number to send to: People's (#663), as the verbs publish them.
+  noNumberWords: (who, purpose) => contracts.noNumberWords(who, purpose),
+  // How many on the audience said yes, as the line under it says it.
+  saidYesWords: (who, purpose, sending, saidYes) => contracts.saidYesWords(who, purpose, sending, saidYes),
   report: (d) => contracts.toRunReportVM(d, { windowMs: contracts.REPLY_WINDOW_MS, nowMs: Date.now(), clock: (iso) => (iso ? globalThis.window.__clock.stamp(Date.parse(iso)) : null) }),
   approval: (d, playbook, businessName) => {
     const clock = globalThis.window.__clock;
@@ -534,6 +538,198 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, a band
   tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(byTestId(tree, "bc-composer"), "People's 'broadcast to this list' lands on the composer");
   globalThis.window.__PLAYBOOKS = undefined;
+});
+
+test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR -- it said 'the phrase and QR below', and since the send became its own screen nothing is below it", () => {
+  const optIn = { phrase: "YES OFFERS", phraseEs: "SI OFERTAS", link: "https://wa.me/13055550100?text=YES%20OFFERS", qrPath: "/api/v1/consent/qr", pageUrl: null };
+  const nobody = [
+    { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 0, conversational: 0 } },
+    { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 0, conversational: 0 } },
+  ];
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
+  const scrolled = [];
+  const keep = globalThis.document.getElementById;
+  globalThis.document.getElementById = (id) => (id === "bc-optin" ? { scrollIntoView: () => scrolled.push(id) } : null);
+  try {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn });
+    const props = { initialSegment: null, initialRun: null };
+    let tree = writing(props);
+    const line = byTestId(tree, "bc-nobody");
+    assert.equal(textOf(line), "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.", "REGRESSION: '…with the phrase and QR below'");
+    const door = byTestId(line, "bc-nobody-door");
+    assert.equal(textOf(door), "get their yes with the phrase and the QR", "the way to their yes is the door, in the sentence that names it");
+    assert.deepEqual(scrolled, [], "nothing moves before it is pressed");
+
+    // Pressed: the send screen closes onto the ledger, which is where the card is, and the QR is brought into view.
+    press(door);
+    assert.equal(went.at(-1), contracts.GET_YES_ROUTE, "where every other 'nobody has said yes' goes (#663)");
+    tree = again(props);
+    assert.equal(byTestId(tree, "bc-composer"), null, "REGRESSION: navigating while the send screen was up kept it up, and the card undrawn");
+    assert.ok(byTestId(tree, "bc-optin"), "the ledger, with the card the door is for");
+    assert.deepEqual(scrolled, ["bc-optin"], "and the QR brought into view");
+    // Then the shell follows the address it went to, broadcasts/get-yes, which names no list: the send stays shut.
+    tree = again({ ...props, initialYes: true });
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    assert.ok(byTestId(tree, "bc-optin"));
+
+    // Opened from People on a list ("Broadcast to this list"): the door leaves that list's send screen too.
+    tree = page({ initialSegment: "s1", initialRun: null });
+    assert.ok(textOf(byTestId(tree, "bc-nobody")).startsWith("Nobody on “Regulars”"), textOf(byTestId(tree, "bc-nobody")));
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again({ initialSegment: "s1", initialRun: null });
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    tree = again({ initialSegment: null, initialRun: null, initialYes: true });
+    assert.equal(byTestId(tree, "bc-composer"), null, "the address it lands on does not reopen the list's send");
+    assert.ok(byTestId(tree, "bc-optin"));
+
+    // Written from broadcasts/get-yes itself, where the address does not change when the door is pressed: the door
+    // brings the QR into view on its own, rather than leaving the ledger wherever the send screen was scrolled to.
+    scrolled.length = 0;
+    const yes = { initialSegment: null, initialRun: null, initialYes: true };
+    tree = page(yes);
+    assert.deepEqual(scrolled, ["bc-optin"], "the landing, as #663 made it");
+    press(byTestId(tree, "bc-new"));
+    tree = again(yes);
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again(yes);
+    assert.equal(byTestId(tree, "bc-composer"), null);
+    assert.deepEqual(scrolled, ["bc-optin", "bc-optin"], "REGRESSION: with no change of address, nothing brought it into view");
+    // And again, on the same page: every press lands, not only the first.
+    press(byTestId(tree, "bc-new"));
+    tree = again(yes);
+    press(byTestId(tree, "bc-nobody-door"));
+    tree = again(yes);
+    assert.deepEqual(scrolled, ["bc-optin", "bc-optin", "bc-optin"], "a second press lands too");
+
+    // A message for everyone who said yes to messages says so, and has the same door.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [note], audiences: nobody, number: healthyNumber, optIn });
+    tree = writing(props);
+    assert.equal(textOf(byTestId(tree, "bc-nobody")), "Nobody on “Everyone who said yes” has said yes to messages yet. Record it on their profile, or get their yes with the phrase and the QR.");
+    assert.ok(byTestId(byTestId(tree, "bc-nobody"), "bc-nobody-door"));
+
+    // No number, no QR: no door to a card the ledger does not draw, and no sentence about it.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn: { ...optIn, link: null, qrPath: null } });
+    tree = writing(props);
+    assert.equal(textOf(byTestId(tree, "bc-nobody")), "Nobody on “Everyone who said yes” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile.");
+    assert.equal(byTestId(tree, "bc-nobody-door"), null);
+    // A surface cached before the page knew where the card is: the sentence ends at the profile until it is read again.
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [offer], audiences: nobody, number: healthyNumber, optIn, getYes: undefined });
+    tree = writing(props);
+    assert.equal(byTestId(tree, "bc-nobody-door"), null, "never a door to #/undefined");
+    assert.ok(textOf(byTestId(tree, "bc-nobody")).endsWith("on their profile."));
+  } finally {
+    globalThis.document.getElementById = keep;
+  }
+});
+
+test("REGRESSION: the send screen tells a list with no number from a list with no yes -- a yes with no number to send to read 'Nobody has said yes', and its door asked for an answer already given", () => {
+  const optIn = { phrase: "YES OFFERS", phraseEs: "SI OFERTAS", link: "https://wa.me/13055550100?text=YES%20OFFERS", qrPath: "/api/v1/consent/qr", pageUrl: null };
+  const rows = [
+    // Wrote in by email and said yes to both there: an address, and no number (the email channel, live since 18 Sep).
+    contact({ id: "c-ana", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+    // Walked in, said yes to messages at the desk, and left no number.
+    contact({
+      id: "c-bea", display_name: "Bea Soto", wa_profile_name: null, phone_e164: null, consent_source: "in_person", marketing_consent: "unknown", channels: [], has_chat: false,
+      conversation_count: 0, latest_conversation_id: null, latest_state: null, latest_wa_inbound_at: null, last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null,
+    }),
+    // A number, and a yes to messages only: offers he was never asked about.
+    contact({ id: "c-luis", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550199", consent_source: "in_person", marketing_consent: "unknown" }),
+  ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
+  const on = (ids) => rows.filter((r) => ids.includes(r.id));
+  // A list kept by hand, as the bridge publishes it (surface-data.ts broadcastsOverride): both purposes, from contracts.
+  const listOf = (id, label, ids) => {
+    const preview = {
+      conversational: contracts.audiencePreview(rows, "saved", null, new Set(ids), "conversational"),
+      marketing: contracts.audiencePreview(rows, "saved", null, new Set(ids), "marketing"),
+    };
+    return { kind: "saved", id, label, counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }, preview, hint: "A list kept by hand — of those whose yes covers this message" };
+  };
+  const audiences = [listOf("s-reg", "Regulars", ["c-ana", "c-luis"]), listOf("s-walk", "Walk-ins", ["c-bea", "c-luis"]), listOf("s-desk", "At the desk", ["c-bea"])];
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
+  /** The send screen, opened on a list the way People opens it, with one message to pick: its "nobody" line. */
+  const nobodyOn = (list, tpl) => {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], audiences, number: healthyNumber, optIn });
+    const tree = page({ initialSegment: list, initialRun: null });
+    assert.ok(byTestId(tree, "bc-composer"), list);
+    return byTestId(tree, "bc-nobody");
+  };
+
+  // Ana said yes to offers and there is no number to send one to: the list is missing a number, not an answer.
+  let line = nobodyOn("s-reg", offer);
+  assert.equal(textOf(line), "Nobody on “Regulars” can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.", "REGRESSION: 'Nobody on “Regulars” has said yes to offers yet'");
+  assert.equal(byTestId(line, "bc-nobody-door"), null, "REGRESSION: a door asking Ana for the yes she gave");
+  // People says the same of the same list, and nothing to press (contracts broadcastStep, #663).
+  assert.deepEqual(contracts.savedListAction("s-reg", on(["c-ana", "c-luis"])), {
+    text: "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to.",
+    cta: "Use in a broadcast", to: "broadcasts/s-reg", enabled: false,
+  });
+
+  // Nobody on Walk-ins said yes to offers -- Bea's yes is to messages: that IS a missing answer, and the door stays.
+  line = nobodyOn("s-walk", offer);
+  assert.equal(textOf(line), "Nobody on “Walk-ins” has said yes to offers yet — that is a separate answer from saying yes to messages. Record it under “Offers and news” on their profile, or get their yes with the phrase and the QR.");
+  assert.ok(byTestId(line, "bc-nobody-door"), "the door, for the list that needs a yes");
+  assert.equal(contracts.savedListAction("s-walk", on(["c-bea", "c-luis"])).to, contracts.GET_YES_ROUTE, "where People's step goes too");
+
+  // The yes is the message's own. Bea said yes to messages, so a message to her list is missing a number...
+  line = nobodyOn("s-desk", note);
+  assert.equal(textOf(line), "Nobody on “At the desk” can be sent a message yet — a broadcast reaches only a recorded yes with a number to send to.");
+  assert.equal(byTestId(line, "bc-nobody-door"), null);
+  // ...and an offer to it is missing her answer.
+  line = nobodyOn("s-desk", offer);
+  assert.ok(textOf(line).startsWith("Nobody on “At the desk” has said yes to offers yet"), textOf(line));
+  assert.ok(byTestId(line, "bc-nobody-door"));
+});
+
+test("REGRESSION: the line under the audience says who said yes when nobody can be sent it -- '0 people on “Regulars” said yes to offers' stood over 'Nobody on “Regulars” can be sent an offer yet'", () => {
+  const rows = [
+    // Dani: a number, and a yes to both (the contact's own defaults).
+    contact({ id: "c-dani" }),
+    // Ana and Eva wrote in by email and said yes to both there: an address each, and no number.
+    contact({ id: "c-ana", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+    contact({ id: "c-eva", display_name: "Eva Lund", wa_profile_name: null, phone_e164: null, email: "eva@example.com", channels: ["email"], consent_source: "customer_message", marketing_consent_source: "customer_message" }),
+    // Bea walked in, said yes to messages at the desk, and left no number.
+    contact({
+      id: "c-bea", display_name: "Bea Soto", wa_profile_name: null, phone_e164: null, consent_source: "in_person", marketing_consent: "unknown", channels: [], has_chat: false,
+      conversation_count: 0, latest_conversation_id: null, latest_state: null, latest_wa_inbound_at: null, last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null,
+    }),
+    // Luis: a number, and a yes to messages only.
+    contact({ id: "c-luis", display_name: "Luis Mora", wa_profile_name: "Luis", phone_e164: "+17865550199", consent_source: "in_person", marketing_consent: "unknown" }),
+  ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
+  // A list kept by hand, as the bridge publishes it (surface-data.ts broadcastsOverride): both purposes, from contracts.
+  const listOf = (id, label, ids) => {
+    const preview = {
+      conversational: contracts.audiencePreview(rows, "saved", null, new Set(ids), "conversational"),
+      marketing: contracts.audiencePreview(rows, "saved", null, new Set(ids), "marketing"),
+    };
+    return { kind: "saved", id, label, counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }, preview, hint: "A list kept by hand — of those whose yes covers this message" };
+  };
+  const audiences = [
+    listOf("s-reg", "Regulars", ["c-ana", "c-luis"]), listOf("s-mail", "By email", ["c-ana", "c-eva"]), listOf("s-walk", "Walk-ins", ["c-bea", "c-luis"]),
+    listOf("s-desk", "At the desk", ["c-bea"]), listOf("s-vip", "VIPs", ["c-dani", "c-ana"]),
+  ];
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
+  /** The send screen, opened on a list the way People opens it, with one message to pick: the line under the audience. */
+  const metaOn = (list, tpl) => {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], audiences, number: healthyNumber });
+    const tree = page({ initialSegment: list, initialRun: null });
+    assert.ok(byTestId(tree, "bc-composer"), list);
+    return textOf(find(tree, (n) => n.props?.className === "bc-meta"));
+  };
+  const held = " · people who asked to stop, have no number, or are mid-thread with a person are held back at the wire";
+
+  // Ana said yes to offers and has no number: one person said yes, and the line says so -- with what is missing.
+  assert.ok(metaOn("s-reg", offer).startsWith(`1 person on “Regulars” said yes to offers, with no number to send to${held}`), `REGRESSION: ${metaOn("s-reg", offer)}`);
+  assert.ok(metaOn("s-mail", offer).startsWith(`2 people on “By email” said yes to offers, none with a number to send to${held}`), metaOn("s-mail", offer));
+  // The yes is the message's own: Bea said yes to messages, so a message to her is missing a number.
+  assert.ok(metaOn("s-desk", note).startsWith(`1 person on “At the desk” said yes to messages, with no number to send to${held}`), metaOn("s-desk", note));
+  // Nobody on Walk-ins said yes to offers, and the line said so already: unchanged.
+  assert.ok(metaOn("s-walk", offer).startsWith(`0 people on “Walk-ins” said yes to offers${held}`), metaOn("s-walk", offer));
+  // Above 0 the number is who it reaches, People's shorthand ("N of M on this list said yes to offers -- a broadcast
+  // reaches them"): Dani, and not Ana, whose yes has no number. Unchanged.
+  assert.ok(metaOn("s-vip", offer).startsWith(`1 person on “VIPs” said yes to offers${held}`), metaOn("s-vip", offer));
 });
 
 test("REGRESSION (C14): a send in flight draws its progress, Approve says it is approving and cannot approve twice, and Scheduled counts by state -- 'N queued' counted runs waiting for you", async () => {

@@ -84,9 +84,22 @@ test("a view of the Leads scope is a route Ask can cite and the page can read ba
   const route = leadsRoute({ searchId: "5e000000-0000-4000-8000-000000000001", list: "ready", cls: "review" });
   assert.equal(route, "clients/leads:s-5e000000-0000-4000-8000-000000000001:l-ready:c-review");
   assert.match(route.slice("clients/".length), /^[A-Za-z0-9:_-]+$/, "the citation grammar Ask grounds pages with (ask.ts PAGE_PREFIX)");
-  assert.deepEqual(parseLeadsRoute(route), { searchId: "5e000000-0000-4000-8000-000000000001", list: "ready", cls: "review", chips: {} });
-  assert.deepEqual(parseLeadsRoute("clients/leads"), { searchId: null, list: "all", cls: null, chips: {} });
+  assert.deepEqual(parseLeadsRoute(route), { searchId: "5e000000-0000-4000-8000-000000000001", list: "ready", cls: "review", chips: {}, peek: null });
+  assert.deepEqual(parseLeadsRoute("clients/leads"), { searchId: null, list: "all", cls: null, chips: {}, peek: null });
   assert.equal(parseLeadsRoute("clients/p-123"), null);
+});
+
+test("the lead that is open is part of the address, after the view it is open over: a refresh keeps it, Back closes it, and it can be sent to someone", () => {
+  const SEARCH = "5e000000-0000-4000-8000-000000000001";
+  const LEAD = "1ead0000-0000-4000-8000-000000000009";
+  assert.equal(leadsRoute({ peek: LEAD }), `clients/leads:p-${LEAD}`);
+  const route = leadsRoute({ searchId: SEARCH, list: "nurture", cls: "review", peek: LEAD });
+  assert.equal(route, `clients/leads:s-${SEARCH}:l-nurture:c-review:p-${LEAD}`, "the view first, then the lead: the view's own route is a prefix of it");
+  assert.match(route.slice("clients/".length), /^[A-Za-z0-9:_-]+$/, "still inside the citation grammar");
+  assert.deepEqual(parseLeadsRoute(route), { searchId: SEARCH, list: "nurture", cls: "review", chips: {}, peek: LEAD });
+  assert.equal(parseLeadsRoute(`leads:p-${LEAD}`).peek, LEAD, "the shell's own param, without the page's name");
+  assert.equal(parseLeadsRoute("clients/leads:p-not-an-id").peek, null, "anything that is not an id is no lead at all");
+  assert.equal(leadsRoute({ searchId: SEARCH, peek: null }), `clients/leads:s-${SEARCH}`, "no lead open says nothing");
 });
 
 test("a stage change in the page's words becomes the door's arguments; the door, not the page, decides what converts", () => {

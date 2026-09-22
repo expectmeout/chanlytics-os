@@ -32,7 +32,7 @@ import {
 } from "./viewmodels";
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
-import { reasonShort } from "./people";
+import { NO_NUMBER_REACH, reasonShort, saidYesTo, type PersonRowVM } from "./people";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
@@ -1530,6 +1530,8 @@ export interface TodayLeaksVM {
 export interface PeopleListsLike {
   lists: JourneyListLike[];
   aggregates?: { total: number };
+  /** Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not. */
+  rows: ReadonlyArray<Pick<PersonRowVM, "consent">>;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
@@ -1612,9 +1614,14 @@ export function todayLeaks(
   const yes = list("opted_in");
   const offers = list("offers_ok");
   // Three, for the same reason: one person who said yes is not yet a list.
-  if (yes && offers && yes.count >= 3 && offers.count === 0) {
-    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
-    const math = "a broadcast reaches only the second yes · 0 can receive one";
+  if (people && yes && offers && yes.count >= 3 && offers.count === 0) {
+    // Nobody can be sent an offer, and that has two causes (#663): nobody said yes to offers, or the ones who did --
+    // anyone in the workspace, as a broadcast to everyone counts them (#811) -- have no number to send one to. Only
+    // the first is a yes to go and get; the second is said with People's reason, and with no door to the QR, which
+    // would ask them for an answer they gave.
+    const noNumber = people.rows.some((r) => saidYesTo(r, "marketing"));
+    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+    const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} · 0 can receive one`;
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
@@ -1625,7 +1632,7 @@ export function todayLeaks(
       people: [],
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
-      also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
+      also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
     });
   }
 

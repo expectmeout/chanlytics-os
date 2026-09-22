@@ -1,0 +1,87 @@
+# The takeover checklist
+
+Could a senior developer take this repository over tomorrow? This page scores
+the codebase against the properties that make that possible, says where each
+one stands, and lists what to do next. It was measured on 21 September 2026
+at `f68aeef`; the counts are worth re-deriving, and the statuses are worth
+re-scoring, whenever the structural work below lands.
+
+Chanlytics OS is a backend-heavy, multi-tenant, provider-driven system with a
+ported single-page shell on top, so the usual frontend-first checklist is
+translated: where it asks about hooks and state libraries, this page asks
+about the surface seam and the session stores the shell actually has.
+
+**Strong** means a senior developer would nod. **Partial** means the pattern
+exists but is not universal or not written down. **Gap** means it is missing.
+
+## The checklist, scored
+
+| # | Area | For this repository | Status | Evidence | Do next |
+|---|---|---|---|---|---|
+| 1 | File tree | Layer-based (`packages/contracts`, `core`, `db`, `channels`, `jobs`; `apps/edge`, `apps/dashboard`), predictable once you know the layers: a verb in core, a door in `apps/edge/api`, a route in `app/api/v1`, a surface in `src/legacy/pages` | Partial | Flat directories of 40 to 65 files in `apps/edge/lib`, `src/server` and `src/legacy-bridge`; `contracts` is a 25k-line grab bag; core is the one package grouped by domain | Group `apps/edge/lib` and `src/server` by domain the way `whatsapp/` already is; split `contracts` by domain |
+| 2 | Separation of concerns | Doors verify the wire, plan functions decide, adapters build ports, verbs run rules, view models shape reads | Strong on the server, Partial in the shell | Every door has a pure plan function run over an in-memory database; pages contain no data access (no raw fetch in any page) but mix presentation with mockup-era session stores | Finish the shell's move from mockup branches to real-only pages |
+| 3 | DRY | One predicate per rule, one send door, one route definition, one clock rule | Strong on rules, Partial in UI | `mayMessageFor`, `standingOf`, `outboundGate`, `replyWindow`, `deliver()`, `route()`; three button class combinations account for nearly every button; 79 uses of the shared empty and failed states | Dialogs are hand-rolled in 11 files; make `record-sheet` the one sheet |
+| 4 | Single source of truth | The database's closed sets, the routes' policies and the typed client are generated and pinned | Strong | `schema-sets.generated.ts` checked at compile time, `database.types.ts` checked in CI, `route-policy.json` pins every route, `routes.generated.ts` is the client, `resolveFacts` owns each fact once | The five names for a person (`docs/glossary.md`) are the remaining duplication; rename with the move off hash routes |
+| 5 | Design system | OKLCH tokens, light and dark, primitives as JSX globals plus CSS classes | Partial | `tokens.css` is real and used everywhere; primitives exist (`record-*`, `data-bits`, the chart kit, icons) but are class-based, not an importable component set; 20 stylesheets | Extract a documented primitive set (Button, Sheet, Field, Table, Chip) as the first step of the shell migration; keep the tokens |
+| 6 | Dependency direction | Packages form a DAG enforced by `package.json`; apps sit on top | Strong at package level, Gap inside apps | `contracts ← db, channels ← core ← jobs`; nothing but convention stops a page importing a server module; 148 distinct `window.__*` globals form an implicit graph between the bridge and the pages | ESLint `no-restricted-imports` boundaries for the three app layers; count the globals down per surface |
+| 7 | Business logic | Verbs over ports by domain, SQL doors for privileged writes, the receptionist's decisions as pure functions | Strong, with two known holes | `core/conversations`, `campaigns`, `messages`, `leads`; `reply-posture.ts`, `steps.ts`, `planSmsIngress`, `planCallStart`; the 880-line WhatsApp handler still holds the inbound pipeline; appointments have no owner | `docs/decisions/0001` and `0002` are exactly these two holes |
+| 8 | API and data access | One `route()` with scope, role, rate, spend and input; one envelope; a generated typed client; a cache-first surface seam with realtime | Strong | 118 typed calls in the bridge, no raw fetch in pages, `surface-cache`, `read-cache`, `surface-realtime`, `refresh-map` | Write the seam down in one page; it is the least documented strong part |
+| 9 | State | Server state in the surface seam; per-tab UI state in the page; cross-surface state in named session stores | Partial | Ten `*_STORE` window stores from the mockup era plus the bridge globals; no written rule for what lives where | One paragraph of rules, then retire each mockup store as its surface goes real-only |
+| 10 | Loading and performance | Cache-first render, realtime revalidation, no fabricated data during a cold load | Partial | The whole shell is one client chunk including seed data for unbuilt surfaces; hash routes mean no route-level splitting; no bundle budget in CI | Seeds behind demo only, per-surface dynamic import, a size check in CI |
+| 11 | Error handling | Typed `AppError` with code and status, one envelope, refusals in the owner's words, failed reads drawn as failed | Strong on the server, Partial on the edge | 270 typed throws; the edge has 150 structured logger calls but also 75 bare `console.error` and 8 empty catches; no error-tracking vendor | Route the bare calls through the logger; decide on a tracker or state that Vercel logs plus the pager is the policy |
+| 12 | Auth and authz | Session gate in `proxy.ts`, `getUser()` per request, same-origin writes, role in `route()`, RLS floor, SECURITY DEFINER doors, `ROLE_PERMS` shared with the UI | Strong | The public route list is pinned by a test; a 401 and a 503 are told apart on purpose | Nothing |
+| 13 | Multi-tenancy | `tenant_id` on every row, RLS on every table, one workspace resolution, per-tenant secrets in Vault, an edge token per workspace and person | Strong | Uniform floor since migrations 00120 to 00122; the tenancy suites run in `database.yml` on pull requests that touch database paths, and nightly against real Postgres | Make the migrations replay a required check |
+| 14 | Types and contracts | Strict everywhere; the chain is database, generated types, contracts, route input, typed client | Strong | 4 `any` in non-generated code; every input is zod; the chain breaks only at the shell, which is untyped JSX | Type the bridge's boundary as the shell moves to TypeScript |
+| 15 | Testing | Executed tests over fakes and worlds, credential-gated database suites, a nightly browser run with skip guards | Partial | 3,600+ tests, but 395 files in one flat directory, about 900 source-text assertions on a ratchet, database suites on pull requests only when database paths change, no coverage numbers | Colocate per package; drive the text pins in core and channels to zero |
+| 16 | Config and env | `.env.example` pinned to what the code reads; `deployment.ts` decides what a deployment may do; provider keys on the edge only | Strong, one gap | 40 variables read across 38 edge files with no typed accessor | One `apps/edge/lib/env.ts` that reads and types every variable once |
+| 17 | Docs and onboarding | README, architecture, glossary, runbook, decisions, an as-built PRD, a conversation-flow conformance map | Strong | `docs/runbook.md` covers running, testing, deploying, migrations and rollback | Keep the runbook true; it goes stale first |
+| 18 | Agent friendliness | A root instruction file, canonical examples, explicit rules | Strong | `CLAUDE.md` at the root names the docs, the rules and one example of each thing; the shell keeps its own | Keep the example table pointing at real files |
+| 19 | Don't reinvent | A findable canonical example of each common thing | Strong | The table in `CLAUDE.md` | Add a row when a new kind of thing appears |
+| 20 | Consistency | One way to write a door, a verb, a route, a test | Strong on the server, Partial in the shell | No formatter and no pre-commit hook, so formatting drifts by author; prose commit subjects and sentence-named migrations are conventions now, not yet habits | Prettier plus lint-staged; keep ESLint |
+| 21 | Complexity and debt | God files, hidden coupling | Partial | Nine files over a thousand lines; zero TODO markers; no dead code found by the last census; coupling through window globals | Split the contracts files by domain; extract the inbound pipeline |
+| 22 | Dependency hygiene | Few dependencies, one library per problem | Strong | Next, React, Supabase, zod, Stripe, the model SDK, `qrcode`, `html-to-text`; the chart kit and the ICS parser are hand-rolled, which is a maintenance choice, not a smell | Nothing |
+| 23 | Observability | Structured logs with tenant and message tails, the append-only `events` ledger, the `decisions` ledger, a clock register judged by a health sweep, a deadman watchdog, a pager with suppression, an external health door | Strong for the platform, Partial for a request | No correlation id from a dashboard request through the edge; no APM | Carry a request id in the edge token and log it on both sides |
+| 24 | CI and quality gates | Secret scan, typecheck, lint, tests, dist drift, dashboard build, migrations replay, generated-types check, database suites, Vercel previews, nightly browser and integration runs | Strong, two gaps | The migrations replay is not a required check; no pre-commit hooks | Require `database.yml`; hooks |
+| 25 | The takeover test | See below | Strong | 25 of 25 answers are one file away | Re-answer after each structural change |
+
+## The takeover test, answered
+
+1. **Authentication**: `apps/dashboard/proxy.ts` (the gate and the pinned public list), `src/lib/supabase/server.ts`, `src/server/auth-cookies.ts`, `app/auth/*`.
+2. **Authorization**: `src/server/route.ts` (`role` and `scope`), `ROLE_PERMS` in `packages/contracts/src/config.ts`, RLS in `supabase/migrations`, SECURITY DEFINER doors.
+3. **Database client**: the session client in `src/lib/supabase`; the service role in `packages/db/src/service-client.ts` and six named dashboard modules; the edge's `apps/edge/lib/pg.ts`.
+4. **API calls**: a page calls the bridge (`src/legacy-bridge/api.ts`), which calls the typed client (`src/client/api.ts` over `routes.generated.ts`), which calls `app/api/v1`. The dashboard reaches the edge through `src/server/edge.ts` with a per-call token.
+5. **Business logic**: `packages/core` verbs; the receptionist's decisions in `apps/edge/lib`; privileged writes in SQL doors. Booking logic lives nowhere, by charter: the receptionist never books.
+6. **Shared components**: `src/legacy/components` and `styles/tokens.css`.
+7. **Feature components**: `src/legacy/pages/<surface>*.jsx`, fed through `src/legacy-bridge`.
+8. **Global state**: `docs/architecture.md`, The shell; the session stores are named `*_STORE` and each belongs to one surface.
+9. **Server state cache**: `surface-cache.ts`, `read-cache.ts`, `surface-runner.ts`, `surface-realtime.ts`, `refresh-map.ts`.
+10. **Errors**: `AppError` and the envelope in `route.ts`, `refusalOf` in `packages/contracts/src/refusal.ts`, `FailedRead` and `EmptyState` in `data-bits.jsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `page-operator.ts`.
+11. **Form validation**: the zod `input` on every route; field-level problems come from contracts. There is no form library, by design.
+12. **Permissions**: `ROLE_PERMS`, `route()`, `roleGate` in the UI.
+13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.
+14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing.ts`.
+15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
+16. **AI**: one receptionist (`apps/edge/lib/brain.ts`, the composer in `packages/contracts/src/config.ts`, the structured answer in `contracts/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
+17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.
+18. **Reusing a component**: `src/legacy/components`, and the `btn`, `set-input`, `record-*` classes the pages already use.
+19. **A new endpoint**: copy the snooze route; add its row to `route-policy.json` (the test prints what it expects); run `gen-route-types`.
+20. **Writing a test**: copy `sms-door.test.mjs` for a door, `core-thread-verbs.test.mjs` for a verb, any `*.db.test.mjs` for the database.
+21. **Run locally**: `docs/runbook.md`.
+22. **Deploy and roll back**: `docs/runbook.md`.
+23. **Environment variables**: `apps/*/.env.example`, `docs/system-prd.md` S-23, `src/server/deployment.ts`.
+24. **Rules**: `CLAUDE.md`, The rules; `README.md`, Conventions; `docs/system-prd.md` S-03.
+25. **What not to introduce**: `CLAUDE.md`, What not to introduce.
+
+## What to do next, in order
+
+1. Make the migrations replay a required check. A repository setting.
+2. Prettier and lint-staged. An hour, then it holds.
+3. ESLint import boundaries between the three app layers.
+4. A typed env module on the edge; the bare `console.error` calls through the logger.
+5. Group `apps/edge/lib` and `src/server` by domain; split the five largest contracts files.
+6. The state rule paragraph, then retire the mockup stores one surface at a time.
+7. Colocate tests per package; drive the text pins in core and channels to zero.
+8. The three design notes, in their order: the inbound pipeline, appointments, team assignment.
+
+Items 1 to 4 change no behaviour and fit in a week. Items 5 to 8 are the
+structural work, and each already has its design written.

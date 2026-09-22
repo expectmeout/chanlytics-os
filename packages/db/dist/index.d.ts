@@ -5206,9 +5206,9 @@ interface ChannelLookup {
      * is NOT the same as "no active channel", and callers must not conflate them:
      * "the database says this channel is off" is a deliberate configuration state
      * that should silence the receptionist, while "the database did not answer"
-     * is an infrastructure blip that a designated tenant may ride out on its
-     * baked profile. Returning a bare null for both made a Postgres hiccup
-     * indistinguishable from someone flipping the off switch.
+     * is an infrastructure blip the door refuses to acknowledge, so the provider
+     * redelivers once the read works. Returning a bare null for both made a
+     * Postgres hiccup indistinguishable from someone flipping the off switch.
      */
     lookupFailed: boolean;
 }

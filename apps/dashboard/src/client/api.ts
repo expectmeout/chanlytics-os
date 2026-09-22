@@ -36,8 +36,13 @@ export interface ApiOptions<K extends RouteKey> {
   /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
   undoOf?: string;
   timeoutMs?: number;
-  /** After a 2xx: re-read the surfaces the map names (the default); a bulk verb passes false and re-reads once at its end. */
-  refresh?: boolean;
+  /**
+   * After a 2xx: re-read the surfaces the map names, and answer once they have landed (the default); a bulk verb
+   * passes false and re-reads once at its end. "behind" re-reads them all the same but answers when the server
+   * accepts: for an act in a list somebody is working down, where the row has already shown what happened and the
+   * next press should not wait for two reads. A re-read that fails behind a write is the surface's own to say.
+   */
+  refresh?: boolean | "behind";
   /**
    * Fired the moment the server accepts, before the surfaces are re-read, with what it answered: a form can say
    * "saved" without waiting for every re-read, and a write that follows can build on the answer (the settings save's
@@ -160,7 +165,8 @@ export function createApi(deps: ApiDeps) {
         // change and cannot describe the world the operator is now in; sharing
         // it with the refresh that follows would repaint the thread as it was.
         forget();
-        if (opts.refresh !== false) await deps.refresh(key);
+        if (opts.refresh === "behind") void deps.refresh(key).catch(() => {});
+        else if (opts.refresh !== false) await deps.refresh(key);
       }
       return { ok: true, data: j.data as OutputOf<Routes[K]> };
     })();

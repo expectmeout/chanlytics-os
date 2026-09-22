@@ -2409,6 +2409,14 @@ var GuardrailsSchema = z3.object({
    */
   no_health_advice: z3.boolean().optional()
 }).strict();
+function guardrailsInForce(g) {
+  return {
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
+  };
+}
 var NoteSchema = z3.object({
   title: z3.string().min(1).max(80),
   text: z3.string().min(1).max(1200)
@@ -2913,19 +2921,19 @@ ${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how t
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
   );
-  const g = profile.guardrails ?? {};
+  const g = guardrailsInForce(profile.guardrails);
   const rules = [];
-  if (g.never_quote_prices !== false) {
+  if (g.never_quote_prices) {
     rules.push("Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.");
   }
-  if (g.never_confirm_booking !== false) {
+  if (g.never_confirm_booking) {
     rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
   }
-  if (g.disclose_ai !== false) {
+  if (g.disclose_ai) {
     rules.push("If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.");
   }
   rules.push("If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else.");
-  if (g.no_health_advice === true) {
+  if (g.no_health_advice) {
     rules.push("Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.");
   }
   rules.push(...policyRules(policy, channel));
@@ -3995,6 +4003,9 @@ function whyNotReceive(r, purpose) {
   if (said.ok) return null;
   return said.reason === "opted_out" ? "stopped" : "no_yes";
 }
+function saidYesTo(r, purpose) {
+  return mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).ok;
+}
 function receptionistOf(r, tz, nowMs) {
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r.open_escalation_reason) return { tone: "escalated", label: `Escalated, ${reasonShort(r.open_escalation_reason)}` };
@@ -4142,10 +4153,20 @@ function peopleListAction(id, members) {
 function savedListAction(id, members) {
   return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
 }
+var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+function noNumberWords(who, purpose) {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
+}
+function saidYesWords(who, purpose, sending, saidYes) {
+  const noNumber = sending === 0 && saidYes > 0;
+  const n = noNumber ? saidYes : sending;
+  const words2 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words2}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words2;
+}
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
-    const saidYes = members.some((m) => m.consent.marketing === "opted_in");
+    const saidYes = members.some((m) => saidYesTo(m, "marketing"));
     if (members.length && !saidYes) {
       return {
         text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
@@ -4155,7 +4176,7 @@ function broadcastStep(cta, to, members) {
       };
     }
     return {
-      text: members.length ? "Nobody on this list can be sent an offer yet \u2014 a broadcast reaches only a recorded yes with a number to send to." : "Nobody here right now.",
+      text: members.length ? noNumberWords("this list", "marketing") : "Nobody here right now.",
       cta,
       to,
       enabled: false
@@ -5570,9 +5591,10 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
   }
   const yes = list2("opted_in");
   const offers = list2("offers_ok");
-  if (yes && offers && yes.count >= 3 && offers.count === 0) {
-    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
-    const math = "a broadcast reaches only the second yes \xB7 0 can receive one";
+  if (people && yes && offers && yes.count >= 3 && offers.count === 0) {
+    const noNumber = people.rows.some((r) => saidYesTo(r, "marketing"));
+    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+    const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
@@ -5583,7 +5605,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
       people: [],
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
-      also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
+      also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
     });
   }
   const quiet = list2("quiet");
@@ -7282,7 +7304,7 @@ function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
     const why = !r.phone ? "No phone number on file, so nothing can be sent." : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
     people.push(previewPerson(r, why));
   }
-  return { people, sending: sending.length, held: held.length };
+  return { people, sending: sending.length, held: held.length, saidYes: pool.filter((r) => saidYesTo(r, purpose)).length };
 }
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
@@ -7375,8 +7397,9 @@ var HELD_REASONS = {
   // holds the two spellings together.
   outcome_unknown: "a run that did not finish"
 };
-function emptyAudienceRefusal(purpose) {
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+function emptyAudienceRefusal(purpose, label, pool) {
+  if (pool.some((r) => saidYesTo(r, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
 var LIMIT_TIERS = {
   TIER_50: 50,
@@ -12404,12 +12427,13 @@ function leadsRoute(v) {
   if (v.searchId) parts2.push(`s-${v.searchId}`);
   if (v.list && v.list !== "all") parts2.push(`l-${v.list}`);
   if (v.cls) parts2.push(`c-${v.cls}`);
+  if (v.peek) parts2.push(`p-${v.peek}`);
   return parts2.join(":");
 }
 function parseLeadsRoute(route) {
   const [head, ...segs] = route.split(":");
   if (head !== "clients/leads" && head !== "leads") return null;
-  const out = { searchId: null, list: "all", cls: null, chips: {} };
+  const out = { searchId: null, list: "all", cls: null, chips: {}, peek: null };
   for (const s of segs) {
     const dash = s.indexOf("-");
     if (dash < 1) continue;
@@ -12417,6 +12441,7 @@ function parseLeadsRoute(route) {
     if (seg === "s" && /^[0-9a-f-]{36}$/.test(val)) out.searchId = val;
     else if (seg === "l" && LEAD_LISTS.includes(val)) out.list = val;
     else if (seg === "c" && LEAD_CLASSES.includes(val)) out.cls = val;
+    else if (seg === "p" && /^[0-9a-f-]{36}$/.test(val)) out.peek = val;
   }
   return out;
 }
@@ -13586,6 +13611,7 @@ export {
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
+  NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
   NoteSchema,
   NotificationsConfigSchema,
@@ -13905,6 +13931,7 @@ export {
   groundCitations,
   groupTemplates,
   guardSpokenTurns,
+  guardrailsInForce,
   guessName,
   guessSlotKind,
   handoffE164,
@@ -14024,6 +14051,7 @@ export {
   nextOpenMoment,
   nextRunLabel,
   nextThemePref,
+  noNumberWords,
   normalizeEmail,
   normalizeLocalPart,
   normalizeNavigate,
@@ -14150,6 +14178,8 @@ export {
   runningTotal,
   runsWords,
   safeNavigate,
+  saidYesTo,
+  saidYesWords,
   sameAddress,
   sameName,
   samePhone,

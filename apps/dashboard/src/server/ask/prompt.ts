@@ -1,5 +1,5 @@
 import "server-only";
-import { DAYS, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
+import { DAYS, POLICY_CLASSES, POLICY_CLASS_WORDS, describeNow, guardrailsInForce, hoursRuns, parseTenantConfig, type TenantConfig } from "@chanlytics/contracts";
 import type { AskScope } from "@chanlytics/contracts";
 
 /**
@@ -78,11 +78,12 @@ export function workspaceFacts(name: string, timezone: string, rawConfig: unknow
   const cfg: TenantConfig | null = parseTenantConfig(rawConfig);
   const profile = cfg?.brain?.profile;
   const guardrails: string[] = [];
-  const g = profile?.guardrails ?? {};
-  if (g.never_quote_prices !== false) guardrails.push("never quotes or confirms a price");
-  if (g.never_confirm_booking !== false) guardrails.push("never confirms a booking itself");
-  if (g.disclose_ai !== false) guardrails.push("says it is an automated assistant when asked");
-  if (g.no_health_advice !== false) guardrails.push("gives no health advice");
+  // The composer's own reading of the four, so Ask never claims a rule the receptionist was not given.
+  const g = guardrailsInForce(profile?.guardrails);
+  if (g.never_quote_prices) guardrails.push("never quotes or confirms a price");
+  if (g.never_confirm_booking) guardrails.push("never confirms a booking itself");
+  if (g.disclose_ai) guardrails.push("says it is an automated assistant when asked");
+  if (g.no_health_advice) guardrails.push("gives no health advice");
   return {
     businessName: cfg?.brain?.business_name || name,
     timezone,

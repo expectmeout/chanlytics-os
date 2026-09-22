@@ -663,7 +663,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(PEOPLE_PAGE.includes('{ header: "Yes to messages about their visit\u2026" }') && PEOPLE_PAGE.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
   assert.ok(PEOPLE_PAGE.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
   assert.ok(PEOPLE_PAGE.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
-  assert.ok(PEOPLE_PAGE.includes("React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);"), "a selection never outlives its view");
+  // "A selection never outlives its view" is run, in both scopes: people-honest.test.mjs and leads-honest.test.mjs.
   assert.ok(PEOPLE_PAGE.includes('const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
   assert.ok(PEOPLE_PAGE.includes("selectable={canEditLists || canExport}"));
 });
