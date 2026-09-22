@@ -181,3 +181,52 @@ export async function expectRowUnchangedAfterUndo(page: Page, name: string, befo
   await expect(row).toHaveCount(1);
   await expect.poll(async () => (await row.innerText()).trim(), { message: `${name} came back changed` }).toBe(before.trim());
 }
+
+/* --------------------------------------------- Focus, and the width of a page */
+
+/**
+ * Where focus is, as a sentence: the element's test id, the name a screen reader would hear, or its tag -- and
+ * "the document itself" for `<body>`, which is where every one of these checks' defects ends up. Used in their
+ * messages, so a failure says what took focus instead of only that something did.
+ */
+export async function focusedNow(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el || el === document.body) return "the document itself";
+    const id = el.getAttribute("data-testid");
+    const name = el.getAttribute("aria-label");
+    return [el.tagName.toLowerCase(), el.id ? `#${el.id}` : "", id ? `[${id}]` : "", name ? ` "${name}"` : ""].join("");
+  });
+}
+
+/**
+ * Focus is on something INSIDE `selector`, and never on `<body>`.
+ *
+ * A gesture that holds focus -- a fold, a sheet -- loses it whenever the thing focus was on leaves the page under it:
+ * an ask answered, a row removed, an Add that became a sentence, a toast taken away. Each of those left a keyboard at
+ * the top of the document, where Tab walks the page behind the thing the person is looking at.
+ */
+export async function expectFocusInside(page: Page, selector: string, why: string): Promise<void> {
+  const inside = await page.evaluate(
+    (sel) => !!(document.activeElement && document.activeElement !== document.body && document.activeElement.closest(sel)),
+    selector,
+  );
+  expect(inside, `${why} (focus is on ${await focusedNow(page)})`).toBe(true);
+}
+
+/** Focus is exactly where it was: a redraw must never move focus a person put somewhere themselves. */
+export async function expectFocusUnmoved(page: Page, was: string, why: string): Promise<void> {
+  expect(await focusedNow(page), why).toBe(was);
+}
+
+/**
+ * The page does not scroll sideways.
+ *
+ * Measured on the document, not on an element's rectangle: a control laid out past the edge inside its own scroller
+ * is that scroller's business, and a page that scrolls sideways is the reader's. One pixel of rounding is allowed;
+ * eight is the Who you are card's arrow, which is the defect this guards.
+ */
+export async function expectNoSidewaysScroll(page: Page, where: string): Promise<void> {
+  const by = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(by, `${where} scrolls sideways by ${by}px`).toBeLessThanOrEqual(1);
+}
