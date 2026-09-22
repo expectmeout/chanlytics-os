@@ -191,6 +191,10 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = fa
 // - `onKeyDown` is the page's, asked before the box's own keys and never while the box is refused; a key it takes
 //   (preventDefault) goes no further. A token field takes Backspace on an empty box to give back the last token.
 //   `e.target.value` is what the box shows, so "" is an empty box.
+// - `onLeave(words)` is handed the words typed in the box, trimmed, as focus leaves it with some there (the box closes
+//   and clears as it always did), and never while it is refused. The old form's language box added what was typed as
+//   it lost focus; a box that only closed dropped it, so a fold saved without the language typed into it. Given none,
+//   leaving throws the words away, as it always did (the timezone's box).
 
 // What was typed into `was`, where `now` is `was` with the typing in it, anywhere; or `now` as it is.
 const recTypedInto = (was, now) => {
@@ -202,7 +206,7 @@ const recTypedInto = (was, now) => {
   return head + tail === was.length ? now.slice(head, now.length - tail) : now;
 };
 
-const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, readOnly = false, gate = null, typed = null, onKeyDown = null, testid = null }) => {
+const RecordCombobox = ({ id, label, value = null, options = [], onChange, placeholder = undefined, readOnly = false, gate = null, typed = null, onKeyDown = null, onLeave = null, testid = null }) => {
   const [open, setOpen] = useRfState(false);
   const [query, setQuery] = useRfState("");
   const [active, setActive] = useRfState(0);
@@ -229,6 +233,11 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
   }, [expanded, at, boxId]);
   const shut = () => { setOpen(false); setQuery(""); setActive(0); };
   const pick = (o) => { shut(); if (onChange) onChange(o.value); };
+  const leave = () => {
+    const words = query.trim();
+    shut();
+    if (words && !refused && typeof onLeave === "function") onLeave(words);
+  };
   const onKey = (e) => {
     // Refused (a gate's, or read-only while a save is out), the box takes no key: the arrows opened it underneath,
     // where the list was not drawn but the box went blank for the search that was not to be typed.
@@ -269,7 +278,7 @@ const RecordCombobox = ({ id, label, value = null, options = [], onChange, place
           onMouseUp={(e) => { if (clickFocuses.current) { clickFocuses.current = false; e.preventDefault(); } }}
           onChange={(e) => { setQuery(open ? e.target.value : recTypedInto(chosen ? chosen.label : "", e.target.value)); setOpen(true); setActive(0); }}
           onKeyDown={onKey}
-          onBlur={shut}
+          onBlur={leave}
           {...(gate || {})}
         />
       </span>

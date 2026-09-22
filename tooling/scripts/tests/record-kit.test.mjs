@@ -433,6 +433,45 @@ test("a combobox that adds can offer what is typed after the matches, and the pa
   assert.equal(box(tree).props["aria-expanded"], false);
 });
 
+test("a combobox left with words in it hands them to the page, and one given no onLeave throws them away as it did", () => {
+  // The old form's language box added what was typed when it lost focus; a combobox that closed over the words lost
+  // them, and the fold saved without the language that was typed.
+  const left = [];
+  const picked = [];
+  const props = { id: "langs-leave", label: "Add a language", value: null, options: [{ value: "Spanish", label: "Spanish" }], onChange: (v) => picked.push(v), onLeave: (words) => left.push(words) };
+  const box = (tree) => find(tree, (n) => n.props?.role === "combobox");
+  let tree = draw(W.RecordCombobox, props);
+  box(tree).props.onBlur();
+  assert.deepEqual(left, [], "an empty box hands nothing over");
+  box(tree).props.onChange({ target: { value: "  Xhosa " } });
+  tree = redraw(W.RecordCombobox, props);
+  box(tree).props.onBlur();
+  tree = redraw(W.RecordCombobox, props);
+  assert.deepEqual(left, ["Xhosa"], "the words, trimmed");
+  assert.deepEqual([box(tree).props["aria-expanded"], box(tree).props.value], [false, ""], "and the box closes and clears, as it did");
+  // An option taken is not handed over again as it goes: Enter took it, and the box is empty when focus leaves.
+  box(tree).props.onChange({ target: { value: "Spa" } });
+  tree = redraw(W.RecordCombobox, props);
+  box(tree).props.onKeyDown({ key: "Enter", target: { value: "Spa" }, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } });
+  tree = redraw(W.RecordCombobox, props);
+  box(tree).props.onBlur();
+  assert.deepEqual([picked, left], [["Spanish"], ["Xhosa"]]);
+  // Refused, it hands nothing over: nothing is typed into a box that is read-only.
+  tree = draw(W.RecordCombobox, { ...props, readOnly: true });
+  box(tree).props.onChange({ target: { value: "Zulu" } });
+  tree = redraw(W.RecordCombobox, { ...props, readOnly: true });
+  box(tree).props.onBlur();
+  assert.deepEqual(left, ["Xhosa"]);
+  // Given no onLeave (the timezone's box), leaving throws the words away, as it always did.
+  const quiet = { ...props, onLeave: undefined };
+  tree = draw(W.RecordCombobox, quiet);
+  box(tree).props.onChange({ target: { value: "Chicago" } });
+  tree = redraw(W.RecordCombobox, quiet);
+  assert.doesNotThrow(() => box(tree).props.onBlur());
+  tree = redraw(W.RecordCombobox, quiet);
+  assert.deepEqual([box(tree).props["aria-expanded"], box(tree).props.value, picked], [false, "", ["Spanish"]]);
+});
+
 test("a tip you cannot click is a chip; one you can is a card", () => {
   const chip = draw(W.RecordTip, { text: "Call audio is not included.", label: "What the file holds" });
   const btn = find(chip, (n) => n.props?.["data-tip"]);
