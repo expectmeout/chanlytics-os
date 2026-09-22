@@ -111,6 +111,10 @@ test("hand-off is one row naming both channels", () => {
   // No number: it takes a message, as the Who you are row says.
   const none = byTestId(drawTab({ profile: without(melany, "handoff_number"), facts: { handoff_number: { value: null, source: "absent" } } }), "rec-row-escalate_when");
   assert.match(textOf(byTestId(none, "rec-handoff-phone")), /takes a message$/);
+  // The number is read as the Who you are row reads it, the resolved fact first: the two rows never say two things.
+  const tree = drawTab({ facts: { handoff_number: { value: null, source: "absent" } } });
+  assert.match(textOf(byTestId(tree, "rec-row-handoff_number")), /Takes a message instead/);
+  assert.match(textOf(byTestId(tree, "rec-handoff-phone")), /takes a message$/, "not the number the profile still holds");
 });
 
 /* ------------------------------------ the voice ------------------------------------ */

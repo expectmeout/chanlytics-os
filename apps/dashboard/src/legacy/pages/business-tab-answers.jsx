@@ -466,9 +466,10 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   // save goes on. Without the bridge to ask, nothing is claimed.
   const on = (base && base.brain) || brain;
   const composes = typeof tab.hasProfile === "function" ? tab.hasProfile(on.profile || null) : true;
-  // The transfer number as the settings read resolved it, and as the Who you are row shows it.
-  const transferRaw = (F.handoff_number && F.handoff_number.value) || profile.handoff_number || null;
-  const transfer = transferRaw ? window.phoneShown(transferRaw) : null;
+  // The transfer number as the settings read resolved it, read as the Who you are row reads it (its factOf): the fact
+  // when the read carried one, and what is typed only when it carried none (an older server).
+  const transferFact = F.handoff_number || { value: profile.handoff_number || null };
+  const transfer = transferFact.value ? window.phoneShown(transferFact.value) : null;
   const handoff = tab.handoffWords ? tab.handoffWords(profile.escalate_when, transfer) : null;
   const notes = tab.notesWords ? tab.notesWords(profile.notes) : { count: 0, chips: [], more: null };
   // Needs the bridge's __instructionsDraft (S4): without it the row says nothing it cannot back.
