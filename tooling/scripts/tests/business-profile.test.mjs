@@ -208,11 +208,10 @@ test("the guardrail checkboxes start ON when the config is silent", () => {
   assert.ok(foldsJsx.includes("...window.__businessTab.guardrailsInForce(p.guardrails),"));
 });
 
-test("a save failure is shown, never swallowed", () => {
-  // A 409 means someone else saved first — the owner has to know their edit
-  // did not land.
-  assert.ok(saveJsx.includes("refused(sent && sent.message") || saveJsx.includes("refused("), "a failed save must still report");
-});
+// A save failure is shown, never swallowed: a 409 means someone else saved first, and the owner has to know their
+// edit did not land. Drawn, not read -- business-tab-page.test.mjs, "a save the server refuses is said in its words,
+// and the editor stays open with what was typed" and "a save whose promise fails before the server takes it says so,
+// and leaves the row ready to try again": both read the toast's tone and its words off the page.
 
 test("REGRESSION: seven closed days is not a profile", () => {
   // The editor writes every day on save. If this counted keys, an owner who

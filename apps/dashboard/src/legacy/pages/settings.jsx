@@ -1766,13 +1766,8 @@ window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
 
-// The booking-rule keys the Business editor edits, the slot length among them
-// since it has a field of its own (S2). Everything else stored under
-// booking_rules -- a rule added later -- is kept by a save rather than rebuilt
-// away: the editor used to start the rules from {} and deleted slot_min every
-// time an owner pressed Save.
-const SET_EDITED_RULES = ["lead_hours", "buffer_min", "max_days_ahead", "party_max", "slot_min", "consult_first", "notes"];
-function settingsRulesKept(saved) {
-  return Object.fromEntries(Object.entries(saved || {}).filter(([k]) => !SET_EDITED_RULES.includes(k)));
-}
-window.settingsRulesKept = settingsRulesKept; // run on its own by settings-save-keeps-rules.test
+// The booking rules a save does not render are kept rather than rebuilt away -- the form started them from {} and
+// deleted the slot length on every Save (S2). That rule is the Business page's now, and it is not a helper at all:
+// each fold patches only its own keys onto the stored config, so a rule no fold draws cannot be dropped.
+// business-tab-folds.test.mjs saves EVERY fold over a record carrying booking_rules.a_rule_added_later and
+// profile.a_key_no_form_renders and reads both back.
