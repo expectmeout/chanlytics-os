@@ -274,13 +274,11 @@ const BTW_RULE_BOXES = [
  * notes one to a line. Drawn on every render (BtFold's rule), and none comes or goes, so each is the kit's
  * RecordField. A number is kept as it is typed: the save's checks refuse a non-digit or a number outside its range
  * under its box (problemsOf, the old form's sentences), where the old grid stripped anything but digits as it was
- * typed and saved "2.5" as 25.
+ * typed and saved "2.5" as 25. A box takes no min or max: a text box ignores both, and the range is said in the
+ * refusal (business-tab-folds.jsx RULES), under the box, where the hint was.
  */
 const BtwRules = ({ draft, update, problems, readOnly }) => {
-  const S = window.__businessTabSave;
   const hints = (window.__businessTab || {}).BOOKING_RULE_HINTS || {};
-  const range = {};
-  S.RULES.forEach(([key, lo, hi]) => { range[key] = { lo, hi }; });
   return (
     <div className="bt-rules" data-testid="rec-rules-boxes">
       <div className="bt-rules-grid">
@@ -295,8 +293,6 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
             onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
             problem={problems[key] || null}
             inputMode="numeric"
-            min={range[key] ? range[key].lo : undefined}
-            max={range[key] ? range[key].hi : undefined}
             aria-label={aria}
             placeholder={placeholder}
             readOnly={readOnly || undefined}

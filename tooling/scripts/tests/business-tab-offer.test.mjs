@@ -605,8 +605,6 @@ test("the booking rules fold holds the five numbers, each with its unit and what
   assert.deepEqual(boxes.map((n) => n.props.placeholder), ["2", "30", "0", "14", "4"], "and its placeholders");
   assert.deepEqual(boxes.map((n) => n.props.value), ["2", "30", "", "14", "4"], "each as its box holds it");
   assert.ok(boxes.every((n) => n.props.inputMode === "numeric"));
-  const S = W.__businessTabSave;
-  assert.deepEqual(boxes.map((n) => [n.props.min, n.props.max]), S.RULES.map(([, lo, hi]) => [lo, hi]), "each range the save's schema keeps");
   assert.deepEqual(all(fold, (n) => classes(n).includes("rec-field-label")).map(textOf), ["Least notice", "Slot length", "Gap between appointments", "Offers times up to", "Most people per booking", "Anything else about booking, one per line"]);
   assert.deepEqual(all(fold, (n) => classes(n).includes("rec-input-unit")).map(textOf), ["hours", "minutes", "minutes", "days ahead", "people"]);
   // What an empty box means is contracts' (the canvas said "Empty means no rule." of the least notice; it is two hours').
