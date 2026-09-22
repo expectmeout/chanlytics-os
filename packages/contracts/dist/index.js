@@ -11456,7 +11456,7 @@ function fallbacksWords(fallbacks) {
     own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording"
   };
 }
-var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four rules do not reach it: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,

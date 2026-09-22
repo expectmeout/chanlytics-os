@@ -168,8 +168,8 @@ const BTA_RULES = [
  *
  * Absent means ON for the first three and OFF for health advice, as draftOf opens them: a record that stores no rules
  * opens with three on, and a Save that changes nothing sends nothing. On a record whose details compose nothing, none
- * of the four reaches the receptionist, and the fold says so once, in contracts' words, where the rules' block would be
- * (`unread`); it draws no empty "It will be told".
+ * of the four changes a word the receptionist is told (the price detector still reads every reply), and the fold says
+ * so once, in contracts' words, where the rules' block would be (`unread`); it draws no empty "It will be told".
  */
 const BtaRules = ({ draft, update, readOnly, unread }) => (
   <div className="bt-rules-list" data-testid="rec-rules-switches">

@@ -678,5 +678,10 @@ test("a record whose details compose nothing is told the stored prompt and Auton
   // The fold's sentence agrees with the prompt view's note on the same page: nothing on it is composed yet.
   assert.match(blocks[0].note, /None of the details on this page are composed into it yet/);
   assert.match(RULES_WITHOUT_FIELDS_WORDS, /^Nothing on this page is composed into what it reads yet/);
-  assert.match(RULES_WITHOUT_FIELDS_WORDS, /stored instructions, followed only by any rules your Autonomy tab adds\.$/);
+  assert.match(RULES_WITHOUT_FIELDS_WORDS, /these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds\.$/);
+  // What it is TOLD, never what it does: the price detector reads every reply whatever the profile (layerTwo on a chat
+  // reply, spokenBreach on a call), and nothing can confirm a booking anyway. Phase 4 draws this beside "Checked, not
+  // just told", so a sentence that the rules "do not reach it" would contradict the chip next to it.
+  assert.doesNotMatch(RULES_WITHOUT_FIELDS_WORDS, /do not reach|does not reach|not kept|are off/i, "REGRESSION: it said the four rules do not reach it, and the price rule is checked on every reply");
+  assert.equal(ruleStrength("never_quote_prices").chip, "Checked, not just told", "the chip it is drawn beside");
 });

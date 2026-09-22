@@ -10730,12 +10730,15 @@ declare function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_
 /**
  * What the rules fold says, once, on a record whose details compose nothing (config.ts hasProfile false). The resolver
  * answers such a record with its stored prompt as it stands, and adds after it only the Autonomy tab's rules
- * (resolveSystemPrompt's first branch), so none of the four switches reaches the receptionist, and there is no rules
- * block for the fold to show. The prompt view says the same of that prompt (prompt-blocks.ts: "None of the details on
- * this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it with these
- * words too (the plan's M-2).
+ * (resolveSystemPrompt's first branch), so none of the four switches changes a word it is TOLD, and there is no rules
+ * block for the fold to show. It says nothing of what the receptionist does: the price detector reads every reply
+ * whatever the profile holds (whatsapp/steps.ts layerTwo, and spokenBreach on a call), and nothing in the product can
+ * confirm a booking anyway. It first said "these four rules do not reach it", which Phase 4 would have drawn beside the
+ * price rule's "Checked, not just told". The prompt view says the same of that prompt (prompt-blocks.ts: "None of the
+ * details on this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it
+ * with these words too (the plan's M-2).
  */
-declare const RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four rules do not reach it: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+declare const RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
 /**
  * What the receptionist can do, and what it cannot.
  *
