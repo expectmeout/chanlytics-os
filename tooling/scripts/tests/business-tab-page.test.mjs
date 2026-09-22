@@ -1485,7 +1485,7 @@ const cancelFoldOf = (tree, id) => press(byTestId(tree, `rec-fold-cancel-${id}`)
 /** A box by the name a screen reader hears, and typing into it the way a person does. */
 const labelled = (tree, label) => find(tree, (n) => (n.type === "input" || n.type === "textarea") && n.props["aria-label"] === label);
 const typeAt = (tree, label, text) => labelled(tree, label).props.onChange({ target: { value: text } });
-const barsOf = (node) => all(node, (n) => classes(n).includes("rec-ribbon-bar"));
+const barsOf = (node) => all(node, (n) => classes(n).includes("bt-ribbon-bar"));
 /** What a box in a row of a list says is wrong with it: the kit's FieldError under the box (RecordBox), or null. */
 const problemUnder = (tree, boxTestid) => { const box = byTestId(tree, boxTestid); return box ? find(box, (n) => n.type === W.FieldError) : null; };
 /** A shift's place in its day, as its box is named: the second, third, fourth shift. */
@@ -1513,12 +1513,12 @@ test("When you're open draws four rows in the spec's order, under a line contrac
 });
 
 test("the ribbon draws the week, and a closed day carries no bar", () => {
-  const ribbon = byTestId(drawTab({ profile: melany }), "rec-hours-ribbon");
-  const days = all(ribbon, (n) => classes(n).includes("rec-ribbon-day"));
+  const ribbon = byTestId(drawTab({ profile: melany }), "bt-hours-ribbon");
+  const days = all(ribbon, (n) => classes(n).includes("bt-ribbon-day"));
   assert.equal(days.length, 7);
   assert.deepEqual(days.map((d) => d.props["data-day"]), ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
   const sunday = days[6];
-  assert.equal(find(sunday, (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut, and looks it");
+  assert.equal(find(sunday, (n) => classes(n).includes("bt-ribbon-bar")), null, "Sunday is shut, and looks it");
   assert.deepEqual(days.map((d) => barsOf(d).length), [1, 1, 1, 1, 1, 1, 0]);
   // A picture of the sentence under it: a screen reader is given the sentence alone.
   assert.equal(ribbon.props["aria-hidden"], "true");
@@ -1526,7 +1526,7 @@ test("the ribbon draws the week, and a closed day carries no bar", () => {
 
 test("a bar's place comes from its times on the one 6 AM to 10 PM scale: a break is a second bar, and a time outside the scale clamps", () => {
   const place = (bar) => [parseFloat(bar.props.style.left), parseFloat(bar.props.style.width)];
-  const days = (tree) => all(byTestId(tree, "rec-hours-ribbon"), (n) => classes(n).includes("rec-ribbon-day"));
+  const days = (tree) => all(byTestId(tree, "bt-hours-ribbon"), (n) => classes(n).includes("bt-ribbon-day"));
   // 9:30 is three and a half hours into a sixteen-hour scale, and 6 PM twelve: the canvas's 21.875% and 53.125%.
   assert.deepEqual(place(barsOf(days(drawTab())[0])[0]), [21.875, 53.125]);
   assert.deepEqual(place(barsOf(days(drawTab())[4])[0]), [21.875, 59.375], "Friday closes an hour later, and is an hour longer");
@@ -1557,7 +1557,7 @@ test("with no hours stored, the row is empty in the old card's words, and its ac
   const row = byTestId(tree, "rec-row-hours");
   assert.equal(row.props["data-empty"], "true");
   assert.match(textOf(row), /Not set — the receptionist cannot state your hours/);
-  assert.equal(byTestId(tree, "rec-hours-ribbon"), null, "no week to draw");
+  assert.equal(byTestId(tree, "bt-hours-ribbon"), null, "no week to draw");
   const act = byTestId(tree, "rec-row-act-hours");
   assert.equal(textOf(act), "Add them");
   assert.ok(act.props["aria-label"].startsWith("Add them"), "a person who says the words on it reaches it");

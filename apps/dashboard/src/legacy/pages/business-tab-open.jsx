@@ -69,7 +69,7 @@ const btoBars = (shifts) => (shifts || []).flatMap((s) => {
 const BtoTrack = ({ day }) => (
   <span className="bt-week-track" data-open={day.isOpen ? "true" : "false"}>
     {day.isOpen ? btoBars(day.shifts).map((b, i) => (
-      <span key={i} className="rec-ribbon-bar" style={{ left: `${b.left}%`, width: `${b.width}%` }} />
+      <span key={i} className="bt-ribbon-bar" style={{ left: `${b.left}%`, width: `${b.width}%` }} />
     )) : null}
   </span>
 );
@@ -79,9 +79,9 @@ const BtoTrack = ({ day }) => (
  * sentence under it and says nothing the sentence does not, so a screen reader is given the sentence alone.
  */
 const BtoRibbon = ({ week }) => (
-  <span className="bt-ribbon" data-testid="rec-hours-ribbon" aria-hidden="true">
+  <span className="bt-ribbon" data-testid="bt-hours-ribbon" aria-hidden="true">
     {BTO_DAYS.map(([d, , short]) => (
-      <span key={d} className="rec-ribbon-day" data-day={d} data-open={week[d].isOpen ? "true" : "false"}>
+      <span key={d} className="bt-ribbon-day" data-day={d} data-open={week[d].isOpen ? "true" : "false"}>
         <BtoTrack day={week[d]} />
         <span className="bt-ribbon-name">{short}</span>
       </span>

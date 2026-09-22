@@ -1757,7 +1757,8 @@ git commit -m "Who you are, as rows"
 > 5. **Two sentences with a number moved to contracts**: `openWeekWords(hours, tz)` ("Six days a week, in New York time") and `closuresAheadWords(closures, tz, now)` ("2 ahead · next Dec 24 – 26 · Christmas"), published on `__businessTab`. The closures' dates and the ahead rule are the Calendar's own, lifted out of `toCalendarVM` as `closureDatesLabel` and `closuresFrom`.
 > 6. **The calendar's last read** is the Calendar surface's (`window.__CALENDAR`, contracts `toCalendarVM`), drawn with the Calendar page's own pill and `feed.detail`. That surface boots on every route, so nothing is warmed for it to exist; but its "read 4m ago" is counted from the moment IT was read, so the row states a read only for as long as the Calendar page itself keeps one (its `CR_REFRESH_MS`, five minutes, published with that page's words for a read that gives no reason as `window.__calendarPage`). One timer, set for the moment the read stops being fresh, draws the row again; it then asks `window.__calendar.refresh()`, keeps the last read where it is, dimmed, while that is on its way, and says so where the read would be if it fails.
 > 7. **The summary is `window.__hoursLines` joined as `hoursSummary` joins it.** `hoursSummary` is a module-level `const` of settings.jsx, which no other file can reach in the app, and it was not moved or published.
-> 8. **The tests** draw with `drawTab`/`redrawTab`, open the week's menu before pressing a copy (`MoreMenu` draws its items only while open, and they carry no test ids, so the copies are found by their words, not by the plan's `rec-hours-copy-all`), and build the Calendar surface with contracts' `toCalendarVM`.
+> 8. **The ribbon's names are the page's.** The tests below first named them `rec-ribbon-day`, `rec-ribbon-bar` and `rec-hours-ribbon`, before the kit was cut, and the page shipped them under the kit's prefix; Task 3.3's quality review renamed them `bt-ribbon-day`, `bt-ribbon-bar` and `bt-hours-ribbon`, and the tests with them, since they live in settings.css and the kit knows nothing of a week. The fold's label column is `--bt-week-key`, not a literal.
+> 9. **The tests** draw with `drawTab`/`redrawTab`, open the week's menu before pressing a copy (`MoreMenu` draws its items only while open, and they carry no test ids, so the copies are found by their words, not by the plan's `rec-hours-copy-all`), and build the Calendar surface with contracts' `toCalendarVM`.
 
 **Files:**
 - Modify: `apps/dashboard/src/legacy/pages/business-tab.jsx`
@@ -1773,11 +1774,11 @@ import { hoursLines } from "@chanlytics/contracts";
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
 test("the ribbon draws the week, and a closed day carries no bar", () => {
-  const ribbon = byTestId(drawTab({ profile: melany }), "rec-hours-ribbon");
-  const days = all(ribbon, (n) => classes(n).includes("rec-ribbon-day"));
+  const ribbon = byTestId(drawTab({ profile: melany }), "bt-hours-ribbon");
+  const days = all(ribbon, (n) => classes(n).includes("bt-ribbon-day"));
   assert.equal(days.length, 7);
   const sunday = days[6];
-  assert.equal(find(sunday, (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut, and looks it");
+  assert.equal(find(sunday, (n) => classes(n).includes("bt-ribbon-bar")), null, "Sunday is shut, and looks it");
 });
 
 test("the summary sentence is the one the composer wrote", () => {
@@ -1800,8 +1801,8 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
 
   said.undo();
   const after = again(() => W.BusinessTab({ flash: () => {} }));
-  const days = all(byTestId(after, "rec-hours-ribbon"), (n) => classes(n).includes("rec-ribbon-day"));
-  assert.equal(find(days[6], (n) => classes(n).includes("rec-ribbon-bar")), null, "Sunday is shut again");
+  const days = all(byTestId(after, "bt-hours-ribbon"), (n) => classes(n).includes("bt-ribbon-day"));
+  assert.equal(find(days[6], (n) => classes(n).includes("bt-ribbon-bar")), null, "Sunday is shut again");
 });
 
 test("the calendar row states its last read, and there is no button for it", () => {
