@@ -348,6 +348,196 @@ async function expectFingerSized(page: Page, selector: string, where: string): P
   expect(small, `${where}: a control shorter than a finger`).toEqual([]);
 }
 
+/**
+ * The settings door, stood in for on the page, so a Save a test presses never reaches the workspace this spec shares
+ * (its rule, above): it takes what the page sends, answers as the bridge does when the server takes it (onSaved, then
+ * the read again, which is what the page draws its rows from), and keeps what it was sent. Tagged, so a test can say
+ * the door is still this one at the moment it saves. Answers the config the page read, for the comparison.
+ */
+async function standInSave(page: Page): Promise<any> {
+  await page.evaluate(() => {
+    const w = window as unknown as Record<string, any>;
+    w.__e2eTook = [];
+    w.__saveSettings = (config: unknown, version: number, onSaved: (s: unknown) => void) => {
+      const saved = { config: JSON.parse(JSON.stringify(config)), version: version + 1 };
+      w.__e2eTook.push({ config: saved.config, version });
+      onSaved(saved);
+      w.__SETTINGS = { ...w.__SETTINGS, config: saved.config, version: saved.version };
+      window.dispatchEvent(new CustomEvent("surface:settings"));
+      return Promise.resolve({ ok: true });
+    };
+    w.__saveSettings.__e2e = true;
+  });
+  return page.evaluate(() =>
+    JSON.parse(JSON.stringify((window as unknown as { __SETTINGS: { config: unknown } }).__SETTINGS.config)),
+  );
+}
+/**
+ * The door the page will call is still the stand-in: a bridge that installed its verbs again since would send a real
+ * PUT to the shared workspace before a test's own check of what was sent could fail.
+ */
+async function expectStandIn(page: Page): Promise<void> {
+  expect(
+    await page.evaluate(() => (window as unknown as { __saveSettings?: { __e2e?: boolean } }).__saveSettings?.__e2e),
+    "the settings door is no longer the stand-in",
+  ).toBe(true);
+}
+
+/** Every motion running on the elements `selector` finds, as the browser runs it: what moves, for how long, how. */
+type Motion = { prop: string; ms: number; easing: string };
+async function motionsOn(page: Page, selector: string): Promise<Motion[][]> {
+  return page.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(sel)].map((el) =>
+        el.getAnimations().map((a) => {
+          const named = a as unknown as { transitionProperty?: string; animationName?: string };
+          const effect = a.effect as KeyframeEffect;
+          return {
+            prop: named.transitionProperty ?? named.animationName ?? "",
+            ms: Number(effect.getComputedTiming().duration),
+            // A transition's easing is its effect's; an animation's is its keyframes' (rise-in's, from the rule).
+            easing: String(named.animationName ? effect.getKeyframes()[0]?.easing : effect.getTiming().easing),
+          };
+        }),
+      ),
+    selector,
+  );
+}
+/** The house's easings, as tokens.css spells them and the browser hands them back. */
+const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
+const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
+/** Wait out whatever is moving, so the next step starts from rest. */
+const settled = (page: Page): Promise<unknown> =>
+  page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+
+/**
+ * The four motions of spec §9, and each of them gone under reduced motion, measured on the page as it runs them. The
+ * stub the unit suite draws on runs no stylesheet and draws no frame, so this is the only place any of it is proved:
+ * the value becoming its field, a fold opening and folding away, the one line of what it will be told that the draft
+ * changed, and the save settling. `reduced` is whether the page was asked for reduced motion, where every one is none.
+ */
+async function expectMotions(page: Page, reduced: boolean): Promise<void> {
+  const where = reduced ? "under reduced motion" : "with motion";
+  const none = (m: Motion[][], what: string) => expect(m.flat(), `${what} moves ${where}`).toEqual([]);
+
+  // 1. The value becomes its field: the editor's body fades in on 120ms, the label holds still, and the caret is at
+  // the end of what is there.
+  await settled(page);
+  const inline = await page.evaluate(async () => {
+    (document.querySelector('[data-testid="rec-row-act-website"]') as HTMLElement).click();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const box = document.activeElement as HTMLInputElement | null;
+    return { at: box?.selectionStart ?? null, end: box?.value.length ?? null, inside: !!box?.closest(".rec-inline") };
+  });
+  expect(inline, `${where}: focus in the website's box, the caret at the end of what is there`).toEqual({
+    at: inline.end,
+    end: inline.end,
+    inside: true,
+  });
+  const body = await motionsOn(page, '[data-testid="rec-inline-website"] .rec-inline-body');
+  if (reduced) none(body, "the value becoming its field");
+  else
+    expect(body, "the value becomes its field in a 120ms cross-fade").toEqual([
+      [{ prop: "opacity", ms: 120, easing: EASE_OUT }],
+    ]);
+  none(await motionsOn(page, '[data-testid="rec-inline-website"] .rec-inline-key'), "the label");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("rec-inline-website")).toBeHidden();
+
+  // 2. A fold opens on the grid's rows and its opacity, on --duration-base and --ease-out; its hint, where the value
+  // was, fades in on 120ms.
+  await settled(page);
+  await actOf(page, "escalate_when").click();
+  const fold = '[data-testid="rec-fold-escalate_when"]';
+  const opening = await motionsOn(page, `${fold} .rec-fold-body`);
+  const hint = await motionsOn(page, `${fold} .rec-fold-hint`);
+  if (reduced) {
+    none(opening, "the fold opening");
+    none(hint, "the fold's hint");
+  } else {
+    expect(opening, "the fold unfolds").toEqual([
+      [
+        { prop: "grid-template-rows", ms: 200, easing: EASE_OUT },
+        { prop: "opacity", ms: 200, easing: EASE_OUT },
+      ],
+    ]);
+    expect(hint, "and its hint fades in").toEqual([[{ prop: "opacity", ms: 120, easing: EASE_OUT }]]);
+  }
+
+  // 3. The line the draft just changed washes, and no other. Two reasons typed, one after the other: the block the
+  // first leaves is what the second is a change OF.
+  await settled(page);
+  const box = page.locator(`${fold} textarea`).first();
+  const one = `${(await box.inputValue()).trim()}\nThey ask about a gift card`.trim();
+  await box.fill(one);
+  await settled(page);
+  await box.fill(`${one}\nThey ask about parking`);
+  const lines = await page.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(`${sel} .rec-says-line`)].map((l) => ({
+        text: l.textContent ?? "",
+        changed: l.getAttribute("data-changed") === "true",
+      })),
+    fold,
+  );
+  const washing = await motionsOn(page, `${fold} .rec-says-line`);
+  expect(
+    lines.filter((l) => l.changed).map((l) => l.text),
+    `${where}: the one line the second reason added is the changed one`,
+  ).toEqual([expect.stringContaining("They ask about parking")]);
+  lines.forEach((l, i) => {
+    if (l.changed && !reduced)
+      expect(washing[i], "the changed line washes over 400ms, once").toEqual([
+        { prop: "background-color", ms: 400, easing: EASE_OUT },
+      ]);
+    else expect(washing[i], `${where}: "${l.text.slice(0, 40)}" washes`).toEqual([]);
+  });
+
+  // 4. It folds away on --ease-in-out as it closes, held on screen for its duration by the stylesheet alone: it is
+  // closed, and focus is back on the row's act, at once.
+  await settled(page);
+  await page.getByTestId("rec-fold-cancel-escalate_when").click();
+  await page.getByTestId("rec-fold-escalate_when-cancel-yes").click();
+  const closing = await page.evaluate((sel) => {
+    const f = document.querySelector(sel) as HTMLElement;
+    return {
+      hidden: f.hidden,
+      display: getComputedStyle(f).display,
+      focus: document.activeElement?.getAttribute("data-testid"),
+    };
+  }, fold);
+  expect(closing.hidden, "the fold is closed the moment it is").toBe(true);
+  expect(closing.focus, "and focus is back on its row's act at once").toBe("rec-row-act-escalate_when");
+  const folding = await motionsOn(page, `${fold} .rec-fold-body`);
+  if (reduced) {
+    expect(closing.display, "under reduced motion a closed fold is gone at once").toBe("none");
+    none(folding, "the fold closing");
+  } else {
+    expect(closing.display, "the fold is still on screen while it folds away").toBe("block");
+    expect(folding, "it folds away on --ease-in-out").toEqual([
+      [
+        { prop: "grid-template-rows", ms: 200, easing: EASE_IN_OUT },
+        { prop: "opacity", ms: 200, easing: EASE_IN_OUT },
+      ],
+    ]);
+  }
+  await expect(page.locator(fold)).toBeHidden();
+
+  // 5. The save settle: the row its save draws again lets its value arrive on rise-in.
+  await settled(page);
+  await actOf(page, "tone").click();
+  const voice = page.locator('[data-testid="rec-fold-tone"] textarea').first();
+  await voice.fill((await voice.inputValue()) === "Calm and kind." ? "Warm, and never in a hurry." : "Calm and kind.");
+  await expectStandIn(page);
+  await page.getByTestId("rec-fold-save-tone").click();
+  await expect(page.getByTestId("rec-row-tone")).toHaveAttribute("data-settled", "true");
+  const arriving = await motionsOn(page, '[data-testid="rec-row-tone"] .rec-row-val');
+  if (reduced) none(arriving, "the saved value arriving");
+  else
+    expect(arriving, "the saved value arrives on rise-in").toEqual([[{ prop: "rise-in", ms: 200, easing: EASE_OUT }]]);
+  await settled(page);
+}
+
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -861,6 +1051,22 @@ test.describe("Settings › Business on a real workspace", () => {
     }
     await expectRecordUnchanged(page, before);
   });
+  test("the four motions run on the house's durations and easings, on the changed line alone, and none of them under reduced motion", async ({
+    page,
+  }) => {
+    // Spec §9, and Task 6.1. The one Save it presses (the save settle) goes to the stand-in door, never the workspace.
+    const before = await readConfig(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openRecord(page);
+    await standInSave(page);
+    await expectMotions(page, false);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openRecord(page);
+    await standInSave(page);
+    await expectMotions(page, true);
+    await expectRecordUnchanged(page, before);
+  });
+
   test.describe("on a touch phone", () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -872,23 +1078,7 @@ test.describe("Settings › Business on a real workspace", () => {
       // The save goes to a stand-in for the settings door, never to the workspace this spec shares (its rule, above):
       // it takes what the page sends, answers as the bridge does when the server takes it (onSaved, then the read
       // again, which is what the page draws its rows from), and keeps what it was sent for the check below.
-      await page.evaluate(() => {
-        const w = window as unknown as Record<string, any>;
-        w.__e2eTook = [];
-        w.__saveSettings = (config: unknown, version: number, onSaved: (s: unknown) => void) => {
-          const saved = { config: JSON.parse(JSON.stringify(config)), version: version + 1 };
-          w.__e2eTook.push({ config: saved.config, version });
-          onSaved(saved);
-          w.__SETTINGS = { ...w.__SETTINGS, config: saved.config, version: saved.version };
-          window.dispatchEvent(new CustomEvent("surface:settings"));
-          return Promise.resolve({ ok: true });
-        };
-        // Tagged, so the test can say the door is still this one at the moment it saves.
-        w.__saveSettings.__e2e = true;
-      });
-      const read = await page.evaluate(() =>
-        JSON.parse(JSON.stringify((window as unknown as { __SETTINGS: { config: unknown } }).__SETTINGS.config)),
-      );
+      const read = await standInSave(page);
 
       const pane = page.locator(PANE);
       const scrolled = () => pane.evaluate((el) => el.scrollTop);
@@ -960,12 +1150,7 @@ test.describe("Settings › Business on a real workspace", () => {
       // read config with this fold's one key changed.
       // The door the page will call is still the stand-in: a bridge that installed its verbs again since would send a
       // real PUT to the shared workspace before `took` could fail.
-      expect(
-        await page.evaluate(
-          () => (window as unknown as { __saveSettings?: { __e2e?: boolean } }).__saveSettings?.__e2e,
-        ),
-        "the settings door is no longer the stand-in",
-      ).toBe(true);
+      await expectStandIn(page);
       await page.getByTestId("rec-fold-save-tone").tap();
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
       await expect(actOf(page, "tone"), "focus did not come back to the row's act").toBeFocused();
@@ -1012,6 +1197,67 @@ test.describe("Settings › Business on a real workspace", () => {
       await expectFingerSized(page, hours, "the hours' sheet");
       await discard(page, "hours");
       await expect(actOf(page, "hours")).toBeFocused();
+
+      // The sheet rises as it opens and goes down the way it came as it closes (spec §9, item 1, and Task 6.1's step
+      // 3b), over a card that holds still: the row it opened from is drawn behind it the whole time, so nothing under
+      // the wash moves as it leaves. Under reduced motion it appears and goes at once, and nothing is left behind.
+      for (const reduced of [false, true]) {
+        await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
+        await settled(page);
+        const where = reduced ? "under reduced motion" : "with motion";
+        const next = page.getByTestId("rec-row-act-notes");
+        // Where the next row stands in its card: the card under the wash is what must hold still, whatever the pane
+        // scrolls to bring the row in reach.
+        const still = () =>
+          next.evaluate((el) =>
+            Math.round(el.getBoundingClientRect().top - el.closest(".rec-card")!.getBoundingClientRect().top),
+          );
+        await actOf(page, "tone").scrollIntoViewIfNeeded();
+        const at = await still();
+        await actOf(page, "tone").tap();
+        const tone = '[role="dialog"][data-testid="rec-fold-tone"]';
+        await expect(page.locator(tone)).toBeVisible();
+        const rising = await motionsOn(page, tone);
+        if (reduced) expect(rising.flat(), `${where}: the sheet rises`).toEqual([]);
+        else
+          expect(rising, "the sheet rises on --ease-out").toEqual([[{ prop: "transform", ms: 200, easing: EASE_OUT }]]);
+        await settled(page);
+        expect(await still(), `${where}: the card behind the open sheet moved`).toBe(at);
+        const leaving = await page.evaluate(async () => {
+          (document.querySelector('[data-testid="rec-fold-close-tone"]') as HTMLElement).click();
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+          const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
+          const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+          const moving = (el: Element | null) =>
+            el
+              ? el.getAnimations().map((a) => ({
+                  prop: (a as unknown as { transitionProperty: string }).transitionProperty,
+                  ms: Number((a.effect as KeyframeEffect).getComputedTiming().duration),
+                  easing: String((a.effect as KeyframeEffect).getTiming().easing),
+                }))
+              : null;
+          return {
+            dialogs: document.querySelectorAll('[role="dialog"]').length,
+            focus: document.activeElement?.getAttribute("data-testid") ?? null,
+            copy: moving(copy),
+            wash: moving(wash),
+            named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
+          };
+        });
+        expect(leaving.dialogs, `${where}: the fold is closed the moment it is`).toBe(0);
+        expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
+        if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
+        else {
+          expect(leaving.copy, "the sheet goes down on --ease-in-out").toEqual([
+            { prop: "transform", ms: 200, easing: EASE_IN_OUT },
+          ]);
+          expect(leaving.wash, "its wash fading with it").toEqual([{ prop: "opacity", ms: 200, easing: EASE_IN_OUT }]);
+          expect(leaving.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
+        }
+        expect(await still(), `${where}: the card behind the leaving sheet moved`).toBe(at);
+        await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);
+        expect(await still(), `${where}: the card moved once the sheet had gone`).toBe(at);
+      }
 
       // The workspace the spec shares was never written: the stand-in took the save.
       await expectRecordUnchanged(page, before);
