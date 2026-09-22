@@ -123,6 +123,25 @@ export const ROUTE_SURFACE: Record<string, string> = {
 };
 
 /**
+ * What a page draws from surfaces other than its own, in the order the page
+ * draws them, so a boot on that page reads them right after its own surface
+ * (surface-runner.ts screenRank) rather than in the runner's fixed order.
+ *
+ * Today draws the day beside its queue from the calendar, the queue's runs from
+ * broadcasts, the card's period line and Worth a look from reports, the day's
+ * playbook rows, the bell's rows for While you were away, a call in progress
+ * from live, the card's Setup and Google lines, and the channel glyphs and
+ * Worth a look's people from People -- last, because contacts is the heaviest
+ * read and everything above it can be drawn without it. Measured on the salon
+ * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
+ * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
+ * beside it. A route absent here draws only its own surface.
+ */
+export const ROUTE_DRAWS: Record<string, readonly string[]> = {
+  today: ["calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "setup", "google", "people"],
+};
+
+/**
  * Published for the mockup shell (a classic script that cannot import).
  * Absent — the standalone mockup opened without the bridge — everything
  * renders, which is correct there: the whole artifact is a demo.
