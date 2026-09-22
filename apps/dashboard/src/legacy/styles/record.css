@@ -58,6 +58,12 @@
 .rec-row-dispute-other { flex: 1 1 14em; min-width: 0; display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 .rec-row-dispute-value { font-weight: var(--weight-medium); color: var(--ink); overflow-wrap: anywhere; }
 .rec-row-dispute-acts { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+/* A row of chips under a value (a row's children): each names one thing the value counts, with its measure beside it
+   in the faint ink ("Balayage 180m"), and the last may say how many more there are, drawn with no edge. */
+.rec-chips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.rec-chip { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%; min-height: 22px; padding: 2px 9px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: var(--text-xs); line-height: 1.4; color: var(--ink-muted); overflow-wrap: anywhere; }
+.rec-chip-meta { flex: none; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.rec-chip[data-more="true"] { border-color: transparent; color: var(--ink-dim); }
 
 /* ---------- A fold: a set of fields, opened under its row ---------- */
 /* The accent left edge is the page's one accent, and it marks the fold that is open. The fold reaches both edges of
@@ -144,9 +150,10 @@
 .rec-input[aria-invalid="true"] { border-color: var(--danger); }
 /* While its fold's or its row's save is out (the gesture says aria-busy) its boxes take no typing, and look it: the
    sunken ground, the muted ink, the pointer that says wait. A box keeps its focus and its ring, which a disabled one
-   would have let go of. The page's own controls inside a saving gesture can say the same from the same attribute. */
-:is(.rec-fold, .rec-inline)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) { background: var(--bg-sunken); color: var(--ink-muted); }
-:is(.rec-fold, .rec-inline)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) { cursor: progress; }
+   would have let go of. The page's own controls inside a saving gesture can say the same from the same attribute. A
+   sheet says it the same way (RecordSheet's busy). */
+:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-input-group, .rec-combo) { background: var(--bg-sunken); color: var(--ink-muted); }
+:is(.rec-fold, .rec-inline, .rec-sheet)[aria-busy="true"] :is(.rec-input, .rec-combo-input, .rec-switch, .rec-seg-btn) { cursor: progress; }
 textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-height: var(--leading-normal); resize: vertical; }
 /* A box with its unit: the ring and the red edge are the group's, since the group is what the eye reads as the box. */
 .rec-input-group { display: flex; align-items: stretch; min-height: 32px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-raised); }

@@ -564,4 +564,6 @@ const RecordInline = ({
   );
 };
 
-Object.assign(window, { RecordFold, RecordInline, RecordSays, useRecordFold, __recordFolds: recFolds });
+// RecordFoot is on window too, for the one gesture that is not in this file and keeps the same foot: a sheet's Save and
+// Cancel (record-sheet.jsx takes its foot from the page, and the Business tab's sheet draws this one in it).
+Object.assign(window, { RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, __recordFolds: recFolds });

@@ -27,7 +27,7 @@
 //   customers to call"; an act that goes somewhere, "Connections Answers on") the page names the act itself, `name`,
 //   a sentence that holds the act's own words so a person who says them still reaches it. The act's data-rec-act is
 //   where a fold that closes (record-fold.jsx) gives focus back.
-// - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips).
+// - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips: RecordChips, below).
 // - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
 //   wash with the key in the warn ink and the act always drawn. A serious disagreement is one (facts.ts: "Severity is
 //   about the CUSTOMER", so the published number that never reaches the receptionist); `wrong` is any other, a sentence
@@ -129,6 +129,23 @@ const RecordRow = ({
   );
 };
 
+/**
+ * A row of chips, drawn under a row's value as its children: each names one thing the value counts, with its measure
+ * beside it where it has one ({ label, meta }: "Balayage" and "180m"), and `more` ("+29 more") after them, drawn with no
+ * edge. The words are the page's. Hookless, as everything drawn inside a row is: a row's children come and go.
+ */
+const RecordChips = ({ chips = [], more = null, testid = null }) => (
+  <span className="rec-chips" data-testid={testid || undefined}>
+    {chips.map((c, i) => (
+      <span key={i} className="rec-chip">
+        {c.label}
+        {c.meta ? <span className="rec-chip-meta">{c.meta}</span> : null}
+      </span>
+    ))}
+    {more ? <span className="rec-chip" data-more="true">{more}</span> : null}
+  </span>
+);
+
 // RecordDispute on its own is the inline editor's (record-fold.jsx): a row being edited keeps its disagreement on
 // screen, to read, while its press waits at rest on the row.
-Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute });
+Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips });

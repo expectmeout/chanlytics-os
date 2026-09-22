@@ -1312,3 +1312,73 @@ test("a sheet takes focus as it opens, gives it back to what opened it, and open
   assert.deepEqual(focused, ["sheet", "opener"]);
   assert.deepEqual(portals, [appRoot], "drawn in the app's root, where People's overlay check (PL_OVERLAY) finds a dialog, over the pane's own layout");
 });
+
+test("focus that goes with what held it comes back to the sheet, and a row the page names takes it in its first box", () => {
+  // A sheet is a modal dialog: focus that landed on the page's body behind it (a row's remove gone with its row, an
+  // ask's button gone with the ask) was where Shift+Tab walked the page behind the wash.
+  const focused = [];
+  const asked = [];
+  const doc = globalThis.document;
+  const was = doc.activeElement;
+  const stop = (name) => ({ name, tabIndex: 0, disabled: false, getClientRects: () => [{}], focus: () => focused.push(name) });
+  const row = { querySelectorAll: () => [stop("name"), stop("minutes"), stop("remove")] };
+  const panel = { focus: () => focused.push("sheet"), querySelector: (sel) => { asked.push(sel); return sel === '[data-rec-row="service-3"]' ? row : null; } };
+  try {
+    doc.activeElement = { name: "opener" };
+    let tree = draw(W.RecordSheet, offer());
+    // React calls a callback ref with the element as it mounts; the stub calls none, so this is that moment.
+    find(tree, (n) => classes(n).includes("rec-sheet")).props.ref(panel);
+    assert.deepEqual(focused, ["sheet"], "focus goes to the sheet as it opens");
+    doc.activeElement = panel;
+    tree = redraw(W.RecordSheet, offer());
+    assert.deepEqual(focused, ["sheet"], "focus that is inside it is left where it is");
+    doc.activeElement = null;
+    tree = redraw(W.RecordSheet, offer());
+    assert.deepEqual(focused, ["sheet", "sheet"], "focus on nothing comes back into the sheet");
+    doc.activeElement = doc.body;
+    tree = redraw(W.RecordSheet, offer());
+    assert.equal(focused.length, 3, "and so does focus on the page's body");
+
+    doc.activeElement = panel;
+    tree = redraw(W.RecordSheet, offer({ focusOn: { row: "service-3" } }));
+    assert.deepEqual(focused.slice(3), ["name"], "the named row's first box, not its remove");
+    assert.ok(asked.includes('[data-rec-row="service-3"]'));
+    const same = { row: "service-3" };
+    tree = redraw(W.RecordSheet, offer({ focusOn: same }));
+    tree = redraw(W.RecordSheet, offer({ focusOn: same }));
+    assert.deepEqual(focused.slice(3), ["name", "name"], "once for each row named, however often it is drawn");
+    tree = redraw(W.RecordSheet, offer({ focusOn: { row: "no-such-row" } }));
+    assert.equal(focused.length, 5, "a row that is not there takes nothing");
+  } finally {
+    doc.activeElement = was;
+  }
+});
+
+test("a sheet whose save is out says so, and its foot is the fold's", () => {
+  const busy = find(draw(W.RecordSheet, offer({ busy: true })), (n) => classes(n).includes("rec-sheet"));
+  assert.equal(busy.props["aria-busy"], true, "record.css draws its boxes read-only by it, as a fold's");
+  assert.equal(find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet")).props["aria-busy"], undefined);
+  // The one foot, for a sheet as for a fold: Save busy and still a button while it saves, Cancel doing nothing then.
+  assert.equal(typeof W.RecordFoot, "function");
+  const saves = [];
+  const cancels = [];
+  const foot = draw(W.RecordFoot, { onSave: () => saves.push(1), onCancel: () => cancels.push(1), saving: true, saveLabel: "Save 33 services", saveTestid: "save", cancelTestid: "cancel" });
+  const save = byTestId(foot, "save");
+  assert.deepEqual([save.type, save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)], ["button", undefined, true, true, "Saving…"]);
+  press(save);
+  press(byTestId(foot, "cancel"));
+  assert.deepEqual([saves.length, cancels.length], [0, 0]);
+});
+
+test("a row of chips names each thing its value counts, with its measure beside it, and how many more", () => {
+  unmount();
+  // Children as React hands them, after the props: the stub's createElement sets `children` from these.
+  const chipRow = W.React.createElement(W.RecordChips, { chips: [{ label: "Balayage", meta: "180m" }, { label: "Haircut", meta: null }], more: "+31 more" });
+  const tree = W.React.createElement(W.RecordRow, { id: "services", label: "Services", value: "33 on record" }, chipRow);
+  const chips = all(tree, (n) => classes(n).includes("rec-chip"));
+  assert.deepEqual(chips.map(textOf), ["Balayage180m", "Haircut", "+31 more"]);
+  assert.deepEqual(chips.map((c) => c.props["data-more"]), [undefined, undefined, "true"]);
+  assert.equal(textOf(find(chips[0], (n) => classes(n).includes("rec-chip-meta"))), "180m");
+  assert.equal(find(tree, (n) => classes(n).includes("rec-row")).props.className, "rec-row rec-row-top", "a row with chips under its value is a tall row");
+  assert.equal(all(draw(W.RecordChips, { chips: [] }), (n) => classes(n).includes("rec-chip")).length, 0);
+});
