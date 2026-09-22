@@ -14,6 +14,13 @@
 
 Single-page React (Babel, no bundler). These files load TWICE, from two lists that must stay identical: `../legacy-bridge/manifest.ts` (the app) and `Chanlytics.html` (the standalone harness, `node tooling/scripts/serve-legacy.mjs`). Order in both: `data/bridge-stubs.jsx` (harness) or `seed-globals.ts` (app) → components/*.jsx → data/*.jsx → pages/*.jsx → app-shell; `Chanlytics.html` loads tokens/css first.
 
+**The standalone harness is NOT the app, and never the evidence for a design change.** It loads every file over
+`data/bridge-stubs.jsx`, so the surfaces the bridge feeds do not mount in it: Today, the real Calendar, People, Leads
+and Live come out as a `soon` placeholder or the seeded mockup, on demo data at a density no workspace has. Use it for
+the shell, the seeded pages, and to check a new file loads in both lists. To LOOK at a page you are changing, run the
+dashboard and open `/w/<workspace-slug>/` -- docs/runbook.md, "See a real page", which names the three things that
+trip it up. A screenshot of `Chanlytics.html` offered as proof of a real page will be sent back.
+
 **A new file goes in BOTH lists.** Seventeen went into the manifest alone — each with its own test — and the harness booted to a blank page for however long that took to notice. `tooling/scripts/tests/legacy-harness.test.mjs` pins the two lists together now, in file order. Bump `?v=N` on every edited file; the harness's server sends `no-store` because the document itself has no version.
 
 ## Architecture
