@@ -10879,7 +10879,11 @@ declare const RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed int
  * the booking link to a caller's WhatsApp.
  *
  * Computed from what the records show, never typed: an ability is ready only
- * when its channel is live and its input is filled. Every sentence below was
+ * when its channel is live and its input is filled. A channel says what the
+ * receptionist DOES there, input and all, not which channel the ability belongs
+ * to -- a lit phone beside "No number yet, so it takes a message instead" is a
+ * row disagreeing with itself, and the card's one signal is the pair of them.
+ * So `ready` is exactly "one of the two channels does it". Every sentence below was
  * checked against the code it describes, because the first draft of three of
  * them was not true: the link goes by WhatsApp and never by text, a transfer
  * happens only during opening hours and stays on the line, and a hand-off is a

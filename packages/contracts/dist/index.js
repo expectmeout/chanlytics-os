@@ -13883,7 +13883,7 @@ function abilityRows(i) {
       // while the call still starts with the openings (call-start.ts) and chat is still handed
       // them, so this says only what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
-      channels: both,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed
@@ -13893,8 +13893,9 @@ function abilityRows(i) {
       title: "Send the booking link",
       detail: bookingDetail,
       // The call's send goes through the same outbound gate the Replies row holds, so a
-      // workspace whose replies are held has no channel here at all.
-      channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
       missing: !i.hasBookingLink
@@ -13904,7 +13905,7 @@ function abilityRows(i) {
       title: "Put a caller through",
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive, whatsapp: false },
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
       // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
@@ -13929,7 +13930,7 @@ function abilityRows(i) {
       id: "vision",
       title: "Look at a photo",
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: chatAnswers },
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: chatAnswers && i.visionOn,

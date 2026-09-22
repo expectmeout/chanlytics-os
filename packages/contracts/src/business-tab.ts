@@ -778,7 +778,11 @@ export const RULES_WITHOUT_FIELDS_WORDS =
  * the booking link to a caller's WhatsApp.
  *
  * Computed from what the records show, never typed: an ability is ready only
- * when its channel is live and its input is filled. Every sentence below was
+ * when its channel is live and its input is filled. A channel says what the
+ * receptionist DOES there, input and all, not which channel the ability belongs
+ * to -- a lit phone beside "No number yet, so it takes a message instead" is a
+ * row disagreeing with itself, and the card's one signal is the pair of them.
+ * So `ready` is exactly "one of the two channels does it". Every sentence below was
  * checked against the code it describes, because the first draft of three of
  * them was not true: the link goes by WhatsApp and never by text, a transfer
  * happens only during opening hours and stays on the line, and a hand-off is a
@@ -989,7 +993,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
         : i.bookingHeld
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
           : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
-      channels: both,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
       missing: !i.hasCalendarFeed,
@@ -999,8 +1003,9 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       title: "Send the booking link",
       detail: bookingDetail,
       // The call's send goes through the same outbound gate the Replies row holds, so a
-      // workspace whose replies are held has no channel here at all.
-      channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
       missing: !i.hasBookingLink,
@@ -1010,7 +1015,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       title: "Put a caller through",
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive, whatsapp: false },
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
       // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
@@ -1037,7 +1042,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       detail: i.visionOn
         ? "It says what it sees and suggests the next step, under the rules it always keeps."
         : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: chatAnswers },
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
       ready: chatAnswers && i.visionOn,

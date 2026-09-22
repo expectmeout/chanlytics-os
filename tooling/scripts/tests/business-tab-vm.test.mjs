@@ -556,6 +556,55 @@ test("a row says when what stops it is on this page, and when it is not", () => 
   assert.equal(missingOf({ whatsappLive: false, hasBookingLink: false }).booking_link, true);
 });
 
+test("a channel says what the receptionist DOES there, so a row never disagrees with itself", () => {
+  // Found in the card's review, 22 Sep. `channels` said which channel an ability BELONGS to, so a
+  // workspace with a live line and no transfer number drew a lit phone beside "No number yet, so it
+  // takes a message instead", and a live pair with no calendar drew two lit glyphs beside "No calendar
+  // to read". Two meanings on one row, and the owner's rule allows one. A channel now folds in the
+  // input the ability needs, so `ready` is exactly "one of the two channels does it".
+  const missingInput = [
+    ["no calendar", { hasCalendarFeed: false }, "open_times"],
+    ["no transfer number", { hasHandoffNumber: false }, "transfer"],
+    ["no booking link", { hasBookingLink: false }, "booking_link"],
+    ["photos off", { visionOn: false }, "vision"],
+  ];
+  for (const [what, over, id] of missingInput) {
+    const row = idOf(abilityRows({ ...live, visionOn: true, ...over }))[id];
+    assert.deepEqual(row.channels, { voice: false, whatsapp: false }, `${what}: neither channel does it`);
+    assert.equal(row.ready, false, what);
+  }
+  // And the invariant behind it, over every combination of the inputs that gate a channel.
+  for (const voiceLive of [true, false])
+    for (const whatsappLive of [true, false])
+      for (const replyMode of ["auto", "ask"])
+        for (const hasCalendarFeed of [true, false])
+          for (const hasBookingLink of [true, false])
+            for (const hasBookingTemplate of [true, false])
+              for (const hasHandoffNumber of [true, false])
+                for (const bookingHeld of [true, false])
+                  for (const visionOn of [true, false]) {
+                    const shape = {
+                      ...live,
+                      voiceLive,
+                      whatsappLive,
+                      replyMode,
+                      hasCalendarFeed,
+                      hasBookingLink,
+                      hasBookingTemplate,
+                      hasHandoffNumber,
+                      bookingHeld,
+                      visionOn,
+                    };
+                    for (const r of abilityRows(shape).rows) {
+                      assert.equal(
+                        r.ready,
+                        r.channels.voice || r.channels.whatsapp,
+                        `${r.id} on ${JSON.stringify(shape)}`,
+                      );
+                    }
+                  }
+});
+
 test("an input left out throws and says which, rather than drawing a card that lies", () => {
   // The page that calls this is untyped JSX. An omitted boolean is undefined, which is falsy,
   // and the card would say a line is dark or a switch is off with no error anywhere -- the
