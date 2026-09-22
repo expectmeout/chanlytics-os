@@ -210,9 +210,47 @@ test("both channels can be read, since they are not the same text", () => {
   assert.ok(pane.includes("window.__composedPrompt(channel)"), "the toggle must recompose");
 });
 
+test("the record's own rules in settings.css paint no gradient and set no second typeface", () => {
+  // The owner named these two before he read a word of the page (the plan's Task 4.0), and both live only in CSS,
+  // which the suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. The journey proves it
+  // the better way, by computed style in a browser over the whole record (e2e/settings-business.spec.ts, the 390px
+  // test), and this stands beside it for the family settings.css owns, on the stylesheet this file already reads.
+  // record.css's own rec-* rules are the journey's: reading a second stylesheet here would raise the source-scan
+  // baseline, which may only fall.
+  const SPLIT = String.fromCharCode(10);
+  const rules = css.split("}").flatMap((block) => {
+    const at = block.lastIndexOf("{");
+    if (at < 0) return [];
+    const selector = block.slice(0, at).trim().split(SPLIT).pop().trim();
+    return [{ selector, body: block.slice(at + 1) }];
+  });
+  const ours = rules.filter((r) => /\.(bt|rec|act)-/.test(r.selector));
+  assert.ok(ours.length > 40, `the record's rules are in this stylesheet (found ${ours.length})`);
+  assert.deepEqual(
+    ours.filter((r) => r.body.includes("gradient")).map((r) => r.selector),
+    [],
+    "a gradient on the record: the fold's ground, a closed day's stripes and the log's bones each were one",
+  );
+  assert.deepEqual(
+    ours.filter((r) => /font-mono|--mono/.test(r.body)).map((r) => r.selector),
+    [],
+    "the page reads in ONE typeface",
+  );
+});
+
 test("six thousand characters cannot break the page layout", () => {
-  const body = css.slice(css.indexOf(".set-prompt-body"));
+  // Both ends are found, and in that order, BEFORE the slice: `indexOf` answers -1 for a rule that was renamed, and
+  // `slice(-1, -1)` is the empty string while `slice(0, -1)` is very nearly the whole stylesheet -- either way the
+  // four assertions below would stop being about `.set-prompt-body` without saying so.
+  const from = css.indexOf(".set-prompt-body");
+  const to = css.indexOf(".set-prompt-body-sm");
+  assert.ok(from > -1, "the rule this test is about is still called .set-prompt-body");
+  assert.ok(to > from, "and .set-prompt-body-sm still follows it, which is where the slice ends");
+  const body = css.slice(from, to);
   assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
   assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the page");
   assert.ok(body.includes("overflow-y: auto"));
+  // The page reads in ONE typeface. The prompt is sentences somebody wrote about their business, not a listing, and a
+  // second face here is the "font changes" an owner sees before he reads a word of it.
+  assert.ok(!body.includes("font-mono"), "the prompt is set in the page's own face");
 });

@@ -44,6 +44,8 @@ import {
   handoffWords,
   fallbacksWords,
   guardrailsInForce,
+  rulesKept,
+  VISION_STRENGTH,
   hoursLines,
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
@@ -131,11 +133,15 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
+    "ABILITY_CHANNEL_WORDS",
     "BOOKING_RULE_HINTS",
+    "CHIPS_SHOWN",
     "GUARDRAIL_KEYS",
+    "POLICY_MODES",
     "PROFILE_LIMITS",
     "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
+    "VISION_STRENGTH",
     "abilityRows",
     "blockShareWords",
     "bookingHeld",
@@ -143,6 +149,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "bookingRulesWords",
     "bookingTemplate",
     "cannotRows",
+    "capabilityStatus",
+    "chipsMoreWords",
     "closuresAheadWords",
     "consequenceOf",
     "fallbacksWords",
@@ -152,6 +160,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "handoffChatWords",
     "handoffWords",
     "hasProfile",
+    "hoursZoneWords",
     "instructionsWords",
     "needsConsultation",
     "notesWords",
@@ -160,6 +169,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "profileRefusal",
     "promptBlocks",
     "ruleStrength",
+    "rulesKept",
     "saveIssues",
     "serviceUndoName",
     "servicesFoundWords",
@@ -183,12 +193,19 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
   for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true }])
     assert.deepEqual(tab.guardrailsInForce(g), guardrailsInForce(g), JSON.stringify(g));
+  // Which rules the row at rest may name is contracts' too, over the same reading of the stored ones.
+  assert.deepEqual(tab.VISION_STRENGTH, VISION_STRENGTH);
+  for (const g of [undefined, {}, { never_quote_prices: false }, { never_confirm_booking: false }])
+    for (const composes of [true, false]) {
+      const i = { rules: guardrailsInForce(g), vision: false, composes };
+      assert.deepEqual(tab.rulesKept(i), rulesKept(i), `${JSON.stringify(g)} ${composes}`);
+    }
   assert.deepEqual(
     tab.handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
     handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
-  assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
+  for (const calls of [true, false]) assert.deepEqual(tab.standingLine(STORED, calls), standingLine(STORED, calls));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
   const at = new Date("2026-09-21T12:00:00Z");
@@ -248,6 +265,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     pauseHours: null,
     visionOn: false,
     bookingHeld: false,
+    replyMode: "auto",
   };
   assert.deepEqual(tab.abilityRows(inputs), abilityRows(inputs));
   for (const smsLive of [false, true]) assert.deepEqual(tab.cannotRows({ smsLive }), cannotRows({ smsLive }));

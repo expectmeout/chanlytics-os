@@ -123,25 +123,45 @@ test("an empty row says so and keeps its act reachable", () => {
   );
 });
 
-test("a source chip is the one pill, in the fact kind's tone", () => {
+test("a fact that is not the owner's says where it came from, quietly; one they typed says nothing", () => {
   const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "verified" });
-  const pill = find(tree, (n) => classes(n).some((c) => c.startsWith("pill-")));
-  assert.ok(pill, "the chip is a StatePill");
-  assert.ok(classes(pill).includes("pill-ok"), "verified is ok");
-  assert.match(textOf(pill), /from Google/);
+  const src = find(tree, (n) => classes(n).includes("rec-src"));
+  assert.ok(src, "a source that is not the owner's is said");
+  assert.match(textOf(src), /from Google/, "in contracts' words");
+  assert.deepEqual(
+    all(tree, (n) => classes(n).includes("pill")).map(textOf),
+    [],
+    "a muted word beside the value, never a bordered pill: a phone wrapped the pill onto a line of its own",
+  );
+  // "You set this" is every row's default and tells an owner nothing they could act on.
+  const typed = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "typed" });
+  assert.ok(!find(typed, (n) => classes(n).includes("rec-src")), "typed draws no source at all");
+  assert.equal(textOf(typed).includes(stateOf("fact", "typed").label), false);
+  // The four that are not the owner's still are, each in contracts' words.
+  for (const source of ["provisioned", "workspace", "absent"]) {
+    const row = draw(W.RecordRow, { label: "Answers on", value: "+1 (646) 932-5775", source });
+    assert.equal(
+      textOf(find(row, (n) => classes(n).includes("rec-src"))),
+      stateOf("fact", source).label,
+      `${source} is said`,
+    );
+  }
 });
 
 test("a disputed fact wears warn and offers the other answer", () => {
   const used = [];
   const disputed = { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => used.push(1) };
   const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Avenue", source: "typed", disputed });
-  const pill = find(tree, (n) => classes(n).includes("pill-warn"));
-  assert.ok(pill, "a disagreement is warn");
   assert.match(textOf(tree), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/, "the other answer is on the row");
   assert.deepEqual(
-    all(tree, (n) => classes(n).includes("pill")).map(textOf),
+    all(tree, (n) => classes(n).includes("rec-src")).map(textOf),
     [stateOf("fact", "disputed").label, stateOf("fact", "verified").label],
-    "the row's chip and the other answer's, both in contracts' words",
+    "the row's own and the other answer's, both in contracts' words",
+  );
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"],
+    "warn",
+    "a disagreement is warn, in the ink rather than a panel",
   );
   const use = find(tree, (n) => typeof n.props?.onClick === "function" && /Use Google/i.test(textOf(n)));
   press(use);
@@ -201,7 +221,7 @@ test("something wrong is on its row at full strength: a serious disagreement, or
   );
 });
 
-test("a minor disagreement keeps its pill and its line, and leaves the row as it is", () => {
+test("a minor disagreement keeps its warn word and its line, and leaves the row as it is", () => {
   const minor = {
     value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA",
     source: "verified",
@@ -216,9 +236,10 @@ test("a minor disagreement keeps its pill and its line, and leaves the row as it
     act: { label: "Change", onClick: () => {} },
   });
   const row = find(tree, (n) => classes(n).includes("rec-row"));
-  assert.ok(
-    find(row, (n) => classes(n).includes("pill-warn")),
-    "the warn pill, at full strength",
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"],
+    "warn",
+    "the warn word, at full strength",
   );
   assert.match(
     textOf(find(row, (n) => classes(n).includes("rec-row-dispute"))),
@@ -246,9 +267,10 @@ test("a disagreement with nothing to take it is a line to read, and offers no pr
   });
   const line = find(tree, (n) => classes(n).includes("rec-row-dispute"));
   assert.equal(textOf(line), sentence, "the disagreement is on the row, whole");
-  assert.ok(
-    find(tree, (n) => classes(n).includes("pill-warn")),
-    "and wears its warn pill",
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"],
+    "warn",
+    "and wears its warn ink",
   );
   assert.equal(
     find(line, (n) => n.type === "button"),
@@ -2472,4 +2494,41 @@ test("a row of chips names each thing its value counts, with its measure beside 
     "a row with chips under its value is a tall row",
   );
   assert.equal(all(draw(W.RecordChips, { chips: [] }), (n) => classes(n).includes("rec-chip")).length, 0);
+});
+
+test("a row of chips caps itself, and says how many it cut in the words it was given", () => {
+  // A cap the kit keeps, so every record page gets it: a row of chips that wraps three deep at a phone's width is a
+  // paragraph of nouns where the row states one fact. The words for what was cut are still the page's, from its own
+  // contracts, and the kit hands them the number it cut.
+  const five = [
+    "Never quotes a price",
+    "Never confirms a booking",
+    "Says it's an assistant",
+    "No health advice",
+    "Looks at photos",
+  ];
+  const cut = [];
+  const tree = draw(W.RecordChips, {
+    chips: five.map((label) => ({ label })),
+    max: 4,
+    more: (n) => {
+      cut.push(n);
+      return `+${n} more`;
+    },
+  });
+  assert.deepEqual(all(tree, (n) => classes(n).includes("rec-chip")).map(textOf), [...five.slice(0, 4), "+1 more"]);
+  assert.deepEqual(cut, [1], "the kit says how many it cut; the words are the page's");
+  // Nothing to cut, nothing said.
+  const four = draw(W.RecordChips, {
+    chips: five.slice(0, 4).map((label) => ({ label })),
+    max: 4,
+    more: (n) => `+${n} more`,
+  });
+  assert.deepEqual(
+    all(four, (n) => classes(n).includes("rec-chip")).map((c) => c.props["data-more"]),
+    [undefined, undefined, undefined, undefined],
+  );
+  // A page that caps its own list still passes its own words, as the services and the notes do.
+  const given = draw(W.RecordChips, { chips: [{ label: "Balayage" }], more: "+31 more" });
+  assert.deepEqual(all(given, (n) => classes(n).includes("rec-chip")).map(textOf), ["Balayage", "+31 more"]);
 });

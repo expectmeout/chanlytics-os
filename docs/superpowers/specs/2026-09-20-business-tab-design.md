@@ -63,6 +63,8 @@ Last changed by Ruben, just now
 
 Three clauses, not a meter: what it can answer, what it deliberately will not, and what is missing — the last one a link to the row that fixes it. Derived from which fields are filled against `BRAIN_INTENTS` (booking, pricing, hours, services, location, complaint, smalltalk, other). A percentage would be a number nobody can act on.
 
+> **Amended 22 Sep, in execution (Task 4.2, the plan's M-1).** The second clause names the difference between the two channels on a workspace that answers calls, because it lands differently on each: in chat a draft sits between the model and the customer and `violatesNoPrices` swaps the words before the reply is sent; on a call the figure has been heard and `spokenBreach` corrects it in the next turn (`policy.ts`'s own header). So "It offers a consult or the booking link instead of a price." becomes "… — in chat before the reply is sent, on a call as a correction right after." where there is a call, and stays exactly as it was where there is not. Still one clause, and the line is still three. `standingLine` takes which lines the workspace answers on as a required argument, checked as it runs, so an untyped page that left it out cannot quietly read the chat sentence over a phone.
+
 ### 4.2 Who you are
 
 | Row | Source | Gesture |
@@ -77,6 +79,8 @@ Three clauses, not a meter: what it can answer, what it deliberately will not, a
 
 The chip is the source the settings read resolved (facts.ts `resolveFacts`, which this spec does not change), and it reports a typed value that agrees with Google's as typed: a name Google agrees with reads "you set this", and "from Google" is shown only on a value that came from Google alone.
 
+> **Amended 22 Sep, in execution (Task 4.0).** There is no chip, and a typed fact says nothing at all. "You set this" is the default on five of these seven rows, it tells an owner nothing they could act on, and at a phone's width the pill wrapped onto a line of its own under every value. The kit draws a source only where the value is NOT the owner's — from Google, your line, this workspace, not set, and a disagreement's two answers — and draws it as a muted word beside the value, in the same contracts words (`SOURCE_WORDS`). The resolver is unchanged: a name Google agrees with is still reported typed, and is now simply said nothing of.
+
 Foot: one sentence saying the legal name and registered address live on Connections and are asked once.
 
 The **Workspace** row goes. It printed the business's name a second time whenever it differed.
@@ -84,6 +88,8 @@ The **Workspace** row goes. It printed the business's name a second time wheneve
 ### 4.3 When you're open
 
 Hours as a week ribbon plus one sentence; timezone with the local time beside it; closed days; the calendar it reads, stating its last read and event count. The **Check the address** button goes — the row says what a check would have told you.
+
+> **Amended 22 Sep, in execution (Task 4.0).** The calendar row states WHERE it reads (the feed's host, in the page's own typeface, never the path — a private address is a long secret and the row is read over a shoulder), one quiet mark for whether the last read worked (the Calendar page's own words in its accessible name and its tip, not a pill), and WHEN it was read (`feed.read`, "read 4m ago"). The address whole, the source and the event count are in the fold, which is where somebody who wants them goes. The hours fold's line names the zone the way the card above it does — "All times in New York time" (`hoursZoneWords`), never `America/New_York`.
 
 The hours fold is a week on one scale: a day is a toggle, a bar on a 6am–10pm axis, and its times. A break is a second bar on the same row. Copy-to-day becomes one menu, and names every day it opens or overwrites, with the whole grid restorable in one press — the behaviour `applyToAll` already has (`:1225-1256`), given a control that does not sit inches from two other links.
 
@@ -112,6 +118,10 @@ The vision toggle is separated by a dashed rule and labelled as an ability, not 
 
 > **Amended 22 Sep, in execution (Task 3.5).** Not the only one: "Never give health advice" is opt-in too (`GuardrailsSchema`, and the form's own "absent means on" for the other three). The photos switch starts off because it gives the receptionist an ability, and its hint says that, not that the four limits start on.
 
+> **Amended 22 Sep, in execution (Task 4.2), under the owner's quiet rule.** The three strengths live in the fold, not on the row. Each switch wears its strength as ONE muted word (`ruleStrength(key).chip`) and carries its sentence under the label — under 761px that sentence is off the glass and on the switch's `aria-describedby`, since four of them is most of a phone's screen. The form's own hint is gone from the four: two sentences on one switch (what the rule asks for, then how far it goes) is the clutter, and the strength's sentence says both. The checked rule alone draws its two `checkedOn` lines, opening with the channel's name in the abilities card's words.
+>
+> **At rest the row stays one row**, and what it may name is derived from the strengths rather than the switches (`rulesKept`): the **checked** rule is named whether its switch is on or off, because the detector runs either way (the owner's decision, 20 Sep 2026) and a row that dropped the word would read as if prices went through; an **instructed** rule is a prompt line and nothing else, so it is named only where the record composes a prompt to put it in; the **structural** rule changes its words rather than going — *Cannot book anything* — because the switch decides only whether it is told not to CLAIM it booked, and the product has no appointments table either way. On a record whose details compose nothing the row therefore reads *Never quotes a price · Cannot book anything · Won't look at photos* — the photos word is always the last chip, because the switch reaches the receptionist without the prompt — and the fold goes on saying the rest once (the plan's M-2).
+
 ### 4.7 What it can do
 
 Six abilities, each with which channel has it and what it runs on, computed from `capabilityStatus` and the tool list, never typed:
@@ -124,6 +134,18 @@ Six abilities, each with which channel has it and what it runs on, computed from
 - Look at a photo — off
 
 And what it cannot: book, move or cancel an appointment (structural); call a customer (it answers, and the only number it rings is the owner's, to transfer); send a text message (not sold until the carriers approve a line, and not listed once texting is live on the workspace's line).
+
+> **Amended 22 Sep, in execution (Tasks 4.1 and 4.1b).** Three sentences of this section are now narrower, each
+> because the code refuses what the wider one promised.
+>
+> | Said here | Said on the card |
+> |---|---|
+> | Say which times are open ... "then the link" | **"then the link in chat"** on a workspace on both lines with no approved booking-link template: the call has no template to deliver, so it cannot send it (M-3) |
+> | Send the booking link ... While the Autonomy tab holds bookings, it sends none | and **while the Autonomy tab holds REPLIES** (Asks you, Stays quiet) it has no channel at all: the call's send is refused by the same gate (`outbound-gate.ts`) |
+> | Six abilities, each with which channel has it and what it runs on | each with which channel has it; **what it runs on is drawn only where that row is still empty**, which is the one thing an owner can act on from here (Task 4.0's rule) |
+>
+> The Replies row is said ONCE for the whole card, above the rows, with one door to the Autonomy tab -- one cause with
+> one fix on another tab, and six rows repeating it is the page shouting.
 
 > **Corrected 20 Sep, by the Phase 1 review.** This section first said the phone "texts" the booking link, that a hand-off never resumes, that a transfer "steps out", and that the receptionist "never dials". None was true. The link is a WhatsApp template and never an SMS; a hand-off is a pause that ends; the transfer stays on the line and runs only during opening hours; and the transfer does dial — the owner's number. A redesign whose argument is that the old page said untrue things cannot ship an untrue sentence, so each one is pinned by a test that fails on the old wording.
 
@@ -214,6 +236,18 @@ Four refusals: nothing pulses (the accent means a live call); no skeleton shimme
 | Calendar it may look at | **Calendar it reads**, here and on the Calendar page |
 
 Sentence case throughout; no colons in a label; the label names the thing and the hint says what it is for, never both in the label.
+
+> **Amended 22 Sep, in execution (Task 4.0).** Four sentences changed, each because it said something an owner cannot act on from where it stood:
+>
+> | Retired | Kept |
+> |---|---|
+> | you set this | *nothing* — a fact the owner set says nothing; only a fact that is not theirs does |
+> | Last changed by ruben@rjcapital.io, 7m ago | **Changed by you, 7m ago**, or the person's name, or the local part of their address — never the address |
+> | In your own words · 339 characters | the opening alone; **339 of 20,000 characters** under the box that edits them |
+> | 3 messages sent in your name · 3 differ from the default wording | **3 messages, in your words** / **3 messages, the product's wording** |
+> | All times America/New_York, as the receptionist states them | **All times in New York time, as the receptionist states them** |
+>
+> The told section's head keeps its title, its Show and "every WhatsApp message, word for word"; its character count is inside, beside the text it counts.
 
 ## 11. What is on screen
 

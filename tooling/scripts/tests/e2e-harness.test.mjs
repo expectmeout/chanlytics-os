@@ -107,6 +107,39 @@ test("the page's fixture publishes the tab's globals through the same contracts 
   assert.equal((await w.__workspace.setTimezone("America/Chicago")).ok, false);
 });
 
+test("the messages the fixture publishes are the scenario's own, and the nightly has none", async () => {
+  // The fixture published one approved booking_link template and templates.approved = 1 for EVERY scenario,
+  // hand-written beside the payload it derives everything else in. Neither the seed (e2e-workspace.mjs) nor the
+  // scenarios write a template row, so the nightly workspace was shown an approved message it does not have -- and
+  // an approved booking-link template is exactly what decides whether a call can send the link at all
+  // (contracts bookingTemplate, and the openings row's ", then the link" clause).
+  for (const [name, approved] of [
+    ["nightly", []],
+    ["salon", ["booking_link"]],
+  ]) {
+    const w = await publishedGlobals(name);
+    assert.deepEqual(
+      plain(w.__TEMPLATES_ALL)
+        .filter((t) => t.meta_status === "approved")
+        .map((t) => t.name),
+      approved,
+      `${name}: the approved messages`,
+    );
+    assert.deepEqual(
+      plain(w.__TEMPLATES_ALL),
+      plain(scenario(name, NOW).templates),
+      `${name}: the scenario's own list, not a copy`,
+    );
+    // And the count Setup states is that list counted, never a number typed beside it.
+    assert.equal(
+      w.__SETUP.dto.templates.approved,
+      approved.length,
+      `${name}: Setup counts the messages the workspace has`,
+    );
+    assert.equal(w.__SETUP.dto.templates.startersApproved, approved.length, name);
+  }
+});
+
 /* ------------------------------- what the pages read ------------------------------- */
 
 /** Every `window.__x` the pages under test read. */
@@ -152,7 +185,6 @@ const NOT_PUBLISHED = new Map([
   ["__CHANNELS", "defining it at all flips settings.jsx to PaneIntegrationsReal, and its shape is toChannelVM's"],
   ["__CALENDAR", "the Calendar pane's surface; the Business record's calendar row reads the config"],
   ["__calendar", "the Calendar pane's verbs"],
-  ["__SETUP", "the Setup pane's surface"],
   ["__setup", "the Setup pane's verbs"],
   ["__TEAM", "the Team card's surface"],
   ["__TEAM_INVITES", "the Team card's invitations"],
@@ -171,8 +203,10 @@ const NOT_PUBLISHED = new Map([
 ]);
 
 test("the fixture publishes every global the Business record and Settings read, or says why not", async () => {
-  const pages = fs.readdirSync(path.join(LEGACY, "pages")).filter((f) => /^business-tab.*\.jsx$/.test(f));
-  assert.ok(pages.length >= 5, `the Business pages moved: ${pages.join(", ")}`);
+  // Every file of the record: its cards (business-tab-*.jsx) and What it can do, which is business-can.jsx.
+  const pages = fs.readdirSync(path.join(LEGACY, "pages")).filter((f) => /^business-(tab.*|can)\.jsx$/.test(f));
+  assert.ok(pages.length >= 6, `the Business pages moved: ${pages.join(", ")}`);
+  assert.ok(pages.includes("business-can.jsx"), "What it can do is one of them");
   const read = globalsRead([...pages, "settings.jsx"]);
   assert.ok(read.has("__handoffE164"), "the transfer row's check is one of the globals this test is about");
 

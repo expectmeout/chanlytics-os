@@ -28,6 +28,22 @@ export const SCENARIOS = ["nightly", "salon"];
 /** What the platform knows about a channel, as tenant_channels rows reach `resolveFacts` (contracts KnownFacts). */
 const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, status });
 
+/**
+ * The workspace's approved WhatsApp messages, as the template library hands them over.
+ *
+ * Said by the scenario, because whether a workspace HAS an approved booking-link message decides what its
+ * receptionist can do: a call sends the booking link as a template and can send none without one (contracts
+ * `bookingTemplate`, and the openings row's ", then the link" clause). The fixture published one for every record,
+ * so the seeded workspace -- whose seed writes no template row at all -- was shown a message it does not have.
+ */
+const BOOKING_LINK_TEMPLATE = {
+  name: "booking_link",
+  language: "en_US",
+  meta_status: "approved",
+  channel: "whatsapp",
+  variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+};
+
 /** A closure `n` days out, one day long. */
 const closureAt = (nowMs, days, note) => ({
   date: new Date(nowMs + days * 86_400_000).toISOString().slice(0, 10),
@@ -51,6 +67,8 @@ function nightly(name) {
       channels: [asKnownChannel(workspaceChannel())],
       listing: null,
     },
+    // None: the seed writes no template row, so nothing drawn over this record may claim an approved message.
+    templates: [],
     version: VERSION,
     role: "owner",
   };
@@ -128,6 +146,8 @@ function salon(name, nowMs) {
       ],
       listing: null,
     },
+    // Both lines AND the approved booking-link message, which is what lets this record's call send the link at all.
+    templates: [BOOKING_LINK_TEMPLATE],
     version: VERSION,
     role: "owner",
   };

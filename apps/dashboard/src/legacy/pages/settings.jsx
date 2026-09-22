@@ -845,6 +845,14 @@ const PaneWorkspace = ({ flash }) => {
  * config and the same inputs (the autonomy rows, the platform's facts, the
  * closures, the calendar's openings).
  */
+// Who reads this text, and how often -- one spelling for each channel, said in the head while the section is closed
+// and beside the count once it is open. It was written out twice, so the head said WhatsApp's words whatever channel
+// was chosen, and an opened section carried the same sentence in two places at once.
+const PROMPT_READERS = {
+  whatsapp: "every WhatsApp message, word for word",
+  voice: "every phone call, composed when the call starts",
+};
+
 const PromptPreview = () => {
   const [open, setOpen] = useSetState(false);
   const [channel, setChannel] = useSetState("whatsapp");
@@ -859,15 +867,16 @@ const PromptPreview = () => {
           <Icon name={open ? "chevron-up" : "chevron-down"} size={11} /> {open ? "Hide" : "Show"}
         </button>
       </div>
-      <div className="set-prompt-meta">
-        {/* The number is the point: a prompt that halves is a prompt that lost
-            something, and it is the only signal that reads at a glance. */}
-        <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
-        <span className="set-prompt-sep">·</span>
-        <span>{channel === "voice"
-          ? "every phone call, composed when the call starts"
-          : "every WhatsApp message, word for word"}</span>
-      </div>
+      {/* Closed, one phrase: who reads the text behind this door, and how often. The character count went with it --
+          4,345 is a number nobody can act on from outside a closed section, and it was the first thing under the
+          heading. It waits inside, where a prompt that has halved is a prompt that lost something and the number says
+          so beside the text it counts. Open, this line is the one below, and drawing both put the sentence on screen
+          twice. */}
+      {open ? null : (
+        <div className="set-prompt-meta">
+          <span>{PROMPT_READERS[channel]}</span>
+        </div>
+      )}
       {open && (
         <>
           <div className="set-prompt-tabs" role="tablist">
@@ -880,6 +889,11 @@ const PromptPreview = () => {
                 onClick={() => setChannel(id)}
               >{label}</button>
             ))}
+          </div>
+          <div className="set-prompt-meta set-prompt-meta-open">
+            <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
+            <span className="set-prompt-sep">·</span>
+            <span>{PROMPT_READERS[channel]}</span>
           </div>
           <pre className="set-prompt-body">{composed.text}</pre>
           <div className="set-prompt-now">

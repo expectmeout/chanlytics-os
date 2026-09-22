@@ -71,10 +71,28 @@ after(() => unmount());
 test("the standing line says what contracts said, and never writes its own", () => {
   const tree = drawTab({ profile: melany });
   const band = byTestId(tree, "rec-standing");
-  const vm = standingLine(W.__SETTINGS.config.brain);
+  const vm = standingLine(W.__SETTINGS.config.brain, true);
   assert.match(textOf(band), new RegExp(escape(vm.can)));
   assert.match(textOf(band), new RegExp(escape(vm.wont)));
   assert.equal(vm.missing, null, "Melany's record is missing nothing");
+});
+
+test("M-1: the band names a call's correction only on a workspace that answers calls", () => {
+  // In chat the swap happens before the reply is sent; on a call the figure has been heard and what follows is a
+  // correction (contracts, policy.ts). One sentence for both was exact on one channel and flattering on the other.
+  const withCall = drawTab({ profile: melany });
+  const heard = textOf(byTestId(withCall, "rec-standing"));
+  assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true).wont)));
+  assert.match(heard, /on a call caught afterwards rather than prevented/i);
+  // A workspace with no phone line is told nothing about a line it does not have.
+  const chatOnly = drawTab({ profile: melany, facts: { voice_line: { value: null, source: "absent" } } });
+  const alone = textOf(byTestId(chatOnly, "rec-standing"));
+  assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false).wont)));
+  assert.doesNotMatch(alone, /on a call/i);
+  // Still one clause either way: the band says what it can, what it will not, and the one gap.
+  for (const t of [withCall, chatOnly]) {
+    assert.equal(all(byTestId(t, "rec-standing"), (n) => classes(n).includes("bt-standing-more")).length, 1);
+  }
 });
 
 test("a missing voice is named in the band, and the link opens its row", () => {
@@ -161,8 +179,9 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
   assert.equal(byTestId(tree, "set-conflict-banner"), null, "the banner above the card is gone");
   const row = byTestId(tree, "rec-row-phone_display");
   assert.match(textOf(row), new RegExp(escape(conflict.sentence.slice(0, 40))));
-  assert.ok(
-    find(row, (n) => classes(n).includes("pill-warn")),
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"],
+    "warn",
     "and it wears warn, because a person settles it",
   );
 });
@@ -195,25 +214,34 @@ test("the head says what the page is, and who last changed it when that is known
   );
 });
 
-test("every fact says where it came from, in contracts' words", () => {
-  // Resolved as the settings read resolves them (contracts resolveFacts), since the chip is the source it reports: a
-  // typed value that agrees with Google's is reported as typed, so a name Google agrees with reads "you set this".
+test("a fact that is not the owner's says where it came from; one they set says nothing", () => {
+  // Resolved as the settings read resolves them (contracts resolveFacts), since what is said is the source it
+  // reports: a typed value that agrees with Google's is reported as typed, and a typed fact says nothing at all --
+  // "you set this" on the name, the website and the transfer number is three lines of a record spent on the default.
   let tree = drawTab({
     resolved: {
       ...KNOWN,
       listing: { name: "Melany's Beauty Salon", address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" },
     },
   });
-  const chipOf = (row) => textOf(find(byTestId(tree, row), (n) => classes(n).includes("rec-src")));
-  assert.equal(chipOf("rec-row-name"), stateOf("fact", "typed").label, "typed, and agreeing with Google, is typed");
-  assert.equal(chipOf("rec-row-website"), stateOf("fact", "typed").label);
+  const chipOf = (row) => {
+    const said = find(byTestId(tree, row), (n) => classes(n).includes("rec-src"));
+    return said ? textOf(said) : null;
+  };
+  assert.equal(chipOf("rec-row-name"), null, "typed, and agreeing with Google, is said nothing of");
+  assert.equal(chipOf("rec-row-website"), null);
   assert.equal(chipOf("rec-row-voice_line"), stateOf("fact", "provisioned").label, "the line the platform provisioned");
   assert.equal(
     chipOf("rec-row-phone_display"),
     stateOf("fact", "provisioned").label,
     "no number typed: it gives out the line",
   );
-  assert.equal(chipOf("rec-row-handoff_number"), stateOf("fact", "typed").label);
+  assert.equal(chipOf("rec-row-handoff_number"), null);
+  assert.equal(
+    textOf(tree).includes(stateOf("fact", "typed").label),
+    false,
+    "and the words for a typed fact are nowhere on the page",
+  );
   assert.match(
     textOf(byTestId(tree, "rec-row-handoff_number")),
     /\+1 \(646\) 932-5775/,
@@ -1698,7 +1726,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     const address = byTestId(tree, "rec-row-address");
     const minor = W.__FACTS.conflicts.find((k) => k.fact === "address");
     assert.match(textOf(address), new RegExp(escape(minor.sentence)), "the resolver's own sentence, on the row");
-    assert.ok(find(address, (n) => classes(n).includes("pill-warn")));
+    assert.equal(find(address, (n) => classes(n).includes("rec-src"))?.props?.["data-tone"], "warn");
     assert.equal(
       find(address, (n) => n.type === "button" && classes(n).includes("btn")),
       null,
@@ -1753,7 +1781,7 @@ test("a name the workspace goes by is shown against the business's, and never of
 
 test("the standing line's door opens the row it names, and that row asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(melany, "address"), facts: { address: { value: null, source: "absent" } } });
-  const gap = standingLine(W.__SETTINGS.config.brain).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
@@ -1794,7 +1822,10 @@ test("the standing line's door opens the row it names, and that row asks before 
   // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
   tree = drawTab({ profile: { ...melany, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
-  assert.equal(heard(toTone), `${standingLine(W.__SETTINGS.config.brain).missing.sentence} Give it one Its voice`);
+  assert.equal(
+    heard(toTone),
+    `${standingLine(W.__SETTINGS.config.brain, true).missing.sentence} Give it one Its voice`,
+  );
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
   assert.deepEqual(openFolds(redrawTab()), ["tone"]);

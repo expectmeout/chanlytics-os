@@ -7,7 +7,7 @@
 // This file draws the head and the standing line, and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
-// business-tab-offer.jsx, business-tab-answers.jsx), loaded before this one and read from window as the page draws, and
+// business-tab-offer.jsx, business-tab-answers.jsx, business-can.jsx), loaded before this one and read from window as the page draws, and
 // the services sheet (business-tab-services.jsx) is drawn here, after every card. PaneWorkspace (settings.jsx) keeps
 // drawing the old card until Task 3.7 swaps this page in.
 //
@@ -48,11 +48,18 @@ const BtHead = () => {
  * The door is named by its sentence and then by what it does, which is the act of the row it opens: "It cannot say
  * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
  * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
+ *
+ * What it will not do lands differently on the two channels -- in chat the price is swapped before the reply is sent,
+ * on a call it has been heard and what follows is a correction -- so the line is told which lines this workspace
+ * answers on (the plan's M-1). Read off the voice line the settings read resolved, as How it answers reads it for the
+ * hand-off row that names both channels: it arrives with the record this page cannot draw without, so there is no
+ * moment where the band has to guess.
  */
 const BtStanding = ({ brain, door }) => {
   const tab = window.__businessTab;
   if (!tab || !tab.standingLine) return null;
-  const vm = tab.standingLine(brain);
+  const voice = ((window.__FACTS || {}).facts || {}).voice_line;
+  const vm = tab.standingLine(brain, !!(voice && voice.value));
   const gap = vm.missing;
   return (
     <section className="bt-standing" data-testid="rec-standing" data-state={gap ? "warn" : "ok"}>
@@ -142,6 +149,7 @@ const BusinessTab = ({ flash = () => {} }) => {
       {window.BtOpenCard ? <window.BtOpenCard brain={brain} config={settings.config} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtAnswersCard ? <window.BtAnswersCard brain={brain} base={base} config={settings.config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {window.BtCanCard ? <window.BtCanCard brain={brain} config={settings.config} canEdit={canEdit} /> : null}
       {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
           the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
           that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx; the sheet is business-tab-services.jsx).

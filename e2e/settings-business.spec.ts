@@ -100,6 +100,126 @@ const overlaps = (
   b: { x: number; y: number; w: number; h: number },
 ): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+/**
+ * The record, quiet (the plan's Task 4.0), checked the only way it can be: by computed style, in a browser.
+ *
+ * The owner read the page on 22 September and named three things before he read a word of it -- gradients, a second
+ * typeface, and lines he could do nothing about. All three were taken out in CSS, and CSS is exactly what the unit
+ * suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. So the journey that already opens
+ * every fold at a phone's width asks the page what it is actually painting.
+ */
+async function expectQuiet(page: Page, where: string): Promise<void> {
+  const loud = await page.evaluate(() => {
+    const gradients: string[] = [];
+    const monospace: string[] = [];
+    const hints: string[] = [];
+    for (const card of document.querySelectorAll(".rec-card")) {
+      for (const el of [card, ...card.querySelectorAll("*")]) {
+        const cs = getComputedStyle(el);
+        const name = el.className || el.tagName;
+        if (cs.backgroundImage.includes("gradient")) gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
+        if (/mono/i.test(cs.fontFamily) && (el.textContent ?? "").trim()) monospace.push(`${name}: ${cs.fontFamily}`);
+      }
+      // A row that HAS its fact says it and stops: its hint is a sentence the editor says again over the box.
+      for (const row of card.querySelectorAll('.rec-row[data-empty="false"]')) {
+        for (const hint of row.querySelectorAll(".rec-row-hint")) {
+          if (getComputedStyle(hint).display !== "none") hints.push(`${row.getAttribute("data-testid")}`);
+        }
+      }
+    }
+    return { gradients, monospace, hints };
+  });
+  expect(loud.gradients, `${where}: a gradient is painted inside the record`).toEqual([]);
+  expect(loud.monospace, `${where}: the record reads in a second typeface`).toEqual([]);
+  expect(loud.hints, `${where}: a filled row carries a hint at a phone's width`).toEqual([]);
+}
+
+/**
+ * What it can do, at a phone's width (the plan's Tasks 4.1 and 4.1b).
+ *
+ * A row that is whole keeps its sentence for a screen reader and OFF SCREEN, which is one CSS rule and nothing a unit
+ * test can execute: deleting `.bt-can-says`'s visually-hidden rule leaves the whole suite green and puts six
+ * two-clause paragraphs on the card, which is the clutter the owner named. So the page is asked what it is laying
+ * out -- and, beside it, that a row nothing does reads like one rather than drawing a lit glyph beside "No number
+ * yet".
+ */
+/**
+ * The five strength badges in the rules fold sit in ONE place.
+ *
+ * On a phone `.bt-rule-head` wrapped: a badge went under its label where the label was long and stayed inline where
+ * it was short, so the same signal appeared in two positions down one fold, and an owner scanning for it had to read
+ * every row. One position, measured against each badge's own label rather than the viewport, since the labels start
+ * at the same edge and a badge that moved with its label would still be wrong.
+ */
+async function expectRuleBadgesInLine(page: Page, where: string): Promise<void> {
+  const badges = await page.evaluate(() =>
+    [...document.querySelectorAll(".bt-rule")].map((row) => {
+      const label = row.querySelector(".bt-rule-label")!.getBoundingClientRect();
+      const chip = row.querySelector(".bt-rule-chip")?.getBoundingClientRect();
+      return {
+        id: row.getAttribute("data-testid"),
+        dx: chip ? Math.round(chip.left - label.left) : null,
+        ownLine: chip ? chip.top >= label.bottom - 1 : null,
+      };
+    }),
+  );
+  expect(badges.length, `${where}: four rules and the photos switch`).toBe(5);
+  for (const b of badges) expect(b.dx, `${where}: ${b.id} wears a badge`).not.toBeNull();
+  expect(
+    [...new Set(badges.map((b) => b.dx))],
+    `${where}: every badge starts at the same offset from its label`,
+  ).toHaveLength(1);
+  for (const b of badges) expect(b.ownLine, `${where}: ${b.id}'s badge is on its own line under the label`).toBe(true);
+}
+
+async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
+  const card = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="rec-card-can"]');
+    if (!el) return null;
+    const boxes = [...el.querySelectorAll(".bt-can-says")].map((n) => {
+      const r = n.getBoundingClientRect();
+      const s = getComputedStyle(n);
+      return { w: Math.round(r.width), h: Math.round(r.height), clipped: s.clipPath !== "none" };
+    });
+    const rows = [...el.querySelectorAll(".bt-can-row")].map((r) => ({
+      id: r.getAttribute("data-testid"),
+      ready: r.getAttribute("data-ready"),
+      why: !!r.querySelector(".bt-can-why"),
+      ink: getComputedStyle(r.querySelector(".rec-row-key") as Element).color,
+      lit: r.querySelectorAll('.rec-can-chip[data-on="true"]').length,
+    }));
+    // --ink-dim as this card's own ground resolves it, for the row nothing does.
+    const probe = document.createElement("span");
+    probe.style.color = getComputedStyle(document.documentElement).getPropertyValue("--ink-dim").trim();
+    el.appendChild(probe);
+    const dim = getComputedStyle(probe).color;
+    probe.remove();
+    return { boxes, rows, dim, limits: el.querySelectorAll(".bt-cannot-row").length };
+  });
+  expect(card, `${where}: What it can do is on the record`).not.toBeNull();
+  expect(card!.rows.length, `${where}: six abilities`).toBe(6);
+  // Every ability that draws no sentence on screen, and every limit, keeps one for a reader.
+  expect(card!.limits, `${where}: the three limits`).toBe(3);
+  expect(card!.boxes.length, `${where}: every ability and every limit keeps its sentence`).toBe(
+    card!.rows.filter((r) => !r.why).length + card!.limits,
+  );
+  expect(card!.boxes.length, `${where}: and there are some to keep`).toBeGreaterThan(3);
+  for (const b of card!.boxes) {
+    expect(b, `${where}: a sentence kept for a reader is not laid out`).toMatchObject({ w: 1, h: 1, clipped: true });
+  }
+  expect(
+    card!.rows.some((r) => r.why),
+    `${where}: the row this record can fix does say so`,
+  ).toBe(true);
+  for (const r of card!.rows) {
+    expect(r.lit > 0, `${where}: ${r.id} is lit on a channel exactly when it does something there`).toBe(
+      r.ready === "true",
+    );
+    if (r.ready === "true") expect(r.why, `${where}: ${r.id} is whole, so it draws no sentence`).toBe(false);
+    else expect(r.ink, `${where}: ${r.id} does nothing, and reads like it`).toBe(card!.dim);
+  }
+}
+
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -437,17 +557,24 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("nothing on the record scrolls sideways on a phone, its folds open or shut", async ({ page }) => {
+  test("nothing on the record scrolls sideways on a phone, and nothing on it is a gradient, a second typeface or a line about a fact it already states", async ({
+    page,
+  }) => {
     const before = await readConfig(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await openRecord(page);
     await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
+    await expectQuiet(page, "the record at rest");
+    await expectAbilitiesQuiet(page, "the record at rest");
 
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
-    // measured, and then the folds whose fields are widest.
+    // measured, and then the folds whose fields are widest. Each one open is also where the fold's own ground and the
+    // block of what a save will say are painted, which is what carried a gradient and a monospace.
     for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours"]) {
       await openFold(page, id);
       await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE]);
+      await expectQuiet(page, `the ${id} fold open`);
+      if (id === "guardrails") await expectRuleBadgesInLine(page, "the rules fold open on a phone");
       await discard(page, id);
     }
     await expectRecordUnchanged(page, before);

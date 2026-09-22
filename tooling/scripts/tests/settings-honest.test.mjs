@@ -31,6 +31,13 @@ import {
 
 const TID = "t-studio";
 
+// Who reads the composed prompt, in the page's own words (pages/settings.jsx PROMPT_READERS). Written here rather than
+// read from the page, because the page publishes nothing: this is the spelling the test is holding it to.
+const PROMPT_READERS = {
+  whatsapp: "every WhatsApp message, word for word",
+  voice: "every phone call, composed when the call starts",
+};
+
 /* ---------------------------------- the window ---------------------------------- */
 
 const listeners = {};
@@ -357,6 +364,47 @@ test("REGRESSION (S24): the Settings rail says which page is open -- only its co
   const current = rows.filter((r) => r.props["aria-current"] === "page");
   assert.equal(current.length, 1, "REGRESSION: no row said it was the page on screen");
   assert.equal(textOf(current[0]).trim(), "Business");
+});
+
+test("what the receptionist is told says who reads it at rest, and counts itself only once it is open", () => {
+  workspace();
+  const was = globalThis.window.__composedPrompt;
+  const text = "x".repeat(4345);
+  try {
+    globalThis.window.__composedPrompt = () => ({ text, now: "It is 7:23 PM.", tz: "America/New_York" });
+    let tree = settings("workspace");
+    const card = find(tree, (n) => String(n.props?.className || "").includes("set-prompt-meta"));
+    assert.equal(textOf(card), "every WhatsApp message, word for word", "one phrase, and no count");
+    assert.equal(
+      textOf(tree).includes(`${text.length.toLocaleString()} characters`),
+      false,
+      "a closed section counts nothing: the number is not one anybody can act on from outside it",
+    );
+    press(buttonSaying(tree, "Show"));
+    tree = again("workspace");
+    assert.ok(
+      textOf(tree).includes(`${text.length.toLocaleString()} characters`),
+      "opened, the count sits with the text it counts",
+    );
+    // Said ONCE while it is open: the head's line and the one beside the count are the same sentence, and both were
+    // drawn.
+    const said = (words) => textOf(tree).split(words).length - 1;
+    assert.equal(said(PROMPT_READERS.whatsapp), 1, "the sentence is on screen once");
+    // And the head follows the channel that is chosen: it read WhatsApp's words over a phone prompt.
+    press(find(tree, (n) => n.props?.role === "tab" && textOf(n) === "Phone"));
+    tree = again("workspace");
+    assert.equal(said(PROMPT_READERS.voice), 1);
+    assert.equal(said(PROMPT_READERS.whatsapp), 0);
+    press(buttonSaying(tree, "Hide"));
+    tree = again("workspace");
+    assert.equal(
+      textOf(find(tree, (n) => String(n.props?.className || "").includes("set-prompt-meta"))),
+      PROMPT_READERS.voice,
+      "closed again with Phone chosen, the head says the phone's words",
+    );
+  } finally {
+    globalThis.window.__composedPrompt = was;
+  }
 });
 
 /* ------------------------------ checks and removals ------------------------------ */

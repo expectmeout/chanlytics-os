@@ -115,7 +115,10 @@ const RecordBox = (props) => {
 
 // A switch: a real button with role="switch". A press asks the page for the other state. `label` names it, or
 // `labelledBy` points at the words beside it that already do.
-const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, readOnly = false, gate = null, testid = null }) => (
+// `describedBy` points at the sentence under the switch's label, where a page has one: the name says WHICH switch and
+// the description says what it does, which is what a page whose sentence is not drawn at every width needs (the
+// Business tab's rules fold hides its sentences under 761px and keeps them here).
+const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, describedBy = null, readOnly = false, gate = null, testid = null }) => (
   <button
     type="button"
     role="switch"
@@ -123,6 +126,7 @@ const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, readOnly 
     aria-checked={!!on}
     aria-label={labelledBy ? undefined : label || undefined}
     aria-labelledby={labelledBy || undefined}
+    aria-describedby={describedBy || undefined}
     aria-disabled={readOnly || undefined}
     data-testid={testid || undefined}
     onClick={() => { if (!readOnly && onChange) onChange(!on); }}

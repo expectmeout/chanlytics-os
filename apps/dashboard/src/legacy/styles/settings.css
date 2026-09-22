@@ -258,18 +258,16 @@
    The shape of the log rather than a sentence about it, so the card does not
    resize under the reader when the rows land. */
 .act-waiting .act-glyph::before { display: none; }
+/* A flat dim block, not a sweeping one: the motion grammar refuses a skeleton shimmer here (the design spec's 9), and
+   a gradient that travels is the loudest thing on a settings page while it says the least. */
 .act-bone {
   display: block;
   height: 9px;
   width: 100%;
   border-radius: var(--radius-xs);
-  background: linear-gradient(90deg, var(--bg-sunken) 0%, var(--bg-hover) 50%, var(--bg-sunken) 100%);
-  background-size: 200% 100%;
-  animation: act-bone-sweep 1.4s var(--ease-out) infinite;
+  background: var(--bg-sunken);
 }
 .act-bone-day { width: 96px; height: 10px; }
-@keyframes act-bone-sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-@media (prefers-reduced-motion: reduce) { .act-bone { animation: none; } }
 .act-more { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
 .act-so-far { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .act-day {
@@ -767,11 +765,12 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .set-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 
 /* ── What the receptionist is told ────────────────────────────────────────
-   The composed prompt, verbatim. Monospace and generously leaded because it
-   is read to CHECK something — "does it still know my address", "why did it
-   say we open Sunday" — not skimmed. Collapsed by default: six thousand
-   characters is a wall, and the character count above it is the part that
-   actually reads at a glance. */
+   The composed prompt, verbatim. Generously leaded because it is read to CHECK
+   something — "does it still know my address", "why did it say we open Sunday"
+   — not skimmed. In the page's own face: it was monospace, on the argument
+   that it is a listing, and it is not — it is sentences about a business, and
+   a second typeface on this page is the first thing an owner notices about it.
+   Collapsed by default: six thousand characters is a wall. */
 .set-prompt-meta {
   display: flex;
   align-items: center;
@@ -786,6 +785,9 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   font-weight: 600;
 }
 .set-prompt-sep { color: var(--ink-dim); }
+/* The count sits with the text it counts, inside the opened section, so the head at rest is a heading, a phrase and
+   one door. */
+.set-prompt-meta-open { padding-top: 2px; }
 
 .set-prompt-tabs {
   display: flex;
@@ -818,7 +820,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: 12px;
   line-height: var(--leading-relaxed);
   color: var(--ink-muted);
@@ -1315,11 +1317,16 @@ html.legacy-on .bt-link { position: relative; }
 .bt-ribbon-name { font-size: var(--text-xs); line-height: 1; text-align: center; color: var(--ink-dim); }
 .bt-ribbon-day[data-open="false"] .bt-ribbon-name { color: var(--ink-faint); }
 .bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
-/* One day's track. A closed day is hatched and holds no bar: shut, and looks it at a glance, which seven identical
-   rows of switches never did. */
-.bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-sunken); overflow: hidden; }
-.bt-week-track[data-open="false"] { background: repeating-linear-gradient(135deg, var(--bg-sunken), var(--bg-sunken) 5px, var(--bg-active) 5px, var(--bg-active) 10px); }
-.bt-ribbon-bar { position: absolute; top: 0; bottom: 0; box-sizing: border-box; border-radius: var(--radius-xs); background: var(--ok-soft); border: 1px solid color-mix(in oklab, var(--ok) 40%, transparent); }
+/* One day's track: the ground the day's bars sit on, and a closed day is this with no bar on it. It wore diagonal
+   stripes, which at a phone's width is seven pieces of hatching over a card of sentences; the day's own words say it is
+   closed, on the ribbon by its dimmed name and in the fold by "Closed". The ground is --bg-hover, a step from both the
+   surfaces a track is drawn on: it was --bg-sunken, which is what the fold itself became once the fold stopped being a
+   gradient, so inside the fold the bars floated on nothing at all. */
+.bt-week-track { position: relative; display: block; height: 22px; min-width: 0; border-radius: var(--radius-xs); background: var(--bg-hover); overflow: hidden; }
+/* The hours themselves, as a shape and not a colour: a filled bar on the dim track. It was a green wash inside a green
+   edge, seven of them across a card of sentences, and green here says nothing -- these hours are not "good", they are
+   simply the ones the receptionist states. The accent is not it either: on this shell the accent means "right now". */
+.bt-ribbon-bar { position: absolute; top: 0; bottom: 0; box-sizing: border-box; border-radius: var(--radius-xs); background: var(--ink-faint); }
 .bt-ribbon .bt-week-track { height: 18px; }
 
 /* The fold: a day is a switch and its name, its bars, its times, in three columns the axis above them shares. */
@@ -1356,7 +1363,16 @@ html.legacy-on .bt-link { position: relative; }
 
 /* The calendar it reads: where the address points, in mono, and under it what its last read found, in the Calendar
    page's own pill and line. */
-.bt-feed-address { font-family: var(--font-mono); font-size: var(--text-sm); overflow-wrap: anywhere; }
+/* Where it reads, in the page's own typeface: the host, which is what anybody checks at a glance. It was the path
+   too, in a monospace, which read as a piece of machinery on a card of plain sentences. */
+.bt-feed-where { font-size: var(--text-base); overflow-wrap: anywhere; }
+/* Whether the last read worked, as one mark. Its words are its accessible name and its tip (business-tab-open.jsx);
+   the colour is the house's own state tokens and rides with those words, never alone. */
+.bt-feed-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); background: var(--ink-faint); transform: translateY(-1px); }
+.bt-feed-dot[data-tone="ok"] { background: var(--ok); }
+.bt-feed-dot[data-tone="warn"] { background: var(--warn); }
+.bt-feed-dot[data-tone="danger"] { background: var(--danger); }
+.bt-feed-when { color: var(--ink-dim); }
 .bt-feed { flex: 1 1 100%; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-feed-problem { flex: 1 1 100%; color: var(--ink-muted); text-wrap: pretty; }
 /* A new read is on its way: the last one stays where it is, dimmed (spec 9: a read in flight dims the last value; no
@@ -1425,14 +1441,26 @@ html.legacy-on .bt-link { position: relative; }
 .bt-rule-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
 .bt-rule-label { font-size: var(--text-base); color: var(--ink); }
 .bt-rule-hint { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-.bt-rule-chip { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: var(--radius-full); background: var(--info-soft); color: var(--info-ink); font-size: var(--text-xs); white-space: nowrap; }
+/* A word, not a pill: the owner asked for smart indicators and subtle badges, and a filled --info-soft capsule beside
+   every switch was five coloured capsules in one fold. No border, no fill, no colour of its own. */
+.bt-rule-chip { font-size: var(--text-xs); line-height: 1.4; color: var(--ink-dim); white-space: nowrap; }
+/* How far the rule goes, in contracts' words. Not drawn on a phone (below): the switch carries it as its description. */
+.bt-rule-says { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* The checked rule alone: what it does on each channel, side by side where there is room and stacked where there is
+   not. They stay on a phone -- "before the customer sees them" and "it has already been heard" are the difference the
+   badge above only names. */
+.bt-rule-checked { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
+.bt-rule-checked-line { flex: 1 1 220px; min-width: 0; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-rule-checked-who { color: var(--ink-muted); }
 .bt-rule-sep { grid-column: 1 / -1; display: block; margin-bottom: 12px; border-top: 1px dashed var(--line-strong); }
 .bt-rule > .rec-switch { margin-top: 2px; }
 /* The hand-off: each channel's words after its chip, at rest and in the fold. */
 .bt-handoff { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bt-handoff-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .bt-handoff-words { min-width: 0; overflow-wrap: anywhere; }
-.bt-channel { flex: none; display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--ink-muted); }
+/* Which channel this line is about, as a muted word. It was a bordered pill, twice on the one row, which at a phone's
+   width is two outlined boxes over two sentences: the word does the same job and the row keeps its one grammar. */
+.bt-channel { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-handoff-part { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .bt-handoff-number { font-size: var(--text-sm); color: var(--ink); }
 /* The notes: a title, what it says, and the press that removes it; the row's sentence under both boxes. */
@@ -1440,20 +1468,47 @@ html.legacy-on .bt-link { position: relative; }
 .bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; }
 .bt-note > .field-error { grid-column: 1 / -1; }
 .bt-note-head { font-size: var(--text-xs); color: var(--ink-dim); }
-/* The owner's own words at rest: their size, then their opening, quoted, in the muted ink. */
+/* The owner's own words at rest: their opening, quoted, in the muted ink. Their size went with the count, which is
+   under the box that edits them now (contracts instructionsWords). */
 .bt-own { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
-.bt-own-size { flex: none; font-variant-numeric: tabular-nums; }
 .bt-own-opening { min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
 .bt-own-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 /* The three messages at rest, and in the fold: each its label, when it goes out, its box, and what a customer reads. */
-.bt-messages { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
-.bt-messages-own { font-size: var(--text-sm); color: var(--ink-dim); }
+.bt-messages { min-width: 0; }
 .bt-fallbacks { display: flex; flex-direction: column; gap: 16px; }
 .bt-fallback { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .bt-fallback > .rec-box { align-self: stretch; }
 .bt-fallback-label { font-size: var(--text-base); color: var(--ink); }
 .bt-fallback-when { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 .bt-fallback-reads { padding: 7px 10px; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* What it can do: an ability is its title, two glyphs at the row's end, and -- only where something on this page is
+   missing -- one muted line saying what happens instead, with the door to the row that fixes it. The title is the
+   row's fact, not its label, so it takes the row rather than the key column's 168px, and the glyphs go to the end. */
+.bt-can-row { flex-wrap: wrap; align-items: center; row-gap: 4px; }
+.bt-can-row > .rec-row-key { flex: 1 1 auto; color: var(--ink); }
+.bt-can-chips { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+/* The whole signal: two inks, no pill, no badge, no colour. What each glyph means is its accessible name
+   (contracts ABILITY_CHANNEL_WORDS), because dim on its own says nothing to a screen reader. */
+.rec-can-chip { display: inline-flex; color: var(--ink-dim); }
+.rec-can-chip[data-on="true"] { color: var(--ink); }
+.bt-can-why { flex: 1 1 100%; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* A row nothing does reads as the three limits under it do, in the dim ink: one signal, no new colour, and the two
+   glyphs beside it say which channel it was. The gap before a door is a SPACE in the sentence, not a margin: a margin
+   indented the link off the paragraph's left edge every time it wrapped to a line of its own on a phone. */
+.bt-can-row[data-ready="false"] > .rec-row-key { color: var(--ink-dim); }
+/* A row that is whole keeps its sentence: a screen reader reads it, and a mouse gets it as the row's own tip. It is
+   not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
+   owner named -- and on a phone it is most of the card's height. */
+.bt-can-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A surface still on its way holds the card's place and says so, where a failed read says which one failed. */
+.bt-can-reading { margin: 0; padding: 11px 0; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink-dim); }
+/* One cause with one fix on another tab, said once for the whole card and never on the six rows it holds. */
+.bt-can-held { margin: 0; padding: 0 0 12px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-can-group { padding-top: 16px; }
+.bt-can-group-head { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); }
+/* A limit is a line and nothing else: no channel, no act, and what it is instead as the row's tip. */
+.bt-cannot-row > .rec-row-key { flex: 1 1 auto; }
+
 /* legacy.css gives every button on a touch screen 44px of height; a token's remove keeps its shape and takes its reach
    from an ::after, as the kit's switch does. */
 @media (pointer: coarse) {
@@ -1474,7 +1529,11 @@ html.legacy-on .bt-link { position: relative; }
   .bt-week-row { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-week-row > .bt-week-day { grid-column: 1; grid-row: 1; }
   .bt-week-row > .bt-week-more { grid-column: 2; grid-row: 1; align-self: center; }
-  .bt-week-row > .bt-week-track { grid-column: 1 / -1; grid-row: 2; }
+  /* No bar beside a phone's day. The axis it is read against is not drawn here (below), so a bar with no scale says
+     only "some of the day", which the two time boxes under it already say exactly -- seven of them is about 180px of a
+     phone's height spent restating the boxes. The ribbon at rest keeps its bars: there the seven ARE the answer, and
+     there is no row of boxes beside them. */
+  .bt-week-row > .bt-week-track { display: none; }
   .bt-week-row > .bt-week-times { grid-column: 1 / -1; grid-row: 3; width: auto; }
   .bt-week-row > .field-error { grid-column: 1 / -1; }
   .bt-week-axis { display: none; }
@@ -1487,6 +1546,15 @@ html.legacy-on .bt-link { position: relative; }
   .bt-closure-head { display: none; }
   /* One number to a line. */
   .bt-rules-grid { grid-template-columns: minmax(0, 1fr); }
+  /* Four strength sentences are most of a phone's screen, and each switch already wears its strength as a word. The
+     sentence stays in the accessibility tree, where the switch names it (aria-describedby), so nothing is lost to a
+     screen reader -- it is off the glass, not gone. The photos switch keeps its hint: it is the one switch whose
+     sentence says what each position does. */
+  .bt-rule-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* One place for the badge. Left to wrap, it sat under the label on the two switches with a long name and inline on
+     the three with a short one: the same signal in two positions down one fold, which is a fold an owner has to read
+     rather than scan. Its own line under the label, always, at the label's own edge. */
+  .bt-rule-head > .bt-rule-chip { flex-basis: 100%; }
   /* A service's three columns stack into one row: its name with the remove at the right, then how long and the price,
      side by side, each row ruled off from the next. The columns' head has nothing left to name. */
   .bt-service-head { display: none; }
@@ -1495,6 +1563,10 @@ html.legacy-on .bt-link { position: relative; }
   .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
   .bt-service-row > .rec-box:nth-child(2) { grid-column: 1; grid-row: 2; }
   .bt-service-row > .rec-box:nth-child(3) { grid-column: 2; grid-row: 2; }
+  /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
+     two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
+  .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
+  .bt-can-row > .bt-can-why { grid-column: 1 / -1; }
   /* A note's title shares its line with the remove; what it says takes the next, the row's width. */
   .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-note-head { display: none; }

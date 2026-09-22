@@ -2249,6 +2249,120 @@ Change both deliberately. Neither may be deleted.
 > - **M-2, a workspace whose fields compose nothing.** Then none of the four rule switches reaches the prompt (`resolveSystemPrompt`'s no-profile branch returns the stored prompt plus Autonomy's rules only). The rules group should say so once. The prompt view's no-fields note already says the equivalent on the same page, so the two must agree.
 > - **M-3, "it sends the link instead" and ", then the link".** `linkGoes` (`business-tab.ts`) ignores `callSendsLink`. On a workspace on both lines with no approved booking-link template, the call cannot send it. Limit those clauses to chat when the call can't.
 
+### Task 4.0: The record, quiet
+
+The owner read the page Phase 3 shipped, on his phone and on a desktop, on 22 September, and asked for it in his own
+words: keep the frontend **subtly sophisticated, not bulky or cluttered**; use **smart indicators or subtle badges so
+the pages stay minimal, especially on mobile**; make it **a seamless modern thing, not a heavy load of styling and
+colors**; he sees **weird gradients, font changes, and technical data users do not need to see**. Nothing the page can
+do changes — every fact, every editor, every refusal, every consequence line, every door stays. What goes is what an
+owner cannot act on.
+
+The rule, applied to every visible token: *does an owner need this to act?* If not, it goes into the fold that edits
+the row, or nowhere. A row states its fact and at most ONE quiet signal. No gradient, no second typeface, no coloured
+panel. On a phone, fewer words per row and no secondary line that carries no decision.
+
+The eleven items:
+
+1. **Source chips.** "You set this" is the default and tells an owner nothing. The kit draws NO source for `typed`, and
+   says the four that are not the owner's (and a disagreement's two answers) as a muted word, never a bordered pill.
+2. **"Last changed by ruben@rjcapital.io, 7m ago".** Never an email: "Changed by you" when the actor is the viewer, the
+   name from the team otherwise, the email's local part when there is no name. Contracts'.
+3. **Character counts.** No count at rest. The owner's own words show their opening only, and the count moves under the
+   box with the limit beside it; the told section's head keeps its Show and one phrase, and its count waits inside.
+4. **The calendar row.** The host in the page's own typeface, one quiet mark for readable/failed, one phrase for when it
+   was read. The address whole, the event count and "from your calendar" live in the fold.
+5. **The hours fold.** "All times in New York time", the name the card above already uses, never the IANA id.
+6. **Gradients.** The fold's ground, the closed day's stripes and the Activity log's sweeping bones all go flat.
+7. **Typefaces.** The page reads in ONE: the "will be told" block and the composed prompt take the page's own face.
+8. **"When it can't answer".** One line: "3 messages, in your words", or "3 messages, the product's wording".
+9. **The hours ribbon** stays — it is the smart indicator the owner asked for — checked at 390px.
+10. **A phone pass** at 390px: a row that has its fact drops the hint under it, and a row of chips stops at two lines.
+11. Anything else on the page that fails the rule.
+
+**Changed in execution (22 Sep).** All eleven shipped, test-first, on `design/what-it-can-do`.
+
+- The kit's source (`record-row.jsx` `RecordSourceChip`) is a muted word and draws nothing for `typed` (`95152692`).
+  `.rec-src` is no longer the house `.pill`, so no rule of `components.css` was touched.
+- `lastChangedWords` takes a `LastChangedBy` discriminator rather than a name that may be null — "someone no longer on
+  the team" was being passed in as a NAME — and `lastChangedName` gives the local part (`88c592d6`).
+- `instructionsWords` lost `size` and `nearFull` and gained `limit`, counted from the first character (`09001a9d`).
+- The calendar VM gained `feed.read` ("read 4m ago") beside the `detail` it was cut out of; the row's
+  `.bt-feed-address` became `.bt-feed-where` (the host alone) and its pill a `.bt-feed-dot` whose words are its
+  accessible name and its tip (`3cf8de6a`). The harness carries no calendar read, so the mark and the phrase are
+  proven by the unit tests rather than by the photograph.
+- `hoursZoneWords` is contracts' (`e15458a0`); `fallbacksWords` answers one line (`22188e2c`).
+- Three gradients went flat (`ce2ed5e3`). The Activity log's `.act-bone` is the third: it is not on this page, but it is
+  in `settings.css`, it is a sweeping gradient, and the design spec's §9 already refuses a skeleton shimmer. The shared
+  `.skel` in `components.css` was not used in its place because `.skel` shimmers with a gradient of its own.
+- One typeface (`8b5c6bab`). `.set-broken-issues` (the parser's output) and `.pf-kind` (the back office's event kinds)
+  stay monospace: those really are machine names.
+- The phone pass (`7444dce9`): `.rec-row[data-empty="false"] .rec-row-hint` is not drawn under 761px, and
+  `RecordChips` takes a `max` with contracts' `CHIPS_SHOWN` and `chipsMoreWords`, so the rules stop at four as the
+  services and the notes already did. A row with NOTHING in it keeps its hint — that sentence says what empty means.
+  The booking link's hint stays on a desktop, where the column has room for it and nothing else competes.
+- Two more found by the 390px sweep this task added: the two bordered `.bt-channel` pills on the hand-off row became
+  muted words (`8849307d`), and the week ribbon's green-washed bars became filled neutrals (`2f6a3b0a`) — green says
+  nothing about opening hours, and the accent on this shell means "right now".
+
+**Kept, on purpose.**
+
+- The composed prompt still reads "Opening hours (all times America/New_York)" (`config.ts:1251`). That is the literal
+  text the receptionist receives, not a sentence this page writes, and rewriting it here would make the preview stop
+  being what it claims to be: what your receptionist is told, word for word. Item 5 is the page's own line above the
+  week, and its test asserts the exact `hoursZoneWords` string rather than "no `/`", so it cannot be satisfied by
+  smuggling the id in some other spelling.
+- The seven switches in the rules fold stay green (`record.css` `.rec-switch[aria-checked="true"]`). A switch is a
+  control, not a decoration, and `--ok` is the kit's one on/off signal across every Settings tab; making this page's
+  switches a different colour from every other page's switches would be the clutter, not the cure.
+- The "never an email" guarantee is proved at the bridge (`settings-save.test.mjs` `lastChangedFor`) and in contracts
+  (`facts.test.mjs` `lastChangedWords`/`lastChangedName`), because the page's own harness stubs `__lastChanged`, so the
+  page test proves composition only.
+
+**Fixed in review (22 Sep), same round.**
+
+- **B1.** Flattening the fold to `--bg-sunken` took two children with it, both painted `--bg-sunken` themselves: the
+  block of what a save will tell the receptionist, and every day's track. The block takes `--bg` and the track
+  `--bg-hover`, a step from both surfaces a track is drawn on (`0ea23c04`).
+- **I5.** At 390px the fold drew a bar per day with the axis hidden, which says only "some of the day" where the two
+  time boxes under it say it exactly: about 180px of a phone's height restating them. `.bt-week-row > .bt-week-track`
+  is not drawn under 761px; the ribbon at rest keeps its bars, where the seven ARE the answer (`db1f08b9`).
+- **I2.** Items 6, 7 and 10 had no test, and a mutant restoring the gradient passed 265 of them. The 390px journey now
+  asks the page by computed style, at rest and with each of five folds open: nothing inside `.rec-card` paints a
+  gradient, nothing in it is set in a monospace, and no row that HAS its fact draws a hint. A unit guard stands beside
+  it over `settings.css`'s own `rec-`/`bt-`/`act-` rules, on the stylesheet `prompt-preview.test.mjs` already reads —
+  `record.css` is the journey's alone, because a second `readCode` would raise the source-scan baseline, which may only
+  fall, and an executed stylesheet is the better proof anyway. Both were shown red against the gradient mutant and
+  green with it removed (`d0855496`).
+- **I3.** The told section's head said WhatsApp's sentence whatever channel was chosen, and an open section carried the
+  same sentence twice. One constant per channel, the head drawn only while it is closed (`ed2874f7`).
+- **I4 + M10a.** A viewer is offered no act on any row of this card, so the fold was not somewhere to look but
+  somewhere the fact had gone: the row draws the Calendar page's whole line for them, out of the same component that
+  keeps the read fresh. The failed read's "tried 4m ago" is asserted in the fold and on the viewer's row (`79709c3e`).
+- **M8, M9.** The dead `.bt-own-size` rule, and the kit's header now says `sourceLabel` has nothing to override on
+  `typed` (`d77aa498`).
+
+**Proof.** `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` are both 12/12.
+At 390px on the salon record: no horizontal scroll, and inside `.rec-card` / `.rec-row` at rest **0** bordered pills
+(was 9), **0** monospace elements (was 2) and **0** computed gradients (was 13).
+
+> **What "0 bordered pills" counts** (written down 22 Sep, in Task 4.2's review, because the number reads as more than
+> it measures). It counts the house `.pill` component — the bordered, rounded, filled capsule of `components.css` —
+> and not every element with a border on it. `.rec-chip` keeps its 1px `--line` border at rest on the rules, the
+> services and the notes, and is meant to: a chip is a LIST ITEM, and the border is what tells an owner where one
+> service's name ends and the next begins in a wrapped row. A badge is not a list item — it qualifies the control
+> beside it — so the fold's strength badges (Task 4.2) are borderless words, and the two shapes mean two different
+> things on purpose. The fold's own Save and Close are buttons and are counted as buttons.
+>
+> **What `expectQuiet` does not cover.** It reads inside `.rec-card` only, so the page head, the standing line, the
+> viewer's line and anything outside a card are not swept; it asks about gradients, typefaces and a hint under a row
+> that has its fact, and says nothing about borders or colour; it runs at 390px only, so a desktop-only rule is not
+> seen; and it walks five folds (`guardrails`, `escalate_when`, `fallbacks`, `booking_rules`, `hours`) — `notes` and
+> `tone` are not among them.
+
+**Left alone.** Task 4.1's abilities card, 4.1b and 4.2's rule strengths are the tasks below; the prompt sheet is
+Phase 5. `components.css`, `mobile.css`, `legacy.css`, the tokens and `.pill` belong to other sessions.
+
 ### Task 4.1: The abilities card
 
 **Files:**
@@ -2343,6 +2457,87 @@ Both functions throw a `TypeError` naming any boolean input that is not a boolea
 - [ ] **Step 4: Run it and watch it pass**
 - [ ] **Step 5: Commit**
 
+**Changed in execution (22 Sep).** 4.1 and 4.1b shipped together, test-first, on `design/what-it-can-do`. The card is
+`pages/business-can.jsx` (the name this task gave it), its tests `tooling/scripts/tests/business-can.test.mjs` -- its
+own file, as each of the four cards before it has one, rather than a fifteenth section of the page's own two-thousand
+line file. It is ONE card, "What it can do", with a second group head "And what it cannot" (`rec-card-cannot` on the
+group), so the page gains one card and not two.
+
+**Built to the owner's quiet rule from the start (Task 4.0's).** An ability is its title and two glyphs, chat and
+phone, from `components/icons.jsx`, lit `--ink` where the channel has it and dim `--ink-dim` where it does not -- no
+pill, no badge, no second colour, and each glyph carries its name from contracts (`ABILITY_CHANNEL_WORDS`: "in chat",
+"not in chat", "on a call", "not on a call"), because dim on its own says nothing to a screen reader. The sentence is
+drawn where it cannot be missed ONLY where what stops the ability is a row of this page, which contracts decides
+(`AbilityRowVM.missing`); then the row says what happens instead and offers that row as a `.bt-link`, on a phone too.
+Everywhere else the sentence is still in the row, visually hidden (`.bt-can-says`) so a screen reader reads it, and on
+the row's `title` for a mouse. `missing` rather than `!ready` on purpose: under a held reply mode five rows are not
+ready, and five sentences blooming at once is the shouting 4.1b exists to stop.
+
+- **The door is a link in the sentence, not the kit's `rec-row-act`.** `runsOn.label` is a noun on four of the six rows
+  ("The transfer number"), and the kit's act names itself by its words AND its row's label, which would have read
+  "The transfer number Put a caller through". As a link after the sentence that explains the gap, described by it
+  (`aria-describedby`), the noun reads as what it is, and the card draws no chevron at all.
+- **A viewer is offered no door**, as every other row of this page offers them no act; the sentence stays.
+- **M-3 landed in contracts with its own test** (`1efc1e96`): `linkGoes` never asked whether the CALL could send the
+  link, so a workspace on both lines with no approved booking-link template was told, on the openings row, that its
+  call offers times "then the link". Both clauses now name the channel that keeps them -- ", then the link in chat",
+  "-- in chat it sends the link instead" -- and a workspace with no call says them plain.
+- **4.1b changed `abilityRows`' shape**: it takes `replyMode` (checked as it runs, like the booleans) and answers
+  `{ rows, held }`. Under ask or never every row's chat channel is dark, `handoff` and `vision` are not ready, and the
+  booking link has no channel AT ALL -- the call's send goes through the same gate the Replies row holds
+  (`outbound-gate.ts`, `policy_hold`), which the plan's text above mentions and the first draft of the row did not
+  honour. A transfer is untouched. The sentence names the mode in `POLICY_MODE_WORDS`' own words and carries the call
+  clause only where there is a call.
+- **Both failed reads.** `__POLICIES` null (or not read yet) and `__SETUP` null are one answer: the rows that need it
+  are a `FailedRead` naming the surface, never a guessed false. What it cannot do reads only the lines, so it stands
+  on its own when the Autonomy tab is the thing missing. The card reads the Replies row with the edge's own default
+  for a row that is not there (`reply-posture.ts`: `ask`), and an unknown stored mode holds, as the gate holds it.
+- **The bridge publishes three more** (`legacy-bridge/business-tab.ts`): `capabilityStatus`, so "this line answers" is
+  decided once for Setup and for this card; `ABILITY_CHANNEL_WORDS`; and `POLICY_MODES`, so the page can tell a stored
+  mode it knows from one it does not without keeping a copy of the enum.
+- **The harness gained the three surfaces** (`_business-tab-harness.mjs`: `SETUP`, `POLICIES`, `TEMPLATES`), reset with
+  the record as `__SETTINGS` is. `business-tab-answers.test.mjs`'s pause test now passes its policies to `drawTab`.
+
+**Fixed in review (22 Sep), same round.**
+
+- **B1.** The 27 new `settings.css` rules went in with no `?v=` bump, so a browser holding `settings.css?v=65` never
+  fetched one of them. 65 -> 67 over the round (`db241ba6`, `7d52cfa3`); main is still on 55, so no other session's
+  number was taken.
+- **B2.** The card drew a failed read for `undefined` as well as `null`. On a cold boot the settings surface lands
+  well before Setup -- the boot queue puts the tab's own surface first and `setupOverride` is fourteenth of sixteen --
+  so a healthy workspace read "Couldn't read the connections", with a Retry, until Setup arrived. Null is a failure and
+  undefined is still on its way, as `pages/setup.jsx` and `pages/settings.jsx` already have it; the card holds its
+  place with one line and says it is reading (`db241ba6`).
+- **I1.** Every row of the card, the three limits included, turns on the lines that answer, so the connections gone is
+  ONE failed read in place of the whole card, with one alarm and one Retry, rather than two of each for one cause.
+- **I2.** A failed templates read (`__TEMPLATES_ALL === null`) was being turned into "no approved booking-link
+  message", which narrows the call's row and M-3's clause on a read that never happened. It is said like the others,
+  and both surfaces lost at once are one sentence naming both.
+- **I3.** Nothing proved the kept sentence is OFF SCREEN: deleting `.bt-can-says`'s visually-hidden rule left all 3914
+  green and put nine paragraphs on the card. The 390px journey asks the page what it is laying out (`ee8a62fc`), and
+  both CSS-only rules -- that one and I4's dim ink -- were shown red against their mutants and green with them back.
+  For that the harness's fixture had to publish the three surfaces the card reads, built from the scenario's own
+  channels and brain; `__POLICIES` was `null`, which drew the card's failed read over a page the journey walks.
+- **I4.** `channels` said which channel an ability BELONGS to, so a live line with no transfer number drew a lit phone
+  beside "No number yet, so it takes a message instead". Two meanings on one row, and the rule allows one. A channel
+  now folds in the input the ability needs (`a63bf209`), so the pair of glyphs IS the row's readiness and `ready` is
+  exactly "one of the two does it" -- pinned over every combination of the nine inputs that gate one. The title of a
+  row nothing does takes the dim ink the three limits under it are already in, off the `data-ready` the row already
+  carried and nothing styled.
+- **M1, M2, M3, M4, M5** (`7e4166fd`, `7d52cfa3`). The hold door's words join `sentence` and `to` on `held`. The gap
+  before a door is a space in the sentence, not a margin, which indented the link off the paragraph's left edge every
+  time it wrapped on a phone. The sub-head is its first clause. The limits are a named group and the two ids nothing
+  pointed at are gone. Every door the card can offer is pressed in a test, and the fold or inline editor behind it
+  opens.
+
+**Proof.** `corepack pnpm test` 4152 green (4128 before: seven in contracts, seventeen on the page). `corepack pnpm e2e:local -- e2e/settings-business.spec.ts`
+and `--scenario=salon` both 12/12, with the journey's new block on the card. At 390px on the salon record, inside
+`[data-testid="rec-card-can"]`: no sideways scroll (page, pane or card), **0** bordered pills, **0** gradients,
+**1** font family, **0** colours outside the ink/accent/line tokens, **0** hidden sentences on screen at rest and 12
+glyphs named in words. Whole, the card is 512px tall on a phone and says one sentence (the photo switch is off), with
+8 of 12 glyphs lit; with the transfer number and the calendar feed taken out it says three and 5 are lit; with replies
+held it says the hold once, above six rows, and only the 3 a call still does stay lit.
+
 ### Task 4.1b: When Autonomy keeps the receptionist from replying, the card says so once
 
 Found by the Phase 1 fix pass, decided by the controller on 21 Sep. With the Autonomy tab's **Replies** row set to *Asks you* or *Stays quiet*, the WhatsApp receptionist composes no reply at all (`apps/edge/lib/whatsapp/inbound.ts` ~698), and a call's booking-link send is refused (`apps/edge/lib/outbound-gate.ts` ~123). Built as Task 4.1 stands, every chat ability on the card would still read ready — six claims, all false at once.
@@ -2364,6 +2559,8 @@ On the page: `held` draws once, above the rows, with one door to the Autonomy ta
 - [ ] **Step 3: Implement.** `replyMode` comes from the reply row of `__POLICIES`. When `__POLICIES` is null the read failed: draw `FailedRead` for the card, as Task 4.1 already does, never a guessed mode.
 - [ ] **Step 4: Run them and watch them pass**
 - [ ] **Step 5: Commit**
+
+**Changed in execution (22 Sep).** Shipped with Task 4.1, in the same commits; that task's note holds both.
 
 > **Not settled here, and not the card's to settle:** under Booking = *Asks you*, the phone's `check_availability` refuses to offer times while the call still starts with the openings list and chat is handed them with every message — the edge disagrees with itself. Until that is decided, the card says only what holds on both channels (the Phase 1 fix pass wrote those sentences). Raised with the owner on 21 Sep.
 >
@@ -2453,6 +2650,119 @@ channels, two that are lines in a prompt.
 EOF
 )"
 ```
+
+**Changed in execution (22 Sep).** Shipped test-first on `design/what-it-can-do`, under Task 4.0's quiet rule, in four
+commits. The shape the rule forced: **one row at rest, the strengths in the fold.** Four rows of badge-and-sentence at
+rest would have been a paragraph of nouns where the row states one fact, and on a phone most of a screen.
+
+- **The fold's four switches each wear one badge** (`ruleStrength(key).chip`) beside the label, and the strength's
+  sentence under it (`b36a7a6b`). `.bt-rule-chip` was a filled `--info-soft` capsule — it is a muted word now, no
+  border, no fill, no colour of its own, and the photos switch's "gives it a power" is the same word in the same shape.
+- **The form's own hint is gone from the four.** Two sentences on one switch — what the rule asks for, then how far it
+  goes — is the clutter the owner named. The strength's sentence says both, and the health rule's hint WAS its
+  strength's sentence word for word already. The photos switch keeps its hint: it is the one switch whose sentence
+  says what each position does, and it is still the only ability among five limits.
+- **Under 761px the sentence leaves the glass and stays in the tree.** `.bt-rule-says` is visually hidden and the
+  switch names it with `aria-describedby`, so a screen reader hears the guarantee at every width. `RecordSwitch` gained
+  a `describedBy` prop for it (the kit's only change this task).
+- **The checked rule draws both channels** as two short muted lines from `checkedOn`, side by side where there is room.
+  They open with the channel's name, and that name is `ABILITY_CHANNEL_WORDS`' — the const moved above `STRENGTHS` so
+  the abilities card and the rules fold say "in chat" once between them, rather than twice.
+- **M-2, the record that composes nothing, in two halves.** The fold's note and the prompt view's note are one
+  sentence now (`NO_FIELDS_COMPOSED_WORDS` in `config.ts`, beside the `hasProfile` that decides whether either is
+  said), built into both (`1b64bfc7`). And **the row at rest is contracts'** (`rulesKept`, `99ff5674`), derived from
+  the three strengths rather than from the switches: a **checked** rule is named whatever the switch says, because the
+  detector runs either way; an **instructed** rule is a line in a prompt and nothing else, so a record composing
+  nothing does not claim it; a **structural** rule changes its words rather than going — "Cannot book anything", since
+  the switch decides only whether it is told not to CLAIM it booked. So such a record's row reads *Never quotes a
+  price · Cannot book anything · Won't look at photos*, which is the second of the two options this task was given:
+  name only what holds. The first (saying the fold's sentence at rest) was refused — it is 200 characters, and it
+  would have put a paragraph where the row states a fact.
+- **Task 3.5's price chip is settled by the same rule**, and settled wider than asked: the price word stays with the
+  switch off (it is checked), and the booking word changes with it (it is structural). A row that dropped either would
+  read as if prices went through or bookings were made.
+- **M-1, the standing line on a call** (`c40bdadc`). `standingLine` now takes `calls`, required and checked as it
+  runs like `abilityRows`' inputs, and the clause names the difference once: *"It offers a consult or the booking link
+  instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented."* A chat-only
+  workspace reads the exact sentence and hears nothing about a line it does not have. Still three clauses either way.
+  The page reads `calls` off the voice line the settings read resolved (`__FACTS.voice_line`), as *How it answers*
+  already reads it for the hand-off row that names both channels — it arrives with the record the page cannot draw
+  without, so the band never has to guess, which `capabilityStatus` over `__SETUP` would have had to on a cold boot.
+
+**Decided differently, and why.**
+
+- **M-1 names the difference rather than saying only what holds on both.** "It corrects a price" is what holds on
+  both, and it is weaker than the truth in chat, where the customer never sees the figure. The clause keeps the exact
+  chat promise and says what a call does instead.
+- **M-1's other two imprecisions are not the standing line's.** With the price switch off nothing tells the phone
+  agent to leave a service's price note unread — the correction still catches it, which the clause now says. And with
+  Autonomy's FAQ row on *ask*, a price question gets a callback promise instead: that is the abilities card's hold
+  sentence (Task 4.1b) and the Autonomy tab's, and a fourth clause here would make the band a paragraph.
+- **No warning beside the price switch when it is off.** The plan asked for none, and the row says why without one:
+  the badge says checked, the sentence says the detector runs either way, and the two channel lines say what each does.
+
+**Fixed in review (22 Sep), one round.**
+
+- **B1.** Three of this task's top-level initializers were expressions esbuild cannot prove pure -- `STRENGTHS`
+  (built with a helper call) and two template literals with a substitution in them -- so it kept them, and **715
+  lines** of this one tab shipped into `channels`, `core`, `db` and `jobs`, the jobs bundle carrying the rules fold
+  six times. All three are pure-marked IIFEs now, as `GUARDRAIL_KEYS` already was, and the four dists are
+  byte-identical to main again. A guard beside `dist-freshness.test.mjs` reads them for all three names -- it is a
+  text read of a build artifact on purpose: the fact under test IS the bundle's contents, and it goes through `fs`
+  rather than `_source.mjs`, so it adds nothing to the source-scan baseline (`4e4abac2`).
+- **I1.** The photos badge and hint were literals in the JSX and the page test typed them back, so the two agreed
+  with each other and with nothing else. `VISION_STRENGTH` is contracts' fifth strength, `strength: "power"` -- its
+  own export, not a fifth row of a table typed over the schema's keys, because photos are stored as `features.vision`
+  and the switch changes no word of the prompt (`5e23a763`).
+- **I2.** Left to wrap, the badge sat under its label on the two switches with a long name and inline on the three
+  with a short one: one signal in two positions down one fold. Its own line under the label at every phone width, and
+  the 390px journey measures each badge against its OWN label, so a badge that moved with its label is still caught
+  (`d56fea68`).
+- **I3.** The harness fixture published one approved `booking_link` template, and `templates.approved: 1`, for every
+  scenario -- hand-written beside a payload it derives everything else from. Neither the seed nor the scenarios write
+  a template row, so the seeded nightly workspace was shown a message it has not got, and whether a workspace has one
+  is what decides whether its call can send the booking link at all. The messages are the scenario's now, the nightly
+  has none, Setup's count is that list counted, and `e2e-harness.test.mjs` pins both (`8a5cf55f`).
+- **M1.** Spec 4.6 said such a row reads two items; the photos word is always appended, so it reads three.
+- **M2, M5.** Two assertions that could not have failed. "Still three clauses" counted the view model's keys, which
+  is true by construction -- it counts full stops now, and was shown red against a two-sentence clause. And the prompt
+  body's layout test sliced the stylesheet between two `indexOf` results without checking either; a renamed
+  `.set-prompt-body-sm` made the slice nearly the whole file, and it was shown red against that rename (`4e220d81`).
+- **M3.** The band and the fold promised a correction in the live call. A correction is what the product can ALSO do
+  while the call's turns are still being delivered; with that switched off on the agent the same check runs on the
+  final transcript and the owner is told after the fact, with nothing said back to the caller (`policy.ts`, which says
+  degrading is the point). The band says *"caught afterwards rather than prevented"*, which is true of every call and
+  is still the difference from chat; the fold's voice line has the room for the rest -- *"You are told either way, and
+  a correction goes into the call itself whenever it can still be reached"* (`eb79c443`).
+- **M4.** Task 4.0's and 4.1's notes now say what "0 bordered pills" counts and what `expectQuiet` does not cover.
+- **M6.** The photos hint was four lines on a phone and its last clause restated the dashed rule above the switch and
+  the badge beside it. Two clauses left, one per position (`725ba0b5`).
+
+**Decided differently in the fix round.**
+
+- **M3 became the band's wording rather than a note.** The reviewer offered either. "On a call as a correction while
+  it is still up" still promises the correction, and the honest invariant is that a price is CAUGHT and never
+  prevented -- one clause, true of both delivery modes, and it keeps the chat/call difference the clause exists for.
+- **I3's template comes from the scenario, not from `channel("whatsapp").active`.** The reviewer's suggested
+  derivation would have kept the template on the nightly, whose seeded WhatsApp line IS active; what the nightly does
+  not have is a template ROW, which no scenario expressed at all. So the scenario says its messages, and the nightly
+  says none.
+- **M-3's own branch is still on neither journey.** "A workspace on both lines with no approved booking-link
+  template" needs a record with a voice line and no template; the nightly has the template gone but no voice line,
+  and the salon has both. A third scenario is out of this task's scope (`SCENARIOS` is pinned to two by a test), and
+  the branch is covered in contracts (`business-tab-vm.test.mjs`).
+
+**Proof.** `corepack pnpm test` **4168** (4152 before: eleven in contracts and the harness, five on the page).
+`corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` both 12/12, the journey's
+`expectQuiet` sweep and its new badge-position block included. Of `packages/*/dist`, only contracts differs from main.
+Photographed on the salon record at 390x844 and 1280x900 (`_gen/task42-shots.mjs`, the fix round's as `after2-*`):
+the row at rest, the fold open, the fold open with the price switch stored off, and the standing line. Inside the open
+fold at 390px: **0** sideways scroll (page, pane and fold), **0** gradients, **1** font family, **0** bordered pills
+and **0** colours outside the ink/accent/line/ok tokens except the fold's own Save and Close, which are the kit's
+buttons rather than badges; **5** badges, one to a switch and every one at its own label's edge on a line of its own;
+**4** strength sentences drawn, **0** of them on screen and **4** named by their switch; **2** channel lines, on the
+price rule alone; **1** dashed separator. At rest: **0** strength words on the row, and the same four chips plus
+"+1 more" whether the price switch is stored on or off.
 
 ---
 

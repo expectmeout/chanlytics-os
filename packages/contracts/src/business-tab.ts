@@ -21,11 +21,16 @@ import {
   DAYS,
   FALLBACK_DEFAULTS,
   GuardrailsSchema,
+  NO_FIELDS_COMPOSED_WORDS,
+  type GuardrailsInForce,
   INSTRUCTIONS_MAX,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
+  POLICY_MODES,
+  POLICY_MODE_WORDS,
   type Closure,
   type Hours,
+  type PolicyMode,
 } from "./config";
 import { hardLimitsWords, violatesNoPrices } from "./policy";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
@@ -45,6 +50,28 @@ export const GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().op
 export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 
 /**
+ * What each channel is called, wherever this tab names one.
+ *
+ * The abilities card draws chat and phone beside every ability, lit for a channel that has it and dim
+ * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
+ * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
+ * rather than in the JSX that draws them -- one spelling for the four states.
+ *
+ * Declared above the strengths because the checked rule's two lines open with the same names
+ * (`checkedOn` below): the card and the rules fold are one page, and "in chat" is said once for both.
+ */
+export const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", { has: string; not: string }> = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" },
+};
+
+/** A channel's name where it opens a line rather than sitting inside one. */
+const channelOpens = (c: "whatsapp" | "voice"): string => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+
+/**
  * How far a rule actually goes.
  *
  * The page drew four identical switches over three different guarantees, which
@@ -52,7 +79,7 @@ export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
  * all; one has a detector on both channels; two are lines in a prompt, and
  * `policy.ts` says in its own header that an instruction is not an enforcement.
  */
-export type RuleStrength = "structural" | "checked" | "instructed";
+export type RuleStrength = "structural" | "checked" | "instructed" | "power";
 
 export interface RuleStrengthVM {
   strength: RuleStrength;
@@ -60,11 +87,20 @@ export interface RuleStrengthVM {
   chip: string;
   /** What actually happens, in the owner's words. */
   sentence: string;
-  /** For a checked rule, what happens per channel. Null otherwise. */
-  checkedOn: { channel: "whatsapp" | "voice"; words: string }[] | null;
+  /**
+   * For a checked rule, what happens per channel. Null otherwise. `label` opens the line and is the
+   * channel's one name on this page (ABILITY_CHANNEL_WORDS); the stored value is never what an owner reads.
+   */
+  checkedOn: { channel: "whatsapp" | "voice"; label: string; words: string }[] | null;
 }
 
-const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
+/*
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: `channelOpens` below makes this an expression the
+ * bundler cannot prove has no side effect, and a side effect at the top level is one it must KEEP. Left bare, this
+ * table and everything it reaches shipped into the four dists that bundle contracts and never draw this tab --
+ * jobs carried it six times, once per package re-bundled into it.
+ */
+const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "It cannot anyway",
@@ -88,11 +124,20 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     sentence:
       "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
-      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between.",
+      },
       {
         channel: "voice",
+        label: channelOpens("voice"),
+        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
+        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
+        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
+        // with it rather than promising the better half of it.
         words:
-          "It has already been heard. A correction goes into the live call, and you are told while it is still up.",
+          "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached.",
       },
     ],
   },
@@ -109,10 +154,106 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     sentence: "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment.",
     checkedOn: null,
   },
-};
+}))();
 
 export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
   return STRENGTHS[key];
+}
+
+/**
+ * The fifth switch in the same fold, and the only one that is not a limit.
+ *
+ * Not a GuardrailKey: photos are stored as `features.vision` beside the profile rather than in the guardrails, and
+ * the switch changes no word of the composed prompt at all -- a photo's words go in the customer's own turn
+ * (core/src/inbound/answer.ts). So it is its own export rather than a fifth entry in a table typed over the schema's
+ * keys, and its strength is a different kind: the four above say how far a LIMIT goes, and this one says the switch
+ * gives the receptionist something it otherwise does not have.
+ *
+ * Here rather than in the JSX for the reason every other sentence on this tab is: the page drew the badge as a
+ * literal and the page's test typed the same literal back, so the two agreed with each other and with nothing else.
+ */
+export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
+  strength: "power" as const,
+  chip: "gives it a power",
+  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
+  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
+  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
+  sentence:
+    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  checkedOn: null,
+}))();
+
+/**
+ * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an
+ * instruction to the receptionist ("Never quote or confirm a price"); this is what the receptionist does.
+ */
+export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
+  never_quote_prices: "Never quotes a price",
+  never_confirm_booking: "Never confirms a booking",
+  disclose_ai: "Says it's an assistant",
+  no_health_advice: "No health advice",
+};
+
+/**
+ * The structural rule where nothing tells it not to claim: what it CANNOT do, rather than what it will not say.
+ *
+ * There is no appointments table in this product, so a booking is beyond it whatever it reads. The switch decides only
+ * whether it is told not to claim it had -- so with that line gone (switched off, or a record whose details compose
+ * nothing) the row says the part that still holds and drops the part that does not.
+ */
+const CANNOT_BOOK_WORDS = "Cannot book anything";
+
+/** The photos switch at rest. An ability, so both ways round are worth saying: it is the one that starts off. */
+const PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" } as const;
+
+export interface RulesKeptInputs {
+  /** The four, as the fold opens them: `guardrailsInForce` over the stored record, never the raw guardrails. */
+  rules: GuardrailsInForce;
+  /** `features.vision`. An ability rather than a limit, and it reaches the receptionist without the prompt. */
+  vision: boolean;
+  /** Whether the record's details compose anything at all (config.ts `hasProfile`). */
+  composes: boolean;
+}
+
+/**
+ * What the row says at rest: the rules the receptionist actually keeps, in the order the schema keeps them.
+ *
+ * Derived from the three strengths rather than from the switches alone, because the switches do not all decide the
+ * same amount (the plan's Task 4.2, and M-2):
+ *
+ * - **checked** -- named whatever the switch says. The detector reads every reply (`violatesNoPrices` in chat,
+ *   `spokenBreach` on a call) whether the switch is on or off, and whatever the profile holds; the switch adds or
+ *   removes the one prompt line. A row that dropped the word with the switch off would read as if prices went through
+ *   (Task 3.5's review).
+ * - **instructed** -- a line in a prompt and nothing else, so it is named only where the record composes one AND the
+ *   switch is on. On a record whose details compose nothing the resolver hands back the stored prompt plus Autonomy's
+ *   rules (`resolveSystemPrompt`'s no-profile branch), so there is no line to name.
+ * - **structural** -- named either way, in different words: the line decides only whether it is told not to CLAIM it
+ *   booked, and the product cannot book regardless.
+ *
+ * Every input is required and checked as it runs, as `abilityRows` is and for the same reason: the page that calls
+ * this is untyped JSX, and a rule it left out would read as false -- a rule quietly dropped from the row with nothing
+ * to say it had gone.
+ */
+export function rulesKept(i: RulesKeptInputs): string[] {
+  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  }
+  const rules = i.rules;
+  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
+  for (const key of GUARDRAIL_KEYS) {
+    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
+  }
+  const kept: string[] = [];
+  for (const key of GUARDRAIL_KEYS) {
+    const { strength } = ruleStrength(key);
+    // A line it actually reads: the switch on, over a record the resolver composes from.
+    const told = i.composes && rules[key];
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
+  }
+  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
+  return kept;
 }
 
 /** The subset of the brain the standing line reads. */
@@ -134,6 +275,9 @@ export interface StandingVM {
    * What it will not do: state a price. Said whenever there are services to price,
    * whatever the price switch says, because the detector runs either way (the owner's
    * decision, 20 Sep 2026). Null with nothing to price.
+   *
+   * On a workspace that answers calls it names the difference between the two channels once,
+   * because the promise lands differently on each: see WONT_PRICE below.
    */
   wont: string | null;
   /** The single most useful gap, and the row that fixes it. Null when there is none. */
@@ -154,14 +298,47 @@ const has = (v: unknown): boolean =>
       : !!v && Object.keys(v as object).length > 0;
 
 /**
+ * What it will not do, on the lines it answers on (the plan's M-1, 22 Sep 2026).
+ *
+ * In chat the sentence is exact: `violatesNoPrices` runs over the model's draft and the words are swapped before
+ * anyone reads the reply, because a draft sits between the model and the customer (policy.ts).
+ *
+ * On a call there is no before. The provider hosts the agent and it speaks directly, so by the time a turn reaches
+ * `spokenBreach` the caller has heard the figure, and what the product can still do is tell the owner -- and, while
+ * the call's turns are still being delivered, correct it in what the agent says next (policy.ts's own header). Said
+ * flat, the chat sentence promised a phone caller a swap that cannot happen there -- and it promised it hardest on
+ * the workspaces where the price switch is off, since nothing then tells the phone agent to leave a service's price
+ * note unread (config.ts, the Services block). So a workspace with a call names the difference, once, inside the one
+ * clause; a chat-only workspace reads the exact sentence and is told nothing about a line it does not have.
+ *
+ * The clause says CAUGHT rather than corrected, on purpose. A correction is what the product can also do where the
+ * call can still be reached; with per-turn delivery off on the agent the check runs on the final transcript and the
+ * owner is told after the fact, with nothing said back to the caller. One line has to be true of both, and the one
+ * thing that is true of both is that it is caught afterwards rather than prevented. The fold's own two lines say the
+ * rest (`checkedOn`), where there is room for it.
+ *
+ * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
+ */
+const WONT_PRICE = "It offers a consult or the booking link instead of a price.";
+const WONT_PRICE_ON_A_CALL =
+  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.";
+
+/**
  * Three clauses, worst last.
  *
  * The gaps are ordered by what a customer notices: a receptionist with no name
  * cannot introduce itself, one with no hours cannot answer the commonest
  * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
+ *
+ * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
+ * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
+ * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
  */
-export function standingLine(i: StandingInputs): StandingVM {
+export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
+  if (typeof calls !== "boolean") {
+    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
   const p = i.profile ?? {};
   const gaps: { sentence: string; row: string }[] = [];
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
@@ -185,10 +362,11 @@ export function standingLine(i: StandingInputs): StandingVM {
     ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
     : "It cannot answer anyone yet.";
 
-  // Both, because the two channels do different things: chat's replacement offers a
+  // Both offers, because the two channels do different things: chat's replacement offers a
   // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
-  // "A consult" alone was true on WhatsApp and not on the phone.
-  const wont = has(p.services) ? "It offers a consult or the booking link instead of a price." : null;
+  // "A consult" alone was true on WhatsApp and not on the phone. And on a workspace with a call,
+  // WHEN each happens differs too, which is the rest of WONT_PRICE_ON_A_CALL's clause.
+  const wont = has(p.services) ? (calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE) : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }
@@ -210,6 +388,18 @@ export function openWeekWords(hours: Partial<Record<string, Hours>> | null | und
   const zone = `in ${timezoneCity(tz)} time`;
   if (!open) return `Times are ${zone}`;
   return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+
+/**
+ * The line over the week while it is being edited: whose clock these times are on, by the name the card above already
+ * uses for it (openWeekWords, "in New York time"), and what they are.
+ *
+ * Never the IANA id. "All times America/New_York" is the machine's name for the place, on the one fold where somebody
+ * is typing the hours their front door opens -- and a zone with an underscore in it reads as a setting rather than a
+ * sentence. The zone row itself says the whole of it, where changing it is the point.
+ */
+export function hoursZoneWords(tz: string): string {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
 }
 
 export interface ClosuresAheadVM {
@@ -262,8 +452,21 @@ export interface ServicesWordsVM {
   more: string | null;
 }
 
-/** How many services the row names at rest (the canvas's Record board). */
-const SERVICE_CHIPS = 4;
+/**
+ * How many chips a row of the record draws at rest, and how the rest of them are said.
+ *
+ * One number and one spelling for every list of chips on the page -- the services, the notes, the rules -- because
+ * three of them with their own caps is three rows that wrap to different depths on the same phone. Four is the
+ * canvas's Record board, measured at 390px: four chips and "+N more" is two lines, and a fifth is a third.
+ */
+export const CHIPS_SHOWN = 4;
+
+/** "+3 more": the rest of a list of chips, said once, wherever a row cuts one. */
+export function chipsMoreWords(n: number): string {
+  return `+${count(n)} more`;
+}
+
+const SERVICE_CHIPS = CHIPS_SHOWN;
 // A note that sends the price to a consultation: "quoted at consult", "by consultation".
 const CONSULT = /\bconsult/i;
 // A note is written by the owner and read in a sentence: its first letter goes lower unless it opens an acronym.
@@ -308,7 +511,7 @@ export function servicesWords(services: readonly ServiceWordsInput[] | null | un
     line: `${count(n)} on record`,
     priced,
     chips,
-    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null,
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null,
   };
 }
 
@@ -647,7 +850,7 @@ export interface NotesWordsVM {
   more: string | null;
 }
 
-const NOTE_CHIPS = 4;
+const NOTE_CHIPS = CHIPS_SHOWN;
 
 /**
  * The notes row at rest (the canvas's Record board): each note by its title, four at most, and "+N more" past them. A
@@ -664,53 +867,56 @@ export function notesWords(
   return {
     count: n,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null,
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null,
   };
 }
 
 /** The owner's own words, at rest and in their box. */
 export interface InstructionsWordsVM {
-  /** "1,180 characters"; null with nothing written. */
-  size: string | null;
   /** Their opening, quoted and cut at a word; null with nothing written. */
   opening: string | null;
-  /** "16,400 of 20,000 characters", past four fifths of what the receptionist takes (INSTRUCTIONS_MAX); null under it. */
-  nearFull: string | null;
+  /** "339 of 20,000 characters", for the foot of the box that edits them; null with nothing written. */
+  limit: string | null;
 }
 
 /** How many characters of the owner's words the row quotes at rest, before it cuts at a word. */
 const OPENING_SHOWN = 72;
 
 /**
- * "In your own words", said with its size (the canvas's Record board: "1,180 characters" and the opening, quoted), and,
- * once the box holds more than four fifths of what the receptionist takes, how close it is to the end: the old form's
- * count, under the box, whose number is the save's own limit (INSTRUCTIONS_MAX).
+ * "In your own words": at rest, their opening, quoted, and nothing else.
+ *
+ * The row said "1,180 characters" first, in front of the words themselves. A length is not a fact an owner can do
+ * anything about while they are reading the page, and on a phone it took the space the opening needed. What IS worth
+ * saying is how much room is left, and that belongs beside the box where words are typed -- with the limit in it, so
+ * the number has something to mean (INSTRUCTIONS_MAX, the save's own).
  */
 export function instructionsWords(text: string | null | undefined): InstructionsWordsVM {
   const t = typeof text === "string" ? text.trim() : "";
-  if (!t) return { size: null, opening: null, nearFull: null };
-  const n = t.length;
+  if (!t) return { opening: null, limit: null };
   return {
-    size: plural(n, "character", "characters"),
     opening: `“${cutAtWord(t, OPENING_SHOWN)}”`,
-    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null,
+    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`,
   };
 }
 
 /** The fallbacks row at rest. */
 export interface FallbacksWordsVM {
-  /** "3 messages sent in your name". */
+  /** "3 messages, in your words", or "3 messages, the product's wording" when none differs from it. */
   line: string;
-  /** How many are not the product's wording: "2 differ from the default wording", or "all in the default wording". */
-  own: string;
 }
 
 /**
  * The three messages sent in the business's name when the receptionist cannot answer, at rest: how many there are, and
- * how many are not the product's wording (FALLBACK_DEFAULTS). "Differ from", not the canvas's "you wrote": a workspace
- * set up before the default wording was written was given messages with its details copied in (config.ts, S5), which
- * are not the default and were not written by the owner either. A message stored empty is sent in the default wording
- * (fallbackMessages), so it counts as the default; so does a workspace that stores none.
+ * whose words they are in.
+ *
+ * ONE line. It was two -- "3 messages sent in your name" and "3 differ from the default wording" -- and the second
+ * counts a difference nobody can act on from the row: which message differs, and the press that puts the product's
+ * wording back, are both inside the fold, on the message itself.
+ *
+ * "The product's wording", not "you wrote": a workspace set up before the default wording was written was given
+ * messages with its details copied in (config.ts, S5), which are neither the default nor the owner's. A message stored
+ * empty is sent in the default wording (fallbackMessages), so it counts as the default; so does a workspace that
+ * stores none.
  */
 export function fallbacksWords(
   fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined,
@@ -721,12 +927,7 @@ export function fallbacksWords(
     const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
     return t !== "" && t !== FALLBACK_DEFAULTS[k];
   }).length;
-  return {
-    line: `${count(keys.length)} messages sent in your name`,
-    own: differ
-      ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording`
-      : "all in the default wording",
-  };
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
 
 /**
@@ -736,12 +937,17 @@ export function fallbacksWords(
  * block for the fold to show. It says nothing of what the receptionist does: the price detector reads every reply
  * whatever the profile holds (whatsapp/steps.ts layerTwo, and spokenBreach on a call), and nothing in the product can
  * confirm a booking anyway. It first said "these four rules do not reach it", which Phase 4 would have drawn beside the
- * price rule's "Checked, not just told". The prompt view says the same of that prompt (prompt-blocks.ts: "None of the
- * details on this page are composed into it yet."), and the two must agree; Phase 4's rules at three strengths say it
- * with these words too (the plan's M-2).
+ * price rule's "Checked, not just told".
+ *
+ * Its opening sentence is NO_FIELDS_COMPOSED_WORDS (config.ts), which the prompt view's note over the same record's
+ * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
+ * two that happen to agree (the plan's M-2).
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a template literal with a substitution in it is an
+ * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-export const RULES_WITHOUT_FIELDS_WORDS =
-  "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
+  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
 
 /**
  * What the receptionist can do, and what it cannot.
@@ -752,7 +958,11 @@ export const RULES_WITHOUT_FIELDS_WORDS =
  * the booking link to a caller's WhatsApp.
  *
  * Computed from what the records show, never typed: an ability is ready only
- * when its channel is live and its input is filled. Every sentence below was
+ * when its channel is live and its input is filled. A channel says what the
+ * receptionist DOES there, input and all, not which channel the ability belongs
+ * to -- a lit phone beside "No number yet, so it takes a message instead" is a
+ * row disagreeing with itself, and the card's one signal is the pair of them.
+ * So `ready` is exactly "one of the two channels does it". Every sentence below was
  * checked against the code it describes, because the first draft of three of
  * them was not true: the link goes by WhatsApp and never by text, a transfer
  * happens only during opening hours and stays on the line, and a hand-off is a
@@ -784,6 +994,22 @@ export interface AbilityInputs {
    * and the link is never sent: bookingHeld(policy), the edge's own question.
    */
   bookingHeld: boolean;
+  /**
+   * The Autonomy tab's REPLIES row, exactly as stored -- a separate row from Booking,
+   * set independently, and the one that decides whether the receptionist speaks at all.
+   *
+   * On "ask" or "never" the WhatsApp receptionist composes no reply
+   * (packages/core/src/inbound/reply-posture.ts, which every inbound message asks) and a
+   * call's booking-link send is refused as a policy_hold
+   * (apps/edge/lib/receptionist/outbound-gate.ts). So every chat ability on the card is
+   * held at once, by one cause with one fix on another tab -- which is why the words for
+   * it come back beside the rows, to be said ONCE, and not on each of six rows.
+   *
+   * Checked as it runs like the booleans, and for the same reason: an untyped page that
+   * left it out would draw six abilities on a mode nobody chose. The page reads the row's
+   * mode with the edge's own default for a missing row ("ask", reply-posture.ts).
+   */
+  replyMode: PolicyMode;
 }
 
 /** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
@@ -810,8 +1036,32 @@ export interface AbilityRowVM {
   /** The row on this page that supplies it. Null when nothing does. */
   runsOn: { label: string; row: string } | null;
   ready: boolean;
+  /**
+   * What stops this ability is a row of THIS page, still empty (or a switch still off).
+   *
+   * The difference between a sentence worth drawing and one worth keeping out of the way: a
+   * transfer with no number takes a message instead, and the number is two cards up, so the
+   * card says so and offers the row. A channel that is not connected, bookings held, replies
+   * held -- none of those is filled in here, and each is one cause the card states once,
+   * rather than six rows saying the same thing six times.
+   */
+  missing: boolean;
   /** Only the opt-in ability carries this. */
   on?: boolean;
+}
+
+/**
+ * The card: its rows, and what holds the whole card back, said once.
+ *
+ * `held` is null unless the Autonomy tab's Replies row keeps the receptionist from
+ * answering. Six rows each repeating that one sentence is the page shouting; the Quiet
+ * board's rule is that a refused act is absent and the page says why once, so the sentence
+ * comes back here, with the tab that fixes it.
+ */
+export interface AbilitiesVM {
+  rows: AbilityRowVM[];
+  /** `door` is what the press to that tab says, so the page draws the words and types none of them. */
+  held: { sentence: string; door: string; to: "admin/autonomy" } | null;
 }
 
 /** How long a hand-off holds, in the words the page says it: "a day", "4 hours", "3 days". */
@@ -821,7 +1071,7 @@ function heldFor(pauseHours: number): string {
   return hours === 1 ? "an hour" : `${hours} hours`;
 }
 
-export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
+export function abilityRows(i: AbilityInputs): AbilitiesVM {
   if (!i || typeof i !== "object")
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
@@ -834,11 +1084,21 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,
     );
   }
-  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`,
+    );
+  }
+  // The Replies row holds the receptionist back: nothing is composed in chat, and a call's
+  // booking-link send is refused. Said once for the card (`held` below), never on each row.
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  // A chat ability needs a WhatsApp number that answers AND leave to answer with it.
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   // Nothing is ready on a channel that is not answering. An input filled against a
   // dead line is a setting, not an ability, and drawing it ready would tell an owner
   // the booking link goes out when there is nothing to send it.
-  const answering = i.voiceLive || i.whatsappLive;
+  const answering = i.voiceLive || chatAnswers;
 
   // The link goes out on WhatsApp on both channels: in the thread, or on a call as a
   // template to the caller's own WhatsApp (retell-fn deliver({ channel: "whatsapp" })).
@@ -848,7 +1108,13 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // Where the booking-link row below is ready. Another row that promises the link after
   // something else promises it only here: with no WhatsApp to send it by, no link, or
   // bookings held on the Autonomy tab, "then the link" would not be true.
-  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  // ...and whether the row ABOVE may promise it without naming a channel. The link goes by WhatsApp on
+  // both channels, but a call sends it as a template, so a workspace on both lines with no approved
+  // booking-link template sends it in chat and not on a call (retell-fn's deliver has no template to
+  // send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
+  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
   // What is missing on this page is said first, because it is what this page can fix.
   // Then the Autonomy tab's hold: with Booking not on auto, a call's send is refused
   // (outbound-gate.ts), and a chat reply CLASSED AS A BOOKING has the link taken back out
@@ -868,7 +1134,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
             ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
             : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 
-  return [
+  const rows: AbilityRowVM[] = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -878,6 +1144,8 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
+      // The facts it answers from are the standing line's subject, at the top of the page.
+      missing: false,
     },
     {
       id: "open_times",
@@ -888,33 +1156,39 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       // them, so this says only what holds on both: it has them, and a request to book gets no link.
       detail: !i.hasCalendarFeed
         ? linkGoes
-          ? "No calendar to read, so it does not guess at open times — it sends the link instead."
+          ? `No calendar to read, so it does not guess at open times —${inChat} it sends the link instead.`
           : "No calendar to read, so it does not guess at open times."
         : i.bookingHeld
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
-          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
-      channels: both,
+          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
       ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed,
     },
     {
       id: "booking_link",
       title: "Send the booking link",
       detail: bookingDetail,
-      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
+      missing: !i.hasBookingLink,
     },
     {
       id: "transfer",
       title: "Put a caller through",
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive, whatsapp: false },
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
       // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
       ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber,
     },
     {
       id: "handoff",
@@ -924,9 +1198,11 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
       // hand-off row's fold says it in the same words (handoffChatWords).
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive,
+      ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false,
     },
     {
       id: "vision",
@@ -934,13 +1210,26 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       detail: i.visionOn
         ? "It says what it sees and suggests the next step, under the rules it always keeps."
         : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
-      ready: i.whatsappLive && i.visionOn,
+      ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
       on: i.visionOn,
     },
   ];
+
+  // The mode in the pane's own words, never the stored auto|veto|ask|never (#657). The call
+  // clause only where there is a call: a workspace on WhatsApp alone is promised nothing about one.
+  const held = repliesHeld
+    ? {
+        sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} — ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+        door: "Your Autonomy tab",
+        to: "admin/autonomy" as const,
+      }
+    : null;
+  return { rows, held };
 }
 
 export interface CannotRowVM {

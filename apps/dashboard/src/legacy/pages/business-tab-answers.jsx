@@ -154,14 +154,16 @@ const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
 
 /* ------------------------------------ the rules it always keeps ------------------------------------ */
 
-// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with the old form's label and hint, and the
-// short name the row says it by at rest (the canvas's Record board). Phase 4 (Task 4.2) adds each rule's strength to
-// its row, ruleStrength's chip and sentence, beside these.
+// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with the old form's label and the short name
+// the row says it by at rest (the canvas's Record board). The sentence under the label is NOT here: it is the rule's
+// own strength (contracts ruleStrength(key).sentence, Task 4.2), because the form's hint said what the rule asks for
+// and the strength says how far it actually goes -- and two sentences on one switch is the clutter the owner asked us
+// to stop. The health rule's hint WAS its strength's sentence, word for word; contracts has it now.
 const BTA_RULES = [
-  ["never_quote_prices", "Never quote or confirm a price", "It offers a consult or the booking link instead", "Never quotes a price"],
-  ["never_confirm_booking", "Never confirm an appointment itself", "Booking happens on your link or with your staff", "Never confirms a booking"],
-  ["disclose_ai", "Say it is an assistant if asked", "And offer to bring in a person", "Says it's an assistant"],
-  ["no_health_advice", "Never give health advice", "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment", "No health advice"],
+  ["never_quote_prices", "Never quote or confirm a price", "Never quotes a price"],
+  ["never_confirm_booking", "Never confirm an appointment itself", "Never confirms a booking"],
+  ["disclose_ai", "Say it is an assistant if asked", "Says it's an assistant"],
+  ["no_health_advice", "Never give health advice", "No health advice"],
 ];
 
 /**
@@ -176,23 +178,51 @@ const BTA_RULES = [
  * of the four changes a word the receptionist is told (the price detector still reads every reply), and the fold says
  * so once, in contracts' words, where the rules' block would be (`unread`); it draws no empty "It will be told".
  */
-const BtaRules = ({ draft, update, readOnly, unread }) => (
+const BtaRules = ({ draft, update, readOnly, unread }) => {
+  const tab = window.__businessTab || {};
+  // The photos switch's strength, which is not a rule's: it is an ability, stored apart from the guardrails.
+  const vision = tab.VISION_STRENGTH || null;
+  return (
   <div className="bt-rules-list" data-testid="rec-rules-switches">
-    {BTA_RULES.map(([key, label, hint]) => (
+    {BTA_RULES.map(([key, label]) => {
+      // How far this rule goes, in contracts' words: one badge and one sentence, never typed here. Without the bridge
+      // to ask, the switch keeps its label and claims no guarantee.
+      const r = typeof tab.ruleStrength === "function" ? tab.ruleStrength(key) : null;
+      return (
       <div key={key} className="bt-rule" data-testid={`rec-rule-${key}`}>
         <span className="bt-rule-words">
-          <span className="bt-rule-label" id={`bt-rule-${key}-label`}>{label}</span>
-          <span className="bt-rule-hint">{hint}</span>
+          <span className="bt-rule-head">
+            <span className="bt-rule-label" id={`bt-rule-${key}-label`}>{label}</span>
+            {/* A muted word, never a filled pill: the strength is the one quiet signal this row carries. */}
+            {r ? <span className="bt-rule-chip">{r.chip}</span> : null}
+          </span>
+          {/* Not drawn under 761px (settings.css), where four sentences are most of a phone's screen -- so the switch
+              carries it as its description at every width, and a screen reader hears the guarantee either way. */}
+          {r ? <span className="bt-rule-says" id={`bt-rule-${key}-says`}>{r.sentence}</span> : null}
+          {/* Only the checked rule has two channels to tell apart: in chat the words are swapped before anyone reads
+              them, on a call the figure has already been heard. Both are contracts', channel name and all. */}
+          {r && r.checkedOn ? (
+            <span className="bt-rule-checked">
+              {r.checkedOn.map((c) => (
+                <span key={c.channel} className="bt-rule-checked-line">
+                  <span className="bt-rule-checked-who">{c.label}</span>{" "}
+                  {c.words}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </span>
         <window.RecordSwitch
           on={draft[key] === true}
           onChange={(v) => update((d) => ({ ...d, [key]: v }))}
           labelledBy={`bt-rule-${key}-label`}
+          describedBy={r ? `bt-rule-${key}-says` : null}
           readOnly={readOnly}
           testid={`rec-rule-switch-${key}`}
         />
       </div>
-    ))}
+      );
+    })}
     {unread ? <p className="bt-fold-note" data-testid="rec-rules-unread">{unread}</p> : null}
     {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off.
         Apart from them, under a dashed rule (rec-rule-sep is the name Phase 4's test knows it by). It changes no word of
@@ -202,10 +232,14 @@ const BtaRules = ({ draft, update, readOnly, unread }) => (
       <span className="bt-rule-words">
         <span className="bt-rule-head">
           <span className="bt-rule-label" id="bt-rule-vision-label">Look at photos customers send</span>
-          <span className="bt-rule-chip">gives it a power</span>
+          {/* The fifth strength, from contracts like the four above it (VISION_STRENGTH): a badge typed here and
+              typed again in the page's test agreed with each other and with nothing else. */}
+          {vision ? <span className="bt-rule-chip">{vision.chip}</span> : null}
         </span>
-        {/* Not the canvas's "The four above are limits and start on": health advice starts off. */}
-        <span className="bt-rule-hint">On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person. The rules above are limits; this one gives it an ability, so it starts off.</span>
+        {/* Drawn at every width, unlike the four: it is the one switch whose sentence says what each POSITION does,
+            which is a decision an owner makes here. Not the canvas's "The four above are limits and start on":
+            health advice starts off too. */}
+        {vision ? <span className="bt-rule-hint">{vision.sentence}</span> : null}
       </span>
       <window.RecordSwitch
         on={draft.vision === true}
@@ -216,7 +250,8 @@ const BtaRules = ({ draft, update, readOnly, unread }) => (
       />
     </div>
   </div>
-);
+  );
+};
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
@@ -353,13 +388,14 @@ const BtaNotes = ({ draft, rows, press, problems, readOnly }) => {
  * receptionist quietly disappears the moment it fills in a form: contracts chooses them (S4, draftOf's
  * __instructionsDraft), the owner's own, or the prompt from before the form, carried and said so here -- never the
  * product's opening lines, which no owner wrote. Its save is the one that writes the stored prompt too (saveFold, S4).
- * Past four fifths of what the receptionist takes, the box says how close it is (contracts instructionsWords).
+ * The count of what is written sits under the box, with the limit in it, and nowhere else: at rest the row says the
+ * words, not how many characters they are (contracts instructionsWords).
  */
 const BtaOwnWords = ({ draft, update, problems, readOnly }) => {
   const tab = window.__businessTab || {};
   const d = draft || {};
   const text = typeof d.text === "string" ? d.text : "";
-  const near = tab.instructionsWords ? tab.instructionsWords(text).nearFull : null;
+  const room = tab.instructionsWords ? tab.instructionsWords(text).limit : null;
   return (
     <>
       {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
@@ -378,7 +414,7 @@ const BtaOwnWords = ({ draft, update, problems, readOnly }) => {
         readOnly={readOnly || undefined}
         testid="rec-own-box"
       />
-      {near && !problems.extra_instructions ? <span className="bt-own-count" data-testid="rec-own-count">{near}</span> : null}
+      {room && !problems.extra_instructions ? <span className="bt-own-count" data-testid="rec-own-count">{room}</span> : null}
     </>
   );
 };
@@ -471,13 +507,18 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   // health advice and photos), so the row and the fold never read a stored rule two ways. Without the bridge to ask,
   // the row names no rule it cannot back.
   const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", stored) : null;
-  const ruleChips = rules
-    ? BTA_RULES.filter(([key]) => rules[key]).map(([, , , short]) => ({ label: short })).concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }])
-    : [];
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on. Without the bridge to ask, nothing is claimed.
   const on = (base && base.brain) || brain;
   const composes = typeof tab.hasProfile === "function" ? tab.hasProfile(on.profile || null) : true;
+  // Which of them the row may name, and in what words: contracts', off the three strengths (rulesKept). Not every
+  // switch decides the same amount -- the price detector runs with its switch off, the two told-and-trusted rules are
+  // lines in a prompt a record composing nothing never gets, and a booking is beyond the product either way. So the
+  // row never lists a rule as kept that the receptionist was never told and cannot keep on its own.
+  const ruleChips =
+    rules && typeof tab.rulesKept === "function"
+      ? tab.rulesKept({ rules, vision: rules.vision === true, composes }).map((label) => ({ label }))
+      : [];
   // The transfer number as the settings read resolved it, read as the Who you are row reads it (its factOf): the fact
   // when the read carried one, and what is typed only when it carried none (an older server).
   const transferFact = F.handoff_number || { value: profile.handoff_number || null };
@@ -488,7 +529,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   const notes = tab.notesWords ? tab.notesWords(profile.notes) : { count: 0, chips: [], more: null };
   // Needs the bridge's __instructionsDraft (S4): without it the row says nothing it cannot back.
   const own = typeof window.__instructionsDraft === "function" ? S.draftOf("extra_instructions", stored) : null;
-  const ownWords = own && tab.instructionsWords ? tab.instructionsWords(own.text) : { size: null, opening: null };
+  const ownWords = own && tab.instructionsWords ? tab.instructionsWords(own.text) : { opening: null };
   const messages = tab.fallbacksWords ? tab.fallbacksWords(brain.fallbacks) : null;
 
   return (
@@ -539,7 +580,11 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="These hold whatever else you write."
         gate={gate("the rules it always keeps")}
         row={{
-          value: ruleChips.length ? <window.RecordChips chips={ruleChips} testid="rec-rules-chips" /> : null,
+          // Capped like every other row of chips (the kit's RecordChips, contracts CHIPS_SHOWN): five of them wrapped
+          // three deep at a phone's width, which is a paragraph of nouns where the row states one fact.
+          value: ruleChips.length ? (
+            <window.RecordChips chips={ruleChips} max={tab.CHIPS_SHOWN} more={tab.chipsMoreWords} testid="rec-rules-chips" />
+          ) : null,
           name: "Change the rules it always keeps",
         }}
         body={(f) => <BtaRules {...f} unread={composes ? null : tab.RULES_WITHOUT_FIELDS_WORDS || null} />}
@@ -585,15 +630,16 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="Optional. Anything the rows on this page do not cover."
         gate={gate("what it is told in your own words")}
         row={{
-          value: ownWords.size ? (
+          // Their opening, and nothing else. "339 characters" stood in front of it, which is a number an owner can do
+          // nothing about while reading the page, and on a phone it pushed the words themselves onto a second line.
+          value: ownWords.opening ? (
             <span className="bt-own" data-testid="rec-own-words">
-              <span className="bt-own-size">{ownWords.size}</span>
               <span className="bt-own-opening">{ownWords.opening}</span>
             </span>
           ) : null,
           empty: "None",
-          act: ownWords.size ? "Change" : "Add some",
-          name: ownWords.size ? "Change what it is told in your own words" : "Add some: your own words",
+          act: ownWords.opening ? "Change" : "Add some",
+          name: ownWords.opening ? "Change what it is told in your own words" : "Add some: your own words",
         }}
         body={(f) => <BtaOwnWords {...f} />}
       />
@@ -606,11 +652,10 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         channel={null}
         gate={gate("the messages sent when it can't answer")}
         row={{
+          // One line. Which message differs from the product's wording, and the press that puts it back, are both
+          // inside the fold, on the message itself: a count of the difference on the row was a number to read twice.
           value: messages ? (
-            <span className="bt-messages" data-testid="rec-fallbacks-words">
-              <span>{messages.line}</span>
-              <span className="bt-messages-own">{messages.own}</span>
-            </span>
+            <span className="bt-messages" data-testid="rec-fallbacks-words">{messages.line}</span>
           ) : null,
           empty: "Not set",
           name: "Change the messages sent when it can't answer",

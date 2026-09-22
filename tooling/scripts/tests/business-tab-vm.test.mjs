@@ -16,10 +16,16 @@ import {
   stateOf,
   SOURCE_WORDS,
   ruleStrength,
+  VISION_STRENGTH,
   GUARDRAIL_KEYS,
+  rulesKept,
+  RULES_AT_REST_WORDS,
   standingLine,
+  ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotRows,
+  POLICY_MODES,
+  POLICY_MODE_WORDS,
   bookingHeld,
   policyAskClass,
   openWeekWords,
@@ -47,6 +53,7 @@ import {
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
+  NO_FIELDS_COMPOSED_WORDS,
   BusinessProfileSchema,
   FALLBACK_DEFAULTS,
   INSTRUCTIONS_MAX,
@@ -112,7 +119,45 @@ test("the four rules carry three different guarantees", () => {
   // on a page whose whole point is that these four rules are not equivalent.
   assert.doesNotMatch(priced.checkedOn[1].words, /before/i);
   assert.match(priced.checkedOn[1].words, /already been heard/i);
+  // What always holds is that the owner is told; the correction is what the product can ALSO do while the call is
+  // still reachable. The line said the correction flatly, which is not true of a call whose turns are not delivered.
+  assert.match(priced.checkedOn[1].words, /told either way/i);
+  assert.match(priced.checkedOn[1].words, /whenever it can still be reached/i);
   assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
+  // Each line opens with the channel's name, and that name is the one the abilities card's glyphs already carry:
+  // one spelling per channel on one page. The stored value ("whatsapp") is never what an owner reads.
+  assert.deepEqual(
+    priced.checkedOn.map((c) => c.label),
+    ["In chat", "On a call"],
+  );
+  for (const c of priced.checkedOn) assert.equal(c.label.toLowerCase(), ABILITY_CHANNEL_WORDS[c.channel].has);
+  // And only the checked rule has channels to draw: the other three land the same way on both.
+  for (const k of GUARDRAIL_KEYS) {
+    if (k !== "never_quote_prices") assert.equal(ruleStrength(k).checkedOn, null, k);
+  }
+});
+
+test("the photos switch is the fifth strength, and its words live where the four rules' do", () => {
+  // It sat in the JSX, and the page test re-typed it, so the two agreed with each other and with nothing else.
+  // It is not a GuardrailKey -- it is stored as features.vision and it changes no word of the prompt -- so it is
+  // its own export rather than a fifth entry in a table typed over the schema's keys.
+  assert.equal(VISION_STRENGTH.strength, "power");
+  assert.equal(VISION_STRENGTH.chip, "gives it a power");
+  assert.equal(VISION_STRENGTH.checkedOn, null, "nothing checks an ability");
+  // Two clauses, one per position, and nothing else. At 390px it was four lines, and its last clause restated the
+  // dashed rule above it and the badge beside it -- the owner's words for that are "not bulky and cluttered".
+  assert.match(VISION_STRENGTH.sentence, /^On, /, "what On does");
+  assert.match(VISION_STRENGTH.sentence, /Off, a photo goes to a person\.$/, "then what Off does, and then stop");
+  assert.doesNotMatch(
+    VISION_STRENGTH.sentence,
+    /limits|starts off/i,
+    "REGRESSION: the separator says it is apart and the badge says it is a power; the sentence said both again",
+  );
+  // And it is a strength of a different kind from all four limits, so no rule wears its word.
+  for (const k of GUARDRAIL_KEYS) {
+    assert.notEqual(ruleStrength(k).strength, "power", k);
+    assert.notEqual(ruleStrength(k).chip, VISION_STRENGTH.chip, k);
+  }
 });
 
 test("a price is caught whatever the switch says, and the rule says so", () => {
@@ -125,6 +170,80 @@ test("a price is caught whatever the switch says, and the rule says so", () => {
   // What the detector actually knows (policy.ts PRICE_PATTERNS): euros and pounds pass it.
   assert.match(s, /dollars or pesos/);
   assert.doesNotMatch(s, /WhatsApp|call/i, "the channels are checkedOn's to say");
+});
+
+test("the row at rest names only what the receptionist actually keeps", () => {
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  // A record whose details compose: every rule in force is a line it reads, so every one is named.
+  assert.deepEqual(rulesKept({ rules: all, vision: false, composes: true }), [
+    "Never quotes a price",
+    "Never confirms a booking",
+    "Says it's an assistant",
+    "No health advice",
+    "Won't look at photos",
+  ]);
+  // The checked rule stays with its switch off. The owner decided (20 Sep 2026) that a receptionist never states a
+  // price: the detector runs either way, and a row that dropped the word would read as if prices went through.
+  assert.ok(
+    rulesKept({ rules: { ...all, never_quote_prices: false }, vision: false, composes: true }).includes(
+      "Never quotes a price",
+    ),
+  );
+  // A told-and-trusted rule is a line in a prompt and nothing else, so switching it off takes the word with it.
+  for (const key of ["disclose_ai", "no_health_advice"]) {
+    const kept = rulesKept({ rules: { ...all, [key]: false }, vision: false, composes: true });
+    assert.equal(kept.length, 4, key);
+  }
+  // The structural one is not a promise it keeps but a thing it cannot do, so with the line gone the words change
+  // rather than the fact: it may still CLAIM it booked, which is the only part the switch decides.
+  assert.deepEqual(rulesKept({ rules: { ...all, never_confirm_booking: false }, vision: true, composes: true }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Says it's an assistant",
+    "No health advice",
+    "Looks at photos",
+  ]);
+});
+
+test("M-2: on a record that composes nothing the row names only what holds, and never a line it does not read", () => {
+  // The resolver hands such a record its stored prompt plus Autonomy's rules (config.ts resolveSystemPrompt's
+  // no-profile branch), so none of the four is a line it reads. The fold says that once
+  // (RULES_WITHOUT_FIELDS_WORDS); the row at rest says nothing it cannot back, which leaves the two that hold
+  // whatever it is told: the detector, and the appointments table that does not exist.
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  assert.deepEqual(rulesKept({ rules: all, vision: false, composes: false }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Won't look at photos",
+  ]);
+  // Every switch off changes nothing about it: neither of the two is the switch's to decide.
+  const none = { never_quote_prices: false, never_confirm_booking: false, disclose_ai: false, no_health_advice: false };
+  assert.deepEqual(rulesKept({ rules: none, vision: false, composes: false }), [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Won't look at photos",
+  ]);
+  // And it is derived from the three strengths, not a second list to keep in step: a rule that is only instructed is
+  // named at rest only where the record composes it.
+  for (const key of GUARDRAIL_KEYS) {
+    const named = rulesKept({ rules: all, vision: false, composes: false }).length;
+    assert.equal(named, 3, key);
+    if (ruleStrength(key).strength === "instructed") {
+      assert.ok(!rulesKept({ rules: all, vision: false, composes: false }).includes(RULES_AT_REST_WORDS[key]), key);
+    }
+  }
+});
+
+test("rulesKept refuses an input the page left out, rather than naming a rule it cannot back", () => {
+  const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
+  assert.throws(() => rulesKept({ rules: all, vision: false }), TypeError, "composes");
+  assert.throws(() => rulesKept({ rules: all, composes: true }), TypeError, "vision");
+  assert.throws(() => rulesKept({ rules: null, vision: false, composes: true }), TypeError, "the rules themselves");
+  assert.throws(
+    () => rulesKept({ rules: { ...all, disclose_ai: undefined }, vision: false, composes: true }),
+    TypeError,
+    "a rule read as false is a rule the row silently drops",
+  );
 });
 
 /* ---- The standing line ---- */
@@ -143,7 +262,7 @@ const full = {
 };
 
 test("the standing line is three clauses, and never a percentage", () => {
-  const s = standingLine(full);
+  const s = standingLine(full, false);
   assert.match(s.can, /where you are/);
   assert.match(s.can, /when you.re open/);
   assert.match(s.can, /how to book/);
@@ -154,7 +273,7 @@ test("the standing line is three clauses, and never a percentage", () => {
 
 test("the standing line names the one thing missing, and where to fix it", () => {
   const noVoice = { ...full, profile: { ...full.profile, tone: undefined } };
-  const s = standingLine(noVoice);
+  const s = standingLine(noVoice, false);
   assert.match(s.missing.sentence, /no voice of its own/i);
   assert.equal(s.missing.row, "tone");
 });
@@ -164,14 +283,63 @@ test("it offers a consult or the link instead of a price, switch on or off, and 
   // with it -- with the switch off, there is no rule of the owner's to point at. And it names
   // both, because chat's replacement offers a consult and a call's correction offers the link.
   for (const guardrails of [{ never_quote_prices: true }, { never_quote_prices: false }, undefined]) {
-    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } });
+    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } }, false);
     assert.equal(s.wont, "It offers a consult or the booking link instead of a price.", JSON.stringify(guardrails));
   }
-  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }).wont, null);
+  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, false).wont, null);
+});
+
+test("M-1: what it will not do names the difference between the channels, once", () => {
+  // In chat the swap happens before anyone reads the reply: a draft sits between the model and the customer
+  // (policy.ts, layerTwo). On a call there is no before -- the figure has been heard, and what follows is a
+  // correction (spokenBreach). One clause said on both channels was exact on one of them and flattering on the
+  // other, which is the imprecision this task exists to name.
+  const onACall = standingLine(full, true);
+  assert.match(onACall.wont, /consult or the booking link instead of a price/, "the promise is unchanged");
+  assert.match(onACall.wont, /in chat/i, "and it says which channel does what");
+  assert.match(onACall.wont, /on a call/i);
+  assert.match(onACall.wont, /prevented/i, "a call is caught afterwards, never prevented");
+  // NOT a correction, which is what the band said first. A correction goes into the call only while its turns are
+  // still being delivered; with that switched off on the agent the check runs on the final transcript and the owner
+  // is told after the fact, with nothing said back to the caller (policy.ts). The band is one line for both.
+  assert.doesNotMatch(onACall.wont, /correction/i, "REGRESSION: the band promised a correction it cannot always make");
+  // A workspace with no call answers only in chat, where the plain sentence is exact. Naming a channel it does not
+  // answer on would be the page teaching an owner about a line they do not have.
+  assert.equal(standingLine(full, false).wont, "It offers a consult or the booking link instead of a price.");
+  // Still three clauses, on either channel (spec 4.1): what it can say, what it will not, and the one gap. The VM
+  // having three keys is true by construction and proves nothing; what could go wrong is the middle clause growing
+  // into two sentences, so it is counted as a reader counts it -- by its full stops.
+  for (const calls of [true, false]) {
+    const s = standingLine({ ...full, profile: { ...full.profile, tone: undefined } }, calls);
+    assert.ok(s.can && s.wont && s.missing, `calls=${calls}: all three`);
+    for (const [what, clause] of [
+      ["can", s.can],
+      ["wont", s.wont],
+      ["missing", s.missing.sentence],
+    ]) {
+      assert.equal(
+        clause.split(".").filter((p) => p.trim() !== "").length,
+        1,
+        `calls=${calls}: ${what} is one sentence`,
+      );
+      assert.match(clause, /\.$/, `calls=${calls}: ${what} ends`);
+    }
+  }
+  // Nothing to price is still nothing said, whichever lines answer.
+  for (const calls of [true, false]) {
+    assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, calls).wont, null);
+  }
+});
+
+test("standingLine refuses to guess which lines answer", () => {
+  // An untyped page that left it out would read as false, and a workspace on the phone would be told the chat
+  // sentence -- exactly the wording M-1 was raised about.
+  assert.throws(() => standingLine(full), TypeError);
+  assert.throws(() => standingLine(full, "yes"), TypeError);
 });
 
 test("a record with nothing says so without listing every gap", () => {
-  const s = standingLine({ business_name: "", booking_link: "", profile: {} });
+  const s = standingLine({ business_name: "", booking_link: "", profile: {} }, false);
   assert.match(s.can, /cannot answer anyone yet/i);
   assert.equal(s.wont, null);
   assert.equal(s.missing.row, "name");
@@ -190,8 +358,9 @@ const live = {
   pauseHours: 24,
   visionOn: false,
   bookingHeld: false,
+  replyMode: "auto",
 };
-const idOf = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
+const idOf = (vm) => Object.fromEntries(vm.rows.map((r) => [r.id, r]));
 
 test("an ability names its channels and the row it runs on", () => {
   const rows = abilityRows({
@@ -205,7 +374,8 @@ test("an ability names its channels and the row it runs on", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
   assert.deepEqual(byId.open_times.channels, { voice: true, whatsapp: true });
@@ -232,7 +402,8 @@ test("an ability whose input is missing says which row to fill", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
   assert.equal(byId.open_times.ready, false);
   assert.equal(byId.transfer.ready, false);
@@ -254,7 +425,8 @@ test("nothing is ready on a channel that is not answering", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
   // And a phone-only workspace has no chat abilities, whatever is filled in.
   const phoneOnly = abilityRows({
@@ -268,7 +440,8 @@ test("nothing is ready on a channel that is not answering", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
   assert.equal(byId.handoff.ready, false, "there is no thread to hand over");
   assert.equal(byId.vision.ready, false, "and no photo to look at");
@@ -314,6 +487,32 @@ test("with a calendar, the link follows the times only where it can go", () => {
   assert.equal(
     held.detail,
     "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows.",
+  );
+});
+
+test("with both lines and no approved message, the link that follows the times is chat's alone (M-3)", () => {
+  // linkGoes asked only whether the LINK could go at all -- a booking link, WhatsApp connected,
+  // bookings not held -- and never whether the CALL could send it. So a workspace on both lines
+  // with no approved booking-link template was told, on the row about a call asking the calendar,
+  // that the call offers times "then the link". outbound-gate refuses that send (retell-fn's
+  // deliver needs the template), and the booking-link row two lines down already says so.
+  const noTemplate = { ...live, hasBookingTemplate: false };
+  assert.match(
+    idOf(abilityRows(noTemplate)).open_times.detail,
+    /It offers up to three that fit, then the link in chat\.$/,
+  );
+  assert.equal(
+    idOf(abilityRows({ ...noTemplate, hasCalendarFeed: false })).open_times.detail,
+    "No calendar to read, so it does not guess at open times — in chat it sends the link instead.",
+  );
+  // A workspace with no call to speak of needs no such clause: there is only chat to send it on.
+  assert.match(
+    idOf(abilityRows({ ...noTemplate, voiceLive: false })).open_times.detail,
+    /It offers up to three that fit, then the link\.$/,
+  );
+  assert.equal(
+    idOf(abilityRows({ ...noTemplate, voiceLive: false, hasCalendarFeed: false })).open_times.detail,
+    "No calendar to read, so it does not guess at open times — it sends the link instead.",
   );
 });
 
@@ -436,6 +635,144 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
   for (const p of policies) assert.equal(bookingHeld(p), policyAskClass(p, "booking") === "booking", JSON.stringify(p));
 });
 
+test("with replies held on the Autonomy tab, every chat ability is dark and the card says why once", () => {
+  // Task 4.1b. On ask or never the WhatsApp receptionist composes no reply at all
+  // (core/inbound/answer.ts through replyPosture) and a call's booking-link send is refused
+  // (receptionist/outbound-gate.ts, policy_hold). Six rows would otherwise all read ready at once.
+  for (const mode of ["ask", "never"]) {
+    const vm = abilityRows({ ...live, replyMode: mode });
+    for (const r of vm.rows) assert.equal(r.channels.whatsapp, false, `${r.id} has no chat on ${mode}`);
+    const rows = idOf(vm);
+    assert.equal(rows.handoff.ready, false, "there is no reply to hand over");
+    assert.equal(rows.vision.ready, false);
+    assert.equal(rows.booking_link.ready, false);
+    assert.equal(rows.booking_link.channels.voice, false, "the call's send is refused too");
+    // A call is untouched: it answers, and it puts a caller through.
+    assert.deepEqual(rows.transfer.channels, { voice: true, whatsapp: false });
+    assert.equal(rows.transfer.ready, true);
+    assert.equal(rows.answer.ready, true);
+    assert.ok(vm.held, `${mode} is held`);
+    assert.equal(vm.held.to, "admin/autonomy");
+    // The door's words are contracts' too: the page draws the sentence and the door, and types neither.
+    assert.equal(vm.held.door, "Your Autonomy tab");
+    assert.ok(vm.held.sentence.includes("Autonomy tab"), "and the sentence names the tab the door goes to");
+    // The pane's own words for the mode, never the stored value (legacy/CLAUDE.md #657).
+    assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].chip), vm.held.sentence);
+    assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].sub), vm.held.sentence);
+    const said = vm.held.sentence.toLowerCase().split(/[^a-z]+/);
+    for (const stored of POLICY_MODES)
+      assert.ok(!said.includes(stored), `${stored} is a filing word, not one to read: ${vm.held.sentence}`);
+  }
+  // With no call, the card promises nothing about one.
+  assert.doesNotMatch(abilityRows({ ...live, replyMode: "ask", voiceLive: false }).held.sentence, /call/i);
+});
+
+test("on Sends it or Holds it, nothing is held and the card says nothing", () => {
+  for (const mode of ["auto", "veto"]) {
+    const vm = abilityRows({ ...live, replyMode: mode });
+    assert.equal(vm.held, null, mode);
+    assert.deepEqual(vm.rows, abilityRows({ ...live, replyMode: "auto" }).rows, `${mode} answers as auto does`);
+    assert.equal(idOf(vm).handoff.channels.whatsapp, true);
+  }
+});
+
+test("each channel on a row is named in words, so the dark one is not read as a colour", () => {
+  // The card draws two glyphs per row, lit and dim. Dim is a colour, and a colour says
+  // nothing to a screen reader or to anyone who cannot tell the two inks apart, so each
+  // glyph is named -- here, once, rather than in the JSX that draws it.
+  assert.deepEqual(Object.keys(ABILITY_CHANNEL_WORDS).sort(), ["voice", "whatsapp"]);
+  assert.deepEqual(ABILITY_CHANNEL_WORDS.whatsapp, { has: "in chat", not: "not in chat" });
+  assert.deepEqual(ABILITY_CHANNEL_WORDS.voice, { has: "on a call", not: "not on a call" });
+  for (const w of Object.values(ABILITY_CHANNEL_WORDS)) {
+    assert.notEqual(w.has, w.not, "the two states do not say the same thing");
+    for (const said of [w.has, w.not]) assert.match(said, /^[a-z ]+$/, said);
+  }
+});
+
+test("a row says when what stops it is on this page, and when it is not", () => {
+  // The card draws a sentence and a door only where the owner can act HERE. Everything else
+  // -- a channel that is not connected, the Autonomy tab's hold -- is the card's to say once,
+  // not six rows' to repeat, so those rows stay at their title and their two glyphs.
+  const missingOf = (over) => Object.fromEntries(abilityRows({ ...live, ...over }).rows.map((r) => [r.id, r.missing]));
+  assert.deepEqual(missingOf({}), {
+    answer: false,
+    open_times: false,
+    booking_link: false,
+    transfer: false,
+    handoff: false,
+    vision: true,
+  });
+  assert.equal(missingOf({ hasCalendarFeed: false }).open_times, true);
+  assert.equal(missingOf({ hasBookingLink: false }).booking_link, true);
+  assert.equal(missingOf({ hasHandoffNumber: false }).transfer, true);
+  assert.equal(missingOf({ visionOn: true }).vision, false);
+  // The reasons widen a hand-off; they do not switch it on, so none of them is missing.
+  assert.equal(missingOf({ hasEscalateWhen: false }).handoff, false);
+  // A dead line, held bookings and held replies are not this page's rows to fill.
+  for (const over of [
+    { voiceLive: false, whatsappLive: false },
+    { whatsappLive: false },
+    { bookingHeld: true },
+    { replyMode: "ask" },
+  ]) {
+    const missing = missingOf(over);
+    assert.equal(missing.booking_link, false, JSON.stringify(over));
+    assert.equal(missing.handoff, false, JSON.stringify(over));
+    assert.equal(missing.open_times, false, JSON.stringify(over));
+  }
+  // And a row whose input IS missing still says so on a dead line: filling it is still the fix.
+  assert.equal(missingOf({ whatsappLive: false, hasBookingLink: false }).booking_link, true);
+});
+
+test("a channel says what the receptionist DOES there, so a row never disagrees with itself", () => {
+  // Found in the card's review, 22 Sep. `channels` said which channel an ability BELONGS to, so a
+  // workspace with a live line and no transfer number drew a lit phone beside "No number yet, so it
+  // takes a message instead", and a live pair with no calendar drew two lit glyphs beside "No calendar
+  // to read". Two meanings on one row, and the owner's rule allows one. A channel now folds in the
+  // input the ability needs, so `ready` is exactly "one of the two channels does it".
+  const missingInput = [
+    ["no calendar", { hasCalendarFeed: false }, "open_times"],
+    ["no transfer number", { hasHandoffNumber: false }, "transfer"],
+    ["no booking link", { hasBookingLink: false }, "booking_link"],
+    ["photos off", { visionOn: false }, "vision"],
+  ];
+  for (const [what, over, id] of missingInput) {
+    const row = idOf(abilityRows({ ...live, visionOn: true, ...over }))[id];
+    assert.deepEqual(row.channels, { voice: false, whatsapp: false }, `${what}: neither channel does it`);
+    assert.equal(row.ready, false, what);
+  }
+  // And the invariant behind it, over every combination of the inputs that gate a channel.
+  for (const voiceLive of [true, false])
+    for (const whatsappLive of [true, false])
+      for (const replyMode of ["auto", "ask"])
+        for (const hasCalendarFeed of [true, false])
+          for (const hasBookingLink of [true, false])
+            for (const hasBookingTemplate of [true, false])
+              for (const hasHandoffNumber of [true, false])
+                for (const bookingHeld of [true, false])
+                  for (const visionOn of [true, false]) {
+                    const shape = {
+                      ...live,
+                      voiceLive,
+                      whatsappLive,
+                      replyMode,
+                      hasCalendarFeed,
+                      hasBookingLink,
+                      hasBookingTemplate,
+                      hasHandoffNumber,
+                      bookingHeld,
+                      visionOn,
+                    };
+                    for (const r of abilityRows(shape).rows) {
+                      assert.equal(
+                        r.ready,
+                        r.channels.voice || r.channels.whatsapp,
+                        `${r.id} on ${JSON.stringify(shape)}`,
+                      );
+                    }
+                  }
+});
+
 test("an input left out throws and says which, rather than drawing a card that lies", () => {
   // The page that calls this is untyped JSX. An omitted boolean is undefined, which is falsy,
   // and the card would say a line is dark or a switch is off with no error anywhere -- the
@@ -460,6 +797,17 @@ test("an input left out throws and says which, rather than drawing a card that l
   assert.throws(() => abilityRows(undefined), TypeError);
   // pauseHours is not one of them: whatever is stored is read the way the Autonomy pane reads it.
   assert.doesNotThrow(() => abilityRows({ ...live, pauseHours: undefined }));
+  // replyMode is, and by its own name: left out, every chat ability would be drawn on a mode
+  // nobody chose, and the page cannot be allowed to pick one for the Autonomy tab.
+  const { replyMode: _m, ...noMode } = live;
+  assert.throws(
+    () => abilityRows(noMode),
+    (e) => e instanceof TypeError && /replyMode/.test(e.message),
+  );
+  assert.throws(
+    () => abilityRows({ ...live, replyMode: "sometimes" }),
+    (e) => e instanceof TypeError && /replyMode/.test(e.message),
+  );
 });
 
 test("a photo is looked at when the switch is on, and passed to a person when it is off", () => {
@@ -719,11 +1067,14 @@ test("the services sheet's foot says how many it will be told of, how long they 
     "No services, so it cannot say what you offer.",
   );
   // One sentence, one home: the foot says what the standing line's gap says of a receptionist with no services.
-  const gap = standingLine({
-    business_name: "A",
-    booking_link: "https://a.example",
-    profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
-  }).missing;
+  const gap = standingLine(
+    {
+      business_name: "A",
+      booking_link: "https://a.example",
+      profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
+    },
+    false,
+  ).missing;
   assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
   assert.equal(
     servicesToldWords({ count: 0, chars: null, total: null }),
@@ -954,55 +1305,60 @@ test("the notes row names the first four by title, and how many more", () => {
   assert.deepEqual(notesWords("Parking"), { count: 0, chips: [], more: null });
 });
 
-test("the owner's own words are said by their size and their opening, cut at a word, and counted near the end", () => {
+test("the owner's own words are said by their opening, cut at a word; their size is a number for the box, not the row", () => {
   const words =
     "Never discuss competitors. A first name is all the personal data you need, and nothing is ever booked by text.";
   const said = instructionsWords(`  ${words}  `);
-  assert.equal(said.size, `${words.length} characters`);
   assert.equal(said.opening, "“Never discuss competitors. A first name is all the personal data you…”");
-  assert.equal(said.nearFull, null, "far from the end, nothing is counted");
   assert.equal(instructionsWords("Short.").opening, "“Short.”", "short enough to quote whole");
-  assert.equal(instructionsWords("One").size, "3 characters");
-  assert.equal(instructionsWords("x".repeat(1180)).size, "1,180 characters");
-  assert.deepEqual(instructionsWords("   "), { size: null, opening: null, nearFull: null });
-  // Past four fifths of what the receptionist takes, the box says how close it is: the old form's count.
+  assert.deepEqual(instructionsWords("   "), { opening: null, limit: null });
+  // The count says how much room is left rather than how long the words are: a number alone is one an owner cannot
+  // act on, and it sat on the row at rest, where nothing can be done about it. It is the box's, with the limit beside it.
+  assert.equal(
+    instructionsWords("One").limit,
+    `3 of ${INSTRUCTIONS_MAX.toLocaleString("en-US")} characters`,
+    "counted from the first character, never only near the end",
+  );
   const near = "x".repeat(INSTRUCTIONS_MAX * 0.8 + 1);
   assert.equal(
-    instructionsWords(near).nearFull,
+    instructionsWords(near).limit,
     `${near.length.toLocaleString("en-US")} of ${INSTRUCTIONS_MAX.toLocaleString("en-US")} characters`,
   );
-  assert.equal(instructionsWords("x".repeat(INSTRUCTIONS_MAX * 0.8)).nearFull, null, "at four fifths exactly, not yet");
+  assert.equal(said.size, undefined, "the row states no count of its own");
+  assert.equal(said.nearFull, undefined);
 });
 
-test("the three messages say how many differ from the default wording, never who wrote them", () => {
-  assert.deepEqual(fallbacksWords(FALLBACK_DEFAULTS), {
-    line: "3 messages sent in your name",
-    own: "all in the default wording",
-  });
+test("the three messages are one line: how many there are, and whose words they are in", () => {
+  // Two lines said it before -- "3 messages sent in your name" and "3 differ from the default wording" -- where the
+  // second counts a difference nobody can act on without opening the fold, which names each message that differs and
+  // offers the default back. One line now, and still never who wrote them: a workspace set up before the default
+  // wording was written was given messages nobody here typed.
+  assert.deepEqual(fallbacksWords(FALLBACK_DEFAULTS), { line: "3 messages, the product's wording" });
   assert.equal(
-    fallbacksWords(null).own,
-    "all in the default wording",
+    fallbacksWords(null).line,
+    "3 messages, the product's wording",
     "a workspace that stores none sends the default",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "Sorry, something went wrong on our side." }).own,
-    "1 differs from the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "Sorry, something went wrong on our side." }).line,
+    "3 messages, in your words",
   );
   assert.equal(
-    fallbacksWords({ greeting: "Hi!", error: "Sorry.", non_text: "Thanks." }).own,
-    "3 differ from the default wording",
+    fallbacksWords({ greeting: "Hi!", error: "Sorry.", non_text: "Thanks." }).line,
+    "3 messages, in your words",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: `  ${FALLBACK_DEFAULTS.error}\n` }).own,
-    "all in the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: `  ${FALLBACK_DEFAULTS.error}\n` }).line,
+    "3 messages, the product's wording",
     "space around a message is not a word of it",
   );
   assert.equal(
-    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "" }).own,
-    "all in the default wording",
+    fallbacksWords({ ...FALLBACK_DEFAULTS, error: "" }).line,
+    "3 messages, the product's wording",
     "a message stored empty is sent in the default wording",
   );
-  assert.doesNotMatch(fallbacksWords({ greeting: "Hi!" }).own, /you wrote/);
+  assert.doesNotMatch(fallbacksWords({ greeting: "Hi!" }).line, /you wrote/);
+  assert.equal(fallbacksWords(FALLBACK_DEFAULTS).own, undefined, "the second line is gone");
 });
 
 test("a record whose details compose nothing is told the stored prompt and Autonomy's rules, and the rules fold's sentence says so", () => {
@@ -1033,11 +1389,13 @@ test("a record whose details compose nothing is told the stored prompt and Auton
     "no rules block for the fold to show",
   );
   // The fold's sentence agrees with the prompt view's note on the same page: nothing on it is composed yet.
-  assert.match(blocks[0].note, /None of the details on this page are composed into it yet/);
-  assert.match(RULES_WITHOUT_FIELDS_WORDS, /^Nothing on this page is composed into what it reads yet/);
+  // M-2: not two sentences that happen to agree -- both are built from the one contracts keeps, so a change to
+  // either is a change to both, and the page cannot drift into saying it two ways again.
+  assert.ok(blocks[0].note.includes(NO_FIELDS_COMPOSED_WORDS), "the prompt view's note carries it");
+  assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the fold's note opens with it");
   assert.match(
     RULES_WITHOUT_FIELDS_WORDS,
-    /these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds\.$/,
+    /These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds\.$/,
   );
   // What it is TOLD, never what it does: the price detector reads every reply whatever the profile (layerTwo on a chat
   // reply, spokenBreach on a call), and nothing can confirm a booking anyway. Phase 4 draws this beside "Checked, not

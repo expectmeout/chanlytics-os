@@ -987,6 +987,18 @@ function hoursLines(hours: Record<string, Hours> | undefined): string[] {
   });
 }
 
+/**
+ * What a record whose details compose nothing is told, in ONE sentence.
+ *
+ * Two places on the Business tab say it: the rules fold, where the rules block would be
+ * (business-tab.ts RULES_WITHOUT_FIELDS_WORDS), and the prompt view, over the stored prompt the
+ * resolver hands such a record back (prompt-blocks.ts). They were two sentences saying the same
+ * thing in two spellings, which is two sentences to keep true; both are built from this one now,
+ * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
+ * whether either is said.
+ */
+export const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+
 /** True when a profile carries anything worth composing from. */
 export function hasProfile(p: BusinessProfile | undefined | null): boolean {
   if (!p) return false;

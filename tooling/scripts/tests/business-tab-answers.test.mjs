@@ -16,6 +16,7 @@ import {
   notesWords,
   instructionsWords,
   fallbacksWords,
+  chipsMoreWords,
   fallbackMessages,
   RULES_WITHOUT_FIELDS_WORDS,
   PROFILE_CROSSING_WORDS,
@@ -23,6 +24,10 @@ import {
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
+  ruleStrength,
+  VISION_STRENGTH,
+  rulesKept,
+  guardrailsInForce,
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
@@ -43,6 +48,7 @@ import {
   redrawTab,
   saveFoldOf,
   cancelFoldOf,
+  escape,
   saving,
   without,
 } from "./_business-tab-harness.mjs";
@@ -113,14 +119,15 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
     "The voice, the limits, and what fits no field",
   );
-  // After What you offer, and above the services sheet, which stays the page's last drawn child.
+  // After What you offer, before What it can do, and above the services sheet, the page's last drawn child.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers"],
+    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can"],
   );
   const tail = [].concat(drawTab().rendered.props.children).filter((c) => c != null && c !== false);
   assert.equal(tail.at(-1).type, W.BtServicesSheet);
-  assert.equal(tail.at(-2).type, W.BtAnswersCard);
+  assert.equal(tail.at(-2).type, W.BtCanCard, "What it can do is the card after this one");
+  assert.equal(tail.at(-3).type, W.BtAnswersCard);
 });
 
 test("typing a voice reaches the composer: the fold says the Tone line it will be told, and the save writes the tone alone", () => {
@@ -249,7 +256,7 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
 
 test("the standing line's tone door opens the voice's fold, with its box in it", () => {
   let tree = drawTab({ profile: without(melany, "tone") });
-  const gap = standingLine(W.__SETTINGS.config.brain).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "tone");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   // Heard as the gap's sentence, then the act of the row it opens.
@@ -420,15 +427,25 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     },
   });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  assert.deepEqual(chips, ["Never quotes a price", "Says it's an assistant", "Won't look at photos"]);
+  // The booking rule's word changes rather than going: the switch decides only whether it is told not to CLAIM it
+  // booked, and the product has no appointments table either way (contracts rulesKept).
+  assert.deepEqual(chips, [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Says it's an assistant",
+    "Won't look at photos",
+  ]);
+  // Past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit), the rest are said as "+N more",
+  // in contracts' own words: five chips wrapped three deep at a phone's width.
   tree = drawTab({ config: { features: { vision: true } } });
   assert.deepEqual(all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf), [
     "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
     "No health advice",
-    "Looks at photos",
+    chipsMoreWords(1),
   ]);
+  assert.equal(chipsMoreWords(1), "+1 more");
   openFold(tree, "guardrails");
   tree = redrawTab();
   // One element per rule, holding its label, its hint and its switch, so Phase 4 draws its strength into it.
@@ -456,7 +473,7 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     "a dashed rule sets the photos switch apart from the four limits",
   );
   assert.match(textOf(vision), /Look at photos customers send/);
-  assert.match(textOf(vision), /gives it a power/i);
+  assert.match(textOf(vision), new RegExp(escape(VISION_STRENGTH.chip)));
   assert.doesNotMatch(
     textOf(vision),
     /four above .* start on/i,
@@ -599,6 +616,157 @@ test("on a record whose details compose nothing, the rules fold says why once, a
   assert.equal(all(tree, (n) => ownWords(n) === RULES_WITHOUT_FIELDS_WORDS).length, 1);
 });
 
+test("at rest the rules are ONE row: the words are contracts', and no strength is said on it", () => {
+  // The four strengths live in the fold. At rest this row states one fact -- which rules it keeps -- and Task 4.0's
+  // rule allows it one quiet signal, not four badges and four sentences stacked under a chevron nobody pressed.
+  const tree = drawTab();
+  const row = byTestId(tree, "rec-row-guardrails");
+  assert.deepEqual(
+    all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf),
+    rulesKept({ rules: guardrailsInForce(melany.guardrails), vision: false, composes: true })
+      .slice(0, 4)
+      .concat(chipsMoreWords(1)),
+    "the words are contracts', capped by the kit",
+  );
+  const words = textOf(row);
+  for (const key of GUARDRAIL_KEYS) {
+    const r = ruleStrength(key);
+    assert.doesNotMatch(words, new RegExp(escape(r.chip)), `${key}'s strength waits in the fold`);
+    assert.doesNotMatch(words, new RegExp(escape(r.sentence.slice(0, 40))), `${key}'s sentence waits in the fold`);
+  }
+  assert.doesNotMatch(words, /In chat|On a call/, "and so do the two channels");
+});
+
+test("M-2: on a record that composes nothing, the row names only what holds, in contracts' words", () => {
+  // The fold says once that the four switches change nothing it is told (RULES_WITHOUT_FIELDS_WORDS). At rest the row
+  // must not then list those four as if they were lines it reads: what is left is the detector and the appointments
+  // table that does not exist.
+  const profile = { guardrails: melany.guardrails, handoff_number: "+16469325775" };
+  assert.equal(hasProfile(profile), false, "the fixture composes nothing");
+  const tree = drawTab({ profile });
+  const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.deepEqual(chips, ["Never quotes a price", "Cannot book anything", "Won't look at photos"]);
+  assert.deepEqual(
+    chips,
+    rulesKept({ rules: guardrailsInForce(profile.guardrails), vision: false, composes: false }),
+    "contracts', not the page's",
+  );
+  // And a record that DOES compose says the two it is told as well.
+  const told = all(byTestId(drawTab(), "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.ok(told.includes("Says it's an assistant"));
+  assert.ok(told.includes("Never confirms a booking"), "a line it reads, so the claim is covered too");
+});
+
+test("at rest the price rule keeps its word with the switch off, and the booking rule changes its words", () => {
+  // Task 3.5's review: a row that dropped "Never quotes a price" with the switch off would read as if prices went
+  // through. They do not -- the detector runs either way (the owner's decision, 20 Sep 2026).
+  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const chips = (t) => all(byTestId(t, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
+  assert.ok(chips(drawTab({ profile: off })).includes("Never quotes a price"));
+  // The structural one is different: the switch decides only whether it is told not to CLAIM it booked, so the fact
+  // that stays is what it cannot do.
+  const noBooking = { ...melany, guardrails: { ...melany.guardrails, never_confirm_booking: false } };
+  const said = chips(drawTab({ profile: noBooking }));
+  assert.ok(said.includes("Cannot book anything"));
+  assert.ok(!said.includes("Never confirms a booking"));
+});
+
+/* --- the three strengths, in the fold (Task 4.2) --- */
+
+/** The rules fold, opened: the four switches and the photos switch are drawn in it. */
+const rulesOpen = (over = {}) => {
+  let tree = drawTab(over);
+  openFold(tree, "guardrails");
+  return redrawTab();
+};
+/** A rule's row in the fold, and the badge word on it. */
+const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
+const badgesOn = (row) => all(row, (n) => classes(n).includes("bt-rule-chip")).map(textOf);
+
+test("each rule in the fold says how far it goes, in the words contracts wrote", () => {
+  const tree = rulesOpen();
+  for (const key of GUARDRAIL_KEYS) {
+    const row = ruleRow(tree, key);
+    const r = ruleStrength(key);
+    // ONE badge, and it is the strength's own word: four identical switches over three different
+    // guarantees was the quietest dishonesty this page had.
+    assert.deepEqual(badgesOn(row), [r.chip], `${key} wears one badge, its strength's`);
+    assert.match(textOf(row), new RegExp(escape(r.sentence)), `${key} says what actually happens`);
+    // On a phone the sentence is not drawn (settings.css), so the switch carries it as its description
+    // whatever the width: a badge word alone says nothing about what the switch does.
+    const says = find(row, (n) => n.props?.id === `bt-rule-${key}-says`);
+    assert.equal(textOf(says), r.sentence, `${key}'s sentence is one element`);
+    assert.equal(
+      switchOf(tree, key).props["aria-describedby"],
+      `bt-rule-${key}-says`,
+      `${key}'s switch is described by it`,
+    );
+  }
+  // Three strengths, not four: the two told-and-trusted rules wear the same word.
+  assert.equal(new Set(GUARDRAIL_KEYS.map((k) => ruleStrength(k).chip)).size, 3);
+});
+
+test("the checked rule draws both channels, because they differ, and no other rule draws any", () => {
+  const tree = rulesOpen();
+  const priced = ruleRow(tree, "never_quote_prices");
+  const lines = all(priced, (n) => classes(n).includes("bt-rule-checked-line")).map(textOf);
+  assert.deepEqual(
+    lines,
+    ruleStrength("never_quote_prices").checkedOn.map((c) => `${c.label} ${c.words}`),
+    "the two lines are contracts', channel name and all",
+  );
+  assert.match(lines[0], /In chat/);
+  assert.match(lines[0], /before the customer sees them/i);
+  assert.match(lines[1], /On a call/);
+  // A call has no before, and saying there was one is the sentence this whole task exists to stop.
+  assert.doesNotMatch(lines[1], /before/i);
+  for (const key of GUARDRAIL_KEYS) {
+    if (key === "never_quote_prices") continue;
+    assert.deepEqual(
+      all(ruleRow(tree, key), (n) => classes(n).includes("bt-rule-checked-line")),
+      [],
+      `${key} lands the same way on both channels, so it names neither`,
+    );
+  }
+});
+
+test("the price rule still says it is checked with the switch off", () => {
+  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
+  // whether the switch is on or off; the switch changes one prompt line, and the row says so.
+  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const tree = rulesOpen({ profile: off });
+  const row = ruleRow(tree, "never_quote_prices");
+  assert.equal(switchOf(tree, "never_quote_prices").props["aria-checked"], false, "the switch really is off");
+  assert.deepEqual(badgesOn(row), ["Checked, not just told"]);
+  assert.match(textOf(row), /whether this switch is on or off/);
+  assert.equal(all(row, (n) => classes(n).includes("bt-rule-checked-line")).length, 2, "and both channels still");
+  // No alarm beside it: nothing about switching it off lets a price through.
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-warn")),
+    null,
+  );
+});
+
+test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
+  const tree = rulesOpen();
+  const vision = byTestId(tree, "rec-rule-vision");
+  assert.ok(
+    find(vision, (n) => classes(n).includes("rec-rule-sep")),
+    "a dashed rule separates it from the four limits",
+  );
+  assert.deepEqual(badgesOn(vision), [VISION_STRENGTH.chip], "one badge here too, and contracts' word for it");
+  assert.equal(
+    textOf(find(vision, (n) => classes(n).includes("bt-rule-hint"))),
+    VISION_STRENGTH.sentence,
+    "and its sentence is contracts' too, never typed in the page",
+  );
+  assert.equal(
+    all(vision, (n) => classes(n).includes("bt-rule-checked-line")).length,
+    0,
+    "it is not a rule anything checks",
+  );
+});
+
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
 test("the transfer number is shown in the hand-off fold, never edited there, and its door opens the Who you are row", () => {
@@ -720,8 +888,9 @@ test("a workspace that takes no calls is told nothing a call does: no call sente
 
 test("how long a hand-off holds off is the Autonomy tab's, and a failed read of it is said where the sentence would be", () => {
   try {
-    W.__POLICIES = { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" };
-    let tree = drawTab();
+    let tree = drawTab({
+      policies: { rows: [{ class: "reply", mode: "auto", limits: { pause_hours: 4 } }], role: "owner" },
+    });
     openFold(tree, "escalate_when");
     tree = redrawTab();
     assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /holds off for 4 hours/);
@@ -884,9 +1053,10 @@ test("own words carried from the prompt before the form say so, and the save wri
   const sent = saving();
   const before = "You answer for the studio. Parking is behind the building, and we never book walk-ins after five.";
   let tree = drawTab({ brain: { system_prompt: before } });
-  // At rest: its size and its opening, contracts' words.
+  // At rest: its opening, contracts' words, and no count of any kind.
   const words = instructionsWords(before);
-  assert.equal(textOf(byTestId(tree, "rec-own-words")), `${words.size}${words.opening}`);
+  assert.equal(textOf(byTestId(tree, "rec-own-words")), words.opening);
+  assert.equal(textOf(byTestId(tree, "rec-row-extra_instructions")).includes("characters"), false);
   openFold(tree, "extra_instructions");
   tree = redrawTab();
   assert.match(
@@ -917,7 +1087,7 @@ test("own words carried from the prompt before the form say so, and the save wri
   assert.equal(byTestId(tree, "rec-own-carried"), null);
 });
 
-test("emptying the only words a record composes from says it stops composing, and the count shows near the end", () => {
+test("emptying the only words a record composes from says it stops composing, and the box counts the room left", () => {
   const profile = { extra_instructions: "Only these words.", guardrails: { never_quote_prices: true } };
   let tree = drawTab({ profile });
   openFold(tree, "extra_instructions");
@@ -930,19 +1100,20 @@ test("emptying the only words a record composes from says it stops composing, an
     [],
     "no block to quote a line of: the sentence says all of it",
   );
-  // Past four fifths of what the receptionist takes, the box says how close it is, in contracts' words.
+  // Under the box, how much room is left, with the limit in it, in contracts' words -- from the first character, not
+  // only near the end: the count is the box's now, and a count nobody sees until four fifths is a surprise.
   const long = "x".repeat(16001);
   typeIn(tree, "extra_instructions", long);
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(long).nearFull);
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(long).limit);
   typeIn(tree, "extra_instructions", "Short.");
   tree = redrawTab();
-  assert.equal(byTestId(tree, "rec-own-count"), null);
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords("Short.").limit);
   // Past what it takes, the refusal is said under the box, and the count gives way to it: one sentence, not two.
   const over = "x".repeat(20001);
   typeIn(tree, "extra_instructions", over);
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).nearFull, "counted as it is typed");
+  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(over).limit, "counted as it is typed");
   saveFoldOf(tree, "extra_instructions");
   tree = redrawTab();
   assert.equal(problemOf(tree, "bt-own-words"), "At most 20,000 characters — this is 20,001.");
@@ -989,13 +1160,13 @@ test("a fold nobody typed in promises no crossing: on a record that composes not
 
 /* ------------------------------------ when it can't answer ------------------------------------ */
 
-test("the three messages at rest say how many there are and how many differ from the default wording", () => {
+test("the three messages at rest are one line: how many there are, and whose words they are in", () => {
   const row = byTestId(drawTab(), "rec-row-fallbacks");
   const vm = fallbacksWords(brainOf(melany).fallbacks);
-  assert.equal(textOf(byTestId(row, "rec-fallbacks-words")), `${vm.line}${vm.own}`);
-  assert.deepEqual([vm.line, vm.own], ["3 messages sent in your name", "3 differ from the default wording"]);
+  assert.equal(textOf(byTestId(row, "rec-fallbacks-words")), vm.line);
+  assert.equal(vm.line, "3 messages, in your words");
   const defaults = byTestId(drawTab({ brain: { fallbacks: FALLBACK_DEFAULTS } }), "rec-row-fallbacks");
-  assert.match(textOf(defaults), /all in the default wording/);
+  assert.match(textOf(defaults), /3 messages, the product's wording/);
 });
 
 test("each message shows what a customer reads, points at a link or a number written out, and offers the default wording back", () => {

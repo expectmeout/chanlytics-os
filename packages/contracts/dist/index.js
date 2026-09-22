@@ -2362,11 +2362,20 @@ function changedConfigFields(before, after) {
   const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
 }
-function lastChangedWords(updatedAt, byName, nowMs) {
+function lastChangedName(m) {
+  const name = (m.display_name ?? "").trim();
+  if (name) return name;
+  const local = (m.email ?? "").trim().split("@")[0]?.trim() ?? "";
+  return local || "a member";
+}
+function lastChangedWords(updatedAt, by, nowMs) {
   const at2 = updatedAt ? Date.parse(updatedAt) : NaN;
   if (Number.isNaN(at2)) return "";
   const when = agoWords(at2, nowMs);
-  return byName ? `Last changed by ${byName}, ${when}` : `Last changed ${when}, before we kept track of who`;
+  if (by.who === "you") return `Changed by you, ${when}`;
+  if (by.who === "member") return `Last changed by ${by.name}, ${when}`;
+  if (by.who === "gone") return `Last changed by someone no longer on the team, ${when}`;
+  return `Last changed ${when}, before we kept track of who`;
 }
 
 // src/config.ts
@@ -2873,6 +2882,7 @@ function hoursLines(hours) {
     return `${label}: ${r.text}`;
   });
 }
+var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
 function hasProfile(p) {
   if (!p) return false;
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
@@ -3497,6 +3507,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
   const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
   const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
+  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
@@ -3528,6 +3539,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       health: feedHealth,
       line: feedLine,
       detail: feedDetail,
+      read: feedRead,
       events: dto.feed.events,
       source: dto.feed.source ?? "your calendar",
       problem: dto.feed.problem ?? null,
@@ -13824,7 +13836,15 @@ function registrationPreflight(f) {
 
 // src/business-tab.ts
 var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
-var STRENGTHS = {
+var ABILITY_CHANNEL_WORDS = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens = (c) => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "It cannot anyway",
@@ -13846,10 +13866,19 @@ var STRENGTHS = {
     // not to quote one. So the sentence cannot say the switch turns the checking on.
     sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
-      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
       {
         channel: "voice",
-        words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
+        label: channelOpens("voice"),
+        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
+        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
+        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
+        // with it rather than promising the better half of it.
+        words: "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached."
       }
     ]
   },
@@ -13865,13 +13894,54 @@ var STRENGTHS = {
     sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
     checkedOn: null
   }
-};
+}))();
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
+var VISION_STRENGTH = /* @__PURE__ */ (() => ({
+  strength: "power",
+  chip: "gives it a power",
+  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
+  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
+  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
+  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  checkedOn: null
+}))();
+var RULES_AT_REST_WORDS = {
+  never_quote_prices: "Never quotes a price",
+  never_confirm_booking: "Never confirms a booking",
+  disclose_ai: "Says it's an assistant",
+  no_health_advice: "No health advice"
+};
+var CANNOT_BOOK_WORDS = "Cannot book anything";
+var PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
+function rulesKept(i) {
+  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  }
+  const rules = i.rules;
+  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
+  for (const key of GUARDRAIL_KEYS) {
+    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
+  }
+  const kept = [];
+  for (const key of GUARDRAIL_KEYS) {
+    const { strength } = ruleStrength(key);
+    const told = i.composes && rules[key];
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
+  }
+  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
+  return kept;
+}
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-function standingLine(i) {
+var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
+var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented.";
+function standingLine(i, calls) {
+  if (typeof calls !== "boolean") {
+    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
   const p = i.profile ?? {};
   const gaps = [];
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
@@ -13890,7 +13960,7 @@ function standingLine(i) {
   if (has2(p.services)) answers.push("what you offer");
   if (has2(i.booking_link)) answers.push("how to book");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
+  const wont = has2(p.services) ? calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
@@ -13899,6 +13969,9 @@ function openWeekWords(hours, tz) {
   const zone = `in ${timezoneCity(tz)} time`;
   if (!open) return `Times are ${zone}`;
   return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+function hoursZoneWords(tz) {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
 }
 function closuresAheadWords(closures, tz, now) {
   const dated = (closures ?? []).filter((c) => !!c?.date);
@@ -13909,7 +13982,11 @@ function closuresAheadWords(closures, tz, now) {
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
 var count = (n) => n.toLocaleString("en-US");
-var SERVICE_CHIPS = 4;
+var CHIPS_SHOWN = 4;
+function chipsMoreWords(n) {
+  return `+${count(n)} more`;
+}
+var SERVICE_CHIPS = CHIPS_SHOWN;
 var CONSULT = /\bconsult/i;
 var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
 function servicesWords(services) {
@@ -13932,7 +14009,7 @@ function servicesWords(services) {
     line: `${count(n)} on record`,
     priced,
     chips,
-    more: n > SERVICE_CHIPS ? `+${count(n - SERVICE_CHIPS)} more` : null
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
   };
 }
 function blockShareWords(chars, total) {
@@ -14077,25 +14154,23 @@ function handoffWords(reasons, transfer) {
     phone: number ? `transfers to ${number}` : "takes a message"
   };
 }
-var NOTE_CHIPS = 4;
+var NOTE_CHIPS = CHIPS_SHOWN;
 function notesWords(notes) {
   const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
   const n = titles.length;
   return {
     count: n,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? `+${count(n - NOTE_CHIPS)} more` : null
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
   };
 }
 var OPENING_SHOWN = 72;
 function instructionsWords(text) {
   const t = typeof text === "string" ? text.trim() : "";
-  if (!t) return { size: null, opening: null, nearFull: null };
-  const n = t.length;
+  if (!t) return { opening: null, limit: null };
   return {
-    size: plural6(n, "character", "characters"),
     opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
-    nearFull: n > INSTRUCTIONS_MAX * 0.8 ? `${count(n)} of ${count(INSTRUCTIONS_MAX)} characters` : null
+    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
   };
 }
 function fallbacksWords(fallbacks) {
@@ -14105,12 +14180,9 @@ function fallbacksWords(fallbacks) {
     const t = typeof f[k] === "string" ? f[k].trim() : "";
     return t !== "" && t !== FALLBACK_DEFAULTS[k];
   }).length;
-  return {
-    line: `${count(keys.length)} messages sent in your name`,
-    own: differ ? `${count(differ)} ${differ === 1 ? "differs" : "differ"} from the default wording` : "all in the default wording"
-  };
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var RULES_WITHOUT_FIELDS_WORDS = "Nothing on this page is composed into what it reads yet, so these four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.";
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -14140,12 +14212,21 @@ function abilityRows(i) {
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
     );
   }
-  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
-  const answering = i.voiceLive || i.whatsappLive;
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
+    );
+  }
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
+  const answering = i.voiceLive || chatAnswers;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  return [
+  const rows = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -14153,7 +14234,9 @@ function abilityRows(i) {
       detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
-      ready: answering
+      ready: answering,
+      // The facts it answers from are the standing line's subject, at the top of the page.
+      missing: false
     },
     {
       id: "open_times",
@@ -14162,29 +14245,35 @@ function abilityRows(i) {
       // With bookings held, check_availability offers a caller no times (retell-availability.ts),
       // while the call still starts with the openings (call-start.ts) and chat is still handed
       // them, so this says only what holds on both: it has them, and a request to book gets no link.
-      detail: !i.hasCalendarFeed ? linkGoes ? "No calendar to read, so it does not guess at open times \u2014 it sends the link instead." : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? ", then the link" : ""}.`,
-      channels: both,
+      detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
       runsOn: { label: "The calendar it reads", row: "calendar" },
-      ready: answering && i.hasCalendarFeed
+      ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed
     },
     {
       id: "booking_link",
       title: "Send the booking link",
       detail: bookingDetail,
-      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes
+      ready: linkGoes,
+      missing: !i.hasBookingLink
     },
     {
       id: "transfer",
       title: "Put a caller through",
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
       detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive, whatsapp: false },
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
       // The transfer number's one editor, Who you are's "Transfers a caller to" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
-      ready: i.voiceLive && i.hasHandoffNumber
+      ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber
     },
     {
       id: "handoff",
@@ -14194,21 +14283,31 @@ function abilityRows(i) {
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
       // hand-off row's fold says it in the same words (handoffChatWords).
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive
+      ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false
     },
     {
       id: "vision",
       title: "Look at a photo",
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
-      ready: i.whatsappLive && i.visionOn,
+      ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
       on: i.visionOn
     }
   ];
+  const held = repliesHeld ? {
+    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+    door: "Your Autonomy tab",
+    to: "admin/autonomy"
+  } : null;
+  return { rows, held };
 }
 var CANNOT_ROWS = [
   {
@@ -14376,7 +14475,12 @@ var PROMPT = {
   row: "extra_instructions",
   label: "In your own words",
   startsWith: "",
-  note: "This workspace's own prompt, read as it stands. None of the details on this page are composed into it yet."
+  // The second sentence is the rules fold's own, word for word (config.ts NO_FIELDS_COMPOSED_WORDS): the two notes
+  // are on one page, and an owner who reads both should read the same thing twice, not two near-misses.
+  //
+  // Marked pure for the reason business-tab.ts gives beside GUARDRAIL_KEYS: a substitution makes this an expression
+  // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
+  note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)()
 };
 var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 var AUTONOMY = {
@@ -16530,6 +16634,7 @@ function csvCell(v) {
 }
 export {
   ABANDONED_MS,
+  ABILITY_CHANNEL_WORDS,
   ABOUT_MAX,
   ABOUT_MIN,
   ACTIVITY_KINDS,
@@ -16596,6 +16701,7 @@ export {
   CHANNEL_KINDS,
   CHANNEL_KIND_WORDS,
   CHECKOUT_OUTCOME_WORDS,
+  CHIPS_SHOWN,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
   CONNECTION_GROUP_WORDS,
@@ -16788,6 +16894,7 @@ export {
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
+  NO_FIELDS_COMPOSED_WORDS,
   NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
   NoteSchema,
@@ -16880,6 +16987,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
   RUN_REPORT_STEPS,
@@ -16936,6 +17044,7 @@ export {
   TONE_PRESETS,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  VISION_STRENGTH,
   WABA_FIELDS,
   WA_WINDOW_MS,
   WHATSAPP_LANGUAGES,
@@ -16998,6 +17107,7 @@ export {
   channelKindWords,
   channelsOf2 as channelsOf,
   checkedWords,
+  chipsMoreWords,
   citationRoute,
   citationsToShow,
   classify,
@@ -17129,6 +17239,7 @@ export {
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
   hoursRuns,
+  hoursZoneWords,
   identityWords,
   inboxSlots,
   inboxTemplates,
@@ -17168,6 +17279,7 @@ export {
   languageName,
   languageTag,
   languageWords,
+  lastChangedName,
   lastChangedWords,
   leadAllowanceFact,
   leadAnd,
@@ -17368,6 +17480,7 @@ export {
   roleGate,
   ruleParts,
   ruleStrength,
+  rulesKept,
   rulesLine,
   runDueNow,
   runningTotal,

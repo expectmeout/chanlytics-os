@@ -337,13 +337,44 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
 }
 
 /**
- * "Last changed by Ada, two days ago" for the Business card, from the row's
- * own author and stamp (migration 00085). A row written before the author
- * was kept says so rather than inventing one; no stamp at all says nothing.
+ * Who last changed the record, as the line names them: the person reading it,
+ * someone else on the team by name, someone who has since left, or nobody
+ * known -- a row written before the author was kept (migration 00085).
+ *
+ * A discriminator rather than a name that may be null: "someone no longer on
+ * the team" was passed in as a NAME, so the one sentence that says the author
+ * is unknown and the one that says they are gone were told apart by a caller
+ * spelling one of them.
  */
-export function lastChangedWords(updatedAt: string | null | undefined, byName: string | null, nowMs: number): string {
+export type LastChangedBy = { who: "you" } | { who: "member"; name: string } | { who: "gone" } | { who: "unknown" };
+
+/**
+ * A person's name for that line, and never their email address.
+ *
+ * The roster shows the address deliberately, under the name (`memberWords`):
+ * it is how an owner tells two Sarahs apart when they invite one. A sentence
+ * under the page's title is not a roster -- it is read at a glance, over a
+ * shoulder and on a phone -- and "Last changed by ruben@rjcapital.io, 7m ago"
+ * spends more of it on an address than on what it says. What is in front of
+ * the @ is what people call each other.
+ */
+export function lastChangedName(m: { display_name?: string | null; email?: string | null }): string {
+  const name = (m.display_name ?? "").trim();
+  if (name) return name;
+  const local = (m.email ?? "").trim().split("@")[0]?.trim() ?? "";
+  return local || "a member";
+}
+
+/**
+ * "Changed by you, 7m ago" for the Business card, from the row's own author
+ * and stamp (migration 00085). No stamp at all says nothing.
+ */
+export function lastChangedWords(updatedAt: string | null | undefined, by: LastChangedBy, nowMs: number): string {
   const at = updatedAt ? Date.parse(updatedAt) : NaN;
   if (Number.isNaN(at)) return "";
   const when = agoWords(at, nowMs);
-  return byName ? `Last changed by ${byName}, ${when}` : `Last changed ${when}, before we kept track of who`;
+  if (by.who === "you") return `Changed by you, ${when}`;
+  if (by.who === "member") return `Last changed by ${by.name}, ${when}`;
+  if (by.who === "gone") return `Last changed by someone no longer on the team, ${when}`;
+  return `Last changed ${when}, before we kept track of who`;
 }

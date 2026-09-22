@@ -82,40 +82,28 @@ test("a save that lost the race: the server's sentence comes back, and the setti
   assert.deepEqual(seen, [], "any other refusal leaves the tab as it is");
 });
 
-test("the Business card's last-changed line: the author named from the roster, gone from it, or unknown before the author was kept; nothing with no stamp", () => {
+test("the Business card's last-changed line: you, the author named from the roster, gone from it, or unknown; never an address; nothing with no stamp", () => {
   const now = Date.parse("2026-09-11T12:00:00Z");
   const when = agoWords(Date.parse("2026-09-09T12:00:00Z"), now);
-  const identity = { member: (m) => ({ name: m.display_name || m.email || "a member" }) };
   const team = [
     { userId: "u1", email: "ada@example.com", displayName: "Ada" },
-    { userId: "u2", email: "bo@example.com", displayName: "" },
+    { userId: "u2", email: "bo.chen@example.com", displayName: "" },
   ];
+  const changedBy = (updatedBy, me = null) =>
+    lastChangedFor({ __SETTINGS: { updatedAt: "2026-09-09T12:00:00Z", updatedBy }, __TEAM: team, __ME: me }, now);
+  assert.equal(changedBy("u1"), `Last changed by Ada, ${when}`);
   assert.equal(
-    lastChangedFor(
-      { __SETTINGS: { updatedAt: "2026-09-09T12:00:00Z", updatedBy: "u1" }, __TEAM: team, __identity: identity },
-      now,
-    ),
-    `Last changed by Ada, ${when}`,
+    changedBy("u1", { id: "u1", email: "ada@example.com" }),
+    `Changed by you, ${when}`,
+    "the viewer reads their own change as theirs, not as a name they have to match to themselves",
   );
   assert.equal(
-    lastChangedFor(
-      { __SETTINGS: { updatedAt: "2026-09-09T12:00:00Z", updatedBy: "u2" }, __TEAM: team, __identity: identity },
-      now,
-    ),
-    `Last changed by bo@example.com, ${when}`,
-    "no name given: the address, never the local part dressed as a name",
+    changedBy("u2"),
+    `Last changed by bo.chen, ${when}`,
+    "no name given: what is in front of the @, never the whole address on a line every owner reads",
   );
-  assert.equal(
-    lastChangedFor(
-      { __SETTINGS: { updatedAt: "2026-09-09T12:00:00Z", updatedBy: "u9" }, __TEAM: team, __identity: identity },
-      now,
-    ),
-    `Last changed by someone no longer on the team, ${when}`,
-  );
-  assert.equal(
-    lastChangedFor({ __SETTINGS: { updatedAt: "2026-09-09T12:00:00Z", updatedBy: null }, __TEAM: team }, now),
-    `Last changed ${when}, before we kept track of who`,
-  );
+  assert.equal(changedBy("u9"), `Last changed by someone no longer on the team, ${when}`);
+  assert.equal(changedBy(null), `Last changed ${when}, before we kept track of who`);
   assert.equal(lastChangedFor({ __SETTINGS: { updatedAt: null, updatedBy: null } }, now), "");
   assert.equal(lastChangedFor({ __SETTINGS: null }, now), "");
 });

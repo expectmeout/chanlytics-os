@@ -777,7 +777,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
 test("the standing line's services door opens the sheet, guarded like any row", () => {
   const bare = without(melany, "services");
   let tree = drawTab({ profile: bare });
-  assert.equal(standingLine(W.__SETTINGS.config.brain).missing.row, "services");
+  assert.equal(standingLine(W.__SETTINGS.config.brain, true).missing.row, "services");
   press(byTestId(byTestId(tree, "rec-standing"), "rec-standing-door"));
   tree = redrawTab();
   assert.ok(sheetOf(tree), "the door opens the sheet, which no fold is");
