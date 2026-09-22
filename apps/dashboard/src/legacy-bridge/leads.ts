@@ -13,7 +13,7 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, toLeadPeekVM, toLeadRowVM,
+  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, stageArgs, toLeadPeekVM, toLeadRowVM,
   type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -55,8 +55,12 @@ interface LeadCallOptions {
   params?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
-  /** false: nothing is re-read after it (a draft changes nothing anyone is looking at). */
-  refresh?: false;
+  /**
+   * false: nothing is re-read after it (a draft changes nothing anyone is looking at). "behind": the surface is
+   * re-read all the same, but the act answers when the door accepts (client/api.ts), so the next press in a list
+   * being worked down does not wait for two reads.
+   */
+  refresh?: false | "behind";
 }
 
 /**
@@ -221,23 +225,78 @@ export async function leadsTakeOffered(): Promise<void> {
 
 /* --------------------------------------------------------------- the acts */
 // Named functions, one per door, in people-detail.ts's style: the page calls window.__leadX, the tests call these.
+// Every one answers when its door accepts, with the re-read behind it ("behind"): the owner is working down a list.
+
+type LeadMember = LeadRowDto["member"];
+
+/**
+ * An act the owner sees at once: the loaded row is changed the way the press itself says, the page is told, and the
+ * door is asked; a door that refuses puts the row back as it was. Only what the press names is changed -- the class
+ * it puts the place in, and whether it counts. The month, the counts and everything a rule decides are the
+ * re-read's to say, a moment later. A re-read that no longer holds the row (Needs review, once kept) leaves this one
+ * as it is, so the lead stays kept where the owner left it rather than standing there still offering Keep.
+ */
+async function actAtOnce<R extends { ok: boolean }>(ids: string[], change: (row: LeadRowDto) => LeadRowDto, send: () => Promise<R>): Promise<R> {
+  const L = leadsLoaded;
+  const wanted = new Set(ids);
+  const was = L ? L.rows.filter((r) => wanted.has(r.id)) : [];
+  if (!L || !was.length) return send();
+  const tell = () => { publishLeads(); window.dispatchEvent(new CustomEvent("surface:leads")); };
+  const changed = new Map(was.map((r) => [r, change(r)]));
+  L.rows = L.rows.map((r) => changed.get(r) ?? r);
+  tell();
+  const r = await send();
+  // Refused: back as it was -- unless the view moved on, or a re-read has already said what a row is now.
+  if (!r.ok && leadsLoaded === L) {
+    const back = new Map([...changed].map(([before, after]) => [after, before]));
+    if (L.rows.some((row) => back.has(row))) {
+      L.rows = L.rows.map((row) => back.get(row) ?? row);
+      tell();
+    }
+  }
+  return r;
+}
+const member = (m: LeadMember, patch: Partial<LeadMember>): LeadMember => ({ ...m, ...patch });
+const kept = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "qualified", counted: true }) });
+const leftOut = (r: LeadRowDto): LeadRowDto => ({ ...r, member: member(r.member, { class: "excluded", counted: false }) });
+/** The stage a press asks for, as the door will spell it: only that. A person, a count, the month are the door's. */
+const staged = (input: LeadStageInput) => (r: LeadRowDto): LeadRowDto => {
+  const a = stageArgs(input);
+  return a.p_stage ? { ...r, stage: a.p_stage as LeadRowDto["stage"], closed_reason: a.p_reason } : r;
+};
+const bulked = (action: "contacted" | "not_a_fit" | "keep" | "exclude") => (r: LeadRowDto): LeadRowDto => {
+  switch (action) {
+    case "contacted": return staged({ kind: "stage", stage: "nurture" })(r);
+    case "not_a_fit": return { ...r, stage: "archived", closed_reason: "not_a_fit" };
+    case "keep": return kept(r);
+    case "exclude": return leftOut(r);
+  }
+};
 
 export async function setLeadStage(id: string, input: LeadStageInput) {
   // An Interested call makes a person, so People is stale too: `refresh-map.ts`
   // names both surfaces for this one route.
-  return call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input });
+  return actAtOnce([id], staged(input), () => call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input, refresh: "behind" }));
 }
-export async function keepLead(searchId: string, id: string) { return api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId } }); }
-export async function excludeLead(searchId: string, id: string) { return api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId } }); }
-export async function putBackLead(searchId: string, id: string) { return api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId } }); }
+export async function keepLead(searchId: string, id: string) {
+  return actAtOnce([id], kept, () => api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
+export async function excludeLead(searchId: string, id: string) {
+  return actAtOnce([id], leftOut, () => api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
+export async function putBackLead(searchId: string, id: string) {
+  return actAtOnce([id], kept, () => api()("POST leads/[id]/put-back", { params: { id }, body: { search_id: searchId }, refresh: "behind" }));
+}
 /** Undo names the operation and the version the page saw (E9): the server refuses when anyone changed it since. */
 export async function undoLeadOperation(opId: string, version: number) { return api()("POST lead-operations/[id]/undo", { params: { id: opId }, body: { version } }); }
 export async function draftForLead(id: string, input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } }) {
   return call<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", { params: { id }, body: input, refresh: false });
 }
 export async function eraseLead(id: string) { return call<{ erased: true }>("DELETE leads/[id]", { params: { id } }); }
-/** The selected ids, or the view for "Select all N that match" (S13). */
-export async function bulkLeads(body: LeadsBulkInput) { return call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body }); }
+/** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
+export async function bulkLeads(body: LeadsBulkInput) {
+  return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () => call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body, refresh: "behind" }));
+}
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) { return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } }); }
 /** Include amends the plan, so it carries the version the owner approved; Keep and Stop carry none (§7.2). */
