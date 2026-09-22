@@ -789,7 +789,7 @@ const PaneWorkspace = ({ flash }) => {
   if (real) {
     return (
       <>
-        <window.BusinessTab flash={flash} />
+        {window.BusinessTab ? <window.BusinessTab flash={flash} /> : null}
         <PromptPreview />
         <WorkspaceData />
       </>
@@ -798,7 +798,7 @@ const PaneWorkspace = ({ flash }) => {
   /* Nothing set up yet: the empty state, and the fold that sets a receptionist up from it
      (pages/business-tab-create.jsx). Provisioning inserts an EMPTY tenant_config row (migration 00017), so this is
      the first thing every new owner sees. */
-  if (unconfigured) return <window.BtCreateCard flash={flash} />;
+  if (unconfigured) return window.BtCreateCard ? <window.BtCreateCard flash={flash} /> : null;
   /* No settings read behind the page at all: the standalone mockup, which draws the demo's business. `real` was
      doing two jobs, and a workspace with no brain fell to this branch and showed a real owner Serenity Spa's
      invented name, phone, therapists and 9-6 seven-day hours, on a surface classified real. */

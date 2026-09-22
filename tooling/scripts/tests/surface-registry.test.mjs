@@ -189,7 +189,7 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
     "'no configuration' and 'this is the demo' must not be the same branch",
   );
   assert.ok(
-    settings.includes("if (unconfigured) return <window.BtCreateCard"),
+    settings.includes("if (unconfigured) return window.BtCreateCard ? <window.BtCreateCard"),
     "and the card must take the honest one",
   );
   // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card. Drawn,
