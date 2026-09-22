@@ -154,14 +154,16 @@ const BtaLanguages = ({ draft, rows, press, problems, readOnly }) => {
 
 /* ------------------------------------ the rules it always keeps ------------------------------------ */
 
-// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with the old form's label and hint, and the
-// short name the row says it by at rest (the canvas's Record board). Phase 4 (Task 4.2) adds each rule's strength to
-// its row, ruleStrength's chip and sentence, beside these.
+// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with the old form's label and the short name
+// the row says it by at rest (the canvas's Record board). The sentence under the label is NOT here: it is the rule's
+// own strength (contracts ruleStrength(key).sentence, Task 4.2), because the form's hint said what the rule asks for
+// and the strength says how far it actually goes -- and two sentences on one switch is the clutter the owner asked us
+// to stop. The health rule's hint WAS its strength's sentence, word for word; contracts has it now.
 const BTA_RULES = [
-  ["never_quote_prices", "Never quote or confirm a price", "It offers a consult or the booking link instead", "Never quotes a price"],
-  ["never_confirm_booking", "Never confirm an appointment itself", "Booking happens on your link or with your staff", "Never confirms a booking"],
-  ["disclose_ai", "Say it is an assistant if asked", "And offer to bring in a person", "Says it's an assistant"],
-  ["no_health_advice", "Never give health advice", "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment", "No health advice"],
+  ["never_quote_prices", "Never quote or confirm a price", "Never quotes a price"],
+  ["never_confirm_booking", "Never confirm an appointment itself", "Never confirms a booking"],
+  ["disclose_ai", "Say it is an assistant if asked", "Says it's an assistant"],
+  ["no_health_advice", "Never give health advice", "No health advice"],
 ];
 
 /**
@@ -176,23 +178,49 @@ const BTA_RULES = [
  * of the four changes a word the receptionist is told (the price detector still reads every reply), and the fold says
  * so once, in contracts' words, where the rules' block would be (`unread`); it draws no empty "It will be told".
  */
-const BtaRules = ({ draft, update, readOnly, unread }) => (
+const BtaRules = ({ draft, update, readOnly, unread }) => {
+  const tab = window.__businessTab || {};
+  return (
   <div className="bt-rules-list" data-testid="rec-rules-switches">
-    {BTA_RULES.map(([key, label, hint]) => (
+    {BTA_RULES.map(([key, label]) => {
+      // How far this rule goes, in contracts' words: one badge and one sentence, never typed here. Without the bridge
+      // to ask, the switch keeps its label and claims no guarantee.
+      const r = typeof tab.ruleStrength === "function" ? tab.ruleStrength(key) : null;
+      return (
       <div key={key} className="bt-rule" data-testid={`rec-rule-${key}`}>
         <span className="bt-rule-words">
-          <span className="bt-rule-label" id={`bt-rule-${key}-label`}>{label}</span>
-          <span className="bt-rule-hint">{hint}</span>
+          <span className="bt-rule-head">
+            <span className="bt-rule-label" id={`bt-rule-${key}-label`}>{label}</span>
+            {/* A muted word, never a filled pill: the strength is the one quiet signal this row carries. */}
+            {r ? <span className="bt-rule-chip">{r.chip}</span> : null}
+          </span>
+          {/* Not drawn under 761px (settings.css), where four sentences are most of a phone's screen -- so the switch
+              carries it as its description at every width, and a screen reader hears the guarantee either way. */}
+          {r ? <span className="bt-rule-says" id={`bt-rule-${key}-says`}>{r.sentence}</span> : null}
+          {/* Only the checked rule has two channels to tell apart: in chat the words are swapped before anyone reads
+              them, on a call the figure has already been heard. Both are contracts', channel name and all. */}
+          {r && r.checkedOn ? (
+            <span className="bt-rule-checked">
+              {r.checkedOn.map((c) => (
+                <span key={c.channel} className="bt-rule-checked-line">
+                  <span className="bt-rule-checked-who">{c.label}</span>{" "}
+                  {c.words}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </span>
         <window.RecordSwitch
           on={draft[key] === true}
           onChange={(v) => update((d) => ({ ...d, [key]: v }))}
           labelledBy={`bt-rule-${key}-label`}
+          describedBy={r ? `bt-rule-${key}-says` : null}
           readOnly={readOnly}
           testid={`rec-rule-switch-${key}`}
         />
       </div>
-    ))}
+      );
+    })}
     {unread ? <p className="bt-fold-note" data-testid="rec-rules-unread">{unread}</p> : null}
     {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off.
         Apart from them, under a dashed rule (rec-rule-sep is the name Phase 4's test knows it by). It changes no word of
@@ -216,7 +244,8 @@ const BtaRules = ({ draft, update, readOnly, unread }) => (
       />
     </div>
   </div>
-);
+  );
+};
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
@@ -473,7 +502,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   // the row names no rule it cannot back.
   const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", stored) : null;
   const ruleChips = rules
-    ? BTA_RULES.filter(([key]) => rules[key]).map(([, , , short]) => ({ label: short })).concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }])
+    ? BTA_RULES.filter(([key]) => rules[key]).map(([, , short]) => ({ label: short })).concat([{ label: rules.vision ? "Looks at photos" : "Won't look at photos" }])
     : [];
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on. Without the bridge to ask, nothing is claimed.

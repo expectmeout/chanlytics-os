@@ -24,6 +24,7 @@ import {
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
+  ruleStrength,
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
@@ -44,6 +45,7 @@ import {
   redrawTab,
   saveFoldOf,
   cancelFoldOf,
+  escape,
   saving,
   without,
 } from "./_business-tab-harness.mjs";
@@ -602,6 +604,98 @@ test("on a record whose details compose nothing, the rules fold says why once, a
     "and a switch that reaches nothing says nothing it will be told",
   );
   assert.equal(all(tree, (n) => ownWords(n) === RULES_WITHOUT_FIELDS_WORDS).length, 1);
+});
+
+/* --- the three strengths, in the fold (Task 4.2) --- */
+
+/** The rules fold, opened: the four switches and the photos switch are drawn in it. */
+const rulesOpen = (over = {}) => {
+  let tree = drawTab(over);
+  openFold(tree, "guardrails");
+  return redrawTab();
+};
+/** A rule's row in the fold, and the badge word on it. */
+const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
+const badgesOn = (row) => all(row, (n) => classes(n).includes("bt-rule-chip")).map(textOf);
+
+test("each rule in the fold says how far it goes, in the words contracts wrote", () => {
+  const tree = rulesOpen();
+  for (const key of GUARDRAIL_KEYS) {
+    const row = ruleRow(tree, key);
+    const r = ruleStrength(key);
+    // ONE badge, and it is the strength's own word: four identical switches over three different
+    // guarantees was the quietest dishonesty this page had.
+    assert.deepEqual(badgesOn(row), [r.chip], `${key} wears one badge, its strength's`);
+    assert.match(textOf(row), new RegExp(escape(r.sentence)), `${key} says what actually happens`);
+    // On a phone the sentence is not drawn (settings.css), so the switch carries it as its description
+    // whatever the width: a badge word alone says nothing about what the switch does.
+    const says = find(row, (n) => n.props?.id === `bt-rule-${key}-says`);
+    assert.equal(textOf(says), r.sentence, `${key}'s sentence is one element`);
+    assert.equal(
+      switchOf(tree, key).props["aria-describedby"],
+      `bt-rule-${key}-says`,
+      `${key}'s switch is described by it`,
+    );
+  }
+  // Three strengths, not four: the two told-and-trusted rules wear the same word.
+  assert.equal(new Set(GUARDRAIL_KEYS.map((k) => ruleStrength(k).chip)).size, 3);
+});
+
+test("the checked rule draws both channels, because they differ, and no other rule draws any", () => {
+  const tree = rulesOpen();
+  const priced = ruleRow(tree, "never_quote_prices");
+  const lines = all(priced, (n) => classes(n).includes("bt-rule-checked-line")).map(textOf);
+  assert.deepEqual(
+    lines,
+    ruleStrength("never_quote_prices").checkedOn.map((c) => `${c.label} ${c.words}`),
+    "the two lines are contracts', channel name and all",
+  );
+  assert.match(lines[0], /In chat/);
+  assert.match(lines[0], /before the customer sees them/i);
+  assert.match(lines[1], /On a call/);
+  // A call has no before, and saying there was one is the sentence this whole task exists to stop.
+  assert.doesNotMatch(lines[1], /before/i);
+  for (const key of GUARDRAIL_KEYS) {
+    if (key === "never_quote_prices") continue;
+    assert.deepEqual(
+      all(ruleRow(tree, key), (n) => classes(n).includes("bt-rule-checked-line")),
+      [],
+      `${key} lands the same way on both channels, so it names neither`,
+    );
+  }
+});
+
+test("the price rule still says it is checked with the switch off", () => {
+  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
+  // whether the switch is on or off; the switch changes one prompt line, and the row says so.
+  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const tree = rulesOpen({ profile: off });
+  const row = ruleRow(tree, "never_quote_prices");
+  assert.equal(switchOf(tree, "never_quote_prices").props["aria-checked"], false, "the switch really is off");
+  assert.deepEqual(badgesOn(row), ["Checked, not just told"]);
+  assert.match(textOf(row), /whether this switch is on or off/);
+  assert.equal(all(row, (n) => classes(n).includes("bt-rule-checked-line")).length, 2, "and both channels still");
+  // No alarm beside it: nothing about switching it off lets a price through.
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-warn")),
+    null,
+  );
+});
+
+test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
+  const tree = rulesOpen();
+  const vision = byTestId(tree, "rec-rule-vision");
+  assert.ok(
+    find(vision, (n) => classes(n).includes("rec-rule-sep")),
+    "a dashed rule separates it from the four limits",
+  );
+  assert.deepEqual(badgesOn(vision), ["gives it a power"], "one badge here too");
+  assert.match(textOf(vision), /it starts off/i, "and its hint still says why it starts off");
+  assert.equal(
+    all(vision, (n) => classes(n).includes("bt-rule-checked-line")).length,
+    0,
+    "it is not a rule anything checks",
+  );
 });
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */

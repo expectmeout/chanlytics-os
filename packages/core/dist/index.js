@@ -2100,6 +2100,61 @@ var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var ABILITY_CHANNEL_WORDS = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens = (c) => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+var STRENGTHS = {
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    checkedOn: [
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
+      {
+        channel: "voice",
+        label: channelOpens("voice"),
+        words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
+      }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+};
 var RULES_WITHOUT_FIELDS_WORDS = `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
 var PROMPT = {
   row: "extra_instructions",
@@ -5396,6 +5451,61 @@ function stateCode(raw) {
   return US_STATES2[s.toLowerCase()] ?? null;
 }
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var ABILITY_CHANNEL_WORDS2 = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens2 = (c) => {
+  const w = ABILITY_CHANNEL_WORDS2[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+var STRENGTHS2 = {
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    checkedOn: [
+      {
+        channel: "whatsapp",
+        label: channelOpens2("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
+      {
+        channel: "voice",
+        label: channelOpens2("voice"),
+        words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
+      }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+};
 var RULES_WITHOUT_FIELDS_WORDS2 = `${NO_FIELDS_COMPOSED_WORDS2} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
 var PROMPT2 = {
   row: "extra_instructions",
@@ -6962,6 +7072,61 @@ var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var ABILITY_CHANNEL_WORDS3 = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens3 = (c) => {
+  const w = ABILITY_CHANNEL_WORDS3[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+var STRENGTHS3 = {
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    checkedOn: [
+      {
+        channel: "whatsapp",
+        label: channelOpens3("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
+      {
+        channel: "voice",
+        label: channelOpens3("voice"),
+        words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
+      }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+};
 var RULES_WITHOUT_FIELDS_WORDS3 = `${NO_FIELDS_COMPOSED_WORDS3} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`;
 var PROMPT3 = {
   row: "extra_instructions",

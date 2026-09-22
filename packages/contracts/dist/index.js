@@ -13528,6 +13528,14 @@ function registrationPreflight(f) {
 
 // src/business-tab.ts
 var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
+var ABILITY_CHANNEL_WORDS = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens = (c) => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
 var STRENGTHS = {
   never_confirm_booking: {
     strength: "structural",
@@ -13550,9 +13558,14 @@ var STRENGTHS = {
     // not to quote one. So the sentence cannot say the switch turns the checking on.
     sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
-      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
       {
         channel: "voice",
+        label: channelOpens("voice"),
         words: "It has already been heard. A correction goes into the live call, and you are told while it is still up."
       }
     ]
@@ -13827,10 +13840,6 @@ var BOOLEAN_INPUTS = {
   hasEscalateWhen: true,
   visionOn: true,
   bookingHeld: true
-};
-var ABILITY_CHANNEL_WORDS = {
-  whatsapp: { has: "in chat", not: "not in chat" },
-  voice: { has: "on a call", not: "not on a call" }
 };
 function heldFor(pauseHours) {
   const hours = Math.max(1, Math.round(pauseHours));

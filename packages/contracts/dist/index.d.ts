@@ -10544,6 +10544,21 @@ declare function registrationPreflight(f: PreflightFacts): PreflightProblem[];
 declare const GUARDRAIL_KEYS: ("never_quote_prices" | "never_confirm_booking" | "disclose_ai" | "no_health_advice")[];
 type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 /**
+ * What each channel is called, wherever this tab names one.
+ *
+ * The abilities card draws chat and phone beside every ability, lit for a channel that has it and dim
+ * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
+ * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
+ * rather than in the JSX that draws them -- one spelling for the four states.
+ *
+ * Declared above the strengths because the checked rule's two lines open with the same names
+ * (`checkedOn` below): the card and the rules fold are one page, and "in chat" is said once for both.
+ */
+declare const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", {
+    has: string;
+    not: string;
+}>;
+/**
  * How far a rule actually goes.
  *
  * The page drew four identical switches over three different guarantees, which
@@ -10558,9 +10573,13 @@ interface RuleStrengthVM {
     chip: string;
     /** What actually happens, in the owner's words. */
     sentence: string;
-    /** For a checked rule, what happens per channel. Null otherwise. */
+    /**
+     * For a checked rule, what happens per channel. Null otherwise. `label` opens the line and is the
+     * channel's one name on this page (ABILITY_CHANNEL_WORDS); the stored value is never what an owner reads.
+     */
     checkedOn: {
         channel: "whatsapp" | "voice";
+        label: string;
         words: string;
     }[] | null;
 }
@@ -10972,18 +10991,6 @@ interface AbilityRowVM {
     /** Only the opt-in ability carries this. */
     on?: boolean;
 }
-/**
- * What each of a row's two channel glyphs is called.
- *
- * The card draws chat and phone beside every ability, lit for a channel that has it and dim
- * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
- * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
- * rather than in the JSX that draws them -- one spelling for the four states.
- */
-declare const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", {
-    has: string;
-    not: string;
-}>;
 /**
  * The card: its rows, and what holds the whole card back, said once.
  *

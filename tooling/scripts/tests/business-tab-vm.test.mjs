@@ -117,6 +117,17 @@ test("the four rules carry three different guarantees", () => {
   assert.doesNotMatch(priced.checkedOn[1].words, /before/i);
   assert.match(priced.checkedOn[1].words, /already been heard/i);
   assert.doesNotMatch(priced.sentence, /WhatsApp|call/i);
+  // Each line opens with the channel's name, and that name is the one the abilities card's glyphs already carry:
+  // one spelling per channel on one page. The stored value ("whatsapp") is never what an owner reads.
+  assert.deepEqual(
+    priced.checkedOn.map((c) => c.label),
+    ["In chat", "On a call"],
+  );
+  for (const c of priced.checkedOn) assert.equal(c.label.toLowerCase(), ABILITY_CHANNEL_WORDS[c.channel].has);
+  // And only the checked rule has channels to draw: the other three land the same way on both.
+  for (const k of GUARDRAIL_KEYS) {
+    if (k !== "never_quote_prices") assert.equal(ruleStrength(k).checkedOn, null, k);
+  }
 });
 
 test("a price is caught whatever the switch says, and the rule says so", () => {

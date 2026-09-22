@@ -49,6 +49,28 @@ export const GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().op
 export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
 
 /**
+ * What each channel is called, wherever this tab names one.
+ *
+ * The abilities card draws chat and phone beside every ability, lit for a channel that has it and dim
+ * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
+ * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
+ * rather than in the JSX that draws them -- one spelling for the four states.
+ *
+ * Declared above the strengths because the checked rule's two lines open with the same names
+ * (`checkedOn` below): the card and the rules fold are one page, and "in chat" is said once for both.
+ */
+export const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", { has: string; not: string }> = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" },
+};
+
+/** A channel's name where it opens a line rather than sitting inside one. */
+const channelOpens = (c: "whatsapp" | "voice"): string => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+
+/**
  * How far a rule actually goes.
  *
  * The page drew four identical switches over three different guarantees, which
@@ -64,8 +86,11 @@ export interface RuleStrengthVM {
   chip: string;
   /** What actually happens, in the owner's words. */
   sentence: string;
-  /** For a checked rule, what happens per channel. Null otherwise. */
-  checkedOn: { channel: "whatsapp" | "voice"; words: string }[] | null;
+  /**
+   * For a checked rule, what happens per channel. Null otherwise. `label` opens the line and is the
+   * channel's one name on this page (ABILITY_CHANNEL_WORDS); the stored value is never what an owner reads.
+   */
+  checkedOn: { channel: "whatsapp" | "voice"; label: string; words: string }[] | null;
 }
 
 const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
@@ -92,9 +117,14 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = {
     sentence:
       "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
     checkedOn: [
-      { channel: "whatsapp", words: "The words are swapped before the customer sees them. A draft sits in between." },
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between.",
+      },
       {
         channel: "voice",
+        label: channelOpens("voice"),
         words:
           "It has already been heard. A correction goes into the live call, and you are told while it is still up.",
       },
@@ -871,19 +901,6 @@ export interface AbilityRowVM {
   /** Only the opt-in ability carries this. */
   on?: boolean;
 }
-
-/**
- * What each of a row's two channel glyphs is called.
- *
- * The card draws chat and phone beside every ability, lit for a channel that has it and dim
- * for one that does not. Dim is a colour: it says nothing to a screen reader, and little to
- * anyone reading a phone in daylight. So each glyph carries its name, and the names live here
- * rather than in the JSX that draws them -- one spelling for the four states.
- */
-export const ABILITY_CHANNEL_WORDS: Record<"whatsapp" | "voice", { has: string; not: string }> = {
-  whatsapp: { has: "in chat", not: "not in chat" },
-  voice: { has: "on a call", not: "not on a call" },
-};
 
 /**
  * The card: its rows, and what holds the whole card back, said once.
