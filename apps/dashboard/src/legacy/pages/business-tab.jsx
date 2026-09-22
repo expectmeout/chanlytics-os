@@ -105,11 +105,19 @@ const BusinessTab = ({ flash = () => {} }) => {
   const [, setTick] = useBizState(0);
   const saver = window.__businessTabSave.saver;
   // And the zone's own door, which is the tab's for the same reason (business-tab-save.jsx): one effect hears both.
+  // And the settings surface read again (after a save, a zone saved through its own route, a conflict's re-read, a
+  // Retry), which is where every row's value comes from: heard here, not only by whatever draws the page, since a zone
+  // saved and read back left the card's "in New York time" and the closures counted on New York's day until something
+  // else drew the page.
   const zone = window.__businessTabSave.zone;
   useBizEffect(() => {
     const bump = () => setTick((n) => n + 1);
     const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null];
-    return () => stops.forEach((stop) => { if (stop) stop(); });
+    window.addEventListener("surface:settings", bump);
+    return () => {
+      stops.forEach((stop) => { if (stop) stop(); });
+      window.removeEventListener("surface:settings", bump);
+    };
   }, [saver, zone]);
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;

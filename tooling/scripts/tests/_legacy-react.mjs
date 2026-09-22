@@ -20,7 +20,10 @@ const storage = () => {
   const m = new Map();
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
 };
-const cells = { list: [], seq: 0, ids: 0 };
+// `wanted` is whether a setter has changed a value since the last quiet(): what React would take as a reason to draw
+// again. A test that proves a page redraws on an event reads it, since this stub draws only when a test asks.
+const cells = { list: [], seq: 0, ids: 0, wanted: false };
+const moved = (was, now) => { if (!Object.is(was, now)) cells.wanted = true; };
 
 export function installLegacyReact(extra = {}) {
   globalThis.window = globalThis;
@@ -61,12 +64,12 @@ export function installLegacyReact(extra = {}) {
     useState: (init) => {
       const k = cells.seq++;
       if (!(k in cells.list)) cells.list[k] = typeof init === "function" ? init() : init;
-      return [cells.list[k], (v) => { cells.list[k] = typeof v === "function" ? v(cells.list[k]) : v; }];
+      return [cells.list[k], (v) => { const was = cells.list[k]; cells.list[k] = typeof v === "function" ? v(was) : v; moved(was, cells.list[k]); }];
     },
     useReducer: (red, init) => {
       const k = cells.seq++;
       if (!(k in cells.list)) cells.list[k] = init;
-      return [cells.list[k], (a) => { cells.list[k] = red(cells.list[k], a); }];
+      return [cells.list[k], (a) => { const was = cells.list[k]; cells.list[k] = red(was, a); moved(was, cells.list[k]); }];
     },
     useRef: (init) => {
       const k = cells.seq++;
@@ -91,6 +94,7 @@ export function installLegacyReact(extra = {}) {
 export function fresh() {
   cells.list = [];
   cells.seq = 0;
+  cells.wanted = false;
   for (const k of Object.keys(listeners)) delete listeners[k];
 }
 
@@ -108,7 +112,16 @@ export function unmount() {
   for (const c of cells.list) if (c && c.effect && typeof c.cleanup === "function") c.cleanup();
   cells.list = [];
   cells.seq = 0;
+  cells.wanted = false;
 }
+
+/**
+ * Whether anything drawn has asked to be drawn again since the last quiet(): a setter that changed its value, which
+ * is what makes React draw. This stub never draws by itself, so a test that proves a page listens for an event (and
+ * does not merely read the new globals when the test draws it anyway) quiets it, sends the event, and asks this.
+ */
+export const redrawWanted = () => cells.wanted;
+export const quiet = () => { cells.wanted = false; };
 
 /**
  * React's StrictMode check in development, which the app runs: every effect is cleaned up and run again at once,

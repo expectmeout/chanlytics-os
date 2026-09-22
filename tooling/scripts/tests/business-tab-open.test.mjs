@@ -6,8 +6,8 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { standingLine, PROFILE_CROSSING_WORDS, hasProfile, hoursLines, openWeekWords, closuresAheadWords, toCalendarVM, zoneDayKey, CALENDAR_FEED_WORDS, timezoneWords, knownTimezones, MAX_INTERVALS_PER_DAY, MAX_CLOSURES } from "@chanlytics/contracts";
-import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
-import { KNOWN, W, cancelFoldOf, cancelRow, composed, dayOf, drawTab, escape, foldOf, inline, labelled, melany, openFold, openFolds, openRows, partsOf, problemUnder, redrawTab, saveFoldOf, saveRow, saving, typeAt, went, without, written } from "./_business-tab-harness.mjs";
+import { unmount, settle, all, find, byTestId, textOf, classes, press, quiet, redrawWanted } from "./_legacy-react.mjs";
+import { KNOWN, W, cancelFoldOf, cancelRow, composed, dayOf, drawTab, escape, foldOf, inline, labelled, melany, openFold, openFolds, openRows, partsOf, problemUnder, redrawTab, saveFoldOf, saveRow, saving, settings, typeAt, went, without, written } from "./_business-tab-harness.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -1445,4 +1445,35 @@ test("a day's hours replaced whole by a copy leave its waiting shift nowhere to 
   flashes.at(-1).undo();
   tree = redrawTab(flash);
   assert.deepEqual(opens("tue"), ["09:00", "18:00"]);
+});
+
+test("the page draws itself again when the settings surface is read again: the card's week and the closures follow a zone saved and read back", () => {
+  // PaneWorkspace redrew the old card on surface:settings, and the page must hear it too, not only its parent: a zone
+  // saved through its own route re-reads settings (refresh-map.ts), and until the page heard that read the card said
+  // the old zone's "in … time" and counted the closed days on the old zone's day. Honolulu and Kiritimati are a whole
+  // day apart, so a closure on Honolulu's today is ahead there and already past in Kiritimati.
+  const today = zoneDayKey(Date.now(), "Pacific/Honolulu");
+  const profile = { ...melany, closures: [{ date: today, note: "Stocktake" }] };
+  let tree = drawTab({ profile, zone: "Pacific/Honolulu" });
+  const sub = (t) => textOf(find(byTestId(t, "rec-card-open"), (n) => classes(n).includes("rec-card-sub")));
+  const closed = (t) => textOf(find(byTestId(t, "rec-row-closures"), (n) => classes(n).includes("rec-row-val")));
+  assert.equal(sub(tree), openWeekWords(profile.hours, "Pacific/Honolulu"));
+  assert.match(closed(tree), new RegExp(`^${escape(closuresAheadWords(profile.closures, "Pacific/Honolulu", new Date()).line)}`));
+  tree = redrawTab();
+  // The zone is saved and the settings surface read back: the workspace's list and the read's own preview name the new zone.
+  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: "Pacific/Kiritimati" }];
+  W.__SETTINGS = settings(profile, {}, {}, "Pacific/Kiritimati");
+  quiet();
+  W.dispatchEvent({ type: "surface:settings" });
+  assert.equal(redrawWanted(), true, "REGRESSION: nothing on the page heard the read, so nothing drew it again");
+  tree = redrawTab();
+  assert.equal(sub(tree), openWeekWords(profile.hours, "Pacific/Kiritimati"), "the week in the new zone's time");
+  assert.notEqual(sub(tree), openWeekWords(profile.hours, "Pacific/Honolulu"));
+  assert.equal(closuresAheadWords(profile.closures, "Pacific/Kiritimati", new Date()).count, 0, "the fixture: past, on Kiritimati's day");
+  assert.match(closed(tree), /^None ahead/, "and the closed day counted on the business's day");
+  // Once the page has gone, the read draws nothing of it.
+  unmount();
+  quiet();
+  W.dispatchEvent({ type: "surface:settings" });
+  assert.equal(redrawWanted(), false, "the page lets go of the event as it goes");
 });
