@@ -234,7 +234,7 @@ const full = {
 };
 
 test("the standing line is three clauses, and never a percentage", () => {
-  const s = standingLine(full);
+  const s = standingLine(full, false);
   assert.match(s.can, /where you are/);
   assert.match(s.can, /when you.re open/);
   assert.match(s.can, /how to book/);
@@ -245,7 +245,7 @@ test("the standing line is three clauses, and never a percentage", () => {
 
 test("the standing line names the one thing missing, and where to fix it", () => {
   const noVoice = { ...full, profile: { ...full.profile, tone: undefined } };
-  const s = standingLine(noVoice);
+  const s = standingLine(noVoice, false);
   assert.match(s.missing.sentence, /no voice of its own/i);
   assert.equal(s.missing.row, "tone");
 });
@@ -255,14 +255,46 @@ test("it offers a consult or the link instead of a price, switch on or off, and 
   // with it -- with the switch off, there is no rule of the owner's to point at. And it names
   // both, because chat's replacement offers a consult and a call's correction offers the link.
   for (const guardrails of [{ never_quote_prices: true }, { never_quote_prices: false }, undefined]) {
-    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } });
+    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } }, false);
     assert.equal(s.wont, "It offers a consult or the booking link instead of a price.", JSON.stringify(guardrails));
   }
-  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }).wont, null);
+  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, false).wont, null);
+});
+
+test("M-1: what it will not do names the difference between the channels, once", () => {
+  // In chat the swap happens before anyone reads the reply: a draft sits between the model and the customer
+  // (policy.ts, layerTwo). On a call there is no before -- the figure has been heard, and what follows is a
+  // correction (spokenBreach). One clause said on both channels was exact on one of them and flattering on the
+  // other, which is the imprecision this task exists to name.
+  const onACall = standingLine(full, true);
+  assert.match(onACall.wont, /consult or the booking link instead of a price/, "the promise is unchanged");
+  assert.match(onACall.wont, /in chat/i, "and it says which channel does what");
+  assert.match(onACall.wont, /on a call/i);
+  assert.match(onACall.wont, /correction/i, "a call is corrected, never prevented");
+  // A workspace with no call answers only in chat, where the plain sentence is exact. Naming a channel it does not
+  // answer on would be the page teaching an owner about a line they do not have.
+  assert.equal(standingLine(full, false).wont, "It offers a consult or the booking link instead of a price.");
+  // Still three clauses, on either channel (spec 4.1): what it can say, what it will not, and the one gap.
+  for (const calls of [true, false]) {
+    const s = standingLine({ ...full, profile: { ...full.profile, tone: undefined } }, calls);
+    assert.equal(Object.keys(s).length, 3);
+    assert.ok(s.can && s.wont && s.missing);
+  }
+  // Nothing to price is still nothing said, whichever lines answer.
+  for (const calls of [true, false]) {
+    assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, calls).wont, null);
+  }
+});
+
+test("standingLine refuses to guess which lines answer", () => {
+  // An untyped page that left it out would read as false, and a workspace on the phone would be told the chat
+  // sentence -- exactly the wording M-1 was raised about.
+  assert.throws(() => standingLine(full), TypeError);
+  assert.throws(() => standingLine(full, "yes"), TypeError);
 });
 
 test("a record with nothing says so without listing every gap", () => {
-  const s = standingLine({ business_name: "", booking_link: "", profile: {} });
+  const s = standingLine({ business_name: "", booking_link: "", profile: {} }, false);
   assert.match(s.can, /cannot answer anyone yet/i);
   assert.equal(s.wont, null);
   assert.equal(s.missing.row, "name");
@@ -990,11 +1022,14 @@ test("the services sheet's foot says how many it will be told of, how long they 
     "No services, so it cannot say what you offer.",
   );
   // One sentence, one home: the foot says what the standing line's gap says of a receptionist with no services.
-  const gap = standingLine({
-    business_name: "A",
-    booking_link: "https://a.example",
-    profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
-  }).missing;
+  const gap = standingLine(
+    {
+      business_name: "A",
+      booking_link: "https://a.example",
+      profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
+    },
+    false,
+  ).missing;
   assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
   assert.equal(
     servicesToldWords({ count: 0, chars: null, total: null }),

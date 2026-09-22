@@ -255,7 +255,7 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
 
 test("the standing line's tone door opens the voice's fold, with its box in it", () => {
   let tree = drawTab({ profile: without(melany, "tone") });
-  const gap = standingLine(W.__SETTINGS.config.brain).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "tone");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   // Heard as the gap's sentence, then the act of the row it opens.

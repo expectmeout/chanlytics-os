@@ -71,10 +71,28 @@ after(() => unmount());
 test("the standing line says what contracts said, and never writes its own", () => {
   const tree = drawTab({ profile: melany });
   const band = byTestId(tree, "rec-standing");
-  const vm = standingLine(W.__SETTINGS.config.brain);
+  const vm = standingLine(W.__SETTINGS.config.brain, true);
   assert.match(textOf(band), new RegExp(escape(vm.can)));
   assert.match(textOf(band), new RegExp(escape(vm.wont)));
   assert.equal(vm.missing, null, "Melany's record is missing nothing");
+});
+
+test("M-1: the band names a call's correction only on a workspace that answers calls", () => {
+  // In chat the swap happens before the reply is sent; on a call the figure has been heard and what follows is a
+  // correction (contracts, policy.ts). One sentence for both was exact on one channel and flattering on the other.
+  const withCall = drawTab({ profile: melany });
+  const heard = textOf(byTestId(withCall, "rec-standing"));
+  assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true).wont)));
+  assert.match(heard, /on a call as a correction right after/i);
+  // A workspace with no phone line is told nothing about a line it does not have.
+  const chatOnly = drawTab({ profile: melany, facts: { voice_line: { value: null, source: "absent" } } });
+  const alone = textOf(byTestId(chatOnly, "rec-standing"));
+  assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false).wont)));
+  assert.doesNotMatch(alone, /on a call/i);
+  // Still one clause either way: the band says what it can, what it will not, and the one gap.
+  for (const t of [withCall, chatOnly]) {
+    assert.equal(all(byTestId(t, "rec-standing"), (n) => classes(n).includes("bt-standing-more")).length, 1);
+  }
 });
 
 test("a missing voice is named in the band, and the link opens its row", () => {
@@ -1763,7 +1781,7 @@ test("a name the workspace goes by is shown against the business's, and never of
 
 test("the standing line's door opens the row it names, and that row asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(melany, "address"), facts: { address: { value: null, source: "absent" } } });
-  const gap = standingLine(W.__SETTINGS.config.brain).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
@@ -1804,7 +1822,10 @@ test("the standing line's door opens the row it names, and that row asks before 
   // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
   tree = drawTab({ profile: { ...melany, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
-  assert.equal(heard(toTone), `${standingLine(W.__SETTINGS.config.brain).missing.sentence} Give it one Its voice`);
+  assert.equal(
+    heard(toTone),
+    `${standingLine(W.__SETTINGS.config.brain, true).missing.sentence} Give it one Its voice`,
+  );
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");
   assert.deepEqual(openFolds(redrawTab()), ["tone"]);

@@ -13615,7 +13615,12 @@ function rulesKept(i) {
 }
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-function standingLine(i) {
+var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
+var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call as a correction right after.";
+function standingLine(i, calls) {
+  if (typeof calls !== "boolean") {
+    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
   const p = i.profile ?? {};
   const gaps = [];
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
@@ -13634,7 +13639,7 @@ function standingLine(i) {
   if (has2(p.services)) answers.push("what you offer");
   if (has2(i.booking_link)) answers.push("how to book");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? "It offers a consult or the booking link instead of a price." : null;
+  const wont = has2(p.services) ? calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];

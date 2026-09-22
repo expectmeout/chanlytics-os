@@ -202,7 +202,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
-  assert.deepEqual(tab.standingLine(STORED), standingLine(STORED));
+  for (const calls of [true, false]) assert.deepEqual(tab.standingLine(STORED, calls), standingLine(STORED, calls));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
   const at = new Date("2026-09-21T12:00:00Z");

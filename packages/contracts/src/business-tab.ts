@@ -242,6 +242,9 @@ export interface StandingVM {
    * What it will not do: state a price. Said whenever there are services to price,
    * whatever the price switch says, because the detector runs either way (the owner's
    * decision, 20 Sep 2026). Null with nothing to price.
+   *
+   * On a workspace that answers calls it names the difference between the two channels once,
+   * because the promise lands differently on each: see WONT_PRICE below.
    */
   wont: string | null;
   /** The single most useful gap, and the row that fixes it. Null when there is none. */
@@ -262,14 +265,41 @@ const has = (v: unknown): boolean =>
       : !!v && Object.keys(v as object).length > 0;
 
 /**
+ * What it will not do, on the lines it answers on (the plan's M-1, 22 Sep 2026).
+ *
+ * In chat the sentence is exact: `violatesNoPrices` runs over the model's draft and the words are swapped before
+ * anyone reads the reply, because a draft sits between the model and the customer (policy.ts).
+ *
+ * On a call there is no before. The provider hosts the agent and it speaks directly, so by the time a turn reaches
+ * `spokenBreach` the caller has heard the figure, and what the product can still do is correct it in what the agent
+ * says next and tell the owner while the call is up (policy.ts's own header). Said flat, the chat sentence promised a
+ * phone caller a swap that cannot happen there -- and it promised it hardest on the workspaces where the price switch
+ * is off, since nothing then tells the phone agent to leave a service's price note unread (config.ts, the Services
+ * block). So a workspace with a call names the difference, once, inside the one clause; a chat-only workspace reads
+ * the exact sentence and is told nothing about a line it does not have.
+ *
+ * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
+ */
+const WONT_PRICE = "It offers a consult or the booking link instead of a price.";
+const WONT_PRICE_ON_A_CALL =
+  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call as a correction right after.";
+
+/**
  * Three clauses, worst last.
  *
  * The gaps are ordered by what a customer notices: a receptionist with no name
  * cannot introduce itself, one with no hours cannot answer the commonest
  * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
+ *
+ * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
+ * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
+ * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
  */
-export function standingLine(i: StandingInputs): StandingVM {
+export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
+  if (typeof calls !== "boolean") {
+    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
   const p = i.profile ?? {};
   const gaps: { sentence: string; row: string }[] = [];
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
@@ -293,10 +323,11 @@ export function standingLine(i: StandingInputs): StandingVM {
     ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
     : "It cannot answer anyone yet.";
 
-  // Both, because the two channels do different things: chat's replacement offers a
+  // Both offers, because the two channels do different things: chat's replacement offers a
   // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
-  // "A consult" alone was true on WhatsApp and not on the phone.
-  const wont = has(p.services) ? "It offers a consult or the booking link instead of a price." : null;
+  // "A consult" alone was true on WhatsApp and not on the phone. And on a workspace with a call,
+  // WHEN each happens differs too, which is the rest of WONT_PRICE_ON_A_CALL's clause.
+  const wont = has(p.services) ? (calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE) : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }

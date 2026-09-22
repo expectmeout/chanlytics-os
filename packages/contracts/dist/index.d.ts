@@ -10636,6 +10636,9 @@ interface StandingVM {
      * What it will not do: state a price. Said whenever there are services to price,
      * whatever the price switch says, because the detector runs either way (the owner's
      * decision, 20 Sep 2026). Null with nothing to price.
+     *
+     * On a workspace that answers calls it names the difference between the two channels once,
+     * because the promise lands differently on each: see WONT_PRICE below.
      */
     wont: string | null;
     /** The single most useful gap, and the row that fixes it. Null when there is none. */
@@ -10651,8 +10654,12 @@ interface StandingVM {
  * cannot introduce itself, one with no hours cannot answer the commonest
  * question, and one with no voice answers in nobody's words. Only
  * the first gap is named — a list of six is a list nobody starts.
+ *
+ * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
+ * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
+ * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
  */
-declare function standingLine(i: StandingInputs): StandingVM;
+declare function standingLine(i: StandingInputs, calls: boolean): StandingVM;
 /**
  * The line under the card's title: how much of the week is open, and whose clock the times are on. "Six days a week,
  * in New York time".

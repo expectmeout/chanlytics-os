@@ -48,11 +48,18 @@ const BtHead = () => {
  * The door is named by its sentence and then by what it does, which is the act of the row it opens: "It cannot say
  * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
  * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
+ *
+ * What it will not do lands differently on the two channels -- in chat the price is swapped before the reply is sent,
+ * on a call it has been heard and what follows is a correction -- so the line is told which lines this workspace
+ * answers on (the plan's M-1). Read off the voice line the settings read resolved, as How it answers reads it for the
+ * hand-off row that names both channels: it arrives with the record this page cannot draw without, so there is no
+ * moment where the band has to guess.
  */
 const BtStanding = ({ brain, door }) => {
   const tab = window.__businessTab;
   if (!tab || !tab.standingLine) return null;
-  const vm = tab.standingLine(brain);
+  const voice = ((window.__FACTS || {}).facts || {}).voice_line;
+  const vm = tab.standingLine(brain, !!(voice && voice.value));
   const gap = vm.missing;
   return (
     <section className="bt-standing" data-testid="rec-standing" data-state={gap ? "warn" : "ok"}>
