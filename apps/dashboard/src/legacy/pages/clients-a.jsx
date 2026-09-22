@@ -779,6 +779,11 @@ const plDownload = (name, text) => {
 };
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
+// The receptionist's word says what the state pill beside it already says: "escalated" is why they need you, and
+// "held for you" is what waiting on you means. Said twice, it was "Needs you  escalated" on the row. Its other words
+// -- a reply queued, snoozed, silent -- are news the pill does not carry, and stay.
+const plReceptSaysTheState = (p) =>
+  (p.receptionist.tone === "escalated" && p.state === "needs_you") || (p.receptionist.tone === "paused" && p.state === "waiting_on_you");
 // The sorts a phone offers from its more-menu, in the words it says them in. A desktop sorts by its headings, which a
 // phone does not draw: its one button only turned the order round ("Z → A"), whatever the sort was.
 const PL_PHONE_SORTS = [
@@ -1329,6 +1334,11 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
 // identity cell; the last column is the row's own actions, shown on hover and on the keyboard's row.
 
 // The identity cell: who, on which wires, since when, and their last words.
+// Who they are and what they last said: two lines. A third line under the name used to carry five facts at once --
+// the channels, the number, their WhatsApp name, "1 thread · 10 calls" and "since Aug 26" -- so every row read
+// jam-packed. The number and the channels are Reach, a column of their own; when they first wrote is First contact,
+// a column of its own; their WhatsApp name is the name's tip; the counts are the profile's (an owner acts on who and
+// why, not on how many threads).
 const plNameCell = (p, { attention, onOpen }) => {
   // Named by an identifier, a number or an address: nobody has named them yet.
   const byNumber = plIsNumber(p.name);
@@ -1345,18 +1355,9 @@ const plNameCell = (p, { attention, onOpen }) => {
           : <div className="ix-thread-avatar">{p.initials}</div>}
         <div className="cl-row-name-block">
           <div className="cl-row-fullname">
-            <span className={byNumber ? "tabular" : ""}>{p.name}</span>
+            {/* Their own name on WhatsApp, where it differs, is the name's tip rather than a third thing on the row. */}
+            <span className={byNumber ? "tabular" : ""} title={!numbered && p.waName && p.waName !== p.name ? `${p.waName} on WhatsApp` : undefined}>{p.name}</span>
             {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
-          </div>
-          <div className="cl-row-meta">
-            <PeopleChannels channels={p.channels} />
-            {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
-            {/* The address stands in for the number only when there is none: a row says one identifier. */}
-            {!numbered && !p.phone && p.email && <><span className="dot" /><span>{p.email}</span></>}
-            {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
-            <span className="dot" />
-            <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
-            {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
           </div>
           {words && <div className="cl-row-words" title={words} data-testid="row-words">{words}</div>}
         </div>
@@ -1381,11 +1382,26 @@ const PL_COLUMNS = [
         {/* The receptionist's word beside the state, said once. On a desktop the stylesheet hides this one while its own
             column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
             one wherever Visits does not take the cell's place. */}
-        {p.receptionist.tone !== "answering" && <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+        {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
         {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
       </td>
     ),
   },
+  // How to reach them: the channels they use, and the number -- or the address when there is no number (a row says one
+  // identifier). Someone named only by their number or address says it as their name already, so here only the
+  // channels. It was the third line under every name.
+  { key: "reach", label: "Reach", sortable: false, cell: (p) => {
+    const named = !plIsNumber(p.name) && !plIsAddress(p);
+    const id = named ? p.phone || p.email || null : null;
+    return (
+      <td key="reach" className="shrink cl-reach-cell" data-testid="row-reach">
+        <span className="cl-row-reach">
+          <PeopleChannels channels={p.channels} />
+          {id ? <span className={p.phone ? "tabular" : ""}>{id}</span> : null}
+        </span>
+      </td>
+    );
+  } },
   { key: "last", label: "Last contact", sortable: true, cell: (p) => <td key="last" className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td> },
   {
     key: "visits", label: "Visits", sortable: true, needs: (x) => x.withCalendar,
@@ -1408,6 +1424,12 @@ const PL_COLUMNS = [
   { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
   // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says.
   { key: "came_from", label: "Came from", sortable: false, cell: (p) => <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">{p.cameFrom ? p.cameFrom.label : ""}</td> },
+  // When they first wrote, off until asked for: it was "since Aug 26" on every row, true and seldom why anyone opens People.
+  { key: "since", label: "First contact", sortable: false, on: false, cell: (p) => (
+    <td key="since" className="shrink dim cl-since-cell" data-testid="row-since" title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : undefined}>
+      {p.firstContact.label !== "—" ? p.firstContact.label : ""}
+    </td>
+  ) },
   { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
