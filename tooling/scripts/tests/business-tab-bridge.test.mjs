@@ -18,7 +18,7 @@ import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, BrainConfigSchema,
   newReceptionistDefaults, hasProfile, PROFILE_CROSSING_WORDS, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
-  TONE_PRESETS, handoffWords, fallbacksWords, guardrailsInForce,
+  TONE_PRESETS, handoffWords, fallbacksWords, guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -326,6 +326,32 @@ test("the mockup's bundle publishes the same helpers and never bundles the bridg
   win.__SETTINGS = { prompt: preview(STORED) };
   const plain = (x) => JSON.parse(JSON.stringify(x));
   assert.deepEqual(plain(win.__businessTab.consequenceOf("guardrails", STORED, "voice")), plain(served(STORED, "voice", "guardrails")));
+  // And the two the page reads beside it, so the page mounted on the mockup says the week and keeps the caps the app
+  // does: the composer's own run-collapsing (never a hand port of it in bridge-stubs.jsx) and the write schema's caps.
+  for (const hours of [STORED.profile.hours, {}, { mon: { intervals: [{ open: "09:00", close: "12:00" }, { open: "13:00", close: "17:00" }] } }]) {
+    assert.deepEqual(plain(win.__hoursLines(hours)), hoursLines(hours), JSON.stringify(hours));
+  }
+  assert.deepEqual(plain(win.__configLimits), { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES });
+});
+
+test("the app's bridge publishes the week's lines and the caps with the tab's helpers, where the page reads them", () => {
+  // Published once, by installBusinessTab, which the app and the mockup's bundle both run: inbox-verbs.ts published
+  // them to the app alone, so the page mounted on the mockup said "Not set" over a week that had hours.
+  const win = globalThis.window;
+  const was = { lines: win.__hoursLines, limits: win.__configLimits };
+  try {
+    delete win.__hoursLines;
+    delete win.__configLimits;
+    installInboxVerbs();
+    assert.equal(win.__hoursLines, undefined, "no second publisher");
+    assert.equal(win.__configLimits, undefined);
+    installBusinessTab();
+    assert.deepEqual(win.__hoursLines(STORED.profile.hours), hoursLines(STORED.profile.hours));
+    assert.deepEqual(win.__configLimits, { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES });
+  } finally {
+    win.__hoursLines = was.lines;
+    win.__configLimits = was.limits;
+  }
 });
 
 test("saveIssues says what the save's own schema refuses in a part of the config, each with where it is and the schema's sentence", () => {

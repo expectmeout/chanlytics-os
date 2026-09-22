@@ -26,7 +26,7 @@ import path from "node:path";
 import {
   identityWords, memberWords, personInitials,
   DEFAULT_TIMEZONE, timezoneCity, timezoneWords,
-  SOURCE_WORDS, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164,
+  SOURCE_WORDS, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164, cleanTimezone,
 } from "@chanlytics/contracts";
 import { ROOT, readCode, readRaw } from "./_source.mjs";
 
@@ -91,7 +91,7 @@ const seed = (win) => {
 /** What the bridge publishes and the classic pages read without asking first. */
 const BRIDGED = [
   "__DEMO_MODE", "__identity", "__tz", "DEFAULT_TIMEZONE", "__FACT_WORDS",
-  "__samePhone", "__whyNotAPhone", "__whyNotAHandoff", "__handoffE164",
+  "__samePhone", "__whyNotAPhone", "__whyNotAHandoff", "__handoffE164", "__workspace",
 ];
 
 test("the harness seeds the bridge's globals before anything reads them", () => {
@@ -141,6 +141,27 @@ test("the stubs answer the way contracts answers", () => {
     assert.equal(win.__whyNotAHandoff(n, "+16469325775"), whyNotAHandoff(n, "+16469325775"), `whyNotAHandoff(${JSON.stringify(n)})`);
     assert.equal(win.__handoffE164(n), handoffE164(n), `handoffE164(${JSON.stringify(n)})`);
   }
+});
+
+test("the workspace's own write refuses a zone as the route does, and keeps the one it takes where the bridge keeps it", async () => {
+  // The Business tab's Timezone row offers no act without a door to save through, so the mockup had a row that said
+  // its zone and could not be changed. Nothing stands behind the harness to PATCH: the zone is checked by the route's
+  // own rule (contracts cleanTimezone) and kept in the page's list of workspaces, as identity.ts keeps it once the
+  // server answers, and the change is told as that file tells it.
+  const heard = [];
+  const win = seed({
+    __WORKSPACES: [{ id: "t-a", timezone: "America/New_York" }, { id: "t-b", timezone: "Europe/London" }],
+    __ACTIVE_WORKSPACE: "t-a",
+    dispatchEvent: (e) => heard.push(e.type),
+  });
+  for (const raw of ["", "   ", "Mars/Olympus_Mons"]) {
+    const refused = cleanTimezone(raw);
+    assert.deepEqual(await win.__workspace.setTimezone(raw), { ok: false, tz: "", message: refused.reason }, JSON.stringify(raw));
+  }
+  assert.deepEqual(heard, [], "a refused zone changes nothing, so nothing is told");
+  assert.deepEqual(await win.__workspace.setTimezone(" America/Chicago "), { ok: true, tz: "America/Chicago", message: "" });
+  assert.deepEqual(win.__WORKSPACES, [{ id: "t-a", timezone: "America/Chicago" }, { id: "t-b", timezone: "Europe/London" }], "the active workspace's, and no other's");
+  assert.deepEqual(heard, ["workspace:changed"]);
 });
 
 test("the harness is a demo, and the app is not", () => {

@@ -13,7 +13,7 @@ import {
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
   servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
   TONE_PRESETS, handoffWords, handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, RULES_WITHOUT_FIELDS_WORDS,
-  guardrailsInForce,
+  guardrailsInForce, hoursLines, MAX_INTERVALS_PER_DAY, MAX_CLOSURES,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -215,13 +215,29 @@ export const BUSINESS_TAB = {
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 
+/**
+ * The two the page reads beside `__businessTab`, under the names the old card read them by: the week's summary, which
+ * is the composer's own run-collapsing in the Calendar's words (C3; never a second copy of "which days share their
+ * hours", which is how a card and the receptionist start disagreeing), and the caps the write schema keeps, so a fold
+ * offers no shift or closed day the save would refuse.
+ *
+ * Here, with the tab's helpers, rather than in inbox-verbs.ts, where they were the old form's: this module is also what
+ * the standalone mockup is handed (serve-legacy.mjs builds it as data/business-tab.js), and the page mounted there drew
+ * "Not set" over a week that had hours, and the literal caps, while they were published only to the app.
+ */
+const CONFIG_LIMITS = { maxIntervalsPerDay: MAX_INTERVALS_PER_DAY, maxClosures: MAX_CLOSURES };
+
 declare global {
   interface Window {
     /** The Business tab's view models, and the block of the prompt each fold writes. */
     __businessTab?: BusinessTabHelpers;
+    __hoursLines?: typeof hoursLines;
+    __configLimits?: typeof CONFIG_LIMITS;
   }
 }
 
 export function installBusinessTab(): void {
   window.__businessTab = BUSINESS_TAB;
+  window.__hoursLines = hoursLines;
+  window.__configLimits = CONFIG_LIMITS;
 }

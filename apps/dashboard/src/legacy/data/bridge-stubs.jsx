@@ -107,6 +107,27 @@
   if (!has("DEFAULT_TIMEZONE")) window.DEFAULT_TIMEZONE = DEFAULT_TZ;
   if (!has("__tz")) window.__tz = { words: timezoneWords, city: timezoneCity, known: knownTimezones, device: deviceTimezone };
 
+  // ---- The workspace's own write (legacy-bridge/identity.ts) ---------------
+  // The Business tab's Timezone row saves through this, and offers no act at
+  // all without it. There is no workspace behind the harness to PATCH, so the
+  // zone is checked as the route checks it (contracts cleanTimezone) and kept
+  // in the page's list of workspaces, as the bridge keeps it after the server
+  // answers; nothing is stored, and a reload forgets it.
+  if (!has("__workspace")) {
+    window.__workspace = {
+      setTimezone: (raw) => {
+        const tz = typeof raw === "string" ? raw.trim() : "";
+        if (!tz) return Promise.resolve({ ok: false, tz: "", message: "Pick the timezone your business runs on." });
+        if (!isTimezone(tz)) return Promise.resolve({ ok: false, tz: "", message: `${tz} is not a timezone this system knows.` });
+        if (Array.isArray(window.__WORKSPACES)) {
+          window.__WORKSPACES = window.__WORKSPACES.map((t) => (t.id === window.__ACTIVE_WORKSPACE ? { ...t, timezone: tz } : t));
+        }
+        window.dispatchEvent(new CustomEvent("workspace:changed"));
+        return Promise.resolve({ ok: true, tz, message: "" });
+      },
+    };
+  }
+
   // ---- How a fact's source is said (contracts/facts.ts SOURCE_WORDS) -------
   if (!has("__FACT_WORDS")) {
     window.__FACT_WORDS = {
