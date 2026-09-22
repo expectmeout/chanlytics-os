@@ -318,6 +318,17 @@ export function serviceUndoName(name: string | null | undefined): string {
   return n ? `Undo removing ${n}` : "Undo removing a service";
 }
 
+/**
+ * What the services sheet's search has left in sight, said politely to a screen reader as it narrows: "11 of 33
+ * services". A search that leaves none says so as the sheet's own note does ("No service is called that."), and a list
+ * with no rows says it has none. With no search the page says nothing: every row is in sight, which the list shows.
+ */
+export function servicesFoundWords(shown: number, total: number): string {
+  if (!total) return "No services yet.";
+  if (!shown) return "No service is called that.";
+  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+}
+
 /** The sheet's Save, named for what it saves: "Save 33 services". */
 export function servicesSaveWords(n: number): string {
   if (!n) return "Save with no services";

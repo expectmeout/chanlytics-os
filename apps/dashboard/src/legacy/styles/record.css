@@ -140,6 +140,8 @@
 /* The tools wrap: a sentence beside a search (a full list's cap) squeezed the search to nothing at 320px. */
 .rec-sheet-tools { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
 .rec-sheet-body { --rec-gutter: 22px; --rec-key: 168px; isolation: isolate; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--rec-gutter); }
+/* A sentence for a screen reader only, such as a live region's (the services sheet's search count): on the page, and not seen. */
+.rec-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .rec-sheet-foot { flex: none; display: flex; flex-direction: column; gap: 11px; padding: 14px 22px 18px; border-top: 1px solid var(--line); background: var(--bg-raised); }
 /* The house's toasts (components.css .pp-toast-stack: fixed, centred, 18px off the bottom, over the sheet's layer)
    while a sheet is open. Centred on the window, a toast sat over the sheet's Save, bottom-left in its foot, at any width

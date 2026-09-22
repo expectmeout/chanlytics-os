@@ -23,6 +23,7 @@ import {
   servicesToldWords,
   servicesSaveWords,
   serviceUndoName,
+  servicesFoundWords,
   blockShareWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
@@ -557,4 +558,12 @@ test("a hand-edited record whose lists are not lists is read as none, never a th
   // And the consult-first question, which the sheet asks of each row.
   assert.equal(needsConsultation("Extensions", { consult_first: "Extensions" }), false);
   assert.equal(needsConsultation("Extensions", { consult_first: ["extensions"] }), true);
+});
+
+test("the services search says how many rows it found, for a screen reader to hear as it narrows", () => {
+  assert.equal(servicesFoundWords(11, 33), "11 of 33 services");
+  assert.equal(servicesFoundWords(1, 33), "1 of 33 services");
+  assert.equal(servicesFoundWords(1, 1), "1 of 1 service");
+  assert.equal(servicesFoundWords(0, 33), "No service is called that.");
+  assert.equal(servicesFoundWords(0, 0), "No services yet.");
 });

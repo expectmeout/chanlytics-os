@@ -11334,6 +11334,11 @@ function serviceUndoName(name) {
   const n = typeof name === "string" ? name.trim() : "";
   return n ? `Undo removing ${n}` : "Undo removing a service";
 }
+function servicesFoundWords(shown, total) {
+  if (!total) return "No services yet.";
+  if (!shown) return "No service is called that.";
+  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+}
 function servicesSaveWords(n) {
   if (!n) return "Save with no services";
   return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
@@ -14299,6 +14304,7 @@ export {
   sendableTemplates,
   serverNotificationRows,
   serviceUndoName,
+  servicesFoundWords,
   servicesSaveWords,
   servicesToldWords,
   servicesWords,

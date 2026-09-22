@@ -184,8 +184,13 @@ const BtsServicesSheet = ({ brain, canEdit, flash, saver }) => {
     });
     marks.filter((m) => m.at >= list.length).forEach((m) => drawn.push(mark(m)));
     const none = q && list.length > 0 && !list.some(shows);
+    // What the search has left in sight, said politely to a screen reader as it narrows (contracts servicesFoundWords):
+    // the rows it hides are hidden, which nothing announces. Drawn from the sheet's first draw, empty with no search, so
+    // the region is on the page before it has anything to say, and a change in it is heard.
+    const found = q && tab.servicesFoundWords ? tab.servicesFoundWords(list.filter(shows).length, list.length) : "";
     return (
       <div className="bt-services" data-testid="rec-services-rows">
+        <span className="rec-sr" role="status" aria-live="polite" data-testid="rec-services-found">{found}</span>
         {list.length > 0 ? (
           <div className="bt-service-row bt-service-head" aria-hidden="true">
             <span>Service</span><span>Takes</span><span>Price</span><span />

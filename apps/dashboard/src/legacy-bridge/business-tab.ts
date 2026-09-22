@@ -11,7 +11,7 @@
 import {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS,
   promptBlocks, resolveSystemPrompt, hasProfile, PROFILE_CROSSING_WORDS, TenantConfigWriteSchema, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, bookingRuleRefusal,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
   type PromptBlockVM, type ProfileCrossing, type BusinessProfile,
 } from "@chanlytics/contracts";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -203,7 +203,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf).
 export const BUSINESS_TAB = {
   standingLine, abilityRows, cannotRows, bookingHeld, bookingTemplate, ruleStrength, GUARDRAIL_KEYS, promptBlocks, consequenceOf, profileCrossing, saveIssues, openWeekWords, closuresAheadWords,
-  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, bookingRuleRefusal,
+  servicesWords, servicesToldWords, servicesSaveWords, blockShareWords, bookingRulesWords, BOOKING_RULE_HINTS, needsConsultation, foldName, serviceUndoName, servicesFoundWords, bookingRuleRefusal,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

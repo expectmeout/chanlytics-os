@@ -5,7 +5,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName, serviceUndoName, bookingRuleRefusal } from "@chanlytics/contracts";
+import { standingLine, servicesWords, servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, roleGate, needsConsultation, foldName, serviceUndoName, bookingRuleRefusal, servicesFoundWords } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, cancelFoldOf, composePromptPreview, drawTab, escape, foldOf, labelled, melany, openFold, openFolds, openRows, ownWords, redrawTab, saveFoldOf, saving, typeAt, without } from "./_business-tab-harness.mjs";
 
@@ -1061,4 +1061,24 @@ test("Escape in a search with words in it clears the search first, and the next 
   assert.equal(second.stopped, false);
   find(sheetOf(tree), (n) => classes(n).includes("rec-sheet")).props.onKeyDown(second);
   assert.equal(sheetOf(redrawTab()), null, "nothing typed: it closes");
+});
+
+test("the search says politely how many rows it found, in contracts' words", () => {
+  // The quality review: nothing told a screen reader what the search had done to the list.
+  let tree = openSheet(drawTab({ profile: many }));
+  const status = () => byTestId(tree, "rec-services-found");
+  assert.deepEqual([status().props.role, status().props["aria-live"], textOf(status())], ["status", "polite", ""], "nothing to say with no search");
+  searchFor(tree, "Service 2");
+  tree = redrawTab();
+  assert.equal(textOf(status()), servicesFoundWords(shownOf(tree).length, 33));
+  assert.equal(textOf(status()), "11 of 33 services");
+  searchFor(tree, "zzz");
+  tree = redrawTab();
+  assert.equal(textOf(status()), "No service is called that.");
+  // A cleared search says nothing again: every row is back, which the list itself shows.
+  searchFor(tree, "");
+  tree = redrawTab();
+  assert.equal(textOf(status()), "");
+  // The one region, drawn from the sheet's first draw, so what it says is heard as it changes.
+  assert.equal(all(sheetOf(tree), (n) => n.props?.role === "status").length, 1);
 });
