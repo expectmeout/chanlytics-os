@@ -24,8 +24,11 @@ import {
   INSTRUCTIONS_MAX,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
+  POLICY_MODES,
+  POLICY_MODE_WORDS,
   type Closure,
   type Hours,
+  type PolicyMode,
 } from "./config";
 import { hardLimitsWords, violatesNoPrices } from "./policy";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
@@ -807,6 +810,22 @@ export interface AbilityInputs {
    * and the link is never sent: bookingHeld(policy), the edge's own question.
    */
   bookingHeld: boolean;
+  /**
+   * The Autonomy tab's REPLIES row, exactly as stored -- a separate row from Booking,
+   * set independently, and the one that decides whether the receptionist speaks at all.
+   *
+   * On "ask" or "never" the WhatsApp receptionist composes no reply
+   * (packages/core/src/inbound/reply-posture.ts, which every inbound message asks) and a
+   * call's booking-link send is refused as a policy_hold
+   * (apps/edge/lib/receptionist/outbound-gate.ts). So every chat ability on the card is
+   * held at once, by one cause with one fix on another tab -- which is why the words for
+   * it come back beside the rows, to be said ONCE, and not on each of six rows.
+   *
+   * Checked as it runs like the booleans, and for the same reason: an untyped page that
+   * left it out would draw six abilities on a mode nobody chose. The page reads the row's
+   * mode with the edge's own default for a missing row ("ask", reply-posture.ts).
+   */
+  replyMode: PolicyMode;
 }
 
 /** The inputs that must be true or false. Typed off AbilityInputs, so a new boolean cannot be left off. */
@@ -837,6 +856,19 @@ export interface AbilityRowVM {
   on?: boolean;
 }
 
+/**
+ * The card: its rows, and what holds the whole card back, said once.
+ *
+ * `held` is null unless the Autonomy tab's Replies row keeps the receptionist from
+ * answering. Six rows each repeating that one sentence is the page shouting; the Quiet
+ * board's rule is that a refused act is absent and the page says why once, so the sentence
+ * comes back here, with the tab that fixes it.
+ */
+export interface AbilitiesVM {
+  rows: AbilityRowVM[];
+  held: { sentence: string; to: "admin/autonomy" } | null;
+}
+
 /** How long a hand-off holds, in the words the page says it: "a day", "4 hours", "3 days". */
 function heldFor(pauseHours: number): string {
   const hours = Math.max(1, Math.round(pauseHours));
@@ -844,7 +876,7 @@ function heldFor(pauseHours: number): string {
   return hours === 1 ? "an hour" : `${hours} hours`;
 }
 
-export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
+export function abilityRows(i: AbilityInputs): AbilitiesVM {
   if (!i || typeof i !== "object")
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
@@ -857,11 +889,21 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,
     );
   }
-  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`,
+    );
+  }
+  // The Replies row holds the receptionist back: nothing is composed in chat, and a call's
+  // booking-link send is refused. Said once for the card (`held` below), never on each row.
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  // A chat ability needs a WhatsApp number that answers AND leave to answer with it.
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
   // Nothing is ready on a channel that is not answering. An input filled against a
   // dead line is a setting, not an ability, and drawing it ready would tell an owner
   // the booking link goes out when there is nothing to send it.
-  const answering = i.voiceLive || i.whatsappLive;
+  const answering = i.voiceLive || chatAnswers;
 
   // The link goes out on WhatsApp on both channels: in the thread, or on a call as a
   // template to the caller's own WhatsApp (retell-fn deliver({ channel: "whatsapp" })).
@@ -871,7 +913,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
   // Where the booking-link row below is ready. Another row that promises the link after
   // something else promises it only here: with no WhatsApp to send it by, no link, or
   // bookings held on the Autonomy tab, "then the link" would not be true.
-  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   // ...and whether the row ABOVE may promise it without naming a channel. The link goes by WhatsApp on
   // both channels, but a call sends it as a template, so a workspace on both lines with no approved
   // booking-link template sends it in chat and not on a call (retell-fn's deliver has no template to
@@ -897,7 +939,7 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
             ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread."
             : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 
-  return [
+  const rows: AbilityRowVM[] = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -930,7 +972,9 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       id: "booking_link",
       title: "Send the booking link",
       detail: bookingDetail,
-      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all.
+      channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
     },
@@ -953,9 +997,9 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
       // hand-off row's fold says it in the same words (handoffChatWords).
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive,
+      ready: chatAnswers,
     },
     {
       id: "vision",
@@ -963,13 +1007,23 @@ export function abilityRows(i: AbilityInputs): AbilityRowVM[] {
       detail: i.visionOn
         ? "It says what it sees and suggests the next step, under the rules it always keeps."
         : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
-      ready: i.whatsappLive && i.visionOn,
+      ready: chatAnswers && i.visionOn,
       on: i.visionOn,
     },
   ];
+
+  // The mode in the pane's own words, never the stored auto|veto|ask|never (#657). The call
+  // clause only where there is a call: a workspace on WhatsApp alone is promised nothing about one.
+  const held = repliesHeld
+    ? {
+        sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} — ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+        to: "admin/autonomy" as const,
+      }
+    : null;
+  return { rows, held };
 }
 
 export interface CannotRowVM {

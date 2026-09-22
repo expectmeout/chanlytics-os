@@ -251,6 +251,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     pauseHours: null,
     visionOn: false,
     bookingHeld: false,
+    replyMode: "auto",
   };
   assert.deepEqual(tab.abilityRows(inputs), abilityRows(inputs));
   for (const smsLive of [false, true]) assert.deepEqual(tab.cannotRows({ smsLive }), cannotRows({ smsLive }));

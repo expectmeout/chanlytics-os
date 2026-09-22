@@ -13845,14 +13845,21 @@ function abilityRows(i) {
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
     );
   }
-  const both = { voice: i.voiceLive, whatsapp: i.whatsappLive };
-  const answering = i.voiceLive || i.whatsappLive;
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
+    );
+  }
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
+  const answering = i.voiceLive || chatAnswers;
   const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes = i.hasBookingLink && i.whatsappLive && !i.bookingHeld;
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
   const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  return [
+  const rows = [
     {
       id: "answer",
       title: "Answer from your facts",
@@ -13878,7 +13885,9 @@ function abilityRows(i) {
       id: "booking_link",
       title: "Send the booking link",
       detail: bookingDetail,
-      channels: { voice: callSendsLink, whatsapp: i.whatsappLive },
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all.
+      channels: { voice: callSendsLink && !repliesHeld, whatsapp: chatAnswers },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes
     },
@@ -13901,21 +13910,26 @@ function abilityRows(i) {
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
       // hand-off row's fold says it in the same words (handoffChatWords).
       detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: i.whatsappLive
+      ready: chatAnswers
     },
     {
       id: "vision",
       title: "Look at a photo",
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: i.whatsappLive },
+      channels: { voice: false, whatsapp: chatAnswers },
       // The switch sits with the rules it keeps, which is the row that opens it.
       runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
-      ready: i.whatsappLive && i.visionOn,
+      ready: chatAnswers && i.visionOn,
       on: i.visionOn
     }
   ];
+  const held = repliesHeld ? {
+    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+    to: "admin/autonomy"
+  } : null;
+  return { rows, held };
 }
 var CANNOT_ROWS = [
   {

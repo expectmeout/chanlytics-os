@@ -20,6 +20,8 @@ import {
   standingLine,
   abilityRows,
   cannotRows,
+  POLICY_MODES,
+  POLICY_MODE_WORDS,
   bookingHeld,
   policyAskClass,
   openWeekWords,
@@ -190,8 +192,9 @@ const live = {
   pauseHours: 24,
   visionOn: false,
   bookingHeld: false,
+  replyMode: "auto",
 };
-const idOf = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
+const idOf = (vm) => Object.fromEntries(vm.rows.map((r) => [r.id, r]));
 
 test("an ability names its channels and the row it runs on", () => {
   const rows = abilityRows({
@@ -205,7 +208,8 @@ test("an ability names its channels and the row it runs on", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
   assert.deepEqual(byId.open_times.channels, { voice: true, whatsapp: true });
@@ -232,7 +236,8 @@ test("an ability whose input is missing says which row to fill", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
   assert.equal(byId.open_times.ready, false);
   assert.equal(byId.transfer.ready, false);
@@ -254,7 +259,8 @@ test("nothing is ready on a channel that is not answering", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   for (const r of dark) assert.equal(r.ready, false, `${r.id} cannot be ready with nothing answering`);
   // And a phone-only workspace has no chat abilities, whatever is filled in.
   const phoneOnly = abilityRows({
@@ -268,7 +274,8 @@ test("nothing is ready on a channel that is not answering", () => {
     hasBookingTemplate: true,
     pauseHours: 24,
     bookingHeld: false,
-  });
+    replyMode: "auto",
+  }).rows;
   const byId = Object.fromEntries(phoneOnly.map((r) => [r.id, r]));
   assert.equal(byId.handoff.ready, false, "there is no thread to hand over");
   assert.equal(byId.vision.ready, false, "and no photo to look at");
@@ -462,6 +469,44 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
   for (const p of policies) assert.equal(bookingHeld(p), policyAskClass(p, "booking") === "booking", JSON.stringify(p));
 });
 
+test("with replies held on the Autonomy tab, every chat ability is dark and the card says why once", () => {
+  // Task 4.1b. On ask or never the WhatsApp receptionist composes no reply at all
+  // (core/inbound/answer.ts through replyPosture) and a call's booking-link send is refused
+  // (receptionist/outbound-gate.ts, policy_hold). Six rows would otherwise all read ready at once.
+  for (const mode of ["ask", "never"]) {
+    const vm = abilityRows({ ...live, replyMode: mode });
+    for (const r of vm.rows) assert.equal(r.channels.whatsapp, false, `${r.id} has no chat on ${mode}`);
+    const rows = idOf(vm);
+    assert.equal(rows.handoff.ready, false, "there is no reply to hand over");
+    assert.equal(rows.vision.ready, false);
+    assert.equal(rows.booking_link.ready, false);
+    assert.equal(rows.booking_link.channels.voice, false, "the call's send is refused too");
+    // A call is untouched: it answers, and it puts a caller through.
+    assert.deepEqual(rows.transfer.channels, { voice: true, whatsapp: false });
+    assert.equal(rows.transfer.ready, true);
+    assert.equal(rows.answer.ready, true);
+    assert.ok(vm.held, `${mode} is held`);
+    assert.equal(vm.held.to, "admin/autonomy");
+    // The pane's own words for the mode, never the stored value (legacy/CLAUDE.md #657).
+    assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].chip), vm.held.sentence);
+    assert.ok(vm.held.sentence.includes(POLICY_MODE_WORDS[mode].sub), vm.held.sentence);
+    const said = vm.held.sentence.toLowerCase().split(/[^a-z]+/);
+    for (const stored of POLICY_MODES)
+      assert.ok(!said.includes(stored), `${stored} is a filing word, not one to read: ${vm.held.sentence}`);
+  }
+  // With no call, the card promises nothing about one.
+  assert.doesNotMatch(abilityRows({ ...live, replyMode: "ask", voiceLive: false }).held.sentence, /call/i);
+});
+
+test("on Sends it or Holds it, nothing is held and the card says nothing", () => {
+  for (const mode of ["auto", "veto"]) {
+    const vm = abilityRows({ ...live, replyMode: mode });
+    assert.equal(vm.held, null, mode);
+    assert.deepEqual(vm.rows, abilityRows({ ...live, replyMode: "auto" }).rows, `${mode} answers as auto does`);
+    assert.equal(idOf(vm).handoff.channels.whatsapp, true);
+  }
+});
+
 test("an input left out throws and says which, rather than drawing a card that lies", () => {
   // The page that calls this is untyped JSX. An omitted boolean is undefined, which is falsy,
   // and the card would say a line is dark or a switch is off with no error anywhere -- the
@@ -486,6 +531,17 @@ test("an input left out throws and says which, rather than drawing a card that l
   assert.throws(() => abilityRows(undefined), TypeError);
   // pauseHours is not one of them: whatever is stored is read the way the Autonomy pane reads it.
   assert.doesNotThrow(() => abilityRows({ ...live, pauseHours: undefined }));
+  // replyMode is, and by its own name: left out, every chat ability would be drawn on a mode
+  // nobody chose, and the page cannot be allowed to pick one for the Autonomy tab.
+  const { replyMode: _m, ...noMode } = live;
+  assert.throws(
+    () => abilityRows(noMode),
+    (e) => e instanceof TypeError && /replyMode/.test(e.message),
+  );
+  assert.throws(
+    () => abilityRows({ ...live, replyMode: "sometimes" }),
+    (e) => e instanceof TypeError && /replyMode/.test(e.message),
+  );
 });
 
 test("a photo is looked at when the switch is on, and passed to a person when it is off", () => {
