@@ -107,6 +107,17 @@ test("an act's arrow is drawn beside its words, never inside the box a phone cli
   );
 });
 
+test("a row the page says a save has just drawn again says so, for its value to arrive", () => {
+  // Spec §9, item 4: the value of a row its editor's save closed arrives on the house's rise-in (record.css). The kit
+  // only carries the page's word for it; a row drawn any other way says nothing.
+  const row = (props) =>
+    find(draw(W.RecordRow, { id: "tone", label: "Its voice", value: "Calm", ...props }), (n) =>
+      classes(n).includes("rec-row"),
+    );
+  assert.equal(row({ settled: true }).props["data-settled"], "true");
+  assert.equal(row({}).props["data-settled"], undefined);
+});
+
 test("an empty row says so and keeps its act reachable", () => {
   const tree = draw(W.RecordRow, {
     label: "Website",

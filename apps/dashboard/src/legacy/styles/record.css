@@ -33,6 +33,10 @@
    the one that takes an ink of its own, since a person has to settle it. */
 .rec-src { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .rec-src[data-tone="warn"] { color: var(--warn-ink); }
+/* The save settle (spec §9, item 4): a row drawn again by its editor's save (data-settled, the page's word) lets its
+   value arrive on the house's own rise-in, once, as the fold folds away under it and the toast rises. The label holds
+   still; a row drawn with its page, or after a Cancel, is simply there. */
+.rec-row[data-settled="true"] .rec-row-val { animation: rise-in var(--duration-base) var(--ease-out) backwards; }
 /* A sentence under the value takes a line of its own. */
 .rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
 /* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.

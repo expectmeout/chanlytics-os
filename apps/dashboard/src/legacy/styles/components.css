@@ -1091,7 +1091,8 @@ a.btn { text-decoration: none; }
   .rp-revbar, .rp-mix-fill, .ob-progress-fill, .rp-chart-dot,
   .ix-thread-pane, .lm-banner, .ix-exp-panel, .cl-triage-tab.active::after,
   .kpi-spark polyline, .rail-chart polyline, .rp-chart polyline,
-  .rp-chart polygon, .rail-chart polygon, .cal-nowdot::after, .lm-listening {
+  .rp-chart polygon, .rail-chart polygon, .cal-nowdot::after, .lm-listening,
+  .rec-row[data-settled="true"] .rec-row-val {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }

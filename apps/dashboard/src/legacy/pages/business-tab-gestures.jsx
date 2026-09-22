@@ -235,6 +235,11 @@ const BtRow = ({
   const now = open && draft != null ? draft : initial;
   const dirty = open && !S.same(storedAs(now), storedAs(initial));
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
+  // Whether the row at rest was drawn again by its editor's save, for its value to arrive (RecordRow's `settled`, the
+  // save settle): set as the save closes the editor, forgotten as it opens again.
+  const settled = useBtgRef(false);
+  if (open) settled.current = false;
+  const closeSaved = () => { settled.current = true; close(); };
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); ask.disarm(); };
@@ -254,7 +259,7 @@ const BtRow = ({
     if (!dirty) { close(); return; }
     // Saved with Ctrl or Cmd and Enter while Cancel's question was up: the question is answered.
     if (ask.armed) ask.disarm();
-    if (door) door.save(now, close); else save(commit(now), close);
+    if (door) door.save(now, closeSaved); else save(commit(now), closeSaved);
   };
 
   // What saving would tell the receptionist: the lines of its blocks that the draft changes, and the sentence for a
@@ -313,6 +318,7 @@ const BtRow = ({
           source={source}
           disputed={other}
           wrong={wrong}
+          settled={settled.current}
           act={canEdit ? {
             label: value ? "Change" : "Add one",
             name: named ? (value ? `Change the ${named}` : `Add one ${named}`) : undefined,
@@ -430,6 +436,9 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   const reset = () => { live.current.draft = null; live.current.opened = null; live.current.backs = BtPutBacks.none; live.current.agains = new Map(); live.current.produced = new Map(); setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBtgEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) live.current.opening += 1;
+  // Whether the row at rest was drawn again by this editor's save (RecordRow's `settled`): set as the save closes it,
+  // forgotten as it opens again.
+  if (open) live.current.settled = false;
   // Untouched and not saving, the editor opens with what is stored NOW (the header says why); typed in, what it opened
   // with holds still, since that is what its save is judged against.
   if (open && (live.current.opened == null || (draft == null && live.current.draft == null && !busy))) live.current.opened = stored.draft;
@@ -575,7 +584,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
       if (!S.holdsChanges(id, base, typed)) return { nothing: true };
       const all = S.saveProblems(id, base, typed);
       if (Object.keys(all).length) return { problems: all };
-      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: close, flash }) };
+      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: () => { live.current.settled = true; close(); }, flash }) };
     });
     if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
     if (judged.problems) { setProblems(judged.problems); return; }
@@ -605,7 +614,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   };
   // `can` is what gates opening (btOpening): there is a config to save onto and a draft that could be worked out of
   // it. A card's `rest` asks it before it offers its act, as a row's act asks `stored`.
-  return { open, busy, stored, can, fields, will, asks, submit, focusOn, request: fold.request };
+  return { open, busy, stored, can, fields, will, asks, submit, focusOn, request: fold.request, settled: !open && !!live.current.settled };
 };
 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
@@ -702,6 +711,7 @@ const BtFold = ({
           empty={row.empty}
           hint={row.hint}
           wrong={row.wrong}
+          settled={e.settled}
           act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
         >
           {row.children || null}

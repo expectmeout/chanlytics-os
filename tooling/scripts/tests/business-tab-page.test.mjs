@@ -2359,3 +2359,46 @@ test("a row's own line of what it will say is marked as it changes, not as it fi
   assert.deepEqual(marked.length, 1);
   assert.match(marked[0][0], /melanys\.example\/book/, "the line the keystroke changed");
 });
+
+test("a row drawn again as its editor's save closes it says so, for its value to arrive; opened and cancelled, it does not", () => {
+  // Spec §9, item 4, the save settle: the fold closes, and the row's value arrives on the house's rise-in. The row is
+  // what says it arrived with a save (data-settled, the kit's RecordRow), for record.css to play rise-in on it once.
+  const settled = (tree, id) => byTestId(tree, `rec-row-${id}`).props["data-settled"];
+  saving();
+  let tree = drawTab();
+  assert.equal(settled(tree, "tone"), undefined, "drawn with the page, a row is simply there");
+  assert.equal(settled(tree, "website"), undefined);
+
+  // A fold, saved.
+  openFold(tree, "tone");
+  tree = redrawTab();
+  find(foldOf(tree, "tone"), (n) => n.type === "textarea").props.onChange({ target: { value: "Calm and kind." } });
+  tree = redrawTab();
+  saveFoldOf(tree, "tone");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), []);
+  assert.equal(settled(tree, "tone"), "true", "the fold's row, drawn again by its save");
+  assert.equal(settled(tree, "website"), undefined, "and no other");
+
+  // A row edited in place, saved.
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  saveRow(tree, "website");
+  tree = redrawTab();
+  assert.equal(settled(tree, "website"), "true", "the row, drawn again by its save");
+
+  // Opened and cancelled: nothing was saved, so nothing arrives.
+  tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  cancelFoldOf(tree, "booking_rules");
+  tree = redrawTab();
+  assert.equal(settled(tree, "booking_rules"), undefined, "a fold cancelled");
+  openFold(tree, "website");
+  tree = redrawTab();
+  cancelRow(tree, "website");
+  tree = redrawTab();
+  assert.equal(settled(tree, "website"), undefined, "a row cancelled");
+});
