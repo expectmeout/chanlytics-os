@@ -592,7 +592,27 @@ const PROMPT_ONLY = {
   },
 };
 
-for (const record of [["a full record", STORED], ["a record that is only its hand-written prompt", PROMPT_ONLY]]) {
+/**
+ * The product's own opening lines in the OWNER'S own field, where a save before S4 copied them, over a hand-written
+ * prompt from before the form -- and with no other field the resolver composes from, so that copy is the one thing
+ * keeping this workspace on a composed prompt (plan Task 3.8). The live form opened it as the owner's words; the box
+ * opens empty now (contracts instructionsDraft through whoseWords), and an empty box must delete nothing.
+ */
+const BASELINE_IN_THE_OWNERS_FIELD = {
+  brain: {
+    business_name: "Northside Studio",
+    booking_link: "https://northside.example/book",
+    system_prompt: "You are the front desk of Northside Studio. Lashes and brows; say [[HUMAN]] if you are unsure.",
+    fallbacks: { greeting: "Hi!", error: "Sorry.", non_text: "Thanks." },
+    profile: {
+      extra_instructions: newReceptionistDefaults("Northside Studio").system_prompt,
+      guardrails: { never_quote_prices: true },
+      handoff_number: "+16469325775",
+    },
+  },
+};
+
+for (const record of [["a full record", STORED], ["a record that is only its hand-written prompt", PROMPT_ONLY], ["a record whose own-words field is the product's own lines", BASELINE_IN_THE_OWNERS_FIELD]]) {
   test(`opened and saved with nothing changed, no fold sends anything, on ${record[0]}`, async () => {
     for (const fold of FOLDS) {
       read(record[1]);
@@ -608,6 +628,36 @@ for (const record of [["a full record", STORED], ["a record that is only its han
     }
   });
 }
+
+test("the own-words fold opens the baseline a save before S4 left in the owner's field empty, and an untouched Save writes nothing", async () => {
+  // The two failures that kept this box from asking whoseWords in Phase 1 (plan Task 3.8), on the record that has
+  // both: an empty box saved over the field DELETED it, and this workspace, whose only composed field is that copy,
+  // then fell from a composed prompt to the bare baseline -- no hand-off token, no rule lines. Neither can happen
+  // through a fold: an untouched draft holds no changes, so the patch hands the config back and the saver sends
+  // nothing at all. Nothing is written, so there is nothing to compare but the prompt itself, before and after.
+  const record = BASELINE_IN_THE_OWNERS_FIELD;
+  const profile = record.brain.profile;
+  assert.equal(hasProfile(profile), true, "it composes");
+  assert.equal(hasProfile(without(profile, "extra_instructions")), false, "and the copy in the owner's field is the only reason it does");
+  const before = told(record.brain);
+  assert.ok(before.every((t) => t.length > record.brain.system_prompt.length * 10 && /Rules you must follow/.test(t)), "a composed prompt, with the rule lines");
+  const bare = { ...record.brain, profile: without(profile, "extra_instructions") };
+  assert.deepEqual(told(bare), [record.brain.system_prompt, record.brain.system_prompt], "and without it the resolver hands the stored prompt straight back, which is what review measured");
+
+  read(record);
+  const sent = door();
+  const base = S.saver.base();
+  const opened = S.draftOf("extra_instructions", base);
+  assert.deepEqual(opened, { text: "", carried: false }, "the box opens empty: the product wrote these words, not the owner");
+  assert.equal(S.holdsChanges("extra_instructions", base, opened), false, "so there is nothing for Save to send");
+  let closed = 0;
+  S.saver.save(S.foldJob("extra_instructions", opened, { opened, said: "Saved", done: () => { closed += 1; }, flash: () => {} }));
+  await settle();
+  assert.equal(sent.length, 0, "REGRESSION guard: the save this replaced deleted the field an empty box was saved over");
+  assert.equal(closed, 1, "and the fold closes, as after any save");
+  assert.deepEqual(S.saver.base(), record, "the config is untouched, down to the key that field was stored under");
+  assert.deepEqual(told(S.saver.base().brain), before, "so the receptionist is told exactly what it was told before");
+});
 
 test("a fold with a change holds changes, and its save goes on the config as it is when it is sent", async () => {
   read(STORED);
