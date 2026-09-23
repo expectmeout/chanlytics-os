@@ -27,7 +27,8 @@ const ST_GROUPS = {
     tabs: [
       // The same count the sidebar badge and the phone tab show, from the one
       // rule that owns it (ixWaitsOnYou) — never a second reading of it.
-      { id: "inbox", label: "Needs you", to: "inbox", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null, tip: "Waiting on a decision from you" },
+      // It counts people who need you, so it is amber, as the Needs you pill is (tone.ts warn).
+      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null, tip: "Waiting on a decision from you" },
       { id: "conversations", label: "Conversations", to: "conversations", tip: "Every chat and call, answered or not" },
       // pulse is demo-only: it advertised a call in progress for an invented
       // caller, always on, beside the REAL Conversations tab.
@@ -107,7 +108,7 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
           <button key={t.id} className={`stabs-tab ${page === t.id ? "active" : ""}`} data-tip={t.tip || null} data-tip-side="bottom" onClick={() => onNavigate(t.to)}>
             {t.label}
             {pulse && <span className="live-dot" style={{ width: 5, height: 5 }} />}
-            {badge ? <span className="stabs-badge tabular" data-tone={count ? count.tone : "accent"}>{badge}</span> : null}
+            {badge ? <span className={`stabs-badge tally${(count ? count.tone : t.tone) === "warn" ? " tally-warn" : ""}`} data-tone={(count ? count.tone : t.tone) || "plain"}>{badge}</span> : null}
           </button>
         );
       })}

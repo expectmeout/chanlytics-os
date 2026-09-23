@@ -321,7 +321,13 @@ const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefaul
 /** A language chip in its two parts: the letters of the language in view, and "+1" for the rest ("" for none). */
 const chipSays = (chip) => [
   textOf(find(chip, (n) => n.props?.className === "lp-words")).trim(),
-  textOf(find(chip, (n) => n.props?.className === "lp-more")).trim(),
+  textOf(
+    find(chip, (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("lp-more"),
+    ),
+  ).trim(),
 ];
 const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
@@ -2179,7 +2185,11 @@ test("A message says whether it may be sent to everyone, on the row: marketing i
       templateRow({ id: "t-n", name: "front_desk_note", language: "en_US", category: "UTILITY" }),
     ],
   });
-  const marks = all(tree, (n) => String(n.props?.className || "") === "msg-row-mark").map((m) => m.props["data-kind"]);
+  const marks = all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("msg-row-mark"),
+  ).map((m) => m.props["data-kind"]);
   assert.ok(marks.includes("offer") && marks.includes("note"), marks.join(","));
   const offer = all(tree, (n) => n.props?.["data-kind"] === "offer")[0];
   assert.ok(String(offer.props["data-tip"]).includes("said yes to offers"), offer.props["data-tip"]);

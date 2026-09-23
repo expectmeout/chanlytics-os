@@ -406,7 +406,6 @@ const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }) => {
             <LrPill c={c} />
           </div>
           <div className="lm-head-meta">
-            <span className="agent-avatar" style={{ width: 16, height: 16, fontSize: 8.5 }}>P</span>
             <span>Phone receptionist</span>
             <span className="cv-dot" />
             <span className="tabular">{c.number || "Caller ID withheld"}</span>

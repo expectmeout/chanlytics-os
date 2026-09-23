@@ -78,7 +78,7 @@ const bcPersonRow = (p) => (
   <div key={p.contact_id} className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`} data-testid="bc-person">
     <span className="bc-person-mark" aria-hidden="true">{p.initials}</span>
     <button type="button" className="bc-person-name" onClick={() => window.CHANLY.nav(`clients/${p.contact_id}`)}>{p.name}</button>
-    <span className="bc-person-pill" data-tone={p.pill.tone}>{p.pill.label}</span>
+    <span className={`pill${p.pill.tone && p.pill.tone !== "plain" ? ` pill-${p.pill.tone}` : ""} bc-person-pill`} data-tone={p.pill.tone}>{p.pill.label}</span>
     <span className="bc-person-words">{p.words}</span>
     {p.door && <button type="button" className="bc-person-door" onClick={() => window.CHANLY.nav(p.door.to)}>{p.door.label}</button>}
     <span className="bc-person-at mono">{p.at || "—"}</span>
@@ -711,7 +711,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   const inner = (
     <>
       <div className="bc-run-line">
-        <span className="bc-run-mark" data-tone={waiting ? "warn" : sending || soon ? "accent" : "plain"} aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={16} /></span>
+        <span className="mark bc-run-mark" aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={13} /></span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
             <button type="button" className="bc-run-name" onClick={onOpen} data-testid="bc-open-who">{row.name}</button>

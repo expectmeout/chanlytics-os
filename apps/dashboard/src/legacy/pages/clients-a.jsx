@@ -710,18 +710,19 @@ const ldValuesPref = () => { try { return !!window.localStorage && window.localS
 // handed it is left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004):
 // publishPeople builds a fresh array each time People lands, so the context is new then and the rows redraw -- on a
 // cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
-// sort or a search drew it again.
-const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows) => {
+// sort or a search drew it again. `stageShown` is whether the Stage column is drawn: then it says each lead's state,
+// and the name's tag gives way (leads-scope.jsx ldBusinessCell), so a row says it once.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows, stageShown = false) => {
   const k = kept.current;
-  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows) return k.ctx;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows && k.stageShown === stageShown) return k.ctx;
   const door = (name) => (id) => acts.current[name](id);
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
-    values, mixedFits, hasCenter, canFind, peopleRows,
+    values, mixedFits, hasCenter, canFind, peopleRows, stageShown,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
-  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, ctx };
+  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, stageShown, ctx };
   return ctx;
 };
 // Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
@@ -940,7 +941,7 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
     <div className="cl-rail-foot">
       {draft && (
         <div className="cl-rail-draft" data-testid="new-list-draft">
-          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="seg-chip" data-testid="new-list-rule">{part}</span>)}</div>
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="chip chip-wrap" data-testid="new-list-rule">{part}</span>)}</div>
           {holds !== null && <div className="cl-rail-hint" data-testid="new-list-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today, and it keeps itself current.</div>}
           {draft.cannot && <div className="cl-rail-hint" data-testid="new-list-cannot">Left out: {draft.cannot}</div>}
         </div>
@@ -1209,7 +1210,8 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, ev
         return (
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.map((l) => (
-              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} />
+              // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );
@@ -2773,10 +2775,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
                 {tab !== "all" && (
-                  <span className="cl-seg-filter" data-testid="state-filter">
+                  <span className="chip" data-testid="state-filter">
                     <Icon name="filter" size={10} />
                     {PL_TAB_LABEL[tab]}
-                    <button className="cl-seg-filter-x" title="Show everyone" onClick={() => setTab("all")}>
+                    <button className="chip-x" title="Show everyone" aria-label="Show everyone" onClick={() => setTab("all")}>
                       <Icon name="x" size={9} />
                     </button>
                   </span>
@@ -3285,7 +3287,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
   // changes, and a memoised row is left alone otherwise.
   leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
-  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows);
+  // Whether the Stage column is drawn: then it says each lead's state, and the name's tag does not say it again.
+  const stageShown = columns.some((c) => c.key === "stage");
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
   const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });

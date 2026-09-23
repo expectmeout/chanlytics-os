@@ -494,7 +494,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     assert.deepEqual(pills(row("Rosa Díaz")), [], "REGRESSION: 'NEEDS YOU' on every row of the Needs you bucket");
     assert.deepEqual(pills(row("Nina Park")), ["You have it"], "REGRESSION: a thread you own read NEEDS YOU");
     assert.deepEqual(pills(row("Ada Lovelace")), ["Ana García has it"]);
-    const amber = (who) => hasClass("warn")(find(row(who), hasClass("ix-wait")));
+    const amber = (who) => hasClass("pill-warn")(find(row(who), hasClass("ix-wait")));
     assert.deepEqual(
       [amber("Rosa Díaz"), amber("Nina Park"), amber("Ada Lovelace")],
       [true, false, false],

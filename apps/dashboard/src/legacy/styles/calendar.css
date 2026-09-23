@@ -67,17 +67,6 @@
 }
 .cal-date { font-size: 12px; color: var(--ink); font-weight: 500; }
 .cal-dayhead.today .cal-dow, .cal-dayhead.today .cal-date { color: var(--accent-ink); }
-.cal-today-chip {
-  margin-left: auto;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-  background: var(--accent-soft);
-  border-radius: 999px;
-  padding: 1px 6px;
-}
 
 /* Time gutter */
 .cal-gutter {
@@ -504,6 +493,8 @@
 .cal-agenda-day { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .cal-agenda-day.past { opacity: 0.7; }
 .cal-agenda-day.today { border-color: var(--accent); }
+/* Today is said by its date in the accent, as the week's head says it; the TODAY chip beside it said it a third time. */
+.cal-agenda-day.today .cal-dow, .cal-agenda-day.today .cal-date { color: var(--accent-ink); }
 /* Its rows, its windows and its quiet lines are the shared agenda's (components.css .ag-*): the Calendar drew
    its own 120px span, the event's whole title and the name again under it. The day card is still its own. */
 .cal-agenda-head { display: flex; align-items: baseline; gap: 8px; }

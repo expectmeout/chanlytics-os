@@ -3233,6 +3233,43 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
   assert.equal(cls(tagOf("p7", "lead-fit-tag")), "pill", "a look is plain");
   assert.equal(textOf(tagOf("p7", "lead-fit-tag")), rows.find((r) => r.id === "p7").fitLabel);
 
+  // Said once: while the Stage column shows a lead's state, the name's tag does not say it again.
+  const rowNode = find(
+    tree,
+    (n) => n.type && (n.type.name === "PeopleRow" || (n.type.type && n.type.type.name === "PeopleRow")),
+  );
+  const business = globalThis.window.LEAD_COLUMNS.find((c) => c.key === "business");
+  const tagIn = (td) => find(td, (n) => n.props?.testid === "lead-state-tag");
+  const out = rows.find((r) => r.id === "p5");
+  assert.ok(
+    tagIn(business.cell(out, { ...rowNode.props.ctx, stageShown: false })),
+    "without the column, the name wears it",
+  );
+  assert.equal(
+    tagIn(business.cell(out, { ...rowNode.props.ctx, stageShown: true })),
+    null,
+    "with the column, only the column says it",
+  );
+  // It gives way only where the column says the same thing. Needs review is not a stage, a left-out lead's Stage cell is
+  // empty, and Contacted says how long ago: those keep their tag with the column on.
+  for (const id of ["p2", "p4", "p6"]) {
+    const l = rows.find((r) => r.id === id);
+    assert.ok(
+      tagIn(business.cell(l, { ...rowNode.props.ctx, stageShown: true })),
+      `${id} keeps its tag: the column does not say it`,
+    );
+  }
+  assert.equal(
+    tagIn(
+      business.cell(
+        rows.find((r) => r.id === "p3"),
+        { ...rowNode.props.ctx, stageShown: true },
+      ),
+    ),
+    null,
+    "Talking is said by the column once",
+  );
+
   // On a phone the row is People's (the phone pass), and its pill is the row's state -- Ready too, as a person's row
   // always says theirs -- in the same registry tones.
   fresh({ leads: surface({ searches: [open], rows }) });

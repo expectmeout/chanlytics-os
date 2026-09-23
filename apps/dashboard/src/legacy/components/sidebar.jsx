@@ -103,7 +103,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
       {badge ? (collapsed
         ? <span className={`nav-dot ${item.urgent ? "urgent" : ""}`} aria-label={`${badge} ${item.label}`} />
-        : <span className={`nav-badge ${item.urgent ? "urgent" : ""} tabular`} data-tip={tip || undefined}>{badge}</span>) : null}
+        : <span className={`nav-badge tally${item.urgent ? " urgent tally-warn" : ""}`} data-tip={tip || undefined}>{badge}</span>) : null}
       {!collapsed && item.expandable && (
         <Icon name="chevron" size={11} style={{
           marginLeft: badge ? 4 : "auto",
@@ -121,7 +121,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
         onClick={() => onNavigate(c.id)}
       >
         <span>{c.label}</span>
-        {c.badge && <span className="nav-badge tabular">{c.badge}</span>}
+        {c.badge && <span className="nav-badge tally">{c.badge}</span>}
       </div>
     ))}
   </>
@@ -275,7 +275,7 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
           <div className="name">{who.name}</div>
           <div className="email">{who.email}</div>
         </div>
-        {who.role && <span className="pill sb-role" data-testid="sb-me-role">{who.role}</span>}
+        {who.role && <span className="chip sb-role" data-testid="sb-me-role">{who.role}</span>}
       </div>
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/profile"); }} data-testid="sb-me-name">

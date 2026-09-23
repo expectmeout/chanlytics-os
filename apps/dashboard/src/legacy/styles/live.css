@@ -67,7 +67,6 @@
 .lm-row-said { font-size: 11.5px; line-height: 1.35; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lm-row-said.is-waiting { color: var(--ink-dim); }
 .lm-row-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-.lm-row-foot .pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
 .lm-row-since { font-size: 10.5px; color: var(--ink-dim); }
 
 /* The door to every call. It was the list's footnote under a "Recent" table of the same calls. */
@@ -480,14 +479,6 @@
   .lm-row-foot {
     margin-top: 0;
     gap: var(--row-gap);
-  }
-  /* A pill on a row is words, not a control: the touch floor (legacy-bridge/legacy.css) gives every .pill
-     min-height 36px on a coarse pointer, which is what made this row taller than a person's. People's row
-     undoes it the same way. */
-  html.legacy-on .lm-row .pill {
-    min-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
   }
   .lm-row-since {
     font-size: var(--row-facts);

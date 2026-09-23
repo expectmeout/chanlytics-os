@@ -218,7 +218,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
                 <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
                   {c.tags.map(t => <ClientTag key={t}>{t}</ClientTag>)}
                   {openLead && (
-                    <button className="seg-chip seg-chip--warn" data-tip={openLead.dupe ? `${openLead.dupe.reason} — open the lead` : "This person also has an open lead — click to open it"} onClick={() => window.CHANLY.nav(window.CHANLY.R.lead(openLead.id))}>
+                    <button className="chip" data-tip={openLead.dupe ? `${openLead.dupe.reason} — open the lead` : "This person also has an open lead — click to open it"} onClick={() => window.CHANLY.nav(window.CHANLY.R.lead(openLead.id))}>
                       <Icon name="bolt" size={9} /> Also in Leads
                     </button>
                   )}
@@ -453,7 +453,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
             {(() => {
               const segs = window.CHANLY.segsOf(c.id);
               return segs.length > 0 ? segs.map(s => (
-                <button key={s.id} className="seg-chip" data-tip={s.query} onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(s.id))}>
+                <button key={s.id} className="chip" data-tip={s.query} onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(s.id))}>
                   <Icon name={s.kind === "agent" ? "sparkle" : "filter"} size={9} />{s.label}
                 </button>
               )) : <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>No lists yet</span>;
@@ -951,10 +951,10 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
     return <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />;
   }
   // The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People.
-  // No cross: nobody is taken off a list that is a rule.
+  // No cross: nobody is taken off a list that is a rule. A list is a name, not a state: the one chip, in no tone.
   const smartChips = smart.map((l) => (
-    <span key={l.id} className="seg-chip" data-testid="person-smart-chip">
-      <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
+    <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
+      <button type="button" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
     </span>
   ));
   if (saved.length === 0) {
@@ -975,12 +975,12 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <div className="cl-tag-stack cl-prof-list-chips">
         {smartChips}
         {on.map((s) => (
-          <span key={s.id} className="seg-chip" data-testid="person-list-chip">
-            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
+          <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
+            <button type="button" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
             {canEdit && !s.rule && (
               <button
                 type="button"
-                className="cl-seg-filter-x"
+                className="chip-x"
                 title={`Take ${who} off ${s.name}`}
                 aria-label={`Take ${who} off ${s.name}`}
                 disabled={busy}

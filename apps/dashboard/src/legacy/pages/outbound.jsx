@@ -133,7 +133,7 @@ const OutboundPage = () => {
             {OB_FILTERS.map(f => (
               <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
                 {f.label}
-                <span className="fleet-filter-count tabular">
+                <span className="fleet-filter-count tally">
                   {f.id === "all" ? campaigns.length
                     : f.id === "scheduled" ? campaigns.filter(c => c.status === "approval" || c.status === "scheduled").length
                     : campaigns.filter(c => c.status === f.id).length}

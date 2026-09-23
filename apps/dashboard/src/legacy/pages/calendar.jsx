@@ -497,7 +497,7 @@ const CalendarPage = ({ initialApptId = null }) => {
             {agentChips.map(c => (
               <button key={c.id} className={`fleet-filter-chip ${agentFilter === c.id ? "active" : ""}`} onClick={() => setAgentFilter(c.id)}>
                 {c.id === "all" ? c.label : <span className="cal-agent-chip"><span className="agent-avatar" style={{ width: 15, height: 15, fontSize: 8.5 }}>{c.id}</span>{c.label.split(" ")[0]}</span>}
-                <span className="fleet-filter-count tabular">{c.count}</span>
+                <span className="fleet-filter-count tally">{c.count}</span>
               </button>
             ))}
           </div>
@@ -575,7 +575,6 @@ const CalendarPage = ({ initialApptId = null }) => {
             >
               <span className="cal-dow">{d.dow}</span>
               <span className="cal-date tabular">{d.date}</span>
-              {d.today && <span className="cal-today-chip">Today</span>}
             </div>
           ))}
           <div className="cal-gutter" style={{ height: gridH }}>

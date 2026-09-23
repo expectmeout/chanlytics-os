@@ -57,7 +57,8 @@ test("one name, one tone: a person is needed is amber wherever it is said, and t
   // its hour once a day, and while a run sends, that run is the broadcast's
   // "sending" above. Its card wore the live accent all day long.
   assert.equal(stateTone("playbook", "running"), "ok", "a playbook that is on is healthy, not live");
-  assert.equal(stateTone("role", "owner"), "info", "an owner's badge is distinguished, not live");
+  // A role is a name, not a state. The owner's badge was blue, which on every other badge says "in progress".
+  for (const role of ["owner", "operator", "viewer"]) assert.equal(stateTone("role", role), "plain", role);
   assert.equal(stateTone("tone", "accent"), "accent", "a tone a caller already holds is said as itself");
   assert.equal(stateTone("tone", "escalated"), "plain", "a standing name is not a tone");
   for (const [kind, value] of [
