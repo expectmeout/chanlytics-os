@@ -36,7 +36,8 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // last two of them SQL that never leaves the database. 00098 added 'lines',
   // which 00097 had registered with sweep_status and never here. 00107 made
   // the register data and added the six clocks nobody had typed in: the
-  // monthly partition precreate and the five nightly purges.
+  // monthly partition precreate and the five nightly purges. 00159 added
+  // 'notes', the sweep that suggests a note from a finished conversation.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -48,6 +49,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "jobs",
       "leads",
       "lines",
+      "notes",
       "partitions",
       "pauses",
       "playbooks",
@@ -101,7 +103,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.notEqual(error, null, "an unregistered sweep name was accepted");
   assert.match(error.message, /not registered/);
   const { data } = await db.from("sweep_status").select("sweep");
-  // Seventeen: every clock has a row now, the ones that run inside Postgres included.
+  // Every clock has a row now, the ones that run inside Postgres included.
   assert.deepEqual(data.map((r) => r.sweep).sort(), [
     "calendar",
     "calls",
@@ -111,6 +113,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "jobs",
     "leads",
     "lines",
+    "notes",
     "partitions",
     "pauses",
     "playbooks",
