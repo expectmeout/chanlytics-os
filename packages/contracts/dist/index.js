@@ -6232,8 +6232,8 @@ function amountWords(cents, per, currency = "USD") {
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money} ${p}` : money;
 }
-function parseAmount(words2) {
-  const digits2 = String(words2 || "").replace(/[^0-9.-]/g, "");
+function parseAmount(words3) {
+  const digits2 = String(words3 || "").replace(/[^0-9.-]/g, "");
   const n = digits2 ? Number(digits2) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 }
