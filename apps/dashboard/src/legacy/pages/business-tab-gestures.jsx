@@ -1,9 +1,9 @@
 /* global React */
 // Chanlytics — Settings › Business: the page's three gestures.
 //
-// A row edited in its place (BtRow, over the kit's RecordInline), a set of fields folded open under its row (BtFold,
-// over the kit's RecordFold), and a list too long for a fold, in a sheet beside the page (BtSheet, over the kit's
-// RecordSheet); the two questions every one asks before anything typed is thrown away (useBtAsk, btAsks); and the
+// A row edited in its place (BtRow, over the kit's RecordInline), a set of fields opened in a sheet beside the page
+// (BtFold, over the kit's RecordFold drawn as a sheet at every width, so nothing on the page moves), and a list too
+// long for a fold, in a sheet of its own (BtSheet, over the kit's RecordSheet); the two questions every one asks before anything typed is thrown away (useBtAsk, btAsks); and the
 // editor a fold and a sheet both are (useBtEditor), written once. The kit (components/record-*.jsx) holds the gesture
 // itself -- focus, keys, the foot, the registry that keeps one editor open; what is the page's is here, once, for every
 // row, fold and sheet of every card: the draft, what stops a save, the save through the tab's one saver
@@ -636,8 +636,11 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
 
 /**
- * One of this page's folds: at rest a RecordRow, and while it is edited the kit's fold (RecordFold, record-fold.jsx),
- * which holds the gesture itself -- its focus, its keys, what saving writes and its foot. What is the page's is the
+ * One of this page's folds: at rest a RecordRow, and while it is edited the kit's fold (RecordFold, record-fold.jsx)
+ * drawn as a sheet beside the page (`frame="sheet"`: from the bottom on a phone, from the right on a desktop), which
+ * holds the gesture itself -- its focus, its keys, what saving writes and its foot. A sheet, never a fold under its
+ * row, at any width: an editor opening in place pushed everything under it down by up to 546px (23 Sep), and the
+ * page holds still only once nothing on it opens in place. What is the page's is the
  * editor (useBtEditor, above), once, for every fold and the sheet: the draft, what stops a save, the save through the
  * tab's one saver, what the receptionist will be told, and the two asks. A card draws its fields (`body`) and what its
  * row says at rest (`row`); nothing else.
@@ -723,7 +726,7 @@ const BtFold = ({
   const changed = useBtChanged(says);
   const goneChanged = useBtChanged(will ? will.removed : null);
   // What the row draws at rest: in the fold's place while it is closed, and handed to the fold (`behind`), which draws
-  // it behind its sheet while it is open on a phone, so the card under the wash keeps its height (record-fold.jsx).
+  // it behind its sheet while it is open, so the card under the wash keeps its height (record-fold.jsx).
   // Hookless, so drawing it or not moves no cell.
   const atRest = rest ? rest({ request: e.request, can: e.can }) : (
     <window.RecordRow
@@ -743,6 +746,7 @@ const BtFold = ({
     <>
       {e.open ? null : atRest}
       <window.RecordFold
+        frame="sheet"
         behind={atRest}
         id={id}
         label={label}

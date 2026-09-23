@@ -64,7 +64,50 @@ test("a row draws its label, its value and one act", () => {
   assert.match(textOf(tree), /Website/);
   assert.match(textOf(tree), /melanysbeautysalon\.com/);
   assert.match(textOf(tree), /Change/);
-  assert.equal(pressable(tree).length, 1, "one act, never two");
+  assert.equal(all(tree, (n) => n.type === "button").length, 1, "one act, never two");
+  // And the whole row is that act's press (record-row.jsx recRowPress): a row with an act says so, and one without
+  // is not a press at all.
+  const row = find(tree, (n) => classes(n).includes("rec-row"));
+  assert.deepEqual([row.props["data-act"], row.props.onClick], ["true", W.recRowPress]);
+  const still = find(draw(W.RecordRow, { label: "Website", value: "melanysbeautysalon.com" }), (n) =>
+    classes(n).includes("rec-row"),
+  );
+  assert.deepEqual([still.props["data-act"], still.props.onClick], [undefined, undefined]);
+});
+
+test("a press on a row is a press on its act, never for a press on something of the row's own, never for words selected", () => {
+  // The act was latent, opacity 0 until the row was hovered, and 17px of words at the row's edge; the row is the
+  // target now. A press on a link, a dispute's press or a box in the row is theirs; the act itself has run its own
+  // handler by the time the press reaches the row; and words dragged over in the value are a selection.
+  const pressed = [];
+  const act = { click: () => pressed.push("act") };
+  const link = {};
+  const box = {};
+  link.closest = (sel) => (sel.includes("a[href]") ? link : null);
+  box.closest = (sel) => (sel.includes("input") ? box : null);
+  const words = { closest: () => null };
+  const row = {
+    contains: (n) => n === act || n === link || n === box,
+    querySelector: (sel) => (sel === ".rec-row-act" ? act : null),
+  };
+  const at = (target) => ({ currentTarget: row, target });
+  const selected = { text: "" };
+  const was = W.getSelection;
+  W.getSelection = () => ({ toString: () => selected.text });
+  try {
+    W.recRowPress(at(words));
+    assert.deepEqual(pressed, ["act"], "a press on the row's words is the act's");
+    W.recRowPress(at(link));
+    W.recRowPress(at(box));
+    assert.deepEqual(pressed, ["act"], "a link or a box in the row is pressed for itself");
+    W.recRowPress(at({ closest: (sel) => (sel.includes("button") ? act : null) }));
+    assert.deepEqual(pressed, ["act"], "the act itself has already answered its own press");
+    selected.text = "melanys";
+    W.recRowPress(at(words));
+    assert.deepEqual(pressed, ["act"], "words dragged over are a selection, not a press");
+  } finally {
+    W.getSelection = was;
+  }
 });
 
 test("an act's arrow is drawn beside its words, never inside the box a phone clips to a pixel", () => {
@@ -1877,6 +1920,81 @@ test("a fold's sheet is held by the registry as a fold is, and draws the same ho
   }
 });
 
+test('a fold given frame="sheet" is the sheet beside a desktop page too, its row behind it, with the same hooks as closed; the row frame stays the default', () => {
+  // Settings › Business draws every fold this way (business-tab-gestures.jsx BtFold): an editor that opened under its
+  // row pushed everything under it down. The sheet is the phone's frame, drawn at any width; the row stays in its
+  // card behind it, as on a phone; and the fold holds the same hooks whichever frame draws it.
+  const folds = W.__recordFolds;
+  folds.reset();
+  const behind = W.React.createElement("div", { className: "rec-row", "data-testid": "rec-row-hours" }, "Hours");
+  let hours;
+  const seen = [];
+  let keep = null;
+  const After = () => {
+    const [mine, set] = W.React.useState("fresh");
+    keep = set;
+    seen.push(mine);
+    return null;
+  };
+  const Page = () => {
+    hours = W.useRecordFold("hours", { dirty: () => false });
+    return W.React.createElement(
+      W.React.Fragment,
+      null,
+      W.React.createElement(W.RecordFold, {
+        ...bookingRules({ id: "hours", label: "Hours", behind, wide: true }),
+        frame: "sheet",
+        open: hours.open,
+        onCancel: hours.close,
+      }),
+      W.React.createElement(After),
+    );
+  };
+  const redrawPage = () => again(() => W.React.createElement(Page));
+  try {
+    let tree = (unmount(), W.React.createElement(Page));
+    assert.equal(dialogOf(tree), null, "closed: no sheet");
+    assert.equal(find(tree, (n) => classes(n).includes("rec-fold")).props.hidden, true, "and the fold hidden whole");
+    keep("after's own");
+    seen.length = 0;
+    hours.request();
+    tree = redrawPage();
+    const sheet = dialogOf(tree);
+    assert.ok(sheet, "open at a desktop's width: a sheet, never a fold under the row");
+    assert.deepEqual(
+      [sheet.props["data-testid"], sheet.props["aria-modal"], sheet.props["data-wide"]],
+      ["rec-fold-hours", true, "true"],
+      "the fold's own test id, modal, and wide where the fold is",
+    );
+    assert.ok(
+      find(tree, (n) => n === behind),
+      "the row is drawn behind it",
+    );
+    assert.equal(
+      find(sheet, (n) => n === behind),
+      null,
+      "and not inside it",
+    );
+    hours.close();
+    tree = redrawPage();
+    assert.equal(dialogOf(tree), null);
+    assert.deepEqual(
+      [...new Set(seen)],
+      ["after's own"],
+      "closed, open and closed again: what comes after the fold reads its own cell every time",
+    );
+  } finally {
+    folds.reset();
+    unmount();
+  }
+  // The row frame is the default, and a desktop's fold is in its place, as the person's page draws it.
+  assert.equal(dialogOf(drawFold(bookingRules({ behind }))), null);
+  assert.equal(
+    find(drawFold(bookingRules({ behind })), (n) => n === behind),
+    null,
+  );
+});
+
 test("a fold open when the window crosses the phone's width is drawn again in the other frame, open, with focus in its first field", () => {
   // The frame is the kit's, and the page's draft is the page's: a width crossed while it is open redraws the one fold
   // in the other frame, still open, and nothing is asked. What was typed is the page's (business-tab-page.test.mjs
@@ -1973,7 +2091,28 @@ test("an inline editor is the row's label and its field, what saving writes, and
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
   assert.deepEqual([saved.length, cancelled.length], [1, 1]);
-  assert.match(textOf(find(tree, (n) => classes(n).includes("rec-foot-keys"))), /Esc cancels/);
+  // Two small presses where the row's act was, a check and a cross: named by their words for a screen reader, by
+  // their keys on hover, and never a foot of their own under the box (the row keeps its one line).
+  const save = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website");
+  const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
+  assert.deepEqual(
+    [save.props["aria-label"], save.props.title, cancel.props["aria-label"], cancel.props.title],
+    ["Save", "Save (Enter)", "Cancel", "Cancel (Esc)"],
+  );
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-foot")),
+    null,
+    "no foot: the presses are in the act's column",
+  );
+  assert.ok(
+    find(tree, (n) => classes(n).includes("rec-inline-more")),
+    "what it will say is a second line, under the box",
+  );
+  assert.equal(
+    find(drawInline(website()), (n) => classes(n).includes("rec-inline-more")),
+    null,
+    "and with nothing to say the editor is the one line",
+  );
   // Closed, it is hidden whole, as a closed fold is: the row is what shows.
   assert.equal(find(drawInline(website({ open: false })), (n) => classes(n).includes("rec-inline")).props.hidden, true);
 });
@@ -2049,6 +2188,17 @@ test("an inline editor's keys: Escape cancels, Ctrl or Cmd with Enter saves, and
     [1, 1],
     "while it saves, the save is on its way: nothing cancels it and nothing sends it twice",
   );
+  // Enter alone, in a box, saves: one value in one box is what Enter has always sent. A textarea keeps it for its
+  // newline, a box that took the key first keeps it, and Enter with a modifier that is not Ctrl or Cmd is not a save.
+  editor = find(drawInline(website({ onSave: () => saved.push(1), onCancel: () => cancelled.push(1) })), (n) =>
+    classes(n).includes("rec-inline"),
+  );
+  editor.props.onKeyDown(key("Enter", { target: { tagName: "INPUT" } }));
+  assert.equal(saved.length, 2, "Enter in the box saves");
+  editor.props.onKeyDown(key("Enter", { target: { tagName: "TEXTAREA" } }));
+  editor.props.onKeyDown(key("Enter", { target: { tagName: "INPUT" }, defaultPrevented: true }));
+  editor.props.onKeyDown(key("Enter", { target: { tagName: "INPUT" }, shiftKey: true }));
+  assert.equal(saved.length, 2, "a textarea's Enter, a taken Enter and Shift with Enter send nothing");
 });
 
 test("an inline editor's Save stays a button focus rests on while it saves, and neither press acts meanwhile", () => {
@@ -2060,7 +2210,7 @@ test("an inline editor's Save stays a button focus rests on while it saves, and 
   const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
   // Not `disabled`: a disabled button lets go of focus, to the page, and a save that failed left it there.
   assert.deepEqual(
-    [save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], textOf(save)],
+    [save.props.disabled, save.props["aria-disabled"], save.props["aria-busy"], save.props["aria-label"]],
     [undefined, true, true, "Saving…"],
   );
   assert.equal(cancel.props["aria-disabled"], true);

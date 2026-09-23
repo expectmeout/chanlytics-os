@@ -1204,7 +1204,10 @@ html.legacy-on .bt-link { position: relative; }
    column is --bt-week-key: the day's switch and name, which the axis and the copy menu line up with. */
 .bt-week, .bt-hours { --bt-week-key: 96px; }
 .bt-hours { display: grid; gap: 9px; min-width: 0; }
-.bt-ribbon { display: grid; grid-template-columns: repeat(7, minmax(30px, 46px)); gap: 5px; }
+/* The ribbon takes the value's column and no more: a floor of 30px a day (240px in all) ran 32px past a column that
+   was 208px wide at 1024, under the row's act. The days shrink instead; the sentence under the ribbon reads each day in
+   full. */
+.bt-ribbon { flex: 1 1 100%; max-width: 100%; display: grid; grid-template-columns: repeat(7, minmax(0, 46px)); gap: 5px; }
 .bt-ribbon-day { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 0; }
 .bt-ribbon-name { font-size: var(--text-xs); line-height: 1; text-align: center; color: var(--ink-dim); }
 .bt-ribbon-day[data-open="false"] .bt-ribbon-name { color: var(--ink-faint); }

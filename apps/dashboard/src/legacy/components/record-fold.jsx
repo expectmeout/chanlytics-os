@@ -5,7 +5,8 @@
 // inline editor, one value edited in its row (RecordInline, below RecordFold); the sheet is record-sheet.jsx. The two
 // here share what they have in common rather than holding two copies of it: focus in as they open, back as they close,
 // and back to where the person was when what held it leaves the page under it (useRecFocus); Escape and Ctrl or Cmd with Enter (recKeys); what
-// saving writes (RecordSays); Save and Cancel (RecordFoot); and their hold on the registry (useRecDrawn).
+// saving writes (RecordSays); and their hold on the registry (useRecDrawn). Save and Cancel are the fold's foot
+// (RecordFoot, which the sheet draws too) and the inline editor's two presses where its row's act was.
 //
 // A set of fields opens under the row that states them. Its head keeps the row's label where it was and puts the
 // page's hint where the value was; its act becomes Close. Under its fields, a fold can show what saving it will
@@ -37,6 +38,14 @@
 // drew it: the fold is called the same way, holds the same hooks in the same order, open or closed, at either width,
 // and its registry, its asks and its save are the page's. A width crossed while it is open draws it again in the other
 // frame, still open, with focus in its first field; what was typed is the page's, and stays.
+//
+// `frame` is where an open fold is drawn. "row", the default, is the fold under its row on a desktop and the sheet on
+// a phone (the person's page). "sheet" is the sheet at every width: beside the page on a desktop, the frame RecordSheet
+// draws (record.css .rec-sheet; it comes in from its edge and leaves by it, components.css "HOW THINGS COME AND GO"),
+// and from the bottom on a phone, as before. Settings › Business draws every fold this way (business-tab-gestures.jsx
+// BtFold): an editor that opened under its row pushed everything under it down by up to 546px, and the page held
+// still only once nothing on it opened in place. The row the fold opens from stays drawn in its card behind the
+// sheet (`behind`), so the card keeps its height under the wash, whichever width drew it.
 //
 // A fold whose fields save themselves -- a choice recorded as it is made, a person's consent or their receptionist --
 // is given no `onSave`: it draws no foot, and Close is its only act. Everything else is the fold's as ever: one open at a
@@ -535,14 +544,16 @@ const RecordFoot = ({
 
 // ---- A fold's sheet leaving the page ----
 
-// Spec §9, item 1 closes a fold on --ease-in-out, and on a phone a fold is a sheet (below), which React takes off the
+// Spec §9, item 1 closes a fold on --ease-in-out, and a fold drawn as a sheet (below) is one React takes off the
 // page the moment the registry closes it: focus goes back to the row's act and the next fold is let in at once, and
 // neither may wait on a motion. So nothing of React's is kept. What leaves is a still copy of the sheet and its wash as
 // they were on screen -- a cloned box and textarea keep their typed values (the HTML clone steps), and the body is put
 // back where it had scrolled to -- in the app's root beside where they stood, with nothing in it to press, focus, name
-// or find: no role, no ids and no test ids anywhere in it, `inert`, hidden from a screen reader. record.css slides it
-// down and fades its wash (data-leaving) on --duration-base and --ease-in-out, and it is gone as its slide ends, or
-// after twice that if no slide runs. Under reduced motion there is no copy at all: the sheet goes at once.
+// or find: no role, no ids and no test ids anywhere in it, `inert`, hidden from a screen reader. On a phone record.css
+// slides it down and fades its wash (data-leaving) on --duration-base and --ease-in-out; beside a desktop page
+// components.css plays it out through its edge as every side sheet leaves (side-out). It is gone as its motion ends,
+// whichever kind ran, or after twice the longer if none runs. Under reduced motion there is no copy at all: the sheet
+// goes at once.
 const REC_LEAVE_FALLBACK_MS = 400;
 const recReducedMotion = () =>
   typeof window.matchMedia === "function" && !!window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -576,6 +587,7 @@ const recSheetLeaves = (sheet, wash, top) => {
     if (washCopy) washCopy.remove();
   };
   sheetCopy.addEventListener("transitionend", (e) => { if (e.target === sheetCopy) go(); });
+  sheetCopy.addEventListener("animationend", (e) => { if (e.target === sheetCopy) go(); });
   setTimeout(go, REC_LEAVE_FALLBACK_MS);
 };
 // A fold's sheet, its wash, and where its body had scrolled to, read as the draw that closes it is made, while React's
@@ -616,15 +628,16 @@ const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
   footNote = null, confirm = null, focusOn = null, changed = null, goneChanged = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
-  gate = null, wide = false, behind = null, children = null,
+  gate = null, wide = false, behind = null, frame = "row", children = null,
 }) => {
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
   // Every hook here is called on every draw, whichever frame is drawn: the frame is a value, never a hook of its own,
   // so the fold holds the same hooks open or closed, as a sheet or under its row (the tests' stub throws as React does
-  // when a component's hooks change in number, _hook-frames.mjs).
+  // when a component's hooks change in number, _hook-frames.mjs). The phone query is read whatever `frame` says, so a
+  // fold given one frame and then the other holds the same hooks too.
   const phone = useRecPhone();
-  const sheet = open && phone;
+  const sheet = open && (frame === "sheet" || phone);
   const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", sheet ? ".rec-sheet-close" : ".rec-fold-close", focusOn, sheet);
   useRecDrawn(id);
   useRecSheetEscape(sheet, saving ? null : onCancel);
@@ -653,17 +666,17 @@ const RecordFold = ({
   ) : null;
   if (sheet) {
     const hintId = hint ? `rec-fold-${id}-hint` : undefined;
-    // The sheet's frame, as RecordSheet draws it on a phone: a wash over the page, and the sheet from the bottom with
-    // its head, a body that scrolls and a foot that holds still. Drawn in the app's root for RecordSheet's reasons (a
-    // Settings pane animates itself in with a transform and sizes every child to its column; People's keys hold still
-    // under a dialog there, PL_OVERLAY). The fields and what saving writes scroll; the ask, Save and Cancel stay in the
-    // foot, clear of the home indicator.
+    // The sheet's frame, as RecordSheet draws it: a wash over the page, and the sheet beside it (from the bottom, on a
+    // phone) with its head, a body that scrolls and a foot that holds still. Drawn in the app's root for RecordSheet's
+    // reasons (a Settings pane animates itself in with a transform and sizes every child to its column; People's keys
+    // hold still under a dialog there, PL_OVERLAY). The fields and what saving writes scroll; the ask, Save and Cancel
+    // stay in the foot, clear of the home indicator.
     const node = (
       <>
         {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
             reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
-            on the page. A pull down on the sheet from its top is the same Cancel (data-bits touchSwipe): the sheet
-            rose from the bottom, and goes back the way it came. */}
+            on the page. On a phone a pull down on the sheet from its top is the same Cancel (data-bits touchSwipe):
+            the sheet rose from the bottom, and goes back the way it came. */}
         <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" ref={leaving.wash} onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
         <section
           ref={box}
@@ -674,6 +687,7 @@ const RecordFold = ({
           aria-describedby={hintId}
           aria-busy={saving || undefined}
           data-open="true"
+          data-wide={wide ? "true" : undefined}
           data-testid={`rec-fold-${id}`}
           {...(window.touchSwipe ? window.touchSwipe({ onDown: cancel, when: () => { const q = recPhoneQuery(); return !!(q && q.matches); } }) : {})}
           onFocus={onFocus}
@@ -714,8 +728,9 @@ const RecordFold = ({
     );
     const root = document.querySelector ? document.querySelector(".app-root") : null;
     const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
-    // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`): a card a
-    // row shorter under the wash grew back as the sheet left, which its leaving would have put on show.
+    // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`), at every
+    // width the sheet is drawn at: a card a row shorter under the wash grew back as the sheet left, which its leaving
+    // would have put on show.
     // Behind the modal sheet it is a picture of the row, not the row: a box that lays out as nothing (record.css), so the
     // card is as it was, aria-hidden and inert, so its act can be neither pressed, focused nor read out. `inert` is set
     // through the ref, since React 18 and 19 spell the prop differently (this file's header). Keyed, so the fold's own
@@ -767,13 +782,16 @@ const RecordFold = ({
 
 // ---- The inline editor: one value, edited in the row that states it ----
 
-// The kit's third gesture (spec §5, canvas Edit-Inline), for one value. The row becomes its field: its label stays in
-// the label column (`label`, drawn as rec-inline-<id>-key, which names the whole editor and which the page's field
-// names its box by), and the page's field, what saving writes (RecordSays, as rec-inline-<id>-says, which describes the
-// box), the page's ask, and Save and Cancel with the keys that do the same take the value's place. A disagreement on
-// the row (`disputed`, RecordRow's shape) stays on screen while it is edited, to read: its press is the row's, at rest.
-// Its line carries no id here: the editor is on the page, hidden, while the row is at rest, and the row's own line has
-// the id its press is described by (rec-row-<id>-other), which was in the document twice.
+// The kit's third gesture (spec §5, canvas Edit-Inline), for one value. The row becomes its field, and keeps the row's
+// line: its label stays in the label column (`label`, drawn as rec-inline-<id>-key, which names the whole editor and
+// which the page's field names its box by), the page's field takes the value's place, and where the row's act was sit
+// two small presses, ✓ Save and ✕ Cancel, named by their words for a screen reader and by their keys on hover. A
+// one-line row keeps its height as it becomes its editor (record.css measures both at 44px), so nothing under it moves.
+// Under the field, only when there is something to draw: a disagreement on the row (`disputed`, RecordRow's shape),
+// which stays on screen while it is edited, to read (its press is the row's, at rest); what saving writes (RecordSays,
+// as rec-inline-<id>-says, which describes the box); and the page's ask. The disagreement's line carries no id here:
+// the editor is on the page, hidden, while the row is at rest, and the row's own line has the id its press is
+// described by (rec-row-<id>-other), which was in the document twice.
 //
 //   const website = useRecordFold("website", { dirty: changed });
 //   {website.open ? null : <RecordRow id="website" act={{ label: "Change", onClick: website.request }} ... />}
@@ -782,13 +800,20 @@ const RecordFold = ({
 //     <RecordField id="website-box" label={null} aria-labelledby="rec-inline-website-key" … />
 //   </RecordInline>
 //
+// Its keys: Escape cancels and Ctrl or Cmd with Enter saves, as a fold's do (recKeys); and Enter alone, pressed in an
+// <input>, saves too, since one value in one box is what Enter has always sent. A textarea keeps Enter for its
+// newline, and a box that took the key first (a combobox picking from its list) keeps it. `keys` names the two on the
+// presses' hover, for a page whose words differ.
+//
 // Like a fold it is drawn on every render and flips `open`: closed, it is `hidden`, whole. It holds nothing of its
 // own: whether it is open comes from the registry (useRecordFold), and the draft, the check and the save are the
-// page's. It shares the fold's focus, keys and foot, and registers with the registry as a fold does (drawn).
+// page's. It shares the fold's focus and keys, and registers with the registry as a fold does (drawn). Save is busy,
+// not disabled, while it saves, for RecordFoot's reason: it stays a button focus rests on, says so, and a press does
+// nothing meanwhile; nor does Cancel's.
 const RecordInline = ({
   id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
   confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
-  keys = "Esc cancels · ⌘↵ saves", gate = null, changed = null, goneChanged = null, children = null,
+  keys = { save: "Enter", cancel: "Esc" }, gate = null, changed = null, goneChanged = null, children = null,
 }) => {
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
@@ -798,6 +823,20 @@ const RecordInline = ({
   const keyId = `rec-inline-${id}-key`;
   const refused = !!(gate && gate["aria-disabled"]);
   const Dispute = window.RecordDispute;
+  const foldKeys = recKeys({ onCancel, onSave, saving, refused });
+  const onKeyDown = (e) => {
+    foldKeys(e);
+    if (e.defaultPrevented || e.key !== "Enter" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    const t = e.target;
+    if (!t || t.tagName !== "INPUT" || !e.currentTarget || !e.currentTarget.contains(t)) return;
+    if (!onSave || saving || refused) return;
+    e.preventDefault();
+    onSave();
+  };
+  const told = <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} inline />;
+  const other = disputed && Dispute ? <Dispute disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null;
+  // Drawn only with something in it, so a one-line row has one line: RecordSays draws nothing of nothing.
+  const more = other || ask || (typeof says === "string" && says.trim()) || (typeof gone === "string" && gone.trim()) || note;
   return (
     <div
       ref={box}
@@ -809,27 +848,45 @@ const RecordInline = ({
       hidden={open ? undefined : true}
       data-testid={`rec-inline-${id}`}
       onFocus={onFocus}
-      onKeyDown={recKeys({ onCancel, onSave, saving, refused })}
+      onKeyDown={onKeyDown}
     >
       <span className="rec-inline-key" id={keyId}>{label}</span>
-      <div className="rec-inline-body">
-        {disputed && Dispute ? <Dispute disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
-        {children}
-        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} inline />
-        {ask}
-        <RecordFoot
-          saveTestid={`rec-inline-save-${id}`}
-          cancelTestid={`rec-inline-cancel-${id}`}
-          onSave={onSave}
-          onCancel={onCancel}
-          saving={saving}
-          saveLabel={saveLabel}
-          savingLabel={savingLabel}
-          cancelLabel={cancelLabel}
-          gate={gate}
-          keys={keys}
-        />
+      <div className="rec-inline-body">{children}</div>
+      <div className="rec-inline-acts">
+        <button
+          type="button"
+          className="rec-inline-act"
+          data-act="save"
+          onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onSave) onSave(e); }}
+          aria-label={saving ? savingLabel : saveLabel}
+          title={`${saveLabel} (${keys.save})`}
+          aria-disabled={saving || undefined}
+          aria-busy={saving || undefined}
+          data-testid={`rec-inline-save-${id}`}
+          {...(gate || {})}
+        >
+          <Icon name="check" size={13} />
+        </button>
+        <button
+          type="button"
+          className="rec-inline-act"
+          data-act="cancel"
+          onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onCancel) onCancel(e); }}
+          aria-label={cancelLabel}
+          title={`${cancelLabel} (${keys.cancel})`}
+          aria-disabled={saving || undefined}
+          data-testid={`rec-inline-cancel-${id}`}
+        >
+          <Icon name="x" size={13} />
+        </button>
       </div>
+      {more ? (
+        <div className="rec-inline-more">
+          {other}
+          {told}
+          {ask}
+        </div>
+      ) : null}
     </div>
   );
 };

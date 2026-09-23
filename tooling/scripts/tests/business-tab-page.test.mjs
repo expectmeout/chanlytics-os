@@ -142,7 +142,8 @@ test("the Workspace row is gone, whatever the workspace is called", () => {
 test("the line it answers is shown, never offered as a box", () => {
   const row = byTestId(drawTab({ profile: melany }), "rec-row-voice_line");
   assert.equal(byTestId(row, "rec-row-act-voice_line"), null, "nothing here is typed");
-  const door = find(row, (n) => typeof n.props?.onClick === "function");
+  // The row itself is a press too (record-row.jsx: the whole row presses its act); the door is what is in it.
+  const door = find(row, (n) => n !== row && typeof n.props?.onClick === "function");
   assert.ok(door, "one link to Connections");
   // Beyond the plan: the number as Setup writes it, where it came from, where the door goes, and what a screen reader
   // hears it called: where it goes and why, beginning with the word on it, since that word and the row's label
@@ -965,7 +966,7 @@ test("Save stays a button focus can rest on while it saves, and a press meanwhil
   const busy = byTestId(tree, "rec-inline-save-website");
   // Not `disabled`: a disabled button lets go of focus, to the page (record-fold.jsx).
   assert.deepEqual(
-    [busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], textOf(busy)],
+    [busy.props.disabled, busy.props["aria-disabled"], busy.props["aria-busy"], busy.props["aria-label"]],
     [undefined, true, true, "Saving…"],
   );
   saveRow(tree, "website");
@@ -2217,7 +2218,8 @@ test("a window that crosses a phone's width while a row is open keeps it open, a
     width.resize(false);
     tree = redrawTab();
     const fold = foldOf(tree, "tone");
-    assert.deepEqual([fold.props.role, fold.props.hidden], ["group", undefined], "a desktop's fold, still open");
+    // The Business tab's folds are sheets at every width (RecordFold frame="sheet"), so the frame is the same one.
+    assert.deepEqual([fold.props.role, fold.props.hidden], ["dialog", undefined], "a desktop's sheet, still open");
     assert.equal(voiceBox(tree).props.value, "Calm and kind.", "with what was typed");
     assert.equal(W.__settingsUnsaved(), true, "and still asked about before it is thrown away");
     width.resize(true);
@@ -2426,11 +2428,13 @@ test("on a phone a row open as a sheet is still drawn in its card behind it, so 
   } finally {
     width.put();
   }
-  // At a desktop's width the fold stands in the row's place, as it always did.
+  // At a desktop's width the fold is a sheet too (RecordFold frame="sheet"), and the row stays behind it the same way.
   let tree = drawTab();
   openFold(tree, "tone");
   tree = redrawTab();
-  assert.equal(byTestId(tree, "rec-row-tone"), null);
+  assert.equal(foldOf(tree, "tone").props.role, "dialog");
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "rec-row-tone").length, 1, "one row, behind the sheet");
+  assert.equal(byTestId(foldOf(tree, "tone"), "rec-row-tone"), null, "and not inside the dialog");
 });
 
 test("the line the page marks as changed is the line the kit draws as a new element, and no other", () => {
@@ -2495,10 +2499,11 @@ test("the line the page marks as changed is the line the kit draws as a new elem
 
 /* ------------------------------------ what is on screen at rest ------------------------------------ */
 
-// Spec §11, as amended by Task 6.3: at rest the page draws only what an owner acts on without looking for it, and every
-// other act is in the tab order and drawn on hover or focus (record.css: a filled row's act is opacity 0 until its row
-// is hovered or holds focus). What the stub can tell is which controls are drawn at rest -- neither in a closed editor
-// (hidden, whole) nor a filled row's latent act; the journey measures the rest by computed style.
+// Spec §11, as amended by Task 6.3 and by the 23 Sep quieting: at rest the page draws what an owner acts on without
+// looking for it, and every row's act, quietly (record.css: the dim ink at rest, the ink as the row is approached;
+// it was opacity 0 until the row was hovered, which read as nothing to press). What the stub can tell is which
+// controls are drawn at rest -- nothing in a closed editor, hidden whole; the journey measures the rest by computed
+// style.
 const CONTROL = (n) =>
   ["button", "a", "input", "select", "textarea"].includes(n.type) ||
   n.props?.role === "switch" ||
@@ -2511,14 +2516,8 @@ const drawnAtRest = (tree) => {
     if (Array.isArray(n)) return n.forEach((k) => walk(k, row));
     if (n.props?.hidden === true) return;
     const inRow = classes(n).includes("rec-row") ? n : row;
-    if (typeof n.type === "string" && CONTROL(n)) {
-      const latent =
-        classes(n).includes("rec-row-act") &&
-        inRow &&
-        inRow.props["data-empty"] !== "true" &&
-        inRow.props["data-state"] !== "warn";
-      if (!latent) out.push({ id: n.props["data-testid"] || textOf(n).trim(), n, row: inRow });
-    }
+    if (typeof n.type === "string" && CONTROL(n))
+      out.push({ id: n.props["data-testid"] || textOf(n).trim(), n, row: inRow });
     if (typeof n.type === "function") walk(n.rendered, inRow);
     else walk(n.props?.children, inRow);
   };
@@ -2526,21 +2525,28 @@ const drawnAtRest = (tree) => {
   return out;
 };
 
-test("at rest a whole record draws four controls, each one an owner acts on without looking for it", () => {
+test("at rest a whole record draws every row's act, quietly, and three controls an owner acts on without looking for it", () => {
   const drawn = drawnAtRest(drawTab());
+  const isAct = (c) => classes(c.n).includes("rec-row-act");
   assert.deepEqual(
-    drawn.map((c) => c.id),
+    drawn.filter((c) => !isAct(c)).map((c) => c.id),
     [
       // Where the carrier record is asked, a link in Who you are's foot sentence: part of what it says.
       "rec-who-carriers",
-      // Days you're closed has none ahead: the act on an empty row is never hidden (§11).
-      "rec-row-act-closures",
       // Look at a photo is off: what is missing says so, with its door, at full strength (§11).
       "rec-can-door-vision",
       // Read it: what the receptionist is told.
       "rec-prompt-open",
     ],
   );
+  // Every row with an act draws it, one each, in its own row: nothing is latent any more.
+  const acts = drawn.filter(isAct);
+  assert.ok(acts.length >= 20, `every row's act: ${acts.length}`);
+  assert.ok(
+    acts.every((c) => c.row && c.row.props["data-act"] === "true"),
+    "each in a row that says it is a press",
+  );
+  assert.equal(new Set(acts.map((c) => c.row)).size, acts.length, "one act to a row");
   // Nothing is missing from this record, so the standing line has no gap and no door.
   assert.equal(byTestId(drawTab(), "rec-standing-door"), null);
 });
@@ -2552,8 +2558,8 @@ test("at rest an empty record adds only what is empty or missing, and the standi
       ? "always"
       : c.id === "rec-standing-door"
         ? "the gap"
-        : c.row && (c.row.props["data-empty"] === "true" || c.row.props["data-state"] === "warn")
-          ? "empty or wrong"
+        : classes(c.n).includes("rec-row-act")
+          ? "a row's act, drawn at rest"
           : /^rec-can-door-/.test(c.id)
             ? "missing"
             : null;

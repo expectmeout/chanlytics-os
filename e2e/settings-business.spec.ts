@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
-import { expectFocusInside, expectFocusUnmoved, expectNoSidewaysScroll, focusedNow } from "./signals";
+import { expectFocusInside, expectNoSidewaysScroll } from "./signals";
 
 /**
  * Settings › Business on a real workspace: the record, and the things only a browser can show about it.
@@ -405,6 +405,7 @@ async function motionsOn(page: Page, selector: string): Promise<Motion[][]> {
 }
 /** The house's easings, as tokens.css spells them and the browser hands them back. */
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
+const EASE_IN = "cubic-bezier(0.7, 0, 0.84, 0)";
 const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 /** Wait out whatever is moving, so the next step starts from rest. */
 const settled = (page: Page): Promise<unknown> =>
@@ -413,16 +414,28 @@ const settled = (page: Page): Promise<unknown> =>
 /**
  * The four motions of spec §9, and each of them gone under reduced motion, measured on the page as it runs them. The
  * stub the unit suite draws on runs no stylesheet and draws no frame, so this is the only place any of it is proved:
- * the value becoming its field, a fold opening and folding away, the one line of what it will be told that the draft
- * changed, and the save settling. `reduced` is whether the page was asked for reduced motion, where every one is none.
+ * the value becoming its field, a fold arriving as a sheet beside the page and leaving by its edge, the one line of
+ * what it will be told that the draft changed, and the save settling. `reduced` is whether the page was asked for
+ * reduced motion, where every one is none. And through all of it the page holds still: a row keeps its height as it
+ * becomes its editor, and the card behind a sheet does not move as the sheet comes or goes (23 Sep: the in-page fold
+ * pushed everything under it down by up to 546px).
  */
 async function expectMotions(page: Page, reduced: boolean): Promise<void> {
   const where = reduced ? "under reduced motion" : "with motion";
   const none = (m: Motion[][], what: string) => expect(m.flat(), `${what} moves ${where}`).toEqual([]);
+  /** Where the row after the fold stands in its card: what must hold still whatever the pane scrolls to. */
+  const still = () =>
+    page
+      .getByTestId("rec-row-notes")
+      .evaluate((el) =>
+        Math.round(el.getBoundingClientRect().top - el.closest(".rec-card")!.getBoundingClientRect().top),
+      );
 
-  // 1. The value becomes its field: the editor's body fades in on 120ms, the label holds still, and the caret is at
-  // the end of what is there.
+  // 1. The value becomes its field: the editor's body fades in on 120ms, the label holds still, the caret is at the
+  // end of what is there, and the row keeps its height (the editor is the row's one line, its Save and Cancel where
+  // the act was).
   await settled(page);
+  const rowHeight = await page.getByTestId("rec-row-website").evaluate((el) => el.getBoundingClientRect().height);
   const inline = await page.evaluate(async () => {
     (document.querySelector('[data-testid="rec-row-act-website"]') as HTMLElement).click();
     await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -441,28 +454,37 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
       [{ prop: "opacity", ms: 120, easing: EASE_OUT }],
     ]);
   none(await motionsOn(page, '[data-testid="rec-inline-website"] .rec-inline-key'), "the label");
+  const editorHeight = await page.getByTestId("rec-inline-website").evaluate((el) => el.getBoundingClientRect().height);
+  expect(
+    Math.abs(editorHeight - rowHeight),
+    `${where}: the row changed height as it became its editor`,
+  ).toBeLessThanOrEqual(2);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("rec-inline-website")).toBeHidden();
 
-  // 2. A fold opens on the grid's rows and its opacity, on --duration-base and --ease-out; its hint, where the value
-  // was, fades in on 120ms.
+  // 2. A fold opens as a sheet beside the page (record-fold.jsx frame="sheet", which every fold of this tab is), and
+  // comes in from its edge as every side sheet does (components.css side-in, 260ms on --ease-out), its wash fading in
+  // with it; the row it opened from stays in its card behind it, and nothing on the page moves.
   await settled(page);
+  const at = await still();
   await actOf(page, "escalate_when").click();
-  const fold = '[data-testid="rec-fold-escalate_when"]';
-  const opening = await motionsOn(page, `${fold} .rec-fold-body`);
-  const hint = await motionsOn(page, `${fold} .rec-fold-hint`);
+  const fold = '[role="dialog"][data-testid="rec-fold-escalate_when"]';
+  await expect(page.locator(fold)).toBeVisible();
+  const sheetIn = await motionsOn(page, fold);
+  const washIn = await motionsOn(page, ".rec-sheet-backdrop[data-fold]");
   if (reduced) {
-    none(opening, "the fold opening");
-    none(hint, "the fold's hint");
+    none(sheetIn, "the sheet arriving");
+    none(washIn, "the sheet's wash");
   } else {
-    expect(opening, "the fold unfolds").toEqual([
-      [
-        { prop: "grid-template-rows", ms: 200, easing: EASE_OUT },
-        { prop: "opacity", ms: 200, easing: EASE_OUT },
-      ],
-    ]);
-    expect(hint, "and its hint fades in").toEqual([[{ prop: "opacity", ms: 120, easing: EASE_OUT }]]);
+    expect(sheetIn, "the sheet comes in from its edge").toEqual([[{ prop: "side-in", ms: 260, easing: EASE_OUT }]]);
+    expect(washIn, "and its wash fades in").toEqual([[{ prop: "wash-in", ms: 200, easing: EASE_OUT }]]);
   }
+  await settled(page);
+  expect(await still(), `${where}: the card behind the open sheet moved`).toBe(at);
+  await expect(
+    page.locator(".rec-fold-behind").getByTestId("rec-row-escalate_when"),
+    "the row behind the sheet",
+  ).toHaveCount(1);
 
   // 3. The line the draft just changed washes, and no other. Two reasons typed, one after the other: the block the
   // first leaves is what the second is a change OF.
@@ -493,35 +515,45 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
     else expect(washing[i], `${where}: "${l.text.slice(0, 40)}" washes`).toEqual([]);
   });
 
-  // 4. It folds away on --ease-in-out as it closes, held on screen for its duration by the stylesheet alone: it is
-  // closed, and focus is back on the row's act, at once.
+  // 4. It leaves by its edge as it closes (side-out, faster, on --ease-in), by a still copy React no longer holds
+  // (record-fold.jsx recSheetLeaves): the fold is closed and focus is back on the row's act at once, nothing in what
+  // leaves can be found or pressed, it is gone as its slide ends, and the card behind holds still throughout.
   await settled(page);
   await page.getByTestId("rec-fold-cancel-escalate_when").click();
   await page.getByTestId("rec-fold-escalate_when-cancel-yes").click();
-  const closing = await page.evaluate((sel) => {
-    const f = document.querySelector(sel) as HTMLElement;
+  const closing = await page.evaluate(async () => {
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const copy = document.querySelector('.rec-fold-sheet[data-leaving="true"]');
+    const wash = document.querySelector('.rec-sheet-backdrop[data-leaving="true"]');
+    const moving = (el: Element | null) =>
+      el
+        ? el.getAnimations().map((a) => ({
+            prop: (a as unknown as { animationName: string }).animationName,
+            ms: Number((a.effect as KeyframeEffect).getComputedTiming().duration),
+            easing: String((a.effect as KeyframeEffect).getKeyframes()[0]?.easing),
+          }))
+        : null;
     return {
-      hidden: f.hidden,
-      display: getComputedStyle(f).display,
+      dialogs: document.querySelectorAll('[role="dialog"]').length,
       focus: document.activeElement?.getAttribute("data-testid"),
+      copy: moving(copy),
+      wash: moving(wash),
+      named: copy ? copy.querySelectorAll("[id], [data-testid]").length + (copy.getAttribute("role") ? 1 : 0) : 0,
     };
-  }, fold);
-  expect(closing.hidden, "the fold is closed the moment it is").toBe(true);
+  });
+  expect(closing.dialogs, "the fold is closed the moment it is").toBe(0);
   expect(closing.focus, "and focus is back on its row's act at once").toBe("rec-row-act-escalate_when");
-  const folding = await motionsOn(page, `${fold} .rec-fold-body`);
-  if (reduced) {
-    expect(closing.display, "under reduced motion a closed fold is gone at once").toBe("none");
-    none(folding, "the fold closing");
-  } else {
-    expect(closing.display, "the fold is still on screen while it folds away").toBe("block");
-    expect(folding, "it folds away on --ease-in-out").toEqual([
-      [
-        { prop: "grid-template-rows", ms: 200, easing: EASE_IN_OUT },
-        { prop: "opacity", ms: 200, easing: EASE_IN_OUT },
-      ],
+  if (reduced) expect([closing.copy, closing.wash], "nothing leaves under reduced motion").toEqual([null, null]);
+  else {
+    expect(closing.copy, "it leaves by its edge on --ease-in").toEqual([
+      { prop: "side-out", ms: 180, easing: EASE_IN },
     ]);
+    expect(closing.wash, "its wash fading with it").toEqual([{ prop: "wash-out", ms: 160, easing: EASE_IN }]);
+    expect(closing.named, "and nothing in what leaves can be found, named or pressed").toBe(0);
   }
-  await expect(page.locator(fold)).toBeHidden();
+  await expect(page.locator('[data-leaving="true"]'), "what leaves is gone as its slide ends").toHaveCount(0);
+  await expect(page.locator(fold)).toHaveCount(0);
+  expect(await still(), `${where}: the card moved once the sheet had gone`).toBe(at);
 
   // 5. The save settle: the row its save draws again lets its value arrive on rise-in.
   await settled(page);
@@ -662,25 +694,33 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("a click on the page outside an open fold survives a redraw", async ({ page }) => {
+  test("a press beside an open editor lands on its wash and is its Cancel: nothing typed, the sheet closes and focus is back on the act", async ({
+    page,
+  }) => {
+    // Every fold of this tab is a modal sheet beside the page (record-fold.jsx frame="sheet"), so what lies over the
+    // page beside it is its wash, and a press there is the fold's Cancel -- with nothing typed, the sheet simply goes
+    // (the click that once landed on the page and had to survive a redraw lands here now).
     const before = await readConfig(page);
     await openRecord(page);
 
-    await openFold(page, "tone");
-    // Somewhere on the page that is not the fold, and not a control that would open anything.
-    await page.locator(".bt-title").click();
-    const away = await focusedNow(page);
+    const sheet = await openFold(page, "tone");
+    // A point on screen beside the sheet, whatever the pane scrolled to bring the row in reach: 40px left of the
+    // sheet's own edge, half-way down it.
+    const box = await sheet.boundingBox();
+    expect(box).not.toBeNull();
+    const beside = { x: Math.max(8, box!.x - 40), y: box!.y + box!.height / 2 };
     expect(
-      await page.evaluate(() => !!document.activeElement?.closest('[data-testid="rec-fold-tone"]')),
-      "the click did not take focus out of the fold",
-    ).toBe(false);
+      await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className ?? null, beside),
+      "what lies over the page beside the sheet is not its wash",
+    ).toBe("rec-sheet-backdrop");
+    await page.mouse.click(beside.x, beside.y);
+    await expect(foldOf(page, "tone")).toBeHidden();
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await expect(actOf(page, "tone")).toBeFocused();
 
-    // Anything that draws the page again: the settings surface being read once more, which the page listens for.
+    // A redraw meanwhile opens nothing: the settings surface being read once more, which the page listens for.
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("surface:settings")));
-    await expect(foldOf(page, "tone")).toBeVisible();
-    await expectFocusUnmoved(page, away, "a redraw pulled focus back into the fold the person had left");
-
-    await discard(page, "tone");
+    await expect(openFolds(page)).toHaveCount(0);
     await expectRecordUnchanged(page, before);
   });
 
@@ -707,8 +747,9 @@ test.describe("Settings › Business on a real workspace", () => {
     await box.click();
     await box.fill(fresh!);
     // Leaving the box is the gesture: the old form's box added what was typed as it lost focus, and a box that only
-    // closed dropped the language, so the fold saved without it (Task 3.5's onLeave).
-    await page.locator(".bt-title").click();
+    // closed dropped the language, so the fold saved without it (Task 3.5's onLeave). Tab leaves it for the next
+    // control in the sheet; a click on the page beside a modal sheet would land on its wash, which is its Cancel.
+    await page.keyboard.press("Tab");
     await expect(tokens).toHaveCount(was + 1);
     await expect(fold.getByTestId("rec-languages-tokens")).toContainText(fresh!);
 
@@ -1067,12 +1108,14 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("at rest the record draws only what an owner acts on without looking for it, the one act under the pointer on approach, and every act on a phone", async ({
+  test("at rest the record draws every row's act, quietly, and darkens the one under the pointer; nothing else is drawn that an owner does not act on without looking for it", async ({
     page,
   }) => {
-    // Spec §11, as amended by Task 6.3, measured by computed style: a control is drawn when it is laid out and nothing
-    // over it is transparent. business-tab-page.test.mjs holds which controls the page draws at rest on a whole record
-    // and on an empty one; this is what the browser paints of them.
+    // Spec §11, as amended by Task 6.3 and by the 23 Sep quieting, measured by computed style: a control is drawn when
+    // it is laid out and nothing over it is transparent. A row's act is drawn at rest in the dim ink and takes the ink
+    // as the row is approached (record.css); it was opacity 0 until hovered, which read as a page with nothing to
+    // press. business-tab-page.test.mjs holds which controls the page draws at rest on a whole record and on an empty
+    // one; this is what the browser paints of them.
     await page.setViewportSize({ width: 1280, height: 900 });
     await openRecord(page);
     await page.mouse.move(0, 0);
@@ -1092,7 +1135,6 @@ test.describe("Settings › Business on a real workspace", () => {
             seen *= parseFloat(getComputedStyle(n).opacity);
           if (seen <= 0) continue;
           const id = el.getAttribute("data-testid") || el.getAttribute("href") || el.className;
-          const row = el.closest(".rec-row");
           const why =
             id === "rec-prompt-open"
               ? "Read it"
@@ -1102,8 +1144,8 @@ test.describe("Settings › Business on a real workspace", () => {
                   ? "Download"
                   : id === "rec-who-carriers" || el.closest(".set-team-mail") || el.classList.contains("set-mark")
                     ? "part of a sentence it sits in"
-                    : row && (row.getAttribute("data-empty") === "true" || row.getAttribute("data-state") === "warn")
-                      ? "empty or wrong"
+                    : el.classList.contains("rec-row-act")
+                      ? "a row's act"
                       : id.startsWith("rec-can-door-")
                         ? "missing"
                         : null;
@@ -1120,17 +1162,38 @@ test.describe("Settings › Business on a real workspace", () => {
     // Download is Your data's, under the tab, and drawn wherever the app can name its door (window.__href); the
     // harness has no export door to name, so it is held to being drawn only where it is on the page.
     if (await page.getByTestId("set-export-all").count()) expect(atRest.map((c) => c.why)).toContain("Download");
+    // Every row with an act draws it at rest: none is latent.
+    const latent = await page.locator(".rec-row .rec-row-act").evaluateAll((els) =>
+      els
+        .filter((el) => {
+          let seen = 1;
+          for (let n: Element | null = el; n; n = n.parentElement) seen *= parseFloat(getComputedStyle(n).opacity);
+          return seen < 1 || !el.getClientRects().length;
+        })
+        .map((el) => el.getAttribute("data-testid")),
+    );
+    expect(latent, "an act not drawn at rest").toEqual([]);
+    expect(atRest.filter((c) => c.why === "a row's act").length).toBeGreaterThan(10);
 
-    // The one act under the pointer: a filled row, approached, draws its act, and it is the only filled row's act drawn.
+    // Quietly: the dim ink at rest, the ink as the row is approached, and the whole row is the press (the pointer says
+    // so). The two inks are read from the tokens as the browser resolves them, so the comparison holds in either theme.
+    const ink = (token: string) =>
+      page.evaluate((t) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${t})`;
+        document.body.appendChild(probe);
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+      }, token);
     const row = page.locator('.rec-row[data-empty="false"]:not([data-state="warn"]):has(.rec-row-act)').first();
-    const act = await row.locator(".rec-row-act").getAttribute("data-testid");
+    const act = row.locator(".rec-row-act");
+    const colour = () => act.evaluate((el) => getComputedStyle(el).color);
+    expect(await colour(), "at rest, the dim ink").toBe(await ink("--ink-dim"));
+    expect(await row.evaluate((el) => getComputedStyle(el).cursor), "the row is the press").toBe("pointer");
     await row.hover();
     await settled(page);
-    const near = await drawn();
-    expect(
-      near.filter((c) => !c.why).map((c) => c.id),
-      "the act under the pointer, and it alone",
-    ).toEqual([act]);
+    expect(await colour(), "approached, the ink").toBe(await ink("--ink"));
 
     // On a phone nothing hovers, so every act is drawn.
     await page.setViewportSize({ width: 390, height: 844 });

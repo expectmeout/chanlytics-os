@@ -29,6 +29,11 @@
 //   customers to call"; an act that goes somewhere, "Connections Answers on") the page names the act itself, `name`,
 //   a sentence that holds the act's own words so a person who says them still reaches it. The act's data-rec-act is
 //   where a fold that closes (record-fold.jsx) gives focus back.
+//   The act is drawn at rest, quietly (record.css: the dim ink, darker as the row is approached), and the whole row is
+//   its press: a click anywhere on a row with an act that is not on something pressable of its own -- a link, a
+//   dispute's press, a box -- and did not select words is a press on the act, gate and all (recRowPress). The act stays
+//   the row's one tab stop; the row itself takes no focus. It was latent, opacity 0 until the row was hovered, and 17px
+//   tall: an owner looking for how to change a value saw nothing to press.
 // - `hint` is a sentence under the value; `children` draw under it too (a ribbon, a row of chips: RecordChips, below).
 // - Something wrong is on the row at full strength, hover or not: data-state="warn", which record.css draws as the warn
 //   wash with the key in the warn ink and the act always drawn. A serious disagreement is one (facts.ts: "Severity is
@@ -48,6 +53,25 @@ const REC_USE_WORDS = { verified: "Use Google's", provisioned: "Use your line", 
 const recEmpty = (v) => v == null || v === "" || v === false;
 // The stub React the tests draw on hands a component `children: []` when it was given none; React hands undefined.
 const recHasKids = (kids) => (Array.isArray(kids) ? kids.some((k) => k != null && k !== false) : kids != null && kids !== false);
+
+// What a press on the row leaves alone: the act itself (its own handler has run by now), and anything else in the row
+// that is pressed or typed into for itself.
+const REC_ROW_OWN_PRESS = 'button, a[href], input, select, textarea, [role="button"], [tabindex]';
+// A press anywhere else on a row with an act is a press on the act, so a whole row is the target and not 17px of
+// words at its edge; gated, the act's own refusal answers, as it would to a press on the act. Words dragged over in
+// the value are a selection, not a press. The row is hookless, as it has always been: its act is found as the press
+// lands.
+const recRowPress = (e) => {
+  const row = e && e.currentTarget;
+  const t = e && e.target;
+  if (!row || !t || !t.closest || !row.querySelector) return;
+  const own = t.closest(REC_ROW_OWN_PRESS);
+  if (own && own !== row && row.contains(own)) return;
+  const picked = typeof window.getSelection === "function" ? window.getSelection() : null;
+  if (picked && String(picked)) return;
+  const act = row.querySelector(".rec-row-act");
+  if (act && typeof act.click === "function") act.click();
+};
 
 /**
  * Where a fact came from, where that is worth an owner's attention: a muted word beside the value, in the `fact` kind's
@@ -123,8 +147,10 @@ const RecordRow = ({
       className={`rec-row${tall ? " rec-row-top" : ""}`}
       data-empty={isEmpty ? "true" : "false"}
       data-state={wrong || (disputed && disputed.severity === "serious") ? "warn" : undefined}
+      data-act={act ? "true" : undefined}
       data-testid={testid || (id ? `rec-row-${id}` : undefined)}
       data-settled={settled ? "true" : undefined}
+      onClick={act ? recRowPress : undefined}
     >
       <span className="rec-row-key" id={keyId}>{label}</span>
       <div className="rec-row-val">
@@ -187,4 +213,4 @@ const RecordChips = ({ chips = [], more = null, max = null, testid = null }) => 
 
 // RecordDispute on its own is the inline editor's (record-fold.jsx): a row being edited keeps its disagreement on
 // screen, to read, while its press waits at rest on the row.
-Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips });
+Object.assign(window, { RecordRow, RecordSourceChip, RecordDispute, RecordChips, recRowPress });

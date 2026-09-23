@@ -3174,12 +3174,15 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 @keyframes pop-in { from { opacity: 0; scale: 0.97; } }
 
 /* Coming in. Ask's palette and the Calendar's dialog (.ask-overlay, .ask-modal) have their own fade and slide
-   (dashboard-a-v2.css); here they gain their leaving, and on a phone the palette rises as the sheet it is. */
-.sb-sheet-backdrop, .rec-sheet-backdrop:not([data-fold]), .ld-lightbox-backdrop, .nav-backdrop {
+   (dashboard-a-v2.css); here they gain their leaving, and on a phone the palette rises as the sheet it is.
+   A rule that tells the kit's sheets apart keeps its specificity at one class (:where), so the reduced-motion block at
+   the end, later and equal, wins: written as :not(), it outranked that block and the sheet slid in under reduced motion
+   (the Business journey caught it, 24 Sep). */
+.sb-sheet-backdrop, .rec-sheet-backdrop:where(:not([data-fold])), .ld-lightbox-backdrop, .nav-backdrop {
   animation: wash-in var(--duration-base) var(--ease-out);
 }
 .sb-sheet, .ld-lightbox { animation: modal-in 240ms var(--ease-out); }
-.rec-sheet:not(.rec-fold-sheet) { animation: side-in 260ms var(--ease-out); }
+.rec-sheet:where(:not(.rec-fold-sheet)) { animation: side-in 260ms var(--ease-out); }
 .cl-health-pop { transform-origin: top left; animation: pop-in var(--duration-base) var(--ease-out); }
 /* What answers a press in place: the question that stands where the button was, and a figure's receipt. */
 .confirm { animation: wash-in 160ms var(--ease-out); }
@@ -3196,6 +3199,15 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 }
 .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: side-out 180ms var(--ease-in) forwards; }
 
+/* A fold drawn as a sheet beside a desktop page (record-fold.jsx `frame`, Settings › Business) is a side sheet, and
+   comes and goes as one: its own transitions are the phone's (record.css), where it rises from the bottom. */
+@media (min-width: 761px) {
+  .rec-sheet:where(.rec-fold-sheet) { animation: side-in 260ms var(--ease-out); }
+  .rec-sheet-backdrop:where([data-fold]) { animation: wash-in var(--duration-base) var(--ease-out); }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { animation: side-out 180ms var(--ease-in) forwards; }
+  .rec-sheet-backdrop[data-fold][data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
+}
+
 /* On a phone a sheet sits on the bottom edge, so it rises from there and drops back to it. A tall one (the kit's
    sheet, Ask's palette) travels its whole height; a short one (People's and Leads' sheets) the last 28px, as the
    template list and the thread's Actions already do. */
@@ -3206,7 +3218,7 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   }
 }
 @media (max-width: 760px) {
-  .rec-sheet:not(.rec-fold-sheet) { animation: sheet-rise 300ms var(--ease-out); }
+  .rec-sheet:where(:not(.rec-fold-sheet)) { animation: sheet-rise 300ms var(--ease-out); }
   .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
 }
 @media (max-width: 720px) {
