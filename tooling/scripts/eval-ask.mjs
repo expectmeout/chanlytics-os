@@ -12,13 +12,17 @@
  * and, on an answer made since the Line, what the page draws: a headline of
  * one sentence, no place offered twice after one door, a count shown as a
  * figure or a breakdown, and a breakdown that adds up (the spec's 10.2).
- * Each run times the first words (a `say` or a v1 `delta`) and the final.
+ * Each run times the first words (a `say` or a v1 `delta`) and the final,
+ * and reads what the run cost from Ask's own usage rows (usage.ask_tokens,
+ * one per model round, written by the edge): the tokens, the dollars per
+ * answered turn at the models' list prices, the rounds that stopped at the
+ * cap, and which model answered (the model gate, spec 8.3).
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { cardOpenRoute, oneDoor } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -79,6 +83,82 @@ function cookieHeader(session) {
   return parts.join("; ");
 }
 
+/* ---- the cost: Ask's usage rows, priced as Anthropic's pages list them (spec 8.1, read 23 Sep) ---- */
+/** Dollars per million tokens: uncached input, output, a five-minute cache write, a cache read. */
+const PRICE = {
+  "claude-sonnet-5": { input: 2, output: 10, cache_creation: 2.5, cache_read: 0.2 },
+  "claude-opus-5-5": { input: 4, output: 20, cache_creation: 5, cache_read: 0.2 },
+};
+const DAY_MS = 24 * 3600 * 1000;
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+async function rest(path) {
+  const res = await fetch(`${URL_}/rest/v1/${path}`, { headers: { apikey: KEY, authorization: `Bearer ${KEY}` } });
+  if (!res.ok) throw new Error(`${path.split("?")[0]} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+/** The one workspace the eval member belongs to: the usage rows are keyed by it. */
+async function workspaceOf(userId) {
+  const rows = await rest(`memberships?user_id=eq.${userId}&select=tenant_id`);
+  if (rows.length !== 1) throw new Error(`${EMAIL} belongs to ${rows.length} workspaces; the usage rows need one`);
+  return rows[0].tenant_id;
+}
+
+/** Ask's usage rows for the workspace since `since`, oldest first: one per model round, as the edge recorded it. */
+async function usageSince(tenantId, since) {
+  const rows = await rest(
+    `events?tenant_id=eq.${tenantId}&kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}` +
+      `&select=data&order=created_at.asc&limit=2000`,
+  );
+  return rows.map((r) => r.data ?? {}).filter((d) => !d.purpose || d.purpose === "ask");
+}
+
+/** What the day's budget counts (ask-gateway.ts askTokensLast24h): uncached input plus output. */
+const budgetTokens = (rows) => rows.reduce((s, d) => s + num(d.input_tokens) + num(d.output_tokens), 0);
+
+/**
+ * A run's usage by model: the rounds, the tokens by kind, the rounds that stopped at the cap, and the dollars at list
+ * price, null for a model the table above does not price. `answered` divides the cost into a per-turn figure.
+ */
+function summarizeUsage(rows, answered) {
+  const byModel = {};
+  for (const d of rows) {
+    const m = (byModel[d.model ?? "?"] ??= {
+      rounds: 0,
+      input: 0,
+      output: 0,
+      cache_read: 0,
+      cache_creation: 0,
+      cap_hits: 0,
+      cost: null,
+    });
+    m.rounds++;
+    m.input += num(d.input_tokens);
+    m.output += num(d.output_tokens);
+    m.cache_read += num(d.cache_read_input_tokens);
+    m.cache_creation += num(d.cache_creation_input_tokens);
+    if (d.stop_reason === "max_tokens") m.cap_hits++;
+  }
+  for (const [model, m] of Object.entries(byModel)) {
+    const p = PRICE[model];
+    if (p)
+      m.cost =
+        (m.input * p.input + m.output * p.output + m.cache_creation * p.cache_creation + m.cache_read * p.cache_read) /
+        1e6;
+  }
+  const models = Object.values(byModel);
+  const cost = models.every((m) => m.cost !== null) ? models.reduce((s, m) => s + m.cost, 0) : null;
+  return {
+    byModel,
+    rounds: rows.length,
+    cost,
+    per_turn: cost !== null && answered ? cost / answered : null,
+    cap_hits: models.reduce((s, m) => s + m.cap_hits, 0),
+    answered,
+  };
+}
+
 /* ---- one turn, read to the end ---- */
 async function ask(cookie, text) {
   const t0 = Date.now();
@@ -128,8 +208,10 @@ async function ask(cookie, text) {
 /* ---- the judge ---- */
 export function judge(c, r) {
   const fails = [];
+  // What a reviewer would mark but the gate does not fail: said once, counted in the summary.
+  const notes = [];
   const m = r.final;
-  if (!m) return { pass: false, fails: ["no final message"] };
+  if (!m) return { pass: false, fails: ["no final message"], notes };
   const e = c.expect ?? {};
   const text = m.text ?? "";
   if (m.failed) fails.push(`turn failed: ${text.slice(0, 120)}`);
@@ -179,8 +261,9 @@ export function judge(c, r) {
   // The answer as the Line draws it, on every turn made since the Line.
   const a = m.answer;
   if (a && !m.failed) {
-    // A message the headline quotes ("Yes! Pick a time here") is not a sentence of its own.
-    const own = a.say.headline.replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…");
+    // A message the headline quotes ("Yes! Pick a time here", or the same in single quotes after a space or a
+    // colon, which is never an apostrophe) is not a sentence of its own.
+    const own = a.say.headline.replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
     if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(own))
       fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
     const cards = m.proposals ?? [];
@@ -200,13 +283,26 @@ export function judge(c, r) {
     const b = a.show.breakdown;
     if (b && b.parts.reduce((s, p) => s + p.value, 0) !== b.total)
       fails.push(`a breakdown whose parts do not add up to ${b.total}`);
+    // The whole is said by the breakdown; a figure that says it again is show filled for its own sake (spec 7.7).
+    if (b && a.show.figures.some((f) => Number(String(f.value).replace(/[^\d.-]/g, "")) === b.total))
+      notes.push(`a figure repeats the breakdown's total (${b.total})`);
   }
-  return { pass: fails.length === 0, fails };
+  return { pass: fails.length === 0, fails, notes };
 }
 
 const cases = JSON.parse(readFileSync(file, "utf8")).filter((c) => !ONLY || ONLY.has(c.id));
 const session = await mint();
 const cookie = cookieHeader(session);
+// The budget before a case is asked: a run that starts near the cap ends in a wall of BUDGET refusals that say
+// nothing about the model (ask-gateway.ts refuses at ASK_TOKENS_DAY over the last day).
+const tenantId = await workspaceOf(session.user.id);
+const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
+process.stderr.write(
+  `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n`,
+);
+// A second of clock skew: the first row of a run lands seconds after this, and the previous run's last row can
+// still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
+const startedAt = new Date(Date.now() - 1_000).toISOString();
 const results = [];
 for (const c of cases) {
   let r;
@@ -215,11 +311,13 @@ for (const c of cases) {
   } catch (e) {
     r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, firstMs: 0, deltas: 0 };
   }
-  const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
+  const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
   results.push({
     id: c.id,
     text: c.text,
     answer: r.final?.text ?? null,
+    // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
+    message: r.final,
     form: r.final?.answer?.form ?? null,
     shown: r.final?.answer
       ? {
@@ -259,14 +357,39 @@ const first = spread("first_ms");
 const whole = spread("final_ms");
 const median = spread("latency_ms").median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
+const repeats = results.filter((r) => r.notes?.length).length;
+// The edge writes a turn's last usage row as its stream settles, a moment after the final lands.
+await new Promise((res) => setTimeout(res, 5_000));
+const usage = summarizeUsage(await usageSince(tenantId, startedAt), results.filter((r) => r.message).length);
+const reported = results.reduce((s, r) => s + (r.rounds ?? 0), 0);
+const dollars = (n) => (n === null ? "unpriced" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
 console.log(
   `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}` +
-    ` · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms`,
+    ` · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms` +
+    `\n  model ${Object.keys(usage.byModel).join("+") || "?"} · ${dollars(usage.per_turn)} per answered turn` +
+    ` (${dollars(usage.cost)} the run, ${usage.rounds} rounds recorded of ${reported} reported)` +
+    ` · at the cap ${usage.cap_hits} · repeats ${repeats}`,
 );
+for (const [model, m] of Object.entries(usage.byModel))
+  console.log(
+    `  ${model}: ${m.rounds} rounds · input ${m.input.toLocaleString("en-US")} · output ${m.output.toLocaleString("en-US")}` +
+      ` · cache read ${m.cache_read.toLocaleString("en-US")} · cache write ${m.cache_creation.toLocaleString("en-US")}` +
+      ` · ${dollars(m.cost)}`,
+  );
 for (const r of results)
-  console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
+  console.log(
+    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
+      (r.notes?.length ? `\n       note: ${r.notes.join("; ")}` : ""),
+  );
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-writeFileSync(out, JSON.stringify({ base: BASE, file, at: new Date().toISOString(), results }, null, 2));
+writeFileSync(
+  out,
+  JSON.stringify(
+    { base: BASE, file, at: new Date().toISOString(), used_today_before: usedToday, usage, results },
+    null,
+    2,
+  ),
+);
 console.log(`saved ${out}`);
 process.exit(passed === results.length ? 0 : 1);
