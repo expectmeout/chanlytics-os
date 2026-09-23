@@ -5,20 +5,20 @@
 // them. Every word here is the palette's (window.askText) or the stream's. With no client (the mockup, the
 // harness) the field seeds the palette through askAbout and the band rests.
 //
-// At rest it is the mark, small, at the top of the queue's column: nothing else, no field, no box. A click
-// (or Enter on it) wakes it: the stage grows, the field slides in under it and takes focus. A press held on it
-// listens straight away. Escape, a click outside, or Clear folds it back; a question in flight goes on behind
-// the small mark, and opening it again shows where it got to.
-// Spec: docs/superpowers/specs/2026-09-23-the-three-on-today-design.md (4.6).
+// A phone's band (dashboard-a-v2.css draws it at 720px and below; wider, the face is the top bar's Ask button and
+// the palette's stage, components/ask-face.jsx). The stage is always the full face, with no field under it. A tap
+// (or Enter on it) wakes it: the field slides in under the three and takes focus. A press held on it listens
+// straight away. Escape, a tap outside, or Clear folds the field away; a question in flight goes on in the three,
+// and waking them again shows where it got to.
+// Spec: docs/superpowers/specs/2026-09-23-the-three-on-today-design.md (4.7).
 const useTfState = React.useState;
 const useTfReducer = React.useReducer;
 const useTfRef = React.useRef;
 const useTfEffect = React.useEffect;
 const useTfLayout = React.useLayoutEffect;
 
-// One square, in CSS px: open, the squares are sized for a 200px band on a 232px stage; at rest, the mark.
+// One square, in CSS px: the squares are sized for a 200px band on a 232px stage, so the leap has room.
 const TF_SIDE = 200 / 3.8;
-const TF_SIDE_SMALL = 18;
 // A press held this long is a hold, which listens; a shorter one is a click, which opens.
 const TF_HOLD_MS = 320;
 // What the character does in each phase of a turn. Read aloud counts as answering (below).
@@ -65,7 +65,7 @@ const TodayFace = () => {
   const heardLen = useTfRef(0);
   const alive = useTfRef(true);
   const wantFocus = useTfRef(false);
-  const press = useTfRef({ timer: 0, held: false });
+  const press = useTfRef({ timer: 0, held: false, swallow: false });
   turnRef.current = turn;
   const t = window.askText(turn.language);
   const busy = turn.phase === "reading" || turn.phase === "answering";
@@ -75,18 +75,13 @@ const TodayFace = () => {
   useTfEffect(() => {
     alive.current = true;
     const canvas = canvasRef.current;
-    if (M && canvas) mounted.current = M.mount(canvas, { side: TF_SIDE_SMALL });
+    if (M && canvas) mounted.current = M.mount(canvas, { side: TF_SIDE });
     return () => {
       alive.current = false;
       if (mounted.current) mounted.current.destroy();
       mounted.current = null;
     };
   }, [M]);
-
-  // Open, the squares grow with the stage; closed, back to the mark.
-  useTfEffect(() => {
-    if (mounted.current) mounted.current.setSide(open ? TF_SIDE : TF_SIDE_SMALL);
-  }, [open]);
 
   // The field takes focus as the band opens on a click, inside the click's own task, so a phone shows its
   // keyboard. A hold opens it to listen, and leaves the focus alone.
@@ -96,7 +91,7 @@ const TodayFace = () => {
   }, [open]);
 
   // While open: Escape folds it (unless the palette is open over the page, whose Escape it is), and so does a
-  // press anywhere outside the band. A question in flight carries on behind the mark.
+  // press anywhere outside the band. A question in flight carries on in the three.
   useTfEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -204,8 +199,9 @@ const TodayFace = () => {
     dispatch({ t: talk.listening ? "pressed" : "released" });
   }, [talk.listening]);
 
-  // The stage: a click opens (or brings the field back into focus); a press held on it listens, opening the
-  // band to show it. The pointer sequence handles both; `onClick` takes only the keyboard's press (detail 0).
+  // The stage: a click opens (or brings the field back into focus); a press held on it listens, opening the band to
+  // show it. The click opens, not the release: after a tap a phone sends its mouse events, and their mousedown takes
+  // the focus back to the stage from a field focused on the release. A hold's release swallows the click after it.
   const wake = () => {
     wantFocus.current = true;
     if (!open) setOpen(true);
@@ -214,6 +210,7 @@ const TodayFace = () => {
   const onStageDown = (e) => {
     if (e.button != null && e.button !== 0) return;
     press.current.held = false;
+    press.current.swallow = false;
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
       press.current.held = true;
@@ -230,10 +227,9 @@ const TodayFace = () => {
     clearTimeout(press.current.timer);
     if (press.current.held) {
       press.current.held = false;
+      press.current.swallow = true;
       talk.stop();
-      return;
     }
-    wake();
   };
   const onStageCancel = () => {
     clearTimeout(press.current.timer);
@@ -242,8 +238,12 @@ const TodayFace = () => {
       talk.stop();
     }
   };
-  const onStageClick = (e) => {
-    if (e.detail === 0) wake();
+  const onStageClick = () => {
+    if (press.current.swallow) {
+      press.current.swallow = false;
+      return;
+    }
+    wake();
   };
 
   const submit = (e) => {

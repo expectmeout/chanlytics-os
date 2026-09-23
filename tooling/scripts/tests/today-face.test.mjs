@@ -86,21 +86,29 @@ test("at rest it is the mark alone: closed, no field, no exchange; a click opens
   assert.equal(textOf(byTestId(tree, "today-face-exchange")), "");
 });
 
-test("a short press is a click that opens; a press held listens, or says the browser cannot", async () => {
+test("a tap opens on its click, not its release; a press held listens, or says the browser cannot", async () => {
   let tree = start();
   const stage = byTestId(tree, "today-face-stage");
+  // A phone's tap: the pointer's down and up, then (after its mouse events, whose mousedown focuses the stage) a click.
   stage.props.onPointerDown({ button: 0 });
   stage.props.onPointerUp();
   tree = again(draw);
-  assert.equal(isOpen(tree), true, "a click opened it");
+  assert.equal(isOpen(tree), false, "the release alone opens nothing, or the mousedown after it would take the focus");
+  byTestId(tree, "today-face-stage").props.onClick({ detail: 1 });
+  tree = again(draw);
+  assert.equal(isOpen(tree), true, "the click opened it");
   tree = start();
   flashes.length = 0;
   byTestId(tree, "today-face-stage").props.onPointerDown({ button: 0 });
   await wait(400);
   assert.equal(flashes.length, 1, "held: this browser has no recogniser, so it says so");
   byTestId(tree, "today-face-stage").props.onPointerUp();
+  byTestId(tree, "today-face-stage").props.onClick({ detail: 1 });
   tree = again(draw);
-  assert.equal(isOpen(tree), false, "a hold that could not listen did not open it");
+  assert.equal(isOpen(tree), false, "the click after a hold is swallowed: a hold that could not listen opened nothing");
+  byTestId(tree, "today-face-stage").props.onClick({ detail: 1 });
+  tree = again(draw);
+  assert.equal(isOpen(tree), true, "and the next click opens it");
 });
 
 test("Escape folds it and keeps the answer for the next opening; Clear forgets and folds", async () => {
