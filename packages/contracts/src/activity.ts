@@ -89,6 +89,11 @@ const WORDS: Record<string, string> = {
   "contact.noted": "A note was written",
   "contact.email_set": "A person's email address changed",
   "contact.proposal_set": "A person's proposal link changed",
+  // A deal is a record (0004): each move of one, in the owner's words.
+  "deal.proposed": "A proposal went out",
+  "deal.won": "A person became a client",
+  "deal.lost": "A person passed on a proposal",
+  "deal.ended": "An engagement ended",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
@@ -326,6 +331,7 @@ const TONES: Record<string, Tone> = {
   approve: "ok",
   resolve: "ok",
   connect_channel: "ok",
+  "deal.won": "ok",
   // warn -- somebody stopped something, or a rule was stepped around
   "billing.paused": "warn",
   "policy.veto_window_skipped": "warn",
