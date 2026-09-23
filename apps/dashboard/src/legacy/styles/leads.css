@@ -1008,16 +1008,63 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-chip.tone-plain .dot { background: var(--ink-faint); }
 
 @media (max-width: 900px) {
-  /* Where you are in the pile, and the two ways through it -- a swipe does the same. */
-  .pk-deck { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); flex: none; }
-  .pk-deck-n { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
-  .pk-deck-btn { width: 44px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
+  /* Where you are in the pile, and the two ways through it -- a swipe does the same. A pill on the photo's bottom
+     edge: a row of its own under the photo was 57px for three short words. */
+  .pk-deck { position: absolute; left: 10px; bottom: 10px; z-index: 1; display: flex; align-items: center; gap: 0; height: 40px; padding: 0 2px; border-radius: var(--radius-full); background: oklch(from var(--bg-raised) l c h / 0.92); }
+  .pk-deck-n { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-muted); padding: 0 2px; }
+  .pk-deck-btn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); cursor: pointer; }
   .pk-deck-btn:disabled { color: var(--ink-faint); cursor: default; }
   .pk-deck-btn.prev .icon { transform: rotate(180deg); }
   /* Calling is what a phone is for: the act bar's own button is a thumb's. */
-  .pl-peek .pk-act { padding: 10px var(--gutter-page) calc(10px + env(safe-area-inset-bottom, 0px)); }
-  .pl-peek .pk-act-main { min-height: 52px; font-size: var(--text-md); }
-  .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 52px; }
+  .pl-peek .pk-act { padding: 8px var(--gutter-page) calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .pl-peek .pk-act-main { min-height: 48px; font-size: var(--text-md); }
+  .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 48px; }
+
+  /* ---- One lead on one screen ----
+     Measured on production at 390 x 844, 23 Sep: the peek wanted 981px -- photo 150, the pile's row 57, who they are
+     127, the stage 73, then 505 that scrolled, and Call 69 -- where the screen gave it 786 above the tab bar, and the
+     tab bar was drawn over Call, the one act the peek pins (z-index 120 over 40). Now it is the screen, as a thread
+     is: over the tab bar and the ✦, and what it says, it says once, in about 630px (an iPhone SE's 667 holds it). */
+  .pl-peek:not(.pk-nf):not(.ld-lightbox) { z-index: 130; }
+  .ld-lightbox-backdrop { z-index: 140; }
+  .ld-lightbox { z-index: 141; }
+  .pl-peek .pk-band { height: 128px; }
+  /* Expand is its mark alone, beside Close at the top, so the bottom edge is the pile's and a short photo holds both. */
+  .pl-peek .pk-band-expand { top: 10px; bottom: auto; right: 58px; width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: var(--radius-full); }
+  .pl-peek .pk-band-expand-words { display: none; }
+  .pl-peek .pk-identity { padding: 10px var(--gutter-page) 8px; gap: 4px; }
+  /* The share of low stars is a figure to study, not to act on: the rating and the count stay. */
+  .pl-peek .pk-rate-low { display: none; }
+  .pl-peek .pk-top { padding: 4px var(--gutter-page) 6px; }
+  .pl-peek .pk-body {
+    padding: 10px var(--gutter-page) 12px; gap: 12px 8px;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start;
+  }
+  .pl-peek .pk-body > * { grid-column: 1 / -1; }
+  /* A strong fit's line said the kind and the rating the name had just said. Any other verdict's line is its why. */
+  .pl-peek .pk-verdict.strong .pk-fit { display: none; }
+  /* The locked line is a note on the reach above it, not a way to reach them: quieter, and no row of its own. */
+  .pl-peek .pk-rr.locked { min-height: 30px; font-size: var(--text-xs); }
+  .pl-peek .pk-rr.locked > .icon { width: 12px; height: 12px; }
+  /* An explanation's mark keeps a thumb's 44px to press, and hangs over its line rather than making it 44 tall. */
+  .pl-peek .pk-rr.locked .pk-hint, .pl-peek .pk-verdict-head .pk-hint { margin-block: -7px; }
+  /* How it was found and the week sit side by side, each opening under the two. */
+  .pl-peek .pk-body > [data-testid="peek-found"],
+  .pl-peek .pk-body > [data-testid="peek-week"] { grid-column: auto; padding: 0 10px; }
+  .pl-peek .pk-body > [data-testid="peek-found"]:not(:has(+ [data-testid="peek-week"])),
+  .pl-peek .pk-body > details[open] { grid-column: 1 / -1; }
+  .pl-peek .pk-body > details[open] { padding-bottom: 11px; }
+  .pl-peek .pk-box-line { gap: 7px; }
+  /* The links are words in a line, not a wall of buttons, and the map is the address above. Their marks go: three
+     of them were the same globe, and the words already say where each goes. */
+  .pl-peek .pk-links { gap: 2px 14px; padding-top: 0; }
+  .pl-peek .pk-links .btn > .icon { display: none; }
+  .pl-peek .pk-links .btn { height: 36px; min-height: 36px; padding: 0; border: 0; background: none; color: var(--ink-muted); font-size: var(--text-sm); }
+  .pl-peek .pk-links [data-said="address"] { display: none; }
+}
+/* A short phone (an iPhone SE's 667) gives the photo less of the screen, so the lead still fits without a scroll. */
+@media (max-width: 900px) and (max-height: 700px) {
+  .pl-peek .pk-band { height: 96px; }
 }
 
 /* ------------------------- the same leads, on the ground (D5) -- */

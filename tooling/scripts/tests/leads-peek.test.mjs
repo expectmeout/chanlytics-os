@@ -1747,3 +1747,38 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   assert.equal(byTestId(desk, "peek-deck"), null);
   assert.equal(desk.props.onTouchStart, undefined);
 });
+
+test("one lead on one screen: the pile rides on the photo, Expand keeps its name without its words, and the map is said once", () => {
+  reset();
+  const deck = { at: 3, of: 19, onPrev() {}, onNext() {} };
+  const P = page({ vm: vmOf({ maps_url: "https://maps.example/?cid=1" }) });
+  const acts = globalThis.LeadPeekActions(P.p);
+  frames.begin();
+  const tree = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, phone: true, ...acts });
+  const band = byTestId(tree, "peek-photo-band");
+  assert.ok(byTestId(band, "peek-deck"), "REGRESSION: the pile's row of its own under the photo, 57px of a phone");
+  const expand = byTestId(tree, "peek-expand");
+  assert.equal(
+    expand.props["aria-label"],
+    globalThis.window.__LEAD_WORDS.expand,
+    "named, where a phone draws its mark alone",
+  );
+  assert.ok(
+    find(expand, (n) => n.props?.className === "pk-band-expand-words"),
+    "its words in a span a phone can set aside",
+  );
+  const maps = byTestId(tree, "peek-maps");
+  assert.ok(maps, "a lead with a map has its link");
+  assert.equal(maps.props["data-said"], "address", "the address is already the link to the map");
+  frames.begin();
+  const noAddressLink = globalThis.LeadPeek({
+    vm: vmOf({ maps_url: null }),
+    mode: "info",
+    armed: null,
+    draft: null,
+    ...acts,
+  });
+  const plain = byTestId(noAddressLink, "peek-maps");
+  if (plain)
+    assert.equal(plain.props["data-said"], undefined, "with no address to press, the map link is the only way there");
+});
