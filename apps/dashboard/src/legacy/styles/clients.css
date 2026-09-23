@@ -1597,6 +1597,9 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
   color: var(--ink-dim);
 }
 .cl-prof-rail-section:last-child { border-bottom: none; }
+/* A person's lists: the chips, then the quiet link that adds one, on its own line under them. */
+.cl-prof-lists { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.cl-prof-list-add .icon:last-child { display: none; }
 .cl-prof-rail-label {
   font-size: var(--text-sm);
   font-weight: 500;

@@ -834,15 +834,18 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
         ))}
         {on.length === 0 && smartChips.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
       </div>
-      {/* Left-aligned: the button sits at the rail's left edge, and a menu anchored to its right edge opened 96px off a phone's screen and under the rail's clip on a desktop. */}
+      {/* A quiet link under the chips, as "Add an email" is, not a button among them. Its menu escapes the card
+          (MoreMenu escape): the card clips what crosses its rounded edge, and the menu opened cut off at its foot. It
+          hangs from the link's left edge, and above it where the window has more room there. */}
       {canEdit && off.length > 0 && (
         <MoreMenu
-          btnClass="btn btn-sm"
-          label="Add to…"
+          btnClass="cl-prof-rename is-plain cl-prof-list-add"
+          label={<><Icon name="plus" size={11} /> Add to a list</>}
           title="Add to a list"
           align="left"
+          escape
+          testid="person-list-add"
           items={[
-            { header: "Add to" },
             ...off.map((s) => ({
               label: s.name,
               icon: "filter",
