@@ -338,7 +338,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props, and hookless stand-ins, so the stub's hook order holds.
+// Menus and questions as their props, drawn by hookless stand-ins.
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
 // The page People and Leads share names these two; People never opens a lead's peek, and each returns its own

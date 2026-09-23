@@ -20,8 +20,7 @@
 //                     chosen and the sheet is the one thing that comes and goes;
 //   BtPromptTold      the told section at rest: its title, one muted phrase and the door;
 //   BtPromptSheet     the sheet, drawn by the page's one sheet slot (business-tab.jsx BtSheetSlot) only while the
-//                     registry has it open, and holding no hook of its own beside the kit's RecordSheet: the stub
-//                     React keeps every hook on the page as a cell in one order, and the slot is the page's last.
+//                     registry has it open, and holding no hook of its own beside the kit's RecordSheet.
 //
 // The page composes and never derives. The text is the server's (window.__composedPrompt, the settings read's
 // preview, composed by the function the edge runs); the cut, the notes, the shares and every sentence with a number in

@@ -68,8 +68,8 @@ const RecordField = (props) => {
 // One labelled box for a row of a list: a shift's opening time, a closed day's date, a service's name. The list's header
 // names the column and is not read out, so the box carries its own name (`label`, heard, never seen: "Closed from, row
 // 2", "Monday closes, second shift"), and it wires what is wrong with it, its unit and the read-only state as RecordField
-// does. HOOKLESS, because the rows of a list come and go and the tests' stub React keeps every hook in one order
-// (record-fold.jsx's header): so it REQUIRES an `id`, and takes no name from React.useId. `problem` is the sentence
+// does. HOOKLESS, as the rows of a list are (they come and go with their list): so it REQUIRES an `id`, and takes no name
+// from React.useId. `problem` is the sentence
 // drawn under the box (the one FieldError, id rec-<id>-problem, which the box names as it marks itself aria-invalid);
 // `invalid` is the id of a sentence drawn ELSEWHERE that this box is wrong by (a day's two boxes share one), and marks
 // the box the same without drawing it. `size="sm"` is the box at the width of a time or a number, record.css's small

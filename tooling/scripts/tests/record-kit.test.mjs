@@ -479,7 +479,7 @@ test("a box in a row of a list carries its own name and its sentence, needs no h
     [input.props["aria-invalid"], input.props["aria-describedby"]],
     [true, "rec-closure-1-date-problem"],
   );
-  // No hook: the stub keeps one order of cells, and none is taken.
+  // No hook: the box carries the id it was given, and none is taken.
   assert.equal(
     all(tree, (n) => typeof n.type === "function").length,
     2,
@@ -1766,9 +1766,9 @@ test("a fold's sheet is held by the registry as a fold is, and draws the same ho
   let hours;
   const seen = [];
   let keep = null;
-  // A hook-holding thing drawn after the fold, holding a value it was given after its first draw: were the fold to hold
-  // a hook more at one width than the other, or open than closed, this would read another cell as its own (the stub
-  // keeps one call order for the whole page), the fold's or a fresh one, and not what it was given.
+  // A hook-holding thing drawn after the fold, holding a value it was given after its first draw: it keeps it whatever
+  // the fold draws. A fold that held a hook more at one width than the other, or open than closed, throws here as React
+  // throws (_hook-frames.mjs).
   const After = () => {
     const [mine, set] = W.React.useState("fresh");
     keep = set;

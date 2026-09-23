@@ -357,14 +357,13 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props: the items are what these tests press, and a hookless stand-in keeps the stub's hook order.
+// Menus and questions as their props: the items are what these tests press, drawn by hookless stand-ins.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
-// People never opens a lead's peek, but the page it shares with Leads names these two: an effect that arms
-// "Did you send it?" when the tab comes back, and the one that moves focus into the peek. Each returns its
-// own cleanup, so a no-op here keeps the hook order the stub React counts on.
+// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops: People draws no peek, and the
+// Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {

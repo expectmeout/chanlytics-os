@@ -11,6 +11,10 @@
  * A test calling a component itself (`window.ClientsA(props)`) draws at the root; `begin()` starts a draw where the
  * stubs set `seq = 0`, and `called()` is how many hooks have been called since, where the tests read `seq`.
  *
+ * And as React does, a component that calls a different number of hooks from one draw to the next throws: under the
+ * old call order that shifted every cell after it, which is how a test caught it; kept apart, it would go unseen.
+ * `reset()` forgets every component's count with the cells, for a test that starts a new tree.
+ *
  *   const frames = hookFrames();
  *   createElement: (type, p, ...kids) => { ...; if (typeof type === "function") node.rendered = frames.render(type, props); }
  *   useState: (init) => { const k = frames.key(); ... cells[k] ... }
@@ -20,8 +24,16 @@ export function hookFrames() {
   const stack = [];
   let root = frame("");
   let calls = 0;
+  // How many hooks each component called the last time it drew where it sits: React's own rule, checked.
+  let counts = new Map();
   const top = () => stack[stack.length - 1] ?? root;
   return {
+    /** A new tree: no component has drawn yet. */
+    reset() {
+      root = frame("");
+      calls = 0;
+      counts = new Map();
+    },
     /** A draw begins: the test's own calls start again at the root. */
     begin() {
       root = frame("");
@@ -38,9 +50,17 @@ export function hookFrames() {
         parent.kids.set(name, n + 1);
         slot = `#${n}`;
       }
-      stack.push(frame(`${parent.key}/${name}${slot}`));
+      const f = frame(`${parent.key}/${name}${slot}`);
+      stack.push(f);
       try {
-        return type(props);
+        const out = type(props);
+        const was = counts.get(f.key);
+        if (was && was.type === type && was.hooks !== f.hook)
+          throw new Error(
+            `${name} called ${f.hook} hooks where it called ${was.hooks} the last time it drew (${f.key}): React throws "Rendered ${f.hook > was.hooks ? "more" : "fewer"} hooks than during the previous render"`,
+          );
+        counts.set(f.key, { type, hooks: f.hook });
+        return out;
       } finally {
         stack.pop();
       }

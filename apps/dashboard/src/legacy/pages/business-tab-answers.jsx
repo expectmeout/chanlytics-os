@@ -16,10 +16,9 @@
 // business-tab-folds.jsx's; the gesture is BtFold, read from window as each row draws.
 //
 // Loaded after business-tab-offer.jsx and before business-tab-services.jsx (both load lists), and read by the page as
-// window.BtAnswersCard, which the page draws above the services sheet: the sheet is its last hook-holding child
-// (business-tab.jsx says why). It holds no hook of its own (its folds hold theirs), and what comes and goes inside a
-// fold (a language, a note) is drawn hookless, as the kit's RecordBox and plain buttons: the tests' stub React keeps
-// every hook on the page as a cell in one order (business-tab-gestures.jsx's header). Its top-level names are
+// window.BtAnswersCard, which the page draws above its one sheet slot (business-tab.jsx). It holds no hook of its own
+// (its folds hold theirs), and what comes and goes inside a fold (a language, a note) is drawn hookless, as the kit's
+// RecordBox and plain buttons. Its top-level names are
 // bta-prefixed, and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives.
 //
 // Two lists here are the old form's too, until Task 3.7 deletes it: the languages it offers and the three messages'

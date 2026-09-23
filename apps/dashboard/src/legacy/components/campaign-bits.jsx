@@ -138,8 +138,7 @@ let lpSeq = 0;
 const CmPicker = ({ value, choices = [], groups = {}, onPick, status, tag = null, more = 0, display = "tag", label = "Language", search = null, searchWords = null, note = null, size = "md", face = null, fit = null, triggerClass = "", disabled = false, testid = null }) => {
   const [open, setOpen] = React.useState(false);
   const [typed, setQ] = React.useState("");
-  // Always words: the node tests' stub React keys hooks by one global order, so a
-  // draw that opens a row above this one can hand this cell a neighbour's value.
+  // Always words, whatever the cell was handed.
   const q = typeof typed === "string" ? typed : "";
   const [active, setActive] = React.useState(0);
   const [pos, setPos] = React.useState(null);
