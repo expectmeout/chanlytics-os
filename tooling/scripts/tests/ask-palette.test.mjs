@@ -372,6 +372,18 @@ test("REGRESSION (N3): what the shell sends as the palette opens is taken -- a s
   await closes();
 });
 
+test("a seed that names a thread opens that thread, the way a prompt is asked and New chat is taken", async () => {
+  const calls = ask([TH(1), TH(2)]);
+  render(Palette, CLOSED);
+  // Today's band hands its conversation over as the palette opens (today-face.jsx, Continue in Ask).
+  sent("ask:seed", { thread: TH(2).id });
+  const tree = await opens();
+  assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");
+  assert.equal(byClass(tree, "ask-msgs").length, 1, "and its conversation is open");
+  assert.deepEqual(calls.sent, [], "nothing was asked");
+  await closes();
+});
+
 /* ------------------------------ N5 ------------------------------ */
 
 test("REGRESSION (N5): a conversation is deleted only when asked twice, from its × or the Delete key -- a hover × deleted it at once and no key reached it", async () => {

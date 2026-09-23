@@ -104,3 +104,20 @@ test("no Supabase URL, or a malformed one, allows no Supabase origin rather than
     "and upgrade-insecure-requests rides again on the enforcing header",
   );
 });
+
+test("the lead map's bundle origin is allowed for connections and images; a same-origin path names nothing", () => {
+  const p = directives(
+    contentSecurityPolicy({
+      supabaseUrl: "https://mwwy.supabase.co",
+      leadMapBase: "https://tiles.example.com/lead-map",
+    }),
+  );
+  assert.ok(p["connect-src"].includes("https://tiles.example.com"), "the archive is read in byte ranges");
+  assert.ok(p["img-src"].includes("https://tiles.example.com"), "and the sprites as images");
+  assert.ok(!p["script-src"].includes("https://tiles.example.com"), "never as script");
+  const same = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co", leadMapBase: "/lead-map" }));
+  assert.deepEqual(
+    same["connect-src"],
+    directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co" }))["connect-src"],
+  );
+});

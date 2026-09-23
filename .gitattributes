@@ -1,0 +1,2 @@
+# MapLibre's worker, vendored byte for byte (maplibre-worker-vendored.test.mjs compares it with the package): no line-ending conversion.
+apps/dashboard/public/maplibre/* -text

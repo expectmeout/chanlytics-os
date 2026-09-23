@@ -59,6 +59,8 @@ import "@/legacy/pages/ask-hooks.jsx";
 import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
+// The three, Today's face: after the palette's hooks and words it borrows, before the page that places it.
+import "@/legacy/pages/today-face.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";
