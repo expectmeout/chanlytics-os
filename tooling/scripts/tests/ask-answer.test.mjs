@@ -1,22 +1,32 @@
 /**
  * Ask's answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): every
- * answer made today read back in the prose form, one door per place, and the three quick answers from Today's queue.
- * Run on the contract itself.
+ * answer made before the Line read back in the prose form, one door per place, the three quick answers from Today's
+ * queue, and the model's own: the format it writes, how the server reads it back, its Say while it streams, and the
+ * v1 fields it is stored beside. Run on the contract itself.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASK_ANSWER_CAPS,
+  ASK_ANSWER_FORMAT,
+  ASK_CAPS,
+  answerForCards,
   answerFromV1,
   answerText,
+  answerWords,
   askIntent,
   callsAnswer,
   callsToday,
   cardOpenRoute,
+  failedAnswer,
   needsAnswer,
+  normalizeAnswer,
   oneDoor,
   openingsAnswer,
+  partialSay,
+  proseAnswer,
   rightNowLine,
+  v1FromAnswer,
 } from "@chanlytics/contracts";
 
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -263,4 +273,399 @@ test("a quick question is one of three, by its words; the long tail is the model
   });
   assert.equal(askIntent("qué hay libre mañana", NOW, "America/New_York").day, "2026-09-06");
   assert.equal(askIntent("what did the receptionist tell Dani?", NOW, "America/New_York"), null);
+});
+
+/* ------------------------------------------------------------ what the model writes */
+
+const C = ASK_ANSWER_CAPS;
+const CALL = ID2;
+const PERSON = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+const UNREAD = "44444444-4444-4444-8444-444444444444";
+const reads = (over = {}) => ({
+  thread: new Set([ID]),
+  conversation: new Set([ID]),
+  call: new Set([CALL]),
+  person: new Set([PERSON]),
+  ...over,
+});
+const NONE = { kind: "none", id: "", label: "" };
+const BREAKDOWN = {
+  label: "customer messages",
+  total: 16,
+  parts: [
+    { label: "answered", value: 12, warn: false },
+    { label: "handed over", value: 3, warn: true },
+    { label: "unanswered", value: 1, warn: false },
+  ],
+  source: { kind: "page", id: "reports", label: "Reports" },
+};
+/** An answer as the model writes it: every key the format names, every list with an entry. */
+const written = (over = {}) => ({
+  say: { headline: "Nora and Sam are waiting on you.", detail: "Nora asked about Saturday; Sam's call was missed." },
+  show: {
+    figures: [
+      { value: "2", label: "waiting on you", note: "up from 1", source: { kind: "page", id: "inbox", label: "Inbox" } },
+    ],
+    items: [
+      {
+        title: "Nora",
+        meta: "WhatsApp · 2h",
+        line: "Asked about Saturday.",
+        source: { kind: "thread", id: ID, label: "Nora" },
+      },
+    ],
+    breakdown: BREAKDOWN,
+  },
+  do: {
+    open: { source: { kind: "call", id: CALL, label: "Sam's call" }, label: "Open it", now: false },
+    next: ["Reply to Nora?"],
+  },
+  language: "en",
+  ...over,
+});
+const withShow = (show) => written({ show: { ...written().show, ...show } });
+const withOpen = (open) => written({ do: { open, next: [] } });
+const read1 = (raw, language = "en", set = reads()) => {
+  const r = normalizeAnswer(JSON.stringify(raw), set, language);
+  assert.equal(r.ok, true, r.error);
+  return r;
+};
+const at = (...path) => path.reduce((s, k) => (k === "[]" ? s.items : s.properties[k]), ASK_ANSWER_FORMAT);
+
+/** The keys and leaf types of a schema, or of a value, as one tree; a list is its first entry's. */
+const schemaShape = (s) =>
+  s.type === "object"
+    ? Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, schemaShape(v)]))
+    : s.type === "array"
+      ? [schemaShape(s.items)]
+      : s.type;
+const valueShape = (v) =>
+  Array.isArray(v)
+    ? [valueShape(v[0])]
+    : v && typeof v === "object"
+      ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, valueShape(x)]))
+      : typeof v;
+
+test("the format the model writes: every key required, nothing else allowed, each limit said from the caps, under the gateway's 8,000 characters", () => {
+  const walk = (s, path) => {
+    if (s.type === "object") {
+      assert.equal(s.additionalProperties, false, `${path}: nothing else allowed`);
+      assert.deepEqual([...s.required].sort(), Object.keys(s.properties).sort(), `${path}: every key required`);
+      for (const [k, v] of Object.entries(s.properties)) walk(v, `${path}.${k}`);
+    }
+    if (s.type === "array") walk(s.items, `${path}[]`);
+  };
+  walk(ASK_ANSWER_FORMAT, "answer");
+  assert.deepEqual(Object.keys(ASK_ANSWER_FORMAT.properties)[0], "say", "say is written first, so it streams first");
+  assert.ok(
+    JSON.stringify(ASK_ANSWER_FORMAT).length < 8000,
+    "the edge refuses an Ask format of 8,000 characters or more",
+  );
+  for (const [path, cap] of [
+    [["say", "headline"], C.headline],
+    [["say", "detail"], C.detail],
+    [["show", "figures"], C.figures],
+    [["show", "figures", "[]", "value"], C.value],
+    [["show", "figures", "[]", "label"], C.label],
+    [["show", "figures", "[]", "note"], C.note],
+    [["show", "figures", "[]", "source", "label"], C.label],
+    [["show", "items"], C.items],
+    [["show", "items", "[]", "title"], C.title],
+    [["show", "items", "[]", "meta"], C.meta],
+    [["show", "items", "[]", "line"], C.line],
+    [["show", "breakdown"], C.parts],
+    [["show", "breakdown", "label"], C.label],
+    [["do", "open", "label"], C.label],
+    [["do", "next"], C.next],
+    [["do", "next"], C.question],
+  ])
+    assert.match(at(...path).description ?? "", new RegExp(`\\b${cap}\\b`), `${path.join(".")} says ${cap}`);
+});
+
+test("the server reads every key the format names: a whole answer as written comes back key for key, its sources with the app's routes", () => {
+  assert.deepEqual(valueShape(written()), schemaShape(ASK_ANSWER_FORMAT), "the answer below is the format's shape");
+  const r = read1(written());
+  assert.equal(r.dropped, 0);
+  assert.deepEqual(r.answer, {
+    v: 2,
+    form: "structured",
+    say: { headline: "Nora and Sam are waiting on you.", detail: "Nora asked about Saturday; Sam's call was missed." },
+    show: {
+      figures: [
+        {
+          value: "2",
+          label: "waiting on you",
+          note: "up from 1",
+          source: { kind: "page", id: "inbox", label: "Inbox", to: "inbox", door: true },
+        },
+      ],
+      items: [
+        {
+          title: "Nora",
+          meta: "WhatsApp · 2h",
+          line: "Asked about Saturday.",
+          source: { kind: "thread", id: ID, label: "Nora", to: `inbox/th-${ID}`, door: true },
+        },
+      ],
+      breakdown: { ...BREAKDOWN, source: { kind: "page", id: "reports", label: "Reports", to: "reports", door: true } },
+    },
+    do: { open: { to: `conversations/cv-${CALL}`, label: "Open the call", now: false }, next: ["Reply to Nora?"] },
+    language: "en",
+  });
+  assert.equal(read1(written({ language: "es" })).answer.language, "es");
+  assert.equal(read1(written({ language: "other" }), "es").answer.language, "other");
+  assert.equal(read1(written({ language: "fr" }), "es").answer.language, "es", "one the format lacks is the turn's");
+});
+
+test("every string is one line of words without tags, and every string and list is cut to its cap", () => {
+  const long = (n) => "word ".repeat(n);
+  const threads = Array.from({ length: 7 }, (_, i) => `5555555${i}-5555-4555-8555-555555555555`);
+  const a = read1(
+    written({
+      say: { headline: '<answer>Nora is\n\n waiting.</answer><parameter name="citations">[]', detail: long(400) },
+      show: {
+        figures: Array.from({ length: 6 }, (_, i) => ({ value: `${i + 1}`, label: long(40), note: "", source: NONE })),
+        items: threads.map((id, i) => ({
+          title: `Person ${i}`,
+          meta: "",
+          line: long(60),
+          source: { kind: "thread", id, label: `Person ${i}` },
+        })),
+        breakdown: BREAKDOWN,
+      },
+      do: { open: { source: NONE, label: "", now: false }, next: ["One?", "Two?", "Three?"] },
+    }),
+    "en",
+    reads({ thread: new Set(threads) }),
+  ).answer;
+  assert.equal(a.say.headline, "Nora is waiting.");
+  assert.ok(a.say.detail.length <= C.detail && a.say.detail.endsWith("word…"), "cut on a whole word, and says so");
+  assert.equal(a.show.figures.length, C.figures);
+  assert.ok(a.show.figures.every((f) => f.label.length <= C.label));
+  assert.equal(a.show.items.length, C.items);
+  assert.ok(a.show.items.every((i) => i.line.length <= C.line));
+  assert.deepEqual(a.do.next, ["One?", "Two?"]);
+  assert.equal(a.do.open, null, "kind none is no Open");
+});
+
+test("a source is a row read this turn however the model spelled it, or a page of the app; never a route the model wrote, and never a row not read", () => {
+  const open = (source) => read1(withOpen({ source, label: "", now: true })).answer.do.open;
+  assert.deepEqual(open({ kind: "call", id: CALL, label: "Sam" }), {
+    to: `conversations/cv-${CALL}`,
+    label: "Open the call",
+    now: true,
+  });
+  assert.equal(open({ kind: "call", id: `conversations/cv-${CALL}`, label: "Sam" }).to, `conversations/cv-${CALL}`);
+  assert.equal(open({ kind: "person", id: `/clients/${PERSON.toUpperCase()}`, label: "Dana" }).to, `clients/${PERSON}`);
+  assert.equal(
+    open({ kind: "person", id: CALL, label: "Sam" }).to,
+    `conversations/cv-${CALL}`,
+    "the kind that read it",
+  );
+  assert.equal(open({ kind: "page", id: `inbox/th-${ID}`, label: "Nora" }).to, `inbox/th-${ID}`, "a row read");
+  assert.equal(open({ kind: "page", id: `inbox/th-${UNREAD}`, label: "Someone" }), null, "a row not read, as a page");
+  assert.equal(open({ kind: "thread", id: UNREAD, label: "Someone" }), null);
+  assert.deepEqual(open({ kind: "page", id: "#/calendar", label: "Calendar" }), {
+    to: "calendar",
+    label: "Calendar",
+    now: true,
+  });
+  assert.equal(open({ kind: "thread", id: "reports", label: "Reports" }).to, "reports", "a page under a row's kind");
+  assert.equal(open({ kind: "page", id: "https://example.com/x", label: "Elsewhere" }), null, "only the app's pages");
+  assert.equal(open({ kind: "none", id: CALL, label: "Sam" }), null, "kind none, whatever the id");
+
+  const item = read1(
+    withShow({
+      items: [
+        {
+          title: "Nora",
+          meta: "",
+          line: "",
+          source: { kind: "thread", id: ID, label: "Nora", to: "https://example.com" },
+        },
+      ],
+    }),
+  ).answer.show.items[0];
+  assert.equal(item.source.to, `inbox/th-${ID}`, "a route the model writes is never taken");
+});
+
+test("an item is its row, so one not read goes; a figure keeps its words and loses its receipt; the rows not read are counted", () => {
+  const r = read1(
+    withShow({
+      figures: [
+        { value: "", label: "no value", note: "", source: NONE },
+        { value: "3", label: "handed over", note: "", source: { kind: "thread", id: UNREAD, label: "Ghost" } },
+      ],
+      items: [
+        { title: "", meta: "", line: "", source: { kind: "thread", id: ID, label: "Nora" } },
+        { title: "Ghost", meta: "", line: "", source: { kind: "thread", id: UNREAD, label: "Ghost" } },
+        { title: "Nora", meta: "", line: "", source: { kind: "thread", id: ID, label: "Nora" } },
+      ],
+    }),
+  );
+  assert.deepEqual(r.answer.show.figures, [{ value: "3", label: "handed over", note: "", source: null }]);
+  assert.deepEqual(
+    r.answer.show.items.map((i) => i.title),
+    ["Nora"],
+  );
+  assert.equal(r.dropped, 2, "the figure's row and the item's row");
+});
+
+test("a breakdown draws only when it says what the whole is and two to four parts add up exactly to its total", () => {
+  const b = (breakdown) => read1(withShow({ breakdown })).answer.show.breakdown;
+  const part = (label, value) => ({ label, value, warn: false });
+  assert.equal(b(BREAKDOWN).parts[1].warn, true);
+  assert.equal(b({ ...BREAKDOWN, parts: [...BREAKDOWN.parts, part("spam", 0)] }).parts.length, 4);
+  assert.equal(b({ ...BREAKDOWN, total: 17 }), null, "12 + 3 + 1 is not 17");
+  assert.equal(b({ ...BREAKDOWN, total: 12, parts: [part("answered", 12)] }), null, "one part is not a breakdown");
+  assert.equal(b({ ...BREAKDOWN, parts: [...BREAKDOWN.parts, part("a", 0), part("b", 0)] }), null, "five is too many");
+  assert.equal(b({ ...BREAKDOWN, parts: [part("in", 20), part("out", -4)] }), null, "no part below zero");
+  assert.equal(b({ ...BREAKDOWN, parts: [part("", 12), part("rest", 4)] }), null, "every part is named");
+  assert.equal(b({ ...BREAKDOWN, label: " " }), null, "the whole is named");
+  assert.equal(b({ ...BREAKDOWN, total: "16" }), null, "numbers are numbers");
+  assert.equal(b({ label: "", total: 0, parts: [], source: NONE }), null, "nothing splits");
+  assert.equal(
+    b({ ...BREAKDOWN, source: { kind: "person", id: UNREAD, label: "x" } }).source,
+    null,
+    "a receipt not read",
+  );
+});
+
+test("no headline is no answer, and neither is text that is not JSON, such as an answer cut off by the cap", () => {
+  const full = JSON.stringify(written());
+  const cut = normalizeAnswer(full.slice(0, full.length - 40), reads(), "en");
+  assert.equal(cut.ok, false);
+  assert.match(cut.error, /^not JSON/);
+  assert.deepEqual(
+    normalizeAnswer(
+      JSON.stringify(written({ say: { headline: " <answer></answer> ", detail: "Words." } })),
+      reads(),
+      "en",
+    ),
+    { ok: false, error: "no headline" },
+  );
+  assert.deepEqual(normalizeAnswer("[]", reads(), "en"), { ok: false, error: "no headline" });
+  assert.equal(normalizeAnswer(written(), reads(), "en").ok, true, "an object reads as its JSON does");
+});
+
+test("Say streams from every prefix of the answer, never backwards, whether say is written first or last", () => {
+  const w = written({ say: { headline: 'Sí: Nora said "yes" \\ twice.', detail: "Tab\there; line\nbreak." } });
+  const { say, ...rest } = w;
+  const escaped = (s) => s.replace("í", "\\u00ed");
+  for (const text of [escaped(JSON.stringify(w)), escaped(JSON.stringify({ ...rest, say }))]) {
+    const from = text.indexOf('"say"') + '"say"'.length;
+    let prev = { headline: "", detail: "" };
+    for (let i = 0; i <= text.length; i++) {
+      const p = partialSay(text.slice(0, i));
+      if (i < from) {
+        assert.equal(p, null, `nothing before say, at ${i}`);
+        continue;
+      }
+      assert.ok(say.headline.startsWith(p.headline), `headline at ${i}: ${JSON.stringify(p.headline)}`);
+      assert.ok(say.detail.startsWith(p.detail), `detail at ${i}: ${JSON.stringify(p.detail)}`);
+      assert.ok(p.headline.length >= prev.headline.length && p.detail.length >= prev.detail.length, `at ${i}`);
+      prev = p;
+    }
+    assert.deepEqual(partialSay(text), say);
+  }
+});
+
+test("cards only: the cards are the Do, said in a sentence, in English and Spanish", () => {
+  const one = answerForCards([{ title: "Send Nora the Saturday times" }], "en");
+  assert.equal(one.form, "structured");
+  assert.equal(one.say.headline, "One card to review: Send Nora the Saturday times.");
+  assert.equal(one.say.detail, "Approve it, change it or dismiss it: nothing happens until you do.");
+  assert.deepEqual([one.show.items, one.show.figures, one.do.open, one.do.next], [[], [], null, []]);
+  assert.equal(
+    answerForCards([{ title: "Move Sam to Friday?" }], "en").say.headline,
+    "One card to review: Move Sam to Friday?",
+  );
+  const es = answerForCards([{ title: "a" }, { title: "b" }], "es");
+  assert.equal(es.say.headline, "2 tarjetas para revisar.");
+  assert.equal(es.say.detail, "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas.");
+  assert.equal(es.language, "es");
+});
+
+test("a turn that could not be answered says why as its headline; words the format could not shape are prose", () => {
+  assert.deepEqual(failedAnswer("The answer took too long. Ask again.", "en"), {
+    v: 2,
+    form: "structured",
+    say: { headline: "The answer took too long. Ask again.", detail: "" },
+    show: { figures: [], items: [], breakdown: null },
+    do: { open: null, next: [] },
+    language: "en",
+  });
+  const p = proseAnswer("<answer>Nora is waiting.\nSam called twice.</answer>", "es");
+  assert.deepEqual(
+    [p.form, p.say.headline, p.say.detail, p.language],
+    ["prose", "", "Nora is waiting.\nSam called twice.", "es"],
+  );
+  assert.equal(answerText(p), "Nora is waiting.\nSam called twice.");
+  assert.equal(proseAnswer("x".repeat(3000), "en").say.detail.length, 1500);
+});
+
+test("every word an answer says is checked for a figure with no read behind it", () => {
+  const words = answerWords(read1(written()).answer);
+  for (const s of [
+    "Nora and Sam are waiting",
+    "Sam's call was missed",
+    "up from 1",
+    "Asked about",
+    "handed over",
+    "16",
+  ])
+    assert.ok(words.includes(s), s);
+});
+
+test("the v1 fields a v2 answer is stored beside: its words, each place it rests on once with its route, Open as navigate, next as the follow-ups; read back as the same answer's", () => {
+  const a = read1(
+    written({
+      show: {
+        figures: [{ value: "2", label: "waiting", note: "", source: { kind: "thread", id: ID, label: "Nora" } }],
+        items: [
+          { title: "Nora", meta: "", line: "", source: { kind: "thread", id: ID, label: "Nora" } },
+          { title: "Dana", meta: "", line: "", source: { kind: "person", id: PERSON, label: "Dana" } },
+        ],
+        breakdown: BREAKDOWN,
+      },
+      do: {
+        open: { source: { kind: "call", id: CALL, label: "Sam" }, label: "", now: true },
+        next: ["Reply to Nora?"],
+      },
+    }),
+  ).answer;
+  const v = v1FromAnswer(a);
+  assert.equal(v.text, "Nora and Sam are waiting on you. Nora asked about Saturday; Sam's call was missed.");
+  assert.deepEqual(v.citations, [
+    { kind: "thread", id: ID, label: "Nora", to: `inbox/th-${ID}` },
+    { kind: "person", id: PERSON, label: "Dana", to: `clients/${PERSON}` },
+    { kind: "page", id: "reports", label: "Reports", to: "reports" },
+  ]);
+  assert.deepEqual(v.navigate, { to: `conversations/cv-${CALL}`, label: "Open the call", now: true });
+  assert.deepEqual(v.followups, ["Reply to Nora?"]);
+
+  const back = answerFromV1({ ...v, language: a.language });
+  assert.equal(answerText(back), v.text);
+  assert.deepEqual(
+    back.show.items.map((i) => i.source.to),
+    [`inbox/th-${ID}`, `clients/${PERSON}`],
+  );
+  assert.deepEqual(back.do.open, v.navigate);
+  assert.deepEqual(back.do.next, v.followups);
+
+  const threads = Array.from({ length: 5 }, (_, i) => `6666666${i}-6666-4666-8666-666666666666`);
+  const many = read1(
+    withShow({
+      items: threads.map((id) => ({ title: "x", meta: "", line: "", source: { kind: "thread", id, label: "x" } })),
+      figures: ["today", "live", "calendar"].map((id) => ({
+        value: "1",
+        label: "",
+        note: "",
+        source: { kind: "page", id, label: id },
+      })),
+    }),
+    "en",
+    reads({ thread: new Set(threads) }),
+  ).answer;
+  assert.equal(v1FromAnswer(many).citations.length, ASK_CAPS.citations);
 });

@@ -91,23 +91,33 @@ async function ask(cookie, text) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let carry = "";
+  // When the person first sees words: the first `delta` (a v1 turn) or `say` (a v2 turn), from the request's start.
+  let firstMs = null;
+  const take = (l) => {
+    const e = JSON.parse(l);
+    if (firstMs === null && (e.t === "delta" || e.t === "say")) firstMs = Date.now() - t0;
+    events.push(e);
+  };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
     carry += dec.decode(value, { stream: true });
     const lines = carry.split("\n");
     carry = lines.pop() ?? "";
-    for (const l of lines) if (l.trim()) events.push(JSON.parse(l));
+    for (const l of lines) if (l.trim()) take(l);
   }
-  if (carry.trim()) events.push(JSON.parse(carry));
+  if (carry.trim()) take(carry);
   const final = events.find((e) => e.t === "final");
   const thread = events.find((e) => e.t === "thread");
+  const ms = Date.now() - t0;
   return {
     events,
     final: final?.message ?? null,
     threadId: thread?.id ?? null,
-    ms: Date.now() - t0,
-    deltas: events.filter((e) => e.t === "delta").length,
+    ms,
+    // A turn with no words streamed (a card, a failure) shows its words when the final lands.
+    firstMs: firstMs ?? ms,
+    deltas: events.filter((e) => e.t === "delta" || e.t === "say").length,
   };
 }
 
@@ -171,7 +181,7 @@ for (const c of cases) {
   try {
     r = await ask(cookie, c.text);
   } catch (e) {
-    r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, deltas: 0 };
+    r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, firstMs: 0, deltas: 0 };
   }
   const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
   results.push({
@@ -184,6 +194,8 @@ for (const c of cases) {
     citations: r.final?.citations ?? [],
     language: r.final?.language ?? null,
     latency_ms: r.final?.latencyMs ?? r.ms,
+    first_ms: r.firstMs,
+    final_ms: r.ms,
     deltas: r.deltas,
     threadId: r.threadId ?? null,
     ...j,
@@ -193,14 +205,22 @@ for (const c of cases) {
   );
 }
 const passed = results.filter((r) => r.pass).length;
-const lat = results
-  .map((r) => r.latency_ms)
-  .filter((n) => typeof n === "number" && n > 0)
-  .sort((a, b) => a - b);
-const median = lat.length ? lat[Math.floor(lat.length / 2)] : 0;
+/** The middle and the slowest tenth of a timing, over the cases that answered. */
+const spread = (key) => {
+  const xs = results
+    .map((r) => r[key])
+    .filter((n) => typeof n === "number" && n > 0)
+    .sort((a, b) => a - b);
+  if (!xs.length) return { median: 0, p90: 0 };
+  return { median: xs[Math.floor(xs.length / 2)], p90: xs[Math.min(xs.length - 1, Math.ceil(xs.length * 0.9) - 1)] };
+};
+const first = spread("first_ms");
+const whole = spread("final_ms");
+const median = spread("latency_ms").median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
 console.log(
-  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}`,
+  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}` +
+    ` · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms`,
 );
 for (const r of results)
   console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);
