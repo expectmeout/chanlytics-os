@@ -940,7 +940,7 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
   const step = leadStrip(dry, NOW).actions[0];
   assert.deepEqual(
     [step.id, step.label, step.primary, step.arg.area],
-    ["nearby", "Look in near 78660 and near 78664", true, far[0]],
+    ["nearby", "Look near 78660 and 78664", true, far[0]],
     "the round wrote where to look; the plan opens there",
   );
   assert.equal(
@@ -996,4 +996,48 @@ test("the nine ending sentences are contracts' leadEndingLine, never the strip's
   } finally {
     globalThis.window.__LEAD_VM = bag;
   }
+});
+
+test("holding the band, the strip drops its own ways into each pile -- the band's tabs are those doors -- and keeps its one next step", () => {
+  const search = ended("target_reached", { qualified: 21, review: 14, excluded: 40 });
+  frames.begin();
+  const alone = globalThis.window.LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {} });
+  assert.ok(byTestId(alone, "strip-review"), "with no band, the strip is the way into the pile");
+  frames.begin();
+  const held = globalThis.window.LeadStrip({ vm: leadStrip(search, NOW), onAction: () => {}, children: "the band" });
+  assert.equal(
+    byTestId(held, "strip-review"),
+    null,
+    "the band's tab says 14 need a look; the strip does not say it again",
+  );
+  assert.equal(
+    textOf(byTestId(held, "strip-excluded")),
+    "40 left out",
+    "a step that opens a pile is the step, and stays",
+  );
+  assert.ok(
+    find(held, (n) => n.props?.className === "lf-strip-band"),
+    "the band sits in the strip's own row",
+  );
+});
+
+test("the composer is one row: the consent rule is behind the lock beside Plan it, the key is on the button it presses, and there is no footer", () => {
+  const { st } = page();
+  const tree = drawFinder(st);
+  const lock = byTestId(tree, "finder-consent");
+  assert.equal(lock.props["aria-label"], "You can email and call leads. Texts and offers wait for their yes.");
+  assert.match(textOf(byTestId(tree, "finder-plan")), /^Plan it/);
+  assert.equal(
+    find(tree, (n) => n.props?.className === "lf-foot"),
+    null,
+    "no second line of keys and rules",
+  );
+  st.words = "florists in Austin";
+  assert.equal(byTestId(drawFinder(st), "finder-suggestions"), null, "the ideas step aside once the owner writes");
+  const thinking = drawFinder({ ...st, stage: "thinking", trace: "Sizing the search" });
+  assert.equal(byTestId(thinking, "finder-consent"), null, "nothing to press while it reads");
+  assert.ok(
+    find(thinking, (n) => n.props?.className === "lf-sweep"),
+    "the hairline runs while it reads",
+  );
 });

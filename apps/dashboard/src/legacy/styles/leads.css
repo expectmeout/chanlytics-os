@@ -10,47 +10,77 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--bg-raised);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
-  animation: lf-in 200ms var(--ease-out) backwards;
+  animation: lf-in 220ms var(--ease-out) backwards;
   flex: none;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
-@keyframes lf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip { animation: none; } }
-.lf-compose { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; }
-.lf-spark { color: var(--ink-dim); display: inline-flex; }
+/* Focus is a quiet ring in the accent, not a second colour: the bar is where the owner is writing. */
+.lf-panel:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-md), 0 0 0 3px oklch(from var(--accent) l c h / 0.1); }
+@keyframes lf-in { from { opacity: 0; transform: translateY(-6px) scale(0.995); } to { opacity: 1; transform: none; } }
+@keyframes lf-breathe { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(0.82) rotate(45deg); opacity: 0.6; } }
+@keyframes lf-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@keyframes lf-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip, .lf-ex { animation: none; } }
+
+/* One row, 48px: the spark, the words, and what can be pressed. The keys live on the button they press and the
+   consent rule behind the lock beside it, so there is no footer. */
+.lf-compose { position: relative; display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px 0 14px; }
+.lf-spark { color: var(--ink-dim); display: inline-flex; flex: none; margin-right: 4px; }
 .lf-spark.live { color: var(--accent); }
+.lf-spark.live svg { animation: lf-breathe 1.6s var(--ease-in-out, ease-in-out) infinite; }
 .lf-input {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  font-family: inherit; font-size: 15px; letter-spacing: -0.01em; color: var(--ink); padding: 0;
+  font-family: inherit; font-size: 14.5px; letter-spacing: -0.01em; color: var(--ink); padding: 0;
 }
 .lf-input::placeholder { color: var(--ink-faint); }
-.lf-mic {
+.lf-input:disabled { color: var(--ink-muted); }
+/* While Claude reads: its trace where the buttons were, and a hairline running under the bar. */
+.lf-think { flex: none; max-width: 42%; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: lf-fade 200ms var(--ease-out); }
+.lf-sweep { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; pointer-events: none; }
+.lf-sweep::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--accent); animation: lf-sweep 1.3s var(--ease-in-out, ease-in-out) infinite; }
+.lf-mic, .lf-close, .lf-lock {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line);
-  background: transparent; color: var(--ink-dim); cursor: pointer;
+  width: 28px; height: 28px; border-radius: 8px; border: 0;
+  background: transparent; color: var(--ink-dim); cursor: pointer; padding: 0;
 }
-.lf-mic:hover { color: var(--ink); background: var(--bg-hover); }
-.lf-mic.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.lf-examples { display: flex; flex-direction: column; gap: 1px; padding: 0 8px 8px; }
-.lf-ex-h { font-size: 11px; color: var(--ink-dim); padding: 2px 8px 4px; display: flex; gap: 6px; align-items: center; }
+.lf-mic:hover, .lf-close:hover { color: var(--ink); background: var(--bg-hover); }
+.lf-mic.on { background: var(--accent-soft); color: var(--accent); }
+.lf-mic:focus-visible, .lf-close:focus-visible, .lf-lock:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+/* The consent rule, said on hover or focus (a tap focuses it on a phone), to the lock's left inside the bar. */
+.lf-lock { position: relative; color: var(--ink-faint); cursor: help; }
+.lf-lock:hover, .lf-lock:focus-visible { color: var(--ink-muted); background: var(--bg-hover); }
+.lf-lock::after {
+  content: attr(data-tip); position: absolute; right: calc(100% + 6px); top: 50%;
+  width: max-content; max-width: min(360px, 62vw); padding: 6px 10px; border-radius: 8px;
+  background: var(--ink); color: var(--bg); font-size: 11.5px; line-height: 1.4; text-align: left; white-space: normal;
+  opacity: 0; transform: translate(4px, -50%); pointer-events: none; z-index: 20;
+  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+.lf-lock:hover::after, .lf-lock:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+.lf-go { margin-left: 2px; }
+.lf-go .lf-key { margin-left: 6px; font-size: 11px; opacity: 0.55; }
+/* Ideas from what the business does: quiet pills under an empty bar, gone the moment the owner types. How
+   reachable each kind is sits in the pill's tooltip. */
+.lf-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 12px 36px; }
+.lf-ex-h { font-size: 11px; color: var(--ink-dim); margin-right: 2px; }
 .lf-ex {
-  display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; border: 0;
-  background: transparent; text-align: left; cursor: pointer; font-size: 13px; color: var(--ink); width: 100%;
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--line);
+  border-radius: var(--radius-full); background: transparent; font: inherit; font-size: 12px; color: var(--ink-muted);
+  cursor: pointer; white-space: nowrap; max-width: 100%;
+  animation: lf-in 240ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 45ms);
+  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
-.lf-ex:hover { background: var(--bg-hover); }
-.lf-ex .i { color: var(--ink-faint); }
-.lf-ex .k { margin-left: auto; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
-.lf-think { display: flex; align-items: center; gap: 10px; padding: 2px 16px 16px 44px; font-size: 12.5px; color: var(--ink-dim); }
-.lf-said { font-size: 12px; color: var(--ink-dim); margin: 0; padding: 0 16px 10px 44px; }
-.lf-foot {
-  display: flex; align-items: center; gap: 14px; padding: 9px 16px;
-  border-top: 1px solid var(--line); background: var(--bg-sunken); font-size: 11.5px; color: var(--ink-dim);
+.lf-ex .w { overflow: hidden; text-overflow: ellipsis; }
+.lf-ex .k { display: none; }
+.lf-ex:hover { color: var(--ink); border-color: var(--line-strong); background: var(--bg-hover); }
+.lf-ex:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.lf-said { font-size: 12px; color: var(--ink-dim); margin: 0; padding: 0 16px 10px 36px; }
+@media (prefers-reduced-motion: reduce) {
+  .lf-spark.live svg, .lf-sweep::after, .lf-think { animation: none; }
+  .lf-lock::after { transition: none; }
 }
-.lf-foot .sp { flex: 1; }
-.lf-foot .lock { display: inline-flex; align-items: center; gap: 6px; }
-.lf-foot .i { color: var(--ink-faint); }
-.lf-foot .keys { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ------------------------------------------------------- the plan card -- */
 
@@ -109,19 +139,31 @@
    stacking of these is in the 900px block at the foot of this file. */
 
 .lf-strip {
-  position: relative; margin: 12px var(--gutter-page) 0; display: flex; align-items: center; gap: 10px;
-  padding: 0 6px 0 14px; height: 42px; border: 1px solid var(--line); border-radius: 8px;
+  position: relative; margin: 10px var(--gutter-page) 0; display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px 10px; padding: 4px 6px 4px 14px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--bg-raised); font-size: 12.5px; overflow: hidden; flex: none;
-  animation: lf-in 200ms var(--ease-out) backwards;
+  animation: lf-in 220ms var(--ease-out) backwards;
 }
-.lf-strip-title { font-weight: 500; white-space: nowrap; }
+@keyframes lf-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes lf-rest { to { opacity: 0; } }
+/* What happened: the title holds, what follows it gives way first and is whole in the tooltip. */
+.lf-strip-said { display: flex; align-items: baseline; min-width: 0; flex: 0 1 auto; overflow: hidden; white-space: nowrap; }
+.lf-strip-title { font-weight: 500; flex: none; }
 .lf-strip-parts {
-  display: flex; align-items: center; gap: 6px; color: var(--ink-dim);
-  font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; overflow: hidden;
+  min-width: 0; color: var(--ink-dim); white-space: pre; overflow: hidden; text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 .lf-strip .sp { flex: 1; }
+.lf-strip-band { margin-left: auto; flex: none; display: flex; min-width: 0; }
+/* A finished round beside its band says the rest in the tooltip: "the 31 found are yours" is the Qualified tab, and
+   "look further out, near ..." is the step button, whose own tooltip names where. One row, 44px. */
+.lf-strip.done.has-band { flex-wrap: nowrap; }
+.lf-strip.done.has-band .lf-strip-parts { display: none; }
+.lf-strip.done.has-band .lf-strip-said { flex: 1 1 auto; }
+.lf-strip.done.has-band .lf-strip-title { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .lf-strip .lf-acts { display: inline-flex; align-items: center; gap: 8px; flex: none; }
-.lf-strip .ok-mark { color: var(--ok-ink); display: inline-flex; }
+.lf-strip.has-band .lf-acts { padding-left: 4px; }
+.lf-strip .ok-mark { color: var(--ok-ink); display: inline-flex; flex: none; animation: lf-pop 260ms var(--ease-out) backwards 80ms; }
 .lf-strip .lnk {
   border: 0; background: none; padding: 0 2px; font: inherit; color: var(--ink-muted);
   text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;
@@ -129,12 +171,14 @@
 }
 .lf-strip .lnk:hover { color: var(--ink); }
 .lf-strip-bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); transition: width 300ms var(--ease-out); }
-.lf-strip.done .lf-strip-bar { background: var(--ok); }
+/* A finished round's bar fills, is seen, and steps back: a permanent green rule read as one more thing to look at. */
+.lf-strip.done .lf-strip-bar { background: var(--ok); animation: lf-rest 700ms var(--ease-out) 1.6s forwards; }
 .lf-strip.ask {
-  height: auto; min-height: 48px; padding: 8px 8px 8px 14px; flex-wrap: wrap; row-gap: 6px;
+  padding: 8px 8px 8px 14px;
   border-color: oklch(from var(--accent) l c h / 0.45);
   background: oklch(from var(--accent) l c h / 0.06);
 }
+.lf-strip.ask .lf-strip-band { order: 9; flex-basis: 100%; margin-left: 0; }
 .lf-strip.ask .lf-q { font-weight: 500; color: var(--ink); }
 .lf-strip.ask .lf-q-sub { color: var(--ink-dim); font-size: 12px; }
 .lf-strip .qmark {
@@ -142,6 +186,10 @@
   background: var(--accent); color: var(--accent-fg); font-size: 12px; font-weight: 600; flex: none;
 }
 .lf-ask-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 360px; }
+@media (prefers-reduced-motion: reduce) {
+  .lf-strip .ok-mark { animation: none; }
+  .lf-strip.done .lf-strip-bar { animation: none; opacity: 0; }
+}
 
 /* The bulk bar's Not a fit opens the peek's own five-why list above the bar,
    which is the only thing this rule moves: the list itself is .pk-nf's. */
@@ -474,6 +522,21 @@
   .lf-strip .lf-acts { display: flex; width: 100%; gap: 8px; margin-top: 8px; }
   .lf-strip.ask .lf-acts .btn { flex: 1; min-height: 44px; justify-content: center; }
   .lf-strip.ask .lf-acts .lnk { flex-basis: 100%; text-align: left; }
+  /* The band under what happened, the three piles sharing the width; the step under them. */
+  .lf-strip-said { max-width: 100%; }
+  .lf-strip-band, .lf-strip.ask .lf-strip-band { width: 100%; margin: 6px 0 0; }
+  .lf-strip .ld-band, .lf-strip .ld-band-tabs { width: 100%; }
+  .lf-strip .ld-band { flex-wrap: wrap; }
+  .ld-band .ld-classes { width: 100%; }
+  .ld-band .ld-class { flex: 1 1 0; justify-content: center; }
+  .ld-band-fits { order: 0; flex-wrap: wrap; }
+  /* A finished search on a phone is two lines, not four: what happened and its step on one, the tabs under them.
+     The search's name is already in the bar above, so the title may give way. */
+  .lf-strip.has-band:not(.ask) { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 6px 8px 12px; }
+  .lf-strip.has-band:not(.ask) .lf-strip-said { flex: 1 1 0; min-width: 0; }
+  .lf-strip.has-band:not(.ask) .lf-strip-title { overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+  .lf-strip.has-band:not(.ask) .lf-acts { width: auto; margin-top: 0; }
+  .lf-strip.has-band:not(.ask) .lf-strip-band { order: 9; margin: 2px 0 0; }
 
   /* Rows are cards on the lead grid areas, with the actions cell as a fourth
      column holding the 44px Call: the row's own phone block draws them, every
@@ -524,6 +587,19 @@
   .pl-finder .lf-mic { order: -1; width: 76px; height: 76px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent); border: 0; }
   .pl-finder .lf-input { width: 100%; text-align: center; font-size: var(--text-lg); line-height: var(--leading-relaxed); }
   .pl-finder .lf-acts .btn { width: 100%; min-height: 48px; justify-content: center; }
+  /* The row's small controls keep to the sheet's corners -- the rule behind the lock top left, close top right --
+     and Plan it is the column's last, full width. The rule opens under the lock, where a thumb left room. */
+  .pl-finder .lf-compose { position: relative; }
+  .pl-finder .lf-lock { position: absolute; left: 0; top: 0; }
+  .pl-finder .lf-close { position: absolute; right: 0; top: 0; }
+  .pl-finder .lf-go { order: 9; width: 100%; min-height: 48px; justify-content: center; margin: 0; }
+  .pl-finder .lf-go .lf-key { display: none; }
+  .pl-finder .lf-think { max-width: 100%; text-align: center; }
+  .pl-finder .lf-lock::after { left: 0; right: auto; top: calc(100% + 6px); transform: translateY(-3px); }
+  .pl-finder .lf-lock:hover::after, .pl-finder .lf-lock:focus-visible::after, .pl-finder .lf-lock:focus::after { transform: none; opacity: 1; }
+  .pl-finder .lf-examples { padding: 0; justify-content: center; }
+  .pl-finder .lf-ex-h { flex-basis: 100%; text-align: center; }
+  .pl-finder .lf-said { padding: 0; text-align: center; }
 }
 
 /* ============================== the row, re-cut (D5, docs/plans/…D5-the-page.md) ====
@@ -681,20 +757,50 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bar-row .ld-bar { display: block; height: 5px; border-radius: 3px; background: var(--bg-active); overflow: hidden; }
 .ld-bar-row .ld-bar span { display: block; height: 100%; border-radius: 3px; background: var(--warn); }
 
-/* The band: the search's whole shape in one line, which is also the tabs; the fit split only when the fits differ. */
-.ld-band { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 6px var(--gutter-page) 0; flex: none; }
-.ld-band .ld-classes { padding: 0; }
-.ld-band .ld-class { font-variant-numeric: tabular-nums; }
-.ld-band-fits { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; padding-bottom: 2px; }
-.ld-band-bar { display: flex; width: 120px; height: 4px; border-radius: 999px; overflow: hidden; background: var(--bg-active); gap: 1px; }
-.ld-band-bar .seg { display: block; height: 100%; flex-basis: 0; }
-.ld-band-bar .seg.strong { background: var(--ok); }
-.ld-band-bar .seg.look { background: var(--warn); }
-.ld-band-bar .seg.long { background: var(--ink-faint); }
+/* The band: the search's whole shape, which is also the tabs -- a segmented control whose marker slides to the open
+   class, over a hairline that is the same three counts as lengths. The fit split only once Qualified is open. */
+@keyframes ld-grow { from { flex-grow: 0; } }
+.ld-band { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px var(--gutter-page) 0; flex: none; }
+.lf-strip .ld-band { padding: 0; flex-wrap: nowrap; }
+.ld-band-tabs { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ld-band .ld-classes {
+  position: relative; display: inline-flex; gap: 0; padding: 2px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg-sunken);
+}
+.ld-band .ld-class {
+  position: relative; z-index: 1; height: 26px; padding: 0 10px; gap: 5px; border: 0; border-radius: 6px;
+  font-size: 12px; color: var(--ink-dim); white-space: nowrap; transition: color var(--duration-fast) var(--ease-out);
+}
+.ld-band .ld-class .n { font-variant-numeric: tabular-nums; font-weight: var(--weight-medium); color: var(--ink-muted); transition: color var(--duration-fast) var(--ease-out); }
+.ld-band .ld-class:hover, .ld-band .ld-class:hover .n { color: var(--ink); }
+.ld-band .ld-class.on { color: var(--ink); border-bottom-color: transparent; font-weight: inherit; }
+.ld-band .ld-class.on .n { color: var(--ink); }
+.ld-band .ld-class:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.ld-class-mark {
+  position: absolute; z-index: 0; top: 2px; bottom: 2px; left: 0; width: var(--mark-w, 0);
+  transform: translateX(var(--mark-x, 0)); border-radius: 6px; background: var(--bg-raised);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-sm); opacity: 0; pointer-events: none;
+  transition: transform 260ms var(--ease-out), width 260ms var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+}
+.ld-classes.has-mark > .ld-class-mark { opacity: 1; }
+.ld-band-shape { display: flex; gap: 2px; height: 2px; margin: 0 6px; }
+.ld-band-shape .seg { display: block; flex-basis: 0; min-width: 2px; border-radius: 2px; animation: ld-grow 600ms var(--ease-out) backwards; transition: flex-grow 400ms var(--ease-out), opacity var(--duration-fast) var(--ease-out); }
+.ld-band-shape .seg.tone-ok { background: var(--ok); }
+.ld-band-shape .seg.tone-warn { background: var(--warn); }
+.ld-band-shape .seg.tone-plain { background: var(--ink-faint); }
+.ld-band-shape .seg.dim { opacity: 0.3; }
+.ld-band-fits { display: inline-flex; align-items: center; gap: 6px; order: -1; animation: lf-in 200ms var(--ease-out) backwards; }
 .ld-band-fit { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: var(--text-xs); color: var(--ink-muted); cursor: pointer; }
+.ld-band-fit .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
+.ld-band-fit .dot.strong { background: var(--ok); }
+.ld-band-fit .dot.look { background: var(--warn); }
 .ld-band-fit .count { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .ld-band-fit.on { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
 .ld-band-fit.on .count { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .ld-class-mark, .ld-band-shape .seg { transition: none; animation: none; }
+  .ld-band-fits { animation: none; }
+}
 
 /* The phone (900px and under): the D5 row as a card -- the tile and the name, the two slots and the rating
    under them, the 44px Call at the end. A phone draws every column, the ones switched off too (plDrawnColumns: a
