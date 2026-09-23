@@ -132,7 +132,7 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
           <Confirm question="Disconnect Google?" detail="The public listing stays; replies and the full history do not." yes="Yes, disconnect" danger busy={busy} onYes={() => confirm("disconnect")} onNo={() => setArm(null)} testid="google-disconnect" />
         )}
       </span>
-      <StatePill kind="tone" value={r.tone} label={<>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</>} />
+      <StatePill kind="tone" value={r.tone} label={r.stateWords} />
       <span className="set-int-actions">
         {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
           <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>

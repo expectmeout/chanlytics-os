@@ -399,7 +399,6 @@ const InboxList = ({
                     <div className="ix-thread-foot">
                       {multipleAgents && (
                       <span className="ix-thread-agent">
-                        <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{t.agent.glyph}</span>
                         <span>{t.agent.name}</span>
                       </span>
                       )}

@@ -575,7 +575,6 @@ const CalendarPage = ({ initialApptId = null }) => {
             >
               <span className="cal-dow">{d.dow}</span>
               <span className="cal-date tabular">{d.date}</span>
-              {d.today && <span className="cal-today-chip">Today</span>}
             </div>
           ))}
           <div className="cal-gutter" style={{ height: gridH }}>

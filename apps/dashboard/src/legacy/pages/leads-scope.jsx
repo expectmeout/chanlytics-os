@@ -249,7 +249,8 @@ const ldBusinessCell = (l, x) => (
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
           {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
-          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
+          {/* Said once: while the Stage column is drawn it says the lead's state, and the name's tag does not say it again. */}
+          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag && !x.stageShown ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />

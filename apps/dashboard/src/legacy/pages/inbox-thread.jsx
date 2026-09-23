@@ -756,7 +756,6 @@ const ApprovalCard = ({ thread, approval, onDecide = () => {}, planParam = 0, on
           </button>
         </div>
         <span className="ix-approval-hint">
-          <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{thread.agent.glyph}</span>
           <span>{thread.agent.name} · {thread.agent.autonomy}</span>
         </span>
         <div className="ix-approval-shortcuts">
@@ -954,7 +953,6 @@ const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = 
                     summary is the Phone Receptionist's work, not the WhatsApp
                     one's. Seeded threads carry no per-entry agent and keep the
                     thread-level identity they have always used. */}
-                <span className="agent-avatar" style={{ width: 12, height: 12, fontSize: 7 }}>{entry.agentGlyph || thread.agent.glyph}</span>
                 <span className="tl-msg-author">by {entry.agentName || thread.agent.name}</span>
                 {/* Why it said that, when the row remembers: a tap, not a hover. */}
                 {entry.why && <TlWhyButton why={entry.why} open={whyOpen} onToggle={() => setWhyOpen((v) => !v)} />}
