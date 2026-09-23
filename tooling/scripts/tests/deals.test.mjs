@@ -34,6 +34,10 @@ const {
   amountTotalsWords,
   proposalLinkOf,
   isConsultationTitle,
+  consultServiceOf,
+  consultsHeldWords,
+  dealIsOpen,
+  DEAL_START_LABEL,
   toDealReportVM,
   DEAL_REFUSALS,
   stateOf,
@@ -410,6 +414,66 @@ test("a visit is a consultation when its title says consult, or names a consult-
   assert.equal(isConsultationTitle("Haircut — Maria", services, rules), false);
   assert.equal(isConsultationTitle(null, services, rules), false);
   assert.equal(isConsultationTitle("Ad management", undefined, undefined), false);
+});
+
+test("the consult-first service a title names is the one Settings spells, the longest that fits, and a consultation is that or the word itself", () => {
+  const services = [
+    { name: "Remodel" },
+    { name: "Kitchen remodel" },
+    { name: "Diseño de cocina " },
+    { name: "Logo design" },
+    { name: "Ad management" },
+  ];
+  const rules = { consult_first: ["Remodel", "Kitchen remodel", "diseño de cocina", "Ad management"] };
+  assert.equal(consultServiceOf("Kitchen Remodel consult · Maria", services, rules), "Kitchen remodel", "the longest");
+  assert.equal(consultServiceOf("Remodel walkthrough", services, rules), "Remodel");
+  assert.equal(
+    consultServiceOf("Diseno de cocina — Maria", services, rules),
+    "Diseño de cocina",
+    "accents, case and spaces are not the name; Settings' spelling is what comes back",
+  );
+  assert.equal(consultServiceOf("Consultation · Maria", services, rules), null, "a consultation that names no service");
+  assert.equal(consultServiceOf("Logo design — Maria", services, rules), null, "a service that is not consult-first");
+  assert.equal(consultServiceOf("Kitchen remodel", services, { consult_first: [] }), null, "no rule, nothing first");
+  assert.equal(consultServiceOf(null, services, rules), null);
+  assert.equal(consultServiceOf("Kitchen remodel", undefined, rules), null);
+  // One rule: a title is a consultation where it says so, or where it names a consult-first service.
+  for (const title of [
+    "Kitchen Remodel consult · Maria",
+    "Remodel walkthrough",
+    "Consultation · Maria",
+    "Logo design — Maria",
+    "Discovery call",
+    "",
+  ])
+    assert.equal(
+      isConsultationTitle(title, services, rules),
+      /consult/i.test(title) || consultServiceOf(title, services, rules) !== null,
+      title,
+    );
+});
+
+test("a deal is open while it is a proposal out or a client; the current deal and the next step both read that", () => {
+  assert.deepEqual(
+    DEAL_STAGES.map((stage) => [stage, dealIsOpen({ stage })]),
+    [
+      ["proposed", true],
+      ["won", true],
+      ["lost", false],
+      ["ended", false],
+    ],
+  );
+  assert.equal(dealIsOpen(null), false);
+  assert.equal(dealIsOpen(undefined), false);
+  // The current deal is an open one before a newer closed one.
+  const rows = [
+    { id: "old-won", stage: "won", created_at: daysAgo(40) },
+    { id: "new-lost", stage: "lost", created_at: daysAgo(2) },
+  ];
+  assert.equal(pickCurrentDeal(rows).id, "old-won");
+  assert.equal(DEAL_START_LABEL, "Start a proposal");
+  assert.equal(consultsHeldWords(2), "2 held, no proposal yet");
+  assert.equal(consultsHeldWords(1), "1 held, no proposal yet");
 });
 
 test("the report counts one cohort and the stock, and is absent where no deal was ever recorded", () => {

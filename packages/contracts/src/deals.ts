@@ -78,6 +78,8 @@ export const DEAL_STAGE_WORDS: Record<DealStage, string> = {
 export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a month", year: "a year" };
 /** The line the person's page says where no deal was ever recorded. */
 export const DEAL_LINE_NONE = "No proposal yet";
+/** The act that starts a proposal for someone with nothing open (0008), where a consultation is over. */
+export const DEAL_START_LABEL = "Start a proposal";
 /** A proposal out this long with nothing back is Today's leak. */
 export const WAITING_AFTER_DAYS = 7;
 /** A consultation this recent with no proposal after it is the next step to take. */
@@ -177,11 +179,15 @@ export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFac
  * people_list orders the same way.
  */
 export function pickCurrentDeal<T extends { stage: string; created_at: string }>(rows: readonly T[]): T | null {
-  const open = (d: T) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
   );
   return sorted[0] ?? null;
+}
+
+/** Whether a deal is open (0004): a proposal out, or a client. A pass or an end is history. */
+export function dealIsOpen(d: { stage: string } | null | undefined): boolean {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 
 /**
@@ -441,7 +447,29 @@ export function dealSentence(
   }
 }
 
-/** A calendar title that is a consultation: it says so, or it names a consult-first service. The fold is availability's. */
+/**
+ * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
+ * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
+ * it names none. The fold is availability's.
+ */
+export function consultServiceOf(
+  title: string | null | undefined,
+  services: readonly { name: string }[] | undefined,
+  rules: ConsultRules | null | undefined,
+): string | null {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best: { name: string; folded: string } | null = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+
+/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
 export function isConsultationTitle(
   title: string | null | undefined,
   services: readonly { name: string }[] | undefined,
@@ -450,10 +478,7 @@ export function isConsultationTitle(
   const t = foldName(String(title ?? "").trim());
   if (!t) return false;
   if (t.includes("consult")) return true;
-  return (services ?? []).some((s) => {
-    const n = foldName(String(s.name ?? "").trim());
-    return !!n && t.includes(n) && needsConsultation(s.name, rules);
-  });
+  return consultServiceOf(title, services, rules) !== null;
 }
 
 /**
@@ -503,9 +528,59 @@ export function consultationsWithoutProposal<
     if (at === null || at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
     const d = r.deal;
     if (!d) return true;
-    if (d.stage === "proposed" || d.stage === "won") return false;
+    if (dealIsOpen(d)) return false;
     return d.sinceMs !== null && d.sinceMs < at;
   });
+}
+
+/** Their count, as the Pipeline's Consultations say it and Today re-prints it: "2 held, no proposal yet". */
+export function consultsHeldWords(n: number): string {
+  return `${n} held, no proposal yet`;
+}
+
+/**
+ * What an appointment's peek on the Calendar says of its person's deal (0008), from the People row the page holds: the
+ * deal's stage beside their name, and the act that starts a proposal once a consultation is over and nothing is open.
+ * Nothing where deals are off (the People surface's `dealsOn`, dealsAreOn), where the appointment matched nobody, or
+ * where People does not hold them: a deal the page has not read is not one it can say is missing.
+ */
+export interface CalendarPeekDealVM {
+  /** Their deal's stage, for the one pill beside their name; null without a deal. */
+  stage: DealStage | null;
+  /** Once a consultation is over and nothing is open: the act's words, whose it is, and the service its title named. */
+  start: { label: string; personId: string; service: string | null } | null;
+}
+
+/** The appointment as the Calendar's view model carries it (CalendarBlockVM): who, a consultation or not, its end. */
+interface PeekBlock {
+  person: { id: string } | null;
+  consultation: boolean;
+  consultService: string | null;
+  end: string;
+}
+
+/** The People surface, as far as the peek reads it: whether deals are on here, and each person's deal. */
+interface PeekPeople {
+  dealsOn?: boolean;
+  rows?: ReadonlyArray<{ id: string; deal?: Pick<DealVM, "stage"> | null }>;
+}
+
+export function calendarPeekDeal(
+  block: PeekBlock,
+  people: PeekPeople | null | undefined,
+  nowMs: number,
+): CalendarPeekDealVM {
+  const who = block.person;
+  const row = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
+  if (!who || !row) return { stage: null, start: null };
+  const deal = row.deal ?? null;
+  const endMs = Date.parse(block.end);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  return {
+    stage: deal ? deal.stage : null,
+    start:
+      over && !dealIsOpen(deal) ? { label: DEAL_START_LABEL, personId: who.id, service: block.consultService } : null,
+  };
 }
 
 /** What the door can answer, in a sentence the page shows at the control. */

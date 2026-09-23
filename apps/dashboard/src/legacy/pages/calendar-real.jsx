@@ -164,6 +164,20 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
     if (boxRef.current) boxRef.current.focus();
     return () => { if (opener && typeof opener.focus === "function" && opener.isConnected !== false) opener.focus(); };
   }, []);
+  // The person's deal is People's (0008), which can land after the dialog opens and moves when a proposal is recorded:
+  // the dialog draws again whenever People does.
+  const [, peopleMoved] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:clients", peopleMoved);
+    return () => window.removeEventListener("surface:clients", peopleMoved);
+  }, []);
+  // Their deal's stage beside their name, and, once a consultation is over with nothing open, the act that starts a
+  // proposal: contracts' rule and words (calendarPeekDeal, through the bridge), nothing where deals are off or People
+  // does not hold them. The act opens the one deal sheet, so it is offered only where the sheet is installed.
+  const deal = window.__calendar && window.__calendar.peekDeal ? window.__calendar.peekDeal(b, window.__PEOPLE, Date.now()) : null;
+  const start = deal && deal.start && typeof window.openDealSheet === "function" ? deal.start : null;
+  // The sheet takes over from the dialog: two overlays would share Escape, and the board's keys with it.
+  const startProposal = () => { window.openDealSheet({ personId: start.personId, mode: "propose", service: start.service }); onClose(); };
   const contacts = b.contacts || { phones: [], emails: [] };
   const e164 = contacts.e164 || [];
   // The day before and after this board's today, so "Tomorrow" can be said without a second clock.
@@ -197,6 +211,7 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
             <div className="cal-ev-who" data-testid="cal-panel-person">
               <Icon name="users" size={12} />
               {namedInTitle ? <span>In People</span> : <><b>{b.person.name}</b> is in People</>}
+              {deal && deal.stage && <StatePill kind="deal" value={deal.stage} testid="cal-panel-deal" />}
               {b.person.via && <span className="cal-ev-via">matched by {b.person.via}</span>}
             </div>
           ) : found.length > 0 ? (
@@ -234,6 +249,9 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
           <div className="st-modal-foot-actions">
             {bookingLink && (
               <button className="btn btn-ghost btn-sm" data-testid="cal-panel-copy-link" title={bookingLink} onClick={onCopyLink}>Copy the booking link</button>
+            )}
+            {start && (
+              <button className="btn btn-primary btn-sm" onClick={startProposal} data-testid="cal-panel-propose">{start.label}</button>
             )}
             <button className="btn btn-sm" onClick={onClose}>Close</button>
           </div>

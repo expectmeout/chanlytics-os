@@ -29,6 +29,7 @@ import {
   TenantConfigWriteSchema,
   toCalendarVM,
   zoneMidnight,
+  isConsultationTitle,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -525,6 +526,52 @@ test("an owner's read puts the people the feed names in People through the door;
   assert.equal(quiet.length, 0, "a viewer's read changes nothing");
 });
 
+test("(0008) the board's read marks each consultation by the rule People's visits are marked by, with the consult-first service its title names", async () => {
+  const at = (day, hh) => `DTSTART;TZID=America/New_York:202609${day}T${hh}0000`;
+  const until = (day, hh) => `DTEND;TZID=America/New_York:202609${day}T${hh}0000`;
+  const feed = ics(
+    vevent(["UID:c1", "SUMMARY:Kitchen remodel consult · Ana Ruiz", at("08", 10), until("08", 11)]),
+    vevent(["UID:c2", "SUMMARY:Consultation · Tom Baker", at("09", 10), until("09", 11)]),
+    // It names a service that needs a consultation first: the booking is the consultation, whatever it says.
+    vevent(["UID:c3", "SUMMARY:Kitchen remodel · Ana Ruiz", at("10", 10), until("10", 11)]),
+    vevent(["UID:c4", "SUMMARY:Logo design · Eve Park", at("11", 10), until("11", 11)]),
+  );
+  const services = [
+    { name: "Kitchen remodel", duration_min: 60 },
+    { name: "Logo design", duration_min: 30 },
+  ];
+  const rules = { ...profile.booking_rules, consult_first: ["Kitchen remodel"] };
+  const t = tables("https://cal.example/consults.ics");
+  t.tenant_config[0].config.brain.profile = { ...profile, services, booking_rules: rules };
+  answers.set("https://cal.example/consults.ics", { body: feed });
+  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(week.feed.state, "ok");
+  const items = week.days.flatMap((d) => d.items).map((i) => [i.title, i.consultation, i.consult_service]);
+  assert.deepEqual(items, [
+    ["Kitchen remodel consult · Ana Ruiz", true, "Kitchen remodel"],
+    ["Consultation · Tom Baker", true, null],
+    ["Kitchen remodel · Ana Ruiz", true, "Kitchen remodel"],
+    ["Logo design · Eve Park", false, null],
+  ]);
+  // One rule, the one withVisits marks People's visits by, over the same services and rules: never a second reading.
+  for (const [title, consultation] of items) assert.equal(consultation, isConsultationTitle(title, services, rules));
+  // The board's blocks carry both, as the peek reads them.
+  const blocks = toCalendarVM(week, NOW)
+    .days.flatMap((d) => d.blocks)
+    .map((b) => [b.title, b.consultation, b.consultService]);
+  assert.deepEqual(blocks, items);
+  // A read from before the flags (the tab's cached week) is no consultation, never a throw.
+  const older = {
+    ...week,
+    days: week.days.map((d) => ({ ...d, items: d.items.map(({ consultation: _c, consult_service: _s, ...i }) => i) })),
+  };
+  assert.ok(
+    toCalendarVM(older, NOW)
+      .days.flatMap((d) => d.blocks)
+      .every((b) => b.consultation === false && b.consultService === null),
+  );
+});
+
 test("a day carries at most what the board draws; the rest are counted and said", () => {
   const items = [];
   for (let n = 0; n < MAX_ITEMS_PER_DAY + 3; n++)
@@ -538,7 +585,7 @@ test("a day carries at most what the board draws; the rest are counted and said"
       location: null,
       attendees: [],
     });
-  const { days, dropped } = itemsToDays(items, "2026-09-07", 7, TZ, [], new Set(), []);
+  const { days, dropped } = itemsToDays(items, "2026-09-07", 7, TZ, [], new Set(), [], { services: [], rules: null });
   assert.equal(days.find((d) => d.key === "2026-09-08").items.length, MAX_ITEMS_PER_DAY);
   assert.equal(dropped, 3);
   const vm = toCalendarVM(

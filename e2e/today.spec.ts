@@ -130,7 +130,8 @@ test.describe("Today on a real workspace", () => {
     if (rows.length === 0) return;
     for (const r of rows) {
       const row = page.getByTestId(`today-leak-${r.id}`);
-      await expect(row.locator(".tl-tag")).toHaveText(/^(Booking gap|No reply|Reach|Gone quiet)$/);
+      // The deal rows' tags (0008) show only where deals are on; the nightly workspace answers "booking".
+      await expect(row.locator(".tl-tag")).toHaveText(/^(Booking gap|No reply|Next step|Waiting|Reach|Gone quiet)$/);
       expect(r.doors).toContain("Ask why");
     }
     await page.getByTestId(`today-leak-ask-${rows[0].id}`).click();

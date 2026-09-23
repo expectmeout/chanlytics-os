@@ -27,7 +27,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay } from "@chanlytics/contracts";
+import {
+  calendarPeekDeal,
+  hoursLines,
+  shiftKey,
+  stateOf,
+  toBookingReportVM,
+  toCalendarVM,
+  todayDay,
+} from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const TZ = "America/New_York";
@@ -323,6 +331,13 @@ test("REGRESSION (D14): an appointment opens as a dialog named by its title; Esc
   assert.equal(range(), "Sep 14 – 20", "with nothing open the arrows move the board again");
 });
 
+/**
+ * An appointment's dialog, its controls in the order Tab walks them, at their fullest: a consultation that is over, for
+ * someone in People with nothing open, where deals are on and the deal sheet is installed (0008). "Start a proposal"
+ * sits before Close, the dialog's primary act; the drawn order is proved against this list below.
+ */
+const PEEK_FOCUS_ORDER = ["Open in People", "Copy the booking link", "Start a proposal", "Close"];
+
 test("Tab and Shift+Tab walk the dialog's own controls and wrap, so focus never leaves an open appointment for the board behind it", () => {
   const trap = globalThis.window.crTrapTab;
   assert.equal(typeof trap, "function", "the trap is one rule that can be run");
@@ -333,9 +348,10 @@ test("Tab and Shift+Tab walk the dialog's own controls and wrap, so focus never 
       focused.push(name);
     },
   });
-  const [first, middle, last] = [el("Open in People"), el("Copy the booking link"), el("Close")];
+  const els = PEEK_FOCUS_ORDER.map(el);
+  const [first, last] = [els[0], els[els.length - 1]];
   const box = {
-    querySelectorAll: () => [first, middle, last],
+    querySelectorAll: () => els,
     focus() {
       focused.push("dialog");
     },
@@ -362,10 +378,185 @@ test("Tab and Shift+Tab walk the dialog's own controls and wrap, so focus never 
     assert.deepEqual(focused.splice(0), ["Close"], "before the first, round to the last");
     assert.equal(tab(box, true), true);
     assert.deepEqual(focused.splice(0), ["Close"], "from the dialog itself, Shift+Tab takes the last control");
-    assert.equal(tab(middle), false);
+    for (const middle of els.slice(1, -1)) assert.equal(tab(middle), false, middle.name);
     assert.deepEqual(focused, [], "in between, the browser's own order");
   } finally {
     globalThis.document.activeElement = null;
+  }
+});
+
+/* ------------------------------ the peek knows the deal (0008) ------------------------------ */
+
+const HOUR = 3_600_000;
+/** Ana's consultation on Tuesday, 2 – 3:30 PM, its title naming a consult-first service, as the route marks it. */
+const consultWeek = (over = {}) => {
+  const week = dto();
+  week.days[1].items = [
+    {
+      id: "e1",
+      start: "2026-09-08T18:00:00.000Z",
+      end: "2026-09-08T19:30:00.000Z",
+      title: "Kitchen remodel consult · Ana Ruiz",
+      all_day: false,
+      person: { id: "p1", name: "Ana Ruiz" },
+      consultation: true,
+      consult_service: "Kitchen remodel",
+      ...over,
+    },
+  ];
+  return week;
+};
+const END = Date.parse("2026-09-08T19:30:00.000Z");
+/** People, as far as the peek reads it: whether deals are on, and Ana's row with her deal's stage. */
+const peopleWith = (stage, dealsOn = true) => ({
+  dealsOn,
+  rows: [{ id: "p1", name: "Ana Ruiz", deal: stage ? { stage, sinceMs: END - 86_400_000 } : null }],
+});
+let sheets = [];
+/** Draw with the clock at `nowMs`: the peek asks contracts whether the consultation is over by the clock it runs on. */
+const drawnAt = (nowMs, draw) => {
+  const real = Date.now;
+  Date.now = () => nowMs;
+  try {
+    return draw();
+  } finally {
+    Date.now = real;
+  }
+};
+/** The board over `week` with Ana's appointment open; People and the deal sheet as given, the clock at `nowMs`. */
+const peek = ({ week = consultWeek(), people = peopleWith(null), sheet = true, nowMs = END + HOUR } = {}) => {
+  fresh(week);
+  sheets = [];
+  if (people) globalThis.window.__PEOPLE = people;
+  else delete globalThis.window.__PEOPLE;
+  if (sheet) globalThis.window.openDealSheet = (args) => sheets.push(args);
+  else delete globalThis.window.openDealSheet;
+  let tree = drawnAt(nowMs, () => page());
+  byTestId(tree, "cal-block").props.onClick();
+  tree = drawnAt(nowMs, () => page());
+  assert.ok(byTestId(tree, "cal-panel"), "the appointment is open");
+  return tree;
+};
+const forgetPeek = () => {
+  delete globalThis.window.__PEOPLE;
+  delete globalThis.window.openDealSheet;
+};
+const dealPill = (tree) => byTestId(tree, "cal-panel-deal");
+const startAct = (tree) => byTestId(tree, "cal-panel-propose");
+
+test("(0008) the peek's rule: the deal's stage where deals are on and People holds them, and a proposal to start once a consultation is over with nothing open", () => {
+  const block = toCalendarVM(consultWeek(), new Date(END - 4 * HOUR)).days[1].blocks[0];
+  assert.deepEqual(
+    [block.consultation, block.consultService],
+    [true, "Kitchen remodel"],
+    "the route's marks, on the block",
+  );
+  const after = END + HOUR;
+  const start = { label: "Start a proposal", personId: "p1", service: "Kitchen remodel" };
+  assert.deepEqual(calendarPeekDeal(block, peopleWith(null), after), { stage: null, start });
+  // A pass or an end is history: a proposal can start again; an open deal already has one.
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost"), after), { stage: "lost", start });
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("ended"), after), { stage: "ended", start });
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("proposed"), after), { stage: "proposed", start: null });
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("won"), after), { stage: "won", start: null });
+  // Not over yet: the stage, and nothing to start.
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("lost"), END - HOUR), { stage: "lost", start: null });
+  // A consultation that named no service starts a proposal for no service in particular.
+  assert.equal(calendarPeekDeal({ ...block, consultService: null }, peopleWith(null), after).start.service, null);
+  // Not a consultation: the stage only.
+  assert.deepEqual(calendarPeekDeal({ ...block, consultation: false }, peopleWith(null), after), {
+    stage: null,
+    start: null,
+  });
+  // Nothing where deals are off, where People does not hold them, where nobody was matched, or before People lands.
+  const nothing = { stage: null, start: null };
+  assert.deepEqual(calendarPeekDeal(block, peopleWith("proposed", false), after), nothing);
+  assert.deepEqual(calendarPeekDeal(block, { dealsOn: true, rows: [{ id: "p2", deal: null }] }, after), nothing);
+  assert.deepEqual(calendarPeekDeal({ ...block, person: null }, peopleWith("lost"), after), nothing);
+  assert.deepEqual(calendarPeekDeal(block, null, after), nothing);
+  // The page reaches the rule through the bridge, and the bridge's is contracts' own.
+  for (const people of [peopleWith(null), peopleWith("lost"), peopleWith("won"), peopleWith("won", false), null])
+    for (const nowMs of [END - HOUR, after])
+      assert.deepEqual(calendar.peekDeal(block, people, nowMs), calendarPeekDeal(block, people, nowMs));
+});
+
+test("(0008) the peek of a consultation that is over, for someone with nothing open: its act opens the one deal sheet for them and the service, and the sheet takes over", () => {
+  try {
+    const tree = peek();
+    assert.equal(dealPill(tree), null, "no deal, no stage");
+    const act = startAct(tree);
+    assert.ok(act, "the act is there");
+    assert.equal(textOf(act), "Start a proposal");
+    assert.ok(classes(act).includes("btn-primary"), "the dialog's one primary act");
+    act.props.onClick();
+    assert.deepEqual(sheets, [{ personId: "p1", mode: "propose", service: "Kitchen remodel" }]);
+    assert.equal(
+      byTestId(page(), "cal-panel"),
+      null,
+      "the dialog gives way to the sheet: two overlays would share Escape",
+    );
+    // Its controls, drawn in the order Tab walks them, are the pinned order.
+    const panel = byTestId(peek(), "cal-panel");
+    const controls = all(panel, (n) => n.type === "button").map((b) => textOf(b).trim());
+    assert.deepEqual(controls, PEEK_FOCUS_ORDER);
+  } finally {
+    forgetPeek();
+  }
+});
+
+test("(0008) the peek says the person's deal stage beside their name, in the one pill, and offers a proposal only where one can start", () => {
+  try {
+    // Passed: the stage, and a proposal can start again.
+    let tree = peek({ people: peopleWith("lost") });
+    assert.equal(textOf(dealPill(tree)), "Passed");
+    assert.equal(dealPill(tree).props["data-state"], "lost");
+    assert.ok(byTestId(byTestId(tree, "cal-panel-person"), "cal-panel-deal"), "beside the person");
+    assert.ok(startAct(tree));
+    // A proposal out: the stage in its tone, and nothing to start.
+    tree = peek({ people: peopleWith("proposed") });
+    assert.equal(textOf(dealPill(tree)), "Proposal out");
+    assert.equal(dealPill(tree).props["data-tone"], stateOf("deal", "proposed").tone);
+    assert.equal(startAct(tree), null, "an open proposal already is the next step");
+    tree = peek({ people: peopleWith("won") });
+    assert.equal(textOf(dealPill(tree)), "Client");
+    assert.equal(startAct(tree), null);
+    // Not over yet: the stage, nothing to start.
+    tree = peek({ people: peopleWith("lost"), nowMs: END - HOUR });
+    assert.equal(textOf(dealPill(tree)), "Passed");
+    assert.equal(startAct(tree), null, "the consultation has not ended");
+    // Not a consultation.
+    tree = peek({ week: consultWeek({ consultation: false, consult_service: null, title: "Ana Ruiz · Color" }) });
+    assert.equal(startAct(tree), null);
+    // No sheet installed: nothing to open, so nothing offered; the stage still shows.
+    tree = peek({ people: peopleWith("lost"), sheet: false });
+    assert.equal(startAct(tree), null);
+    assert.equal(textOf(dealPill(tree)), "Passed");
+  } finally {
+    forgetPeek();
+  }
+});
+
+test("(0008) where deals are off, or People does not hold the person, the peek says nothing of a deal; and it draws again when People lands", () => {
+  try {
+    let tree = peek({ people: peopleWith("proposed", false) });
+    assert.equal(dealPill(tree), null, "deals off: no stage, whatever is on file");
+    assert.equal(startAct(tree), null);
+    tree = peek({ people: { dealsOn: true, rows: [] } });
+    assert.equal(dealPill(tree), null, "no row: nothing it can say");
+    assert.equal(startAct(tree), null, "a deal it has not read is not one it can say is missing");
+    // Opened before People landed: nothing; People lands and says so; the dialog draws again, with the stage.
+    tree = peek({ people: null });
+    assert.equal(dealPill(tree), null);
+    assert.equal(startAct(tree), null);
+    const heard = listeners["surface:clients"] ?? [];
+    assert.ok(heard.length > 0, "the open dialog listens for People");
+    globalThis.window.__PEOPLE = peopleWith("lost");
+    for (const fn of heard) fn();
+    tree = drawnAt(END + HOUR, () => page());
+    assert.equal(textOf(dealPill(tree)), "Passed");
+    assert.ok(startAct(tree));
+  } finally {
+    forgetPeek();
   }
 });
 

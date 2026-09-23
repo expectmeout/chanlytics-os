@@ -3462,6 +3462,8 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
       emails: item.contacts?.emails ?? []
     },
     guess: item.guess ?? null,
+    consultation: !!item.consultation,
+    consultService: item.consultation ? item.consult_service ?? null : null,
     start: item.start,
     end: item.end,
     lane: 0,
@@ -6203,6 +6205,7 @@ var DEAL_STAGE_WORDS = {
 };
 var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
 var DEAL_LINE_NONE = "No proposal yet";
+var DEAL_START_LABEL = "Start a proposal";
 var WAITING_AFTER_DAYS = 7;
 var CONSULT_FOLLOW_DAYS = 7;
 var DAY_MS3 = 864e5;
@@ -6232,11 +6235,13 @@ function dealFactsOf(r) {
   };
 }
 function pickCurrentDeal(rows) {
-  const open = (d) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 function proposalLinkOf(current, personLink) {
   if (!current) return personLink?.trim() || null;
@@ -6357,14 +6362,23 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }
 }
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
 function isConsultationTitle(title, services, rules) {
   const t = foldName(String(title ?? "").trim());
   if (!t) return false;
   if (t.includes("consult")) return true;
-  return (services ?? []).some((s) => {
-    const n = foldName(String(s.name ?? "").trim());
-    return !!n && t.includes(n) && needsConsultation(s.name, rules);
-  });
+  return consultServiceOf(title, services, rules) !== null;
 }
 function heardSinceProposal(r) {
   const d = r.deal;
@@ -6385,9 +6399,24 @@ function consultationsWithoutProposal(rows, nowMs) {
     if (at2 === null || at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
     const d = r.deal;
     if (!d) return true;
-    if (d.stage === "proposed" || d.stage === "won") return false;
+    if (dealIsOpen(d)) return false;
     return d.sinceMs !== null && d.sinceMs < at2;
   });
+}
+function consultsHeldWords(n) {
+  return `${n} held, no proposal yet`;
+}
+function calendarPeekDeal(block, people, nowMs) {
+  const who = block.person;
+  const row2 = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
+  if (!who || !row2) return { stage: null, start: null };
+  const deal = row2.deal ?? null;
+  const endMs = Date.parse(block.end);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  return {
+    stage: deal ? deal.stage : null,
+    start: over && !dealIsOpen(deal) ? { label: DEAL_START_LABEL, personId: who.id, service: block.consultService } : null
+  };
 }
 var DEAL_REFUSALS = {
   not_found: "Person not found.",
@@ -8920,7 +8949,14 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 var TODAY_LEAK_MAX = 2;
-var LEAK_ORDER = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
+var LEAK_ORDER = [
+  "never-booked",
+  "unanswered",
+  "consults-waiting",
+  "proposals-waiting",
+  "unreachable",
+  "quiet"
+];
 var askWhy = (text, math) => `${text} ${capitalize2(math)}. Why is that?`;
 function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const found = /* @__PURE__ */ new Map();
@@ -8944,6 +8980,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked")
@@ -8960,9 +8997,34 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       icon: "alert",
       text,
       math,
-      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
+      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s thread` })),
+      peopleLead: "Waiting now",
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null
+    });
+  }
+  const consultRows = (people?.rows ?? []).filter(
+    (r) => typeof r.id === "string" && typeof r.name === "string" && typeof r.consultedMs === "number" && "deal" in r
+  );
+  const held = consultationsWithoutProposal(consultRows, nowMs).sort(
+    (a2, b2) => a2.consultedMs - b2.consultedMs || a2.name.localeCompare(b2.name) || a2.id.localeCompare(b2.id)
+  );
+  if (people && people.dealsOn && held.length >= 1) {
+    const n = held.length;
+    const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+    const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
+    found.set("consults-waiting", {
+      id: "consults-waiting",
+      tone: "info",
+      tag: "Next step",
+      icon: "calendar",
+      text,
+      math,
+      people: held.slice(0, 2).map((r) => ({ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name} in People` })),
+      peopleLead: "Held with",
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: "clients/pipeline" },
       also: null
     });
   }
@@ -8982,6 +9044,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null
@@ -9001,6 +9064,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
@@ -9018,6 +9082,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet")
@@ -18715,6 +18780,7 @@ export {
   DEAL_SOURCES,
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
+  DEAL_START_LABEL,
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DEFAULT_BUSINESS_TYPE,
@@ -19121,6 +19187,7 @@ export {
   businessRecordProblems,
   businessTypeOf,
   calendarOwnerOf,
+  calendarPeekDeal,
   callMoodTone,
   callOfKey,
   callOutcomeOf,
@@ -19177,7 +19244,9 @@ export {
   consentPageMetadata,
   consentPageVM,
   consentSourceLabel,
+  consultServiceOf,
   consultationsWithoutProposal,
+  consultsHeldWords,
   contactMeta,
   contactName,
   conversationOfNeedsKey,
@@ -19194,6 +19263,7 @@ export {
   dayWords,
   dealCardsOf,
   dealFactsOf,
+  dealIsOpen,
   dealMenuActs,
   dealNextAct,
   dealOf,
