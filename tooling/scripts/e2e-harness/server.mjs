@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { err, ok } from "@chanlytics/contracts";
 import { buildFixture } from "./fixture.mjs";
 import { scenario, WORKSPACE } from "./scenarios.mjs";
-import { reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
+import { mascotBundle, reportsSampleBundle, send, serveStatic, todaySampleBundle, TYPES } from "../serve-legacy.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
@@ -158,6 +158,10 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/data/today-sample.js") {
         send(res, 200, TYPES[".js"], await todaySampleBundle());
+        return;
+      }
+      if (p === "/data/mascot.js") {
+        send(res, 200, TYPES[".js"], await mascotBundle());
         return;
       }
       if (p === "/" || p === "/Chanlytics.html") {
