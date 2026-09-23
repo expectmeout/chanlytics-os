@@ -87,6 +87,7 @@ const WORDS: Record<string, string> = {
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
   "contact.email_set": "A person's email address changed",
+  "contact.proposal_set": "A person's proposal link changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
