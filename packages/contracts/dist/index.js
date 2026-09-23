@@ -17713,10 +17713,10 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
   const sent = sentOf(p, deal);
-  const words2 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
-  if (!sent && send.reach) return act("send", words2(proposalMessage(url)));
+  const words3 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
+  if (!sent && send.reach) return act("send", words3(proposalMessage(url)));
   if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
-    return act("follow-up", words2(proposalFollowUp(url)));
+    return act("follow-up", words3(proposalFollowUp(url)));
   return act("won");
 }
 function dealMenuActs(deal) {
@@ -17747,9 +17747,9 @@ function consultationWas(atMs, tz, nowMs) {
   return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
 }
 function namesService(title, service) {
-  const words2 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const said = words2(title);
-  const named = words2(service);
+  const words3 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const said = words3(title);
+  const named = words3(service);
   return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
 }
 function consultedDealOf(p, open) {
@@ -18066,7 +18066,7 @@ function dealSheetMerge(draft, opened, fresh) {
 }
 function dealSheetBody(mode, draft, deal, opts) {
   const P = DEAL_SHEET_WORDS.problems;
-  const problem = (field, words2) => ({ problem: { field, words: words2 } });
+  const problem = (field, words3) => ({ problem: { field, words: words3 } });
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
   const body = { stage: STAGE_OF[mode] };
@@ -18137,9 +18137,9 @@ var REFUSAL_FIELD = {
   bad_reason: "reason"
 };
 function dealSheetRefusal(message) {
-  const words2 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
-  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words2);
-  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words2 };
+  const words3 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
+  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words3);
+  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words3 };
 }
 
 // src/lead-judge.ts
