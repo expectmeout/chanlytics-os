@@ -2160,7 +2160,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
     history = assembleHistory(rows ?? [], historyLimit);
   }
-  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }).limit(5);
+  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
   return {
     contactId: contact.id,
@@ -2188,7 +2188,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
 async function readDealForPhone(db, tenantId, phoneE164) {
   const { data: c } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   if (!c) return null;
-  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false }).limit(5);
+  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
   const d = pickCurrentDeal(data ?? []);
   return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
 }

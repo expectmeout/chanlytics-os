@@ -110,10 +110,13 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { result: NO_CALENDAR });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
-  // service itself, not a consultation (0004). Never fatal: no deal is the stranger's answer.
+  // service itself, not a consultation (0004). Never fatal: no deal is the stranger's answer. Read beside the feed, not
+  // before it: the agent waits on this answer mid-call, and the two reads owe each other nothing.
   const caller = normalizePhone(call.from_number);
-  const deal = caller ? await readDealForPhone(db, routed.tenantId, caller).catch(() => null) : null;
-  const data = await openingsData(rt);
+  const [deal, data] = await Promise.all([
+    caller ? readDealForPhone(db, routed.tenantId, caller).catch(() => null) : Promise.resolve(null),
+    openingsData(rt),
+  ]);
   if (!data) {
     L.info("retell_availability_unavailable", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEE });

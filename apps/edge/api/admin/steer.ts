@@ -130,7 +130,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   let leadNote: string | undefined;
   try {
-    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1));
+    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), new Date(), rt.timezone ?? "UTC");
   } catch (e) {
     L.warn("steer_lead_context_unavailable", { error: errField(e) });
   }

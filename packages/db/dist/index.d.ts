@@ -5543,7 +5543,10 @@ interface LeadContext {
  * create rows; this one only reports what is already true.
  */
 declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
-/** The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004). */
+/**
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
+ * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ */
 declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
 /**
  * The lead, described for a model in a few plain lines.

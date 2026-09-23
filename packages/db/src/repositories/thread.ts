@@ -258,14 +258,15 @@ export async function readLeadContext(
     history = assembleHistory((rows ?? []) as never, historyLimit);
   }
 
-  // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal.
+  // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
+  // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
+  // for other services, and a cap would hide it behind them.
   const { data: dealRows } = await db
     .from("deals")
     .select("stage, service, proposed_at, decided_at, ended_at, created_at")
     .eq("tenant_id", tenantId)
     .eq("contact_id", contact.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
+    .order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
 
   return {
@@ -294,7 +295,10 @@ export async function readLeadContext(
   };
 }
 
-/** The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004). */
+/**
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
+ * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ */
 export async function readDealForPhone(db: Db, tenantId: string, phoneE164: string): Promise<DealFacts | null> {
   const { data: c } = await db
     .from("contacts")
@@ -308,8 +312,7 @@ export async function readDealForPhone(db: Db, tenantId: string, phoneE164: stri
     .select("stage, service, proposed_at, decided_at, ended_at, created_at")
     .eq("tenant_id", tenantId)
     .eq("contact_id", c.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
+    .order("created_at", { ascending: false });
   const d = pickCurrentDeal(data ?? []);
   return d
     ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at }
