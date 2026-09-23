@@ -7755,7 +7755,7 @@ interface JourneyListLike {
  * is counted twice, and nothing here is a trend -- a period over a period is
  * noise at these counts (reports.ts dropped tile deltas for exactly that).
  */
-type TodayLeakId = "never-booked" | "unanswered" | "unreachable" | "quiet";
+type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | "unreachable" | "quiet";
 interface TodayLeakVM {
     id: TodayLeakId;
     tone: "danger" | "warn" | "info";
@@ -7802,14 +7802,17 @@ interface PeopleListsLike {
     aggregates?: {
         total: number;
     };
-    /** Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not. */
-    rows: ReadonlyArray<Pick<PersonRowVM, "consent">>;
+    /**
+     * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; and
+     * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
+     */
+    rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
 }
 /** At most this many; the rest is not an insight, it is a list. */
 declare const TODAY_LEAK_MAX = 2;
 declare function todayLeaks(reports: ReportsLike | null, people: PeopleListsLike | null, 
 /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
-noReply?: readonly TodayNoReplyVM[], max?: number): TodayLeaksVM;
+noReply?: readonly TodayNoReplyVM[], max?: number, nowMs?: number): TodayLeaksVM;
 /** A bell row as the bell publishes it, as far as this reads it. */
 interface AwayRowLike {
     id?: string;

@@ -8596,9 +8596,9 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 var TODAY_LEAK_MAX = 2;
-var LEAK_ORDER = ["never-booked", "unanswered", "unreachable", "quiet"];
+var LEAK_ORDER = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
 var askWhy = (text, math) => `${text} ${capitalize2(math)}. Why is that?`;
-function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
+function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const found = /* @__PURE__ */ new Map();
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step = (id) => {
@@ -8639,6 +8639,27 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
       people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null
+    });
+  }
+  const dealRows = (people?.rows ?? []).filter(
+    (r) => "deal" in r && "askedMs" in r
+  );
+  const waiting = proposalsWaiting(dealRows, nowMs);
+  const po = list2("proposal_out");
+  if (people && waiting.length >= 1) {
+    const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const math = po ? `${po.count} on Proposal out \xB7 nothing heard since it went` : "nothing heard since it went";
+    found.set("proposals-waiting", {
+      id: "proposals-waiting",
+      tone: "warn",
+      tag: "Waiting",
+      icon: "clock",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null
     });
   }
