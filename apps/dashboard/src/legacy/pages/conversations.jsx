@@ -144,7 +144,7 @@ const CallPane = ({ c, onBack = null }) => {
         </div>
         {c.clientId && (
           <div className="ix-th-actions">
-            <MoreMenu btnClass="btn btn-ghost btn-icon btn-sm ix-th-more" items={[{ label: "Open profile", icon: "users", onClick: () => window.CHANLY.nav(window.CHANLY.R.client(c.clientId)) }]} />
+            <MoreMenu btnClass="btn btn-ghost btn-sm ix-th-more" label="Actions" items={[{ label: "Open profile", icon: "users", onClick: () => window.CHANLY.nav(window.CHANLY.R.client(c.clientId)) }]} />
           </div>
         )}
       </header>

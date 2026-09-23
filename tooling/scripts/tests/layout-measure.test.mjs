@@ -26,6 +26,8 @@ import { ROOT, readRaw } from "./_source.mjs";
 
 const STYLES = path.join(ROOT, "apps/dashboard/src/legacy/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
+// Read once for the two tests below: the ratchet counts reads, and a phone rule is proven in the browser, pinned here.
+const MOBILE = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
 
 test("the measures are tokens, and every page takes one of them", () => {
   const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
@@ -79,9 +81,7 @@ test("Setup shares the settings column with the cards above and below it", () =>
   // A phone gets the sentence wrapped instead of truncated; that predates this
   // and must survive it.
   assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(
-      ".setup-rows .cl-attn-sentence { white-space: normal; }",
-    ),
+    MOBILE.includes(".setup-rows .cl-attn-sentence { white-space: normal; }"),
     "a row's sentence still wraps on a phone",
   );
 });
@@ -150,6 +150,28 @@ test("a settings control is named by the row it sits in", () => {
   // The controls have to forward it or the name never lands on the element.
   assert.ok(/const SetToggle = \(\{ on, onChange, \.\.\.rest \}\)/.test(settings), "SetToggle forwards it");
   assert.ok(/const SetSeg = \(\{ value, options, onChange, \.\.\.rest \}\)/.test(settings), "SetSeg forwards it");
+});
+
+test("on a phone a thread opens by coming in from the right, over where the list stood -- transform and opacity only, and none under reduced motion", () => {
+  // The list cut to a pane fading up in place read as a jolt (Ruben, 22 Sep 2026). A page on a phone comes in from
+  // the side, on both pages that open the one thread.
+  const mobile = MOBILE;
+  assert.match(
+    mobile,
+    /\.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
+    "both pages' threads, the one motion",
+  );
+  const frames = mobile.match(/@keyframes thread-in \{([^}]*)\}/);
+  assert.ok(
+    frames && /translateX\(\d+px\)/.test(frames[1]) && /opacity: 0/.test(frames[1]),
+    "from the right, faded in",
+  );
+  assert.ok(!/(width|height|top|left):/.test(frames[1]), "never a layout property");
+  assert.match(
+    mobile,
+    /prefers-reduced-motion: reduce\) \{ \.inbox\.phone-thread \.ix-thread-pane, \.conversations\.phone-detail \.ix-thread-pane \{ animation: none; \} \}/,
+    "and none under reduced motion",
+  );
 });
 
 test("a route on its way is an empty pane that says so after a beat, never a skeleton", () => {

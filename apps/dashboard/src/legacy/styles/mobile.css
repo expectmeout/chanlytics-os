@@ -428,6 +428,11 @@
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
   .inbox.phone-thread .ix-list { display: none; }
   .inbox.phone-thread .ix-thread-pane { display: flex; }
+  /* Opening a thread: it comes in from the right, over where the list stood, as a page opens on a phone. The list's
+     hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
+  .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
+  @keyframes thread-in { from { opacity: 0; transform: translateX(28px); } }
+  @media (prefers-reduced-motion: reduce) { .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: none; } }
   /* Back is the arrow alone, a thumb wide: the top bar says Inbox over it, and "← Inbox" said it again. */
   .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: 16px; }
 
@@ -496,8 +501,11 @@
   /* The thread's own rules sit on the thread (.ix-thread-pane), not on the page that mounts it: the one thread opens in
      Conversations too, and a rule written as .inbox … drew it there without them -- two looks from one component. */
   .ix-thread-pane .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
-  /* The menu holds Snooze, Archive and the profile now: a thumb wide, where it was 26px. */
+  /* The menu holds Snooze, Archive and the profile now: a thumb tall, where it was 26px. */
   .ix-thread-pane .ix-th-actions .btn-icon { min-width: 44px; }
+  .ix-thread-pane .btn.ix-th-more { min-height: 40px; padding: 0 12px; }
+  /* One line under the name: the wires, then the visit's day. Its time is a desktop's; here it took the whole line. */
+  .ix-th-visit-time { display: none; }
   .ix-thread-pane .ix-context-strip { display: none; }
   /* The list on a phone shows the threads first too (I6). The buckets sit in one row of three, where a grid of two
      stacked them in two rows; the search is one input tall, with the select-all box at its head; the list's head
