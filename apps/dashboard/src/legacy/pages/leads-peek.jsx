@@ -1,8 +1,8 @@
 /* global React, Icon, LeadShape, LeadSlotShape, StatePill, LeadCallMenu */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
 // without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
-// draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is ClientsAReal's
-// (peekId, peekMode, armed, draft), handed down, so the tests' stub React keys its hooks by one call order.
+// draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is LeadsReal's
+// (peekId, peekMode, armed, draft), handed down, so the page's one keyboard listener backs out of it on Esc.
 //
 // Nothing in this file writes a sentence of its own. The words are contracts' (window.__LEAD_WORDS) and the view
 // model is contracts' (window.__leadPeekVM), so a word the owner reads is spelled once; the toasts are the route's

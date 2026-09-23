@@ -2,8 +2,9 @@
 // The table for any rows, and its Columns menu, for People and for Leads (a scope of People): the columns they are
 // given, what a cell needs (`ctx`), a selection, a keyboard cursor and a way to open a row. Lifted out of
 // clients-a.jsx (release B of the lead finder): four of these helpers closed over People's PL_COLUMNS, so Leads could
-// not draw the table with columns of its own. Every helper takes the column list. Hookless, as before: the tests'
-// stub React keys state by call order, and a list's own controls above the table come and go.
+// not draw the table with columns of its own. Every helper takes the column list. Hookless, as before: the sort, the
+// columns, the cursor and the selection are the page's (clients-a.jsx usePlControls and usePlPlace), where its one
+// keyboard listener can move them.
 
 // Person and the row's actions are not the member's to hide.
 const plLocked = (c) => !!(c.pinned || c.fixed);

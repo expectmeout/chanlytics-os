@@ -2,8 +2,8 @@
 // The finder: the composer an owner describes businesses in (Task 8), the plan
 // card whose words are pickers (Task 9), and the strip that says what a round
 // is doing and how it ended (Task 10). Hookless, as every part of People is:
-// the stub React the tests draw on keys state by call order, so all of it
-// lives in ClientsAReal and arrives here as props.
+// all of its state lives in LeadsReal (clients-a.jsx), which keeps a Find
+// half-written in the tab and closes it on Esc, and arrives here as props.
 //
 // Nothing here names the vendor that runs a search: the owner sees Claude
 // finding businesses, and where each fact came from.
@@ -59,8 +59,8 @@ const LeadWayCard = ({ way, onGo }) => (
  * Never a seeded example: the items are the server's, from this workspace's
  * line, and a refused read is a note beside a composer that still works.
  *
- * Hookless, like everything else here, because it comes and goes with the
- * workspace's first search and the stub React keys state by call order.
+ * Hookless, like everything else here: the line being rewritten is
+ * LeadsReal's (`leadLine`), handed down.
  */
 const LeadsFirstDay = ({
   ways = [], suggestions = null, canFind = false, lineOpen = false, lineDraft = "", lineError = null, lineBusy = false,
@@ -377,7 +377,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
  * and the plan card once a card comes back (sections 8.2, 8.3).
  *
  * stage: compose | thinking | plan | starting. Every hook it needs is
- * ClientsAReal's; `talk` is useAskTalk's answer (ask-hooks.jsx), declared
+ * LeadsReal's; `talk` is useAskTalk's answer (ask-hooks.jsx), declared
  * there and handed down, so nothing is recorded or uploaded here.
  */
 const LeadFinder = ({
