@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -59,18 +60,19 @@ globalThis.document = {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -80,7 +82,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -90,13 +92,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -188,7 +190,7 @@ const asked = { id: "e1", reason: "human_token", details: null, state: "open", c
 const labels = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
 const draw = (vm, props = {}) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxThread({ thread: vm, channelLabels: labels, onArchive: () => {}, ...props });
 };
 
@@ -247,7 +249,7 @@ test("a group with nothing in it takes no divider with it", () => {
 
 test("the menu draws a hint as one short word at the item's end, apart from the meta line", () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   let tree = MoreMenu({
     items: [
       { label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick() {} },
@@ -255,7 +257,7 @@ test("the menu draws a hint as one short word at the item's end, apart from the 
     ],
   });
   find(tree, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props.onClick({ stopPropagation() {} });
-  seq = 0;
+  frames.begin();
   tree = MoreMenu({
     items: [
       { label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick() {} },
@@ -446,7 +448,7 @@ test("the bar under the header says where the conversation stands and that the w
     assert.equal(textOf(find(bar, byTestId("ix-th-window"))), "Window closed");
     assert.equal(find(bar, byTestId("ix-th-window-why")), undefined, "why, not until it is asked");
     find(bar, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-    seq = 0;
+    frames.begin();
     const opened = InboxThread({ thread: toInboxThreadVM(closedConv(), asked, ZONE, NOW), channelLabels: labels });
     assert.equal(
       textOf(find(opened, byTestId("ix-th-window-why"))),

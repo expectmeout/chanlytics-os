@@ -24,20 +24,22 @@ import {
   planWords,
 } from "../../../packages/contracts/src/lead-search.ts";
 import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -47,7 +49,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -226,7 +228,7 @@ const page = (over = {}) => {
   return { st, set };
 };
 const drawFinder = (st, over = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.LeadFinder({
     open: st.open,
     stage: st.stage,
@@ -439,7 +441,7 @@ test("the finder is the page's own overlay, and Enter plans what was typed", () 
 /* ------------------------------------------------- Task 9: the plan card */
 
 const drawCard = (st, over = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.LeadPlanCard({
     plan: st.plan,
     view: { title: "Find 200 personal trainers" },
@@ -680,7 +682,7 @@ const ended = (ending, over = {}) =>
   });
 const ids = (vm) => vm.actions.map((a) => a.id);
 const drawStrip = (search, acted, extra = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.LeadStrip({
     vm: leadStrip(search, NOW, extra),
     onAction: (id, arg) => acted.push([id, arg]),

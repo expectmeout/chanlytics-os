@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, frameWhisper, frameHandOver, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -64,7 +65,8 @@ const channels = [
 const calls = { end: [], hand: [], whisper: [], flash: [], nav: [], refresh: 0 };
 // The page destructures the hooks at module load, so React carries them from the start.
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
@@ -77,11 +79,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -91,7 +93,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -101,17 +103,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -162,7 +164,7 @@ await import("../../../apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
 const Page = globalThis.window.LiveMonitorPage;
 
 function mount() {
-  seq = 0;
+  frames.begin();
   return Page();
 }
 const walk = (n, fn) => {

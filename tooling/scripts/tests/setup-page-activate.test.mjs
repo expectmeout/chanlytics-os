@@ -18,6 +18,7 @@ import {
   formatPhoneDisplay,
   roleGate,
 } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -205,11 +206,12 @@ const Page = globalThis.window.PaneSetup;
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
 function mount() {
-  let seq = 0;
   Object.assign(globalThis.React, {
     // A function component is rendered in place, as React renders it, so what
     // a row opens under itself (the chooser, the card, the finder) is in the
@@ -217,16 +219,16 @@ function mount() {
     createElement: (type, p, ...kids) => {
       const props = { ...(p || {}), children: kids.flat(Infinity) };
       const node = { type, props };
-      if (typeof type === "function") node.rendered = type(props);
+      if (typeof type === "function") node.rendered = frames.render(type, props);
       return node;
     },
     useMemo: (fn) => {
-      const k = seq++;
+      const k = frames.key();
       if (!(k in cells)) cells[k] = fn();
       return cells[k];
     },
     useState: (init) => {
-      const k = seq++;
+      const k = frames.key();
       if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
       return [
         cells[k],
@@ -236,7 +238,7 @@ function mount() {
       ];
     },
     useReducer: (red, init) => {
-      const k = seq++;
+      const k = frames.key();
       if (!(k in cells)) cells[k] = init;
       return [
         cells[k],
@@ -247,14 +249,14 @@ function mount() {
     },
     // An effect runs once per component, on its first mount, as React runs it on arrival.
     useEffect: (fn) => {
-      const k = seq++;
+      const k = frames.key();
       if (!(k in cells)) {
         cells[k] = true;
         fn();
       }
     },
   });
-  seq = 0;
+  frames.begin();
   return Page();
 }
 const byTestId = (tree, id) => {
