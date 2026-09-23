@@ -173,6 +173,7 @@ before(async () => {
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
   await seed("deals", { tenant_id: A, contact_id: ctx.contact, stage: "proposed" }, null);
+  await seed("person_notes", { tenant_id: A, contact_id: ctx.contact, body: "tenancy note" }, null);
   await ensure("policies", { tenant_id: A, class: "reply", mode: "auto" });
   await ensure("tenant_config", { tenant_id: A });
   await ensure("billing_accounts", { tenant_id: A });
@@ -393,6 +394,7 @@ const TENANT_TABLES = {
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],
+  person_notes: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, body: "stranger note" })],
   policies: [
     "member",
     () => ({ tenant_id: A, class: "faq", mode: "auto", subject_type: "contact", subject_id: ctx.contact2 }),

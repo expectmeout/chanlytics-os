@@ -92,6 +92,12 @@ var EVENT_KINDS = [
   /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
+  "contact.note_changed",
+  "contact.note_removed",
+  "contact.note_suggested",
+  "contact.note_kept",
+  "contact.note_dismissed",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -1091,6 +1097,17 @@ var WEEK_MS2 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
 var NEW_WINDOW_MS = 7 * DAY_MS4;
 var QUIET_AFTER_MS = 30 * DAY_MS4;
+var NOTE_MAX = 600;
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note."
+};
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -2162,6 +2179,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   }
   const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
+  const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
@@ -2175,6 +2193,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
+    noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: contact.proposal_url ?? null,
     deal: current ? {
       stage: current.stage,
@@ -2192,6 +2211,26 @@ async function readDealForPhone(db, tenantId, phoneE164) {
   const d = pickCurrentDeal(data ?? []);
   return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
 }
+var NOTES_READ = 12;
+var NOTES_BUDGET = 1200;
+function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
+  if (Array.isArray(lead.noteList)) {
+    const parts = [];
+    let used = 0;
+    for (const n of lead.noteList) {
+      const body = n.body.replace(/\s+/g, " ").trim();
+      if (!body) continue;
+      const t = Date.parse(n.at);
+      const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
+      if (parts.length && used + part.length > NOTES_BUDGET) break;
+      parts.push(part);
+      used += part.length + 2;
+    }
+    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
+  }
+  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
+  return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
+}
 function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
@@ -2204,8 +2243,8 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
     bits.push("First time reaching out.");
   }
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
-  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
-  if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  const notes = notesForReceptionist(lead, now, tz);
+  if (notes) bits.push(notes);
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
   const proposal = (lead.proposalUrl ?? "").trim();
@@ -2571,6 +2610,7 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
+  notesForReceptionist,
   pauseConversation,
   peoplePage,
   personReplyMode,

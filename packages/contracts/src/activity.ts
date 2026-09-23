@@ -87,6 +87,11 @@ const WORDS: Record<string, string> = {
   "contact.added": "A person was added",
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
+  "contact.note_changed": "A note was changed",
+  "contact.note_removed": "A note was taken away",
+  "contact.note_suggested": "The receptionist suggested a note",
+  "contact.note_kept": "A suggested note was kept",
+  "contact.note_dismissed": "A suggested note was dismissed",
   "contact.email_set": "A person's email address changed",
   "contact.proposal_set": "A person's proposal link changed",
   // A deal is a record (0004): each move of one, in the owner's words.

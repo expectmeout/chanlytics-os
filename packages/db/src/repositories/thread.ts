@@ -17,7 +17,7 @@
  * miss.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type DealFacts, dealSentence, pickCurrentDeal } from "@chanlytics/contracts";
+import { type DealFacts, clockDate, dealSentence, pickCurrentDeal } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -189,8 +189,12 @@ export interface LeadContext {
   history: ThreadTurn[];
   /** They asked us to stop. Carried so no caller has to look it up separately. */
   optedOut: boolean;
-  /** The owner's notes on them — facts for the receptionist, never read aloud. */
+  /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
+   *  where the notes themselves could not be read (`noteList` null or absent). */
   notes?: string | null;
+  /** The notes the receptionist reads (0007): kept, not for the team only, newest first. Null where they could not
+   *  be read. Optional so every fake still compiles. */
+  noteList?: { body: string; at: string }[] | null;
   /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
   proposalUrl?: string | null;
   /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
@@ -269,6 +273,18 @@ export async function readLeadContext(
     .order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
 
+  // Their notes (0007): the kept ones that are not for the team only. Never a suggestion the receptionist wrote
+  // itself, which waits for a person to keep it. An error is no list, and the old field is said instead.
+  const { data: noteRows, error: nErr } = await db
+    .from("person_notes")
+    .select("body, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contact.id)
+    .eq("state", "kept")
+    .eq("team_only", false)
+    .order("created_at", { ascending: false })
+    .limit(NOTES_READ);
+
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
@@ -282,6 +298,7 @@ export async function readLeadContext(
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
+    noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: contact.proposal_url ?? null,
     deal: current
       ? {
@@ -327,6 +344,35 @@ export async function readDealForPhone(db: Db, tenantId: string, phoneE164: stri
  * nothing said at all when we know nothing, because "New caller" is itself a
  * useful and honest thing to tell an agent.
  */
+/** How many notes are read for the receptionist, and how many characters of them it is given (0007). */
+const NOTES_READ = 12;
+const NOTES_BUDGET = 1200;
+
+/**
+ * The team's notes as the receptionist hears them (0007): newest first, each dated, as many as fit the budget -- the
+ * newest always, however long. Where the notes could not be read, the field they moved from (00054), as it was said.
+ */
+export function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "UTC"): string | null {
+  if (Array.isArray(lead.noteList)) {
+    const parts: string[] = [];
+    let used = 0;
+    for (const n of lead.noteList) {
+      const body = n.body.replace(/\s+/g, " ").trim();
+      if (!body) continue;
+      const t = Date.parse(n.at);
+      const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
+      if (parts.length && used + part.length > NOTES_BUDGET) break;
+      parts.push(part);
+      used += part.length + 2;
+    }
+    return parts.length
+      ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}`
+      : null;
+  }
+  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
+  return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
+}
+
 export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): string {
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
@@ -348,9 +394,9 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
     bits.push("First time reaching out.");
   }
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
-  // The owner's own words about them: facts to use, never to recite.
-  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
-  if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  // The team's own words about them: facts to use, never to recite.
+  const notes = notesForReceptionist(lead, now, tz);
+  if (notes) bits.push(notes);
   // Their deal (0004): one sentence per stage, never an amount. Where a proposal link is on file, the link's own rule
   // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });

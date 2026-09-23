@@ -109,6 +109,9 @@ export const SCHEMA_SETS = {
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
     "broadcast_stopped", "leads_ready", "leads_question",
   ],
+  "person_notes.author_kind": ["member", "receptionist"],
+  "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
+  "person_notes.state": ["kept", "suggested"],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [

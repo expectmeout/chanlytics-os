@@ -261,6 +261,27 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/notes": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
+    "POST contacts/[id]/notes/decide": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
+    "POST contacts/[id]/notes/remove": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/[id]/marketing-consent": {
       "kind": "write",
       "scope": "row",

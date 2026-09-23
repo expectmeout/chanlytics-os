@@ -1033,17 +1033,36 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     "person-notes-save",
   ])
     assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(page.includes("Notes for the receptionist") && page.includes("used as facts, never read aloud"));
   assert.ok(
     page.includes("<PersonName p={p} canEdit={canRecord} flash={ppFlash} />"),
     "the hero name is the editable one",
   );
-  const vm = toPersonVM({ ...detail_(), notes: "  Sees Sofia  " }, TZ, new Date(NOW));
-  assert.equal(vm.notes, "Sees Sofia");
+  // The notes are a list now (0007): each dated and signed, the field they moved from no longer drawn.
+  const note = {
+    id: "n1",
+    body: "Sees Sofia",
+    author_kind: "member",
+    author_name: "Maria",
+    mine: false,
+    for_user_id: null,
+    for_name: null,
+    for_me: false,
+    team_only: false,
+    state: "kept",
+    source: "page",
+    version: 1,
+    created_at: new Date(NOW - 3_600_000).toISOString(),
+    updated_at: new Date(NOW - 3_600_000).toISOString(),
+  };
+  const vm = toPersonVM({ ...detail_(), notes: "  Old field  ", person_notes: [note] }, TZ, new Date(NOW));
+  assert.deepEqual(
+    vm.noteList.map((n) => [n.body, n.who]),
+    [["Sees Sofia", "Maria"]],
+  );
   assert.equal(vm.givenName, "Maria Lopez");
   const numbered = toPersonVM(detail_({ display_name: null }), TZ, new Date(NOW));
   assert.equal(numbered.givenName, null, "a number is not a given name");
-  assert.equal(numbered.notes, null);
+  assert.deepEqual(numbered.noteList, [], "no notes, no list");
 });
 
 test("the journey from visits: Booked this week and Lapsed, in three groups; each list's next step waits for a recorded yes", async () => {
