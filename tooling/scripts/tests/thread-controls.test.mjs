@@ -305,10 +305,10 @@ test("beside the wires, the person's next visit from People -- or their last -- 
   const person = (over) => ({ id: "k1", nextVisitDay: null, nextVisit: null, lastVisitDay: null, ...over });
   try {
     globalThis.window.__PEOPLE = {
-      rows: [person({ nextVisitDay: "Tue, Sep 8", nextVisit: "Tue, Sep 8 · 2:00 PM · Balayage" })],
+      rows: [person({ nextVisitDay: "Tue, Sep 8", nextVisit: "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" })],
     };
     let tree = draw(vm);
-    assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 PM", "a visit ahead: its day and time");
+    assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 – 5:00 PM", "a visit ahead: its day and time");
     assert.ok(chip(tree).props.className.split(" ").includes("ahead"), "marked as ahead");
     assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp", "the wires' line says the wires, once");
     globalThis.window.__PEOPLE = { rows: [person({ lastVisitDay: "Thu, Aug 20" })] };
@@ -323,12 +323,23 @@ test("beside the wires, the person's next visit from People -- or their last -- 
     delete globalThis.window.__PEOPLE;
   }
   assert.ok(!chip(draw(vm)), "People not read yet: no chip");
+  // Drawn before People landed, it listens for People (surface:clients) and draws the chip then.
+  const heard = [];
+  const keep = globalThis.window.addEventListener;
+  globalThis.window.addEventListener = (type) => heard.push(type);
+  try {
+    draw(vm);
+  } finally {
+    globalThis.window.addEventListener = keep;
+  }
+  assert.ok(heard.includes("surface:clients"), "the header redraws when People lands");
 });
 
 test("the header's menu says what it is -- Actions, with the chevron -- and stays a ghost beside the name", () => {
   // A ⋯ alone, in the dim ink, was too faint to find on a phone (Ruben, 22 Sep 2026). A word says it opens something.
   const menu = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === MoreMenu);
   assert.equal(menu.props.label, "Actions");
+  assert.equal(menu.props.title, "Actions", "and its tooltip says the same word, not More");
   const cls = menu.props.btnClass.split(" ");
   assert.ok(
     cls.includes("btn-ghost") && cls.includes("ix-th-more") && !cls.includes("btn-icon"),

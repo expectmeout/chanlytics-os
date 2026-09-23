@@ -501,9 +501,8 @@
   /* The thread's own rules sit on the thread (.ix-thread-pane), not on the page that mounts it: the one thread opens in
      Conversations too, and a rule written as .inbox … drew it there without them -- two looks from one component. */
   .ix-thread-pane .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
-  /* The menu holds Snooze, Archive and the profile now: a thumb tall, where it was 26px. */
-  .ix-thread-pane .ix-th-actions .btn-icon { min-width: 44px; }
-  .ix-thread-pane .btn.ix-th-more { min-height: 40px; padding: 0 12px; }
+  /* The menu holds Snooze, Archive and the profile now: a thumb tall, as Back beside it is, where it was 26px. */
+  .ix-thread-pane .btn.ix-th-more { min-height: 44px; padding: 0 12px; }
   /* One line under the name: the wires, then the visit's day. Its time is a desktop's; here it took the whole line. */
   .ix-th-visit-time { display: none; }
   .ix-thread-pane .ix-context-strip { display: none; }

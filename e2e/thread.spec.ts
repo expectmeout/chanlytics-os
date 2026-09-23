@@ -296,7 +296,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/inbox");
       let pane = await openRobin(page, "Needs you");
       // Snooze is in the thread's menu: the header had it as a button too, beside the menu that held it.
-      await pane.getByRole("button", { name: "More", exact: true }).click();
+      await pane.getByRole("button", { name: "Actions", exact: true }).click();
       await pane.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
       pane = await openRobin(page, "Snoozed");
