@@ -141,13 +141,21 @@ test("Escape folds it and keeps the answer for the next opening; Clear forgets a
   delete W.__ask;
 });
 
-test("a question: it reads, the answer streams, then it settles as the Line draws it; a next question stays on the thread", async () => {
+test("a question: it reads, the answer's Say streams, then it settles as the Line draws it; a next question stays on the thread", async () => {
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Nora has waited longest.", detail: "" },
+    show: { figures: [], items: [], breakdown: null },
+    do: { open: null, next: ["Who else is waiting?"] },
+    language: "en",
+  };
   const A = client([
     { t: "thread", id: "th1", title: "who's waited longest?" },
     { t: "trace", text: "Reading the inbox…" },
-    { t: "delta", text: "Nora has " },
-    { t: "delta", text: "waited longest." },
-    { t: "final", message: msg({ followups: ["Who else is waiting?"] }) },
+    { t: "say", headline: "Nora has", detail: "" },
+    { t: "say", headline: "Nora has waited longest.", detail: "" },
+    { t: "final", message: msg({ followups: ["Who else is waiting?"], answer }) },
   ]);
   W.__ask = A;
   let tree = openBand(start());

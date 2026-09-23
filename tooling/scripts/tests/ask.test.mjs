@@ -6,26 +6,23 @@
  * workspace: jumps from the cache, Today's queue as "Right now",
  * suggestions from the data, three questions answered without a model, and
  * a model turn that reads through capped view-model tools as the signed-in
- * person, answers in a strict shape, and may cite only what it read.
+ * person, answers in the Line's shape, and may name only what it read. The
+ * answer's own tests are ask-answer.test.mjs; the turn's, ask-turn.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  ASK_FINISH_JSON_SCHEMA,
   ASK_PAGES,
   ASK_TOKENS_DAY,
   AskProposalOutcomeSchema,
-  citationsToShow,
-  followupsToShow,
   navigateLabel,
   sameQuestion,
   PROPOSAL_GATE,
   applySettingsChange,
   askJump,
   cleanAnswer,
-  recoverCitations,
   buildAskSuggestions,
   citationRoute,
   dayFromQuestion,
@@ -35,10 +32,6 @@ import {
   askIntent,
   groundCitations,
   isUngrounded,
-  normalizeNavigate,
-  parseAskFinish,
-  partialAnswer,
-  safeNavigate,
   scopeFromRoute,
   ASK_MODEL,
 } from "@chanlytics/contracts";
@@ -49,41 +42,7 @@ const NOW = Date.parse("2026-09-05T15:00:00Z");
 const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
 const ID2 = "9f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5d";
 
-test("the finish shape: every key required, nothing extra, and the parse is forgiving about values but not about an empty answer", () => {
-  assert.deepEqual(ASK_FINISH_JSON_SCHEMA.required, ["answer", "citations", "followups", "navigate", "language"]);
-  assert.equal(ASK_FINISH_JSON_SCHEMA.additionalProperties, false);
-  const ok = parseAskFinish(
-    JSON.stringify({
-      answer: "  Two people need you: Dani and Rosa.  ",
-      citations: [
-        { kind: "thread", id: ID, label: "Dani" },
-        { kind: "nonsense", id: "x", label: "" },
-      ],
-      followups: ["What did Dani ask?", "", "  Open Rosa  ", "a", "b", "c"],
-      navigate: { to: "#/inbox", label: "" },
-      language: "en",
-    }),
-  );
-  assert.ok(ok.ok);
-  assert.equal(ok.value.answer, "Two people need you: Dani and Rosa.");
-  assert.deepEqual(
-    ok.value.citations,
-    [{ kind: "thread", id: ID, label: "Dani" }],
-    "a citation without a label is dropped; an unknown kind becomes a page",
-  );
-  assert.deepEqual(ok.value.followups, ["What did Dani ask?", "Open Rosa", "a"], "three follow-ups at most, trimmed");
-  assert.deepEqual(
-    ok.value.navigate,
-    { to: "inbox", label: "Open", now: false },
-    "a route is a route without the hash; now defaults to false",
-  );
-  assert.equal(parseAskFinish('{"answer":""}').ok, false);
-  assert.equal(parseAskFinish("not json").ok, false);
-  const bare = parseAskFinish({ answer: "Hola", language: "xx" });
-  assert.ok(bare.ok && bare.value.language === "other" && bare.value.navigate === null);
-});
-
-test("grounding: a citation must name a row a tool returned this turn; pages are always allowed; a navigate target is checked the same way", () => {
+test("grounding: a citation must name a row a tool returned this turn; pages are always allowed", () => {
   const read = emptyReadSet();
   read.thread.add(ID);
   read.person.add(ID2);
@@ -108,24 +67,9 @@ test("grounding: a citation must name a row a tool returned this turn; pages are
   assert.equal(citationRoute({ kind: "call", id: ID, label: "" }), `conversations/cv-${ID}`);
   assert.equal(citationRoute({ kind: "person", id: ID2, label: "" }), `clients/${ID2}`);
   assert.equal(citationRoute({ kind: "page", id: "admin/autonomy", label: "" }), "admin/autonomy");
-  assert.equal(safeNavigate("inbox", read), true);
-  assert.equal(safeNavigate(`inbox/th-${ID}`, read), true);
-  assert.equal(safeNavigate(`inbox/th-${ID2}`, read), false, "a thread the turn did not read");
-  assert.equal(safeNavigate(`clients/${ID2}`, read), true);
-  assert.equal(safeNavigate("https://x", read), false);
-  assert.equal(safeNavigate("", read), false);
   assert.equal(isUngrounded("We open at 10.", 0), true, "a figure with no read behind it");
   assert.equal(isUngrounded("We open at 10.", 1), false);
   assert.equal(isUngrounded("Nobody wrote today.", 0), false);
-});
-
-test("the answer streams out of a JSON prefix that is still arriving", () => {
-  assert.equal(partialAnswer('{"ans'), "");
-  assert.equal(partialAnswer('{"answer": "Two people need'), "Two people need");
-  assert.equal(partialAnswer('{"answer":"She said \\"tomorrow\\" at 4"'), 'She said "tomorrow" at 4');
-  assert.equal(partialAnswer('{"answer":"Line\\nbreak\\'), "Line\nbreak", "a half escape waits");
-  assert.equal(partialAnswer('{"answer":"Ma\\u00f1ana"'), "Mañana");
-  assert.equal(partialAnswer('{"answer":"done","citations":[]}'), "done");
 });
 
 test("the jump: two words reach a page, a person, a thread or a call; a question is not a jump", () => {
@@ -465,25 +409,12 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
   assert.ok(rate.includes('ask: { limit: 20, windowMs: 60_000, noun: "questions" },'));
 });
 
-test("the loop: read tools plus finish, tool_choice any then finish forced on the last round, reads in parallel, citations grounded, strict retried without", () => {
+test("the loop and its reads: several at once, the stable block cached, through the pages' own view models, capped, each recording what an answer may name", () => {
+  // How a turn ends -- the answer's format, auto then none, strict and the format retried without, sources grounded,
+  // a proposal counted as a read -- runs against scripted rounds in ask-turn.test.mjs.
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(l.includes('tool_choice: last ? { type: "tool", name: "finish" } : { type: "any" },'));
   assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
-  assert.ok(l.includes("const { kept, dropped } = groundCitations(f.citations, tc.read);"));
-  assert.ok(l.includes("normalizeNavigate(f.navigate.to, tc.read)"));
-  assert.ok(
-    l.includes("ungrounded: isUngrounded(f.answer, reads + proposals.length),"),
-    "a proposal counts as a read: its figures are the request, checked against the workspace",
-  );
-  assert.ok(
-    l.includes("featureRejected(e.refusal.message)") && l.includes("strict = false;"),
-    "a strict-tools rejection retries without strict, like the receptionist's format fallback",
-  );
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
-  assert.ok(
-    readCode("apps/dashboard/src/server/ask/round.ts").includes("partialAnswer(b.json)"),
-    "the answer streams out of the finish call, in the round module",
-  );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   for (const name of [
     "get_today",
@@ -502,7 +433,6 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   ]) {
     assert.ok(tools.includes(`name: "${name}"`), name);
   }
-  assert.ok(tools.includes("strict: true,"), "finish is strict");
   assert.ok(
     tools.includes("toTodayVM(") &&
       tools.includes("toInboxThreadVM(") &&
@@ -743,11 +673,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(pr.includes("opted out; nothing can be sent to them"));
   assert.ok(pr.includes("that reply is not waiting any more; there is nothing to rewrite"));
   assert.ok(pr.includes("that call is not in progress"));
+  // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(
-    loop.includes('const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];'),
-    "a viewer is never offered an act tool",
-  );
   assert.ok(
     loop.includes("const p = await ports.propose(tc, b.name, args);"),
     "an act tool becomes a proposal, never an action",
@@ -862,7 +789,9 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   );
 });
 
-test("an answer never carries tags: the leak seen on production is cut, its citations recovered, and the stream stops at the tag", () => {
+test("an answer never carries tags: the leak seen on production is cut", () => {
+  // Every string of the answer, and Say while it streams, goes through cleanAnswer: normalizeAnswer in
+  // ask-answer.test.mjs, the stream in ask-turn.test.mjs.
   const leaked =
     'The 4:22 AM call ran 5:16 and the receptionist handled it.</answer>\n<parameter name="citations">[{"kind": "call", "id": "' +
     ID +
@@ -875,103 +804,28 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
     "Two open at 10 < 12 slots.",
     "a bare less-than is not a tag",
   );
-  assert.deepEqual(recoverCitations(leaked), [{ kind: "call", id: ID, label: "4:22 AM call" }]);
-  assert.deepEqual(recoverCitations("nothing here"), []);
-  const parsed = parseAskFinish({
-    answer: leaked,
-    citations: [],
-    followups: ["Who is this caller?"],
-    navigate: { to: "", label: "" },
-    language: "en",
-  });
-  assert.ok(parsed.ok);
-  assert.equal(parsed.value.answer, "The 4:22 AM call ran 5:16 and the receptionist handled it.");
-  assert.deepEqual(
-    parsed.value.citations,
-    [{ kind: "call", id: ID, label: "4:22 AM call" }],
-    "the citations the model wrote into the wrong field still count",
-  );
-  assert.equal(
-    partialAnswer('{"answer":"It handled it.</answer>\\n<parameter name=\\"cit'),
-    "It handled it.",
-    "the stream shows nothing past the tag",
-  );
-  assert.equal(partialAnswer('{"answer":"<answer>Hola'), "Hola");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes("recent: v.timeline"),
     "list_threads carries the last exchanges, so one read round answers most questions",
   );
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate.to to that row"));
-  // Its sources are drawn as the answer's items (contracts answerFromV1): executed in ask-answer.test.mjs.
 });
 
-test("the answer's shape for the line: 'open' is a navigate with now, the mic says when it cannot listen, lists go one per line", () => {
-  assert.deepEqual(ASK_FINISH_JSON_SCHEMA.properties.navigate.required, ["to", "label", "now"]);
-  const go = parseAskFinish({
-    answer: "Opening the 3:34 AM call.",
-    citations: [],
-    followups: [],
-    navigate: { to: "conversations/cv-" + ID, label: "Open the call", now: true },
-    language: "en",
-  });
-  assert.ok(go.ok && go.value.navigate.now === true);
-  const stay = parseAskFinish({
-    answer: "Two people wrote.",
-    citations: [],
-    followups: [],
-    navigate: { to: "inbox", label: "Inbox" },
-    language: "en",
-  });
-  assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
+test("the Line's mic says when it cannot listen, and the eval checks that an Open asked for is followed", () => {
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(
     ui.includes('data-testid="ask-talk-off"'),
     "where the browser cannot listen, the mic says so instead of vanishing",
   );
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
-  // ask-palette.test.mjs ("open, show or see").
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(
-    prompt.includes("with now: true, and answer in one line") &&
-      prompt.includes("More than two items (calls, threads, people) go one per line."),
-  );
+  // ask-palette.test.mjs ("open, show or see", "a turn since the Line").
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
 });
 
-test("a place to open is normalised to the app's route, never dropped over its spelling; every row a tool returns says where it opens", () => {
-  const read = emptyReadSet();
-  read.call.add(ID);
-  read.person.add(ID2);
-  assert.equal(normalizeNavigate(`conversations/cv-${ID}`, read), `conversations/cv-${ID}`);
-  assert.equal(normalizeNavigate(`calls/${ID}`, read), `conversations/cv-${ID}`, "the model's own spelling of a call");
-  assert.equal(normalizeNavigate(`#/live/${ID}`, read), `conversations/cv-${ID}`);
-  assert.equal(normalizeNavigate(ID, read), `conversations/cv-${ID}`, "a bare id lands on the set that holds it");
-  assert.equal(normalizeNavigate(`people/${ID2}`, read), `clients/${ID2}`);
-  assert.equal(normalizeNavigate(`contacts/${ID2}/profile`, read), `clients/${ID2}`);
-  assert.equal(
-    normalizeNavigate(`clients/${ID}`, read),
-    `conversations/cv-${ID}`,
-    "an id the turn read as a call opens the call even under the wrong kind",
-  );
-  assert.equal(
-    normalizeNavigate("clients/1f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b00", read),
-    null,
-    "an id that was never read is nothing, even in a good spelling",
-  );
-  assert.equal(normalizeNavigate("inbox", read), "inbox");
-  assert.equal(normalizeNavigate("admin/autonomy", read), "admin/autonomy");
-  assert.equal(normalizeNavigate("https://evil.example/x", read), null);
-  const tr = emptyReadSet();
-  tr.thread.add(ID);
-  assert.equal(normalizeNavigate(`inbox/${ID}`, tr), `inbox/th-${ID}`);
-  assert.equal(
-    normalizeNavigate(`conversations/${ID}`, tr),
-    `inbox/th-${ID}`,
-    "a chat conversation opens in the Inbox",
-  );
+test("every row a tool returns says where it opens", () => {
+  // Whatever the model then writes for it -- the id, the route, another kind -- is that row, or nothing:
+  // normalizeAnswer's sources in ask-answer.test.mjs.
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   for (const r of [
     "route: `inbox/th-${r.conversationId}`",
@@ -982,12 +836,6 @@ test("a place to open is normalised to the app's route, never dropped over its s
     "route: `conversations/cv-${id}`",
   ])
     assert.ok(tools.includes(r), r);
-  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(loop.includes("normalizeNavigate(f.navigate.to, tc.read)") && !loop.includes("safeNavigate("));
-  assert.ok(
-    /console\.warn\(\s*"ask_navigate_dropped"/.test(loop),
-    "a dropped target is logged so the next spelling can be taught",
-  );
 });
 
 test("context first: the day rides into every turn, its rows can be cited, loaders are memoised and lighter, and the rounds run at low effort", () => {
@@ -1022,9 +870,8 @@ test("context first: the day rides into every turn, its rows can be cited, loade
     /console\.error\(\s*"ask_snapshot_failed"/.test(loop),
     "a failed snapshot costs the snapshot, never the turn",
   );
-  assert.ok(
-    loop.includes("output_config: { effort: EFFORT }") && loop.includes('const EFFORT: "low" | "medium" = "low";'),
-  );
+  // Every round asks at low effort: the request itself, in ask-turn.test.mjs.
+  assert.ok(loop.includes('const EFFORT: "low" | "medium" = "low";'));
   assert.ok(
     loop.includes('...(snapshot ? [{ type: "text", text: snapshot, cache_control: { type: "ephemeral" } }] : []),'),
     "the snapshot is the second cache breakpoint: a turn's later rounds and a quick follow-up read it from the cache",
@@ -1064,7 +911,8 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
 });
 
-test("result titles and the cards to finish: a thread is titled by what it did, and an operator is offered cards to finish", () => {
+test("the cards to finish: an operator is offered cards to finish, a viewer none", () => {
+  // A thread keeps its first question as its title (D9): executed through the route in ask-routes.test.mjs.
   const withActs = buildAskSuggestions({
     surface: "settings",
     language: "en",
@@ -1108,13 +956,6 @@ test("result titles and the cards to finish: a thread is titled by what it did, 
     canAct: true,
   });
   assert.ok(es.some((s) => s.kind === "act" && /Retén cada respuesta/.test(s.q)));
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
-  assert.ok(prompt.includes("export function resultTitle("));
-  const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
-  assert.ok(
-    route.includes("await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));"),
-    "a new thread is titled by its first answer's result",
-  );
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(
     ui.includes("if (it.compose) { setQuery(it.q);"),
@@ -1127,21 +968,8 @@ test("result titles and the cards to finish: a thread is titled by what it did, 
   );
 });
 
-test("a proposal and the answer share a round; a read beside a finish sets the finish aside", () => {
-  const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(
-    loop.includes("if (finish && calls.length && calls.every((b) => ACT_TOOL_NAMES.has(b.name))) {"),
-    "act tools beside finish run first, then the answer stands",
-  );
-  assert.ok(
-    /console\.warn\(\s*"ask_finish_beside_read"/.test(loop) && loop.includes("finish = undefined;"),
-    "an answer written before its read is not an answer",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      "A proposal needs no second round: call the act tool and finish together",
-    ),
-  );
+test("the hours and the definitions come from the prompt: the eval expects no read for them", () => {
+  // An act beside the answer stands and a read beside it sets it aside: executed in ask-turn.test.mjs.
   const cases = JSON.parse(readRaw("tooling/evals/ask-cases.json"));
   assert.ok(!cases.find((c) => c.id === "hours").expect.tools_any, "hours come from the prompt, no read expected");
   assert.ok(
@@ -1150,7 +978,9 @@ test("a proposal and the answer share a round; a read beside a finish sets the f
   );
 });
 
-test("what an answer shows is decided once: the Open button never repeats as a chip, a follow-up never echoes a place, a repeated question is the same thread", () => {
+test("the Open button says where it goes, a repeated question is the same thread, and the bridge is four modules composed", () => {
+  // What an answer shows is decided once, a place offered once and a next question that echoes one dropped: oneDoor,
+  // executed in ask-answer.test.mjs.
   const nav = { to: `conversations/cv-${ID}`, label: "Call transcript" };
   assert.equal(
     navigateLabel(nav, "en"),
@@ -1160,25 +990,6 @@ test("what an answer shows is decided once: the Open button never repeats as a c
   assert.equal(navigateLabel({ to: `clients/${ID2}`, label: "Caller profile" }, "es"), "Abrir el perfil");
   assert.equal(navigateLabel({ to: "reports", label: "Reports" }, "en"), "Reports", "a page keeps its own name");
   assert.equal(navigateLabel(null, "en"), null);
-  const cites = [
-    { kind: "call", id: ID, label: "4:22 AM call", to: `conversations/cv-${ID}` },
-    { kind: "person", id: ID2, label: "Profile · +1 917", to: `clients/${ID2}` },
-    { kind: "person", id: ID2, label: "again", to: `clients/${ID2}` },
-  ];
-  assert.deepEqual(
-    citationsToShow(cites, nav).map((c) => c.label),
-    ["Profile · +1 917"],
-    "the call is the Open button; the profile appears once",
-  );
-  assert.deepEqual(
-    followupsToShow(
-      ["Show this caller's profile", "Why did the booking link fail?", "Open the 3:34 AM call transcript"],
-      cites,
-      nav,
-    ),
-    ["Why did the booking link fail?"],
-    "a follow-up that echoes a place the answer opens is dropped",
-  );
   assert.equal(sameQuestion("Who wrote today?", "who wrote today"), true);
   assert.equal(sameQuestion("Who wrote today?", "Who called today?"), false);
   assert.equal(sameQuestion("", ""), false);
@@ -1214,7 +1025,7 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   const count = (src) => (src.match(/^\s+name: "[a-z_]+",$/gm) ?? []).length;
   const reads = count(readCode("apps/dashboard/src/server/ask/tools.ts"));
   const acts = count(readCode("apps/dashboard/src/server/ask/proposals.ts"));
-  const total = reads + acts; // the finish tool is counted among the reads' file
+  const total = reads + acts;
   assert.ok(
     reads >= 14 && acts >= 10,
     `found ${reads} read and ${acts} act tools — the count regex no longer matches the files`,
@@ -1261,7 +1072,8 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
   // minute over the table -- runs in llm-door.test.mjs.
 });
 
-test("the speed pass, two: no definitions tool, a proposal ends the turn, the snapshot kept twenty seconds, fewer citations and follow-ups to write", () => {
+test("the speed pass, two: no definitions tool, a refused proposal keeps the round, the snapshot kept twenty seconds", () => {
+  // Cards alone are the answer, with no second round: executed in ask-turn.test.mjs.
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     !tools.includes("explain_metric") && !tools.includes("ASK_DEFINITIONS"),
@@ -1272,29 +1084,17 @@ test("the speed pass, two: no definitions tool, a proposal ends the turn, the sn
   );
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(
-    l.includes("export function proposalsAnswer(") &&
-      l.includes("const answer = prose || proposalsAnswer(proposals.slice(before), es);"),
-    "the cards are the answer",
-  );
-  assert.ok(
     /outcomes\.every\(\(\{ out \}\) => !out\.isError\) &&\s*proposals\.length > before/.test(l),
     "a refused proposal keeps the round",
   );
-  assert.ok(
-    l.includes("ports.snapshot(tc, input.timezone, input.scope).catch(") &&
-      l.includes("followups: f.followups.slice(0, 2)") &&
-      l.includes("citations: kept.slice(0, 4)"),
-  );
+  assert.ok(l.includes("ports.snapshot(tc, input.timezone, input.scope).catch("));
   const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
   assert.ok(
     snap.includes("export const SNAPSHOT_TTL_MS = 20_000;") && snap.includes("t.read[kind].add(id)"),
     "a kept snapshot's rows re-enter the read set",
   );
   assert.ok(snap.includes("`${t.tenantId}|${t.ctx.userId}|"), "kept per person, not per workspace");
-  const schema = readCode("packages/contracts/src/ask.ts");
-  assert.ok(
-    schema.includes("at most four — the ones the answer names") && schema.includes("Up to two short questions"),
-  );
+  // What the answer may hold is ASK_ANSWER_CAPS, said in the format's own words: ask-answer.test.mjs.
 });
 
 test("prefetch: the reads a question names plainly run beside the snapshot and ride into the first round; the rest is left to the model", async () => {

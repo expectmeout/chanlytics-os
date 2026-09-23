@@ -151,12 +151,19 @@ const TodayFace = () => {
       return;
     }
     let ended = false;
+    let said = 0;
     try {
       await A.send({ text: q, threadId: cur.threadId, scope: null, surface: "today" }, (ev) => {
         if (!alive.current) return;
         if (ev.t === "thread") dispatch({ t: "thread", id: ev.id, seq });
         else if (ev.t === "trace") dispatch({ t: "trace", text: ev.text, seq });
-        else if (ev.t === "delta") {
+        else if (ev.t === "say") {
+          // Say replaces the words as it grows; the three beat for what it grew by.
+          dispatch({ t: "say", headline: ev.headline, detail: ev.detail, seq });
+          const len = ev.headline.length + ev.detail.length;
+          if (M && len > said) M.mood.beat(Math.min(1, (len - said) / 6));
+          said = len;
+        } else if (ev.t === "delta") {
           dispatch({ t: "delta", text: ev.text, seq });
           if (M) M.mood.beat(Math.min(1, ev.text.length / 6));
         } else if (ev.t === "final") {

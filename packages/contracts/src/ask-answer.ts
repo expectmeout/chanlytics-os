@@ -629,9 +629,8 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
   const say = asObj(root.say);
   const headline = words(say.headline, C.headline);
   if (!headline) return { ok: false, error: "no headline" };
-  const language = (ASK_LANGUAGES as readonly unknown[]).includes(root.language)
-    ? (root.language as AskLanguage)
-    : fallback;
+  // English or Spanish as the model says; anything else is the turn's own (detectLanguage), as it was before the Line.
+  const language: AskLanguage = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
   const ground = (v: unknown): AskSource | null => {
     const s = groundRef(v, read);

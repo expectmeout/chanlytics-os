@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AppError,
+  type AskAnswer,
   type AskMessageVM,
   type AskProposal,
   type AskProposalOutcome,
@@ -44,11 +45,19 @@ export function toThreadVM(r: ThreadRow): AskThreadVM {
   };
 }
 
-/** The stored assistant turn, back into the shape the palette draws. */
+/**
+ * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
+ * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
+ */
 export function toMessageVM(r: MessageRow): AskMessageVM {
   const c = (r.content ?? {}) as Record<string, unknown>;
   const cites = Array.isArray(c.citations) ? (c.citations as AskMessageVM["citations"]) : [];
+  const answer =
+    c.v === 2 && c.answer && typeof c.answer === "object" && (c.answer as AskAnswer).v === 2
+      ? (c.answer as AskAnswer)
+      : null;
   return {
+    ...(answer ? { answer } : {}),
     id: r.id,
     role: r.role === "assistant" ? "assistant" : "user",
     text: typeof c.text === "string" ? c.text : "",
@@ -128,15 +137,6 @@ export async function appendMessage(
     .single();
   if (error) throw new Error(`ask message: ${error.message}`);
   return data;
-}
-
-/** A thread's title, once its first answer says what it was about. */
-export async function retitleThread(ctx: RouteContext, threadId: string, title: string): Promise<void> {
-  const { error } = await ctx.supabase
-    .from("ask_threads")
-    .update({ title: title.slice(0, 80), last_at: new Date().toISOString() })
-    .eq("id", threadId);
-  if (error) console.error("ask_thread_retitle_failed", error.message);
 }
 
 export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {

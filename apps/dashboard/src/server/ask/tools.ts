@@ -1,7 +1,6 @@
 import "server-only";
 import {
   ASK_CAPS,
-  ASK_FINISH_JSON_SCHEMA,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   PEOPLE_LISTS,
@@ -84,7 +83,6 @@ export interface ToolDef {
   name: string;
   description: string;
   input_schema: Record<string, unknown>;
-  strict?: boolean;
 }
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -184,14 +182,6 @@ export const READ_TOOLS: ToolDef[] = [
     input_schema: obj({}),
   },
 ];
-
-export const FINISH_TOOL: ToolDef = {
-  name: "finish",
-  description:
-    "Your answer to the person. Call it exactly once, after the reads you needed. The answer is plain text in their language; citations name only ids the tools returned this turn.",
-  input_schema: ASK_FINISH_JSON_SCHEMA as unknown as Record<string, unknown>,
-  strict: true,
-};
 
 export interface ToolRun {
   name: string;
@@ -1141,6 +1131,8 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
   }
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
   const vm = toCalendarVM(await calendarWeek(t.ctx, t.tenantId, { from, days }, t.now), t.now);
+  // A person the calendar names is a row read: the answer may name them, and open their profile.
+  for (const d of vm.days) for (const b of [...d.allDay, ...d.blocks]) if (b.person) t.read.person.add(b.person.id);
   return {
     route: "calendar",
     feed: vm.feed.line,

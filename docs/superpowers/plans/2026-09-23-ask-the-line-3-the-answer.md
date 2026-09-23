@@ -47,12 +47,12 @@
 | A round returns | The loop |
 |---|---|
 | Tool calls only | Runs the reads and the acts in parallel and asks again |
-| The answer (JSON text) only | `normalizeAnswer` → `oneDoor` with the turn's cards; the turn is answered |
+| The answer (JSON text) only | `normalizeAnswer`; the turn is answered. One door runs where the answer is drawn (the Line, the band), so an Open they asked for keeps its `now` beside the same row's item |
 | Act calls and the answer | Runs the acts; the answer stands |
 | Read calls and the answer | Sets the answer aside (`ask_answer_beside_read`), runs the reads, asks again |
 | Only cards, all made | `answerForCards`, no second round |
 | A 400 naming `output_config`/`format` | Retries the round without the format (`ask_format_rejected`); the words that come back are a `prose` answer |
-| A 400 naming `strict` or a schema | Retries without strict (`ask_strict_rejected`), as today |
+| Any other 400 naming `strict` or a schema | Retries without strict (`ask_strict_rejected`), as today; a second one, without the format too |
 | JSON that does not normalise (the cap mid-answer, no headline) | `failedAnswer("I could not shape the answer. Ask again.")`; `ask_answer_unparsed` |
 | Nothing, a refusal, a timeout, a broken stream, rounds exhausted | Today's sentences, as `failedAnswer` |
 
@@ -84,39 +84,39 @@
 
 ### Task 2: The turn (server)
 
-- [ ] `tools.ts`: `FINISH_TOOL` goes; `get_calendar` records the people it names.
-- [ ] `round.ts`: `onText(textSoFar)` on text deltas.
-- [ ] `loop.ts`: the table above; `TurnResult.answer` is an `AskAnswer`, with `text` its words; failures go through `failedAnswer`.
-- [ ] Rewrite `ask-turn.test.mjs`'s scripted rounds to answer as JSON text, and add the cases in the Files table.
+- [x] `tools.ts`: `FINISH_TOOL` goes; `get_calendar` records the people it names.
+- [x] `round.ts`: `onText(textSoFar)` on text deltas.
+- [x] `loop.ts`: the table above; `TurnResult.answer` is an `AskAnswer`, with `text` its words; failures go through `failedAnswer`.
+- [x] Rewrite `ask-turn.test.mjs`'s scripted rounds to answer as JSON text, and add the cases in the Files table.
 
 ### Task 3: The rules (prompt)
 
-- [ ] The anatomy's rules (spec 7.7), without numbers, and two short examples in the cached block.
-- [ ] `resultTitle` goes, and the route keeps a thread's question as its title (D9).
+- [x] The anatomy's rules (spec 7.7), without numbers, and two short examples in the cached block.
+- [x] `resultTitle` goes, and the route keeps a thread's question as its title (D9).
 
 ### Task 4: The door and the rows
 
-- [ ] `route.ts` stores `{v: 2, answer, ...v1FromAnswer(answer), ...}` and sends the message with its `answer`.
-- [ ] `store.ts` reads it back; `retitleThread` goes.
+- [x] `route.ts` stores `{v: 2, answer, ...v1FromAnswer(answer), ...}` and sends the message with its `answer`.
+- [x] `store.ts` reads it back; `retitleThread` goes.
 
 ### Task 5: The Line and the band read `say`
 
-- [ ] `api.ts` gains the `say` event.
-- [ ] `ask-real.jsx` keeps the say on the live turn.
-- [ ] `ask-turn.jsx` draws a streaming Say.
-- [ ] `turn.ts`/`today-face.jsx` replace the words on each `say`.
-- [ ] `ask.css` quiets a failed headline.
-- [ ] Tests: `ask-palette` (a v2 turn streams its say and lands its answer), `mascot-turn` (`say`).
+- [x] `api.ts` gains the `say` event.
+- [x] `ask-real.jsx` keeps the say on the live turn.
+- [x] `ask-turn.jsx` draws a streaming Say.
+- [x] `turn.ts`/`today-face.jsx` replace the words on each `say`.
+- [x] `ask.css` quiets a failed headline.
+- [x] Tests: `ask-palette` (a v2 turn streams its say and lands its answer), `mascot-turn` (`say`).
 
 ### Task 6: The eval set
 
-- [ ] First words, and the v2 checks.
-- [ ] `counts` on `week_report` and `who_said_yes`.
+- [x] First words, and the v2 checks.
+- [x] `counts` on `week_report` and `who_said_yes`.
 
 ### Task 7: Retired pins, gates, the gate's runs, PR
 
-- [ ] The retired pins go from `ask.test.mjs`, and `UPDATE_SOURCE_SCAN_BASELINE=1` lowers its count.
-- [ ] Gates: test, typecheck, lint, format:check and check:dist.
+- [x] The retired pins go from `ask.test.mjs`, and `UPDATE_SOURCE_SCAN_BASELINE=1` lowers its count.
+- [x] Gates: test, typecheck, lint, format:check and check:dist.
 - [ ] Build this branch, serve it on 3290, and run three v2 eval runs.
 - [ ] Compare with the three baseline runs: pass set, first words and final time.
 - [ ] PR, CI, merge on green. Then production: "who needs me right now?", "how did the last 7 days go?" and "open the transcript of the most recent call".

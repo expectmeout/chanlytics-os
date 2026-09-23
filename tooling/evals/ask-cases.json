@@ -63,6 +63,7 @@
     "text": "how did the last 7 days go?",
     "expect": {
       "tools_any": ["get_report"],
+      "counts": true,
       "no_write": true
     }
   },
@@ -209,6 +210,7 @@
     "text": "how many people can I send offers to?",
     "expect": {
       "tools_any": ["list_audiences"],
+      "counts": true,
       "no_write": true
     }
   },

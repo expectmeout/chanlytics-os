@@ -413,8 +413,8 @@ test("the server reads every key the format names: a whole answer as written com
     language: "en",
   });
   assert.equal(read1(written({ language: "es" })).answer.language, "es");
-  assert.equal(read1(written({ language: "other" }), "es").answer.language, "other");
-  assert.equal(read1(written({ language: "fr" }), "es").answer.language, "es", "one the format lacks is the turn's");
+  assert.equal(read1(written({ language: "other" }), "es").answer.language, "es", "other is the turn's own");
+  assert.equal(read1(written({ language: "fr" }), "es").answer.language, "es", "and so is one the format lacks");
 });
 
 test("every string is one line of words without tags, and every string and list is cut to its cap", () => {

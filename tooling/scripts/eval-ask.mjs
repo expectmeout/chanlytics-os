@@ -8,13 +8,17 @@
  * what the receptionist's harness checks, translated to an assistant: the
  * tools it chose (never a write — there are none, and the text must not
  * claim one), the language, the citations (only rows it read; a person who
- * does not exist gets none), and the phrases an answer must or must not
- * carry.
+ * does not exist gets none), the phrases an answer must or must not carry,
+ * and, on an answer made since the Line, what the page draws: a headline of
+ * one sentence, no place offered twice after one door, a count shown as a
+ * figure or a breakdown, and a breakdown that adds up (the spec's 10.2).
+ * Each run times the first words (a `say` or a v1 `delta`) and the final.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -169,6 +173,29 @@ export function judge(c, r) {
   )
     fails.push("no citation and no statement that there was nothing");
   if (m.ungrounded) fails.push("the answer was marked ungrounded (a figure with no read behind it)");
+  // The answer as the Line draws it, on every turn made since the Line.
+  const a = m.answer;
+  if (a && !m.failed) {
+    if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(a.say.headline))
+      fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
+    const cards = m.proposals ?? [];
+    const { answer: drawn, cardOpen } = oneDoor(a, cards);
+    const offered = [
+      ...drawn.show.items.map((i) => i.source.to),
+      ...(drawn.do.open ? [drawn.do.open.to] : []),
+      ...cards.filter((p) => cardOpen[p.id]).map((p) => cardOpenRoute(p)),
+      ...[...drawn.show.figures.map((f) => f.source), drawn.show.breakdown?.source]
+        .filter((s) => s && s.door)
+        .map((s) => s.to),
+    ];
+    const twice = offered.filter((to, i) => offered.indexOf(to) !== i);
+    if (twice.length) fails.push(`a place offered twice: ${[...new Set(twice)].join(", ")}`);
+    if (e.counts && !a.show.figures.length && !a.show.breakdown)
+      fails.push("a count shown by no figure and no breakdown");
+    const b = a.show.breakdown;
+    if (b && b.parts.reduce((s, p) => s + p.value, 0) !== b.total)
+      fails.push(`a breakdown whose parts do not add up to ${b.total}`);
+  }
   return { pass: fails.length === 0, fails };
 }
 
@@ -188,6 +215,15 @@ for (const c of cases) {
     id: c.id,
     text: c.text,
     answer: r.final?.text ?? null,
+    form: r.final?.answer?.form ?? null,
+    shown: r.final?.answer
+      ? {
+          figures: r.final.answer.show.figures.length,
+          items: r.final.answer.show.items.length,
+          breakdown: !!r.final.answer.show.breakdown,
+          open: r.final.answer.do.open?.to ?? null,
+        }
+      : null,
     rounds: r.final?.rounds ?? null,
     tools: r.final?.tools ?? [],
     proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),

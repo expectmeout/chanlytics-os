@@ -11,9 +11,14 @@ import { refusalOf } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
+/**
+ * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces; `delta` is a
+ * v1 turn's words, from a server before the Line (spec 7.5). The Line reads both.
+ */
 export type SendEvent =
   | { t: "thread"; id: string; title: string }
   | { t: "trace"; text: string }
+  | { t: "say"; headline: string; detail: string }
   | { t: "delta"; text: string }
   | { t: "final"; message: AskMessageVM }
   | { t: "error"; text: string };

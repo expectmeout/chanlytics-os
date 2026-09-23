@@ -140,10 +140,11 @@ test("a question: the workspace must be named, something must be asked and not t
   assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 0]);
 });
 
-test("a question answered: the thread is made before the model is asked, the person's words and the answer are its two turns, the thread is titled by what the answer did, and the stream says thread, then final", async () => {
-  // The turn through the route, with the model scripted: one round, a finish.
-  // Everything else -- the thread, the two messages, the retitle, the stream --
-  // is the route's own and runs for real against the database in memory.
+test("a question answered: the thread is made before the model is asked, the person's words and the answer are its two turns, the answer is stored as the Line draws it beside the v1 fields it gives, the thread keeps its question as its title, and the stream says thread, say, then final", async () => {
+  // The turn through the route, with the model scripted: one round, the answer
+  // written as its format. Everything else -- the thread, the two messages,
+  // the stream -- is the route's own and runs for real against the database
+  // in memory.
   const tables = {
     memberships: both("viewer", "operator"),
     tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
@@ -152,21 +153,25 @@ test("a question answered: the thread is made before the model is asked, the per
     ask_threads: [],
     ask_messages: [],
   };
-  const finish = {
-    type: "tool_use",
-    id: "f1",
-    name: "finish",
-    text: "",
-    json: JSON.stringify({
-      answer: "Nobody has booked this week yet.",
-      citations: [],
-      followups: ["Who called this week?"],
-      navigate: null,
-      language: "en",
-    }),
-  };
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "Nobody has booked this week yet.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: {
+      open: { source: { kind: "page", id: "calendar", label: "Calendar" }, label: "", now: false },
+      next: ["Who called this week?"],
+    },
+    language: "en",
+  });
   setAskPorts({
-    round: async () => ({ blocks: [finish], stopReason: "tool_use", streamError: null }),
+    round: async (_call, onText) => {
+      onText(written);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
     snapshot: async () => "",
   });
   try {
@@ -182,8 +187,9 @@ test("a question answered: the thread is made before the model is asked, the per
       .map((l) => JSON.parse(l));
     assert.deepEqual(
       lines.map((l) => l.t),
-      ["thread", "final"],
+      ["thread", "say", "final"],
     );
+    assert.deepEqual([lines[1].headline, lines[1].detail], ["Nobody has booked this week yet.", ""]);
     assert.equal(tables.ask_threads.length, 1, "the thread exists before the model was asked");
     const thread = tables.ask_threads[0];
     assert.deepEqual([lines[0].id, thread.tenant_id, thread.user_id], [thread.id, A, USER]);
@@ -193,19 +199,33 @@ test("a question answered: the thread is made before the model is asked, the per
         [thread.id, "user", "Who booked this week?"],
         [thread.id, "assistant", "Nobody has booked this week yet."],
       ],
-      "the person's words, then the answer",
+      "the person's words, then the answer's words",
+    );
+    const stored = tables.ask_messages[1].content;
+    const message = lines[2].message;
+    assert.equal(stored.v, 2);
+    assert.deepEqual(message.answer, stored.answer, "the final line carries the answer as stored");
+    assert.deepEqual(
+      [stored.answer.say.headline, stored.answer.do.open, stored.answer.do.next],
+      [
+        "Nobody has booked this week yet.",
+        { to: "calendar", label: "Calendar", now: false },
+        ["Who called this week?"],
+      ],
     );
     assert.deepEqual(
-      [lines[1].message.text, lines[1].message.followups, lines[1].message.failed, lines[1].message.rounds],
+      [stored.navigate, stored.followups, stored.citations],
+      [{ to: "calendar", label: "Calendar", now: false }, ["Who called this week?"], []],
+      "the v1 fields every older reader knows",
+    );
+    assert.deepEqual(
+      [message.text, message.followups, message.failed, message.rounds],
       ["Nobody has booked this week yet.", ["Who called this week?"], false, 1],
     );
-    assert.equal(lines[1].message.id, tables.ask_messages[1].id, "the final line carries the saved turn");
-    assert.notEqual(thread.title, "Who booked this week?".slice(0, 0), "titled");
-    assert.ok(
-      typeof thread.title === "string" && thread.title.length > 0 && thread.last_at,
-      "retitled by what the answer did, and touched",
-    );
-    assert.equal(tables.ask_messages[1].content.model, "claude-sonnet-5", "the one model name");
+    assert.equal(message.id, tables.ask_messages[1].id, "the final line carries the saved turn");
+    assert.equal(thread.title, "Who booked this week?", "titled by its question, never renamed (D9)");
+    assert.ok(thread.last_at, "and touched");
+    assert.equal(stored.model, "claude-sonnet-5", "the one model name");
     // A follow-up on the same thread: the history rides in, nothing is re-created.
     const again = await ask.POST.run(
       send("POST", { text: "And last week?", thread_id: thread.id }, inA),
@@ -217,6 +237,40 @@ test("a question answered: the thread is made before the model is asked, the per
   } finally {
     setAskPorts(null);
   }
+});
+
+test("a turn reads back as it was stored: one made since the Line with its answer, one made before with its v1 fields alone", async () => {
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Nobody has booked this week yet.", detail: "" },
+    show: { figures: [], items: [], breakdown: null },
+    do: { open: null, next: [] },
+    language: "en",
+  };
+  const M2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
+  const v1 = { citations: [], followups: [], navigate: null };
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    tenants: [],
+    tenant_config: [],
+    ask_threads: [threadRow(T1, A)],
+    ask_messages: [
+      turn(M1, T1, A, "assistant", { text: "Two threads wait.", ...v1 }),
+      {
+        ...turn(M2, T1, A, "assistant", { v: 2, answer, text: "Nobody has booked this week yet.", ...v1 }),
+        created_at: "2026-09-10T00:00:02Z",
+      },
+    ],
+  };
+  const one = await thread.GET.run(get(inA), ctxFor(tables, { id: T1 }));
+  assert.deepEqual(
+    one.messages.map((m) => [m.text, m.answer ?? null]),
+    [
+      ["Two threads wait.", null],
+      ["Nobody has booked this week yet.", answer],
+    ],
+  );
 });
 
 test("a card's outcome is the person's own turn: which card, an outcome in its shape, a turn that is theirs, and a card approved once cannot be approved again", async () => {

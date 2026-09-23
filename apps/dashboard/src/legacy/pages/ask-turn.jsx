@@ -265,18 +265,27 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   );
 };
 
-// A turn: the question over it, then the answer. While it streams, its words with a cursor (the Line says the answer
-// once it is whole, not every piece: spec 6.10); a failed turn says why and, on the latest only, offers Try again
-// (N20). A quick answer (no model) is drawn the same way, from `quick`.
-const AskTurn = ({ m, q, quick, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, compact = false }) => {
+// A turn: the question over it, then the answer. While it streams, Say as written so far (`say`: the headline, then
+// the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last; Show and Do wait for the
+// final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec 6.10). A failed turn
+// says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
+const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, compact = false }) => {
   const A = window.__ask;
   if (streaming) {
+    const cursor = <span className="ask-cursor" />;
     return (
       <div className="ask-turn streaming" data-testid="ask-turn">
         {q ? <p className="ask-turn-q">{q}</p> : null}
         <div className="ask-part say" data-testid="ask-say">
           <span className="ask-mark m1" aria-hidden="true" />
-          <p className="ask-prose">{m.text}<span className="ask-cursor" /></p>
+          {say ? (
+            <div className="ask-say">
+              {say.headline ? <p className="ask-headline">{say.headline}{say.detail ? null : cursor}</p> : null}
+              {say.detail ? <p className={say.headline ? "ask-detail" : "ask-prose"}>{say.detail}{cursor}</p> : null}
+            </div>
+          ) : (
+            <p className="ask-prose">{m.text}{cursor}</p>
+          )}
         </div>
       </div>
     );

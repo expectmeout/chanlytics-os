@@ -36,6 +36,9 @@ export type TurnEvent =
   | { t: "asked"; text: string; language: AskLanguage; seq: number }
   | { t: "thread"; id: string; seq: number }
   | { t: "trace"; text: string; seq: number }
+  /** the answer's Say as written so far: it replaces the words (a preview; the final message is the answer) */
+  | { t: "say"; headline: string; detail: string; seq: number }
+  /** a v1 turn's words, from a server before the Line: they add up */
   | { t: "delta"; text: string; seq: number }
   | { t: "final"; message: AskMessageVM; seq: number }
   | { t: "fast"; text: string; answer: AskAnswer; seq: number }
@@ -98,6 +101,13 @@ export function turnReducer(turn: Turn, ev: TurnEvent): Turn {
       return { ...turn, threadId: ev.id };
     case "trace":
       return turn.phase === "reading" ? { ...turn, trace: ev.text } : turn;
+    case "say":
+      return {
+        ...turn,
+        phase: "answering",
+        trace: null,
+        text: [ev.headline, ev.detail].filter(Boolean).join(" "),
+      };
     case "delta":
       return { ...turn, phase: "answering", trace: null, text: turn.text + ev.text };
     case "final":

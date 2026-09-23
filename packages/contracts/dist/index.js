@@ -9765,7 +9765,10 @@ var ASK_ANSWER_FORMAT = {
           type: "object",
           description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
-            label: { type: "string", description: `What the whole is ("customer messages"), at most ${C.label} characters.` },
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
+            },
             total: { type: "number" },
             parts: {
               type: "array",
@@ -9853,7 +9856,7 @@ function normalizeAnswer(raw, read, fallback) {
   const say = asObj(root.say);
   const headline = words2(say.headline, C.headline);
   if (!headline) return { ok: false, error: "no headline" };
-  const language = ASK_LANGUAGES.includes(root.language) ? root.language : fallback;
+  const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
   const ground = (v) => {
     const s = groundRef(v, read);
