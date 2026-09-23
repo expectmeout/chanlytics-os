@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>The three · prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  PROTOTYPE. Throwaway.
+  The question: does the Chanlytics mark, three rounded squares stepping down a diagonal, work as
+  the app's living face? Calm enough to sit above the queue all day, and clear when it listens,
+  reads and answers.
+  The Character script is the part worth keeping: pure, no DOM, no clock of its own.
+  drawCharacter is the canvas that goes with it. Everything after them is a shell for trying it.
+-->
+<style>
+  /* The app's own tokens (apps/dashboard/src/legacy/styles/tokens.css), so it is seen on the page it will live on */
+  :root {
+    --bg: oklch(0.985 0.003 80); --sunken: oklch(0.97 0.004 80); --raised: oklch(1 0 0);
+    --ink: oklch(0.18 0.01 260); --ink-muted: oklch(0.42 0.01 260); --ink-dim: oklch(0.52 0.01 260); --ink-faint: oklch(0.72 0.01 260);
+    --line: oklch(0.92 0.005 80); --line-strong: oklch(0.86 0.006 80);
+    --accent: oklch(0.62 0.19 25); --accent-fg: oklch(0.99 0 0); --ok: oklch(0.62 0.13 155);
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: oklch(0.16 0.005 260); --sunken: oklch(0.13 0.005 260); --raised: oklch(0.2 0.006 260);
+    --ink: oklch(0.96 0.004 80); --ink-muted: oklch(0.74 0.004 80); --ink-dim: oklch(0.64 0.004 80); --ink-faint: oklch(0.45 0.004 80);
+    --line: oklch(0.27 0.008 260); --line-strong: oklch(0.34 0.009 260);
+    --accent: oklch(0.7 0.18 28); --accent-fg: oklch(0.16 0.005 260); --ok: oklch(0.7 0.13 155);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 13.5px/1.5 "Geist", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, output { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  .bar h1 { margin: 0 auto 0 0; font-size: 13.5px; font-weight: 600; }
+  .bar h1 span { margin-left: 6px; font-weight: 400; color: var(--ink-dim); }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunken); }
+  .seg button { border: 0; border-radius: 6px; padding: 4px 10px; background: transparent; font-size: 12px; color: var(--ink-dim); }
+  .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  .icon { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--ink-dim); }
+  .icon:hover { color: var(--ink); }
+  .intro { max-width: 80ch; margin: 0; padding: 14px 20px 0; font-size: 13px; color: var(--ink-dim); }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: start; gap: 20px; max-width: 1200px; padding: 16px 20px 48px; }
+  @media (max-width: 920px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+  /* the character */
+  .stage { display: grid; place-items: center; min-height: 500px; padding: 20px 16px; border: 1px solid var(--line); border-radius: 16px; }
+  .face { display: grid; justify-items: center; gap: 12px; width: 100%; }
+  /* the canvas is wider than it is tall: the leap travels across, the stair stands in the middle */
+  .face-btn { position: relative; width: min(92vw, 480px); height: min(64vw, 330px); padding: 0; border: 0; border-radius: 20px; background: transparent; -webkit-tap-highlight-color: transparent; }
+  .face-btn canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .said { display: grid; align-content: start; gap: 4px; width: min(100%, 36ch); min-height: 4.8em; text-align: center; }
+  .said p { margin: 0; }
+  .heard { min-height: 1.4em; font-size: 12.5px; color: var(--ink-dim); }
+  .answer { font-size: 16px; line-height: 1.45; text-wrap: balance; }
+  .answer.trace { font-size: 12.5px; color: var(--ink-dim); }
+
+  /* On Today: a still copy of the phone's Today, so it is judged beside the work */
+  #view-today { display: grid; justify-items: center; }
+  .phone { width: min(100%, 390px); overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); }
+  .phone-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 500; }
+  .phone-top svg { color: var(--ink-dim); }
+  .standing { display: flex; flex-wrap: wrap; gap: 2px 10px; padding: 12px 16px 0; font-size: 11.5px; color: var(--ink-dim); }
+  .lines { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ok); }
+  #slot-today { padding: 6px 16px 0; }
+  #slot-today .face-btn { width: 100%; height: 232px; }
+  #slot-today .said { width: 100%; min-height: 3.6em; }
+  #slot-today .answer { font-size: 14.5px; }
+  .ask { display: flex; align-items: center; gap: 6px; height: 40px; margin: 4px 16px 14px; padding: 0 5px 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
+  .ask input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13.5px; }
+  .ask input::placeholder { color: var(--ink-faint); }
+  .ask button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-dim); }
+  .tq { margin: 0 16px 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+  .tq-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--sunken); }
+  .tq-title { font-size: 13px; font-weight: 500; }
+  .tq-sub, .tq-open { font-size: 11.5px; color: var(--ink-dim); }
+  .tq-row { padding: 12px 16px; }
+  .tq-row + .tq-row { border-top: 1px solid var(--line); }
+  .who { font-size: 13px; font-weight: 500; }
+  .who span { margin-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--ink-dim); }
+  .sent { margin-top: 3px; font-size: 12.5px; }
+  .st { margin-top: 3px; font-size: 11.5px; color: var(--ink-dim); }
+  .st b { font-weight: 500; color: var(--ink); }
+  .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); font-size: 12.5px; }
+  .btn.primary { border-color: transparent; background: var(--accent); color: var(--accent-fg); }
+
+  /* the side */
+  .side { display: grid; gap: 12px; }
+  .card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+  .card h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .now { display: grid; gap: 6px; margin: 0; }
+  .now div, .row { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; }
+  .now dt, .row .lbl { font-size: 12px; color: var(--ink-dim); }
+  .now dd { margin: 0; }
+  .meter { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: var(--line); }
+  .meter i { display: block; width: 0; height: 100%; background: var(--ink-faint); }
+  .play { display: grid; gap: 10px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); font-size: 12.5px; color: var(--ink-muted); }
+  .chip:hover { border-color: var(--line-strong); color: var(--ink); }
+  .chip[aria-pressed="true"] { border-color: var(--ink-faint); background: var(--sunken); color: var(--ink); }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  .voice { display: flex; align-items: center; gap: 10px; }
+  .voice input { flex: 1; min-width: 0; accent-color: var(--ink-muted); }
+  .voice output { width: 3.2em; font-size: 12px; color: var(--ink-dim); text-align: right; font-variant-numeric: tabular-nums; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .tab { height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 12.5px; color: var(--ink-dim); }
+  .tab[aria-selected="true"] { border-color: var(--line); background: var(--sunken); color: var(--ink); }
+  .scn-say { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-muted); }
+  .steps { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  .steps li { counter-increment: step; }
+  .step { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); font-size: 13px; color: var(--ink-faint); text-align: left; }
+  .step::before { content: counter(step); width: 1.2em; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .step.now { border-color: transparent; background: var(--accent); color: var(--accent-fg); }
+  .step.done { color: var(--ink-dim); }
+  .step.done::before { content: "\2713"; }
+  .step:disabled { cursor: default; }
+  .scn-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12.5px; color: var(--ink-dim); }
+  .link { padding: 0; border: 0; background: none; font-size: 12.5px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>The three<span>prototype</span></h1>
+  <div class="seg" role="group" aria-label="Where to see it">
+    <button type="button" data-view="stage" aria-pressed="true">Stage</button>
+    <button type="button" data-view="today" aria-pressed="false">On Today</button>
+  </div>
+  <div class="seg" role="group" aria-label="Colours">
+    <button type="button" data-palette="app" aria-pressed="true">App colours</button>
+    <button type="button" data-palette="logo" aria-pressed="false">Logo colours</button>
+  </div>
+  <button type="button" class="icon" id="theme" aria-label="Switch between light and dark" title="Light or dark">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg>
+  </button>
+</header>
+<p class="intro">Does this feel like Chanlytics' face? It is the three squares from the logo, alive: calm at rest, and clear when it listens, reads and answers. Press it to talk to it, try the buttons, or walk through a scenario.</p>
+
+<main class="main">
+  <section class="view" id="view-stage">
+    <div class="stage" id="slot-stage">
+      <div class="face" id="face">
+        <button type="button" class="face-btn" id="face-btn" aria-label="Talk to it"><canvas id="face-canvas"></canvas></button>
+        <div class="said" aria-live="polite"><p class="heard" id="heard"></p><p class="answer" id="answer"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-today" hidden>
+    <div class="phone">
+      <div class="phone-top"><span>Today</span><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4.5 12.5V8a4.5 4.5 0 0 1 9 0v4.5l1 1.5h-11l1-1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M7.5 15.5a1.6 1.6 0 0 0 3 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+      <div class="standing"><span>Tuesday · September 22 · 10:14 PM · Melany's Beauty Salon</span><span class="lines"><i class="dot"></i>3 of 3 lines connected</span></div>
+      <div id="slot-today"></div>
+      <form class="ask" id="ask-form">
+        <input id="ask" placeholder="Ask about today…" autocomplete="off" aria-label="Ask about today">
+        <button type="button" id="ask-mic" aria-label="Talk"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5.5" y="2" width="5" height="8" rx="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+      </form>
+      <div class="tq">
+        <div class="tq-head"><div><div class="tq-title">Your queue</div><div class="tq-sub">2 need you · 1 run waiting</div></div><span class="tq-open">Open Inbox →</span></div>
+        <div class="tq-row">
+          <div class="who">Nora Diaz<span>WhatsApp, waited 3d</span></div>
+          <div class="sent">“Photo: Something like this?”</div>
+          <div class="st"><b>Escalated</b> · sent something the receptionist can't read · since Sun 9:37 AM</div>
+          <div class="acts"><button type="button" class="btn primary">Open and reply</button><button type="button" class="btn">Snooze</button></div>
+        </div>
+        <div class="tq-row">
+          <div class="who">Leah Kim<span>Phone, waited 2d</span></div>
+          <div class="sent">Call Leah back to confirm the bridal trial on Oct 3. She needs a quote for three people.</div>
+          <div class="st"><b>Needs a call back</b> · since Sun 12:55 PM</div>
+          <div class="acts"><button type="button" class="btn">Open the call</button><button type="button" class="btn">Done</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <section class="card" aria-labelledby="now-h">
+      <h2 id="now-h">What it's doing</h2>
+      <dl class="now">
+        <div><dt>Doing</dt><dd id="now-doing">Resting</dd></div>
+        <div><dt>Hearing</dt><dd><span class="meter"><i id="now-level"></i></span></dd></div>
+        <div><dt>Just now</dt><dd id="now-last">Nothing yet</dd></div>
+      </dl>
+    </section>
+    <section class="card" aria-labelledby="play-h">
+      <h2 id="play-h">Try it</h2>
+      <div class="play">
+        <div class="row"><span class="lbl">Doing</span><div class="btns" id="states">
+          <button type="button" class="chip" data-state="idle" aria-pressed="true">Rest</button>
+          <button type="button" class="chip" data-state="listening" aria-pressed="false">Listen</button>
+          <button type="button" class="chip" data-state="thinking" aria-pressed="false">Read</button>
+          <button type="button" class="chip" data-state="speaking" aria-pressed="false">Answer</button>
+        </div></div>
+        <div class="row"><span class="lbl">React</span><div class="btns">
+          <button type="button" class="chip" data-react="nod">Nod</button>
+          <button type="button" class="chip" data-react="hop">Hop</button>
+          <button type="button" class="chip" data-react="shake">Shake</button>
+          <button type="button" class="chip" data-react="flip">Tumble</button>
+        </div></div>
+        <div class="row"><label class="lbl" for="voice">Your voice</label><div class="voice"><input type="range" id="voice" min="0" max="100" step="1" value="0"><output id="voice-out" for="voice">0%</output></div></div>
+        <div class="row"><span class="lbl"></span><div class="btns">
+          <button type="button" class="chip" id="mic" aria-pressed="false">Microphone</button>
+          <button type="button" class="chip" id="word">Say a word</button>
+          <button type="button" class="chip" id="aloud" aria-pressed="true">Read answers aloud</button>
+        </div></div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="walk-h">
+      <h2 id="walk-h">Walk through</h2>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <p class="scn-say" id="scn-say"></p>
+      <ol class="steps" id="steps"></ol>
+      <div class="scn-foot"><span id="scn-done" hidden>That's the whole scenario.</span><button type="button" class="link" id="scn-again">Start over</button></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+/* ============================================================================
+   THE CHARACTER. The part worth keeping. Pure: no DOM, no clock of its own.
+
+   Three rounded squares step down a diagonal, as they do in the logo. Feed the
+   character what happens (a state, a voice level, a word, a reaction, where
+   the pointer is), step it with tick(dt), and frame() says where each square
+   is, in squares, from the centre.
+
+   Each square follows a spring toward where the state wants it, so a change
+   of state is a morph with follow-through, never a cut. Hops, nods, leaps and
+   tumbles are keyframed on top of the springs.
+   ========================================================================== */
+const Character = (() => {
+  const STATES = ['idle', 'listening', 'thinking', 'speaking'];
+  const TAU = Math.PI * 2;
+  const STEP = [1.08, 0.64];                  // one step down the stair, in squares
+  // Each state is a formation, all at one size. At rest and while it reads, the logo's stair (the
+  // stair sits a little lower while it reads, so the leap's arc is centred). Listening is a
+  // huddle, the middle square forward; answering is a row, each word lifting one square in turn.
+  const LAYOUT = {
+    idle:      { corner: 0.24, spread: 1,    centre: 1,   dy: 0,   scale: 1 },
+    listening: { corner: 0.28 },
+    thinking:  { corner: 0.22, spread: 0.97, centre: 1.6, dy: 0.3, scale: 0.98 },
+    speaking:  { corner: 0.26 },
+  };
+  const FOLLOW = [15, 13, 11.5];              // spring stiffness by step: the first leads, the others follow
+  const LEAP = { dur: 0.64, crouch: 0.2, land: 0.88, height: 1.4, reach: 3.25, across: [0.1, 0.85] };
+  // The size of a square: a 200px band holds UNITS squares. The stair needs 2.3 squares of height;
+  // the leap needs 3.6 up and down and 4.3 across, so the canvas is wider than it is tall, and a
+  // little taller than the band that sets the size.
+  const UNITS = 3.8;
+
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const ease = (cur, tgt, dt, tau) => cur + (tgt - cur) * (1 - Math.exp(-dt / tau));
+  const inOut = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+
+  // where step k of the stair stands (idle and thinking, and where the leap lands)
+  function slotPos(state, k, extra) {
+    const L = LAYOUT[state] || LAYOUT.idle, f = (k - (L.centre ?? 1)) * (L.spread ?? 1) * extra;
+    return [STEP[0] * f, STEP[1] * f + (L.dy || 0)];
+  }
+  // where square k wants to be in a state: position, lean, size, and which one is in front
+  function pose(state, k, level, extra) {
+    if (state === 'listening') {
+      // the huddle: the middle square comes forward to you and grows with your voice; the other
+      // two tuck in behind it, tilted toward it, and draw in closer the louder you are
+      if (k === 1) return { x: 0, y: -0.42 - 0.06 * level, rot: 0, scale: 1 + 0.2 * level, z: 1 };
+      const side = k - 1;
+      return { x: side * (0.72 - 0.08 * level), y: 0.4 - 0.05 * level, rot: -side * 0.16, scale: 0.86 + 0.04 * level, z: 0 };
+    }
+    if (state === 'speaking') {
+      // the row: side by side, a shallow smile, each word lifting one of them in turn
+      return { x: (k - 1) * 1.24, y: 0.1 - 0.2 * (k - 1) * (k - 1), rot: (k - 1) * 0.06, scale: 1, z: 0 };
+    }
+    const [x, y] = slotPos(state, k, extra);
+    return { x, y, rot: 0, scale: LAYOUT[state].scale, z: 0 };
+  }
+  function seeded(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function create({ seed = 7, enter = true, fidgets = true, autoVoice = true, calm = false } = {}) {
+    const rand = seeded(seed);
+    let state = 'idle', stateAt = 0, prevLive = 0, clock = 0;
+    const W = { idle: 1, listening: 0, thinking: 0, speaking: 0 };
+    let heard = 0, voiced = 0, voiceLive = false, level = 0;
+    const hist = [];
+    let corner = LAYOUT.idle.corner, spreadAdd = 0, perk = 0;
+    const gaze = [0, 0], gazeV = [0, 0];
+    let fidgetGaze = [0, 0], pointer = null, pointerAge = 1e9;
+    let nextLeapAt = 0, leaps = 0, nextFidgetAt = 6 + rand() * 3;
+    let autoNextAt = 0, autoPhraseEnd = 0, onsetArmed = true, loud = false, quietFor = 0, lastWordAt = -1e9, wordAt = 0;
+    const actions = [], events = [];
+    const entering = enter && !calm;
+    const bodies = [0, 1, 2].map((i) => {
+      const [x, y] = slotPos('idle', i, 1);
+      return {
+        i, slot: i, x, y: entering ? y - 0.45 : y, vx: 0, vy: 0, sc: entering ? 0 : 1, vsc: 0, q: 0, vq: 0, rot: 0, vrot: 0,
+        cs: i, csO: null, live: 0, ox: 0, oy: 0, osc: 0, oq: 0, orot: 0, z: 0, front: 0, abs: null,
+        px: null, py: null, svx: 0, svy: 0,
+        out: { slot: i, x, y, size: entering ? 0 : 1, squash: 0, rot: 0, stretch: 0, angle: 0, z: 0, cs: i, live: 0 },
+      };
+    });
+
+    const note = (kind) => { events.push({ kind, at: clock }); if (events.length > 20) events.shift(); };
+    const run = (kind, params = {}) => { actions.push({ ...params, kind, t0: clock }); };
+    const byStep = () => new Map(bodies.map((b) => [b.i, b.slot]));
+    // a word: in the row, the next square along lifts and tips outward; anywhere else, a small wave of hops
+    function beatWave(v) {
+      if (state === 'speaking') {
+        const k = wordAt++ % 3, who = bodies.find((b) => b.slot === k);
+        run('push', { who, v: 0.5 + 0.5 * v, dir: [0, -1], spin: (k - 1) * 0.7 });
+      } else run('hop', { h: 0.08 + 0.2 * v, dur: 0.3, delay: 0.065, falloff: 0.82, crouch: 0.16 });
+    }
+    function levelAt(t) {
+      for (let n = hist.length - 1; n >= 0; n--) {
+        const a = hist[n];
+        if (a.t <= t) { const b = hist[n + 1]; return b && b.t > a.t ? a.v + (b.v - a.v) * ((t - a.t) / (b.t - a.t)) : a.v; }
+      }
+      return hist.length ? hist[0].v : 0;
+    }
+
+    // Each move adds to the squares' offsets for this frame, and says when it is finished.
+    const ACT = {
+      // the first square tumbles over the other two to the far end of the stair
+      leap(a, t) {
+        const j = a.jumper, p = t / LEAP.dur;
+        if (p < LEAP.crouch) {
+          const c = Math.sin((Math.PI * p) / LEAP.crouch);
+          j.oy += 0.05 * c; j.oq += 0.2 * c;
+          return false;
+        }
+        if (!a.from) a.from = [j.x, j.y];
+        // it rises before it moves across and drops straight onto the step, a little past the next
+        // one, so it never grazes the square it leaves or the one it lands beside
+        const to = slotPos('thinking', LEAP.reach, 1 + spreadAdd);
+        const u = Math.min(1, (p - LEAP.crouch) / (LEAP.land - LEAP.crouch));
+        const k = clamp((u - LEAP.across[0]) / (LEAP.across[1] - LEAP.across[0]), 0, 1);
+        const across = k * k * (3 - 2 * k);
+        j.abs = [a.from[0] + (to[0] - a.from[0]) * across, a.from[1] + (to[1] - a.from[1]) * u - LEAP.height * 4 * u * (1 - u)];
+        j.orot += (Math.PI / 2) * inOut(u);
+        j.z = 1;
+        j.csO = Math.min(2, 3 * across);
+        if (u < 1) {
+          for (const b of bodies) if (b !== j) {            // the other two duck as it passes over them
+            const d = Math.exp(-(((j.abs[0] - b.x) / 0.6) ** 2));
+            b.oy += 0.08 * d; b.oq += 0.14 * d;
+          }
+        } else if (!a.landed) {
+          a.landed = true;
+          j.vq += 4.2;
+          for (const b of bodies) if (b !== j) b.vq += 0.8;
+        }
+        if (p < 1) return false;
+        // it stays where it landed, one step past the end; the stair shifts, and the springs bring it back
+        j.x = to[0]; j.y = to[1]; j.vx = 0; j.vy = 0; j.cs = 2;
+        for (const b of bodies) b.slot = b === j ? 2 : b.slot - 1;
+        return true;
+      },
+      // a hop in place; with a delay per step, a wave of hops down the stair
+      hop(a, t) {
+        const dur = a.dur ?? 0.42, A = a.crouch ?? 0.22, h = a.h ?? 0.3, delay = a.delay ?? 0.075, fall = a.falloff ?? 1;
+        a.order ||= byStep();
+        a.group ||= a.only != null ? bodies.filter((b) => b.slot === a.only) : bodies.slice();
+        a.landed ||= new Set();
+        let busy = false;
+        for (const b of a.group) {
+          const k = a.only != null ? 0 : a.order.get(b.i);
+          const amp = Math.pow(fall, k), p = (t - k * delay) / dur;
+          if (p >= 1) {
+            if (!a.landed.has(b.i)) { a.landed.add(b.i); b.vq += 3 * (h / 0.3) * amp; }
+            continue;
+          }
+          busy = true;
+          if (p < 0) continue;
+          if (p < A) { const c = Math.sin((Math.PI * p) / A); b.oy += 0.035 * c * amp; b.oq += 0.16 * c * amp; }
+          else { const u = (p - A) / (1 - A); b.oy -= h * amp * 4 * u * (1 - u); }
+        }
+        return !busy;
+      },
+      // a word: one square lifts, tips a little, and lands with a squash
+      push(a, t) {
+        const b = a.who, dur = 0.34, p = t / dur;
+        if (!b) return true;
+        if (p >= 1) { if (!a.landed) { a.landed = true; b.vq += 2.2 * a.v; } return true; }
+        const s = Math.sin(Math.PI * p);
+        b.ox += a.dir[0] * 0.3 * a.v * s;
+        b.oy += a.dir[1] * 0.3 * a.v * s;
+        b.orot += a.spin * 0.22 * a.v * s;
+        b.osc += 0.08 * a.v * s;
+        b.z = 1;
+        return false;
+      },
+      // a dip and a small bow, running down the stair
+      nod(a, t) {
+        const amp = a.amp ?? 1;
+        a.order ||= byStep();
+        let busy = false;
+        for (const b of bodies) {
+          const k = a.order.get(b.i), p = (t - k * 0.07) / 0.4;
+          if (p >= 1) continue;
+          busy = true;
+          if (p < 0) continue;
+          const s = Math.sin(Math.PI * p);
+          b.oy += 0.12 * amp * s * (1 - 0.15 * k);
+          b.oq += 0.1 * amp * s;
+          b.orot += 0.12 * amp * s;
+        }
+        return !busy;
+      },
+      // no: a quick shake that dies away
+      shake(a, t) {
+        a.order ||= byStep();
+        if (t > 0.9) return true;
+        for (const b of bodies) {
+          const tt = t - a.order.get(b.i) * 0.045;
+          if (tt < 0) continue;
+          const e = Math.exp(-tt * 5) * Math.sin(tt * TAU * 5);
+          b.ox += 0.1 * e; b.orot += 0.1 * e;
+        }
+        return false;
+      },
+      // the first square tumbles backwards, in place
+      flip(a, t) {
+        const b = (a.who ||= bodies.find((x) => x.slot === 0));
+        const dur = 0.62, A = 0.22, p = t / dur;
+        if (p >= 1) { if (!a.landed) { a.landed = true; b.vq += 3.4; } return true; }
+        if (p < A) { const c = Math.sin((Math.PI * p) / A); b.oy += 0.04 * c; b.oq += 0.2 * c; return false; }
+        const u = (p - A) / (1 - A);
+        b.oy -= 0.5 * 4 * u * (1 - u);
+        b.orot -= (Math.PI / 2) * inOut(u);
+        b.z = 1;
+        return false;
+      },
+      // a stretch: the stair opens out and springs back
+      yawn(a, t) {
+        const dur = 1.1;
+        if (t >= dur) return true;
+        const s = Math.sin((Math.PI * t) / dur);
+        spreadAdd += 0.22 * s;
+        for (const b of bodies) b.oq -= 0.07 * s;
+        return false;
+      },
+      // a glance one way, then the other
+      look(a, t) {
+        a.dir ??= rand() < 0.5 ? -1 : 1;
+        if (t >= 2.8) { fidgetGaze = [0, 0]; return true; }
+        fidgetGaze = t < 1.2 ? [0.85 * a.dir, -0.2] : t < 2.2 ? [-0.55 * a.dir, 0.12] : [0, 0];
+        return false;
+      },
+    };
+
+    // At rest it is never frozen: every so often, one small thing.
+    function fidget() {
+      const r = rand();
+      if (r < 0.3) { run('look'); note('look'); }
+      else if (r < 0.55) { run('hop', { only: 2, h: 0.24, dur: 0.4 }); note('hop'); }
+      else if (r < 0.75) { run('yawn'); note('yawn'); }
+      else if (r < 0.9) { run('flip'); note('flip'); }
+      else { run('nod', { amp: 0.6 }); note('nod'); }
+    }
+
+    // The beats: a hop at each onset of a real voice, a rhythm of its own when there is none,
+    // and a small nod each time you stop talking.
+    function rhythm(dt) {
+      if (state === 'speaking') {
+        if (voiceLive) {
+          if (level < 0.16) onsetArmed = true;
+          else if (onsetArmed && level > 0.3) { beatWave(Math.min(1, level * 1.2)); onsetArmed = false; }
+        } else if (autoVoice && clock - lastWordAt > 1 && clock - stateAt > 0.12 && clock >= autoNextAt) {
+          if (clock < autoPhraseEnd) { beatWave(0.35 + rand() * 0.45); autoNextAt = clock + 0.2 + rand() * 0.2; }
+          else { autoPhraseEnd = clock + 0.45 + 1.4 + rand(); autoNextAt = clock + 0.45; }
+        }
+      }
+      if (state === 'listening') {
+        if (level > 0.26) { loud = true; quietFor = 0; }
+        else if (level < 0.08) {
+          quietFor += dt;
+          if (loud && quietFor > 0.3) { run('nod', { amp: 0.55 }); note('nod'); loud = false; }
+        }
+      }
+    }
+
+    function schedule() {
+      if (state === 'thinking' && clock >= nextLeapAt && !actions.some((a) => a.kind === 'leap')) {
+        run('leap', { jumper: bodies.find((b) => b.slot === 0) });
+        note('leap');
+        leaps += 1;
+        nextLeapAt = clock + LEAP.dur + (leaps % 3 === 0 ? 0.55 : 0.2);   // a breath after every third leap
+      }
+      if (fidgets && state === 'idle' && clock >= nextFidgetAt && !actions.length && W.idle > 0.95) {
+        fidget();
+        nextFidgetAt = clock + 7 + rand() * 7;
+      }
+    }
+
+    function tick(dt) {
+      if (!(dt > 0)) dt = 0;
+      clock += dt;
+      for (const s of STATES) W[s] = ease(W[s], s === state ? 1 : 0, dt, 0.16);
+
+      // the voice: yours while it listens, its own while it answers, kept for a moment so a wave can run down the stair
+      const raw = state === 'listening' ? heard : state === 'speaking' && voiceLive ? voiced : 0;
+      level = ease(level, raw, dt, raw > level ? 0.035 : 0.14);
+      hist.push({ t: clock, v: level });
+      if (hist.length > 120) hist.shift();
+
+      if (!calm) { rhythm(dt); schedule(); }
+
+      // where it looks: at you, or wherever a glance takes it
+      pointerAge += dt;
+      const seen = pointer && pointerAge < 2.5;
+      const gt = seen ? pointer.g : fidgetGaze;
+      for (let c = 0; c < 2; c++) { gazeV[c] += (25 * (gt[c] - gaze[c]) - 9 * gazeV[c]) * dt; gaze[c] += gazeV[c] * dt; }
+      perk = ease(perk, seen && pointer.near ? 1 : 0, dt, 0.15);
+
+      // what the moves add this frame
+      for (const b of bodies) { b.ox = 0; b.oy = 0; b.osc = 0; b.oq = 0; b.orot = 0; b.z = 0; b.abs = null; b.csO = null; }
+      spreadAdd = 0;
+      for (let n = actions.length - 1; n >= 0; n--) {
+        const a = actions[n];
+        if (ACT[a.kind](a, clock - a.t0)) actions.splice(n, 1);
+      }
+
+      // springs toward where the state wants each square
+      const spread = 1 + spreadAdd + 0.05 * perk * W.idle;
+      const steps = Math.max(1, Math.ceil(dt * 240)), h = dt / steps;
+      for (const b of bodies) {
+        const want = pose(state, b.slot, level, spread);
+        const ts = want.scale * (1 + 0.05 * perk * W.idle);
+        const w = FOLLOW[b.slot];
+        b.front = want.z;
+        for (let k = 0; k < steps && h > 0; k++) {
+          b.vx += (w * w * (want.x - b.x) - 2 * 0.62 * w * b.vx) * h; b.x += b.vx * h;
+          b.vy += (w * w * (want.y - b.y) - 2 * 0.62 * w * b.vy) * h; b.y += b.vy * h;
+          b.vsc += (256 * (ts - b.sc) - 16 * b.vsc) * h; b.sc += b.vsc * h;
+          b.vq += (576 * (0 - b.q) - 14.4 * b.vq) * h; b.q += b.vq * h;
+          b.vrot += (144 * (want.rot - b.rot) - 16.8 * b.vrot) * h; b.rot += b.vrot * h;
+        }
+      }
+
+      // what never stops: a breath at rest, the voice, the glance
+      if (!calm) {
+        const glance = W.idle + 0.4 * W.listening + 0.2 * W.speaking;
+        for (const b of bodies) {
+          const k = b.slot;
+          const br = 0.5 + 0.5 * Math.sin(clock * (TAU / 4.2) - k * 0.6);
+          b.oy -= W.idle * 0.035 * br;
+          b.osc += W.idle * 0.018 * br;
+          const Ld = levelAt(clock - k * 0.085);
+          b.oy -= W.speaking * Ld * 0.16;
+          b.osc += W.speaking * Ld * 0.04;
+          // the huddle sways a little, so listening never looks held
+          b.ox += W.listening * (k - 1) * 0.03 * Math.sin(clock * 1.6);
+          b.oy += W.listening * (k === 1 ? 0.02 : -0.015) * Math.sin(clock * 1.6 + 1);
+          b.ox += gaze[0] * [0.1, 0.075, 0.05][k] * glance;
+          b.oy += gaze[1] * [0.07, 0.05, 0.035][k] * glance;
+          b.orot += gaze[0] * 0.07 * glance;
+        }
+      }
+      corner = ease(corner, LAYOUT[state].corner, dt, 0.25);
+
+      // colour: which step it stands on, and whether it is at work. Addressed, it lights up at once;
+      // done, it keeps its colour through its nod and cools slowly, down the stair
+      const liveNow = state === 'idle' ? 0 : 1;
+      const warming = liveNow > prevLive;
+      for (const b of bodies) {
+        const hold = warming ? b.slot * 0.05 : 0.5 + b.slot * 0.09;
+        const target = clock - stateAt >= hold ? liveNow : prevLive;
+        b.live = ease(b.live, target, dt, target > b.live ? 0.08 : 0.45);
+        b.cs = b.csO != null ? b.csO : ease(b.cs, b.slot, dt, 0.16);
+      }
+
+      // where each square is drawn, and how fast it is going: it stretches the way it moves
+      for (const b of bodies) {
+        const x = (b.abs ? b.abs[0] : b.x) + b.ox, y = (b.abs ? b.abs[1] : b.y) + b.oy;
+        if (b.px != null && dt > 0) {
+          const f = 1 - Math.exp(-dt / 0.035);
+          b.svx += ((x - b.px) / dt - b.svx) * f;
+          b.svy += ((y - b.py) / dt - b.svy) * f;
+        }
+        b.px = x; b.py = y;
+        const o = b.out;
+        o.slot = b.slot; o.x = x; o.y = y;
+        o.size = Math.max(0, b.sc + b.osc);
+        o.squash = clamp(b.q + b.oq, -0.3, 0.45);
+        o.rot = b.rot + b.orot;
+        o.stretch = Math.min(0.2, Math.hypot(b.svx, b.svy) * 0.018);
+        o.angle = Math.atan2(b.svy, b.svx);
+        o.z = b.z || b.front; o.cs = b.cs; o.live = b.live;
+      }
+    }
+
+    function set(next) {
+      if (!STATES.includes(next) || next === state) return false;
+      const prev = state;
+      prevLive = state === 'idle' ? 0 : 1;
+      state = next;
+      stateAt = clock;
+      if (!calm) {
+        if (next === 'listening') { run('hop', { h: 0.16, dur: 0.36, delay: 0.06 }); note('perk'); loud = false; quietFor = 0; }
+        if (next === 'thinking') { nextLeapAt = clock + 0.34; leaps = 0; }
+        if (next === 'speaking') { autoNextAt = clock + 0.2; autoPhraseEnd = clock + 1.6 + rand() * 0.8; onsetArmed = true; wordAt = 0; }
+        if (next === 'idle') { nextFidgetAt = clock + 5 + rand() * 4; if (prev === 'speaking') { run('nod'); note('nod'); } }
+      }
+      return true;
+    }
+
+    // Reduced motion: the state's resting pose, drawn once, nothing moving.
+    function still() {
+      actions.length = 0; hist.length = 0;
+      spreadAdd = 0; perk = 0; level = 0; fidgetGaze = [0, 0];
+      gaze[0] = gaze[1] = gazeV[0] = gazeV[1] = 0;
+      for (const s of STATES) W[s] = s === state ? 1 : 0;
+      corner = LAYOUT[state].corner;
+      for (const b of bodies) {
+        const want = pose(state, b.slot, 0, 1);
+        Object.assign(b, { x: want.x, y: want.y, vx: 0, vy: 0, sc: want.scale, vsc: 0, q: 0, vq: 0, rot: want.rot, vrot: 0, front: want.z, cs: b.slot, live: state === 'idle' ? 0 : 1, px: null, py: null, svx: 0, svy: 0 });
+      }
+      prevLive = state === 'idle' ? 0 : 1;
+      stateAt = clock - 1;
+      tick(0);
+    }
+
+    return {
+      get state() { return state; },
+      get clock() { return clock; },
+      set, tick, still,
+      hear(v) { heard = clamp(+v || 0, 0, 1); },
+      voice(v, live = true) { voiced = clamp(+v || 0, 0, 1); voiceLive = !!live; },
+      beat(v = 0.6) { if (calm) return; lastWordAt = clock; beatWave(clamp(+v || 0, 0, 1)); },
+      react(kind, params = {}) { if (calm || !ACT[kind] || kind === 'leap') return false; run(kind, params); note(kind); return true; },
+      look(gx, gy, near) { if (calm) return; pointer = { g: [clamp(gx, -1, 1), clamp(gy, -1, 1)], near: !!near }; pointerAge = 0; },
+      away() { pointer = null; },
+      frame() { return { corner, bodies: bodies.map((b) => b.out) }; },
+      events() { return events.slice(); },
+    };
+  }
+
+  // ---- colour, in OKLab, so a change of mood blends the way the eye expects
+  const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const gam = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+  function rgbToLab(r, g, b) {
+    r = lin(r); g = lin(g); b = lin(b);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+  }
+  function css([L, A, B]) {
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+    const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+    const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    const to = (v) => Math.round(gam(clamp(v, 0, 1)) * 255);
+    return `rgb(${to(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s)},${to(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s)},${to(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)})`;
+  }
+  // '#rrggbb', '#rgb', 'rgb(r g b)' or 'oklch(L C H)', the forms the app's tokens use
+  function parseColor(v) {
+    if (Array.isArray(v)) return v;
+    const str = String(v || '').trim().toLowerCase();
+    let m;
+    if ((m = /^#([0-9a-f]{6})$/.exec(str))) { const n = parseInt(m[1], 16); return rgbToLab(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
+    if ((m = /^#([0-9a-f]{3})$/.exec(str))) { const [r, g, b] = [...m[1]].map((c) => parseInt(c + c, 16) / 255); return rgbToLab(r, g, b); }
+    if ((m = /^oklch\(\s*([\d.]+)(%?)\s+([\d.]+)\s+([\d.]+)/.exec(str))) {
+      const L = parseFloat(m[1]) / (m[2] ? 100 : 1), C = parseFloat(m[3]), hr = (parseFloat(m[4]) * Math.PI) / 180;
+      return [L, C * Math.cos(hr), C * Math.sin(hr)];
+    }
+    if ((m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(str))) return rgbToLab(+m[1] / 255, +m[2] / 255, +m[3] / 255);
+    return null;
+  }
+  const mix = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+
+  // The app's tokens (tokens.css) when the page gives none.
+  const TOKENS = {
+    light: { bg: 'oklch(0.985 0.003 80)', ink: 'oklch(0.18 0.01 260)', accent: 'oklch(0.62 0.19 25)' },
+    dark:  { bg: 'oklch(0.16 0.005 260)', ink: 'oklch(0.96 0.004 80)', accent: 'oklch(0.7 0.18 28)' },
+  };
+  // How far each square fades toward the page, first to last, the way the logo fades. On a dark page
+  // coral faded far turns to brick, so there it fades less.
+  const FADES = { light: { rest: [0.16, 0.44, 0.66], live: [0, 0.24, 0.44] }, dark: { rest: [0.1, 0.34, 0.54], live: [0, 0.13, 0.25] } };
+
+  // Three colours at rest and three at work, first square to last.
+  //   app:  the app's ink at rest; its accent, and only then, while the agent is at work
+  //   logo: the mark's own blue to teal
+  function palette(name, theme, tokens = {}) {
+    const th = theme === 'dark' ? 'dark' : 'light';
+    const t = {};
+    for (const k of ['bg', 'ink', 'accent']) t[k] = parseColor(tokens[k]) || parseColor(TOKENS[th][k]);
+    if (name === 'logo') {
+      const a = parseColor(th === 'dark' ? '#5b7cff' : '#4a6cf7'), b = parseColor(th === 'dark' ? '#3ad6c4' : '#2bc8b7');
+      const at = (u, fade) => mix(mix(a, b, u), t.bg, fade);
+      return { rest: [at(0, 0), at(0.5, 0.14), at(1, 0.28)], live: [at(0, 0), at(0.5, 0.05), at(1, 0.1)] };
+    }
+    const f = FADES[th];
+    return { rest: f.rest.map((x) => mix(t.ink, t.bg, x)), live: f.live.map((x) => mix(t.accent, t.bg, x)) };
+  }
+  const clonePalette = (p) => ({ rest: p.rest.map((c) => c.slice()), live: p.live.map((c) => c.slice()) });
+  function easePalette(cur, tgt, dt) {
+    for (const key of ['rest', 'live']) for (let k = 0; k < 3; k++) for (let c = 0; c < 3; c++) cur[key][k][c] = ease(cur[key][k][c], tgt[key][k][c], dt, 0.3);
+  }
+  // Between rest and work the colour gives up its saturation before its lightness, so a coral square
+  // cools through grey instead of through brown.
+  function colourOf(pal, cs, live) {
+    const c = clamp(cs, 0, 2), i = Math.min(1, Math.floor(c)), f = c - i;
+    const r = mix(pal.rest[i], pal.rest[i + 1], f), w = mix(pal.live[i], pal.live[i + 1], f), s = live * live * live;
+    return css([r[0] + (w[0] - r[0]) * live, r[1] + (w[1] - r[1]) * s, r[2] + (w[2] - r[2]) * s]);
+  }
+
+  return { STATES, UNITS, create, palette, clonePalette, easePalette, colourOf, parseColor, css };
+})();
+</script>
+
+<script>
+/* ============================================================================
+   THE DRAWING. Canvas 2D: three rounded squares, the front one last.
+   side: one square, in canvas pixels. By default the shorter side holds UNITS squares.
+   ========================================================================== */
+function drawCharacter(ctx, w, h, frame, pal, side = Math.min(w, h) / Character.UNITS) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const S = side, cx = w / 2, cy = h / 2;
+  const list = frame.bodies.slice().sort((a, b) => a.z - b.z || b.slot - a.slot);
+  for (const b of list) {
+    const side = S * b.size;
+    if (side < 0.5) continue;
+    ctx.save();
+    ctx.translate(cx + b.x * S, cy + b.y * S);
+    if (b.stretch > 0.002) { ctx.rotate(b.angle); ctx.scale(1 + b.stretch, 1 / (1 + b.stretch)); ctx.rotate(-b.angle); }
+    const k = 1 / (1 + b.squash);                  // squashed against the ground: the bottom edge stays put
+    ctx.translate(0, ((1 - k) * side) / 2);
+    ctx.scale(1 + b.squash, k);
+    ctx.rotate(b.rot);
+    const r = Math.min(side / 2, frame.corner * side), x = -side / 2, y = -side / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + side, y, x + side, y + side, r);
+    ctx.arcTo(x + side, y + side, x, y + side, r);
+    ctx.arcTo(x, y + side, x, y, r);
+    ctx.arcTo(x, y, x + side, y, r);
+    ctx.closePath();
+    ctx.fillStyle = Character.colourOf(pal, b.cs, b.live);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+</script>
+
+<script>
+/* ============================================================================
+   THE PAGE. Throwaway: views, buttons, scenarios, reading aloud, the microphone.
+   ========================================================================== */
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const html = document.documentElement;
+  const params = new URLSearchParams(location.search);
+  const reduced = params.has('still') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- the character and its canvas
+  const canvas = $('#face-canvas'), ctx = canvas.getContext('2d');
+  const character = Character.create({ seed: 7, calm: reduced, enter: !reduced });
+  let paletteName = params.get('palette') === 'logo' ? 'logo' : 'app';
+  const tokens = () => { const cs = getComputedStyle(html), v = (n) => cs.getPropertyValue(n).trim(); return { bg: v('--bg'), ink: v('--ink'), accent: v('--accent') }; };
+  let palTarget = Character.palette(paletteName, html.dataset.theme, tokens());
+  const pal = Character.clonePalette(palTarget);
+
+  // what it hears: the slider, the microphone, or a voice this page makes up
+  const sources = { slider: 0, mic: 0, fake: 0 };
+  const hearing = () => Math.max(sources.slider, sources.mic, sources.fake);
+
+  let w = 0, h = 0;
+  function fit() {
+    const dpr = Math.min(2, devicePixelRatio || 1), cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (!cw || !ch) return false;
+    const nw = Math.round(cw * dpr), nh = Math.round(ch * dpr);
+    if (nw !== w || nh !== h) { w = canvas.width = nw; h = canvas.height = nh; }
+    return true;
+  }
+  // On Today the band is 232px tall but the squares are sized as if it were 200: the extra room is
+  // for the leap, not for bigger squares.
+  const BAND = 200;
+  function frame(dt) {
+    character.hear(hearing());
+    if (!reduced) character.tick(dt);
+    Character.easePalette(pal, palTarget, reduced ? 1e6 : dt);
+    if (!fit()) return;
+    const dpr = w / canvas.clientWidth;
+    const side = (canvas.closest('#slot-today') ? BAND * dpr : Math.min(w, h)) / Character.UNITS;
+    drawCharacter(ctx, w, h, character.frame(), pal, side);
+  }
+  // the loop runs only while the page is visible and the canvas is on screen
+  let raf = 0, last = 0, visible = !document.hidden, onScreen = true;
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - (last || now)) / 1000);
+    last = now;
+    frame(dt);
+  }
+  function runLoop() {
+    const go = visible && onScreen && !reduced;
+    if (go && !raf) { last = 0; raf = requestAnimationFrame(loop); }
+    if (!go && raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+  document.addEventListener('visibilitychange', () => { visible = !document.hidden; runLoop(); });
+  new IntersectionObserver((es) => { onScreen = es.some((e) => e.isIntersecting); runLoop(); }).observe(canvas);
+  new ResizeObserver(() => { if (!raf) frame(0); }).observe(canvas);
+  const redrawStill = () => { if (reduced) { character.still(); frame(0); } };
+
+  // it looks where you are
+  addEventListener('pointermove', (e) => {
+    if (reduced) return;
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return;
+    const unit = Math.min(r.width, r.height) / Character.UNITS;
+    const dx = (e.clientX - (r.left + r.width / 2)) / unit, dy = (e.clientY - (r.top + r.height / 2)) / unit;
+    character.look(dx / 4, dy / 4, Math.hypot(dx, dy) < 2.3);
+  }, { passive: true });
+  html.addEventListener('pointerleave', () => character.away());
+
+  // ---- states, in words
+  const DOING = { idle: 'Resting', listening: 'Listening to you', thinking: 'Reading your workspace', speaking: 'Answering' };
+  const DID = { leap: 'leapt down its stair', nod: 'nodded', hop: 'hopped', shake: 'shook its head', flip: 'tumbled', look: 'looked around', yawn: 'stretched', perk: 'perked up' };
+  function setState(s) {
+    character.set(s);
+    $$('#states [data-state]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.state === s)));
+    redrawStill();
+    paintNow();
+  }
+  function react(kind, opts) { character.react(kind, opts); redrawStill(); paintNow(); }
+  function say(heard, answer, trace) {
+    $('#heard').textContent = heard || '';
+    $('#answer').textContent = answer || '';
+    $('#answer').classList.toggle('trace', !!trace);
+  }
+  // the panel: what it is doing, what it hears, and the last thing it did
+  function paintNow() {
+    $('#now-doing').textContent = DOING[character.state];
+    $('#now-level').style.width = Math.round(hearing() * 100) + '%';
+    const ev = character.events(), e = ev[ev.length - 1];
+    if (!e) { $('#now-last').textContent = 'Nothing yet'; return; }
+    const ago = character.clock - e.at;
+    $('#now-last').textContent = `${DID[e.kind] || e.kind} · ${ago < 1.5 ? 'just now' : `${Math.round(ago)}s ago`}`;
+  }
+  setInterval(paintNow, 200);
+
+  // ---- stories: each new one cancels the last
+  let story = 0, fakeTimer = 0, mic = null;
+  let aloud = 'speechSynthesis' in window && !params.has('quiet');
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  function fakeVoice(on) {
+    clearInterval(fakeTimer);
+    sources.fake = 0;
+    if (!on) return;
+    const t0 = performance.now();
+    fakeTimer = setInterval(() => {
+      const t = (performance.now() - t0) / 1000;
+      sources.fake = Math.max(0, 0.2 + 0.5 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 3.3)) * (0.8 + 0.2 * Math.sin(t * 5.3)));
+    }, 33);
+  }
+  function stopMic() {
+    if (mic) { mic.stop(); mic = null; }
+    $('#mic').classList.remove('on');
+    $('#mic').setAttribute('aria-pressed', 'false');
+  }
+  function hush() {
+    story += 1;
+    fakeVoice(false);
+    stopMic();
+    try { speechSynthesis.cancel(); } catch {}
+  }
+  async function talk(question) {
+    hush();
+    const id = story;
+    setState('listening');
+    say('', '');
+    fakeVoice(true);
+    const words = question.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      if (id !== story) return;
+      say(words.slice(0, i + 1).join(' '), '');
+      await wait(300 + words[i].length * 24);
+    }
+    if (id === story) fakeVoice(false);          // done talking: it nods a beat later, on its own
+  }
+  async function read(traces, question) {
+    hush();
+    const id = story;
+    setState('thinking');
+    let i = 0;
+    while (id === story) {
+      say(question, traces[i], true);
+      i = Math.min(i + 1, traces.length - 1);
+      await wait(1400);
+    }
+  }
+  async function answer(text, question) {
+    hush();
+    const id = story;
+    setState('speaking');
+    say(question, '');
+    await speak(text, (upto, word) => {
+      if (id !== story) return;
+      say(question, text.slice(0, upto));
+      character.beat(0.4 + Math.min(0.5, word.length * 0.05));
+    }, () => id === story);
+    if (id !== story) return;
+    say(question, text);
+    await wait(450);
+    if (id === story) setState('idle');            // and it nods
+  }
+  function fail(message, question) {
+    hush();
+    setState('idle');
+    react('shake');
+    say(question, message, true);
+  }
+  async function typed(q) {
+    read(['Reading your workspace…'], q);
+    const id = story;
+    await wait(1800);
+    if (id !== story) return;
+    answer(/wait|longest/i.test(q) ? A1 : "I'd look that up in your workspace. This prototype only knows who has waited longest.", q);
+  }
+
+  // Reading aloud with the browser's own voice; each word it reaches is a beat. A voice that never
+  // says which word it is on, or none at all, gets its words paced by hand.
+  function pickVoice() {
+    try {
+      const vs = speechSynthesis.getVoices();
+      return vs.find((v) => /^en[-_]US/i.test(v.lang) && v.localService && /aria|jenny|guy|zira|samantha|mark/i.test(v.name))
+        || vs.find((v) => /^en/i.test(v.lang) && v.localService) || vs.find((v) => /^en/i.test(v.lang)) || null;
+    } catch { return null; }
+  }
+  function speak(text, onWord, isAlive) {
+    const words = [...text.matchAll(/\S+/g)].map((m) => ({ w: m[0], at: m.index, end: m.index + m[0].length }));
+    let next = 0;
+    const sayNext = () => { const wd = words[next++]; onWord(wd.end, wd.w); };
+    return new Promise((resolve) => {
+      let done = false, voiceDone = !aloud, paceDone = true, heardWord = false;
+      const end = () => { if (!done && voiceDone && paceDone) { done = true; resolve(); } };
+      const pace = () => {
+        paceDone = false;
+        const step = () => {
+          if (done || !isAlive() || next >= words.length) { paceDone = true; return end(); }
+          const wd = words[next];
+          sayNext();
+          setTimeout(step, 200 + wd.w.length * 18 + (/[.,;:?!]$/.test(wd.w) ? 280 : 0));
+        };
+        step();
+      };
+      if (!aloud || !('speechSynthesis' in window)) { voiceDone = true; pace(); return; }
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        const v = pickVoice();
+        if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
+        u.rate = 1.04;
+        u.onboundary = (e) => {
+          if (e.name && e.name !== 'word') return;
+          heardWord = true;
+          if (!paceDone) return;
+          while (next < words.length && words[next].at <= e.charIndex) sayNext();
+        };
+        u.onend = () => { voiceDone = true; if (paceDone) next = words.length; end(); };
+        u.onerror = () => { voiceDone = true; if (!heardWord && paceDone && next === 0) pace(); else end(); };
+        speechSynthesis.speak(u);
+      } catch { voiceDone = true; pace(); return; }
+      setTimeout(() => { if (!done && !heardWord && paceDone && next === 0) pace(); }, 700);
+      setTimeout(() => { voiceDone = true; end(); }, 3000 + words.length * 450);
+    });
+  }
+  try { speechSynthesis.getVoices(); } catch {}
+
+  // ---- the microphone: its level is your voice
+  async function toggleMic() {
+    if (mic) { hush(); say('', ''); setState('idle'); return; }
+    hush();
+    const id = story;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (id !== story) { stream.getTracks().forEach((t) => t.stop()); return; }
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') await ac.resume();
+      const an = ac.createAnalyser();
+      an.fftSize = 1024;
+      an.smoothingTimeConstant = 0.4;
+      ac.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      const timer = setInterval(() => {
+        an.getFloatTimeDomainData(buf);
+        let s = 0;
+        for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+        sources.mic = Math.min(1, Math.pow(Math.sqrt(s / buf.length) * 6.5, 0.8));
+      }, 33);
+      mic = { stop() { clearInterval(timer); stream.getTracks().forEach((t) => t.stop()); ac.close().catch(() => {}); sources.mic = 0; } };
+      $('#mic').classList.add('on');
+      $('#mic').setAttribute('aria-pressed', 'true');
+      setState('listening');
+      say('', 'Listening…', true);
+    } catch {
+      react('shake');
+      say('', 'The microphone is off. Allow it in the browser, then press again.', true);
+    }
+  }
+
+  // ---- scenarios
+  const Q1 = "Who's waited longest?";
+  const A1 = "Nora Diaz, since Sunday at 9:37. She sent a photo the receptionist can't read, so nobody has answered her yet.";
+  const Q2 = 'Can Nora come in Friday at three?';
+  const F2 = "I couldn't read the calendar just now. Try again in a moment.";
+  const Q3 = 'And who called?';
+  const A3 = 'Leah Kim called on Sunday about the bridal trial on October 3. She asked for a quote for three people.';
+  const LONG = "Nora Diaz has waited longest, since Sunday at 9:37. She sent a photo the receptionist can't read. Leah Kim is next: she called on Sunday and asked for a call back about a quote for three people.";
+  const SCENARIOS = [
+    { key: 'ask', tab: 'A question', say: "You ask who has waited longest. Watch it perk up as you start, nod when you finish, leap down its stair while it reads, bounce word by word as it answers, and nod when it's done.",
+      steps: [['Start talking', () => talk(Q1)], ['Let it read', () => read(['Reading the inbox…', "Checking who's waiting…"], Q1)], ['Let it answer', () => answer(A1, Q1)]] },
+    { key: 'fail', tab: "Can't answer", say: 'Something goes wrong while it reads. It shakes its head once and goes back to rest, with no alarm.',
+      steps: [['Start talking', () => talk(Q2)], ['Let it read', () => read(['Reading the calendar…'], Q2)], ['Reading fails', () => fail(F2, Q2)]] },
+    { key: 'over', tab: 'Talk over it', say: 'It is answering and you start talking. It stops at once and turns to you, then answers the new question.',
+      steps: [['Let it answer', () => answer(LONG, Q1)], ['Talk over it', () => talk(Q3)], ['Let it read', () => read(['Reading the calls…'], Q3)], ['Let it answer', () => answer(A3, Q3)]] },
+    { key: 'alone', tab: 'Left alone', say: 'Nobody is talking to it. Every so often it does one small thing, so it never looks frozen. On the page these come every 7 to 14 seconds; here you can call each one.',
+      steps: [['It looks around', () => react('look')], ['It hops', () => react('hop', { only: 2, h: 0.24, dur: 0.4 })], ['It stretches', () => react('yawn')], ['It tumbles', () => react('flip')], ['It nods', () => react('nod', { amp: 0.6 })]] },
+  ];
+  let scn = SCENARIOS[0], at = 0;
+  function renderWalk() {
+    $('#tabs').innerHTML = '';
+    for (const s of SCENARIOS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tab'; b.textContent = s.tab;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(s === scn));
+      b.onclick = () => openScenario(s.key);
+      $('#tabs').appendChild(b);
+    }
+    $('#scn-say').textContent = scn.say;
+    const ol = $('#steps');
+    ol.innerHTML = '';
+    scn.steps.forEach(([label, act], i) => {
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'step' + (i < at ? ' done' : i === at ? ' now' : '');
+      b.textContent = label;
+      b.disabled = i !== at;
+      b.onclick = () => { at = i + 1; renderWalk(); act(); };
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+    $('#scn-done').hidden = at < scn.steps.length;
+  }
+  function openScenario(key) {
+    scn = SCENARIOS.find((s) => s.key === key) || SCENARIOS[0];
+    at = 0;
+    hush();
+    sources.slider = 0; $('#voice').value = 0; $('#voice-out').value = '0%';
+    say('', '');
+    setState('idle');
+    renderWalk();
+  }
+  $('#scn-again').onclick = () => openScenario(scn.key);
+
+  // ---- free play
+  $$('#states [data-state]').forEach((b) => (b.onclick = () => { hush(); say('', ''); setState(b.dataset.state); }));
+  $$('[data-react]').forEach((b) => (b.onclick = () => react(b.dataset.react)));
+  $('#voice').oninput = (e) => {
+    const v = +e.target.value;
+    sources.slider = v / 100;
+    $('#voice-out').value = v + '%';
+    if (v > 0 && character.state !== 'listening') { hush(); say('', ''); setState('listening'); }
+  };
+  $('#mic').onclick = toggleMic;
+  $('#face-btn').onclick = toggleMic;
+  $('#ask-mic').onclick = toggleMic;
+  $('#word').onclick = () => character.beat(0.7);
+  $('#aloud').setAttribute('aria-pressed', String(aloud));
+  $('#aloud').onclick = () => { aloud = !aloud; $('#aloud').setAttribute('aria-pressed', String(aloud)); };
+  $('#ask-form').onsubmit = (e) => { e.preventDefault(); const q = $('#ask').value.trim(); if (!q) return; $('#ask').value = ''; typed(q); };
+
+  // ---- where to see it, and in what colours
+  function view(name) {
+    const today = name === 'today';
+    $('#view-stage').hidden = today;
+    $('#view-today').hidden = !today;
+    (today ? $('#slot-today') : $('#slot-stage')).appendChild($('#face'));
+    $$('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === (today ? 'today' : 'stage'))));
+    frame(0);
+  }
+  $$('[data-view]').forEach((b) => (b.onclick = () => view(b.dataset.view)));
+  function repaint() { palTarget = Character.palette(paletteName, html.dataset.theme, tokens()); redrawStill(); if (!raf) frame(0); }
+  $('#theme').onclick = () => { html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'; repaint(); };
+  $$('[data-palette]').forEach((b) => (b.onclick = () => {
+    paletteName = b.dataset.palette;
+    $$('[data-palette]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    repaint();
+  }));
+  if (paletteName === 'logo') $$('[data-palette]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.palette === 'logo')));
+
+  openScenario('ask');
+  if (params.get('view') === 'today') view('today');
+  runLoop();
+  redrawStill();
+
+  // ---- dev hooks, for checking by hand and for captures
+  window.__proto = {
+    character, frame, setState, react, view, openScenario,
+    hear(v) { sources.slider = v; },
+    advance(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) frame(dt); },
+    aloud(on) { aloud = !!on; $('#aloud').setAttribute('aria-pressed', String(aloud)); },
+    press(i) { const b = $$('#steps .step')[i]; if (b && !b.disabled) b.click(); },
+    theme(t) { if (html.dataset.theme !== t) $('#theme').click(); },
+    palette(p) { const b = $(`[data-palette="${p}"]`); if (b) b.click(); },
+    async strip(name, frames = 10, every = 4, cols = 5) {
+      const W = canvas.width, H = canvas.height, rows = Math.ceil(frames / cols);
+      const out = document.createElement('canvas');
+      out.width = W * cols; out.height = H * rows;
+      const o = out.getContext('2d');
+      o.fillStyle = Character.css(Character.parseColor(tokens().bg));
+      o.fillRect(0, 0, out.width, out.height);
+      for (let i = 0; i < frames; i++) { this.advance(every); o.drawImage(canvas, (i % cols) * W, Math.floor(i / cols) * H); }
+      const r = await fetch('/shot', { method: 'POST', body: JSON.stringify({ name, data: out.toDataURL('image/png') }) });
+      return r.json();
+    },
+  };
+})();
+</script>
+</body>
+</html>
