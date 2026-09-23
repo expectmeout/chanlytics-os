@@ -2084,8 +2084,17 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // Whether deals are on here (dealsAreOn, 0008): where they are off, nothing on the page says a deal -- no fact, no
   // timeline line, no proposal -- whatever the database holds.
   const dealsOn = !!d.deals_on;
-  // Their deals as the page lists them (0004): each row through the one view model the People row uses.
-  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x) : [];
+  // Their deals as the page lists them (0004): each row through the one view model the People row uses, and each
+  // proposal's link with whether it went (0008), read from the thread's own messages as the person's proposal is: the
+  // deal card says it for every proposal out, not only the one the page's head acts on.
+  const deals = dealsOn
+    ? (d.deals ?? [])
+        .map((x) => toDealVM(x, tz, nowMs))
+        .filter((x): x is DealVM => !!x)
+        .map((x) =>
+          x.proposal ? { ...x, proposal: { ...x.proposal, sent: proposalSent(d.conversations, x.proposal.url) } } : x,
+        )
+    : [];
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
   // carries the version a move is checked against, which the columns do not.
   const current = dealsOn ? (deals.find((x) => x.id === base.deal?.id) ?? base.deal) : null;

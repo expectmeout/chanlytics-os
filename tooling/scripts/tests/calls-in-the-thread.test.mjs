@@ -21,6 +21,8 @@ import {
   linkHost,
   proposalMessage,
   proposalLinkOf,
+  dealMenuActs,
+  DEAL_ACT_WORDS,
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
@@ -776,6 +778,9 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
   globalThis.window.__proposalMessage = proposalMessage;
   globalThis.window.__linkHost = linkHost;
   globalThis.window.__proposalLinkOf = proposalLinkOf;
+  // The deal's kit, as the courier publishes it (0008): the send's words are the Deal group's.
+  const dealWas = globalThis.window.__deal;
+  globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
   const peopleWas = globalThis.window.__PEOPLE;
   // People's row for the person behind the thread, as the surface publishes it: their deal as the row carries it.
   const people = (dealsOn, deal = null, id = "k-emily") => {
@@ -809,6 +814,10 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     const item = menu.props.items.find((i) => i.label === "Send the proposal");
     assert.ok(item, `the item is there: ${menu.props.items.map((i) => i.label)}`);
     assert.equal(item.hint, "docs.example.com", "the hint says where the link lives");
+    assert.equal(item.icon, "send");
+    // It heads the Deal group, after the person's own group.
+    const shape = menu.props.items.map((i) => (i.divider ? "|" : i.label));
+    assert.equal(shape[shape.indexOf("Send the proposal") - 1], "|", "a group of its own");
     item.onClick();
     assert.equal(events.length, 1, "one event");
     assert.equal(events[0].type, "inbox:compose");
@@ -863,5 +872,6 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     delete globalThis.window.__proposalMessage;
     delete globalThis.window.__linkHost;
     delete globalThis.window.__proposalLinkOf;
+    globalThis.window.__deal = dealWas;
   }
 });

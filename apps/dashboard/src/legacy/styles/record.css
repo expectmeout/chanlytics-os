@@ -210,6 +210,23 @@
   :root:has(.rec-sheet:not([data-leaving])) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
 }
 
+/* ---------- The deal sheet (components/deal-sheet.jsx, 0008): the kit's fields, in one column ---------- */
+.rec-sheet.deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
+.rec-sheet.deal-sheet .deal-sheet-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.rec-sheet.deal-sheet .deal-sheet-amount-row > .rec-box { flex: 1 1 110px; max-width: 200px; }
+.rec-sheet.deal-sheet .rec-input.deal-sheet-day { max-width: 200px; }
+/* Six reasons in a grid of even cells, not one row that runs past the sheet. */
+.rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
+.rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-sheet.deal-sheet .deal-sheet-how { display: flex; flex-direction: column; gap: 12px; }
+/* Sending is its own act, after what is recorded: a hairline above it. */
+.rec-sheet.deal-sheet .deal-sheet-send { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.rec-sheet.deal-sheet .deal-sheet-send-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rec-sheet.deal-sheet .deal-sheet-send-label { font-size: var(--text-base); color: var(--ink); }
+.rec-sheet.deal-sheet .deal-sheet-send .rec-field { margin-top: 6px; }
+.rec-sheet.deal-sheet .deal-sheet-said { margin: 20px 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
+.rec-sheet.deal-sheet .deal-sheet-reading { padding: 20px 0; }
+
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
 .rec-field { display: flex; flex-direction: column; gap: 5px; }
 .rec-field > label { display: flex; flex-direction: column; gap: 5px; }
@@ -347,6 +364,9 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* The sheet rises from the bottom, and its foot clears the home indicator. */
   .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
   .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  /* The deal sheet holds a few fields, so it is as tall as they are, as a fold's sheet is, never 88% of blank. */
+  .rec-sheet.deal-sheet { height: auto; max-height: 88vh; max-height: 88dvh; }
+  .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
      duration and easing (spec 9, item 1), and its wash comes in with it: a transition from where it starts, as the

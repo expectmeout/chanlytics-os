@@ -861,6 +861,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
 
       <AskBar open={askOpen} onClose={() => setAskOpen(false)} />
       <ShortcutsSheet />
+      {/* The one deal sheet (0008), opened from anywhere by window.openDealSheet: the person's card, the thread. */}
+      {window.DealSheetHost ? <window.DealSheetHost /> : null}
     </div>
   );
 };

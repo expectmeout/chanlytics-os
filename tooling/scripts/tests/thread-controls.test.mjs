@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, memberWords, dealMenuActs, DEAL_ACT_WORDS } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
@@ -569,28 +569,85 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
   }
 });
 
-test("Actions can record a deal, after the receptionist's settings, only where deals are a thing here", () => {
+test("Actions carry the deal's moves as a group of their own, by the stage of the deal People's row carries, each opening the one deal sheet; only where deals are on (0008)", () => {
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
-  const labels = (tree) =>
-    find(tree, (n) => n.type === MoreMenu).props.items.map((it) => (it.divider ? "|" : it.label));
+  const itemsOf = (tree) => find(tree, (n) => n.type === MoreMenu).props.items;
+  const shape = (tree) => itemsOf(tree).map((it) => (it.divider ? "|" : it.label));
+  const was = { deal: globalThis.window.__deal, open: globalThis.window.openDealSheet };
+  const opened = [];
+  // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
+  globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
+  globalThis.window.openDealSheet = (ask) => {
+    opened.push(ask);
+    return true;
+  };
+  const people = (deal, dealsOn = true) => {
+    globalThis.window.__PEOPLE = { rows: [{ id: "k1", deal }], dealsOn };
+  };
+  const press = (label) =>
+    itemsOf(draw(vm))
+      .find((it) => it.label === label)
+      .onClick();
   try {
-    globalThis.window.__PEOPLE = { rows: [], dealsOn: true };
-    const opened = [];
-    const items = find(draw(vm, { onOpenClient: (id) => opened.push(id) }), (n) => n.type === MoreMenu).props.items;
-    const at = items.findIndex((it) => it.label === "Record a deal…");
-    assert.ok(at > 0, "offered");
-    assert.equal(
-      items[at - 1].label,
+    // No deal: a proposal to start, in a group of its own after the person's.
+    people(null);
+    assert.deepEqual(shape(draw(vm)), [
+      "Snooze",
+      "Archive",
+      "|",
+      "Open profile",
       "Receptionist settings",
-      "after the receptionist's settings, in the person's group",
+      "|",
+      "Start a proposal",
+      "|",
+      "Export transcript",
+    ]);
+    assert.equal(itemsOf(draw(vm)).find((it) => it.label === "Start a proposal").icon, "deal");
+    press("Start a proposal");
+    assert.deepEqual(
+      opened.at(-1),
+      { personId: "k1", mode: "propose", dealId: null },
+      "the sheet, not the person's page",
     );
-    assert.equal(items[at].icon, "deal");
-    items[at].onClick();
-    assert.deepEqual(opened, ["k1"], "the door is the person's page, where a deal is recorded");
-    globalThis.window.__PEOPLE = { rows: [], dealsOn: false };
-    assert.ok(!labels(draw(vm)).includes("Record a deal…"), "a salon never sees it");
+    // A proposal out (with no link to send on People's row here): its moves, each on this deal.
+    people({ id: "d1", stage: "proposed", proposal: null });
+    assert.deepEqual(shape(draw(vm)).slice(6, 9), ["Mark as client", "Passed…", "Edit the proposal"]);
+    for (const [label, mode] of [
+      ["Mark as client", "won"],
+      ["Passed…", "lost"],
+      ["Edit the proposal", "edit"],
+    ]) {
+      press(label);
+      assert.deepEqual(opened.at(-1), { personId: "k1", mode, dealId: "d1" });
+    }
+    people({ id: "d1", stage: "won" });
+    assert.deepEqual(shape(draw(vm)).slice(6, 7), ["End the engagement…"]);
+    press("End the engagement…");
+    assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
+    people({ id: "d1", stage: "lost" });
+    press("Propose again");
+    assert.deepEqual(opened.at(-1), { personId: "k1", mode: "again", dealId: "d1" });
+    people({ id: "d1", stage: "ended" });
+    press("Start a proposal");
+    assert.deepEqual(
+      opened.at(-1),
+      { personId: "k1", mode: "propose", dealId: null },
+      "an end is re-signed as a new row",
+    );
+    assert.ok(!shape(draw(vm)).includes("Record a deal…"), "REGRESSION: a door to the person's page, not the sheet");
+    // Where customers book, and before People has read them, there is no group.
+    people(null, false);
+    assert.deepEqual(
+      shape(draw(vm)).slice(-3),
+      ["Receptionist settings", "|", "Export transcript"],
+      "a salon never sees it",
+    );
+    delete globalThis.window.__PEOPLE;
+    assert.ok(!shape(draw(vm)).includes("Start a proposal"), "People not read yet: nothing to say of a deal");
   } finally {
     delete globalThis.window.__PEOPLE;
+    globalThis.window.__deal = was.deal;
+    globalThis.window.openDealSheet = was.open;
   }
 });
 

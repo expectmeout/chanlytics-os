@@ -1,10 +1,13 @@
 import {
   CONSENT_SOURCES,
+  DEAL_ACT_WORDS,
+  DEAL_CARD_WORDS,
   DEAL_LINE_NONE,
   DEAL_LOST_REASONS,
   DEAL_LOST_REASON_WORDS,
   DEAL_PERS,
   DEAL_PER_WORDS,
+  DEAL_SHEET_WORDS,
   DEAL_STAGE_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
@@ -12,11 +15,21 @@ import {
   SELLS_BY_QUESTION,
   SELLS_BY_WORDS,
   TIMELINE_FILTERS,
+  dealCardsOf,
+  dealMenuActs,
   dealMoves,
+  dealNextAct,
+  dealSheetBody,
+  dealSheetDirty,
+  dealSheetFor,
+  dealSheetMessage,
+  dealSheetRefusal,
   filterTimeline,
+  isDealSheetMode,
   mayReceive,
   offersYesRefusal,
   parseAmount,
+  proposalFollowUp,
   toPersonVM,
   verbalOptInScript,
   type DealClearable,
@@ -341,7 +354,10 @@ declare global {
     __recordDeal?: typeof recordDeal;
     /**
      * The deal's words for the page (0004, 0008): the stage words, the per words, the pers, the empty line, the moves
-     * from a stage, the reasons for passing and theirs, the one reading of a typed amount, and how customers buy.
+     * from a stage, the reasons for passing and theirs, the one reading of a typed amount, and how customers buy. And
+     * the one sheet every move goes through (deal-sheet.ts: its modes, what it says and opens with, the body it sends,
+     * where a refusal goes), the person page's deal card (its cards, its quiet line, its next act, the follow-up's
+     * words) and the thread's Deal group.
      */
     __deal?: {
       words: typeof DEAL_STAGE_WORDS;
@@ -353,6 +369,19 @@ declare global {
       reasonWords: typeof DEAL_LOST_REASON_WORDS;
       parseAmount: typeof parseAmount;
       sellsBy: { question: string; answers: typeof SELLS_BY; words: typeof SELLS_BY_WORDS };
+      isMode: typeof isDealSheetMode;
+      sheet: typeof dealSheetFor;
+      body: typeof dealSheetBody;
+      message: typeof dealSheetMessage;
+      dirty: typeof dealSheetDirty;
+      refusal: typeof dealSheetRefusal;
+      sheetWords: typeof DEAL_SHEET_WORDS;
+      cards: typeof dealCardsOf;
+      cardWords: typeof DEAL_CARD_WORDS;
+      nextAct: typeof dealNextAct;
+      menu: typeof dealMenuActs;
+      actWords: typeof DEAL_ACT_WORDS;
+      followUp: typeof proposalFollowUp;
     };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
@@ -429,6 +458,20 @@ export function installPeopleCourier(): void {
     reasonWords: DEAL_LOST_REASON_WORDS,
     parseAmount,
     sellsBy: { question: SELLS_BY_QUESTION, answers: SELLS_BY, words: SELLS_BY_WORDS },
+    // One sheet for every move, and the card and the thread's group that open it (0008): the rules, never a copy.
+    isMode: isDealSheetMode,
+    sheet: dealSheetFor,
+    body: dealSheetBody,
+    message: dealSheetMessage,
+    dirty: dealSheetDirty,
+    refusal: dealSheetRefusal,
+    sheetWords: DEAL_SHEET_WORDS,
+    cards: dealCardsOf,
+    cardWords: DEAL_CARD_WORDS,
+    nextAct: dealNextAct,
+    menu: dealMenuActs,
+    actWords: DEAL_ACT_WORDS,
+    followUp: proposalFollowUp,
   };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.

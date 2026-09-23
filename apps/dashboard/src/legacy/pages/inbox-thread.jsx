@@ -443,6 +443,29 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
     : person.nextVisitDay ? { ahead: true, day: person.nextVisitDay, time: (person.nextVisit || "").split(" · ")[1] || "" }
     : person.lastVisitDay ? { ahead: false, day: `Last · ${person.lastVisitDay}`, time: "" }
     : null;
+  // The deal's group (0008): its proposal into the box, and the moves for the stage of the deal People's row carries,
+  // each opening the one deal sheet (components/deal-sheet.jsx), which reads them in full. The words are contracts'
+  // (deal-sheet.ts dealMenuActs, through window.__deal). The send needs the link above and a wire free text can go on;
+  // the moves need a person People has read, on a real workspace.
+  const dealKit = window.__deal && window.__deal.menu ? window.__deal : null;
+  const DEAL_ICON = { propose: "deal", send: "send", won: "check", lost: "x", edit: "edit", ended: "stop", again: "repeat" };
+  const sendItem = dealKit && thread.real && proposalUrl && thread.windowOpen && !thread.optedOut && window.__proposalMessage
+    ? {
+        label: dealKit.actWords.send,
+        hint: window.__linkHost ? window.__linkHost(proposalUrl) : "",
+        icon: DEAL_ICON.send,
+        onClick: () => window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: window.__proposalMessage(proposalUrl), link: proposalUrl } })),
+        gate: window.gate("approve", "put the proposal link in the reply"),
+      }
+    : null;
+  const dealMoves = dealKit && !window.__DEMO_MODE && thread.clientId && person && window.__PEOPLE.dealsOn && window.openDealSheet
+    ? dealKit.menu(person.deal).filter((a) => a.mode).map((a) => ({
+        label: a.label,
+        icon: DEAL_ICON[a.id] || "deal",
+        onClick: () => window.openDealSheet({ personId: thread.clientId, mode: a.mode, dealId: a.mode === "propose" || !person.deal ? null : person.deal.id }),
+        gate: window.gate("approve", "record a deal"),
+      }))
+    : [];
 
   return (
     <header className="ix-th-head">
@@ -535,27 +558,15 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           ],
           [
-            // Their proposal (above: the deal's link, 0008), into the box in the words the contract keeps
-            // (window.__proposalMessage): the thread is where a pricing question is answered, and the page was a
-            // detour. Only where deals are on and free text can go, never to someone who said stop, only on a real
-            // thread; the hint says where the link lives (contracts linkHost).
-            ...(thread.real && proposalUrl && thread.windowOpen && !thread.optedOut && window.__proposalMessage
-              ? [{
-                  label: "Send the proposal",
-                  hint: window.__linkHost ? window.__linkHost(proposalUrl) : "",
-                  icon: "external",
-                  onClick: () => window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: window.__proposalMessage(proposalUrl), link: proposalUrl } })),
-                  gate: window.gate("approve", "put the proposal link in the reply"),
-                }]
-              : []),
             // clientId is the contact behind the thread, so these only render
             // when there is actually somewhere to go (a phone-only caller has none).
             ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
             ...(!window.__DEMO_MODE && thread.clientId ? [{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }] : []),
-            // A deal is recorded on the person's page (0004), so this is a door there, offered only where deals are
-            // on (People's dealsOn, 0008): a salon never sees it.
-            ...(!window.__DEMO_MODE && thread.clientId && window.__PEOPLE && window.__PEOPLE.dealsOn ? [{ label: "Record a deal…", icon: "deal", onClick: () => onOpenClient(thread.clientId) }] : []),
           ],
+          // The deal (0008): its proposal into the box -- the deal's link (above), only where deals are on and free text
+          // can go, never to someone who said stop, only on a real thread; the hint says where the link lives
+          // (contracts linkHost) -- and the moves for its stage, each opening the sheet. A salon sees none of it.
+          [...(sendItem ? [sendItem] : []), ...dealMoves],
           [
             // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
             // thread had it in one tab and not the other.

@@ -5836,7 +5836,7 @@ function leadReviewCosts(acts, n, month) {
         return "Claude reads their pages again for an address.";
     }
   };
-  return acts.map((act) => ({ act, label: LEAD_REVIEW_ACT_WORDS[act], line: line(act) }));
+  return acts.map((act2) => ({ act: act2, label: LEAD_REVIEW_ACT_WORDS[act2], line: line(act2) }));
 }
 function leadAskedFor(search) {
   const plan = search?.plan;
@@ -6192,6 +6192,9 @@ function isDealStage(s) {
 function isDealLostReason(s) {
   return typeof s === "string" && DEAL_LOST_REASONS.includes(s);
 }
+function isDealPer(s) {
+  return typeof s === "string" && DEAL_PERS.includes(s);
+}
 var DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"];
 function dealFactsOf(r) {
   if (!r || !isDealStage(r.deal_stage)) return null;
@@ -6271,6 +6274,7 @@ function toDealVM(d, tz, nowMs) {
   const waitingDays = d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS3)) : null;
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
   const word = DEAL_STAGE_WORDS[d.stage];
   const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
@@ -6290,6 +6294,9 @@ function toDealVM(d, tz, nowMs) {
     brief,
     waitingDays,
     amount,
+    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
     proposal: url ? { url, host: linkHost(url) } : null,
     validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
     reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
@@ -6515,9 +6522,9 @@ function bookingLinkAction(replyVia, win) {
 function proposalMessage(url) {
   return `Here's the proposal we put together for you: ${url}`;
 }
-function proposalAction(replyVia, win, sentWords) {
-  const again = sentWords ? " again" : "";
-  const sent = sentWords ? ` \xB7 sent ${sentWords}` : "";
+function proposalAction(replyVia, win, sentWords2) {
+  const again = sentWords2 ? " again" : "";
+  const sent = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
   if (replyVia === "Email")
     return {
       label: `Email the proposal${again}`,
@@ -7305,7 +7312,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   };
   const base = toPersonRowVM(row2, tz, now);
   const dealsOn = !!d.deals_on;
-  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x) : [];
+  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x).map(
+    (x) => x.proposal ? { ...x, proposal: { ...x.proposal, sent: proposalSent(d.conversations, x.proposal.url) } } : x
+  ) : [];
   const current = dealsOn ? deals.find((x) => x.id === base.deal?.id) ?? base.deal : null;
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
@@ -7591,7 +7600,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
   const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
-  const sentWords = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
+  const sentWords2 = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
   if (base.email) about.push({ k: "Email", v: base.email });
@@ -7686,7 +7695,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const whole = {
     ...vm,
     proposal,
-    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords)
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords2)
   };
   return { ...whole, acts: personActs(whole) };
 }
@@ -9701,20 +9710,20 @@ function buildAskSuggestions(input) {
   const asks = out.slice(0, 7);
   if (!input.canAct) return asks;
   const acts = [];
-  const act = (label, q, icon, compose = false) => {
+  const act2 = (label, q, icon, compose = false) => {
     if (!acts.some((a) => a.q === q)) acts.push({ q, kind: "act", icon, label, compose });
   };
   if (s && (s.kind === "thread" || s.kind === "conversation" || s.kind === "person")) {
-    act(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
-    act(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
+    act2(t.actLate.replace("{name}", s.label), t.actLateQ.replace("{name}", s.label), "chat");
+    act2(t.actDraft.replace("{name}", s.label), t.actDraftQ.replace("{name}", s.label), "edit", true);
   }
-  act(t.actRemember, t.actRememberQ, "sparkle", true);
-  if (input.surface === "settings" || input.surface === "today") act(t.actClose, t.actCloseQ, "calendar", true);
-  if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
-  if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
-  if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
-  if (input.surface === "people" || input.surface === "other") act(t.actOffer, t.actOfferQ, "wave", true);
-  if (input.surface === "people" || input.surface === "other") act(t.actPlaybook, t.actPlaybookQ, "bolt");
+  act2(t.actRemember, t.actRememberQ, "sparkle", true);
+  if (input.surface === "settings" || input.surface === "today") act2(t.actClose, t.actCloseQ, "calendar", true);
+  if (input.surface === "settings") act2(t.actHours, t.actHoursQ, "clock", true);
+  if (input.surface === "settings") act2(t.actInvite, t.actInviteQ, "users", true);
+  if (input.surface === "inbox" || input.heldDrafts > 0) act2(t.actHold, t.actHoldQ, "shield");
+  if (input.surface === "people" || input.surface === "other") act2(t.actOffer, t.actOfferQ, "wave", true);
+  if (input.surface === "people" || input.surface === "other") act2(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
@@ -17632,6 +17641,481 @@ function leadSuppressionHash(tenantId, value) {
   return keyedDigest(tenantId, value);
 }
 
+// src/deal-sheet.ts
+var DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"];
+function isDealSheetMode(s) {
+  return typeof s === "string" && DEAL_SHEET_MODES.includes(s);
+}
+var DEAL_SEND_WHY = {
+  window: "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
+  stopped: "They asked not to be messaged.",
+  none: "There is no conversation with them yet."
+};
+function dealSendOf(p) {
+  const on = p.replyVia === "Email" ? "by email" : p.replyVia === "Text" ? "as a text" : "on WhatsApp";
+  const label = `Send it now ${on}`;
+  if (p.consent.state === "opted_out" || p.consent.dnc) return { can: false, why: DEAL_SEND_WHY.stopped, label };
+  if (!p.openThread) return { can: false, why: DEAL_SEND_WHY.none, label };
+  if (!proposalAction(p.replyVia, p.replyWindow, null).ready) return { can: false, why: DEAL_SEND_WHY.window, label };
+  return { can: true, why: null, label };
+}
+function proposalFollowUp(url) {
+  return `Just checking the proposal reached you. Here it is again: ${url}`;
+}
+var DEAL_ACT_WORDS = {
+  propose: "Start a proposal",
+  again: "Propose again",
+  edit: "Edit the proposal",
+  "add-link": "Add the link",
+  won: "Mark as client",
+  lost: "Passed\u2026",
+  ended: "End the engagement\u2026",
+  send: "Send the proposal",
+  "follow-up": "Follow up"
+};
+var MODE_OF = {
+  propose: "propose",
+  again: "again",
+  edit: "edit",
+  "add-link": "edit",
+  won: "won",
+  lost: "lost",
+  ended: "ended",
+  send: null,
+  "follow-up": null
+};
+var act = (id, text) => ({
+  id,
+  label: DEAL_ACT_WORDS[id],
+  mode: MODE_OF[id],
+  ...text !== void 0 ? { text } : {}
+});
+function sentOf(p, deal) {
+  const url = deal.proposal?.url ?? null;
+  if (!url) return null;
+  if (deal.proposal && deal.proposal.sent !== void 0) return deal.proposal.sent ?? null;
+  return p.proposal && p.proposal.url === url ? p.proposal.sent ?? null : null;
+}
+function dealNextAct(p, nowMs, deal = p.deal) {
+  if (!deal || deal.stage === "ended") return act("propose");
+  if (deal.stage === "won") return null;
+  if (deal.stage === "lost") return act("again");
+  const url = deal.proposal?.url ?? null;
+  if (!url) return act("add-link");
+  const canSend = dealSendOf(p).can;
+  const sent = sentOf(p, deal);
+  if (!sent && canSend) return act("send", proposalMessage(url));
+  if (sent && canSend && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+    return act("follow-up", proposalFollowUp(url));
+  return act("won");
+}
+function dealMenuActs(deal) {
+  if (!deal || deal.stage === "ended") return [act("propose")];
+  if (deal.stage === "proposed") return [act("send"), act("won"), act("lost"), act("edit")];
+  if (deal.stage === "won") return [act("ended")];
+  return [act("again")];
+}
+var DEAL_CARD_WORDS = {
+  title: "Deal",
+  proposal: "Proposal",
+  engagement: "Engagement",
+  consultation: "Consultation",
+  noLink: "No link",
+  notSent: "Not sent yet",
+  openLink: "Open the proposal in a new tab"
+};
+function sentWords(sent, tz, nowMs) {
+  const at2 = Date.parse(sent.at);
+  const day = Number.isFinite(at2) ? ` ${clockDate(at2, tz, nowMs)}` : "";
+  const on = sent.via === "WhatsApp" ? " on WhatsApp" : sent.via === "Email" ? " by email" : sent.via === "Text" ? " as a text" : "";
+  return `Sent${day}${on}`;
+}
+function consultationWas(atMs, tz, nowMs) {
+  const day = visitDay(atMs, tz, nowMs);
+  return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
+}
+function stepsOf(p, deal, tz, nowMs) {
+  const day = (ms2) => ms2 === null ? null : clockDate(ms2, tz, nowMs);
+  const won = deal.stage === "won";
+  const tone = stateTone("deal", deal.stage);
+  const steps = [];
+  const consulted = p.consultedMs ?? null;
+  if (consulted !== null || p.consultationVisit) {
+    const done = consulted !== null && consulted <= nowMs;
+    steps.push({
+      key: "consultation",
+      label: DEAL_CARD_WORDS.consultation,
+      day: done ? day(consulted) : null,
+      at: done ? "done" : "ahead",
+      tone: null
+    });
+  }
+  steps.push({
+    key: "proposal",
+    label: DEAL_STAGE_WORDS.proposed,
+    day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
+    at: won ? "done" : "current",
+    tone: won ? null : tone
+  });
+  steps.push({
+    key: "client",
+    label: DEAL_STAGE_WORDS.won,
+    day: won ? day(deal.sinceMs) : null,
+    at: won ? "current" : "ahead",
+    tone: won ? tone : null
+  });
+  return steps;
+}
+function cardOf2(p, deal, nowMs, tz) {
+  const won = deal.stage === "won";
+  const next = dealNextAct(p, nowMs, deal);
+  const facts = [];
+  const flags = [];
+  if (!won) {
+    const sent = sentOf(p, deal);
+    facts.push(!deal.proposal ? DEAL_CARD_WORDS.noLink : sent ? sentWords(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent);
+    if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
+    if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
+    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+      flags.push({ words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" });
+  }
+  const others = won ? [act("ended")] : [act("won"), act("lost"), act("edit")];
+  const nextMode = next ? next.mode : null;
+  return {
+    id: deal.id,
+    stage: won ? "won" : "proposed",
+    title: deal.service ?? (won ? DEAL_CARD_WORDS.engagement : DEAL_CARD_WORDS.proposal),
+    value: deal.amount,
+    steps: stepsOf(p, deal, tz, nowMs),
+    link: !won && deal.proposal ? { url: deal.proposal.url, host: deal.proposal.host } : null,
+    facts,
+    flags,
+    next,
+    // Each move once: the one the card leads with is not said again among the quiet ones.
+    more: others.filter((o) => o.mode !== nextMode)
+  };
+}
+function quietOf(p, nowMs, tz) {
+  const deals = p.deals ?? (p.deal ? [p.deal] : []);
+  const closed = [...deals].filter((d) => d.stage === "lost" || d.stage === "ended").sort((a, b) => (b.sinceMs ?? 0) - (a.sinceMs ?? 0))[0] ?? null;
+  const consulted = p.consultedMs ?? null;
+  const fresh = consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal }], nowMs).length > 0;
+  const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
+  if (!closed) return { words: DEAL_LINE_NONE, sub, act: act("propose"), dealId: null, primary: fresh };
+  const day = closed.sinceMs === null ? null : clockDate(closed.sinceMs, tz, nowMs);
+  const said = closed.stage === "lost" ? [closed.service, day ? `${DEAL_STAGE_WORDS.lost} ${day}` : DEAL_STAGE_WORDS.lost, closed.reason?.words ?? null] : [closed.service, day ? `${DEAL_STAGE_WORDS.ended} ${day}` : DEAL_STAGE_WORDS.ended];
+  const again = !fresh && closed.stage === "lost";
+  return {
+    words: said.filter((x) => !!x).join(" \xB7 "),
+    sub,
+    act: again ? act("again") : act("propose"),
+    dealId: again ? closed.id : null,
+    primary: fresh
+  };
+}
+function dealCardsOf(p, nowMs, tz) {
+  const deals = p.deals ?? (p.deal ? [p.deal] : []);
+  const open = deals.filter((d) => d.stage === "proposed" || d.stage === "won");
+  if (!open.length) return { cards: [], quiet: quietOf(p, nowMs, tz) };
+  return { cards: open.map((d) => cardOf2(p, d, nowMs, tz)), quiet: null };
+}
+var DEAL_SHEET_WORDS = {
+  titles: {
+    propose: "New proposal",
+    edit: "Edit the proposal",
+    again: "Propose again",
+    won: "Mark as client",
+    lost: "Passed",
+    ended: "End the engagement"
+  },
+  save: {
+    propose: "Record",
+    edit: "Save",
+    again: "Record",
+    won: "Mark as client",
+    lost: "Record",
+    ended: "End it"
+  },
+  withSend: "Record and send",
+  saving: "Saving\u2026",
+  sending: "Sending\u2026",
+  service: { label: "Service", any: "Any service" },
+  link: {
+    label: "Proposal link",
+    hint: "A Google Doc, a PDF or any page you would send them.",
+    placeholder: "docs.example.com/proposal"
+  },
+  value: {
+    label: "Value",
+    hint: "Optional. Only you see it: the receptionist never says a figure.",
+    placeholder: "2,500",
+    per: "How often"
+  },
+  agreed: {
+    label: "Agreed amount",
+    hint: "Optional.",
+    fromProposal: "The proposal's value, unless they agreed another."
+  },
+  validUntil: { label: "Valid until", hint: "Optional." },
+  when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
+  reason: { label: "Why they passed" },
+  note: { label: "Note", hint: "Optional. Only your team sees it.", placeholder: "In their words, or yours" },
+  how: {
+    label: "How they said yes",
+    none: "Not recorded",
+    message: "In their own message",
+    form: "Signed elsewhere",
+    which: "Their message",
+    where: "Where it was signed",
+    wherePlaceholder: "DocuSign, Sep 20"
+  },
+  message: { label: "Message", hint: "Sent as written. It has to carry the link." },
+  discard: {
+    question: "Discard your changes?",
+    detail: "Nothing here has been recorded.",
+    yes: "Yes, discard",
+    no: "Keep editing"
+  },
+  reading: "Reading\u2026",
+  gone: "This person is not in your workspace.",
+  moved: "Their deal has moved on since this was opened. Close this and look again.",
+  failed: "Could not record this.",
+  /** The stage's word a recorded move is said in. */
+  done: {
+    propose: "Proposal out",
+    edit: "Proposal saved",
+    again: "Proposal out",
+    won: "Client",
+    lost: "Passed",
+    ended: "Ended"
+  },
+  /** The send's own toast, after the name: its Undo stops the message, never the record. */
+  sent: "proposal recorded and on its way",
+  /** Before the reason a send was refused, after a good record. */
+  notSent: "Recorded. It did not send:",
+  /** A send refused before anything said why. */
+  unsent: "Recorded. It did not send.",
+  problems: {
+    amount: "An amount is a number, like 2,500.",
+    day: "Pick a day.",
+    future: "Pick today or a day before it.",
+    sendNeedsLink: "Add the link to send it, or turn sending off.",
+    messageLink: "The message has to carry the link.",
+    tooLong: "At most 200 characters."
+  }
+};
+var DEAL_NOTE_MAX = 200;
+var MOVES_FROM = {
+  edit: "proposed",
+  again: "lost",
+  won: "proposed",
+  lost: "proposed",
+  ended: "won"
+};
+var STAGE_OF = {
+  propose: "proposed",
+  edit: "proposed",
+  again: "proposed",
+  won: "won",
+  lost: "lost",
+  ended: "ended"
+};
+var DRAFT_EMPTY = {
+  service: "",
+  link: "",
+  value: "",
+  per: "once",
+  validUntil: "",
+  when: "",
+  reason: "",
+  note: "",
+  how: "",
+  messageId: "",
+  formNote: "",
+  send: false,
+  message: null
+};
+var capital2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function centsWords(cents) {
+  if (cents === null || !Number.isFinite(cents)) return "";
+  const whole = cents % 100 === 0;
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+}
+function targetOf(mode, p, dealId) {
+  if (mode === "propose") return null;
+  const deals = p.deals ?? (p.deal ? [p.deal] : []);
+  if (dealId) return deals.find((d) => d.id === dealId) ?? (p.deal && p.deal.id === dealId ? p.deal : null);
+  return p.deal;
+}
+function dealSheetFor(mode, p, nowMs, tz, target = {}) {
+  const W = DEAL_SHEET_WORDS;
+  const deal = targetOf(mode, p, target.dealId);
+  const blocked = mode !== "propose" && (!deal || deal.stage !== MOVES_FROM[mode]) ? W.moved : null;
+  const today = zoneDayKey(nowMs, tz);
+  const proposing = mode === "propose" || mode === "again";
+  const shapes = mode === "propose" || mode === "edit" || mode === "again";
+  const dated = mode === "won" || mode === "lost" || mode === "ended";
+  const send = proposing ? dealSendOf(p) : null;
+  const services = p.services ?? [];
+  const messages = (p.ownMessages ?? []).map((m) => ({
+    value: m.id,
+    label: [`\u201C${m.words}\u201D`, m.via, m.when].filter(Boolean).join(" \xB7 ")
+  }));
+  const pers = DEAL_PERS.map((x) => ({ value: x, label: capital2(DEAL_PER_WORDS[x]) }));
+  const valueOf = deal ? centsWords(deal.amountCents) : "";
+  const draft = {
+    ...DRAFT_EMPTY,
+    ...mode === "propose" ? {
+      service: target.service?.trim() || "",
+      // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
+      link: !p.deal && p.proposal ? p.proposal.url : ""
+    } : {},
+    ...mode === "again" || mode === "edit" ? { link: deal?.proposal?.url ?? "", value: valueOf, per: deal?.per ?? "once" } : {},
+    ...mode === "edit" ? { validUntil: deal?.validUntil?.day ?? "" } : {},
+    ...mode === "won" ? { value: valueOf, per: deal?.per ?? "once", messageId: p.ownMessages?.[0]?.id ?? "" } : {},
+    ...dated ? { when: today } : {},
+    ...send ? { send: send.can } : {}
+  };
+  const open = !blocked;
+  return {
+    mode,
+    title: W.titles[mode],
+    sub: [p.name, deal?.service ?? null].filter((x) => !!x).join(" \xB7 "),
+    deal,
+    blocked,
+    service: open && mode === "propose" && services.length > 1 ? {
+      label: W.service.label,
+      options: [{ value: "", label: W.service.any }, ...services.map((s) => ({ value: s, label: s }))]
+    } : null,
+    link: open && shapes ? { ...W.link } : null,
+    value: open && (shapes || mode === "won") ? {
+      label: mode === "won" ? W.agreed.label : W.value.label,
+      hint: mode === "won" ? valueOf ? W.agreed.fromProposal : W.agreed.hint : W.value.hint,
+      placeholder: W.value.placeholder,
+      perLabel: W.value.per,
+      pers
+    } : null,
+    validUntil: open && shapes ? { ...W.validUntil } : null,
+    when: open && dated ? { label: W.when[mode], max: today } : null,
+    reason: open && mode === "lost" ? {
+      label: W.reason.label,
+      options: DEAL_LOST_REASONS.map((r) => ({ value: r, label: DEAL_LOST_REASON_WORDS[r] }))
+    } : null,
+    note: open && mode === "lost" ? { ...W.note, max: DEAL_NOTE_MAX } : null,
+    how: open && mode === "won" ? {
+      label: W.how.label,
+      options: [
+        { value: "", label: W.how.none },
+        ...messages.length ? [{ value: "customer_message", label: W.how.message }] : [],
+        { value: "form", label: W.how.form }
+      ],
+      which: W.how.which,
+      messages,
+      where: W.how.where,
+      wherePlaceholder: W.how.wherePlaceholder,
+      max: DEAL_NOTE_MAX
+    } : null,
+    send: open && send ? { ...send, message: { ...W.message } } : null,
+    draft,
+    save: {
+      label: W.save[mode],
+      withSend: proposing && send?.can ? W.withSend : null,
+      saving: W.saving,
+      sending: W.sending
+    },
+    done: W.done[mode]
+  };
+}
+function dealSheetMessage(draft) {
+  if (draft.message !== null) return draft.message;
+  const typed = draft.link.trim();
+  return typed ? proposalMessage(normalizeLink(typed) ?? typed) : "";
+}
+function dealSheetDirty(draft, opened) {
+  const keys = Object.keys(DRAFT_EMPTY);
+  return keys.some((k) => k !== "message" && draft[k] !== opened[k]) || dealSheetMessage(draft) !== dealSheetMessage(opened);
+}
+function dealSheetBody(mode, draft, deal, opts) {
+  const P = DEAL_SHEET_WORDS.problems;
+  const problem = (field, words2) => ({ problem: { field, words: words2 } });
+  const moving = mode !== "propose";
+  if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
+  const body = { stage: STAGE_OF[mode] };
+  if (moving && deal?.id) {
+    body.deal_id = deal.id;
+    if (deal.version !== null && deal.version !== void 0) body.version = deal.version;
+  }
+  const clear = [];
+  const shapes = mode === "propose" || mode === "edit" || mode === "again";
+  if (shapes || mode === "won") {
+    const typed = draft.value.trim();
+    if (typed) {
+      const cents = parseAmount(typed);
+      if (cents === null) return problem("value", P.amount);
+      body.amount_cents = cents;
+      body.per = draft.per;
+    } else if (moving && deal?.amountCents !== null && deal?.amountCents !== void 0) clear.push("amount");
+  }
+  if (shapes) {
+    const typed = draft.link.trim();
+    let url = null;
+    if (typed) {
+      url = normalizeLink(typed);
+      if (!url) return problem("link", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
+      body.proposal_url = url;
+    } else if (moving && deal?.proposal) clear.push("proposal_url");
+    if (draft.validUntil) {
+      if (!isRealDate(draft.validUntil)) return problem("validUntil", P.day);
+      body.valid_until = draft.validUntil;
+    } else if (mode === "edit" && deal?.validUntil) clear.push("valid_until");
+    if (mode === "propose" && draft.service.trim()) body.service = draft.service.trim();
+    let send = null;
+    if ((mode === "propose" || mode === "again") && draft.send && opts.canSend) {
+      if (!url) return problem("link", P.sendNeedsLink);
+      const text = dealSheetMessage(draft).trim();
+      if (!text.includes(url)) return problem("message", P.messageLink);
+      send = { text };
+    }
+    return { body: clear.length ? { ...body, clear } : body, send };
+  }
+  const today = zoneDayKey(opts.nowMs, opts.tz);
+  if (!isRealDate(draft.when)) return problem("when", P.day);
+  if (draft.when > today) return problem("when", P.future);
+  if (draft.when !== today) body.when = new Date(wallClockAt(opts.tz, draft.when, 12, 0)).toISOString();
+  if (mode === "won") {
+    if (draft.how === "customer_message" && draft.messageId) body.message_id = draft.messageId;
+    if (draft.how === "form" && draft.formNote.trim()) {
+      if (draft.formNote.trim().length > DEAL_NOTE_MAX) return problem("how", P.tooLong);
+      body.form_note = draft.formNote.trim();
+    }
+  }
+  if (mode === "lost") {
+    if (draft.reason) body.lost_reason = draft.reason;
+    if (draft.note.trim()) {
+      if (draft.note.trim().length > DEAL_NOTE_MAX) return problem("note", DEAL_REFUSALS.note_too_long);
+      body.note = draft.note.trim();
+    }
+  }
+  return { body: clear.length ? { ...body, clear } : body, send: null };
+}
+var REFUSAL_FIELD = {
+  bad_link: "link",
+  bad_amount: "value",
+  bad_per: "value",
+  note_too_long: "note",
+  service_too_long: "service",
+  already_open: "service",
+  bad_reason: "reason"
+};
+function dealSheetRefusal(message) {
+  const words2 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
+  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words2);
+  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words2 };
+}
+
 // src/lead-judge.ts
 import { z as z9 } from "zod";
 var JUDGE_FACT_KEYS = [
@@ -18010,14 +18494,20 @@ export {
   CalendarConfigSchema,
   ClosureSchema,
   DAYS,
+  DEAL_ACT_WORDS,
+  DEAL_CARD_WORDS,
   DEAL_CLEARABLE,
   DEAL_LINE_NONE,
   DEAL_LOST_REASONS,
   DEAL_LOST_REASON_WORDS,
   DEAL_MOVES,
+  DEAL_NOTE_MAX,
   DEAL_PERS,
   DEAL_PER_WORDS,
   DEAL_REFUSALS,
+  DEAL_SEND_WHY,
+  DEAL_SHEET_MODES,
+  DEAL_SHEET_WORDS,
   DEAL_SOURCES,
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
@@ -18494,10 +18984,19 @@ export {
   dayIntervals,
   dayPlusInZone,
   dayWords,
+  dealCardsOf,
   dealFactsOf,
+  dealMenuActs,
   dealMoves,
+  dealNextAct,
   dealOf,
+  dealSendOf,
   dealSentence,
+  dealSheetBody,
+  dealSheetDirty,
+  dealSheetFor,
+  dealSheetMessage,
+  dealSheetRefusal,
   dealSinceMs,
   dealsAreOn,
   dedupeFeed,
@@ -18600,6 +19099,8 @@ export {
   isConsultationTitle,
   isDayKey,
   isDealLostReason,
+  isDealPer,
+  isDealSheetMode,
   isDealStage,
   isForwardingMode,
   isHeldDraft,
@@ -18807,6 +19308,7 @@ export {
   promptCostWords,
   promptTotalWords,
   proposalAction,
+  proposalFollowUp,
   proposalLinkOf,
   proposalMessage,
   proposalsWaiting,

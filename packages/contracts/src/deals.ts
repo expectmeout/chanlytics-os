@@ -93,6 +93,10 @@ export function isDealLostReason(s: unknown): s is DealLostReason {
   return typeof s === "string" && (DEAL_LOST_REASONS as readonly string[]).includes(s);
 }
 
+export function isDealPer(s: unknown): s is DealPer {
+  return typeof s === "string" && (DEAL_PERS as readonly string[]).includes(s);
+}
+
 /** What a move may empty (deal_record's p_clear, 00160): the link, the valid-until day, the amount with its per, the note. */
 export const DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"] as const;
 export type DealClearable = (typeof DEAL_CLEARABLE)[number];
@@ -291,8 +295,16 @@ export interface DealVM {
   waitingDays: number | null;
   /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0008). Null without one. */
   amount: string | null;
-  /** The proposal's link and the host it lives at; null where the deal carries none. */
-  proposal: { url: string; host: string } | null;
+  /** The same amount as stored, for a box that edits it (the deal sheet): its cents and how it recurs; null without one. */
+  amountCents: number | null;
+  per: DealPer | null;
+  /** When the proposal went (its proposed_at), at every stage: the deal card's Proposal out step. Null when unknown. */
+  proposedMs: number | null;
+  /**
+   * The proposal's link and the host it lives at; null where the deal carries none. On a person's page it also says
+   * whether it went (`sent`, from the thread's own messages, as PersonVM.proposal does); a People row cannot say.
+   */
+  proposal: { url: string; host: string; sent?: { at: string; via: string | null } | null } | null;
   /** "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only. */
   validUntil: { day: string; words: string; lapsed: boolean } | null;
   /** Why they passed, and its word: a passed deal's only. */
@@ -321,6 +333,7 @@ export function toDealVM(
   // A proposal carries a value as a client does (0008): the page says it at every stage.
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
   const word = DEAL_STAGE_WORDS[d.stage];
   const said = [word, since, amount].filter((x): x is string => !!x).join(" · ");
   const line = [d.service, said].filter((x): x is string => !!x).join(" · ");
@@ -345,6 +358,12 @@ export function toDealVM(
     brief,
     waitingDays,
     amount,
+    amountCents:
+      d.amount_cents === null || d.amount_cents === undefined || !Number.isFinite(d.amount_cents)
+        ? null
+        : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
     proposal: url ? { url, host: linkHost(url) } : null,
     validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
     reason:
