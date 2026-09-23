@@ -19,6 +19,7 @@ import {
   notificationsOverride,
   peopleOverride,
   playbooksOverride,
+  reportsOverride,
   settingsOverride,
   todayOverride,
   type SurfaceOverride,
@@ -64,7 +65,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/receptionist": people,
   "PUT contacts/notes": people,
   "PUT contacts/[id]/details": people,
-  "POST contacts/[id]/deal": people,
+  // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
+  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride],
   "POST contacts": people,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
