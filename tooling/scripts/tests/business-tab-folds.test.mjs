@@ -330,6 +330,28 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
   }
 });
 
+test("how customers buy is no fold of the config: the settings save cannot write it, and it tells the receptionist nothing", () => {
+  // 0008: the answer is the workspace's (tenants.sells_by), saved through PATCH workspaces as the zone is. As a fold of
+  // the config it could only go through PUT settings, where an older edge refuses a key it does not know and an older
+  // page's next save drops one beside the sections. So no helper of the save file knows it by name...
+  assert.equal(Object.prototype.hasOwnProperty.call(S.PATHS_OF, "sells_by"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(S.KEYS_OF, "sells_by"), false);
+  for (const helper of ["draftOf", "saveFold", "problemsOf"])
+    assert.throws(
+      () => S[helper]("sells_by", stored(), "proposal"),
+      { name: "TypeError", message: /"sells_by"/ },
+      `${helper}: not a fold of the config`,
+    );
+  assert.throws(() => S.foldJob("sells_by", "proposal", { opened: null }), {
+    name: "TypeError",
+    message: /"sells_by"/,
+  });
+  // ...and the bridge knows it as a row whose save no draft of the brain can show.
+  assert.ok(Object.prototype.hasOwnProperty.call(FOLD_BLOCK, "sells_by"));
+  assert.equal(FOLD_BLOCK.sells_by, null);
+  assert.equal(W.__businessTab.consequenceOf("sells_by", STORED.brain, "whatsapp"), null);
+});
+
 for (const fold of FOLDS) {
   test(`the ${fold} fold writes its own paths, and leaves everything else in the config exactly as it was`, () => {
     const [edit, lands] = EDITS[fold];

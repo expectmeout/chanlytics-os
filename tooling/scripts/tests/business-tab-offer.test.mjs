@@ -17,6 +17,10 @@ import {
   serviceUndoName,
   bookingRuleRefusal,
   servicesFoundWords,
+  sellsByVM,
+  sellsBySaved,
+  SELLS_BY_REFUSAL,
+  CONSULT_FIRST_DEAL_HINT,
 } from "@chanlytics/contracts";
 import { unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
@@ -187,11 +191,13 @@ test("consult-first is its own row with its own name", () => {
 
 /* ------------------------------------ the card at rest ------------------------------------ */
 
-test("What you offer draws three rows under its title, and the booking rules in one sentence contracts wrote", () => {
+test("What you offer draws four rows under its title, and the booking rules in one sentence contracts wrote", () => {
   const card = byTestId(drawTab(), "rec-card-offer");
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "What you offer");
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), "And the rules for offering it");
+  // How customers buy first (0008): it decides whether any of the rest leads to a deal.
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
+    "How customers buy",
     "Services",
     "Booking rules",
     "Needs a consult first",
@@ -268,16 +274,20 @@ test("each act of What you offer is gated as a change to the settings, and named
     asked.push([perm, doing]);
     return {};
   };
+  // How customers buy is offered only where there is a courier to save it through, as the zone is.
+  W.__workspace = { patch: async () => ({ ok: true, workspace: {}, message: "" }) };
   try {
     const tree = drawTab();
-    const mine = asked.filter(([, doing]) => /services|booking rules|consult/.test(doing));
-    assert.deepEqual(mine.slice(0, 3), [
+    const mine = asked.filter(([, doing]) => /customers buy|services|booking rules|consult/.test(doing));
+    assert.deepEqual(mine.slice(0, 4), [
+      ["settings", "change how customers buy"],
       ["settings", "change your services"],
       ["settings", "change the booking rules"],
       ["settings", "change what needs a consult first"],
     ]);
     const heard = (row) => byTestId(tree, `rec-row-act-${row}`).props["aria-label"];
-    assert.deepEqual(["services", "booking_rules", "consult_first"].map(heard), [
+    assert.deepEqual(["sells_by", "services", "booking_rules", "consult_first"].map(heard), [
+      "Choose how customers buy",
       "Open the list of services",
       "Change the booking rules",
       "Change what needs a consult first",
@@ -285,14 +295,18 @@ test("each act of What you offer is gated as a change to the settings, and named
     assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
   } finally {
     W.gate = was;
+    delete W.__workspace;
   }
 });
 
 test("a viewer reads what is offered and is offered no act on any of it, and nothing opens the sheet", () => {
   W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  // A courier to save the answer through, so that only the role stops it.
+  const patched = [];
+  W.__workspace = { patch: async (fields) => (patched.push(fields), { ok: true, workspace: fields, message: "" }) };
   try {
     const sent = saving();
-    const tree = drawTab({ profile: many });
+    const tree = drawTab({ profile: many, sellsBy: "proposal" });
     const card = byTestId(tree, "rec-card-offer");
     assert.deepEqual(
       all(card, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")),
@@ -301,19 +315,292 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
     );
     assert.match(textOf(card), /33 on record/);
     assert.match(textOf(card), /Color correction, Extensions/, "and everything is there to read");
+    assert.match(textOf(card), /Some get a proposal first/, "how customers buy too");
     // The page says why once, and this card does not say it again.
     const why = roleGate("viewer", "settings", "change the business").reason;
     assert.equal(all(tree, (n) => ownWords(n).includes(why)).length, 1);
-    for (const id of ["services", "booking_rules", "consult_first"]) {
+    for (const id of ["sells_by", "services", "booking_rules", "consult_first"]) {
       W.__recordFolds.request(id);
       const again = redrawTab();
       assert.deepEqual([openFolds(again), sheetOf(again)], [[], null], id);
       W.__recordFolds.reset();
     }
     assert.equal(sent.length, 0);
+    assert.deepEqual(patched, [], "and nothing goes to the workspace's courier");
   } finally {
     delete W.ST_STORE;
+    delete W.__workspace;
   }
+});
+
+/* ------------------------------------ how customers buy ------------------------------------ */
+
+/**
+ * The workspace's courier as the bridge publishes it (legacy-bridge/identity.ts `patch`, which the zone's tests run
+ * against the route), standing in for it here: it records what it is sent, keeps the page's list of workspaces current
+ * as the courier does once the server has taken a change, and answers `answer`, or taken. With `hold` each answer waits
+ * for release().
+ */
+const courier = ({ answer = null, hold = false } = {}) => {
+  const sent = [];
+  let release = () => {};
+  W.__workspace = {
+    patch: (fields) => {
+      sent.push(fields);
+      const answered = () => {
+        const r = answer || { ok: true, workspace: fields, message: "" };
+        if (r.ok) W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
+        return r;
+      };
+      if (!hold) return Promise.resolve(answered());
+      return new Promise((resolve) => {
+        release = () => resolve(answered());
+      });
+    },
+  };
+  return { sent, release: () => release() };
+};
+const buysRow = (tree) => byTestId(tree, "rec-row-sells_by");
+/** What a row states: its value, or the words it says with none. */
+const stated = (row) =>
+  textOf(
+    find(row, (n) => classes(n).includes("rec-row-value")) || find(row, (n) => classes(n).includes("rec-row-empty")),
+  );
+const actWords = (act) => textOf(find(act, (n) => classes(n).includes("rec-row-act-words")));
+const answers = (tree) => all(byTestId(tree, "rec-sells-by-choice"), (n) => n.props?.role === "radio");
+const labelOf = (radio) => textOf(find(radio, (n) => classes(n).includes("rec-seg-label")));
+const choose = (tree, label) => press(answers(tree).find((r) => labelOf(r) === label));
+const told = (f) => [f.tone, textOf({ props: { children: f.msg } })];
+const consultHint = (tree) => {
+  const hint = find(byTestId(tree, "rec-row-consult_first"), (n) => classes(n).includes("rec-row-hint"));
+  return hint ? textOf(hint) : null;
+};
+
+test("How customers buy states the answer, or that it was never said, and its act chooses one: every word contracts'", () => {
+  const c = courier();
+  try {
+    const unsaid = buysRow(drawTab());
+    assert.equal(textOf(find(unsaid, (n) => classes(n).includes("rec-row-key"))), "How customers buy");
+    assert.equal(unsaid.props["data-empty"], "true");
+    assert.equal(stated(unsaid), "Not said yet");
+    const act = byTestId(unsaid, "rec-row-act-sells_by");
+    assert.deepEqual([actWords(act), act.props["aria-label"]], ["Choose one", "Choose how customers buy"]);
+    for (const answer of [null, "booking", "proposal"]) {
+      const vm = sellsByVM(answer);
+      const row = buysRow(drawTab({ sellsBy: answer }));
+      const a = byTestId(row, "rec-row-act-sells_by");
+      assert.deepEqual([stated(row), actWords(a), a.props["aria-label"]], [vm.value ?? vm.empty, vm.act, vm.name]);
+    }
+    assert.equal(stated(buysRow(drawTab({ sellsBy: "booking" }))), "They book an appointment");
+    const proposes = buysRow(drawTab({ sellsBy: "proposal" }));
+    assert.deepEqual(
+      [stated(proposes), proposes.props["data-empty"], actWords(byTestId(proposes, "rec-row-act-sells_by"))],
+      ["Some get a proposal first", "false", "Change"],
+    );
+    assert.deepEqual(c.sent, [], "drawing it sends nothing");
+  } finally {
+    delete W.__workspace;
+  }
+  // With no courier to save it through (the standalone mockup has none), it is stated and offers nothing, as the zone.
+  const bare = buysRow(drawTab({ sellsBy: "booking" }));
+  assert.equal(stated(bare), "They book an appointment");
+  assert.equal(byTestId(bare, "rec-row-act-sells_by"), null);
+});
+
+test("its fold is the two answers as one choice, each with what choosing it means, and says nothing it will be told", () => {
+  courier();
+  try {
+    let tree = drawTab({ sellsBy: "proposal" });
+    openFold(tree, "sells_by");
+    tree = redrawTab();
+    assert.deepEqual(openFolds(tree), ["sells_by"]);
+    // Named by the fold's own label, the words on screen above it.
+    const group = find(byTestId(tree, "rec-sells-by-choice"), (n) => n.props?.role === "radiogroup");
+    assert.equal(group.props["aria-labelledby"], "rec-fold-sells_by-label");
+    assert.equal(textOf(find(tree, (n) => n.props?.id === "rec-fold-sells_by-label")), "How customers buy");
+    // Each answer named by its label and described by what choosing it means, contracts' words; the stored one chosen.
+    const heard = (r, by) => textOf(find(tree, (n) => n.props?.id === r.props[by]));
+    assert.deepEqual(
+      answers(tree).map((r) => [heard(r, "aria-labelledby"), heard(r, "aria-describedby"), r.props["aria-checked"]]),
+      sellsByVM("proposal").choices.map((ch) => [ch.label, ch.hint, ch.value === "proposal"]),
+    );
+    assert.deepEqual(
+      answers(tree).map((r) => r.props.tabIndex),
+      [-1, 0],
+      "one tab stop, on the answer chosen",
+    );
+    // The answer is in no draft of the brain: there is nothing it will tell the receptionist.
+    assert.equal(byTestId(tree, "rec-fold-says-sells_by"), null);
+    // Never asked: neither is chosen, and the first is the tab stop.
+    tree = drawTab();
+    openFold(tree, "sells_by");
+    tree = redrawTab();
+    assert.deepEqual(
+      answers(tree).map((r) => [r.props["aria-checked"], r.props.tabIndex]),
+      [
+        [false, 0],
+        [false, -1],
+      ],
+    );
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("an answer saved goes through the workspace's courier as { sells_by } alone, never the settings save, and the page follows it", async () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const c = courier({ hold: true });
+  try {
+    let tree = drawTab({ flash, sellsBy: "booking" });
+    assert.equal(consultHint(tree), null, "deals are off: consult-first is a booking rule and says nothing of a deal");
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    choose(tree, "Some get a proposal first");
+    tree = redrawTab(flash);
+    assert.deepEqual(
+      answers(tree).map((r) => r.props["aria-checked"]),
+      [false, true],
+    );
+    assert.equal(W.__settingsUnsaved(), true, "a choice not yet saved is asked about before it is thrown away");
+    saveFoldOf(tree, "sells_by");
+    tree = redrawTab(flash);
+    // While it is out: the fold is busy, a press on the other answer chooses nothing, and the tab's door holds it.
+    assert.equal(byTestId(tree, "rec-fold-save-sells_by").props["aria-busy"], true);
+    assert.deepEqual(
+      answers(tree).map((r) => r.props["aria-disabled"]),
+      [true, true],
+    );
+    assert.equal(W.__businessTabSave.sellsBy.pending(), true, "the save is the tab's, not the page's");
+    choose(tree, "They book an appointment");
+    tree = redrawTab(flash);
+    assert.equal(answers(tree)[1].props["aria-checked"], true, "nothing is chosen while the save is out");
+    c.release();
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual(c.sent, [{ sells_by: "proposal" }], "the answer alone: the zone is not sent with it");
+    assert.equal(sent.length, 0, "the settings save is never sent: the answer is the workspace's");
+    assert.deepEqual(openFolds(tree), [], "taken, the fold closes");
+    assert.deepEqual(told(flashes.at(-1)), ["ok", sellsBySaved("booking", "proposal")]);
+    assert.equal(told(flashes.at(-1))[1], "Saved — deals are on.");
+    assert.equal(stated(buysRow(tree)), "Some get a proposal first", "the row states what the courier kept");
+    // Deals are on now: consult-first says what a consultation for those services starts.
+    assert.equal(consultHint(tree), CONSULT_FIRST_DEAL_HINT);
+
+    // And back again: deals off, and the toast says those on file are kept.
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    choose(tree, "They book an appointment");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "sells_by");
+    c.release();
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual(c.sent, [{ sells_by: "proposal" }, { sells_by: "booking" }]);
+    assert.deepEqual(told(flashes.at(-1)), ["ok", "Saved — deals are off. Any already recorded are kept."]);
+    assert.equal(stated(buysRow(tree)), "They book an appointment");
+    assert.equal(consultHint(tree), null);
+    assert.equal(sent.length, 0);
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("Save with nothing chosen says why under the choice; saved as it opened, nothing is sent; refused, the server's words", async () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  const c = courier();
+  try {
+    // Never asked, and nothing chosen: refused under the choice in the route's own words, and nothing is sent.
+    let tree = drawTab({ flash });
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "sells_by");
+    tree = redrawTab(flash);
+    assert.equal(textOf(byTestId(tree, "rec-sells-by-problem")), SELLS_BY_REFUSAL);
+    assert.deepEqual([openFolds(tree), c.sent], [["sells_by"], []]);
+    // A choice answers it, and the sentence goes with it.
+    choose(tree, "They book an appointment");
+    tree = redrawTab(flash);
+    assert.equal(byTestId(tree, "rec-sells-by-problem"), null);
+    saveFoldOf(tree, "sells_by");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual(c.sent, [{ sells_by: "booking" }]);
+    assert.deepEqual(told(flashes.at(-1)), ["ok", "Saved — customers book an appointment."]);
+
+    // Answered, and saved as it opened, or chosen and chosen back: nothing is sent, and the fold closes.
+    tree = drawTab({ flash, sellsBy: "booking" });
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "sells_by");
+    tree = redrawTab(flash);
+    assert.deepEqual(openFolds(tree), []);
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    choose(tree, "Some get a proposal first");
+    tree = redrawTab(flash);
+    choose(tree, "They book an appointment");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "sells_by");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual([openFolds(tree), c.sent.length], [[], 1], "nothing more was sent");
+
+    // Refused: the server's words in the danger tone, and the fold stays open with the choice as it was.
+    const no = "How that workspace's customers buy could not be changed.";
+    W.__workspace.patch = async () => ({ ok: false, workspace: {}, message: no });
+    openFold(tree, "sells_by");
+    tree = redrawTab(flash);
+    choose(tree, "Some get a proposal first");
+    tree = redrawTab(flash);
+    saveFoldOf(tree, "sells_by");
+    await settle();
+    tree = redrawTab(flash);
+    assert.deepEqual(told(flashes.at(-1)), ["danger", no]);
+    assert.deepEqual(openFolds(tree), ["sells_by"]);
+    assert.equal(answers(tree)[1].props["aria-checked"], true);
+    // Cancel with a change asks first, as every fold's does.
+    cancelFoldOf(tree, "sells_by");
+    tree = redrawTab(flash);
+    assert.match(textOf(byTestId(tree, "rec-fold-sells_by-cancel-confirm")), /Discard your changes\?/);
+    assert.equal(sent.length, 0, "and never once the settings save");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("only an owner is offered the answer's act: an operator reads it, and nothing opens for them", () => {
+  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "operator" };
+  const c = courier();
+  try {
+    const tree = drawTab({ sellsBy: "proposal" });
+    const row = buysRow(tree);
+    assert.equal(stated(row), "Some get a proposal first");
+    assert.equal(byTestId(row, "rec-row-act-sells_by"), null, "no act, as no row of the business offers one");
+    W.__recordFolds.request("sells_by");
+    assert.deepEqual(openFolds(redrawTab()), []);
+    assert.deepEqual(c.sent, []);
+  } finally {
+    delete W.ST_STORE;
+    delete W.__workspace;
+  }
+});
+
+test("Needs a consult first says a consultation for those services starts a deal, only where deals are on", () => {
+  assert.equal(consultHint(drawTab({ sellsBy: "proposal" })), "A consultation for these is the first step of a deal.");
+  assert.equal(consultHint(drawTab({ sellsBy: "proposal" })), sellsByVM("proposal").consultHint);
+  assert.equal(consultHint(drawTab({ sellsBy: "booking" })), null);
+  assert.equal(consultHint(drawTab()), null, "never asked: deals are off");
+  // With nothing that needs one, the row still says what one would start: the hint is the answer's, not the list's.
+  const none = drawTab({
+    sellsBy: "proposal",
+    profile: { ...melany, booking_rules: without(melany.booking_rules, "consult_first") },
+  });
+  assert.match(textOf(byTestId(none, "rec-row-consult_first")), /None/);
+  assert.equal(consultHint(none), CONSULT_FIRST_DEAL_HINT);
 });
 
 /* ------------------------------------ the sheet ------------------------------------ */

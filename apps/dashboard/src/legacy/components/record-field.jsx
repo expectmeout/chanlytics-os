@@ -138,10 +138,17 @@ const RecordSwitch = ({ on, onChange, label = null, labelledBy = null, described
 
 // A choice of a few, drawn as a segmented control and announced as a radiogroup. It is one tab stop, on the chosen
 // option; the arrows pick the next or the one before and take focus there, wrapping at either end, and Home and End
-// go to the ends, as a radiogroup's keys do. `options` is [{ value, label }].
-const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = false, gate = null, testid = null }) => {
+// go to the ends, as a radiogroup's keys do. `options` is [{ value, label, hint? }]. `label` names the group, or
+// `labelledBy` points at the words on screen that already do, as a switch's does.
+// An option's `hint` is a sentence of what choosing it means, drawn under its label: each option is then a card of the
+// two, side by side where they fit and one above the other where they do not (record.css, data-hints), named by its
+// label and described by its hint. The group is hookless, so one with hints REQUIRES an `id`, which those words' ids
+// are made from, as RecordBox requires one.
+const RecordToggleGroup = ({ id = null, label, labelledBy = null, value, options = [], onChange, readOnly = false, gate = null, testid = null }) => {
   const at = options.findIndex((o) => o.value === value);
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
+  const hints = options.some((o) => !!o.hint);
+  if (hints && !id) throw new TypeError("RecordToggleGroup needs an id to name its options' hints by: it is hookless, so it cannot make one.");
   const walk = (e) => {
     const n = options.length;
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -154,9 +161,18 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = fa
     if (radios[next] && radios[next].focus) radios[next].focus();
   };
   return (
-    <div className="rec-seg" role="radiogroup" aria-label={label} onKeyDown={walk} data-testid={testid || undefined}>
+    <div
+      className="rec-seg"
+      role="radiogroup"
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy || undefined}
+      onKeyDown={walk}
+      data-hints={hints ? "true" : undefined}
+      data-testid={testid || undefined}
+    >
       {options.map((o, i) => {
         const checked = o.value === value;
+        const words = o.hint ? `${id}-${i}` : null;
         return (
           <button
             key={String(o.value)}
@@ -165,11 +181,18 @@ const RecordToggleGroup = ({ label, value, options = [], onChange, readOnly = fa
             className="rec-seg-btn"
             aria-checked={checked}
             aria-disabled={readOnly || undefined}
+            aria-labelledby={words ? `${words}-label` : undefined}
+            aria-describedby={words ? `${words}-hint` : undefined}
             tabIndex={checked || (at < 0 && i === 0) ? 0 : -1}
             onClick={() => { if (!readOnly && onChange) onChange(o.value); }}
             {...(gate || {})}
           >
-            {o.label}
+            {words ? (
+              <>
+                <span className="rec-seg-label" id={`${words}-label`}>{o.label}</span>
+                <span className="rec-seg-hint" id={`${words}-hint`}>{o.hint}</span>
+              </>
+            ) : o.label}
           </button>
         );
       })}

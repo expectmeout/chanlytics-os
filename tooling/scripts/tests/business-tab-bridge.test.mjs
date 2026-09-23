@@ -55,6 +55,8 @@ import {
   MAX_CLOSURES,
   PROFILE_LIMITS,
   profileRefusal,
+  sellsByVM,
+  sellsBySaved,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -132,8 +134,9 @@ const served = (brain, channel, row) => {
 };
 
 /** The real rows whose effect never reaches the cached prompt. */
-// And the create fold of a workspace with no receptionist, which the settings read composes no preview for.
-const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist"];
+// And the create fold of a workspace with no receptionist, which the settings read composes no preview for, and how
+// customers buy (0008), which is the workspace's and no part of the brain.
+const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist", "sells_by"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
@@ -179,6 +182,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "ruleStrength",
     "rulesKept",
     "saveIssues",
+    "sellsBySaved",
+    "sellsByVM",
     "serviceUndoName",
     "servicesFoundWords",
     "servicesSaveWords",
@@ -199,6 +204,15 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     assert.equal(tab.hasProfile(p), hasProfile(p), JSON.stringify(p));
   }
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
+  // What you offer's first row, how customers buy (0008): its row, its choice and what it switches, and the toast.
+  for (const answer of [null, "booking", "proposal", "banana"])
+    assert.deepEqual(tab.sellsByVM(answer), sellsByVM(answer), String(answer));
+  for (const [was, now] of [
+    [null, "booking"],
+    ["proposal", "booking"],
+    [null, "proposal"],
+  ])
+    assert.equal(tab.sellsBySaved(was, now), sellsBySaved(was, now), `${was} → ${now}`);
   // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
   assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
   assert.deepEqual(tab.PROMPT_NOW, PROMPT_NOW);

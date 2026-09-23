@@ -635,6 +635,64 @@ test("a toggle group is one tab stop, and the arrows walk it", () => {
   assert.deepEqual(picked, ["other", "other"], "from the first, left wraps round to the last");
 });
 
+test("a toggle group's options may each say what choosing them means, and are named and described by their own words", () => {
+  const picked = [];
+  const buys = {
+    id: "buys",
+    label: "How customers buy",
+    value: "proposal",
+    options: [
+      { value: "booking", label: "They book an appointment", hint: "Bookings, reminders and the booking link." },
+      { value: "proposal", label: "Some get a proposal first", hint: "Adds deals." },
+    ],
+    onChange: (v) => picked.push(v),
+  };
+  const tree = draw(W.RecordToggleGroup, buys);
+  const group = find(tree, (n) => n.props?.role === "radiogroup");
+  assert.deepEqual([group.props["aria-label"], group.props["data-hints"]], ["How customers buy", "true"]);
+  const radios = all(tree, (n) => n.props?.role === "radio");
+  // Each option's name is its label and its description the sentence under it, by ids made from the group's.
+  assert.deepEqual(
+    radios.map((r) => [
+      textOf(byId(tree, r.props["aria-labelledby"])),
+      textOf(byId(tree, r.props["aria-describedby"])),
+      r.props["aria-checked"],
+      r.props.tabIndex,
+    ]),
+    [
+      ["They book an appointment", "Bookings, reminders and the booking link.", false, -1],
+      ["Some get a proposal first", "Adds deals.", true, 0],
+    ],
+  );
+  assert.deepEqual(
+    radios.map((r) => r.props["aria-labelledby"]),
+    ["buys-0-label", "buys-1-label"],
+  );
+  press(radios[0]);
+  assert.deepEqual(picked, ["booking"], "a press chooses, as it does without them");
+  // Named by the words on screen that already say the question, as a switch can be.
+  const named = find(
+    draw(W.RecordToggleGroup, { ...buys, labelledBy: "the-question" }),
+    (n) => n.props?.role === "radiogroup",
+  );
+  assert.deepEqual([named.props["aria-labelledby"], named.props["aria-label"]], ["the-question", undefined]);
+  // Without hints nothing changes: the option is its label, and the group carries no mark.
+  const plain = draw(W.RecordToggleGroup, numbers);
+  assert.equal(find(plain, (n) => n.props?.role === "radiogroup").props["data-hints"], undefined);
+  assert.deepEqual(
+    all(plain, (n) => n.props?.role === "radio").map((r) => [r.props["aria-labelledby"], r.props["aria-describedby"]]),
+    [
+      [undefined, undefined],
+      [undefined, undefined],
+    ],
+  );
+  // Hookless, so a group with hints cannot make ids of its own: it needs one.
+  assert.throws(
+    () => draw(W.RecordToggleGroup, { ...buys, id: null }),
+    (e) => e instanceof TypeError && /needs an id/.test(e.message),
+  );
+});
+
 test("a combobox narrows as you type, and the arrows, Enter and Escape drive it", () => {
   const picked = [];
   const props = {

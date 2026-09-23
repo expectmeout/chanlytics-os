@@ -11,8 +11,8 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { newReceptionistDefaults, FALLBACK_DEFAULTS, roleGate, whyNotAPhone } from "@chanlytics/contracts";
-import { again, unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { newReceptionistDefaults, FALLBACK_DEFAULTS, roleGate, whyNotAPhone, sellsByVM } from "@chanlytics/contracts";
+import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, saving } from "./_business-tab-harness.mjs";
 
 // The last card this file drew goes as React would take it away (the harness says why).
@@ -23,7 +23,14 @@ after(() => unmount());
  * platform provisioned, `handoff` the number a caller who insists on a person is transferred to; both absent is the
  * workspace as it arrives, before Connections has given it a line.
  */
-const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}, read = true } = {}) => {
+const drawCreate = ({
+  flash = () => {},
+  line = null,
+  handoff = null,
+  config = {},
+  read = true,
+  sellsBy = null,
+} = {}) => {
   W.__SETTINGS = read ? { version: 3, config, prompt: null } : null;
   W.__FACTS = {
     facts: {
@@ -32,12 +39,13 @@ const drawCreate = ({ flash = () => {}, line = null, handoff = null, config = {}
     },
     conflicts: [],
   };
-  W.__WORKSPACES = [{ id: "t-new", name: "Bella Nails", timezone: "America/New_York" }];
+  W.__WORKSPACES = [{ id: "t-new", name: "Bella Nails", timezone: "America/New_York", sells_by: sellsBy }];
   W.__ACTIVE_WORKSPACE = "t-new";
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
   W.__businessTabSave.zone.reset();
+  W.__businessTabSave.sellsBy.reset();
   return W.React.createElement(W.BtCreateCard, { flash });
 };
 /** The same card again, over the same hook cells, as React draws it after a state change. */
@@ -81,7 +89,8 @@ test("its act opens the three things a receptionist cannot answer anyone without
   const labels = all(byTestId(tree, "rec-fold-receptionist"), (n) => classes(n).includes("rec-field-label"))
     .map(textOf)
     .filter(Boolean);
-  assert.deepEqual(labels, ["Business name", "Tell customers to call", "Booking link"]);
+  // And under them the workspace's own question, how customers buy (0008), asked by the same words as its row.
+  assert.deepEqual(labels, ["Business name", "Tell customers to call", "Booking link", "How customers buy"]);
   // The number's box is named by that same visible label, which is a heading over a choice and a box, not a <label>.
   assert.equal(boxIn(tree, "rec-create-number").props["aria-labelledby"], "bt-create-number-label");
   assert.equal(textOf(find(tree, (n) => n.props?.id === "bt-create-number-label")), "Tell customers to call");
@@ -300,6 +309,161 @@ test("a number typed and then put back to the line is stored as no number, not a
     false,
     "nothing is stored, so what it gives out follows the line",
   );
+});
+
+/* ------------------------------------ how customers buy ------------------------------------ */
+
+/**
+ * The workspace's courier (legacy-bridge/identity.ts `patch`), standing in for it: it records what it is sent, keeps
+ * the page's list of workspaces current as the courier does once the server has taken a change, and answers `answer`,
+ * or taken.
+ */
+const courier = (answer = null) => {
+  const sent = [];
+  W.__workspace = {
+    patch: async (fields) => {
+      sent.push(fields);
+      const r = answer || { ok: true, workspace: fields, message: "" };
+      if (r.ok) W.__WORKSPACES = W.__WORKSPACES.map((t) => (t.id === W.__ACTIVE_WORKSPACE ? { ...t, ...fields } : t));
+      return r;
+    },
+  };
+  return sent;
+};
+const answersIn = (tree) => all(byTestId(tree, "rec-create-sells-by-choice"), (n) => n.props?.role === "radio");
+const labelOf = (radio) => textOf(find(radio, (n) => classes(n).includes("rec-seg-label")));
+/** The two boxes a workspace with a line must fill, filled. */
+const fillIn = (tree, flash = () => {}) => {
+  typeIn(tree, "rec-create-name", "Bella Nails");
+  typeIn(redrawCreate(flash), "rec-create-link", "https://bella.example/book");
+  return redrawCreate(flash);
+};
+const toasts = (flashes) => flashes.map((f) => [f.tone ?? "ok", textOf(f.msg)]);
+const RECEPTIONIST_SAVED = "Saved — the receptionist picks these up within a minute";
+
+test("the fold asks how customers buy, with They book an appointment chosen until someone chooses otherwise", () => {
+  courier();
+  try {
+    let tree = drawCreate();
+    setUp(tree);
+    tree = redrawCreate();
+    const group = find(byTestId(tree, "rec-create-sells-by-choice"), (n) => n.props?.role === "radiogroup");
+    // Named by the question on screen above it, as the number's choice is named by its heading.
+    assert.equal(textOf(find(tree, (n) => n.props?.id === group.props["aria-labelledby"])), "How customers buy");
+    assert.deepEqual(
+      answersIn(tree).map((r) => [labelOf(r), r.props["aria-checked"]]),
+      [
+        ["They book an appointment", true],
+        ["Some get a proposal first", false],
+      ],
+    );
+    // Each with what choosing it means: contracts' words, the same as What you offer's row.
+    assert.deepEqual(
+      answersIn(tree).map((r) => textOf(find(tree, (n) => n.props?.id === r.props["aria-describedby"]))),
+      sellsByVM(null).choices.map((c) => c.hint),
+    );
+    // A workspace that has already said opens on its own answer.
+    tree = drawCreate({ sellsBy: "proposal" });
+    setUp(tree);
+    tree = redrawCreate();
+    assert.deepEqual(
+      answersIn(tree).map((r) => r.props["aria-checked"]),
+      [false, true],
+    );
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("the create save never carries the answer: once the receptionist is taken, it goes through the workspace's courier", async () => {
+  const sent = saving();
+  const patched = courier();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  try {
+    let tree = drawCreate({ flash, line: "+13083368109" });
+    setUp(tree);
+    tree = fillIn(redrawCreate(flash), flash);
+    save(tree);
+    await settle();
+    assert.equal(sent.length, 1, "one request sets the receptionist up");
+    assert.equal(JSON.stringify(sent[0].config).includes("sells_by"), false, "and it never carries the answer");
+    assert.deepEqual(patched, [{ sells_by: "booking" }], "the answer chosen by default, alone, after the create call");
+    assert.equal(W.__WORKSPACES[0].sells_by, "booking");
+    assert.deepEqual(toasts(flashes), [["ok", RECEPTIONIST_SAVED]], "one act, one toast");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("a different answer chosen is the one sent, and an answer the workspace already gave is not sent again", async () => {
+  const sent = saving();
+  const patched = courier();
+  try {
+    let tree = drawCreate({ line: "+13083368109" });
+    setUp(tree);
+    tree = fillIn(redrawCreate());
+    press(answersIn(tree).find((r) => labelOf(r) === "Some get a proposal first"));
+    tree = redrawCreate();
+    assert.deepEqual(
+      answersIn(tree).map((r) => r.props["aria-checked"]),
+      [false, true],
+    );
+    save(tree);
+    await settle();
+    assert.equal(sent.length, 1);
+    assert.deepEqual(patched, [{ sells_by: "proposal" }]);
+
+    // Already said, and left as it was: there is nothing to send.
+    patched.length = 0;
+    tree = drawCreate({ line: "+13083368109", sellsBy: "proposal" });
+    setUp(tree);
+    tree = fillIn(redrawCreate());
+    save(tree);
+    await settle();
+    assert.equal(sent.length, 2);
+    assert.deepEqual(patched, [], "the answer stored is not sent again");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("an answer refused once the receptionist is taken is said in the server's words, and the receptionist stands", async () => {
+  const sent = saving();
+  const no = "How that workspace's customers buy could not be changed.";
+  const patched = courier({ ok: false, workspace: {}, message: no });
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  try {
+    let tree = drawCreate({ flash, line: "+13083368109" });
+    setUp(tree);
+    tree = fillIn(redrawCreate(flash), flash);
+    save(tree);
+    await settle();
+    assert.equal(sent.length, 1, "the receptionist is set up all the same");
+    assert.deepEqual(patched, [{ sells_by: "booking" }]);
+    assert.deepEqual(toasts(flashes), [
+      ["ok", RECEPTIONIST_SAVED],
+      ["danger", no],
+    ]);
+    assert.equal(W.__WORKSPACES[0].sells_by, null, "never said, so What you offer's row asks it again");
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("with no courier to send the answer through, the receptionist is set up and nothing else is tried", async () => {
+  const sent = saving();
+  const flashes = [];
+  const flash = (f) => flashes.push(f);
+  let tree = drawCreate({ flash, line: "+13083368109" });
+  setUp(tree);
+  tree = fillIn(redrawCreate(flash), flash);
+  save(tree);
+  await settle();
+  assert.equal(sent.length, 1);
+  assert.equal(W.__businessTabSave.sellsBy.pending(), false);
+  assert.deepEqual(toasts(flashes), [["ok", RECEPTIONIST_SAVED]]);
 });
 
 /* ------------------------------------ who may do it ------------------------------------ */

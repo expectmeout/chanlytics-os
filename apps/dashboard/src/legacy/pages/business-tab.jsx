@@ -135,21 +135,23 @@ const BusinessTab = ({ flash = () => {} }) => {
   // done, for as long as the page is on screen.
   const [, setTick] = useBizState(0);
   const saver = window.__businessTabSave.saver;
-  // And the zone's own door, which is the tab's for the same reason (business-tab-save.jsx): one effect hears both.
+  // And the workspace's own doors, the zone's and how customers buy's, which are the tab's for the same reason
+  // (business-tab-save.jsx): one effect hears all three.
   // And the settings surface read again (after a save, a zone saved through its own route, a conflict's re-read, a
   // Retry), which is where every row's value comes from: heard here, not only by whatever draws the page, since a zone
   // saved and read back left the card's "in New York time" and the closures counted on New York's day until something
   // else drew the page.
   const zone = window.__businessTabSave.zone;
+  const buys = window.__businessTabSave.sellsBy;
   useBizEffect(() => {
     const bump = () => setTick((n) => n + 1);
-    const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null];
+    const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null, buys ? buys.subscribe(bump) : null];
     window.addEventListener("surface:settings", bump);
     return () => {
       stops.forEach((stop) => { if (stop) stop(); });
       window.removeEventListener("surface:settings", bump);
     };
-  }, [saver, zone]);
+  }, [saver, zone, buys]);
   // What the receptionist is told: the prompt sheet's hold on the registry and the channel it shows (business-tab-prompt.jsx),
   // held here, on every draw and before every card, so the told section at rest says the channel last chosen and the
   // sheet itself is the one thing that comes and goes, in the slot (BtSheetSlot).
