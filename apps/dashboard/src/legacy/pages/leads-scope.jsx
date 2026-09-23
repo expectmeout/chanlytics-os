@@ -683,11 +683,50 @@ const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
   );
 };
 
+// The map fits the screen it opens on (desktop only). Its box took a fixed shape from the column's width, so on a
+// wide screen it ran ~790px tall and its bottom -- and the note and Search wider under it -- sat below the fold.
+// This measures the room from the map's top to the bottom of whatever scrolls it, less the foot and the padding
+// under it, and hands it to the stylesheet as --map-h; the list beside it takes the same height. It measures again
+// on a resize and whenever the column above it grows or shrinks (the finder opening, the band's fits appearing).
+const useLeadMapFit = () => {
+  const ref = useLmRef(null);
+  useLmEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === "undefined" || !el.getBoundingClientRect) return undefined;
+    const wide = window.matchMedia ? window.matchMedia("(min-width: 901px)") : { matches: true };
+    const scroller = () => {
+      for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+        const o = getComputedStyle(n).overflowY;
+        if (o === "auto" || o === "scroll") return n;
+      }
+      return null;
+    };
+    const fit = () => {
+      const box = el.querySelector(".ld-map-main > :first-child");
+      if (!wide.matches || !box) { el.classList.remove("fit"); return; }
+      const sc = scroller();
+      const top = sc ? box.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop : box.getBoundingClientRect().top + window.scrollY;
+      const foot = el.querySelector(".ld-map-foot");
+      const under = (foot ? foot.offsetHeight + 8 : 0) + (parseFloat(getComputedStyle(el).paddingBottom) || 0);
+      const room = (sc ? sc.clientHeight : window.innerHeight) - top - under;
+      el.style.setProperty("--map-h", `${Math.max(320, Math.round(room))}px`);
+      el.classList.add("fit");
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    if (ro && el.parentElement) ro.observe(el.parentElement);
+    return () => { window.removeEventListener("resize", fit); if (ro) ro.disconnect(); };
+  }, []);
+  return ref;
+};
+
 const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
   const cover = useLeadMapCoverage();
+  const fitRef = useLeadMapFit();
   const streets = !!(cover && plot.center && !plot.tooWide && cover.covers(plot.center));
   const card = picked && byId.get(picked) ? (
     <div className="ld-map-card" data-testid="lead-map-card">
@@ -702,7 +741,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
     </div>
   ) : null;
   return (
-    <div className="ld-map" data-testid="lead-map">
+    <div className="ld-map" ref={fitRef} data-testid="lead-map">
       <div className="ld-map-side">
         <div className="ld-map-bar">
           <span className="ld-map-count" data-testid="lead-map-count">{`${plot.pins.length} on the map`}</span>
