@@ -9840,7 +9840,10 @@ function openingsAnswer(o, language) {
     return a2;
   }
   if (o.state === "unavailable")
-    return structured(es ? "No se pudo leer el calendario ahora." : "The calendar couldn't be read right now.", language);
+    return structured(
+      es ? "No se pudo leer el calendario ahora." : "The calendar couldn't be read right now.",
+      language
+    );
   const days = o.days.filter((d) => d.windows.length);
   const a = structured(openingsHeadline(days, es), language);
   a.show.items = days.slice(0, ASK_ANSWER_CAPS.items).map((d) => ({
@@ -14507,6 +14510,12 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
+  { group: "Ask", keys: ["\u2191", "\u2193"], does: "Walk what is under the line" },
+  { group: "Ask", keys: ["\u21B5"], does: "Ask, or open the row" },
+  { group: "Ask", keys: ["\u2318J"], does: "Earlier conversations" },
+  { group: "Ask", keys: ["Space"], does: "Hold on an empty line to talk" },
+  { group: "Ask", keys: ["Esc"], does: "Stop an answer, then close" },
   { group: "People", keys: ["/"], does: "Search People" },
   { group: "People", keys: ["J", "K", "\u2193", "\u2191"], does: "Next and previous person" },
   { group: "People", keys: ["X", "Space"], does: "Select the person" },

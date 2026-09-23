@@ -68,7 +68,18 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   const groups = shortcutGroups(SHORTCUTS);
   assert.deepEqual(
     groups.map((g) => g.group),
-    ["Everywhere", "People", "Inbox"],
+    ["Everywhere", "Ask", "People", "Inbox"],
+  );
+  assert.deepEqual(
+    groups.find((g) => g.group === "Ask").items.map((s) => [s.keys.join(" "), s.does]),
+    [
+      ["↑ ↓", "Walk what is under the line"],
+      ["↵", "Ask, or open the row"],
+      ["⌘J", "Earlier conversations"],
+      ["Space", "Hold on an empty line to talk"],
+      ["Esc", "Stop an answer, then close"],
+    ],
+    "the Line draws no key (D17): the sheet is where its keys are listed",
   );
   const does = SHORTCUTS.map((s) => s.does);
   for (const d of [
