@@ -1289,13 +1289,13 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    // The three (today-face.jsx) between the standing line and the queue; its stylesheet draws them on a phone only.
+    ["HeroBrief", "TodayFace", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
   );
-  // The three (today-face.jsx) stand in the queue's column, above it; the day keeps its column beside both.
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
   assert.deepEqual(
     core.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),
-    ["TodayFace", "AgentCommand", "TodayDay"],
+    ["AgentCommand", "TodayDay"],
   );
   const foot = find(tree, (n) => classes(n).includes("dash-a-v2-foot"));
   assert.deepEqual(

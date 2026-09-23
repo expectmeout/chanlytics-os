@@ -35,25 +35,21 @@
 }
 @keyframes today-ring { from { transform: scale(0.7); opacity: 0.6; } to { transform: scale(1.6); opacity: 0; } }
 
-/* ---- The three: the face above the queue (pages/today-face.jsx; spec 2026-09-23-the-three-on-today) ----------
-   One band: the stage the character is drawn on, the exchange (empty at rest, so it takes no height), the field.
-   The squares themselves are the bridge's (legacy-bridge/mascot); here only the box they stand in: a 232px stage
-   whose squares are sized for a 200px band, so the leap has 16px of room above and below. The chips are the
+/* ---- The three on a phone: the face above the queue (pages/today-face.jsx; spec 2026-09-23-the-three-on-today) --
+   The stage the character is drawn on, always the full face: 232px, with squares sized for a 200px band so the
+   leap has 16px of room above and below. The exchange and the field come in under it only while it is woken (a
+   tap) and leave as it folds. Wider than a phone the band is not drawn: Ask's face is the top bar's button and the
+   palette's stage (components/ask-face.jsx). The squares are the bridge's (legacy-bridge/mascot); the chips are the
    palette's (.ask-follow, .ask-link-chip, .ask-action-chip, .ask-tool, .ask-talk); only their row is the band's. */
-.today-face { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-/* At rest the stage is the mark, small (18px squares), at the column's left; open, it is a 620px block centred in
-   the column (the whole column on a phone) and 232px tall, with the exchange and the field under it. The width and
-   the margin transition so the mark grows into place; the driver eases the squares' size with it. */
-.tf-stage { position: relative; width: 84px; height: 64px; margin-left: 4px; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; cursor: pointer; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: width 260ms var(--ease-out), height 260ms var(--ease-out), margin-left 260ms var(--ease-out); }
-.today-face[data-open="true"] .tf-stage { width: min(100%, 620px); height: 232px; margin-left: max(0px, calc(50% - 310px)); border-radius: var(--radius-lg); }
+.today-face { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+@media (min-width: 721px) {
+  .today-face { display: none; }
+}
+.tf-stage { position: relative; width: 100%; height: 232px; padding: 0; border: 0; border-radius: var(--radius-lg); background: transparent; cursor: pointer; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 .tf-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tf-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-.today-face[data-open="true"] .tf-exchange, .today-face[data-open="true"] .tf-field { align-self: center; }
 @media (prefers-reduced-motion: no-preference) {
   .today-face[data-open="true"] .tf-exchange, .today-face[data-open="true"] .tf-field { animation: tf-in 220ms var(--ease-out) both; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tf-stage { transition: none; }
 }
 @keyframes tf-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .tf-exchange { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(620px, 100%); text-align: center; }
@@ -79,19 +75,9 @@
 .dash-a-v2-core {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  /* The band's row takes the band's height and nothing more: the day spans both rows, and a day taller than the
-     band and the queue together would otherwise share its extra height with the band's row and push the queue down
-     (production, 23 Sep: 208px of nothing under the mark). A flexible second row keeps a spanning item out of the
-     first row's sizing. */
-  grid-template-rows: auto 1fr;
   gap: 12px;
   align-items: start;
 }
-/* The three stand in the queue's column, above it (pages/today-face.jsx, the core's first child), and the day keeps
-   its column beside both. Placed by hand: auto-placement would seat the queue beside the band. */
-.dash-a-v2-core > .today-face { grid-column: 1; grid-row: 1; }
-.dash-a-v2-core > .tq { grid-column: 1; grid-row: 2; }
-.dash-a-v2-core > .td-day { grid-column: 2; grid-row: 1 / span 2; }
 .dash-a-v2-foot {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
@@ -1271,9 +1257,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* Below 1180px each row is one column, in the same order (spec 4.1). today-day.test pins this block's first two lines. */
 @media (max-width: 1180px) {
   .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }
-  /* One column: the three, the queue, the day, in source order. The same three selectors as the placement above, or
-     the placement wins on specificity and the day gets an implicit second column beside the band. */
-  .dash-a-v2-core > .today-face, .dash-a-v2-core > .tq, .dash-a-v2-core > .td-day { grid-column: 1; grid-row: auto; }
 }
 @media (max-width: 720px) {
   /* A phone puts nothing above the work it can help with: the head is one line with its door on it, and the

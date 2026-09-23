@@ -27,6 +27,9 @@ The face is the mark itself: the three rounded squares that step down a diagonal
 | D11 | At rest the band is the mark alone, small, at the top of the queue's column; no field, no box. A click opens it; a press held on it listens. | Ruben, 23 Sep, on main: "too much dead space left and right", "the type in chat looks ugly, I'd rather like it open or appear or slide appear when users click to activate the agent". Section 4.6. |
 | D12 | Open, the stage is a 620px block centred in the column (the column on a phone), 232px tall; the squares grow with it. Escape, a press outside, or Clear folds it back; a question in flight carries on behind the mark. | The same block as the field it answers into; the character keeps its one size when open (D4). |
 | D13 | Before the recogniser starts, the press asks the browser whether the microphone is blocked (the Permissions API, where it exists) and says where to allow it. The site cannot make a browser ask again after a No. | Ruben hit the block on main. A stored denial is silent in Chrome; the old toast said only that permission was needed. |
+| D14 | Wider than a phone (721px and up) the band is not drawn. The three are the top bar's Ask button's icon, on every page, and stand on a stage above the palette's conversation. Supersedes D2 and D11–D12 there. | Ruben, 23 Sep, on main: the desktop placement was not a nice place; bring the queue up. The one element on a desktop that is for asking is the Ask button, so the face goes there: one AI, one face, one door. Section 4.7. |
+| D15 | Ask has one mood, said by whoever runs a turn (the palette) and followed by every face (`mascot/mood.ts`). | Two faces showing one AI must never disagree: a turn left running in the palette still moves the button. |
+| D16 | On a phone the band is always the full face, and the field comes in only when it is woken. Supersedes the compact rest of D11 there. | Ruben, 23 Sep: "on mobile I prefer it expanded always but without the chat type-in bar unless it is activated". |
 
 ## 3. Principles the band holds
 
@@ -43,7 +46,7 @@ The face is the mark itself: the three rounded squares that step down a diagonal
 
 ### 4.1 Where
 
-`dashboard-a.jsx:13-26` is the page. The band is the first child of `.dash-a-v2-core`, placed by the grid in the queue's column (Ruben, 23 Sep, on seeing it full width: "it should be on the left column not full width"); the day keeps its column beside both:
+(Now: between the standing line and the queue, on a phone only; section 4.7.) `dashboard-a.jsx:13-26` is the page. The band was the first child of `.dash-a-v2-core`, placed by the grid in the queue's column (Ruben, 23 Sep, on seeing it full width: "it should be on the left column not full width"); the day keeps its column beside both:
 
 ```
 [ standing line ]
@@ -78,13 +81,12 @@ The stage is the page's width inside its 16px padding (`mobile.css:114-116`). Th
 
 ### 4.5 The cost, measured
 
-Closed, the band is the mark (64px) and the gap under it (12px): the queue's head moves down by about 76px, on a
-phone as on a desktop. Open, it is the stage (232px), the field (40px) and their margins and gap (about 26px), about
-300px, only while the owner is asking, and the exchange adds the answer's own height. On the prototype at 390px the
-queue's head sat 423px from the phone frame's top with a 200px stage always open; that was the cost Ruben paid for
-D2 at first, and 4.6 is what he asked for on seeing it.
+On a desktop nothing: the queue is back under the standing line (12px). On a phone the band is the stage (232px)
+and the gap under it (12px) at rest, about 244px, and the field (40px) and the exchange add their height only while
+the owner is asking. On the prototype at 390px the queue's head sat 423px from the phone frame's top with a 200px
+stage; that is the cost of D16 and it is Ruben's.
 
-### 4.6 Compact at rest, open on activation (23 Sep, D11–D13)
+### 4.6 Compact at rest, open on activation (23 Sep, D11–D13; superseded on a desktop by 4.7, on a phone by D16)
 
 Seen on main, the open band left the queue's column mostly empty (52px squares in a 940px column, a permanent field
 under them). So the band has two states, `data-open` on its section:
@@ -107,9 +109,32 @@ under them). So the band has two states, `data-open` on its section:
   own). Denied: no recogniser, and the toast says where to allow it (`micBlocked`, en/es). Otherwise the browser's
   own prompt comes with the start. A browser told No once does not ask again; the site cannot make it.
 
-### 4.5 The cost, measured
+### 4.7 The face in the header on a desktop, the full face on a phone (23 Sep, D14–D16)
 
-At rest the band is the stage (232px), the field (40px) and their margins and gap (about 26px): the queue's head moves down by about 300px on a phone. The exchange is empty at rest and adds nothing; while an answer is shown it adds the answer's own height. On the prototype at 390px the queue's head sat 423px from the phone frame's top with a 200px stage. That is the whole cost of D2 and it is Ruben's.
+Seen on main, a small mark at the top of the queue's column still sat in the way of the work, and the page's one
+element for asking was elsewhere. So the face goes where asking already lives:
+
+- **Desktop and tablet (721px and up).** Today draws nothing between the standing line and the queue: the band is
+  `display: none` there (`.today-face`), and the core grid is the queue with the day beside it again. The top bar's
+  Ask button (`topbar.jsx`, `tb-ask`) has the three as its icon in place of the sparkle: a 28 by 24px canvas whose
+  height holds the whole leap, so the squares are about 6px (`components/ask-face.jsx` AskFace, `components.css`).
+  At rest they are the app's ink and breathe; they perk as the pointer comes near; while Ask listens, reads or
+  answers they turn coral and act it out, on every page.
+- **The palette.** A click on the button, or ⌘K, opens the palette as before. Above the conversation (the first child
+  of its main column) is a stage, 80px tall on a desktop and 64px on a phone, with the three on it
+  (`ask-stage`, `ask.css`). They grow from the button's size as it opens (`Mounted.setSide`) and act out the turn:
+  the huddle while the talk button is held, the leapfrog while it reads, the row with a lift per word while it
+  answers, the nod as it lands, a shake on a failure. The input bar's sparkle goes: the stage is the mark.
+- **One mood.** `mascot/mood.ts` holds Ask's state (`idle`, `listening`, `thinking`, `speaking`) and passes
+  reactions, beats and words heard to every face that follows it (`follow(face, mood)`); a face that starts late
+  starts in the state it missed. The palette says it (`ask-real.jsx`): listening while held, thinking until the first
+  words (or while an openings answer is read), speaking while they stream or are read aloud, idle otherwise; a beat
+  per streamed piece; a nod for a quick answer or an answer that never streamed; a shake for a failure. It says it
+  while closed too, so a turn left running still moves the button.
+- **Phone (720px and below).** The band stays on Today, between the standing line and the queue, always at the full
+  face (232px, squares for 200). The top bar's Ask button is not drawn on a phone; the ✦ opens the palette, whose
+  stage is 64px. A tap on the three slides the field in under them, focused; a press held listens; Escape, a tap
+  outside or Clear folds the field away (4.6's waking and folding, without the compact size).
 
 ## 5. The character
 
