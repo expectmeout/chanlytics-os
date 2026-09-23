@@ -1,30 +1,35 @@
 /**
- * What the palette shows before a model is asked, from what the browser
- * already holds: the jump index, the suggestions, the bell's rows, the
- * three quick answers, the scope of the current route, the language, and
- * the shape of an answer (what to open, what it read, what to ask next).
- * Every rule is the contract's; this module only feeds it the surfaces.
+ * What the Line shows before a model is asked, from what the browser already
+ * holds: the jump index, the suggestions, who is waiting (Today's queue and the
+ * runs waiting for a yes), the three quick questions, the scope of the current
+ * route, the language, and an answer as it is drawn (its parts and one door per
+ * place). Every rule is the contract's; this module only feeds it the surfaces.
  */
 import {
   ASK_PAGES,
+  answerFromV1,
+  askIntent,
   askJump,
   buildAskSuggestions,
-  citationsToShow,
+  callsAnswer,
+  callsToday,
   detectLanguage,
-  fastPath,
-  followupsToShow,
-  navigateLabel,
+  needsAnswer,
+  oneDoor,
+  openingsAnswer,
+  rightNowLine,
   sameQuestion,
   scopeFromRoute,
   zoneDayKey,
+  type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
   type AskScope,
   type AskSuggestion,
   type AskSurface,
-  type FastPath,
+  type AskWaiting,
   type JumpEntry,
-  type NotificationItem,
+  type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { feedFromGlobals } from "../notifications";
 import type { Workspace } from "../surface-data";
@@ -37,6 +42,16 @@ interface Call {
   startedAtMs: number | null;
 }
 
+/** A playbook's run as the broadcasts surface publishes it, as far as who is waiting reads it. */
+interface Run {
+  id: string;
+  state: string;
+  recipient_count: number;
+  when: string;
+  counts: { sent: number; replied: number };
+  audience?: { label?: string } | null;
+}
+
 export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
   __LIVE?: { now?: Call[]; recent?: Call[] };
@@ -46,6 +61,20 @@ export interface PaletteGlobals {
   __ACTIVE_WORKSPACE?: string | null;
   __ME?: { role?: string | null } | null;
   __TEAM_INVITES?: unknown[] | null;
+  /** Today's view model: its queue is who is waiting on you (every surface starts at boot, LegacyApp.tsx). */
+  TODAY_DATA?: {
+    queue?: {
+      rows?: Array<
+        Pick<
+          TodayQueueRowVM,
+          "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
+        >
+      >;
+      /** How many people wait across the whole queue, past the six rows drawn. */
+      waiting?: number;
+    };
+  } | null;
+  __BROADCASTS?: { rows?: Run[] } | null;
 }
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
@@ -95,13 +124,37 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
   return out;
 }
 
-/** What an answer shows, decided once: the Open button, the sources minus it, the next questions minus echoes. */
-export function shapeAnswer(m: AskMessageVM, language: AskLanguage) {
-  const nav = m.navigate && m.navigate.to ? m.navigate : null;
+/**
+ * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
+ * wait past its six rows, and the playbook runs waiting for a yes, which the queue draws the same way
+ * (dashboard-a-command.jsx runsPending). Null until Today's queue has been read: nobody is claimed to be waiting.
+ */
+export function waitingFrom(win: Window): AskWaiting | null {
+  const w = win as unknown as PaletteGlobals;
+  const queue = w.TODAY_DATA?.queue;
+  if (!queue) return null;
+  const people = (queue.rows ?? [])
+    .filter((r) => r.kind !== "call")
+    .map((r) => ({
+      id: r.conversationId ?? r.callId ?? r.id,
+      kind: r.conversationId ? ("thread" as const) : ("call" as const),
+      who: r.who,
+      channel: r.channel,
+      when: r.when,
+      line: r.quoted ? `“${r.sentence}”` : r.sentence,
+      to: r.cta.to,
+    }));
   return {
-    open: nav ? { to: nav.to, label: navigateLabel(nav, language) ?? "Open" } : null,
-    citations: citationsToShow(m.citations ?? [], nav),
-    followups: followupsToShow(m.followups ?? [], m.citations ?? [], nav),
+    people,
+    more: Math.max(0, (queue.waiting ?? people.length) - people.length),
+    runs: (w.__BROADCASTS?.rows ?? [])
+      .filter((r) => r.state === "pending_approval")
+      .map((r) => ({
+        id: r.id,
+        label: r.audience?.label || "Playbook",
+        reach: r.recipient_count,
+        to: `broadcasts/run:${r.id}`,
+      })),
   };
 }
 
@@ -127,25 +180,29 @@ export function askPalette(win: Window, storage: Storage | null) {
     return (w.__WORKSPACES ?? []).find((x) => x.id === id) ?? null;
   };
   const calls = () => [...(w.__LIVE?.now ?? []), ...(w.__LIVE?.recent ?? [])];
-  const rightNow = (): NotificationItem[] => feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
+  const timezone = () => activeWorkspace()?.timezone ?? null;
   const language = (text?: string): AskLanguage => {
     if (!text) return lastLanguage();
     const l = detectLanguage(text);
     return l === "other" ? lastLanguage() : l;
   };
+  const waiting = () => waitingFrom(win);
   return {
     jumpIndex: () => jumpIndexFrom(win),
     jump: (query: string) => askJump(query, jumpIndexFrom(win)),
-    rightNow,
+    waiting,
+    /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
+    rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
-      const feed = rightNow();
+      const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
+      const who = waiting();
       // The business's today (clock.ts): a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
-      const tz = activeWorkspace()?.timezone ?? null;
+      const tz = timezone();
       const today = tz ? zoneDayKey(Date.now(), tz) : null;
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
-        needsYou: feed.filter((i) => i.kind === "needs_you").length,
+        needsYou: who ? who.people.length + who.more : 0,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
         missedToday: tz
           ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
@@ -158,20 +215,49 @@ export function askPalette(win: Window, storage: Storage | null) {
         dealsOn: !!w.__PEOPLE?.dealsOn,
       });
     },
-    fast: (question: string): FastPath =>
-      fastPath(question, {
-        feed: rightNow(),
-        calls: calls(),
-        now: Date.now(),
-        language: language(question),
-        timezone: activeWorkspace()?.timezone ?? null,
-      }),
+    /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */
+    intent: (question: string) => askIntent(question, Date.now(), timezone()),
+    callsToday: () => callsToday(calls(), Date.now(), timezone()),
+    /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
+    answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
+      oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
     scopeFor: (page: string, param: string | null, label?: string | null) => scopeFromRoute(page, param, label),
     surfaceFor,
     language,
     rememberLanguage,
-    timezone: () => activeWorkspace()?.timezone ?? null,
-    shape: shapeAnswer,
+    timezone,
     sameQuestion,
+  };
+}
+
+/** The openings route as the quick answer reads it (ask/api.ts `openings`). */
+type Openings = (
+  day: string | null,
+  service: string | null,
+) => Promise<{ state: string; days?: Array<{ key: string; label: string; windows: string[] }> }>;
+
+/**
+ * A quick question's answer, without a model: who needs me from Today's queue, today's calls, or the openings route's
+ * days; null for every other question, which is the model's. The sentences are contracts' (ask-answer.ts).
+ */
+export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings) {
+  return (question: string): Promise<AskAnswer> | null => {
+    const intent = p.intent(question);
+    if (!intent) return null;
+    const lang = p.language(question);
+    if (intent.kind === "needs") return Promise.resolve(needsAnswer(p.waiting(), lang));
+    if (intent.kind === "calls") {
+      const c = p.callsToday();
+      return Promise.resolve(callsAnswer(c.missed, c.live, lang));
+    }
+    return openings(intent.day, intent.service)
+      .then((o) =>
+        openingsAnswer(
+          { state: o.state === "ok" || o.state === "no_calendar" ? o.state : "unavailable", days: o.days ?? [] },
+          lang,
+          intent.day,
+        ),
+      )
+      .catch(() => openingsAnswer({ state: "unavailable", days: [] }, lang));
   };
 }

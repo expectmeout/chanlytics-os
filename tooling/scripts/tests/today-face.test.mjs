@@ -8,7 +8,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes, press, settle } from "./_legacy-react.mjs";
+import { answerFromV1, answerText, needsAnswer, oneDoor } from "@chanlytics/contracts";
+import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } from "./_legacy-react.mjs";
 
 const asked = [];
 const flashes = [];
@@ -24,6 +25,7 @@ Object.assign(W, {
 });
 await import(`${L}/pages/ask-text.jsx`);
 await import(`${L}/pages/ask-hooks.jsx`);
+await import(`${L}/pages/ask-turn.jsx`);
 await import(`${L}/pages/today-face.jsx`);
 
 const msg = (over = {}) => ({
@@ -44,8 +46,10 @@ const client = (script) => {
   return {
     sent,
     language: () => "en",
-    fast: () => null,
-    shape: (m) => ({ open: m.navigate, citations: [], followups: m.followups || [] }),
+    quick: () => null,
+    // What an answer shows is the contract's, as the bridge hands it over (palette.ts `answer`).
+    answer: (m) => oneDoor(m.answer ?? answerFromV1(m), m.proposals || []),
+    answerText,
     canSpeak: () => false,
     speak: () => false,
     stopSpeaking() {},
@@ -137,7 +141,7 @@ test("Escape folds it and keeps the answer for the next opening; Clear forgets a
   delete W.__ask;
 });
 
-test("a question: it reads, the answer streams, then the follow-ups and the doors; a follow-up stays on the thread", async () => {
+test("a question: it reads, the answer streams, then it settles as the Line draws it; a next question stays on the thread", async () => {
   const A = client([
     { t: "thread", id: "th1", title: "who's waited longest?" },
     { t: "trace", text: "Reading the inbox…" },
@@ -159,7 +163,8 @@ test("a question: it reads, the answer streams, then the follow-ups and the door
   assert.ok(ex.includes("who's waited longest?"));
   assert.ok(ex.includes("Nora has waited longest."));
   assert.equal(byTestId(tree, "today-face-input").props.placeholder, "Follow up…");
-  const follow = find(tree, (n) => classes(n).includes("ask-follow-chip"));
+  assert.ok(byTestId(tree, "ask-answer"), "the answer's own parts, as the Line draws them");
+  const follow = byTestId(tree, "ask-next");
   assert.equal(textOf(follow), "Who else is waiting?");
   press(follow);
   await settle();
@@ -220,13 +225,29 @@ test("a stream that ends without a final is a cut-off, said in the palette's wor
   delete W.__ask;
 });
 
-test("a quick answer settles without a turn, with its doors", async () => {
+test("a quick answer settles without a turn: the person waiting is her own door, and nothing else points there", async () => {
   const A = client([]);
-  A.fast = () => ({
-    kind: "needs",
-    answer: "Nobody is waiting on you right now.",
-    links: [{ label: "Open Inbox", to: "inbox" }],
-  });
+  A.quick = () =>
+    Promise.resolve(
+      needsAnswer(
+        {
+          people: [
+            {
+              id: "c1",
+              kind: "thread",
+              who: "Nora",
+              channel: "WhatsApp",
+              when: "waited 2h",
+              line: "“Can I come at 3?”",
+              to: "inbox/th-c1",
+            },
+          ],
+          more: 0,
+          runs: [],
+        },
+        "en",
+      ),
+    );
   W.__ask = A;
   let tree = openBand(start());
   type(tree, "who needs me?");
@@ -236,10 +257,10 @@ test("a quick answer settles without a turn, with its doors", async () => {
   tree = again(draw);
   assert.equal(A.sent.length, 0, "no turn was sent");
   assert.equal(byTestId(tree, "today-face").props["data-phase"], "settled");
-  assert.ok(textOf(byTestId(tree, "today-face-exchange")).includes("Nobody is waiting on you right now."));
-  const door = find(tree, (n) => classes(n).includes("ask-link-chip") && textOf(n).includes("Open Inbox"));
-  press(door);
-  assert.deepEqual(asked.at(-1), { nav: "inbox" });
+  assert.ok(textOf(byTestId(tree, "today-face-exchange")).includes("Nora is waiting on you."));
+  assert.equal(byTestId(tree, "ask-open"), null, "no second door to the Inbox");
+  press(byTestId(tree, "ask-item"));
+  assert.deepEqual(asked.at(-1), { nav: "inbox/th-c1" });
   assert.equal(byTestId(tree, "today-face-continue"), null, "no thread to continue");
   delete W.__ask;
 });

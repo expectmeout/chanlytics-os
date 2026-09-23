@@ -6,7 +6,8 @@
 // harness) the field seeds the palette through askAbout and the band rests.
 //
 // A phone's band (dashboard-a-v2.css draws it at 720px and below; wider, the face is the top bar's Ask button and
-// the palette's stage, components/ask-face.jsx). The stage is always the full face, with no field under it. A tap
+// the Line's, components/ask-face.jsx). The stage is always the full face, with no field under it. A settled answer
+// is drawn as the Line draws it (ask-turn.jsx AskAnswer, compact), one door per place. A tap
 // (or Enter on it) wakes it: the field slides in under the three and takes focus. A press held on it listens
 // straight away. Escape, a tap outside, or Clear folds the field away; a question in flight goes on in the three,
 // and waking them again shows where it got to.
@@ -40,7 +41,7 @@ const tfNoTurn = {
   trace: null,
   text: "",
   message: null,
-  links: [],
+  answer: null,
   threadId: null,
   language: "en",
   seq: 0,
@@ -142,24 +143,11 @@ const TodayFace = () => {
     const language = A.language(q);
     const seq = cur.seq + 1;
     dispatch({ t: "asked", text: q, language, seq });
-    // The palette's quick answers first (contracts fastPath): no model, no thread.
-    const fp = A.fast(q);
-    if (fp) {
-      if (fp.kind !== "openings") {
-        dispatch({ t: "fast", text: fp.answer, links: fp.links || [], seq });
-        return;
-      }
-      const words = window.askText(language);
-      let text = words.unavailable;
-      let links = [{ label: words.openings, to: "admin/integrations" }];
-      try {
-        const o = await A.openings(fp.day, fp.service);
-        text = o.state === "no_calendar" ? words.noCalendar : o.state === "unavailable" ? words.unavailable : o.text;
-        if (o.state === "ok") links = [];
-      } catch {
-        /* the calendar could not be read: said so above */
-      }
-      if (alive.current) dispatch({ t: "fast", text, links, seq });
+    // The Line's quick answers first (contracts askIntent, ask-answer.ts): no model, no thread.
+    const pending = A.quick(q);
+    if (pending) {
+      const answer = await pending;
+      if (alive.current) dispatch({ t: "fast", text: A.answerText(answer), answer, seq });
       return;
     }
     let ended = false;
@@ -272,8 +260,16 @@ const TodayFace = () => {
     dispatch({ t: "cleared" });
     setOpen(false);
   };
-  const shape =
-    turn.message && A && !turn.message.failed ? A.shape(turn.message, turn.language) : { open: null, followups: [] };
+  // A settled answer as the Line draws it (Say, Show, Do, one door per place): a quick answer's own, or the turn's.
+  const AskAnswer = window.AskAnswer || null;
+  const drawn =
+    turn.phase === "settled" && A
+      ? turn.answer
+        ? { answer: turn.answer, cardOpen: {} }
+        : turn.message
+          ? A.answer(turn.message)
+          : null
+      : null;
   const done = turn.phase === "settled" || turn.phase === "failed";
   // An answer that proposes something is reviewed where the cards are: the palette, on the same thread.
   const handsOff = turn.phase === "settled" && !!turn.message && turn.message.proposals.length > 0;
@@ -314,7 +310,9 @@ const TodayFace = () => {
       {open ? (
         <div className="tf-exchange" data-testid="today-face-exchange" aria-live="polite">
           {turn.question ? <p className="tf-question">{turn.question}</p> : null}
-          {turn.text ? (
+          {drawn && AskAnswer ? (
+            <AskAnswer answer={drawn.answer} cardOpen={drawn.cardOpen} cards={[]} t={t} onNav={tfNav} onFollow={ask} compact />
+          ) : turn.text ? (
             <p className={`tf-answer${turn.phase === "failed" ? " failed" : ""}`}>
               {turn.text}
               {turn.phase === "answering" ? <span className="ask-cursor" /> : null}
@@ -322,16 +320,6 @@ const TodayFace = () => {
           ) : null}
           {turn.phase === "listening" ? <p className="tf-caption">{turn.heard || t.listening}</p> : null}
           {turn.phase === "reading" ? <p className="tf-caption">{turn.trace || t.thinking}</p> : null}
-          {turn.phase === "settled" && shape.followups.length ? (
-            <div className="ask-follow">
-              <span className="ask-follow-label">{t.next}</span>
-              {shape.followups.map((f) => (
-                <button key={f} type="button" className="ask-follow-chip" onClick={() => ask(f)}>
-                  {f}
-                </button>
-              ))}
-            </div>
-          ) : null}
           {done ? (
             <div className="tf-doors">
               {turn.phase === "failed" ? (
@@ -344,16 +332,6 @@ const TodayFace = () => {
                   <Icon name="refresh" size={11} /> {t.tryAgain}
                 </button>
               ) : null}
-              {shape.open ? (
-                <button type="button" className="ask-link-chip" onClick={() => tfNav(shape.open.to)}>
-                  {shape.open.label} <Icon name="arrow-right" size={10} />
-                </button>
-              ) : null}
-              {turn.links.map((l) => (
-                <button key={l.to} type="button" className="ask-link-chip" onClick={() => tfNav(l.to)}>
-                  {l.label} <Icon name="arrow-right" size={10} />
-                </button>
-              ))}
               {turn.threadId ? (
                 <button
                   type="button"

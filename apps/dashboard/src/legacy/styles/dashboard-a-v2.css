@@ -28,8 +28,9 @@
    The stage the character is drawn on, always the full face: 232px, with squares sized for a 200px band so the
    leap has 16px of room above and below. The exchange and the field come in under it only while it is woken (a
    tap) and leave as it folds. Wider than a phone the band is not drawn: Ask's face is the top bar's button and the
-   palette's stage (components/ask-face.jsx). The squares are the bridge's (legacy-bridge/mascot); the chips are the
-   palette's (.ask-follow, .ask-link-chip, .ask-action-chip, .ask-tool, .ask-talk); only their row is the band's. */
+   Line's (components/ask-face.jsx). The squares are the bridge's (legacy-bridge/mascot); a settled answer is the
+   Line's (.ask-answer.compact, ask.css), and the chips are Ask's (.ask-link-chip, .ask-action-chip, .ask-tool,
+   .ask-talk); only their row is the band's. */
 .today-face { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 @media (min-width: 721px) {
   .today-face { display: none; }
@@ -46,7 +47,6 @@
 .tf-question, .tf-caption { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
 .tf-answer { margin: 0; max-width: 36ch; font-size: 16px; line-height: 1.45; color: var(--ink); text-wrap: balance; white-space: pre-wrap; word-break: break-word; }
 .tf-answer.failed { color: var(--ink-dim); }
-.tf-exchange .ask-follow { justify-content: center; margin-top: 4px; }
 .tf-doors { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; margin-top: 4px; }
 .tf-field { display: flex; align-items: center; gap: 6px; width: min(620px, 100%); height: 40px; padding: 0 5px 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-raised); }
 .tf-field:focus-within { border-color: var(--line-strong); }
@@ -819,56 +819,7 @@
   font-weight: 500;
 }
 
-/* ---------- Ask threads ---------- */
-.ask-modal.ask-modal-threads {
-  max-width: 760px;
-  height: min(600px, 82vh);
-  display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  overflow: hidden;
-}
-.ask-rail {
-  border-right: 1px solid var(--line);
-  background: var(--bg-sunken);
-  display: flex;
-  flex-direction: column;
-  padding: 10px 8px;
-  gap: 8px;
-  min-height: 0;
-  overflow: hidden;
-}
-.ask-new-btn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 7px 10px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 12px; font-weight: 500; color: var(--ink-muted);
-  background: transparent;
-  transition: all 120ms;
-}
-.ask-new-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.ask-rail-label {
-  font-size: 9.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-dim); padding: 2px 6px 0;
-}
-.ask-rail-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; }
-.ask-thread {
-  flex-direction: column;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  text-align: left;
-  background: transparent;
-  transition: background 120ms;
-}
-.ask-thread:hover { background: var(--bg-hover); }
-.ask-thread.active { background: var(--bg-raised); box-shadow: var(--shadow-sm); }
-.ask-thread-title {
-  font-size: 12px; color: var(--ink); line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.ask-thread-at { font-size: 10px; color: var(--ink-faint); }
-.ask-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.ask-home { flex: 1; overflow-y: auto; }
+/* ---------- Ask's conversation (the demo's palette, dashboard-a-ask.jsx) ---------- */
 .ask-msgs {
   flex: 1; min-height: 0; overflow-y: auto;
   padding: 16px 18px;
@@ -941,14 +892,6 @@
 .cmd-empty{padding:30px 16px;text-align:center;font-size:12.5px;color:var(--ink-faint);line-height:1.6}
 .cmd-modal .ask-msgs{padding:16px}
 @media (max-width:720px){.ask-modal.cmd-modal{max-width:100%;width:100%;height:min(560px,82vh)}}
-@media (max-width: 720px) {
-  .ask-modal.ask-modal-threads { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: min(600px, 82vh); }
-  .ask-rail { flex-direction: row; align-items: center; border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .ask-rail-label { display: none; }
-  .ask-rail-list { flex-direction: row; }
-  .ask-thread { min-width: 150px; }
-  .ask-thread-title { -webkit-line-clamp: 1; }
-}
 
 /* Ask action chips — Ask executes through the stores */
 .ask-action-chip {
@@ -976,58 +919,6 @@
 /* Fleet card paused state */
 .fcard-status-dot.paused { background: var(--warn); }
 .fcard-paused .fcard-avatar { opacity: 0.6; }
-
-/* Ask rail: thread management */
-.ask-rail-label { display: flex; align-items: center; justify-content: space-between; }
-.ask-rail-clear {
-  font-size: 10px;
-  color: var(--ink-faint);
-  text-transform: none;
-  letter-spacing: 0;
-  transition: color 100ms;
-}
-.ask-rail-clear:hover { color: var(--danger); }
-.ask-rail-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 10px 8px;
-  padding: 5px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--ink-faint);
-}
-.ask-rail-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 11.5px;
-  color: var(--ink);
-  outline: none;
-}
-.ask-thread { display: flex; align-items: stretch; gap: 0; }
-.ask-thread-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  text-align: left;
-  padding: 0;
-}
-.ask-thread-x {
-  align-self: center;
-  display: none;
-  padding: 4px;
-  color: var(--ink-faint);
-  border-radius: var(--radius-sm);
-}
-.ask-thread:hover .ask-thread-x { display: inline-flex; }
-.ask-thread-x:hover { color: var(--danger); background: var(--bg-hover); }
-.ask-rail-empty { padding: 14px 12px; font-size: 11px; color: var(--ink-faint); }
 
 /* ⌘K jump results */
 .ask-jump-kind {

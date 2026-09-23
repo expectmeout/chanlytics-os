@@ -513,7 +513,7 @@ test("REGRESSION: a playbook whose yes has no number to send to is not one nobod
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
-  const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
+  const { PROPOSAL_GATE, buildAskSuggestions, cardOpenRoute } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.playbook, "approve");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
@@ -550,11 +550,8 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
       c.includes('viaAsk(client, "DELETE playbooks/[id]", { params: { id: s(u.playbook_id) } }, undoOf)'),
   );
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(
-    turn.includes("playbook: t.kPlaybook") &&
-      turn.includes('playbook: "bolt"') &&
-      turn.includes('p.kind === "playbook" ? "outbound"'),
-  );
+  assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"'));
+  assert.equal(cardOpenRoute({ kind: "playbook", payload: {} }), "outbound", "a playbook card opens Playbooks");
   assert.ok(/playbook:\s*"A standing rule/.test(readCode("apps/dashboard/src/server/ask/prompt.ts")));
   const sug = buildAskSuggestions({
     surface: "people",

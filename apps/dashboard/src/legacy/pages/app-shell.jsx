@@ -813,7 +813,6 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}
           onNavigate={(id) => { setNavOpen(false); navigate(NAV_ROUTE[id] || (id.includes("/") ? id : `soon/${id}`)); }}
-          onNewChat={() => { setNavOpen(false); window.dispatchEvent(new CustomEvent("ask:new")); openAsk(); }}
           onClose={() => setNavOpen(false)}
           collapsed={sidebar === "rail"}
           onToggleCollapse={() => onSidebar(sidebar === "rail" ? "open" : "rail")}

@@ -70,8 +70,6 @@
 .sb-team-name { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-team-plan { font-size: 10.5px; color: var(--ink-dim); margin-top: 1px; }
 
-.sb-newchat { padding: 10px 10px 4px; }
-
 /* Scrollable nav region — lets long nav not fight with the agents block */
 .sb-nav-scroll {
   flex: 1 1 auto;
@@ -2190,8 +2188,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
 .sidebar.collapsed .sidebar-section { padding: 4px 6px; }
 .sidebar.collapsed .sb-team { justify-content: center; padding: 14px 0 10px; }
-.sidebar.collapsed .sb-newchat { padding: 10px 8px 4px; }
-.sidebar.collapsed .sb-newchat .btn { padding: 0; }
 .sidebar.collapsed .sidebar-foot { padding: 8px 6px; }
 .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
 .sidebar.collapsed .sb-collapse { justify-content: center; padding: 8px 0; }
@@ -3214,11 +3210,11 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
 }
 @media (max-width: 720px) {
-  .ask-modal.cmd-modal.ask-real { animation: sheet-rise 300ms var(--ease-out); }
+  .ask-modal.ask-real { animation: sheet-rise 300ms var(--ease-out); }
   .ask-overlay[data-leaving="true"] { animation-duration: 220ms; }
-  .ask-overlay[data-leaving="true"] .ask-modal.cmd-modal.ask-real { animation: sheet-drop 220ms var(--ease-in) forwards; }
+  .ask-overlay[data-leaving="true"] .ask-modal.ask-real { animation: sheet-drop 220ms var(--ease-in) forwards; }
   /* A sheet pulled by the finger moves, not its list: a list at its top does not stretch under the pull. */
-  .rec-sheet-body, .sb-sheet, .pk-body, .ask-home, .ask-rail-list { overscroll-behavior-y: none; }
+  .rec-sheet-body, .sb-sheet, .pk-body, .ask-line-body { overscroll-behavior-y: none; }
 }
 
 /* An open thread going back to its list on a phone, under the thumb (inbox-thread.jsx, data-going): the list is

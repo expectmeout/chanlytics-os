@@ -1669,12 +1669,12 @@ function emailLeftOutOf(meta) {
   if (!email) return null;
   const files = Array.isArray(email.attachments) ? email.attachments : [];
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
-  const names = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
+  const names2 = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
   const total = files.length + unnamed;
   const said = [];
   if (total) {
-    const rest = total - names.length;
-    const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    const rest = total - names2.length;
+    const listed = names2.length ? `: ${names2.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
     said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
   }
   if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
@@ -3842,15 +3842,15 @@ function extractContacts(item, own) {
     const p = phoneFrom(m);
     if (p) phones.add(p);
   }
-  const names = /* @__PURE__ */ new Set();
+  const names2 = /* @__PURE__ */ new Set();
   for (const a of item.attendees ?? []) {
     if (organizer && a.email?.toLowerCase() === organizer) continue;
     if (a.email && own.has(a.email.toLowerCase())) continue;
     const n = (a.name ?? "").trim();
-    if (n && !EMAIL_RE.test(n)) names.add(n);
+    if (n && !EMAIL_RE.test(n)) names2.add(n);
     EMAIL_RE.lastIndex = 0;
   }
-  return { phones: [...phones], emails: [...emails], names: [...names] };
+  return { phones: [...phones], emails: [...emails], names: [...names2] };
 }
 var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function nameMatcher(name) {
@@ -8163,8 +8163,8 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
   });
   const agree = p.new_contacts > 0 && newThreads.length === p.new_contacts;
   const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
-  const names = agree ? newThreads.map((c) => contactName(c)) : [];
-  const said = names.slice(0, 3);
+  const names2 = agree ? newThreads.map((c) => contactName(c)) : [];
+  const said = names2.slice(0, 3);
   const newPeople = {
     id: "new",
     label: "new people",
@@ -8175,7 +8175,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     // only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
     // under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length ? {
-      text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`,
+      text: `${andList(names2.length > 3 ? [...said, `${names2.length - 3} more`] : said)} wrote for the first time today.`,
       door: { label: "Open People", to: "clients/seg:new_week" }
     } : p.new_contacts > 0 ? {
       text: `Counted however they reached you \u2014 a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`,
@@ -8367,9 +8367,9 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   }
   const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
   if (isQuiet) {
-    const names = andList(wires.map((w) => w.label));
+    const names2 = andList(wires.map((w) => w.label));
     const pluralVerb = wires.length > 1 ? "are" : "is";
-    const sub = wires.length === 0 ? "No line is connected yet, so nothing can come in." : `${names} ${pluralVerb} connected. ${proof}`;
+    const sub = wires.length === 0 ? "No line is connected yet, so nothing can come in." : `${names2} ${pluralVerb} connected. ${proof}`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -8388,7 +8388,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead,
-      queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
+      queue: { rows: [], more: 0, parts: [], empty: queueEmpty, waiting: 0 },
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -8625,7 +8625,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
-    empty: queueEmpty
+    empty: queueEmpty,
+    waiting: needN + winN
   };
   return {
     standing: {
@@ -9533,44 +9534,20 @@ function dayFromQuestion(q, now, tz) {
   for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
   return null;
 }
-function fastPath(question, ctx) {
+function askIntent(question, now, tz) {
   const q = question.trim();
   if (!q || q.length > 160) return null;
-  const es = ctx.language === "es";
-  if (NEEDS_RE.test(q)) {
-    const rows = ctx.feed.filter((i) => i.kind === "needs_you" || i.kind === "held_draft");
-    if (!rows.length) {
-      return {
-        kind: "needs",
-        answer: es ? "Nadie te espera ahora mismo. La recepcionista est\xE1 respondiendo sola." : "Nobody is waiting on you right now. The receptionist is answering on its own.",
-        links: [{ label: es ? "Abrir Inbox" : "Open Inbox", to: "inbox" }]
-      };
-    }
-    const names = rows.slice(0, 4).map((r) => r.title.replace(/ needs you$/, "").replace(/ is waiting for you$/, ""));
-    const more = rows.length - names.length;
-    const answer = es ? `${rows.length === 1 ? "Una persona" : `${rows.length} personas`} te esperan: ${names.join(", ")}${more > 0 ? ` y ${more} m\xE1s` : ""}.` : `${rows.length === 1 ? "One person needs" : `${rows.length} people need`} you: ${names.join(", ")}${more > 0 ? ` and ${more} more` : ""}.`;
-    return { kind: "needs", answer, links: rows.slice(0, 4).map((r) => ({ label: r.title, to: r.to })) };
-  }
-  if (CALLS_RE.test(q)) {
-    const today = dayKey(ctx.now, ctx.timezone);
-    const missed = ctx.calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, ctx.timezone) === today);
-    const live = ctx.calls.filter((c) => c.live);
-    if (!missed.length) {
-      const answer2 = live.length ? es ? `Ninguna llamada perdida hoy. Hay ${live.length === 1 ? "una llamada" : `${live.length} llamadas`} en curso.` : `No missed calls today. ${live.length === 1 ? "One call is" : `${live.length} calls are`} on the line now.` : es ? "Ninguna llamada perdida hoy." : "No missed calls today.";
-      return { kind: "calls", answer: answer2, links: [{ label: es ? "Ver llamadas" : "See calls", to: "live" }] };
-    }
-    const names = missed.slice(0, 4).map((c) => c.who);
-    const answer = es ? `${missed.length === 1 ? "Una llamada perdida" : `${missed.length} llamadas perdidas`} hoy: ${names.join(", ")}.` : `${missed.length === 1 ? "One missed call" : `${missed.length} missed calls`} today: ${names.join(", ")}.`;
-    return {
-      kind: "calls",
-      answer,
-      links: missed.slice(0, 4).map((c) => ({ label: c.who, to: `conversations/cv-${c.callId}` }))
-    };
-  }
-  if (OPEN_RE.test(q)) {
-    return { kind: "openings", day: dayFromQuestion(q, ctx.now, ctx.timezone), service: q };
-  }
+  if (NEEDS_RE.test(q)) return { kind: "needs" };
+  if (CALLS_RE.test(q)) return { kind: "calls" };
+  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
   return null;
+}
+function callsToday(calls, now, tz) {
+  const today = dayKey(now, tz);
+  return {
+    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    live: calls.filter((c) => c.live)
+  };
 }
 var AskSettingsChangeSchema = z6.discriminatedUnion("op", [
   z6.object({
@@ -9669,6 +9646,234 @@ var FOLLOWUP_ECHO = [
 function followupsToShow(followups, citations, nav) {
   const places = [...citations.map((c) => c.to), ...nav && nav.to ? [nav.to] : []];
   return followups.filter((f) => !FOLLOWUP_ECHO.some(([words2, route]) => words2.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
+}
+
+// src/ask-answer.ts
+var ASK_ANSWER_CAPS = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
+};
+var clip2 = (s, n) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+var structured = (headline, language) => ({
+  v: 2,
+  form: "structured",
+  say: { headline: clip2(headline, ASK_ANSWER_CAPS.headline), detail: "" },
+  show: { figures: [], items: [], breakdown: null },
+  do: { open: null, next: [] },
+  language
+});
+function answerText(a) {
+  return [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+}
+function cardOpenRoute(p) {
+  const pl = p.payload ?? {};
+  const id = (k) => typeof pl[k] === "string" && pl[k] ? pl[k] : null;
+  switch (p.kind) {
+    case "reply":
+    case "steer":
+    case "whisper":
+    case "invite":
+      return null;
+    case "settings":
+      return "admin/workspace";
+    case "policy":
+      return "admin/autonomy";
+    case "person_mode":
+    case "deal":
+      return id("contact_id") ? `clients/${id("contact_id")}` : null;
+    case "broadcast":
+      return "broadcasts";
+    case "playbook":
+      return "outbound";
+    case "lead_search":
+      return "clients/leads";
+    default:
+      return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
+  }
+}
+function nextQuestions(next, places) {
+  const out = [];
+  for (const raw of next) {
+    const q = clip2(raw, ASK_ANSWER_CAPS.question);
+    if (!q || out.some((x) => sameQuestion(x, q))) continue;
+    if (FOLLOWUP_ECHO.some(([words2, route]) => words2.test(q) && places.some((p) => route.test(p)))) continue;
+    out.push(q);
+    if (out.length >= ASK_ANSWER_CAPS.next) break;
+  }
+  return out;
+}
+function oneDoor(a, cards = []) {
+  const items = a.show.items.map((it) => ({ ...it, source: { ...it.source, door: true } }));
+  const offered = new Set(items.map((it) => it.source.to));
+  const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
+  if (open) offered.add(open.to);
+  const cardOpen = {};
+  for (const c of cards) {
+    const to = cardOpenRoute(c);
+    cardOpen[c.id] = !!to && !offered.has(to);
+    if (to && cardOpen[c.id]) offered.add(to);
+  }
+  const receipt = (s) => {
+    if (!s) return null;
+    const door = !offered.has(s.to);
+    if (door) offered.add(s.to);
+    return { ...s, door };
+  };
+  const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
+  const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
+  return {
+    answer: { ...a, show: { figures, items, breakdown }, do: { open, next: nextQuestions(a.do.next, [...offered]) } },
+    cardOpen
+  };
+}
+var KIND_WORDS = {
+  en: { thread: "Thread", conversation: "Conversation", call: "Call", person: "Profile", page: "Page" },
+  es: { thread: "Hilo", conversation: "Conversaci\xF3n", call: "Llamada", person: "Perfil", page: "P\xE1gina" }
+};
+function answerFromV1(m) {
+  const language = m.language ?? "en";
+  const words2 = KIND_WORDS[language === "es" ? "es" : "en"];
+  const cites = m.citations ?? [];
+  const items = cites.filter((c) => c.kind !== "page").slice(0, ASK_ANSWER_CAPS.items).map((c) => ({
+    title: clip2(c.label, ASK_ANSWER_CAPS.title),
+    meta: words2[c.kind],
+    line: "",
+    source: { kind: c.kind, id: c.id, label: c.label, to: c.to || citationRoute(c), door: true }
+  }));
+  const page = cites.find((c) => c.kind === "page");
+  const nav = m.navigate && m.navigate.to ? m.navigate : null;
+  const open = nav ? { to: nav.to, label: navigateLabel(nav, language) ?? nav.label, now: nav.now === true } : page ? { to: page.to || citationRoute(page), label: page.label, now: false } : null;
+  return {
+    v: 2,
+    form: "prose",
+    say: { headline: "", detail: (m.text ?? "").trim() },
+    show: { figures: [], items, breakdown: null },
+    do: { open, next: m.followups ?? [] },
+    language
+  };
+}
+var names = (list2, total, es) => {
+  if (total <= 2 && list2.length === total) return list2.join(es ? " y " : " and ");
+  if (list2.length < 2)
+    return es ? `${total} ${total === 1 ? "persona" : "personas"}` : `${total} ${total === 1 ? "person" : "people"}`;
+  const rest = total - 2;
+  return es ? `${list2[0]}, ${list2[1]} y ${rest} m\xE1s` : `${list2[0]}, ${list2[1]} and ${rest} ${rest === 1 ? "other" : "others"}`;
+};
+var unread = (es) => es ? "La cola de hoy a\xFAn no se ha le\xEDdo." : "Today's queue hasn't been read yet.";
+function rightNowLine(w, language) {
+  const es = language === "es";
+  if (!w) return unread(es);
+  const who = w.people.map((p) => p.who);
+  const total = who.length + w.more;
+  const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
+  const n = w.runs.length;
+  const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
+  if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  const s = [people, runs].filter(Boolean).join("; ");
+  return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
+}
+function needsAnswer(w, language) {
+  const es = language === "es";
+  const a = structured(rightNowLine(w, language), language);
+  if (!w) {
+    a.do.open = { to: "today", label: es ? "Abrir Hoy" : "Open Today", now: false };
+    return a;
+  }
+  const all = [
+    ...w.people.map((p) => ({
+      title: p.who,
+      meta: `${p.channel} \xB7 ${p.when}`,
+      line: p.line,
+      source: { kind: p.kind, id: p.id, label: p.who, to: p.to, door: true }
+    })),
+    ...w.runs.map((r) => ({
+      title: r.label,
+      meta: "Playbook",
+      line: es ? `${r.reach} ${r.reach === 1 ? "persona" : "personas"}` : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,
+      source: { kind: "page", id: r.to, label: r.label, to: r.to, door: true }
+    }))
+  ];
+  a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
+  const total = w.people.length + w.more;
+  const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
+  if (total > shownPeople)
+    a.do.open = {
+      to: "inbox",
+      label: es ? `Ver los ${total} en el Inbox` : `See all ${total} in the Inbox`,
+      now: false
+    };
+  return a;
+}
+function callsAnswer(missed, live, language) {
+  const es = language === "es";
+  const seeCalls = { to: "live", label: es ? "Ver las llamadas" : "See the calls", now: false };
+  if (!missed.length) {
+    const on = live.length ? es ? `; ${live.length === 1 ? "hay una llamada en curso" : `hay ${live.length} en curso`}` : `; ${live.length === 1 ? "one call is" : `${live.length} calls are`} on the line now` : "";
+    const a2 = structured(`${es ? "Ninguna llamada perdida hoy" : "No missed calls today"}${on}.`, language);
+    a2.do.open = seeCalls;
+    return a2;
+  }
+  const a = structured(
+    es ? `${missed.length === 1 ? "Una llamada perdida" : `${missed.length} llamadas perdidas`} hoy.` : `${missed.length === 1 ? "One missed call" : `${missed.length} missed calls`} today.`,
+    language
+  );
+  a.show.items = missed.slice(0, ASK_ANSWER_CAPS.items).map((c) => ({
+    title: c.who,
+    meta: es ? "Perdida" : "Missed",
+    line: "",
+    source: { kind: "call", id: c.callId, label: c.who, to: `conversations/cv-${c.callId}`, door: true }
+  }));
+  a.do.open = seeCalls;
+  return a;
+}
+var openingsHeadline = (days, es, asked) => {
+  if (!days.length && asked)
+    return es ? "No hay nada libre en el calendario ese d\xEDa." : "Nothing is open on the calendar that day.";
+  if (!days.length)
+    return es ? "No hay nada libre en el calendario en los pr\xF3ximos d\xEDas." : "Nothing is open on the calendar in the days ahead.";
+  if (days.length === 1) {
+    const n = days[0].windows.length;
+    return es ? `${days[0].label}: ${n} ${n === 1 ? "hora libre" : "horas libres"} en el calendario.` : `The calendar has ${n} open ${n === 1 ? "time" : "times"} on ${days[0].label}.`;
+  }
+  return es ? `El calendario tiene horas libres en ${days.length} d\xEDas.` : `The calendar has open times on ${days.length} days.`;
+};
+function openingsAnswer(o, language, day = null) {
+  const es = language === "es";
+  if (o.state === "no_calendar") {
+    const a2 = structured(
+      es ? "No hay calendario conectado, as\xED que no veo horas libres." : "No calendar is connected, so I can't see open times.",
+      language
+    );
+    a2.say.detail = es ? "El horario est\xE1 en Ajustes." : "The hours are in Settings.";
+    a2.do.open = { to: "admin/integrations", label: es ? "Conectar un calendario" : "Connect a calendar", now: false };
+    return a2;
+  }
+  if (o.state === "unavailable")
+    return structured(
+      es ? "No se pudo leer el calendario ahora." : "The calendar couldn't be read right now.",
+      language
+    );
+  const days = o.days.filter((d) => d.windows.length);
+  const a = structured(openingsHeadline(days, es, !!day), language);
+  a.show.items = days.slice(0, ASK_ANSWER_CAPS.items).map((d) => ({
+    title: d.label,
+    meta: "",
+    line: d.windows.join(" \xB7 "),
+    source: { kind: "page", id: `calendar/${d.key}`, label: d.label, to: `calendar/${d.key}`, door: true }
+  }));
+  a.do.open = { to: "calendar", label: es ? "Abrir el Calendario" : "Open the Calendar", now: false };
+  return a;
 }
 
 // src/line-failure.ts
@@ -9990,8 +10195,8 @@ function parseParamSpecs(raw) {
 function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
-function playbooksStillSending(names) {
-  const quoted = names.map((n) => `\u201C${n}\u201D`);
+function playbooksStillSending(names2) {
+  const quoted = names2.map((n) => `\u201C${n}\u201D`);
   if (quoted.length <= 1)
     return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
@@ -11887,7 +12092,7 @@ function callMoodTone(sentiment) {
   return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
 }
 var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
-var listWords = (names, last) => names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${last} ${names[names.length - 1]}`;
+var listWords = (names2, last) => names2.length <= 1 ? names2.join("") : `${names2.slice(0, -1).join(", ")} ${last} ${names2[names2.length - 1]}`;
 var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
 function channelsLine(channels, rangeLabel) {
   if (!channels) return null;
@@ -12474,10 +12679,10 @@ function autoReplyBell(answered) {
     const who = (answered[0].author ?? "").trim();
     return { title: who ? `Replied to ${who}'s review` : "Replied to a review on Google", body: answered[0].text };
   }
-  const names = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
+  const names2 = answered.map((a) => (a.author ?? "").trim()).filter(Boolean);
   return {
     title: `Replied to ${answered.length} reviews on Google`,
-    body: names.length ? `Under the reviews from ${names.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports."
+    body: names2.length ? `Under the reviews from ${names2.join(", ")}. Each reply is on Reports.` : "Each reply is on Reports."
   };
 }
 function reviewReplyWords(mode, canReply) {
@@ -14262,8 +14467,8 @@ function pageTitle(crumbs, needs) {
 function notFoundPageMetadata() {
   return { title: pageTitle(["Not found"]), robots: { index: false, follow: false } };
 }
-function namesAnd(names) {
-  return names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+function namesAnd(names2) {
+  return names2.length <= 1 ? names2[0] ?? "" : `${names2.slice(0, -1).join(", ")} and ${names2[names2.length - 1]}`;
 }
 function shellStatusLine(s) {
   if (!s) return null;
@@ -14325,6 +14530,12 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
+  { group: "Ask", keys: ["\u2191", "\u2193"], does: "Walk what is under the line" },
+  { group: "Ask", keys: ["\u21B5"], does: "Ask, or open the row" },
+  { group: "Ask", keys: ["\u2318J"], does: "Earlier conversations" },
+  { group: "Ask", keys: ["Space"], does: "Hold on an empty line to talk" },
+  { group: "Ask", keys: ["Esc"], does: "Stop an answer, then close" },
   { group: "People", keys: ["/"], does: "Search People" },
   { group: "People", keys: ["J", "K", "\u2193", "\u2191"], does: "Next and previous person" },
   { group: "People", keys: ["X", "Space"], does: "Select the person" },
@@ -17500,6 +17711,7 @@ export {
   ACTOR_TYPES,
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
+  ASK_ANSWER_CAPS,
   ASK_CAPS,
   ASK_CITATION_KINDS,
   ASK_FINISH_JSON_SCHEMA,
@@ -17608,6 +17820,7 @@ export {
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
   FEED_MAX_BYTES,
+  FOLLOWUP_ECHO,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FeaturesConfigSchema,
@@ -17939,10 +18152,13 @@ export {
   agoWords,
   allVisitsIn,
   amountWords,
+  answerFromV1,
+  answerText,
   applyReadState,
   applySettingsChange,
   asListRule,
   asPersonMode,
+  askIntent,
   askJump,
   askUndoOpen,
   attentionRow,
@@ -17979,9 +18195,12 @@ export {
   callOfKey,
   callOutcomeOf,
   callOutcomeWords,
+  callsAnswer,
+  callsToday,
   cameFromOf,
   cannotRows,
   capabilityStatus,
+  cardOpenRoute,
   changedConfigFields,
   channelFor,
   channelKindWords,
@@ -18078,7 +18297,6 @@ export {
   factConflicts,
   fallbackMessages,
   fallbacksWords,
-  fastPath,
   feedBodyProblem,
   feedNotes,
   feedProblemWords,
@@ -18245,6 +18463,7 @@ export {
   monthLabelOf,
   monthSpan,
   navigateLabel,
+  needsAnswer,
   needsConsultation,
   newReceptionistDefaults,
   nextOpenMoment,
@@ -18264,7 +18483,9 @@ export {
   offeringHorizon,
   offersYesRefusal,
   ok,
+  oneDoor,
   openWeekWords,
+  openingsAnswer,
   optInConfirmation,
   optInLink,
   optInPurposeOf,
@@ -18383,6 +18604,7 @@ export {
   reviewReplyWords,
   reviewSnippet,
   reviewsWords,
+  rightNowLine,
   roleGate,
   ruleNeedsCalendar,
   ruleParts,

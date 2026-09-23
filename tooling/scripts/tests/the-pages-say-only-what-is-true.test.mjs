@@ -1088,12 +1088,15 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   assert.deepEqual(undone, ["playbook"]);
 });
 
-test("a deal card wears the deal word and Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", () => {
+test("a deal card wears the deal word and Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", async () => {
+  const { cardOpenRoute } = await import("@chanlytics/contracts");
   globalThis.window.__ask = {
     undoOpen: () => false,
     undo: async () => ({ ok: true, receipt: "" }),
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
+    // Where a card's Open goes is the contract's (ask-answer.ts), as the bridge publishes it.
+    cardOpenRoute,
   };
   globalThis.window.canDo = () => true;
   const buttons = (tree) => {
@@ -1133,12 +1136,15 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
 
 /* -------------------- Ask: a failure says what failed -------------------- */
 
-test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", () => {
+test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", async () => {
+  const { openingsAnswer } = await import("@chanlytics/contracts");
   for (const lang of ["en", "es"]) {
     const t = globalThis.window.askText(lang);
+    // The calendar's own sentence is the quick answer's now (contracts ask-answer.ts).
+    const calendar = openingsAnswer({ state: "unavailable", days: [] }, lang).say.headline;
     for (const k of ["threadUnreadable", "deleteFailed", "copyFailed"]) {
       assert.equal(typeof t[k], "string", `${lang}.${k}`);
-      assert.notEqual(t[k], t.unavailable, `${lang}.${k} is not the calendar's sentence`);
+      assert.notEqual(t[k], calendar, `${lang}.${k} is not the calendar's sentence`);
       assert.notEqual(t[k], t.deleted, `${lang}.${k} is not "deleted"`);
     }
   }

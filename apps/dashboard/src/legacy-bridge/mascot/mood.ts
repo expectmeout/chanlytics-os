@@ -1,7 +1,7 @@
 /**
- * Ask's mood: what the AI is doing right now, said once for every face that shows it. The palette says it as a turn
+ * Ask's mood: what the AI is doing right now, said once for every face that shows it. The Line says it as a turn
  * runs (listening, reading, answering, at rest, a nod, a shake, a beat per word); the top bar's Ask button and the
- * palette's stage follow it (components/ask-face.jsx), so there is one AI with one face wherever it is drawn.
+ * Line's face follow it (components/ask-face.jsx), so there is one AI with one face wherever it is drawn.
  * Pure: a value and its listeners, no DOM and no clock.
  */
 import { STATES, type CharacterState, type Reaction } from "./character";
