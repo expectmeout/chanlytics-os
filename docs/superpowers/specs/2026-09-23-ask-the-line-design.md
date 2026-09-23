@@ -1,6 +1,6 @@
 # Ask, the Line: design spec (PRD)
 
-**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** revision 2, for Ruben's approval · **Plan:** written after approval
+**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 23 Sep (revision 3: no key symbols drawn) · **Plans:** one per PR, in `docs/superpowers/plans/`
 **Direction:** A · The Line, picked by Ruben on the canvas (https://claude.ai/artifact/Ca7BppA31eHJMJKnDxBQtf, frames A1–A4).
 **Analysis:** written against `origin/main` at `793c128d` (#917). Read there:
 - the palette and the answer renderer;
@@ -171,6 +171,7 @@ Under one answer of sixty words there can be nine things to look at before any c
 | D14 | Reopening Ask returns to the open conversation until Clear. | Today's behaviour (section 2.2). A time cutoff would hide a thread someone left to check the Inbox. How fresh an answer is shows on its receipts, which name their read. |
 | D15 | An answer has one of two forms. **Structured** has a headline. **Prose** is words only: every answer made today, and a turn whose format the API refused. | Every state, including old answers and fallbacks, gets a valid, tested shape. |
 | D16 | **The Line ships before the new answer**, drawing today's answers in the prose form. | The visible change arrives with no model or loop risk. No palette ever reads a new answer through old fields. |
+| D17 | **No key symbol is drawn anywhere in the Line**: no ↵, no Esc, no ⌘ hint, no footer. Every key still works. The Keyboard shortcuts sheet in the user menu (`sidebar.jsx:302`, contracts `SHORTCUTS`, `chrome.ts:253`) lists them, and gains the Line's keys. | Ruben, 23 Sep: the sheet in the user menu is enough; drawing the keys again is redundant. Removing key symbols from the rest of the app is a separate task. |
 
 ## 5. The answer: Say · Show · Do
 
@@ -426,7 +427,7 @@ The line is 64px high:
 |---|---|
 | At rest, typing | Hold to talk (36px) |
 | Listening | The mic, pressed |
-| Reading | Esc and a Stop button |
+| Reading | A Stop button |
 | Answered | Copy, read aloud, and Clear (✕) |
 
 ### 6.3 Under the line, state by state
@@ -437,7 +438,7 @@ The line is 64px high:
   - "Earlier" with three conversations and their day.
   - No Act rows and no Jump to.
 - **Typing:**
-  - The words as a question, with ↵ on the active row. No "Instant answer" tag: a quick answer is simply quick.
+  - The words as a question, as the active row (highlighted; no key drawn, D17). No "Instant answer" tag: a quick answer is simply quick.
   - Jump to: up to 6 people, threads, calls and pages, as today (`askJump`).
   - The suggestions that match. Those that make a card say "Card" in the row's quiet meta.
 - **Listening:**
@@ -480,7 +481,7 @@ The line is 64px high:
 | ⌘J | Open | Earlier |
 | Space, held | An empty line | Talks while held (section 6.6) |
 
-The `?` sheet lists these keys (contracts `SHORTCUTS`). The panel draws no footer.
+No key is drawn in the Line (D17). The Keyboard shortcuts sheet in the user menu lists them: `SHORTCUTS` (`contracts/chrome.ts:253`) gains ⌘J for Earlier, holding Space to talk, and Esc to stop a turn. The panel draws no footer.
 
 ### 6.6 Voice
 
@@ -518,6 +519,7 @@ The band keeps what the three's spec settled (section 4.7): always the full face
 - **The row tags:** "Instant answer" and "Reads your workspace as you".
 - **The Act and Right now lists on home.**
 - **The back button** and the coral action chip.
+- **Every key symbol the palette draws:** the input bar's ↵ (`ask-real.jsx:363`), the footer's keys (`:389-392`), and any row's key hint.
 - **The 80px stage** (`ask-real.jsx:316`), because the three are in the line.
 - **New Chat and `ask:new`** (`sidebar.jsx:436-452`, `app-shell.jsx:815`, and the listener at `ask-real.jsx:147`).
 - **From the contract,** once nothing reads them:
@@ -848,9 +850,9 @@ It also records the time to the first `say` line and the cost per answered turn.
 - Opus 5.5 fast mode.
 - The lead finder's own composer. It uses `__ask.send` and the card, which the server keeps sending.
 
-## 14. For Ruben to approve
+## 14. Approved (Ruben, 23 Sep)
 
-1. **The Line and Say · Show · Do**, as this document specifies them.
+1. **The Line and Say · Show · Do**, as this document specifies them, with no key symbols drawn (D17).
 2. **New Chat leaves the sidebar.** The labelled Ask button in the top bar and ⌘K stay on every page.
 3. **Sonnet 5 stays until Opus 5.5 wins the gate:** your blind review, first words within 1.5s of Sonnet 5, and no case at the cap. Cost per answer is shown for your call.
 
