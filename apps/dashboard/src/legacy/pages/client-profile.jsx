@@ -720,13 +720,13 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   ));
   if (saved.length === 0) {
     // "The People rail" is not on a phone; the Lists page is, from here.
-    // The lists live on People: the door lands there with the New list box open (segments:new, once the page is up).
+    // The lists live on People: the door lands there with the New list box open (clients/new-list, app-shell.jsx).
     return (
       <div className="cl-prof-lists">
         {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
         <div className="cl-prof-aut-hint">
           No lists kept by hand yet.{" "}
-          <button type="button" className="cl-bucket-link" onClick={() => { window.CHANLY.nav("clients"); setTimeout(() => window.dispatchEvent(new CustomEvent("segments:new")), 450); }} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
+          <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("clients/new-list")} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
         </div>
       </div>
     );

@@ -64,3 +64,19 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   // Inbox said "X is answering this" over a receptionist that was answering (I1).
   return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
 }
+
+/**
+ * A reply counting down to send waits on you while it can still be stopped: after its seconds it goes in your name.
+ * One rule for the Inbox's Needs you, its buckets and the sidebar's badge (through the shell's courier, inbox.jsx
+ * ixSending) and for People's Needs you. The Inbox knows the reply's deadline (`endsAtMs`) and whether this tab held it;
+ * People knows only that one is queued, which it is exactly while it can still be stopped. It lived in inbox.jsx, and
+ * People counted a thread the Inbox said waited on you as not waiting on anyone.
+ */
+export function replyWaitsOnYou(
+  r: { endsAtMs?: number | null; queued?: boolean; held?: boolean },
+  nowMs: number,
+): boolean {
+  if (r.held) return false;
+  if (r.endsAtMs !== undefined && r.endsAtMs !== null) return r.endsAtMs > nowMs;
+  return !!r.queued;
+}

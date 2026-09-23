@@ -28,8 +28,9 @@ const IX_VIEW_FILTERS = {
 // your name. ONE rule for the Needs you chip, the bucket a row sits in, the order it sits in, this page's count and
 // the sidebar badge, so no two of them can say different numbers. Such a thread sat in Handled with nothing on its
 // row, and the countdown showed only in the pane you had to open first.
-const ixSending = (t, nowMs = Date.now()) => !!(t && t.real && t.veto && t.veto.endsAtMs > nowMs
-  && !ixHeld(((window.VW_STORE || {}).state) || {}, t));
+// The rule is contracts' (standing.ts replyWaitsOnYou, through the shell's courier), People's Needs you too.
+const ixSending = (t, nowMs = Date.now()) => !!(t && t.real && t.veto && window.__chrome && window.__chrome.replyWaits
+  && window.__chrome.replyWaits({ endsAtMs: t.veto.endsAtMs, held: ixHeld(((window.VW_STORE || {}).state) || {}, t) }, nowMs));
 // What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
 // mockup's rule, since "needs" is a state no real thread holds.
 const ixWaitsOnYou = (t, nowMs = Date.now()) => (t && t.real

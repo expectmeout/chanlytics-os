@@ -1971,7 +1971,7 @@ const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""
 
 const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
 
-const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, scope = "people", leadsRoute = null, onNavigate = null }) => {
+const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, scope = "people", leadsRoute = null, onNavigate = null, newList = false }) => {
   const people = usePeople();
   // Both surfaces are read in both scopes, and every hook below is declared in both, in one order: the stub React
   // the page's tests draw it on keys hooks by call order (people-honest.test.mjs), so a hook behind an
@@ -1991,8 +1991,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
-  const [listsOpen, setListsOpen] = useState(false);
-  const [newListSignal, setNewListSignal] = useState(0);
+  const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
+  // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
+  const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
   // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their

@@ -16,7 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, toCallVM, stateOf } from "@chanlytics/contracts";
+import { toTodayVM, toCallVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -263,7 +263,7 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  __chrome: { state: stateOf },
+  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   CHANLY: { nav() {}, R: {} },
   gate: () => ({}),
   __surfaceState: () => "live",
