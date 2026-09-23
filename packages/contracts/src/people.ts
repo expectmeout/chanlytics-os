@@ -1159,6 +1159,25 @@ export const PEOPLE_LISTS: readonly {
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
   },
+  // The journey past the booking (0004). Each exists only where deals are a thing here.
+  {
+    id: "consultation_booked",
+    label: "Consultation booked",
+    group: "journey",
+    needsCalendar: true,
+    needsConsultFirst: true,
+    needsDeals: true,
+    test: (v) => v.consultationVisit && !v.deal,
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    needsDeals: true,
+    test: (v) => v.deal?.stage === "proposed",
+  },
+  { id: "clients", label: "Clients", group: "journey", needsDeals: true, test: (v) => v.deal?.stage === "won" },
+  { id: "deal_ended", label: "Ended", group: "journey", needsDeals: true, test: (v) => v.deal?.stage === "ended" },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.
@@ -1248,6 +1267,14 @@ const LIST_STEPS: Record<
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
   lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
+  consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
+  proposal_out: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "A word from you is the next step; nothing sends on its own.",
+  },
+  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a

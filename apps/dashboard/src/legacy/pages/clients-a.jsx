@@ -668,6 +668,11 @@ const PL_LIST_TIP = {
   booked_week: "An appointment in the next seven days",
   asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
   lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
+  // The journey past the booking (0004): drawn only where deals are a thing here.
+  consultation_booked: "A consultation ahead or behind them, and no proposal yet",
+  proposal_out: "A proposal went out and is waiting on their answer",
+  clients: "Said yes, or paid — the engagement is running",
+  deal_ended: "An engagement that ended — the win-back list for clients",
 };
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
