@@ -4,8 +4,8 @@
  * nothing here reads the database, the store or the clock unless it is
  * handed one.
  */
-import { replyDelayMs, violatesNoPrices, policyAskClass } from "@chanlytics/contracts";
-import type { BrainConfig, BrainMeta, PolicyLimits } from "@chanlytics/contracts";
+import { replyDelayMs, violatesNoPrices, policyAskClass, resolveFacts } from "@chanlytics/contracts";
+import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
 
 export const PAUSE_MS = 24 * 3600 * 1000; // human echo pauses the bot for 24h
 export const MAX_REPLIES_PER_DAY = 20; // per thread
@@ -72,6 +72,8 @@ export interface LayerTwoIn {
   brainCfg: BrainConfig;
   policy: Record<string, { mode: string }> | null | undefined;
   intent: string | null;
+  /** What the platform knows independently of what was typed; the number to call resolves over both. */
+  known?: KnownFacts | null;
 }
 
 export interface LayerTwoOut {
@@ -87,6 +89,21 @@ export interface LayerTwoOut {
 }
 
 /**
+ * The sentence that tells a customer who cannot wait what to do, or nothing.
+ *
+ * The number is the one the facts resolve to (resolveFacts): what the owner
+ * typed, else the line the receptionist answers, formatted for a person. A
+ * workspace with neither gets no sentence at all -- the reply ends where it
+ * ends, the way fallbackMessages leaves out a sentence naming a detail the
+ * workspace does not have -- because "call undefined." is what a customer was
+ * sent when phone_display was read raw.
+ */
+function urgentLine(x: Pick<LayerTwoIn, "brainCfg" | "known">): string {
+  const phone = resolveFacts(x.brainCfg, x.known).phone_display.value;
+  return phone ? ` For anything urgent, call ${phone}.` : "";
+}
+
+/**
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
  * defense. A price in the draft blocks the send outright. Under "ask", a
  * booking or a service/pricing question is a person's to answer: a reply
@@ -96,10 +113,11 @@ export interface LayerTwoOut {
  */
 export function layerTwo(x: LayerTwoIn): LayerTwoOut {
   let { replyText, escalate, escalationReason } = x;
+  const urgent = urgentLine(x);
   let priceBlocked = false;
   if (violatesNoPrices(replyText)) {
     priceBlocked = true;
-    replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+    replyText = `Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly.${urgent}`;
     escalate = true;
     escalationReason = "policy_block";
   }
@@ -109,9 +127,9 @@ export function layerTwo(x: LayerTwoIn): LayerTwoOut {
     const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
     complied = askClass === "booking" ? !carriesLink : escalate;
     if (askClass === "booking" && carriesLink) {
-      replyText = `A member of our team will confirm your booking with you shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+      replyText = `A member of our team will confirm your booking with you shortly.${urgent}`;
     } else if (askClass === "faq" && !escalate) {
-      replyText = `A member of our team will get back to you with the details shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+      replyText = `A member of our team will get back to you with the details shortly.${urgent}`;
     }
     escalate = true;
     escalationReason = "policy_ask";

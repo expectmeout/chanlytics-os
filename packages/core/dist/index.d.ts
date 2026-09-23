@@ -2382,6 +2382,8 @@ interface LayerTwoIn {
         mode: string;
     }> | null | undefined;
     intent: string | null;
+    /** What the platform knows independently of what was typed; the number to call resolves over both. */
+    known?: KnownFacts | null;
 }
 interface LayerTwoOut {
     replyText: string;
