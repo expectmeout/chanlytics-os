@@ -1333,7 +1333,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    page's own type (the mono read as a second font on a phone, Ruben 22 Sep);
    a neutral tile, amber only where a person is waiting. On a phone the
    sentence is the door to its arithmetic, and wears the page's own sign that a
-   word has more behind it, the dotted rule of .cal-count-label[data-tip]. */
+   word has more behind it, a dotted rule under the words. */
 .tl-tag { font-family: inherit; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
 .tl-row.tl-danger .tl-tag, .tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
 .tl-math { font-family: inherit; font-size: 11.5px; letter-spacing: 0; }

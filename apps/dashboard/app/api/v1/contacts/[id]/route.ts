@@ -20,6 +20,8 @@ import type {
   PersonRowDto,
 } from "@chanlytics/contracts";
 import { personLike, personVisits } from "@/server/calendar";
+import { personRuns } from "@/server/broadcasts";
+import { leadOfPerson } from "@/server/leads";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -306,7 +308,7 @@ export const GET = read({
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
     const sb = ctx.supabase;
-    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history] = await Promise.all([
+    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history, runs, lead] = await Promise.all([
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
       sb
         .from("conversations")
@@ -364,6 +366,10 @@ export const GET = read({
         .eq("subject_id", id)
         .order("created_at", { ascending: false })
         .limit(200),
+      // The runs that named them, and the lead they were found as: what a playbook or a broadcast sent them, and the
+      // way back to where the finder found them.
+      personRuns(ctx, tenantId, id),
+      leadOfPerson(ctx, tenantId, id),
     ]);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
@@ -437,6 +443,8 @@ export const GET = read({
       notes: own.data?.notes ?? null,
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
       consent_history: (history.data ?? []).map(consentChangeOf),
+      campaigns: runs,
+      lead,
       added: added.data
         ? {
             at: added.data.created_at,

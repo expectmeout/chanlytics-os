@@ -959,7 +959,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('list: { type: "string" }') &&
-      tools.includes("if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;") &&
+      tools.includes("if (list && !list.test(vmOf.get(r.id)!)) return false;") &&
       tools.includes("next_visit: r.visits?.next"),
     "the assistant answers who booked and who never did",
   );
@@ -1231,8 +1231,8 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   );
   const ports = readCode("apps/dashboard/src/server/campaign-ports.ts");
   assert.ok(
-    ports.includes("await Promise.all([everyone(ctx, tenantId), zone()]);") &&
-      ports.includes("withVisits(ctx, tenantId, rows, now)"),
+    // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
+    ports.includes("people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,"),
     "the enrol path counts what the page counted, every page of it",
   );
 });
@@ -1450,9 +1450,11 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.equal(row.lastVisitDay, "Thu, Aug 20");
   assert.deepEqual(row.replyWindow, { open: true, hoursLeft: 23 });
   assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, TZ, now).replyWindow, null);
+  // First contact left the identity cell (22 Sep, Ruben: the row read jam-packed) for a column of its own that is off
+  // until a member asks for it, so Offers still holds the place on screen it took from First contact.
   assert.ok(
-    !PEOPLE_PAGE.includes('label: "First contact"'),
-    "First contact lives in the identity cell, never a column of its own",
+    PEOPLE_PAGE.includes('{ key: "since", label: "First contact", sortable: false, on: false,'),
+    "First contact is a column a member may choose, not on screen by default",
   );
   assert.ok(
     PEOPLE_PAGE.includes("cl-row-avatar-glyph") && PEOPLE_PAGE.includes('data-testid="row-name-them"'),
@@ -1474,11 +1476,8 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     "the row's own next steps",
   );
   assert.ok(PEOPLE_PAGE.includes("title={plWhen(p.lastContact.at)}"), "the exact time on hover");
-  assert.ok(
-    PEOPLE_PAGE.includes('"no messages yet"') &&
-      PEOPLE_TABLE.includes("`${total} ${total === 1 ? words.one : words.many}`"),
-    "honest words",
-  );
+  // A row no longer counts threads and calls ("no messages yet" was that count at zero): the profile has them.
+  assert.ok(PEOPLE_TABLE.includes("`${total} ${total === 1 ? words.one : words.many}`"), "honest words");
   assert.ok(
     PEOPLE_PAGE.includes('(p.quote || "").toLowerCase().includes(needle)') &&
       PEOPLE_PAGE.includes('(p.nextVisit || "").toLowerCase().includes(needle)'),

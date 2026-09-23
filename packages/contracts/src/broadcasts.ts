@@ -28,6 +28,7 @@ import { PEOPLE_LISTS, mayReceive, noNumberWords, saidYesTo, type PersonRowVM } 
 import { firstNameOf, type ParamSpec } from "./templates";
 import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
 import type { RunReach } from "./playbooks";
+import { HELD_REASONS } from "./run-words";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -53,13 +54,8 @@ export const BROADCAST_MAX_RECIPIENTS = 2000;
 export const BROADCAST_PARAM_MAX = 1024;
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
 export const BROADCAST_NAME_MAX = 80;
-/**
- * A reply is an inbound within this long of the send; a question two weeks later is its own thread. The SQL series
- * keeps the same window (migration 00064's '72 hours'), and every page says it in these words.
- */
-export const REPLY_WINDOW_HOURS = 72;
-export const REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 3_600_000;
-export const REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+// The reply window and the held reasons live in run-words.ts, where a person's page reads them too.
+export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, isReplyTo } from "./run-words";
 
 export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
 /** The kinds a person may pick; "playbook" is the sweep's own. */
@@ -159,11 +155,26 @@ export interface AudiencePreview {
    * ones who did have no number, whom a door to "get their yes" would ask for an answer they gave (#663's rule).
    */
   saidYes: number;
+  /**
+   * How many of those it reaches heard from a playbook or a broadcast within the week (the touches a playbook's run
+   * waits a week after, PLAYBOOK_BREATH_MS): a send by hand is not held back by them, and the owner is told before it
+   * goes, not after.
+   */
+  heard: number;
+}
+
+/** The composer's note when some of an audience heard from a run this week; null when none did. */
+export function heardWords(n: number): string | null {
+  if (n <= 0) return null;
+  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null): PreviewPerson {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
+
+/** Nobody touched: an audience read with no touches in hand. */
+const NO_ONE: ReadonlySet<string> = new Set();
 
 export function audiencePreview(
   rows: PersonRowVM[],
@@ -172,6 +183,8 @@ export function audiencePreview(
   savedIds: ReadonlySet<string> | null,
   purpose: SendPurpose,
   limit = 5,
+  /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
+  touched: ReadonlySet<string> = NO_ONE,
 ): AudiencePreview {
   const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
@@ -200,6 +213,7 @@ export function audiencePreview(
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r) => saidYesTo(r, purpose)).length,
+    heard: sending.filter((r) => touched.has(r.id)).length,
   };
 }
 
@@ -362,37 +376,6 @@ export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): Br
  * answer the ledger gives for an outbound_send whose run did not report back.
  */
 export const OUTCOME_UNKNOWN = "outcome_unknown";
-
-/** The reasons a person is held back at the wire, in the owner's words. */
-export const HELD_REASONS: Record<string, string> = {
-  opted_out: "asked to stop",
-  not_opted_in: "no recorded yes",
-  // The reason the send job writes when the OTHER yes is the missing one. It was
-  // added to the wire (00095) and not to these words, so the owner read the raw
-  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
-  // distinction it draws is the entire point of the split, so it is the last one
-  // that should have arrived untranslated.
-  no_marketing_consent: "no yes to offers",
-  no_phone: "no number",
-  // The number is on file but no thread answers to it on this line: a stored
-  // number that does not normalise, or one no contact row matches.
-  no_thread: "no thread for that number",
-  human_has_it: "a person had the thread",
-  paused: "the workspace was paused",
-  superseded_by_human: "a person answered first",
-  sms_carries_no_promotions: "no offers by text",
-  email_marketing_disabled: "no offers by email yet",
-  email_suppressed: "their email address stopped accepting mail",
-  recipient_changed: "their email address changed",
-  erased: "deleted",
-  send_failed: "WhatsApp refused",
-  missing_value: "a value was missing",
-  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
-  // this object opaque to the bundler, which then carries the whole map into
-  // every package that imports anything from here. core-broadcast.test.mjs
-  // holds the two spellings together.
-  outcome_unknown: "a run that did not finish",
-};
 
 /**
  * Why an audience came out empty, in the owner's words, for the purpose they

@@ -296,11 +296,12 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   );
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
-  const r = readCode("apps/edge/lib/playbooks.ts");
-  // The run's branches are run: core-run-playbook.test.mjs. The loader's touches stay pinned here.
+  // The run's branches are run: core-run-playbook.test.mjs. The touches the loader and the Playbooks page read
+  // (packages/db touchesSince) stay pinned here; send-rails.test.mjs runs them.
+  const r = readCode("packages/db/src/repositories/touches.ts");
   assert.ok(
     r.includes('.in("state", ["sent", "queued"])') &&
-      r.includes('const runs = (pastRuns.data ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'),
+      r.includes('.filter((b) => b.state !== "canceled" && b.state !== "failed");'),
     "a message on its way is a touch too, so two playbooks never both pick the same person in a week",
   );
   // Run now -- a person's run through the same implementation, sent now under
@@ -576,7 +577,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   );
   assert.ok(
     readCode("packages/contracts/src/viewmodels.ts").includes(
-      '{ kind: "playbook" as const, name: String(m.meta.playbook_name) }',
+      '{ kind: "playbook", name: String(m.meta.playbook_name) }',
     ),
   );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));

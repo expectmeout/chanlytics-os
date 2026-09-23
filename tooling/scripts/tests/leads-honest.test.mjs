@@ -439,6 +439,7 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
@@ -523,7 +524,15 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
-for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_PHONE_COLUMNS", "LEAD_SORT_KEYS", "LeadShape", "LeadSlotShape"])
+for (const k of [
+  "LeadsScope",
+  "LeadCallMenu",
+  "LEAD_COLUMNS",
+  "LEAD_PHONE_COLUMNS",
+  "LEAD_SORT_KEYS",
+  "LeadShape",
+  "LeadSlotShape",
+])
   globalThis[k] = globalThis.window[k];
 for (const k of ["LeadsFirstDay", "LeadSuggestion", "LeadWayCard"]) globalThis[k] = globalThis.window[k];
 
@@ -765,6 +774,20 @@ const draw = (props = {}) => {
     ...props,
   });
 };
+
+test("a fresh mount of Leads draws its first rows and the next draw every row", () => {
+  // The switch from People is a remount, and the table's rows were most of what it waited on (measured on the salon:
+  // a 250 ms draw of 96 leads, 125 ms with the first 24).
+  const rows = Array.from({ length: 40 }, (_, i) => ({ ...ROWS[0], id: `many-${i}` }));
+  fresh({ leads: surface({ rows }) });
+  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^lead-many-/.test(String(n.props?.id || ""))).length;
+  const first = draw();
+  assert.ok(
+    rowsOf(first) > 0 && rowsOf(first) <= globalThis.window.PL_FIRST_ROWS,
+    `the first draw carries the first rows only, saw ${rowsOf(first)}`,
+  );
+  assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
+});
 
 /* ---------------------------------- the rows ---------------------------------- */
 
@@ -1440,11 +1463,10 @@ test("a sort is the surface's to read, not the page's to re-order: the rows hold
 test("REGRESSION: Call asks how, instead of ringing a business the moment a thumb lands on a row -- and the receptionist is not one of the ways, because it never rings a customer", () => {
   fresh();
   menus.length = 0;
-  const tree = draw();
-  const l1 = rowOf(tree, "l1");
-  assert.ok(byTestId(l1, "lead-call"), "a lead with a phone still has Call where it was");
-  const ways = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  draw();
+  const ways = menus.find((m) => m.title === `Call ${ROWS[0].name}` && m.testid === "lead-call");
   assert.ok(ways, "REGRESSION: it dialled on press; it opens the ways of calling now");
+  assert.equal(ways.testid, "lead-call", "and its button is Call, where it was");
   assert.equal(ways.icon, "phone", "and still looks like calling -- a ⋯ would hide what the button is for");
 
   const W = globalThis.window.__LEAD_WORDS.callWays;
@@ -1476,7 +1498,7 @@ test("REGRESSION: Call asks how, instead of ringing a business the moment a thum
   fresh();
   menus.length = 0;
   draw();
-  const again = menus.find((m) => m.title === `Call ${ROWS[0].name}`);
+  const again = menus.find((m) => m.title === `Call ${ROWS[0].name}` && m.testid === "lead-call");
   again.items.find((i) => i.label === W.log.label).onClick();
   draw();
   assert.equal(globalThis.window.location.href, "", "REGRESSION: logging a call you already made rang them again");

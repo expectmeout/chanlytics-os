@@ -100,6 +100,8 @@ await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.Icon = globalThis.window.Icon;
 globalThis.StatePill = globalThis.window.StatePill;
+// Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
+globalThis.MoreMenu = globalThis.window.MoreMenu;
 // The table's own helpers: `leads-scope.jsx` reads plSortKeys at module scope (LEAD_SORT_KEYS), so the file it was
 // lifted from loads first here, as people-honest's harness loads it.
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
@@ -114,12 +116,14 @@ for (const k of [
   "plColumnChoices",
   "plColumnOptions",
   "PL_NO_SEL",
+  "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx"); // Task 2's: LeadShape is its, and this file draws it
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
 for (const k of [
   "LeadPeek",
+  "LeadCallMenu",
   "LeadShape",
   "LeadSlotShape",
   "LeadPeekActions",
@@ -159,6 +163,18 @@ const textOf = (n) => {
 const press = async (node) => {
   assert.ok(node, "no such control");
   await node.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: node });
+};
+// Call opens the ways of calling (LeadCallMenu, the house MoreMenu): a way is one of its items, pressed after the button.
+const callWay = async (P, label) => {
+  await press(byTestId(P.draw().tree, "peek-act-call"));
+  const item = find(
+    P.draw().tree,
+    (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("more-item") && textOf(n).includes(label),
+  );
+  await press(item);
 };
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
@@ -452,7 +468,7 @@ test("How you can reach them: the phone with its sources and its copy, the email
   );
   // The phone's line copies the number. Call is the act pinned at the foot, said once: it was on this line as well.
   assert.equal(byTestId(tree, "peek-call"), null, "no second Call on the line");
-  assert.equal(textOf(byTestId(tree, "peek-act-call")), "Call +1 (512) 555-0142");
+  assert.equal(textOf(byTestId(tree, "peek-act-call")).trim(), "Call +1 (512) 555-0142");
   const copyPhone = byTestId(tree, "peek-copy-phone");
   assert.deepEqual(
     [copyPhone.props["aria-label"], copyPhone.props["data-tip"]],
@@ -934,7 +950,28 @@ test("Copy copies the subject and the body and arms the same question", async ()
 test("Call dials tel: from the peek and asks how it went when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
   reset();
   const P = page();
+  // Call asks how first: pressing it opens the ways and rings nobody; "Call from your phone" rings.
   await press(byTestId(P.draw().tree, "peek-act-call"));
+  assert.deepEqual(dialled, [], "REGRESSION: the panel's Call rang the business the moment it was pressed");
+  const ways = all(P.draw().tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("more-item"),
+  ).map((n) => textOf(n).trim());
+  assert.deepEqual(
+    ways,
+    Object.values(globalThis.window.__LEAD_WORDS.callWays).map((w) => `${w.label}${w.meta || ""}`),
+    "the three ways, and the button already says the number, so no heading repeats it",
+  );
+  await press(
+    find(
+      P.draw().tree,
+      (n) =>
+        String(n.props?.className || "")
+          .split(" ")
+          .includes("more-item") && textOf(n).includes(globalThis.window.__LEAD_WORDS.callWays.dial.label),
+    ),
+  );
   assert.deepEqual(dialled, ["tel:+15125550142"]);
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
   assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);
@@ -1540,8 +1577,8 @@ test("D5: the peek opens on a photo band with Expand, says what people say under
     act,
     "the act bar is the peek's last child: it never scrolls away",
   );
-  assert.equal(textOf(byTestId(act, "peek-act-call")), "Call +1 (512) 555-0142");
-  await press(byTestId(act, "peek-act-call"));
+  assert.equal(textOf(byTestId(act, "peek-act-call")).trim(), "Call +1 (512) 555-0142");
+  await callWay(shown, globalThis.window.__LEAD_WORDS.callWays.dial.label);
   assert.deepEqual(
     dialled,
     ["tel:+15125550142"],

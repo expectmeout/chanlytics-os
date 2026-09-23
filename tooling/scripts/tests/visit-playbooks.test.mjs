@@ -315,7 +315,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
-    tools.includes('booking: modeOf("booking")') && tools.includes("withVisits(t.ctx, t.tenantId, people, t.now)"),
+    tools.includes('booking: modeOf("booking")') &&
+      tools.includes("audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now)"),
     "the assistant counts with the calendar too",
   );
 });
@@ -386,7 +387,7 @@ test("a broadcasts read that fails is an ERROR, never 'nobody has been touched'"
     new Date("2026-09-12T15:00:00Z"),
   );
   assert.ok("error" in bad, "returned as an error");
-  assert.match(bad.error, /broadcasts: broadcasts: statement timeout/);
+  assert.match(bad.error, /broadcasts: statement timeout/);
   assert.ok(!("touches" in bad));
 });
 

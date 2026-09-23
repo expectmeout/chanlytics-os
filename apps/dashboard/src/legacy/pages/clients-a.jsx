@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
+   PL_NO_SEL, PL_FIRST_ROWS, LEAD_COLUMNS, LEAD_PHONE_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -779,6 +779,11 @@ const plDownload = (name, text) => {
 };
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
+// The receptionist's word says what the state pill beside it already says: "escalated" is why they need you, and
+// "held for you" is what waiting on you means. Said twice, it was "Needs you  escalated" on the row. Its other words
+// -- a reply queued, snoozed, silent -- are news the pill does not carry, and stay.
+const plReceptSaysTheState = (p) =>
+  (p.receptionist.tone === "escalated" && p.state === "needs_you") || (p.receptionist.tone === "paused" && p.state === "waiting_on_you");
 // The sorts a phone offers from its more-menu, in the words it says them in. A desktop sorts by its headings, which a
 // phone does not draw: its one button only turned the order round ("Z → A"), whatever the sort was.
 const PL_PHONE_SORTS = [
@@ -1329,6 +1334,11 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
 // identity cell; the last column is the row's own actions, shown on hover and on the keyboard's row.
 
 // The identity cell: who, on which wires, since when, and their last words.
+// Who they are and what they last said: two lines. A third line under the name used to carry five facts at once --
+// the channels, the number, their WhatsApp name, "1 thread · 10 calls" and "since Aug 26" -- so every row read
+// jam-packed. The number and the channels are Reach, a column of their own; when they first wrote is First contact,
+// a column of its own; their WhatsApp name is the name's tip; the counts are the profile's (an owner acts on who and
+// why, not on how many threads).
 const plNameCell = (p, { attention, onOpen }) => {
   // Named by an identifier, a number or an address: nobody has named them yet.
   const byNumber = plIsNumber(p.name);
@@ -1345,18 +1355,9 @@ const plNameCell = (p, { attention, onOpen }) => {
           : <div className="ix-thread-avatar">{p.initials}</div>}
         <div className="cl-row-name-block">
           <div className="cl-row-fullname">
-            <span className={byNumber ? "tabular" : ""}>{p.name}</span>
+            {/* Their own name on WhatsApp, where it differs, is the name's tip rather than a third thing on the row. */}
+            <span className={byNumber ? "tabular" : ""} title={!numbered && p.waName && p.waName !== p.name ? `${p.waName} on WhatsApp` : undefined}>{p.name}</span>
             {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
-          </div>
-          <div className="cl-row-meta">
-            <PeopleChannels channels={p.channels} />
-            {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
-            {/* The address stands in for the number only when there is none: a row says one identifier. */}
-            {!numbered && !p.phone && p.email && <><span className="dot" /><span>{p.email}</span></>}
-            {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
-            <span className="dot" />
-            <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
-            {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
           </div>
           {words && <div className="cl-row-words" title={words} data-testid="row-words">{words}</div>}
         </div>
@@ -1381,11 +1382,26 @@ const PL_COLUMNS = [
         {/* The receptionist's word beside the state, said once. On a desktop the stylesheet hides this one while its own
             column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
             one wherever Visits does not take the cell's place. */}
-        {p.receptionist.tone !== "answering" && <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+        {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
         {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
       </td>
     ),
   },
+  // How to reach them: the channels they use, and the number -- or the address when there is no number (a row says one
+  // identifier). Someone named only by their number or address says it as their name already, so here only the
+  // channels. It was the third line under every name.
+  { key: "reach", label: "Reach", sortable: false, cell: (p) => {
+    const named = !plIsNumber(p.name) && !plIsAddress(p);
+    const id = named ? p.phone || p.email || null : null;
+    return (
+      <td key="reach" className="shrink cl-reach-cell" data-testid="row-reach">
+        <span className="cl-row-reach">
+          <PeopleChannels channels={p.channels} />
+          {id ? <span className={p.phone ? "tabular" : ""}>{id}</span> : null}
+        </span>
+      </td>
+    );
+  } },
   { key: "last", label: "Last contact", sortable: true, cell: (p) => <td key="last" className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td> },
   {
     key: "visits", label: "Visits", sortable: true, needs: (x) => x.withCalendar,
@@ -1408,6 +1424,12 @@ const PL_COLUMNS = [
   { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
   // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says.
   { key: "came_from", label: "Came from", sortable: false, cell: (p) => <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">{p.cameFrom ? p.cameFrom.label : ""}</td> },
+  // When they first wrote, off until asked for: it was "since Aug 26" on every row, true and seldom why anyone opens People.
+  { key: "since", label: "First contact", sortable: false, on: false, cell: (p) => (
+    <td key="since" className="shrink dim cl-since-cell" data-testid="row-since" title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : undefined}>
+      {p.firstContact.label !== "—" ? p.firstContact.label : ""}
+    </td>
+  ) },
   { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
@@ -2291,15 +2313,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     });
   }, [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
 
-  const sortLabels = {
-    last: ["Latest contact first", "Oldest contact first"],
-    first: ["Newest people first", "Oldest people first"],
-    name: ["Z → A", "A → Z"],
-    state: ["By state", "By state · reversed"],
-    visits: ["Latest visit first", "Soonest visit first"],
-    offers: ["Said no first", "Said yes first"],
-  };
-  const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
@@ -2530,6 +2543,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
   const placeTop = React.useRef(0);
   const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
+  // A fresh mount draws its first rows only (PL_FIRST_ROWS) and the rest a frame later: the switch between People
+  // and Leads is a remount, and the table's rows were most of what it waited on (measured on the salon: a 250 ms
+  // draw of 96 leads, 125 ms with the first 24). A place to put back -- a scroll, a cursor -- needs every row on the
+  // first draw, so it draws them all. The budget is the mount's: a view change inside the page never narrows it.
+  const [rowBudget, setRowBudget] = useState(() => {
+    const p = placeLoad(placeView);
+    return p && (p.top || p.cursor) ? Infinity : PL_FIRST_ROWS;
+  });
+  React.useEffect(() => {
+    if (rowBudget === Infinity) return undefined;
+    const lift = () => setRowBudget(Infinity);
+    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
+    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
+    const frame = requestAnimationFrame(lift);
+    const beat = setTimeout(lift, 120);
+    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     const p = placeLoad(placeView) || {};
     setQ(p.q || "");
@@ -2957,6 +2987,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         search={openSearch}
         strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
+        rowBudget={rowBudget}
         phone={phone}
         // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
         // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
@@ -3240,10 +3271,9 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
+              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
+                  them only turned round an order the table already shows and changes. */}
               <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
-              <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
-                <Icon name="sort" size={12} /> {sortLabel}
-              </button>
             </div>
           </div>
           )}
@@ -3298,6 +3328,7 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
           )}
 
           <PeopleTable
+            budget={rowBudget}
             noun="person"
             columns={columns}
             ctx={cellCtx}

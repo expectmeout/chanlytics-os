@@ -373,6 +373,22 @@ const ixMenu = (groups) => groups.filter((g) => g.length).flatMap((g, i) => (i ?
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
   const snoozed = thread.state === "snoozed";
+  // People lands last on a cold boot (its rows are the heaviest read): a thread opened before it draws the chip below
+  // once it does, rather than at the next message.
+  const [, peopleTick] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    if (!window.addEventListener) return undefined;
+    window.addEventListener("surface:clients", peopleTick);
+    return () => window.removeEventListener("surface:clients", peopleTick);
+  }, []);
+  // Who this is, in one chip beside the wires: a visit ahead on the calendar (People's own day and time), or the last
+  // one behind them; nothing when People has neither, or is not read yet. Not the band's words: the band says where
+  // the conversation stands, this says who they are, which was a page away.
+  const person = thread.clientId && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((p) => p.id === thread.clientId) : null;
+  const visit = !person ? null
+    : person.nextVisitDay ? { ahead: true, day: person.nextVisitDay, time: (person.nextVisit || "").split(" · ")[1] || "" }
+    : person.lastVisitDay ? { ahead: false, day: `Last · ${person.lastVisitDay}`, time: "" }
+    : null;
 
   return (
     <header className="ix-th-head">
@@ -404,7 +420,18 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
               );
             })()}
           </div>
-          <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
+          <div className="ix-th-sub">
+            <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
+            {visit && (
+              <span className={`ix-th-visit${visit.ahead ? " ahead" : ""}`} data-testid="ix-th-visit">
+                <Icon name="calendar" size={10} />
+                <span className="ix-th-visit-words">
+                  {visit.day}
+                  {visit.time && <span className="ix-th-visit-time"> · {visit.time}</span>}
+                </span>
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <div className="ix-th-actions">
@@ -430,10 +457,11 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             <Icon name="phone" size={12} /> Call back
           </a>
         )}
-        {/* A quiet icon, not a boxed button: lit only while its menu is open. The menu says what to do with the
-            conversation, then with the person, then the file -- no eyebrow: the menu is the thread's. "Conversation"
-            headed a list of five in capitals, and "Receptionist for this person…" broke onto two lines. */}
-        <MoreMenu btnClass="btn btn-ghost btn-icon btn-sm ix-th-more" items={ixMenu([
+        {/* A ghost button with a word, lit only while its menu is open: a ⋯ alone in the dim ink was too faint to
+            find on a phone. The menu says what to do with the conversation, then with the person, then the file --
+            no eyebrow: the menu is the thread's. "Conversation" headed a list of five in capitals, and
+            "Receptionist for this person…" broke onto two lines. */}
+        <MoreMenu btnClass="btn btn-ghost btn-sm ix-th-more" label="Actions" title="Actions" items={ixMenu([
           [
             // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
             ...(snoozed ? [] : [{ label: "Snooze", hint: "until tomorrow 10:00", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),

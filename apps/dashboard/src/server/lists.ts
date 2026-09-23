@@ -1,19 +1,17 @@
 import "server-only";
 import { AppError } from "@chanlytics/contracts";
+import type { SavedListRow } from "@chanlytics/db";
 
 /**
- * Saved lists: what the routes agree on.
+ * Saved lists: what the routes agree on. The tables are read and written in packages/db lists.ts.
  *
  * A list is a name and the people on it. The name is the only thing a person
  * types; the members are ids the page already holds. Both guards live here
  * so the create route and the edit route refuse the same things in the same
  * words.
  */
-export interface SavedListDto {
-  id: string;
-  name: string;
-  ids: string[];
-}
+/** A list with every id on it, as packages/db lists.ts reads it. */
+export type SavedListDto = SavedListRow;
 
 export const LIST_NAME_MAX = 60;
 export const LIST_BATCH_MAX = 500;

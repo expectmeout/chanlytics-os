@@ -8,7 +8,6 @@ import {
   audiencePreview,
   type AudienceKind,
   numberHealth,
-  toPersonRowVM,
   ESCALATION_REASON_LABELS,
   LEAD_ENDING_WORDS,
   PERSON_STATE_LABELS,
@@ -49,7 +48,7 @@ import {
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
-import { listPolicies } from "@chanlytics/db";
+import { listPolicies, savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import {
   CALL_COLUMNS,
@@ -59,10 +58,9 @@ import {
   toCallDto,
   toConversationDto,
 } from "../dto";
-import { listPeople } from "../people";
+import { audiencePoolOnce } from "../audience";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
-import { withVisits } from "@/server/calendar";
 import { listPlaybooks } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
@@ -596,12 +594,14 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   if (listId && !list) return { error: `list must be one of ${PEOPLE_LISTS.map((l) => l.id).join(", ")}` };
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.
-  const { people: rows, calendar } = await withVisits(t.ctx, t.tenantId, await listPeople(t.ctx, t.tenantId), t.now);
+  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  const { people: rows, calendar } = pool;
+  const vmOf = new Map(pool.rows.map((v) => [v.id, v]));
   if (list?.needsCalendar && calendar.state !== "ok")
     return { error: "that list needs the calendar connected under Settings › Business", people: [] };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
-    if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;
+    if (list && !list.test(vmOf.get(r.id)!)) return false;
     if (!q) return true;
     const name = personName(r).toLowerCase();
     if (name.includes(q)) return true;
@@ -913,10 +913,9 @@ export function newToolContext(
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [people, segs, members, tpls, ch] = await Promise.all([
-    memoised(t, "people_rows", () => listPeople(t.ctx, t.tenantId)),
-    t.ctx.supabase.from("segments").select("id, name").eq("tenant_id", t.tenantId).order("name"),
-    t.ctx.supabase.from("segment_members").select("segment_id, contact_id").eq("tenant_id", t.tenantId),
+  const [pool, lists, tpls, ch] = await Promise.all([
+    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    savedListsFor(t.ctx.supabase, t.tenantId),
     t.ctx.supabase
       .from("templates")
       .select("id, name, language, category, variables, body_preview")
@@ -933,13 +932,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       .limit(1)
       .maybeSingle(),
   ]);
-  const rows = people.map((r) => toPersonRowVM(r, t.timezone, t.now));
-  const byList = new Map<string, Set<string>>();
-  for (const m of members.data ?? []) {
-    const s = byList.get(m.segment_id) ?? new Set<string>();
-    s.add(m.contact_id);
-    byList.set(m.segment_id, s);
-  }
+  const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
   // chosen, the two answers differ, and who gave an answer is not who can be sent
   // the message, which also needs a number (#663). A single `said_yes` here was
@@ -960,17 +953,24 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   };
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
-    ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out").map((l) => ({
+    // The page's lists: a calendar's lists only when there is a calendar to read them from.
+    ...PEOPLE_LISTS.filter(
+      (l) =>
+        l.id !== "opted_in" &&
+        l.id !== "offers_ok" &&
+        l.id !== "opted_out" &&
+        (!l.needsCalendar || pool.calendar.state === "ok"),
+    ).map((l) => ({
       kind: "list",
       audience_id: l.id,
       label: l.label,
       ...sizes("list", l.id, null),
     })),
-    ...(segs.data ?? []).map((s) => ({
+    ...lists.map((s) => ({
       kind: "saved",
       audience_id: s.id,
       label: s.name,
-      ...sizes("saved", null, byList.get(s.id) ?? new Set<string>()),
+      ...sizes("saved", null, new Set(s.ids)),
     })),
   ];
   const cfg = (
@@ -1019,17 +1019,16 @@ const MODE_WORDS: Record<string, string> = {
  * composer's chips carry.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [rows, facts, policies, people] = await Promise.all([
+  const [rows, facts, policies, pool] = await Promise.all([
     listPlaybooks(t.ctx, t.tenantId),
     tenantFacts(t.ctx.supabase, t.tenantId),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
-    memoised(t, "people_rows", () => listPeople(t.ctx, t.tenantId)),
+    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
   ]);
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
-  const withV = await withVisits(t.ctx, t.tenantId, people, t.now);
-  const vm = withV.people.map((r) => toPersonRowVM(r, t.timezone, t.now));
+  const vm = pool.rows;
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
   // Who each moment names that said the yes its template needs, and who of them
   // a run reaches, by the runner's own draw before anyone has heard from a

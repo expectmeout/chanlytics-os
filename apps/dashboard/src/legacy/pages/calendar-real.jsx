@@ -78,18 +78,6 @@ const crOpenPicker = (e) => {
   try { el.showPicker(); } catch { /* not allowed here; the field still takes a typed date */ }
 };
 
-// One of the counts over the board: what it counts, the number, and a word on it. `meta` says why there is no number,
-// or that the days are still on their way, and always shows. `note` is the happy path's tail ("on your calendar",
-// "that fit Balayage", "at least 2h notice"): a desk's word, and one a phone leaves out (mobile.css).
-const CrCount = ({ label, value, meta, note, tip, "data-testid": testid }) => (
-  <span className="cal-count" data-testid={testid}>
-    <span className="cal-count-label" data-tip={tip || undefined}>{label}</span>
-    <span className="cal-count-value tabular">{value}</span>
-    {meta && <span className="cal-count-meta">{meta}</span>}
-    {!meta && note && <span className="cal-count-meta cal-count-note">{note}</span>}
-  </span>
-);
-
 // One taken block from the feed. Neutral, never an agent's colour: the
 // calendar did not say who booked it, only that the time is taken.
 const CrBlock = ({ b, hours, onOpen, wide, dayLong }) => {
@@ -537,23 +525,6 @@ const CalendarReal = ({ initialDay = null }) => {
   const last = frames[frames.length - 1];
   const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? cal.monthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
   const onToday = view === "month" ? anchor.slice(0, 7) === vm.today.slice(0, 7) : view === "week" ? shown.some((d) => d.today) : anchor === vm.today;
-  // The strip names the days it counts: "This week" only of this week.
-  const statLabel = view === "day" && shown[0] ? (shown[0].today ? "Today" : `${shown[0].dow} · ${shown[0].date}`)
-    : view === "month" ? (onToday ? "This month" : cal.monthLabel(anchor))
-    : view === "agenda" ? (onToday ? "Next 14 days" : `14 days from ${first.date}`)
-    : onToday ? "This week" : `Week of ${first.date}`;
-  const scope = view === "month" ? frames.filter((f) => f.key.slice(0, 7) === monthKey) : shown;
-  // A count over days that could not be read is not a count, and neither is one over days still on their way (C1).
-  const scopeUnread = scope.some((d) => d.unread);
-  const scopeLoading = scope.some((d) => d.loading);
-  // Open times exist only from now through the last day the receptionist offers; a scope wholly outside that says why.
-  const openMeta = scopeUnread ? "couldn't read those days"
-    : scopeLoading ? "reading those days"
-    : scope.every((d) => d.past) ? "these days have passed"
-    : scope.every((d) => d.past || d.beyondOffer) ? `it offers times up to ${vm.offer.days} days ahead`
-    : null;
-  const statEvents = scope.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
-  const statWindows = scope.reduce((a, d) => a + d.windows.filter(fit).length, 0);
   const openBlock = openId ? vm.days.flatMap((d) => [...d.blocks, ...d.allDay].map((b) => ({ b, d }))).find((x) => x.b.id === openId) : null;
   keys.current = { open: !!openBlock, move, today: () => setAnchorKey(null), close: () => setOpenId(null) };
 
@@ -561,9 +532,13 @@ const CalendarReal = ({ initialDay = null }) => {
     // Days on their way dim by the one rule every page uses (components.css [data-loading] [data-dims]): after a beat,
     // so a window the tab holds, painted at once, never flickers.
     <div className="calendar" data-testid="calendar-real" data-loading={pending ? "" : undefined}>
-      {/* The calendar first: one bar of controls and one line of counts over the board, and the hours, the booking rules,
-          the calendar's source and Refresh one tap away under it. A title the top bar already says, a paragraph, three
-          stat cards and five rows of controls came first, and on a phone the first day sat below the fold. */}
+      {/* The calendar first: one bar of controls over the board, and the hours, the booking rules, the calendar's source
+          and Refresh one tap away under it. A title the top bar already says, a paragraph, three stat cards and five rows
+          of controls came first, and on a phone the first day sat below the fold. A line of counts stood under the bar
+          until 22 Sep ("This week 30 on your calendar · Open times 1 that fit Haircut · Next open time tomorrow 4 PM"):
+          the board draws every one of those -- the appointments, the open times the service picker leaves, the next of
+          them -- and Today's day says the next open time in words. Days that could not be read and days on their way
+          keep their own lines (cal-failed with its Retry, cal-reading), which never needed the counts. */}
       <div className="cal-head">
         <div className="cal-bar" data-testid="cal-bar">
           <div className="cal-when">
@@ -581,7 +556,7 @@ const CalendarReal = ({ initialDay = null }) => {
           </div>
           <div className="cal-tools">
             {vm.services.length > 0 && (
-              <select className="tpl-select cal-service" value={serviceName} onChange={(e) => setServiceName(e.target.value)} aria-label="Open times that fit a service" data-testid="cal-service">
+              <select className="tpl-select cal-service" value={serviceName} onChange={(e) => setServiceName(e.target.value)} aria-label="Open times that fit a service" title="Show only the open times long enough for a service" data-testid="cal-service">
                 <option value="">Any service</option>
                 {vm.services.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
               </select>
@@ -591,13 +566,6 @@ const CalendarReal = ({ initialDay = null }) => {
             </div>
           </div>
         </div>
-        <p className="cal-counts" data-testid="cal-counts">
-          <CrCount label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : null} note="on your calendar" data-testid="cal-count-taken" />
-          {/* A calendar that can't be read leaves one count and why. Its card over the board says the rest: two more
-              dashes said "needs the calendar" under it. */}
-          {feedOk && <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta} note={service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null} data-testid="cal-count-open" />}
-          {feedOk && <CrCount label="Next open time" value={vm.stats.next} note={vm.ruleParts[0]} data-testid="cal-count-next" />}
-        </p>
       </div>
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">

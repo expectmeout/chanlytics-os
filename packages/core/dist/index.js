@@ -135,8 +135,8 @@ var require_cjs = __commonJS({
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
-import { z as z4 } from "zod";
 import { z as z5 } from "zod";
+import { z as z4 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
 import { z as z8 } from "zod";
@@ -1588,398 +1588,9 @@ var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-var DAY_MS3 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS3;
-var MONTH_MS = 30 * DAY_MS3;
-var NEW_WINDOW_MS = 7 * DAY_MS3;
-var QUIET_AFTER_MS = 30 * DAY_MS3;
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported history",
-  lead: "A lead you found"
-};
-var DAY_MS4 = 24 * 3600 * 1e3;
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var ASK_CAPS = {
-  threads: 20,
-  messages: 30,
-  messagesMore: 80,
-  calls: 20,
-  transcript: 40,
-  people: 12,
-  citations: 6,
-  followups: 3,
-  needsRows: 10
-};
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip = (n) => (s) => s.trim().slice(0, n);
-var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
-function cleanAnswer(raw) {
-  let s = raw.replace(/^\s*<answer>\s*/i, "");
-  const cut = s.search(TAG_CUT);
-  if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-var AskFinishSchema = z4.object({
-  answer: z4.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
-  citations: z4.array(
-    z4.object({
-      kind: z4.enum(ASK_CITATION_KINDS).catch("page"),
-      id: z4.string().catch("").transform(clip(200)),
-      label: z4.string().catch("").transform(clip(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z4.array(z4.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z4.enum(ASK_LANGUAGES).catch("other")
-});
-var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z4.object({
-  state: z4.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z4.string().max(300).catch(""),
-  atMs: z4.number().catch(0),
-  undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
-  z4.object({
-    op: z4.literal("add_closure"),
-    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z4.string().max(200).optional()
-  }),
-  z4.object({
-    op: z4.literal("set_hours"),
-    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
-  z4.object({
-    op: z4.literal("add_service"),
-    name: z4.string().min(1).max(80),
-    duration_min: z4.number().int().min(1).max(1440).optional()
-  })
-]);
-var L = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var LIMIT_TIERS = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
-var DAY_MS6 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short
-};
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-var SIGNUP_NAME_MIN = 2;
-var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z5.object({
-  name: z5.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z5.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z5.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z5.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: z5.string().trim().max(80).optional()
-}).strict();
-var PendingWorkspaceSchema = z5.object({
-  name: z5.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z5.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
-});
-function isTimezone(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
-var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -2039,38 +1650,38 @@ var US_STATES = {
 var US_CODES = new Set(Object.values(US_STATES));
 var KEY = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z6.string().transform((s) => stripUnsafe(s).trim()).pipe(z6.string().min(min).max(max));
-var LeadSearchPlanSchema = z6.object({
-  version: z6.number().int().min(1),
-  card: z6.literal("local_businesses"),
+var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
+var LeadSearchPlanSchema = z4.object({
+  version: z4.number().int().min(1),
+  card: z4.literal("local_businesses"),
   name: words(2, 80),
   asked: words(1, 400),
-  terms: z6.array(words(2, 60)).min(1).max(5),
-  area: z6.object({
-    kind: z6.enum(["zip", "city", "radius"]),
+  terms: z4.array(words(2, 60)).min(1).max(5),
+  area: z4.object({
+    kind: z4.enum(["zip", "city", "radius"]),
     label: words(2, 80),
-    state: z6.string().regex(/^[A-Z]{2}$/),
-    center: z6.object({ lat: z6.number().min(-90).max(90), lng: z6.number().min(-180).max(180) }).nullable(),
-    radius_m: z6.number().int().min(500).max(2e5),
-    zip: z6.string().regex(/^\d{5}$/).optional(),
+    state: z4.string().regex(/^[A-Z]{2}$/),
+    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
+    radius_m: z4.number().int().min(500).max(2e5),
+    zip: z4.string().regex(/^\d{5}$/).optional(),
     query: words(2, 120)
   }),
-  count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z6.enum(["phone", "email"]),
-  criteria: z6.array(
-    z6.object({
-      key: z6.string().regex(KEY),
+  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z4.enum(["phone", "email"]),
+  criteria: z4.array(
+    z4.object({
+      key: z4.string().regex(KEY),
       text: words(2, 120),
-      standard: z6.enum(["likely", "seen"]),
-      required: z6.boolean()
+      standard: z4.enum(["likely", "seen"]),
+      required: z4.boolean()
     })
   ).max(8),
-  exclusions: z6.array(
-    z6.object({
-      key: z6.string().regex(KEY),
+  exclusions: z4.array(
+    z4.object({
+      key: z4.string().regex(KEY),
       text: words(2, 80),
-      origin: z6.enum(["claude", "you_said"]),
-      category_key: z6.string().regex(KEY).optional()
+      origin: z4.enum(["claude", "you_said"]),
+      category_key: z4.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -2098,31 +1709,6 @@ var LeadSearchPlanSchema = z6.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var PASSWORD_MIN = 12;
-var PASSWORD_WORDS = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -2269,80 +1855,494 @@ var LEAD_WORDS = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema = z7.object({
-  list: z7.enum(LEAD_LISTS).default("all"),
-  search: z7.string().uuid().optional(),
-  class: z7.enum(LEAD_CLASSES).optional(),
-  sort: z7.enum(LEAD_SORTS).default("fit"),
-  dir: z7.enum(["asc", "desc"]).default("asc"),
-  after_key: z7.string().max(80).optional(),
-  after_id: z7.string().uuid().optional(),
-  limit: z7.coerce.number().int().min(1).max(500).default(500)
+var LeadsQuerySchema = z5.object({
+  list: z5.enum(LEAD_LISTS).default("all"),
+  search: z5.string().uuid().optional(),
+  class: z5.enum(LEAD_CLASSES).optional(),
+  sort: z5.enum(LEAD_SORTS).default("fit"),
+  dir: z5.enum(["asc", "desc"]).default("asc"),
+  after_key: z5.string().max(80).optional(),
+  after_id: z5.string().uuid().optional(),
+  limit: z5.coerce.number().int().min(1).max(500).default(500)
 });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z7.discriminatedUnion("kind", [
-  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
-  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z7.object({ kind: z7.literal("said_no") }),
-  z7.object({
-    kind: z7.literal("outcome"),
-    outcome: z7.enum(LEAD_CALL_OUTCOMES),
-    note: z7.string().trim().max(280).optional()
+var LeadStageInputSchema = z5.discriminatedUnion("kind", [
+  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
+  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z5.object({ kind: z5.literal("said_no") }),
+  z5.object({
+    kind: z5.literal("outcome"),
+    outcome: z5.enum(LEAD_CALL_OUTCOMES),
+    note: z5.string().trim().max(280).optional()
   }),
   /** "Did you send it?" Yes. */
-  z7.object({ kind: z7.literal("emailed") })
+  z5.object({ kind: z5.literal("emailed") })
 ]);
-var LeadsBulkSchema = z7.discriminatedUnion("by", [
+var LeadsBulkSchema = z5.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z7.object({
-    by: z7.literal("ids"),
-    action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z7.array(z7.string().uuid()).min(1).max(500),
-    search_id: z7.string().uuid().optional()
+  z5.object({
+    by: z5.literal("ids"),
+    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z5.array(z5.string().uuid()).min(1).max(500),
+    search_id: z5.string().uuid().optional()
   }),
-  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z7.object({
-  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z5.object({
+  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
 });
-var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
-var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
-var planChip = (max) => z7.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z7.object({
-  looking_for: z7.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z7.string().trim().min(2).max(40),
-  count: z7.number().int().min(1).max(LEAD_MAX_PLACES),
+var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
+var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
+var planChip = (max) => z5.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z5.object({
+  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z5.string().trim().min(2).max(40),
+  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z7.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z7.array(planChip(60)).min(1).max(5),
-  city: z7.string().trim().max(60).nullable().default(null),
-  region: z7.string().trim().min(2).max(40),
-  zip: z7.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z7.enum(["phone", "email"]),
-  criteria: z7.array(z7.object({ text: planChip(120), standard: z7.enum(["likely", "seen"]), required: z7.boolean() })).max(6).default([]),
-  leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
-  asked: z7.string().trim().min(1).max(400)
+  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z5.array(planChip(60)).min(1).max(5),
+  city: z5.string().trim().max(60).nullable().default(null),
+  region: z5.string().trim().min(2).max(40),
+  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z5.enum(["phone", "email"]),
+  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
+  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
+  asked: z5.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema = z7.object({
-  subject: z7.string().trim().min(3).max(120),
-  body: z7.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z5.object({
+  subject: z5.string().trim().min(3).max(120),
+  body: z5.string().trim().min(20).max(2e3)
 });
-var LeadSuggestAnswerSchema = z7.object({
-  line: z7.string().trim().min(3).max(160),
-  items: z7.array(
-    z7.object({
-      words: z7.string().trim().min(3).max(80),
-      who_for: z7.string().trim().min(3).max(120),
-      category_key: z7.string().regex(/^[a-z_]{2,40}$/)
+var LeadSuggestAnswerSchema = z5.object({
+  line: z5.string().trim().min(3).max(160),
+  items: z5.array(
+    z5.object({
+      words: z5.string().trim().min(3).max(80),
+      who_for: z5.string().trim().min(3).max(120),
+      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
     })
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
+var DAY_MS3 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS3;
+var MONTH_MS = 30 * DAY_MS3;
+var NEW_WINDOW_MS = 7 * DAY_MS3;
+var QUIET_AFTER_MS = 30 * DAY_MS3;
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: PERSON_CHANNEL_WORDS.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported history",
+  lead: "A lead you found"
+};
+var DAY_MS4 = 24 * 3600 * 1e3;
+var DAY_MS5 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var ASK_CAPS = {
+  threads: 20,
+  messages: 30,
+  messagesMore: 80,
+  calls: 20,
+  transcript: 40,
+  people: 12,
+  citations: 6,
+  followups: 3,
+  needsRows: 10
+};
+var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES = ["en", "es", "other"];
+var ASK_FINISH_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    answer: {
+      type: "string",
+      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
+    },
+    citations: {
+      type: "array",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
+          id: { type: "string" },
+          label: { type: "string" }
+        },
+        required: ["kind", "id", "label"],
+        additionalProperties: false
+      }
+    },
+    followups: {
+      type: "array",
+      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      items: { type: "string" }
+    },
+    navigate: {
+      type: "object",
+      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
+      required: ["to", "label", "now"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["answer", "citations", "followups", "navigate", "language"],
+  additionalProperties: false
+};
+var clip = (n) => (s) => s.trim().slice(0, n);
+var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
+function cleanAnswer(raw) {
+  let s = raw.replace(/^\s*<answer>\s*/i, "");
+  const cut = s.search(TAG_CUT);
+  if (cut >= 0) s = s.slice(0, cut);
+  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+}
+var AskFinishSchema = z6.object({
+  answer: z6.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
+  citations: z6.array(
+    z6.object({
+      kind: z6.enum(ASK_CITATION_KINDS).catch("page"),
+      id: z6.string().catch("").transform(clip(200)),
+      label: z6.string().catch("").transform(clip(80))
+    })
+  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
+  followups: z6.array(z6.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
+  language: z6.enum(ASK_LANGUAGES).catch("other")
+});
+var ASK_UNDO_MS = 10 * 6e4;
+var AskProposalOutcomeSchema = z6.object({
+  state: z6.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z6.string().max(300).catch(""),
+  atMs: z6.number().catch(0),
+  undo: z6.record(z6.string(), z6.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema = z6.discriminatedUnion("op", [
+  z6.object({
+    op: z6.literal("add_closure"),
+    date: z6.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z6.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z6.string().max(200).optional()
+  }),
+  z6.object({
+    op: z6.literal("set_hours"),
+    day: z6.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z6.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z6.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z6.object({ op: z6.literal("add_note"), title: z6.string().min(1).max(80), text: z6.string().min(1).max(1200) }),
+  z6.object({
+    op: z6.literal("add_service"),
+    name: z6.string().min(1).max(80),
+    duration_min: z6.number().int().min(1).max(1440).optional()
+  })
+]);
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var LIMIT_TIERS = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var DAY_MS6 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short
+};
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
+var BOOTSTRAP_MS = 3600 * 1e3;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS3 = 7 * 864e5;
+var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var SignupSchema = z7.object({
+  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z7.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z7.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: z7.string().trim().max(80).optional()
+}).strict();
+var PendingWorkspaceSchema = z7.object({
+  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function isTimezone(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
+var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -2616,8 +2616,8 @@ var APIFY_RUN_END_EVENTS = [
 import { z as z9 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
-import { z as z42 } from "zod";
 import { z as z52 } from "zod";
+import { z as z42 } from "zod";
 import { z as z62 } from "zod";
 import { z as z72 } from "zod";
 import { z as z82 } from "zod";
@@ -3915,6 +3915,712 @@ function visitStartTime(v, tz) {
     new Date(ms(v.start))
   );
 }
+var REPLY_WINDOW_HOURS2 = 72;
+var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
+var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
+var LEAD_QUESTION_THRESHOLD = 0.6;
+var LEAD_QUESTION_MIN_EVIDENCE = 10;
+var LEAD_PROBE_PLACES = 25;
+var LEAD_JUDGE_BATCH = 25;
+var LEAD_MAX_PLACES2 = 1e3;
+var LEAD_FACT_MAX = 120;
+var LEAD_KIND_KEY = "kind";
+var LEAD_UNREACHABLE_KEY = "unreachable";
+var LEAD_ESTIMATE_MARGIN = 1.3;
+var LEAD_ASK_MIN_FACTOR = 1.2;
+var LEAD_ASK_MAX_FACTOR = 4;
+var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
+var US_STATES2 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES2 = new Set(Object.values(US_STATES2));
+var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe2 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words2 = (min, max) => z42.string().transform((s) => stripUnsafe2(s).trim()).pipe(z42.string().min(min).max(max));
+var LeadSearchPlanSchema2 = z42.object({
+  version: z42.number().int().min(1),
+  card: z42.literal("local_businesses"),
+  name: words2(2, 80),
+  asked: words2(1, 400),
+  terms: z42.array(words2(2, 60)).min(1).max(5),
+  area: z42.object({
+    kind: z42.enum(["zip", "city", "radius"]),
+    label: words2(2, 80),
+    state: z42.string().regex(/^[A-Z]{2}$/),
+    center: z42.object({ lat: z42.number().min(-90).max(90), lng: z42.number().min(-180).max(180) }).nullable(),
+    radius_m: z42.number().int().min(500).max(2e5),
+    zip: z42.string().regex(/^\d{5}$/).optional(),
+    query: words2(2, 120)
+  }),
+  count: z42.number().int().min(1).max(LEAD_MAX_PLACES2),
+  contact: z42.enum(["phone", "email"]),
+  criteria: z42.array(
+    z42.object({
+      key: z42.string().regex(KEY2),
+      text: words2(2, 120),
+      standard: z42.enum(["likely", "seen"]),
+      required: z42.boolean()
+    })
+  ).max(8),
+  exclusions: z42.array(
+    z42.object({
+      key: z42.string().regex(KEY2),
+      text: words2(2, 80),
+      origin: z42.enum(["claude", "you_said"]),
+      category_key: z42.string().regex(KEY2).optional()
+    })
+  ).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES2.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var US_NAMES2 = Object.fromEntries(
+  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
+);
+function endingOfRound(x) {
+  if (x.counted >= x.target) return "target_reached";
+  if (x.paused) return "paused";
+  if (x.stopped) return "stopped";
+  if (x.sourceFailed) return "source_failed";
+  if (x.unanswered) return "question_unanswered";
+  if (x.allowanceLeft <= 0) return "month_leads_used";
+  if (x.budgetLeftUsd <= 0) return "budget_used";
+  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
+  return "few_new_matches";
+}
+var LEAD_CARDS = [
+  {
+    id: "local_businesses",
+    goodFor: [
+      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
+      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
+      "emails and social profiles from the business's own website",
+      "a mailbox check on the email found"
+    ],
+    notFor: [
+      "people at home, or anyone who is not a business",
+      "online sellers and shops with no local listing",
+      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
+      "businesses outside the US"
+    ],
+    settings: [
+      "terms (up to five search phrases, widest first)",
+      "area (a city, a ZIP, or a center and radius)",
+      "count (1 to 1000)",
+      "contact standard (phone, or email checked)"
+    ],
+    costPerPlaceUsd: 3e-3,
+    contactsPerPlaceUsd: 2e-3,
+    judgePerPlaceUsd: 23e-4,
+    checkPerEmailUsd: 89e-5,
+    startUsd: 5e-5,
+    maxPerTerm: 120,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
+    examples: [
+      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
+      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
+      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
+    ],
+    approved: true
+  }
+];
+var cardOf = (plan) => {
+  const c = LEAD_CARDS.find((x) => x.id === plan.card);
+  if (!c) throw new Error(`no card ${plan.card}`);
+  return c;
+};
+var round4 = (n) => Math.round(n * 1e4) / 1e4;
+function estimateRoundUsd(plan, purpose, placesToAsk2) {
+  const c = cardOf(plan);
+  const places = Math.max(0, Math.floor(placesToAsk2));
+  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
+  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
+}
+function spread(total, n, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n));
+  const rest = Math.min(total - each * n, n);
+  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+}
+function placesToAsk(plan, remaining, yieldSoFar) {
+  const n = Math.max(1, plan.terms.length);
+  const cap2 = cardOf(plan).maxPerTerm;
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (yieldSoFar === null) {
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
+  }
+  const left = Math.max(1, Math.ceil(remaining));
+  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
+  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
+  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap2);
+  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
+}
+function classify(plan, answer, facts, emailState, inArea2) {
+  if (facts.phone_matches_site === null && facts.emails.length === 0)
+    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
+  const reasons = [];
+  const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely", required: true },
+    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
+    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
+  ];
+  let excludedBy = null;
+  let softFail = false;
+  let unknown = false;
+  for (const r of rubric) {
+    const a = answer.criteria.find((x) => x.key === r.key);
+    const verdict = a?.answer ?? "unknown";
+    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+    if (verdict === "fail") {
+      if (r.required) {
+        excludedBy = excludedBy ?? r.key;
+        reasons.push(`fail:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (verdict === "unknown") {
+      if (r.required) {
+        unknown = true;
+        reasons.push(`unknown:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (r.standard === "seen" && readOnly) {
+      if (r.required) {
+        unknown = true;
+        reasons.push(`inferred:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    }
+  }
+  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
+  if (!inArea2) reasons.push("out_of_area");
+  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
+  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
+  const fit = softFail ? "long" : unknown ? "look" : "strong";
+  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
+}
+function questionAfterProbe(plan, members) {
+  const n = members.length;
+  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const excluded = members.filter((m) => m.class === "excluded").length;
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const m of members)
+    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
+      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
+  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!top) return { ask: false };
+  const textOf2 = (key) => lowerFirst(
+    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
+  );
+  const namedShare = top[1] / n;
+  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
+  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
+  let dropTerm = null;
+  if (plan.terms.length > 1) {
+    const statOf = (term) => {
+      const of = members.filter((m) => m.term === term);
+      return {
+        count: of.length,
+        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
+      };
+    };
+    for (const term of plan.terms) {
+      const s = statOf(term);
+      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
+      const anotherWorks = plan.terms.some(
+        (other) => other !== term && (() => {
+          const o = statOf(other);
+          return o.count >= 5 && o.excludedShare < 2 / 3;
+        })()
+      );
+      if (anotherWorks) {
+        dropTerm = term;
+        break;
+      }
+    }
+  }
+  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
+  return {
+    ask: true,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    criterionKey: top[0],
+    dropTerm
+  };
+}
+var LEAD_PLATFORM_HOSTS = [
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddysites.com",
+  "wixsite.com",
+  "business.site",
+  "facebook.com",
+  "instagram.com",
+  "linktr.ee",
+  "yelp.com",
+  "booksy.com",
+  "fresha.com",
+  "styleseat.com",
+  "schedulicity.com",
+  "mindbodyonline.com",
+  "setmore.com",
+  "acuityscheduling.com",
+  "google.com"
+];
+var LEAD_JUNK_EMAIL_DOMAINS = [
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddy.com",
+  "wix.com",
+  "wixpress.com",
+  "sentry.io",
+  "example.com",
+  "domain.com",
+  "yourdomain.com",
+  "email.com"
+];
+var LEAD_PLACEHOLDER_LOCALS = [
+  "filler",
+  "yourdomain",
+  "youremail",
+  "your",
+  "example",
+  "email",
+  "name",
+  "user",
+  "username",
+  "test",
+  "noreply",
+  "no-reply",
+  "donotreply"
+];
+var LEAD_ROLE_LOCALS = [
+  "careers",
+  "career",
+  "jobs",
+  "recruiting",
+  "recruitment",
+  "hr",
+  "media",
+  "press",
+  "pr",
+  "privacy",
+  "legal",
+  "webmaster",
+  "abuse",
+  "postmaster"
+];
+var LEAD_FREE_MAIL = [
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
+  "aol.com",
+  "live.com",
+  "msn.com",
+  "me.com",
+  "protonmail.com",
+  "proton.me"
+];
+var DESK_LOCALS = [
+  "intake",
+  "info",
+  "hello",
+  "contact",
+  "office",
+  "team",
+  "book",
+  "booking",
+  "bookings",
+  "appointments",
+  "studio",
+  "frontdesk",
+  "admin"
+];
+var has = (xs, v) => xs.includes(v);
+function cleanEmailCandidates(emails, host) {
+  const seen = /* @__PURE__ */ new Set();
+  const own = [];
+  const free = [];
+  const foreign = [];
+  const dropped = [];
+  for (const raw of emails) {
+    const fixed = String(raw ?? "").trim().replace(/^mailto:/i, "").replace(/@www\./i, "@");
+    const address = normalizeEmail(fixed);
+    if (!address) {
+      dropped.push({ email: String(raw ?? ""), why: "malformed" });
+      continue;
+    }
+    if (seen.has(address)) {
+      dropped.push({ email: address, why: "duplicate" });
+      continue;
+    }
+    seen.add(address);
+    const [local, domain] = address.split("@");
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+      dropped.push({ email: address, why: "junk_domain" });
+      continue;
+    }
+    if (has(LEAD_PLACEHOLDER_LOCALS, local)) {
+      dropped.push({ email: address, why: "placeholder" });
+      continue;
+    }
+    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
+      dropped.push({ email: address, why: "role" });
+      continue;
+    }
+    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) {
+      dropped.push({ email: address, why: "image" });
+      continue;
+    }
+    const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
+    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
+  }
+  const deskRank = (a) => {
+    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
+    return i < 0 ? DESK_LOCALS.length : i;
+  };
+  own.sort((a, b) => deskRank(a) - deskRank(b));
+  const foreignDomains = new Set(foreign.map((a) => a.split("@")[1]));
+  const keep = (xs, limit) => {
+    for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" });
+    return xs.slice(0, limit);
+  };
+  const kept = [...keep(own, 5), ...keep(free, 3)];
+  if (foreignDomains.size <= 3) kept.push(...keep(foreign, 2));
+  else for (const x of foreign) dropped.push({ email: x, why: "foreign_list" });
+  return { kept, dropped };
+}
+var NANP = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
+function usPhone(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164 || !NANP.test(e164)) return null;
+  const ten = e164.slice(2);
+  if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
+  return e164;
+}
+function siteHost(url) {
+  if (!url) return null;
+  let host;
+  try {
+    host = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  host = host.replace(/^www\./, "");
+  if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  return host;
+}
+function stateCode(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const up = s.toUpperCase();
+  if (up.length === 2 && US_CODES2.has(up)) return up;
+  return US_STATES2[s.toLowerCase()] ?? null;
+}
+var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
+var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES2 = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
+var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS2 = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
+var LEAD_CALL_OUTCOME_TONES2 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
+};
+var LEAD_CALL_OUTCOME_WORDS2 = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
+var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS2 = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE2 = "What makes it not a fit?";
+var LEAD_SENT_QUESTION2 = "Did you send it?";
+var LEAD_CALL_QUESTION2 = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER2 = "A note for next time, if you like";
+var LEAD_NOTE_MAX2 = 280;
+var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft2(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
+var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE2 = "Suggestions are not available right now.";
+var LEAD_WORDS2 = {
+  /**
+   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
+   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
+   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
+   *
+   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
+   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
+   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
+   */
+  callWays: {
+    dial: { label: "Call from your phone" },
+    copy: { label: "Copy the number" },
+    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
+    log: { label: "Log a call you already made", meta: "how did it go?" }
+  },
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS2.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE2,
+  whys: LEAD_NOT_A_FIT_WHYS2.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS2[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
+  copyPhoneAria: "Copy the number",
+  draftAria: "Draft an email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE2,
+  sentQuestion: LEAD_SENT_QUESTION2,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION2,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({
+    id,
+    label: LEAD_CALL_OUTCOME_WORDS2[id],
+    tone: LEAD_CALL_OUTCOME_TONES2[id]
+  })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
+  noteMax: LEAD_NOTE_MAX2,
+  noteLeft: leadNoteLeft2,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [
+    { id: "shorter", label: "Shorter" },
+    { id: "warmer", label: "Warmer" }
+  ],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE2,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE2,
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+};
+var LeadsQuerySchema2 = z52.object({
+  list: z52.enum(LEAD_LISTS2).default("all"),
+  search: z52.string().uuid().optional(),
+  class: z52.enum(LEAD_CLASSES2).optional(),
+  sort: z52.enum(LEAD_SORTS2).default("fit"),
+  dir: z52.enum(["asc", "desc"]).default("asc"),
+  after_key: z52.string().max(80).optional(),
+  after_id: z52.string().uuid().optional(),
+  limit: z52.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema2 = z52.discriminatedUnion("kind", [
+  z52.object({ kind: z52.literal("stage"), stage: z52.enum(["ready", "nurture", "converted"]) }),
+  z52.object({ kind: z52.literal("not_a_fit"), why: z52.enum(LEAD_NOT_A_FIT_WHYS2) }),
+  z52.object({ kind: z52.literal("said_no") }),
+  z52.object({
+    kind: z52.literal("outcome"),
+    outcome: z52.enum(LEAD_CALL_OUTCOMES2),
+    note: z52.string().trim().max(280).optional()
+  }),
+  /** "Did you send it?" Yes. */
+  z52.object({ kind: z52.literal("emailed") })
+]);
+var LeadsBulkSchema2 = z52.discriminatedUnion("by", [
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z52.object({
+    by: z52.literal("ids"),
+    action: z52.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z52.array(z52.string().uuid()).min(1).max(500),
+    search_id: z52.string().uuid().optional()
+  }),
+  z52.object({ by: z52.literal("view"), action: z52.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
+]);
+var LeadsCheckAgainSchema2 = z52.object({ ids: z52.array(z52.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema2 = z52.object({
+  tone: z52.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z52.object({ subject: z52.string().max(200), body: z52.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema2 = z52.object({ name: z52.string().trim().min(1).max(80) });
+var BusinessLineSchema2 = z52.object({ business_line: z52.string().trim().min(3).max(160) });
+var planChip2 = (max) => z52.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema2 = z52.object({
+  looking_for: z52.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z52.string().trim().min(2).max(40),
+  count: z52.number().int().min(1).max(LEAD_MAX_PLACES2),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip2(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip2(60),
+  category_key: z52.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z52.array(planChip2(60)).min(1).max(5),
+  city: z52.string().trim().max(60).nullable().default(null),
+  region: z52.string().trim().min(2).max(40),
+  zip: z52.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z52.enum(["phone", "email"]),
+  criteria: z52.array(z52.object({ text: planChip2(120), standard: z52.enum(["likely", "seen"]), required: z52.boolean() })).max(6).default([]),
+  leave_out: z52.array(z52.object({ words: planChip2(40) })).max(6).default([]),
+  asked: z52.string().trim().min(1).max(400)
+});
+var LeadDraftAnswerSchema2 = z52.object({
+  subject: z52.string().trim().min(3).max(120),
+  body: z52.string().trim().min(20).max(2e3)
+});
+var LeadSuggestAnswerSchema2 = z52.object({
+  line: z52.string().trim().min(3).max(160),
+  items: z52.array(
+    z52.object({
+      words: z52.string().trim().min(3).max(80),
+      who_for: z52.string().trim().min(3).max(120),
+      category_key: z52.string().regex(/^[a-z_]{2,40}$/)
+    })
+  ).min(1).max(4)
+});
+var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS2 = {
   ...PERSON_MODE_LABELS2,
@@ -3967,8 +4673,14 @@ function saidYesTo(r, purpose) {
   ).ok;
 }
 var PEOPLE_LISTS = [
-  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
-  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "needs_you", label: "Needs you", group: "attention", onProfile: false, test: (v) => v.state === "needs_you" },
+  {
+    id: "waiting_on_you",
+    label: "Waiting on you",
+    group: "attention",
+    onProfile: false,
+    test: (v) => v.state === "waiting_on_you"
+  },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {
     id: "booked_week",
@@ -4003,14 +4715,32 @@ var PEOPLE_LISTS = [
   // their promotional audience showed everybody who had ever texted START. The id
   // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
   // renaming it would repoint filings that have already gone out.
-  { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  {
+    id: "opted_in",
+    label: "Said yes to messages",
+    group: "reach",
+    onProfile: false,
+    test: (v) => v.consent.state === "opted_in"
+  },
   // The promotional audience, on its own column. The only people a MARKETING
   // broadcast may reach.
   // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
   // not the bare answer, which was the difference between this list and what the
   // route would actually enrol.
-  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
-  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
+  {
+    id: "offers_ok",
+    label: "Can receive offers",
+    group: "reach",
+    onProfile: false,
+    test: (v) => mayReceive(v, "marketing")
+  },
+  {
+    id: "opted_out",
+    label: "Opted out",
+    group: "reach",
+    onProfile: false,
+    test: (v) => v.consent.state === "opted_out"
+  }
 ];
 var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 function noNumberWords(who, purpose) {
@@ -4103,52 +4833,52 @@ function cleanAnswer2(raw) {
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
-var AskFinishSchema2 = z42.object({
-  answer: z42.string().catch("").transform((s) => clip2(1500)(cleanAnswer2(s))),
-  citations: z42.array(
-    z42.object({
-      kind: z42.enum(ASK_CITATION_KINDS2).catch("page"),
-      id: z42.string().catch("").transform(clip2(200)),
-      label: z42.string().catch("").transform(clip2(80))
+var AskFinishSchema2 = z62.object({
+  answer: z62.string().catch("").transform((s) => clip2(1500)(cleanAnswer2(s))),
+  citations: z62.array(
+    z62.object({
+      kind: z62.enum(ASK_CITATION_KINDS2).catch("page"),
+      id: z62.string().catch("").transform(clip2(200)),
+      label: z62.string().catch("").transform(clip2(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS2.citations)),
-  followups: z42.array(z42.string()).catch([]).transform(
+  followups: z62.array(z62.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))
   ),
-  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+  navigate: z62.object({ to: z62.string().catch(""), label: z62.string().catch(""), now: z62.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
     (n) => n.to.trim() ? {
       to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
       label: n.label.trim().slice(0, 60) || "Open",
       now: n.now === true
     } : null
   ),
-  language: z42.enum(ASK_LANGUAGES2).catch("other")
+  language: z62.enum(ASK_LANGUAGES2).catch("other")
 });
 var ASK_UNDO_MS2 = 10 * 6e4;
-var AskProposalOutcomeSchema2 = z42.object({
-  state: z42.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z42.string().max(300).catch(""),
-  atMs: z42.number().catch(0),
-  undo: z42.record(z42.string(), z42.unknown()).nullable().optional()
+var AskProposalOutcomeSchema2 = z62.object({
+  state: z62.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z62.string().max(300).catch(""),
+  atMs: z62.number().catch(0),
+  undo: z62.record(z62.string(), z62.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema2 = z42.discriminatedUnion("op", [
-  z42.object({
-    op: z42.literal("add_closure"),
-    date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z42.string().max(200).optional()
+var AskSettingsChangeSchema2 = z62.discriminatedUnion("op", [
+  z62.object({
+    op: z62.literal("add_closure"),
+    date: z62.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z62.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z62.string().max(200).optional()
   }),
-  z42.object({
-    op: z42.literal("set_hours"),
-    day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z42.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z62.object({
+    op: z62.literal("set_hours"),
+    day: z62.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z62.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z62.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z42.object({ op: z42.literal("add_note"), title: z42.string().min(1).max(80), text: z42.string().min(1).max(1200) }),
-  z42.object({
-    op: z42.literal("add_service"),
-    name: z42.string().min(1).max(80),
-    duration_min: z42.number().int().min(1).max(1440).optional()
+  z62.object({ op: z62.literal("add_note"), title: z62.string().min(1).max(80), text: z62.string().min(1).max(1200) }),
+  z62.object({
+    op: z62.literal("add_service"),
+    name: z62.string().min(1).max(80),
+    duration_min: z62.number().int().min(1).max(1440).optional()
   })
 ]);
 var L2 = (id, name, region, native) => ({
@@ -4606,9 +5336,6 @@ var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
-var REPLY_WINDOW_HOURS2 = 72;
-var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
-var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -4873,9 +5600,9 @@ var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var SignupSchema2 = z52.object({
-  name: z52.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z52.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema2 = z72.object({
+  name: z72.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z72.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -4889,17 +5616,17 @@ var SignupSchema2 = z52.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z52.string().max(200).optional(),
+  password: z72.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z52.string().trim().min(1).max(64).optional(),
+  timezone: z72.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z52.string().trim().max(80).optional()
+  code: z72.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema2 = z52.object({
-  name: z52.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z72.object({
+  name: z72.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z52.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z72.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -4916,489 +5643,6 @@ function optInConfirmation(businessName, purpose) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
-var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
-var LEAD_QUESTION_THRESHOLD = 0.6;
-var LEAD_QUESTION_MIN_EVIDENCE = 10;
-var LEAD_PROBE_PLACES = 25;
-var LEAD_JUDGE_BATCH = 25;
-var LEAD_MAX_PLACES2 = 1e3;
-var LEAD_FACT_MAX = 120;
-var LEAD_KIND_KEY = "kind";
-var LEAD_UNREACHABLE_KEY = "unreachable";
-var LEAD_ESTIMATE_MARGIN = 1.3;
-var LEAD_ASK_MIN_FACTOR = 1.2;
-var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
-var US_STATES2 = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES2 = new Set(Object.values(US_STATES2));
-var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
-var stripUnsafe2 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words2 = (min, max) => z62.string().transform((s) => stripUnsafe2(s).trim()).pipe(z62.string().min(min).max(max));
-var LeadSearchPlanSchema2 = z62.object({
-  version: z62.number().int().min(1),
-  card: z62.literal("local_businesses"),
-  name: words2(2, 80),
-  asked: words2(1, 400),
-  terms: z62.array(words2(2, 60)).min(1).max(5),
-  area: z62.object({
-    kind: z62.enum(["zip", "city", "radius"]),
-    label: words2(2, 80),
-    state: z62.string().regex(/^[A-Z]{2}$/),
-    center: z62.object({ lat: z62.number().min(-90).max(90), lng: z62.number().min(-180).max(180) }).nullable(),
-    radius_m: z62.number().int().min(500).max(2e5),
-    zip: z62.string().regex(/^\d{5}$/).optional(),
-    query: words2(2, 120)
-  }),
-  count: z62.number().int().min(1).max(LEAD_MAX_PLACES2),
-  contact: z62.enum(["phone", "email"]),
-  criteria: z62.array(
-    z62.object({
-      key: z62.string().regex(KEY2),
-      text: words2(2, 120),
-      standard: z62.enum(["likely", "seen"]),
-      required: z62.boolean()
-    })
-  ).max(8),
-  exclusions: z62.array(
-    z62.object({
-      key: z62.string().regex(KEY2),
-      text: words2(2, 80),
-      origin: z62.enum(["claude", "you_said"]),
-      category_key: z62.string().regex(KEY2).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES2.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
-var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var US_NAMES2 = Object.fromEntries(
-  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
-);
-function endingOfRound(x) {
-  if (x.counted >= x.target) return "target_reached";
-  if (x.paused) return "paused";
-  if (x.stopped) return "stopped";
-  if (x.sourceFailed) return "source_failed";
-  if (x.unanswered) return "question_unanswered";
-  if (x.allowanceLeft <= 0) return "month_leads_used";
-  if (x.budgetLeftUsd <= 0) return "budget_used";
-  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
-  return "few_new_matches";
-}
-var LEAD_CARDS = [
-  {
-    id: "local_businesses",
-    goodFor: [
-      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
-      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
-      "emails and social profiles from the business's own website",
-      "a mailbox check on the email found"
-    ],
-    notFor: [
-      "people at home, or anyone who is not a business",
-      "online sellers and shops with no local listing",
-      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
-      "businesses outside the US"
-    ],
-    settings: [
-      "terms (up to five search phrases, widest first)",
-      "area (a city, a ZIP, or a center and radius)",
-      "count (1 to 1000)",
-      "contact standard (phone, or email checked)"
-    ],
-    costPerPlaceUsd: 3e-3,
-    contactsPerPlaceUsd: 2e-3,
-    judgePerPlaceUsd: 23e-4,
-    checkPerEmailUsd: 89e-5,
-    startUsd: 5e-5,
-    maxPerTerm: 120,
-    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
-    placesPerMinute: 8,
-    examples: [
-      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
-      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
-      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
-    ],
-    approved: true
-  }
-];
-var cardOf = (plan) => {
-  const c = LEAD_CARDS.find((x) => x.id === plan.card);
-  if (!c) throw new Error(`no card ${plan.card}`);
-  return c;
-};
-var round4 = (n) => Math.round(n * 1e4) / 1e4;
-function estimateRoundUsd(plan, purpose, placesToAsk2) {
-  const c = cardOf(plan);
-  const places = Math.max(0, Math.floor(placesToAsk2));
-  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
-  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
-  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
-}
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
-  const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
-}
-function placesToAsk(plan, remaining, yieldSoFar) {
-  const n = Math.max(1, plan.terms.length);
-  const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
-  if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
-    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
-  }
-  const left = Math.max(1, Math.ceil(remaining));
-  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
-  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
-  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
-}
-function classify(plan, answer, facts, emailState, inArea2) {
-  if (facts.phone_matches_site === null && facts.emails.length === 0)
-    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
-  const reasons = [];
-  const rubric = [
-    { key: LEAD_KIND_KEY, standard: "likely", required: true },
-    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
-    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
-  ];
-  let excludedBy = null;
-  let softFail = false;
-  let unknown = false;
-  for (const r of rubric) {
-    const a = answer.criteria.find((x) => x.key === r.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
-    if (verdict === "fail") {
-      if (r.required) {
-        excludedBy = excludedBy ?? r.key;
-        reasons.push(`fail:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (verdict === "unknown") {
-      if (r.required) {
-        unknown = true;
-        reasons.push(`unknown:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (r.standard === "seen" && readOnly) {
-      if (r.required) {
-        unknown = true;
-        reasons.push(`inferred:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    }
-  }
-  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
-  if (!inArea2) reasons.push("out_of_area");
-  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
-  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
-  const fit = softFail ? "long" : unknown ? "look" : "strong";
-  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
-}
-function questionAfterProbe(plan, members) {
-  const n = members.length;
-  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
-  const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
-  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
-  const tally2 = /* @__PURE__ */ new Map();
-  for (const m of members)
-    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
-      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
-  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!top) return { ask: false };
-  const textOf2 = (key) => lowerFirst2(
-    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
-  );
-  const namedShare = top[1] / n;
-  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
-  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
-  let dropTerm = null;
-  if (plan.terms.length > 1) {
-    const statOf = (term) => {
-      const of = members.filter((m) => m.term === term);
-      return {
-        count: of.length,
-        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
-      };
-    };
-    for (const term of plan.terms) {
-      const s = statOf(term);
-      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some(
-        (other) => other !== term && (() => {
-          const o = statOf(other);
-          return o.count >= 5 && o.excludedShare < 2 / 3;
-        })()
-      );
-      if (anotherWorks) {
-        dropTerm = term;
-        break;
-      }
-    }
-  }
-  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return {
-    ask: true,
-    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
-    criterionKey: top[0],
-    dropTerm
-  };
-}
-var LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
-  "square.site",
-  "squareup.com",
-  "glossgenius.com",
-  "godaddysites.com",
-  "wixsite.com",
-  "business.site",
-  "facebook.com",
-  "instagram.com",
-  "linktr.ee",
-  "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
-  "google.com"
-];
-var LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com",
-  "square.site",
-  "squareup.com",
-  "glossgenius.com",
-  "godaddy.com",
-  "wix.com",
-  "wixpress.com",
-  "sentry.io",
-  "example.com",
-  "domain.com",
-  "yourdomain.com",
-  "email.com"
-];
-var LEAD_PLACEHOLDER_LOCALS = [
-  "filler",
-  "yourdomain",
-  "youremail",
-  "your",
-  "example",
-  "email",
-  "name",
-  "user",
-  "username",
-  "test",
-  "noreply",
-  "no-reply",
-  "donotreply"
-];
-var LEAD_ROLE_LOCALS = [
-  "careers",
-  "career",
-  "jobs",
-  "recruiting",
-  "recruitment",
-  "hr",
-  "media",
-  "press",
-  "pr",
-  "privacy",
-  "legal",
-  "webmaster",
-  "abuse",
-  "postmaster"
-];
-var LEAD_FREE_MAIL = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "icloud.com",
-  "aol.com",
-  "live.com",
-  "msn.com",
-  "me.com",
-  "protonmail.com",
-  "proton.me"
-];
-var DESK_LOCALS = [
-  "intake",
-  "info",
-  "hello",
-  "contact",
-  "office",
-  "team",
-  "book",
-  "booking",
-  "bookings",
-  "appointments",
-  "studio",
-  "frontdesk",
-  "admin"
-];
-var has = (xs, v) => xs.includes(v);
-function cleanEmailCandidates(emails, host) {
-  const seen = /* @__PURE__ */ new Set();
-  const own = [];
-  const free = [];
-  const foreign = [];
-  const dropped = [];
-  for (const raw of emails) {
-    const fixed = String(raw ?? "").trim().replace(/^mailto:/i, "").replace(/@www\./i, "@");
-    const address = normalizeEmail(fixed);
-    if (!address) {
-      dropped.push({ email: String(raw ?? ""), why: "malformed" });
-      continue;
-    }
-    if (seen.has(address)) {
-      dropped.push({ email: address, why: "duplicate" });
-      continue;
-    }
-    seen.add(address);
-    const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
-      dropped.push({ email: address, why: "junk_domain" });
-      continue;
-    }
-    if (has(LEAD_PLACEHOLDER_LOCALS, local)) {
-      dropped.push({ email: address, why: "placeholder" });
-      continue;
-    }
-    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
-      dropped.push({ email: address, why: "role" });
-      continue;
-    }
-    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) {
-      dropped.push({ email: address, why: "image" });
-      continue;
-    }
-    const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
-    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
-  }
-  const deskRank = (a) => {
-    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
-    return i < 0 ? DESK_LOCALS.length : i;
-  };
-  own.sort((a, b) => deskRank(a) - deskRank(b));
-  const foreignDomains = new Set(foreign.map((a) => a.split("@")[1]));
-  const keep = (xs, limit) => {
-    for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" });
-    return xs.slice(0, limit);
-  };
-  const kept = [...keep(own, 5), ...keep(free, 3)];
-  if (foreignDomains.size <= 3) kept.push(...keep(foreign, 2));
-  else for (const x of foreign) dropped.push({ email: x, why: "foreign_list" });
-  return { kept, dropped };
-}
-var NANP = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
-function usPhone(raw) {
-  const e164 = normalizePhone(raw);
-  if (!e164 || !NANP.test(e164)) return null;
-  const ten = e164.slice(2);
-  if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
-  return e164;
-}
-function siteHost(url) {
-  if (!url) return null;
-  let host;
-  try {
-    host = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-  host = host.replace(/^www\./, "");
-  if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
-  return host;
-}
-function stateCode(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  const up = s.toUpperCase();
-  if (up.length === 2 && US_CODES2.has(up)) return up;
-  return US_STATES2[s.toLowerCase()] ?? null;
-}
 var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
 var PASSWORD_MIN2 = 12;
 var PASSWORD_WORDS2 = {
@@ -5424,226 +5668,6 @@ var PASSWORD_WORDS2 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
-var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
-var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
-var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_CALL_OUTCOMES2 = [
-  "interested",
-  "call_back",
-  "not_interested",
-  "voicemail",
-  "no_answer",
-  "wrong_number"
-];
-var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS2 = {
-  said_no: "Said no",
-  not_a_fit: "Not a fit",
-  customer: "Already a customer",
-  stale: "Went quiet",
-  search_removed: "Search removed"
-};
-var LEAD_CALL_OUTCOME_TONES2 = {
-  interested: "ok",
-  call_back: "warn",
-  voicemail: "plain",
-  no_answer: "plain",
-  not_interested: "danger",
-  wrong_number: "danger"
-};
-var LEAD_CALL_OUTCOME_WORDS2 = {
-  interested: "Interested",
-  call_back: "Call back later",
-  not_interested: "Not interested",
-  voicemail: "Left a voicemail",
-  no_answer: "No answer",
-  wrong_number: "Wrong number"
-};
-var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
-var LEAD_NOT_A_FIT_WORDS2 = {
-  chain: "A chain or franchise",
-  wrong_kind: "The wrong kind of business",
-  too_far: "Too far away",
-  customer: "Already a customer",
-  other: "Something else"
-};
-var LEAD_NOT_A_FIT_TITLE2 = "What makes it not a fit?";
-var LEAD_SENT_QUESTION2 = "Did you send it?";
-var LEAD_CALL_QUESTION2 = "How did the call go?";
-var LEAD_NOTE_PLACEHOLDER2 = "A note for next time, if you like";
-var LEAD_NOTE_MAX2 = 280;
-var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a call goes well.";
-function leadNoteLeft2(left, max) {
-  return left >= max ? `Up to ${max} characters` : `${left} left`;
-}
-var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
-var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
-var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
-var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
-var LEAD_SUGGEST_UNAVAILABLE2 = "Suggestions are not available right now.";
-var LEAD_WORDS2 = {
-  /**
-   * The ways a lead can be rung, offered when Call is pressed rather than dialling on the spot. Pressing it rang a
-   * real business the moment a thumb landed on a row you might only have been skimming, and a call made from a
-   * desk phone could not be recorded at all -- the six outcomes are armed by that button alone.
-   *
-   * The receptionist is NOT one of the ways and must not become one here. It answers the line and never rings a
-   * customer (`business-tab.ts` CANNOT_ROWS, "outbound_call"), which the Business page states to the owner in
-   * those words. A menu item offering it would promise what the product says two pages away that it cannot do.
-   */
-  callWays: {
-    dial: { label: "Call from your phone" },
-    copy: { label: "Copy the number" },
-    /** Rung from a desk phone or a softphone: no dial, straight to "How did the call go?". */
-    log: { label: "Log a call you already made", meta: "how did it go?" }
-  },
-  close: "Close",
-  open: "Open",
-  stageLabel: "Stage",
-  notFit: LEAD_CLOSED_WORDS2.not_a_fit,
-  notFitTitle: LEAD_NOT_A_FIT_TITLE2,
-  whys: LEAD_NOT_A_FIT_WHYS2.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS2[id] })),
-  keep: "Keep",
-  exclude: "Exclude",
-  putBack: "Put back",
-  leftOut: "Left out of this search. It doesn't count.",
-  reach: "How you can reach them",
-  checked: "Checked",
-  found: "Found",
-  call: "Call",
-  copy: "Copy",
-  copyAria: "Copy the email",
-  /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
-  copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
-  noWebsite: "No website listed",
-  instagram: "Instagram",
-  talkingNote: LEAD_TALKING_NOTE2,
-  sentQuestion: LEAD_SENT_QUESTION2,
-  sentYes: "Yes, mark contacted",
-  sentNo: "Not yet",
-  callQuestion: LEAD_CALL_QUESTION2,
-  callSave: "Save",
-  callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({
-    id,
-    label: LEAD_CALL_OUTCOME_WORDS2[id],
-    tone: LEAD_CALL_OUTCOME_TONES2[id]
-  })),
-  noteLabel: "A note about the call",
-  notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
-  noteMax: LEAD_NOTE_MAX2,
-  noteLeft: leadNoteLeft2,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
-  draftRewrite: "Rewrite",
-  tones: [
-    { id: "shorter", label: "Shorter" },
-    { id: "warmer", label: "Warmer" }
-  ],
-  draftWriting: "Writing it\u2026",
-  draftNote: LEAD_DRAFT_NOTE2,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email.",
-  firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
-  about: "About",
-  reachHeading: "Reach",
-  unclaimed: LEAD_UNCLAIMED_NOTE2,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2,
-  // D5: the peek re-cut, and the photo expanded.
-  expand: "Expand",
-  photos: "Photos",
-  noPhoto: "No photo on the listing",
-  whereSits: "Where it sits",
-  openHours: "Open hours",
-  fromListing: "From the listing",
-  openMaps: "Open in Maps",
-  ratedHeading: "What people say",
-  closePhotos: "Close",
-  // D5, on a phone: one lead at a time, and the question when you are back from the call.
-  deckOf: (at2, of) => `${at2} of ${of}`,
-  deckPrev: "The lead before",
-  deckNext: "The next lead",
-  callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
-};
-var LeadsQuerySchema2 = z72.object({
-  list: z72.enum(LEAD_LISTS2).default("all"),
-  search: z72.string().uuid().optional(),
-  class: z72.enum(LEAD_CLASSES2).optional(),
-  sort: z72.enum(LEAD_SORTS2).default("fit"),
-  dir: z72.enum(["asc", "desc"]).default("asc"),
-  after_key: z72.string().max(80).optional(),
-  after_id: z72.string().uuid().optional(),
-  limit: z72.coerce.number().int().min(1).max(500).default(500)
-});
-var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
-  z72.object({ kind: z72.literal("stage"), stage: z72.enum(["ready", "nurture", "converted"]) }),
-  z72.object({ kind: z72.literal("not_a_fit"), why: z72.enum(LEAD_NOT_A_FIT_WHYS2) }),
-  z72.object({ kind: z72.literal("said_no") }),
-  z72.object({
-    kind: z72.literal("outcome"),
-    outcome: z72.enum(LEAD_CALL_OUTCOMES2),
-    note: z72.string().trim().max(280).optional()
-  }),
-  /** "Did you send it?" Yes. */
-  z72.object({ kind: z72.literal("emailed") })
-]);
-var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
-  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z72.object({
-    by: z72.literal("ids"),
-    action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z72.array(z72.string().uuid()).min(1).max(500),
-    search_id: z72.string().uuid().optional()
-  }),
-  z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
-]);
-var LeadsCheckAgainSchema2 = z72.object({ ids: z72.array(z72.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema2 = z72.object({
-  tone: z72.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z72.object({ subject: z72.string().max(200), body: z72.string().max(4e3) }).optional()
-});
-var RenameLeadSearchSchema2 = z72.object({ name: z72.string().trim().min(1).max(80) });
-var BusinessLineSchema2 = z72.object({ business_line: z72.string().trim().min(3).max(160) });
-var planChip2 = (max) => z72.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema2 = z72.object({
-  looking_for: z72.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z72.string().trim().min(2).max(40),
-  count: z72.number().int().min(1).max(LEAD_MAX_PLACES2),
-  /** Plural, as the sentence says it: "personal trainers". */
-  who: planChip2(60),
-  /** One of them, for the question and the judge's rubric: "personal trainer". */
-  who_one: planChip2(60),
-  category_key: z72.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z72.array(planChip2(60)).min(1).max(5),
-  city: z72.string().trim().max(60).nullable().default(null),
-  region: z72.string().trim().min(2).max(40),
-  zip: z72.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z72.enum(["phone", "email"]),
-  criteria: z72.array(z72.object({ text: planChip2(120), standard: z72.enum(["likely", "seen"]), required: z72.boolean() })).max(6).default([]),
-  leave_out: z72.array(z72.object({ words: planChip2(40) })).max(6).default([]),
-  asked: z72.string().trim().min(1).max(400)
-});
-var LeadDraftAnswerSchema2 = z72.object({
-  subject: z72.string().trim().min(3).max(120),
-  body: z72.string().trim().min(20).max(2e3)
-});
-var LeadSuggestAnswerSchema2 = z72.object({
-  line: z72.string().trim().min(3).max(160),
-  items: z72.array(
-    z72.object({
-      words: z72.string().trim().min(3).max(80),
-      who_for: z72.string().trim().min(3).max(120),
-      category_key: z72.string().regex(/^[a-z_]{2,40}$/)
-    })
-  ).min(1).max(4)
-});
-var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS2 = [
   "name",
   "category",
@@ -5830,8 +5854,8 @@ function judgeOpId(runId, fromOffset, batch) {
 import { z as z10 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
-import { z as z43 } from "zod";
 import { z as z53 } from "zod";
+import { z as z43 } from "zod";
 import { z as z63 } from "zod";
 import { z as z73 } from "zod";
 import { z as z83 } from "zod";
@@ -6460,398 +6484,9 @@ var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = {
-  ...PERSON_MODE_LABELS3,
-  inherit: "Follow the workspace"
-};
-var DAY_MS33 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS33;
-var MONTH_MS3 = 30 * DAY_MS33;
-var NEW_WINDOW_MS3 = 7 * DAY_MS33;
-var QUIET_AFTER_MS4 = 30 * DAY_MS33;
-var REPLY_VIA3 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS3 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS3 = {
-  whatsapp: REPLY_VIA3.whatsapp,
-  sms: REPLY_VIA3.sms,
-  email: REPLY_VIA3.email,
-  call: PERSON_CHANNEL_WORDS3.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported history",
-  lead: "A lead you found"
-};
-var DAY_MS43 = 24 * 3600 * 1e3;
-var DAY_MS53 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS53;
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS3 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META3 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS3.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var ASK_CAPS3 = {
-  threads: 20,
-  messages: 30,
-  messagesMore: 80,
-  calls: 20,
-  transcript: 40,
-  people: 12,
-  citations: 6,
-  followups: 3,
-  needsRows: 10
-};
-var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES3 = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA3 = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS3] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES3] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip3 = (n) => (s) => s.trim().slice(0, n);
-var TAG_CUT3 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
-function cleanAnswer3(raw) {
-  let s = raw.replace(/^\s*<answer>\s*/i, "");
-  const cut = s.search(TAG_CUT3);
-  if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-var AskFinishSchema3 = z43.object({
-  answer: z43.string().catch("").transform((s) => clip3(1500)(cleanAnswer3(s))),
-  citations: z43.array(
-    z43.object({
-      kind: z43.enum(ASK_CITATION_KINDS3).catch("page"),
-      id: z43.string().catch("").transform(clip3(200)),
-      label: z43.string().catch("").transform(clip3(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS3.citations)),
-  followups: z43.array(z43.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z43.enum(ASK_LANGUAGES3).catch("other")
-});
-var ASK_UNDO_MS3 = 10 * 6e4;
-var AskProposalOutcomeSchema3 = z43.object({
-  state: z43.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z43.string().max(300).catch(""),
-  atMs: z43.number().catch(0),
-  undo: z43.record(z43.string(), z43.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema3 = z43.discriminatedUnion("op", [
-  z43.object({
-    op: z43.literal("add_closure"),
-    date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z43.string().max(200).optional()
-  }),
-  z43.object({
-    op: z43.literal("set_hours"),
-    day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z43.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z43.object({ op: z43.literal("add_note"), title: z43.string().min(1).max(80), text: z43.string().min(1).max(1200) }),
-  z43.object({
-    op: z43.literal("add_service"),
-    name: z43.string().min(1).max(80),
-    duration_min: z43.number().int().min(1).max(1440).optional()
-  })
-]);
-var L3 = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES3 = [
-  L3("af", "Afrikaans", null, "Afrikaans"),
-  L3("sq", "Albanian", null, "Shqip"),
-  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L3("ca", "Catalan", null, "Catal\xE0"),
-  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L3("hr", "Croatian", null, "Hrvatski"),
-  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L3("da", "Danish", null, "Dansk"),
-  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L3("nl", "Dutch", null, "Nederlands"),
-  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L3("en", "English", null, "English"),
-  L3("en_AU", "English", "Australia", "English"),
-  L3("en_CA", "English", "Canada", "English"),
-  L3("en_GH", "English", "Ghana", "English"),
-  L3("en_IN", "English", "India", "English"),
-  L3("en_IE", "English", "Ireland", "English"),
-  L3("en_JM", "English", "Jamaica", "English"),
-  L3("en_MY", "English", "Malaysia", "English"),
-  L3("en_NZ", "English", "New Zealand", "English"),
-  L3("en_QA", "English", "Qatar", "English"),
-  L3("en_SG", "English", "Singapore", "English"),
-  L3("en_ZA", "English", "South Africa", "English"),
-  L3("en_AE", "English", "UAE", "English"),
-  L3("en_UG", "English", "Uganda", "English"),
-  L3("en_GB", "English", "UK", "English"),
-  L3("en_US", "English", "US", "English"),
-  L3("et", "Estonian", null, "Eesti"),
-  L3("fil", "Filipino", null, "Filipino"),
-  L3("fi", "Finnish", null, "Suomi"),
-  L3("fr", "French", null, "Fran\xE7ais"),
-  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L3("de", "German", null, "Deutsch"),
-  L3("de_AT", "German", "Austria", "Deutsch"),
-  L3("de_CH", "German", "Switzerland", "Deutsch"),
-  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L3("ha", "Hausa", null, "Hausa"),
-  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L3("hu", "Hungarian", null, "Magyar"),
-  L3("id", "Indonesian", null, "Bahasa Indonesia"),
-  L3("ga", "Irish", null, "Gaeilge"),
-  L3("it", "Italian", null, "Italiano"),
-  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L3("lv", "Latvian", null, "Latvie\u0161u"),
-  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L3("ms", "Malay", null, "Bahasa Melayu"),
-  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L3("pl", "Polish", null, "Polski"),
-  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L3("sk", "Slovak", null, "Sloven\u010Dina"),
-  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L3("es", "Spanish", null, "Espa\xF1ol"),
-  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L3("sw", "Swahili", null, "Kiswahili"),
-  L3("sv", "Swedish", null, "Svenska"),
-  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L3("uz", "Uzbek", null, "O\u02BBzbek"),
-  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L3("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
-var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
-var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
-var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
-var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
-var LIMIT_TIERS3 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
-var DAY_MS63 = 864e5;
-var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS3 = {
-  min: PLAYBOOK_HOURS3.min,
-  max: PLAYBOOK_HOURS3.max,
-  first: `${PLAYBOOK_HOURS3.min}:00`,
-  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
-  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
-};
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS63;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short
-};
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
-var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS33 = 7 * 864e5;
-var DATE_FMT43 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var SOLE_PROP_LIMITS3 = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS3 = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
-};
-var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
-var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
-var SIGNUP_NAME_MIN3 = 2;
-var SIGNUP_NAME_MAX3 = 120;
-var SignupSchema3 = z53.object({
-  name: z53.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z53.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z53.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z53.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: z53.string().trim().max(80).optional()
-}).strict();
-var PendingWorkspaceSchema3 = z53.object({
-  name: z53.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z53.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
-});
-function isTimezone3(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
-var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -6911,38 +6546,38 @@ var US_STATES3 = {
 var US_CODES3 = new Set(Object.values(US_STATES3));
 var KEY3 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe3 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words3 = (min, max) => z63.string().transform((s) => stripUnsafe3(s).trim()).pipe(z63.string().min(min).max(max));
-var LeadSearchPlanSchema3 = z63.object({
-  version: z63.number().int().min(1),
-  card: z63.literal("local_businesses"),
+var words3 = (min, max) => z43.string().transform((s) => stripUnsafe3(s).trim()).pipe(z43.string().min(min).max(max));
+var LeadSearchPlanSchema3 = z43.object({
+  version: z43.number().int().min(1),
+  card: z43.literal("local_businesses"),
   name: words3(2, 80),
   asked: words3(1, 400),
-  terms: z63.array(words3(2, 60)).min(1).max(5),
-  area: z63.object({
-    kind: z63.enum(["zip", "city", "radius"]),
+  terms: z43.array(words3(2, 60)).min(1).max(5),
+  area: z43.object({
+    kind: z43.enum(["zip", "city", "radius"]),
     label: words3(2, 80),
-    state: z63.string().regex(/^[A-Z]{2}$/),
-    center: z63.object({ lat: z63.number().min(-90).max(90), lng: z63.number().min(-180).max(180) }).nullable(),
-    radius_m: z63.number().int().min(500).max(2e5),
-    zip: z63.string().regex(/^\d{5}$/).optional(),
+    state: z43.string().regex(/^[A-Z]{2}$/),
+    center: z43.object({ lat: z43.number().min(-90).max(90), lng: z43.number().min(-180).max(180) }).nullable(),
+    radius_m: z43.number().int().min(500).max(2e5),
+    zip: z43.string().regex(/^\d{5}$/).optional(),
     query: words3(2, 120)
   }),
-  count: z63.number().int().min(1).max(LEAD_MAX_PLACES3),
-  contact: z63.enum(["phone", "email"]),
-  criteria: z63.array(
-    z63.object({
-      key: z63.string().regex(KEY3),
+  count: z43.number().int().min(1).max(LEAD_MAX_PLACES3),
+  contact: z43.enum(["phone", "email"]),
+  criteria: z43.array(
+    z43.object({
+      key: z43.string().regex(KEY3),
       text: words3(2, 120),
-      standard: z63.enum(["likely", "seen"]),
-      required: z63.boolean()
+      standard: z43.enum(["likely", "seen"]),
+      required: z43.boolean()
     })
   ).max(8),
-  exclusions: z63.array(
-    z63.object({
-      key: z63.string().regex(KEY3),
+  exclusions: z43.array(
+    z43.object({
+      key: z43.string().regex(KEY3),
       text: words3(2, 80),
-      origin: z63.enum(["claude", "you_said"]),
-      category_key: z63.string().regex(KEY3).optional()
+      origin: z43.enum(["claude", "you_said"]),
+      category_key: z43.string().regex(KEY3).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -6970,31 +6605,6 @@ var LeadSearchPlanSchema3 = z63.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
-var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
-var PASSWORD_MIN3 = 12;
-var PASSWORD_WORDS3 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -7141,80 +6751,494 @@ var LEAD_WORDS3 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var LeadsQuerySchema3 = z73.object({
-  list: z73.enum(LEAD_LISTS3).default("all"),
-  search: z73.string().uuid().optional(),
-  class: z73.enum(LEAD_CLASSES3).optional(),
-  sort: z73.enum(LEAD_SORTS3).default("fit"),
-  dir: z73.enum(["asc", "desc"]).default("asc"),
-  after_key: z73.string().max(80).optional(),
-  after_id: z73.string().uuid().optional(),
-  limit: z73.coerce.number().int().min(1).max(500).default(500)
+var LeadsQuerySchema3 = z53.object({
+  list: z53.enum(LEAD_LISTS3).default("all"),
+  search: z53.string().uuid().optional(),
+  class: z53.enum(LEAD_CLASSES3).optional(),
+  sort: z53.enum(LEAD_SORTS3).default("fit"),
+  dir: z53.enum(["asc", "desc"]).default("asc"),
+  after_key: z53.string().max(80).optional(),
+  after_id: z53.string().uuid().optional(),
+  limit: z53.coerce.number().int().min(1).max(500).default(500)
 });
 var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
-  z73.object({ kind: z73.literal("stage"), stage: z73.enum(["ready", "nurture", "converted"]) }),
-  z73.object({ kind: z73.literal("not_a_fit"), why: z73.enum(LEAD_NOT_A_FIT_WHYS3) }),
-  z73.object({ kind: z73.literal("said_no") }),
-  z73.object({
-    kind: z73.literal("outcome"),
-    outcome: z73.enum(LEAD_CALL_OUTCOMES3),
-    note: z73.string().trim().max(280).optional()
+var LeadStageInputSchema3 = z53.discriminatedUnion("kind", [
+  z53.object({ kind: z53.literal("stage"), stage: z53.enum(["ready", "nurture", "converted"]) }),
+  z53.object({ kind: z53.literal("not_a_fit"), why: z53.enum(LEAD_NOT_A_FIT_WHYS3) }),
+  z53.object({ kind: z53.literal("said_no") }),
+  z53.object({
+    kind: z53.literal("outcome"),
+    outcome: z53.enum(LEAD_CALL_OUTCOMES3),
+    note: z53.string().trim().max(280).optional()
   }),
   /** "Did you send it?" Yes. */
-  z73.object({ kind: z73.literal("emailed") })
+  z53.object({ kind: z53.literal("emailed") })
 ]);
-var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
+var LeadsBulkSchema3 = z53.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z73.object({
-    by: z73.literal("ids"),
-    action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z73.array(z73.string().uuid()).min(1).max(500),
-    search_id: z73.string().uuid().optional()
+  z53.object({
+    by: z53.literal("ids"),
+    action: z53.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z53.array(z53.string().uuid()).min(1).max(500),
+    search_id: z53.string().uuid().optional()
   }),
-  z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
+  z53.object({ by: z53.literal("view"), action: z53.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
 ]);
-var LeadsCheckAgainSchema3 = z73.object({ ids: z73.array(z73.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema3 = z73.object({
-  tone: z73.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z73.object({ subject: z73.string().max(200), body: z73.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema3 = z53.object({ ids: z53.array(z53.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema3 = z53.object({
+  tone: z53.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z53.object({ subject: z53.string().max(200), body: z53.string().max(4e3) }).optional()
 });
-var RenameLeadSearchSchema3 = z73.object({ name: z73.string().trim().min(1).max(80) });
-var BusinessLineSchema3 = z73.object({ business_line: z73.string().trim().min(3).max(160) });
-var planChip3 = (max) => z73.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema3 = z73.object({
-  looking_for: z73.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z73.string().trim().min(2).max(40),
-  count: z73.number().int().min(1).max(LEAD_MAX_PLACES3),
+var RenameLeadSearchSchema3 = z53.object({ name: z53.string().trim().min(1).max(80) });
+var BusinessLineSchema3 = z53.object({ business_line: z53.string().trim().min(3).max(160) });
+var planChip3 = (max) => z53.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema3 = z53.object({
+  looking_for: z53.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z53.string().trim().min(2).max(40),
+  count: z53.number().int().min(1).max(LEAD_MAX_PLACES3),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip3(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip3(60),
-  category_key: z73.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z73.array(planChip3(60)).min(1).max(5),
-  city: z73.string().trim().max(60).nullable().default(null),
-  region: z73.string().trim().min(2).max(40),
-  zip: z73.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z73.enum(["phone", "email"]),
-  criteria: z73.array(z73.object({ text: planChip3(120), standard: z73.enum(["likely", "seen"]), required: z73.boolean() })).max(6).default([]),
-  leave_out: z73.array(z73.object({ words: planChip3(40) })).max(6).default([]),
-  asked: z73.string().trim().min(1).max(400)
+  category_key: z53.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z53.array(planChip3(60)).min(1).max(5),
+  city: z53.string().trim().max(60).nullable().default(null),
+  region: z53.string().trim().min(2).max(40),
+  zip: z53.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z53.enum(["phone", "email"]),
+  criteria: z53.array(z53.object({ text: planChip3(120), standard: z53.enum(["likely", "seen"]), required: z53.boolean() })).max(6).default([]),
+  leave_out: z53.array(z53.object({ words: planChip3(40) })).max(6).default([]),
+  asked: z53.string().trim().min(1).max(400)
 });
-var LeadDraftAnswerSchema3 = z73.object({
-  subject: z73.string().trim().min(3).max(120),
-  body: z73.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema3 = z53.object({
+  subject: z53.string().trim().min(3).max(120),
+  body: z53.string().trim().min(20).max(2e3)
 });
-var LeadSuggestAnswerSchema3 = z73.object({
-  line: z73.string().trim().min(3).max(160),
-  items: z73.array(
-    z73.object({
-      words: z73.string().trim().min(3).max(80),
-      who_for: z73.string().trim().min(3).max(120),
-      category_key: z73.string().regex(/^[a-z_]{2,40}$/)
+var LeadSuggestAnswerSchema3 = z53.object({
+  line: z53.string().trim().min(3).max(160),
+  items: z53.array(
+    z53.object({
+      words: z53.string().trim().min(3).max(80),
+      who_for: z53.string().trim().min(3).max(120),
+      category_key: z53.string().regex(/^[a-z_]{2,40}$/)
     })
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
+var DAY_MS33 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS33;
+var MONTH_MS3 = 30 * DAY_MS33;
+var NEW_WINDOW_MS3 = 7 * DAY_MS33;
+var QUIET_AFTER_MS4 = 30 * DAY_MS33;
+var REPLY_VIA3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS3 = {
+  whatsapp: REPLY_VIA3.whatsapp,
+  sms: REPLY_VIA3.sms,
+  email: REPLY_VIA3.email,
+  call: PERSON_CHANNEL_WORDS3.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported history",
+  lead: "A lead you found"
+};
+var DAY_MS43 = 24 * 3600 * 1e3;
+var DAY_MS53 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS53;
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS3 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META3 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS3.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var ASK_CAPS3 = {
+  threads: 20,
+  messages: 30,
+  messagesMore: 80,
+  calls: 20,
+  transcript: 40,
+  people: 12,
+  citations: 6,
+  followups: 3,
+  needsRows: 10
+};
+var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES3 = ["en", "es", "other"];
+var ASK_FINISH_JSON_SCHEMA3 = {
+  type: "object",
+  properties: {
+    answer: {
+      type: "string",
+      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
+    },
+    citations: {
+      type: "array",
+      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: [...ASK_CITATION_KINDS3] },
+          id: { type: "string" },
+          label: { type: "string" }
+        },
+        required: ["kind", "id", "label"],
+        additionalProperties: false
+      }
+    },
+    followups: {
+      type: "array",
+      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
+      items: { type: "string" }
+    },
+    navigate: {
+      type: "object",
+      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
+      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
+      required: ["to", "label", "now"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES3] }
+  },
+  required: ["answer", "citations", "followups", "navigate", "language"],
+  additionalProperties: false
+};
+var clip3 = (n) => (s) => s.trim().slice(0, n);
+var TAG_CUT3 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
+function cleanAnswer3(raw) {
+  let s = raw.replace(/^\s*<answer>\s*/i, "");
+  const cut = s.search(TAG_CUT3);
+  if (cut >= 0) s = s.slice(0, cut);
+  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
+}
+var AskFinishSchema3 = z63.object({
+  answer: z63.string().catch("").transform((s) => clip3(1500)(cleanAnswer3(s))),
+  citations: z63.array(
+    z63.object({
+      kind: z63.enum(ASK_CITATION_KINDS3).catch("page"),
+      id: z63.string().catch("").transform(clip3(200)),
+      label: z63.string().catch("").transform(clip3(80))
+    })
+  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS3.citations)),
+  followups: z63.array(z63.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))
+  ),
+  navigate: z63.object({ to: z63.string().catch(""), label: z63.string().catch(""), now: z63.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
+    } : null
+  ),
+  language: z63.enum(ASK_LANGUAGES3).catch("other")
+});
+var ASK_UNDO_MS3 = 10 * 6e4;
+var AskProposalOutcomeSchema3 = z63.object({
+  state: z63.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z63.string().max(300).catch(""),
+  atMs: z63.number().catch(0),
+  undo: z63.record(z63.string(), z63.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema3 = z63.discriminatedUnion("op", [
+  z63.object({
+    op: z63.literal("add_closure"),
+    date: z63.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z63.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z63.string().max(200).optional()
+  }),
+  z63.object({
+    op: z63.literal("set_hours"),
+    day: z63.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z63.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z63.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z63.object({ op: z63.literal("add_note"), title: z63.string().min(1).max(80), text: z63.string().min(1).max(1200) }),
+  z63.object({
+    op: z63.literal("add_service"),
+    name: z63.string().min(1).max(80),
+    duration_min: z63.number().int().min(1).max(1440).optional()
+  })
+]);
+var L3 = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES3 = [
+  L3("af", "Afrikaans", null, "Afrikaans"),
+  L3("sq", "Albanian", null, "Shqip"),
+  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L3("ca", "Catalan", null, "Catal\xE0"),
+  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L3("hr", "Croatian", null, "Hrvatski"),
+  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L3("da", "Danish", null, "Dansk"),
+  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L3("nl", "Dutch", null, "Nederlands"),
+  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L3("en", "English", null, "English"),
+  L3("en_AU", "English", "Australia", "English"),
+  L3("en_CA", "English", "Canada", "English"),
+  L3("en_GH", "English", "Ghana", "English"),
+  L3("en_IN", "English", "India", "English"),
+  L3("en_IE", "English", "Ireland", "English"),
+  L3("en_JM", "English", "Jamaica", "English"),
+  L3("en_MY", "English", "Malaysia", "English"),
+  L3("en_NZ", "English", "New Zealand", "English"),
+  L3("en_QA", "English", "Qatar", "English"),
+  L3("en_SG", "English", "Singapore", "English"),
+  L3("en_ZA", "English", "South Africa", "English"),
+  L3("en_AE", "English", "UAE", "English"),
+  L3("en_UG", "English", "Uganda", "English"),
+  L3("en_GB", "English", "UK", "English"),
+  L3("en_US", "English", "US", "English"),
+  L3("et", "Estonian", null, "Eesti"),
+  L3("fil", "Filipino", null, "Filipino"),
+  L3("fi", "Finnish", null, "Suomi"),
+  L3("fr", "French", null, "Fran\xE7ais"),
+  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L3("de", "German", null, "Deutsch"),
+  L3("de_AT", "German", "Austria", "Deutsch"),
+  L3("de_CH", "German", "Switzerland", "Deutsch"),
+  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L3("ha", "Hausa", null, "Hausa"),
+  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L3("hu", "Hungarian", null, "Magyar"),
+  L3("id", "Indonesian", null, "Bahasa Indonesia"),
+  L3("ga", "Irish", null, "Gaeilge"),
+  L3("it", "Italian", null, "Italiano"),
+  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L3("lv", "Latvian", null, "Latvie\u0161u"),
+  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L3("ms", "Malay", null, "Bahasa Melayu"),
+  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L3("pl", "Polish", null, "Polski"),
+  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L3("sk", "Slovak", null, "Sloven\u010Dina"),
+  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L3("es", "Spanish", null, "Espa\xF1ol"),
+  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L3("sw", "Swahili", null, "Kiswahili"),
+  L3("sv", "Swedish", null, "Svenska"),
+  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L3("uz", "Uzbek", null, "O\u02BBzbek"),
+  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L3("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
+var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES3 = { ...FIRST3, label: "Nombre" };
+var BUSINESS_ES3 = { ...BUSINESS3, label: "Nombre del negocio" };
+var LINK_ES3 = { ...LINK3, label: "Enlace de reservas" };
+var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var LIMIT_TIERS3 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+var DAY_MS63 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS63;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short
+};
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
+var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
+var BOOTSTRAP_MS3 = 3600 * 1e3;
+var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WEEK_MS33 = 7 * 864e5;
+var DATE_FMT43 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var SOLE_PROP_LIMITS3 = {
+  campaignsPerBrand: 1,
+  numbersPerCampaign: 1,
+  messagesPerSecond: 1,
+  perDayTMobile: 1e3,
+  perMinuteAtt: 15,
+  mobileUsesEver: 3,
+  emailUsesEver: 10,
+  addressUsesEver: 10
+};
+var REGISTRATION_COST_WORDS3 = {
+  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
+};
+var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
+var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
+var SIGNUP_NAME_MIN3 = 2;
+var SIGNUP_NAME_MAX3 = 120;
+var SignupSchema3 = z73.object({
+  name: z73.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z73.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z73.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z73.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: z73.string().trim().max(80).optional()
+}).strict();
+var PendingWorkspaceSchema3 = z73.object({
+  name: z73.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z73.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+});
+function isTimezone3(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
+var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var PASSWORD_MIN3 = 12;
+var PASSWORD_WORDS3 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS3 = [
   "name",
   "category",

@@ -43,15 +43,13 @@ test("the tables: the workspace's, members read, acting members write, a person 
 });
 
 test("the routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words", () => {
+  // Scoped by tenant, not by RLS alone, and every member read: people-routes.test.mjs runs the GET over two
+  // workspaces and over a list past PostgREST's max_rows.
   const list = readCode("apps/dashboard/app/api/v1/segments/route.ts");
-  assert.ok(
-    list.includes('.from("segments").select("id, name").eq("tenant_id", tenantId)'),
-    "scoped by tenant, not by RLS alone",
-  );
   assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
   assert.ok(
     list.includes(
-      'if (error.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);',
+      'if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);',
     ),
   );
   const one = readCode("apps/dashboard/app/api/v1/segments/[id]/route.ts");
@@ -60,19 +58,16 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
       one.includes('const remove = cleanIdList(body?.remove, "remove");'),
   );
   assert.ok(one.includes('throw new AppError("validation", "Nothing to change.");'));
-  assert.ok(
-    one.includes('{ onConflict: "segment_id,contact_id", ignoreDuplicates: true }'),
-    "adding someone twice is not an error",
-  );
+  // Adding someone twice is not an error: people-routes.test.mjs runs the PUT twice over the same person.
   assert.ok(
     /if \(error\.code === "42501"\)\s*throw new AppError\("validation", "One of those people is not in this workspace any more\."\);/.test(
       one,
     ),
     "RLS's refusal gets words",
   );
+  // The delete counts what it removed (packages/db deleteList); people-routes.test.mjs deletes a list twice.
   assert.ok(
-    one.includes('.delete({ count: "exact" })') &&
-      one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
+    one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
     "a delete that removed nothing is not a success",
   );
   const helper = readCode("apps/dashboard/src/server/lists.ts");
@@ -123,7 +118,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
   assert.ok(
-    prof.includes("No lists yet.") && prof.includes("Make one on People"),
+    prof.includes("No lists kept by hand yet.") && prof.includes("Make one on People"),
     "the empty section is a door to People with the New list box opening; 'the People rail' is not a place a phone has",
   );
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));

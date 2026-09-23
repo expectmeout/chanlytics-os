@@ -23,32 +23,42 @@
 // outcomes are armed by that button alone. The ways are contracts' (LEAD_CALL_WAYS), and the receptionist is not
 // among them: it answers your line and never rings a customer, which the Business page tells the owner in those
 // words (business-tab.ts CANNOT_ROWS). The number is the menu's heading, so you see what you would dial.
-const LeadCallMenu = ({ l, onCall, onCopyPhone, onLogCall, btnClass, label = null, testid = "lead-call" }) => {
+// One menu wherever Call is: a lead's row, its card, the map's card and the lead's own panel. It takes what it says and
+// what each way does, not a lead, because the row and the panel hold a lead in two shapes. `number` is the menu's
+// heading where the button is only a glyph; a button that says the number already leaves it out.
+const LeadCallMenu = ({ name, number, onDial, onCopy, onLog, btnClass, label = null, heading = true, size = 11, testid = "lead-call" }) => {
   const W = window.__LEAD_WORDS.callWays;
   return (
-    <span data-testid={testid} onClick={(e) => e.stopPropagation()}>
-      <MoreMenu
-        align="right"
-        escape
-        icon="phone"
-        size={11}
-        title={`Call ${l.name}`}
-        btnClass={btnClass}
-        label={label}
-        items={[
-          { header: (window.__phoneDisplay && window.__phoneDisplay(l.phone)) || l.phone },
-          { label: W.dial.label, icon: "phone", onClick: () => onCall(l.id) },
-          { label: W.copy.label, icon: "copy", onClick: () => onCopyPhone(l.id) },
-          { label: W.log.label, icon: "check", meta: W.log.meta, onClick: () => onLogCall(l.id) },
-        ]}
-      />
-    </span>
+    <MoreMenu
+      align="right"
+      escape
+      icon="phone"
+      size={size}
+      title={`Call ${name}`}
+      btnClass={btnClass}
+      label={label}
+      testid={testid}
+      items={[
+        ...(heading ? [{ header: number }] : []),
+        { label: W.dial.label, icon: "phone", onClick: onDial },
+        { label: W.copy.label, icon: "copy", onClick: onCopy },
+        { label: W.log.label, icon: "check", meta: W.log.meta, onClick: onLog },
+      ]}
+    />
   );
 };
+// What a lead's row, card or map card hands the menu: its name, its number as a person reads it, and the three ways.
+const ldCallProps = (l, acts) => ({
+  name: l.name,
+  number: (window.__phoneDisplay && window.__phoneDisplay(l.phone)) || l.phone,
+  onDial: () => acts.onCall(l.id),
+  onCopy: () => acts.onCopyPhone(l.id),
+  onLog: () => acts.onLogCall(l.id),
+});
 
 const LeadRowActions = ({ l, onCall, onCopy, onCopyPhone, onLogCall, onKeep, onExclude, onPutBack, canFind }) => (
   <span className="cl-row-actions ld-row-actions">
-    {l.phone && !l.phoneWrong && <LeadCallMenu l={l} onCall={onCall} onCopyPhone={onCopyPhone} onLogCall={onLogCall} btnClass="btn btn-ghost btn-icon btn-sm ld-call" />}
+    {l.phone && !l.phoneWrong && <LeadCallMenu {...ldCallProps(l, { onCall, onCopyPhone, onLogCall })} btnClass="btn btn-ghost btn-icon btn-sm ld-call" />}
     {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy the email for ${l.name}`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
@@ -188,7 +198,7 @@ const LeadNameCard = ({ l, x }) => (
       {l.card.site ? <a href={l.card.site.href} target="_blank" rel="noopener noreferrer">{l.card.site.label}</a> : null}
       {l.card.maps ? <a href={l.card.maps.href} target="_blank" rel="noopener noreferrer">{l.card.maps.label}</a> : null}
       <span className="sp" />
-      {l.phone && !l.phoneWrong ? <LeadCallMenu l={l} onCall={x.onCall} onCopyPhone={x.onCopyPhone} onLogCall={x.onLogCall} btnClass="btn btn-sm btn-primary" label="Call" testid="lead-card-call" /> : null}
+      {l.phone && !l.phoneWrong ? <LeadCallMenu {...ldCallProps(l, x)} btnClass="btn btn-sm btn-primary" label="Call" testid="lead-card-call" /> : null}
     </div>
   </LeadCard>
 );
@@ -638,7 +648,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
                 <div className="s">{byId.get(picked).sub}</div>
               </div>
               {byId.get(picked).slots.phone.value ? (
-                <LeadCallMenu l={byId.get(picked)} onCall={x.onCall} onCopyPhone={x.onCopyPhone} onLogCall={x.onLogCall} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
+                <LeadCallMenu {...ldCallProps(byId.get(picked), x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
               ) : null}
             </div>
           ) : null}
@@ -1026,6 +1036,7 @@ const LeadsScope = (p) => {
             : (
               <PeopleTable
                 busy={!!p.loading}
+                budget={p.rowBudget}
                 noun="lead"
                 columns={p.columns}
                 ctx={p.cellCtx}
@@ -1098,7 +1109,6 @@ const LeadsScope = (p) => {
             putBack: p.onPutBack,
             copyEmail: p.onCopy,
             copyPhone: p.onCopyPhone,
-            logCall: p.onLogCall,
             draft: p.draft,
             armed: p.armed,
             setMode: p.onPeekMode,
@@ -1126,4 +1136,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LEAD_PHONE_COLUMNS, ldCardCell, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadCallMenu, LEAD_PHONE_COLUMNS, ldCardCell, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
