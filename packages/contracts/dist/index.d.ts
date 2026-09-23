@@ -4245,13 +4245,18 @@ declare function pickCurrentDeal<T extends {
     created_at: string;
 }>(rows: readonly T[]): T | null;
 /**
- * The proposal link a person has now (0007), one rule for their page and the receptionist: their current deal's while
- * it is a proposal out; with no open deal, the one on the person (00154), read until that column retires; for a client,
- * none. `current` is the deal the page shows: pickCurrentDeal's, or people_list's row.
+ * The proposal link a person has now (0007), one rule for their page, the thread and the receptionist: their current
+ * deal's while it is a proposal out, and none while it is anything else -- a client, a pass, an end; the link on the
+ * person (00154) only for someone with no deal at all, read until that column retires. `current` is the deal the page
+ * shows (pickCurrentDeal's, or people_list's row), as a row carries it (`proposal_url`) or as a view model says it
+ * (`proposal.url`).
  */
 declare function proposalLinkOf(current: {
     stage: string;
     proposal_url?: string | null;
+    proposal?: {
+        url: string;
+    } | null;
 } | null | undefined, personLink: string | null | undefined): string | null;
 /** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
 declare function amountWords(cents: number | null | undefined, per: string | null | undefined, currency?: string): string | null;
@@ -6633,8 +6638,8 @@ interface PersonDetailDto {
     /** The team, for a note's "For": absent where the team could not be read. */
     note_team?: PersonNoteTeamDto[];
     /**
-     * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only where they have no
-     * open deal, until the column retires.
+     * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only for someone with no
+     * deal at all, until the column retires.
      */
     proposal_url?: string | null;
     /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
@@ -7361,8 +7366,9 @@ interface PersonVM extends PersonRowVM {
     /** The workspace's booking link, or null when none is on file. */
     bookingLink: string | null;
     /**
-     * Their proposal (0007): the link on their deal while it is a proposal out; with no open deal, the one on the person
-     * (00154) while it is still read; for a client, none. Null when none is on file.
+     * Their proposal (proposalLinkOf, 0007): the link on their deal while it is a proposal out; for any other deal, none;
+     * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
+     * is on file.
      */
     proposal: PersonProposalVM | null;
     /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */

@@ -225,9 +225,12 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
+  // Changed on purpose (0007): the workspace's answer rides on the same read, one round trip on the live path.
   assert.ok(
-    src.includes('.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url")'),
-    "read with the rest of who they are",
+    src.includes(
+      '.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)")',
+    ),
+    "read with the rest of who they are, and how their workspace's customers buy",
   );
 });
 
@@ -308,7 +311,15 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   // a cap on the read would hide it behind them. The rows are read whole and the door's rule picks the current one.
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550123";
-  const c = { id: "contact-1", tenant_id: T, phone_e164: PHONE, display_name: "Maria", wa_profile_name: null };
+  // The workspace says some customers get a proposal first (0007): the deal is said. The embed rides on the contact read.
+  const c = {
+    id: "contact-1",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Maria",
+    wa_profile_name: null,
+    tenants: { sells_by: "proposal" },
+  };
   const dealRow = (over) => ({
     tenant_id: T,
     contact_id: c.id,
@@ -422,13 +433,20 @@ test("the notes are said within a budget: the newest always, older ones while th
   assert.ok(unread.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Old field"));
 });
 
-test("the link the receptionist sends is the deal's while it is a proposal out, the person's own with no open deal, and none for a client (0007)", async () => {
+test("the link the receptionist sends is the deal's while it is a proposal out, none for any other deal, and the person's own only with no deal (0007)", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550124";
   const own = "https://docs.example.com/p/own";
   const onDeal = "https://docs.example.com/p/deal";
   const lead = async (deals, personLink = own) => {
-    const c = { id: "contact-2", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: personLink };
+    const c = {
+      id: "contact-2",
+      tenant_id: T,
+      phone_e164: PHONE,
+      display_name: "Ana",
+      proposal_url: personLink,
+      tenants: { sells_by: "proposal" },
+    };
     const rows = deals.map((d, i) => ({
       id: `deal-${i}`,
       tenant_id: T,
@@ -455,11 +473,9 @@ test("the link the receptionist sends is the deal's while it is a proposal out, 
     null,
     "a client is sent no proposal",
   );
-  assert.equal(
-    (await lead([{ stage: "lost", proposal_url: onDeal }])).proposalUrl,
-    own,
-    "no open deal: the person's own",
-  );
+  // Changed on purpose in review: a pass or an end is a deal, and the person's link no longer stands in for it.
+  assert.equal((await lead([{ stage: "lost", proposal_url: onDeal }])).proposalUrl, null, "they passed: none");
+  assert.equal((await lead([{ stage: "ended" }])).proposalUrl, null, "it ended: none");
   assert.equal((await lead([])).proposalUrl, own, "no deal at all: the person's own, read until it retires");
   assert.equal((await lead([], null)).proposalUrl, null);
   // And the sentences follow the link that counts: a client hears no proposal link.
@@ -471,4 +487,76 @@ test("the link the receptionist sends is the deal's while it is a proposal out, 
     describeLead(waiting, new Date("2026-09-23T16:00:00Z")),
     /proposal ready for them at https:\/\/docs\.example\.com\/p\/deal\./,
   );
+});
+
+test("where deals are off the receptionist hears no deal and no proposal link, and the deals are not read (0007)", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550125";
+  const link = "https://docs.example.com/p/own";
+  const deal = {
+    id: "deal-9",
+    tenant_id: T,
+    contact_id: "contact-3",
+    service: "Ad management",
+    stage: "proposed",
+    proposed_at: "2026-09-10T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    created_at: "2026-09-10T12:00:00Z",
+    proposal_url: link,
+  };
+  const read = async (tenants) => {
+    const c = { id: "contact-3", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: link, tenants };
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [deal] });
+    return { ctx: await readLeadContext(db, T, PHONE), db };
+  };
+  for (const tenants of [{ sells_by: "booking" }, { sells_by: null }, undefined]) {
+    const { ctx, db } = await read(tenants);
+    assert.equal(ctx.contactId, "contact-3", "who they are is read as ever");
+    assert.equal(ctx.name, "Ana");
+    assert.equal(ctx.deal, null, `${JSON.stringify(tenants)}: no deal`);
+    assert.equal(ctx.proposalUrl, null, `${JSON.stringify(tenants)}: no link`);
+    assert.equal(db.seen.filter((q) => q.table === "deals").length, 0, "the deals are not read at all");
+    assert.equal(db.seen.filter((q) => q.table === "contacts").length, 1, "one read of who they are");
+    assert.doesNotMatch(describeLead(ctx, new Date("2026-09-23T16:00:00Z")), /proposal/i);
+  }
+  const on = await read({ sells_by: "proposal" });
+  assert.equal(on.ctx.deal?.stage, "proposed");
+  assert.equal(on.ctx.proposalUrl, link);
+});
+
+test("a database 00157 has not reached: who they are is read again without the workspace's answer, and deals are off", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550126";
+  const c = { id: "contact-4", tenant_id: T, phone_e164: PHONE, display_name: "Lu", proposal_url: null };
+  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [] });
+  const from = db.from;
+  // PostgREST's answer for an embedded column the database does not have.
+  db.from = (table) => {
+    const q = from(table);
+    if (table !== "contacts") return q;
+    return new Proxy(q, {
+      get(target, key) {
+        if (key !== "select") return target[key];
+        return (cols, o) =>
+          /\bsells_by\b/.test(String(cols))
+            ? {
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: null,
+                      error: { message: "column tenants_1.sells_by does not exist", code: "42703" },
+                    }),
+                  }),
+                }),
+              }
+            : target.select(cols, o);
+      },
+    });
+  };
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.equal(ctx.contactId, "contact-4", "REGRESSION guard: the reply never loses who they are to the new column");
+  assert.equal(ctx.name, "Lu");
+  assert.equal(ctx.deal, null);
+  assert.equal(ctx.proposalUrl, null);
 });

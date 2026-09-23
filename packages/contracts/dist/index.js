@@ -6216,9 +6216,9 @@ function pickCurrentDeal(rows) {
   return sorted[0] ?? null;
 }
 function proposalLinkOf(current, personLink) {
-  if (current?.stage === "proposed") return current.proposal_url?.trim() || null;
-  if (!current || current.stage === "lost" || current.stage === "ended") return personLink?.trim() || null;
-  return null;
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
 }
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
@@ -7304,7 +7304,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     visits: d.visits ?? d.row.visits ?? null
   };
   const base = toPersonRowVM(row2, tz, now);
-  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x);
+  const dealsOn = !!d.deals_on;
+  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x) : [];
+  const current = dealsOn ? deals.find((x) => x.id === base.deal?.id) ?? base.deal : null;
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items = [];
@@ -7436,7 +7438,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       });
     }
   }
-  for (const x of d.deals ?? []) {
+  for (const x of dealsOn ? d.deals ?? [] : []) {
     const svc = x.service ? ` \xB7 ${x.service}` : "";
     const put = (id, at2, text) => {
       const t = ts(at2);
@@ -7584,13 +7586,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label)
     },
     // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
-    ...base.deal ? [{ label: "Deal", value: base.deal.word, meta: base.deal.line, tone: "" }] : []
+    ...current ? [{ label: "Deal", value: current.word, meta: current.line, tone: "" }] : []
   ];
-  const current = deals.find((x) => x.id === base.deal?.id) ?? base.deal;
-  const proposalUrl = proposalLinkOf(
-    current ? { stage: current.stage, proposal_url: current.proposal?.url ?? null } : null,
-    d.proposal_url
-  );
+  const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
   const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
   const sentWords = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
@@ -7682,7 +7680,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     } : null,
     deal: current,
     deals,
-    dealsOn: !!d.deals_on,
+    dealsOn,
     services: d.services ?? []
   };
   const whole = {

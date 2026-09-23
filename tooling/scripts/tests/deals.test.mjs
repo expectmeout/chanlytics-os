@@ -257,17 +257,25 @@ test("a proposal's link and the day it stands until, and why someone passed: eac
   assert.deepEqual([...DEAL_CLEARABLE], ["proposal_url", "valid_until", "amount", "note"]);
 });
 
-test("the link a person has now: the deal's while it is a proposal out, the person's with no open deal, a client's none", () => {
+test("the link a person has now: the deal's while it is a proposal out, none for any other deal, the person's only with no deal", () => {
   const deal = "https://docs.example.com/p/deal";
   const own = "https://docs.example.com/p/own";
   assert.equal(proposalLinkOf({ stage: "proposed", proposal_url: deal }, own), deal, "the deal's wins");
   assert.equal(proposalLinkOf({ stage: "proposed", proposal_url: null }, own), null, "a proposal without one has none");
   assert.equal(proposalLinkOf({ stage: "won", proposal_url: deal }, own), null, "a client is not sent a proposal");
-  assert.equal(proposalLinkOf({ stage: "lost", proposal_url: deal }, own), own, "no open deal: the person's");
-  assert.equal(proposalLinkOf({ stage: "ended", proposal_url: null }, `  ${own} `), own);
-  assert.equal(proposalLinkOf(null, own), own);
+  // Changed on purpose in review: a pass or an end is a deal too, so the person's own link no longer stands in for it.
+  // Their link, if it was that deal's, is kept on it as history (00157's backfill); a new one opens a new proposal.
+  assert.equal(proposalLinkOf({ stage: "lost", proposal_url: deal }, own), null, "they passed: none");
+  assert.equal(proposalLinkOf({ stage: "ended", proposal_url: null }, `  ${own} `), null, "it ended: none");
+  assert.equal(proposalLinkOf(null, own), own, "no deal at all: the person's own");
+  assert.equal(proposalLinkOf(null, `  ${own} `), own);
   assert.equal(proposalLinkOf(null, "   "), null);
   assert.equal(proposalLinkOf(undefined, null), null);
+  // The deal as a view model says it (DealVM.proposal) reads the same as the row's column.
+  const vm = dealOf(cols({ deal_proposal_url: deal }), TZ, NOW);
+  assert.equal(proposalLinkOf(vm, own), deal);
+  assert.equal(proposalLinkOf({ ...vm, proposal: null }, own), null);
+  assert.equal(proposalLinkOf(dealOf(cols({ deal_stage: "lost", deal_decided_at: daysAgo(1) }), TZ, NOW), own), null);
 });
 
 test("what a person typed as an amount: the page's own rules, moved here whole", () => {

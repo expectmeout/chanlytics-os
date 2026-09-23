@@ -13,6 +13,7 @@ import {
   LEAD_ENDING_WORDS,
   PERSON_STATE_LABELS,
   REPORT_RANGES,
+  dealsAreOn,
   SELLS_BY_QUESTION,
   SELLS_BY_WORDS,
   ago,
@@ -62,6 +63,7 @@ import {
   toConversationDto,
 } from "../dto";
 import { audiencePoolOnce } from "../audience";
+import { sellsByOf } from "../deals";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks } from "../playbooks";
@@ -650,7 +652,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   if (error) throw new Error(error.message);
   const row = (rows ?? [])[0] as PersonRowDto | undefined;
   if (!row) return { error: "no such person in this workspace" };
-  const [convs, calls, personPol, wsPol, own] = await Promise.all([
+  const [convs, calls, personPol, wsPol, own, sellsBy] = await Promise.all([
     sb
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -683,6 +685,8 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     // The owner's proposal link (00154): people_list does not carry it, and About should say "Proposal: <host>"
     // so a card can carry the address into a reply.
     sb.from("contacts").select("proposal_url").eq("id", id).maybeSingle(),
+    // How the workspace's customers buy (0007): the deal and its proposal are said only where deals are on.
+    sellsByOf(t.ctx, t.tenantId),
   ]);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);
@@ -730,6 +734,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     receptionist_mode: personPol.data?.mode ?? null,
     workspace_reply_mode: wsPol.data?.mode ?? null,
     proposal_url: own.data?.proposal_url ?? null,
+    deals_on: dealsAreOn(sellsBy),
   };
   const vm = toPersonVM(detail, t.timezone, t.now);
   t.read.person.add(id);

@@ -791,14 +791,23 @@ let peopleLoaded: {
   views: Record<string, unknown>;
 } | null = null;
 
+/**
+ * A People row as the page reads it. Where deals are off (dealsAreOn, 0007) it carries no deal, whatever the database
+ * holds: not the lists, the column, the row's second line, the thread's chip and send, or Today's proposals waiting,
+ * which all read it from here.
+ */
+function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
+  const vm = toPersonRowVM(r, tz, now);
+  return dealsOn ? vm : { ...vm, deal: null };
+}
+
 /** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
 function publishPeople(): void {
   if (!peopleLoaded) return;
-  const { tz } = peopleLoaded;
+  const { tz, dealsOn, consultFirst } = peopleLoaded;
   const now = new Date();
-  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
+  const rows = peopleLoaded.people.map((r) => personRowOf(r, tz, now, dealsOn));
   const calendar = peopleLoaded.calendar;
-  const { dealsOn, consultFirst } = peopleLoaded;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
     // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
@@ -904,7 +913,7 @@ async function peopleMore(): Promise<void> {
 async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; more: boolean }> {
   const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
   const now = new Date();
-  return { rows: r.people.map((p) => toPersonRowVM(p, tz, now)), more: !!r.page?.has_more };
+  return { rows: r.people.map((p) => personRowOf(p, tz, now, !!r.deals_on)), more: !!r.page?.has_more };
 }
 
 /**

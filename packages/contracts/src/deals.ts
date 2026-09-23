@@ -181,17 +181,19 @@ export function pickCurrentDeal<T extends { stage: string; created_at: string }>
 }
 
 /**
- * The proposal link a person has now (0007), one rule for their page and the receptionist: their current deal's while
- * it is a proposal out; with no open deal, the one on the person (00154), read until that column retires; for a client,
- * none. `current` is the deal the page shows: pickCurrentDeal's, or people_list's row.
+ * The proposal link a person has now (0007), one rule for their page, the thread and the receptionist: their current
+ * deal's while it is a proposal out, and none while it is anything else -- a client, a pass, an end; the link on the
+ * person (00154) only for someone with no deal at all, read until that column retires. `current` is the deal the page
+ * shows (pickCurrentDeal's, or people_list's row), as a row carries it (`proposal_url`) or as a view model says it
+ * (`proposal.url`).
  */
 export function proposalLinkOf(
-  current: { stage: string; proposal_url?: string | null } | null | undefined,
+  current: { stage: string; proposal_url?: string | null; proposal?: { url: string } | null } | null | undefined,
   personLink: string | null | undefined,
 ): string | null {
-  if (current?.stage === "proposed") return current.proposal_url?.trim() || null;
-  if (!current || current.stage === "lost" || current.stage === "ended") return personLink?.trim() || null;
-  return null;
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
 }
 
 /** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */

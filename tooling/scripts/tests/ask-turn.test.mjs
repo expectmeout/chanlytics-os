@@ -1651,7 +1651,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   });
 });
 
-test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; and nothing when there is none", async () => {
+test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0007)", async () => {
   const wrote = iso(NOW.getTime() - 2 * 3600_000);
   const rosaRow = {
     id: P1,
@@ -1689,7 +1689,10 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
     queued_reply_at: null,
   };
   const rpcs = { ...RPCS, people_list: () => [rosaRow] };
+  // The workspace says some customers get a proposal first (0007): a proposal is a deal's, and said only then.
+  const dealsOn = [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }];
   const withLink = tables({
+    tenants: dealsOn,
     contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
   });
   const r = await runTool(newToolContext(ctxFor(withLink, rpcs), A, "operator", TZ, NOW), {
@@ -1700,7 +1703,7 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
   const person = JSON.parse(r.result);
   assert.ok(person.about.includes("Proposal: docs.example.com"), `About: ${person.about}`);
 
-  const without = await runTool(newToolContext(ctxFor(tables(), rpcs), A, "operator", TZ, NOW), {
+  const without = await runTool(newToolContext(ctxFor(tables({ tenants: dealsOn }), rpcs), A, "operator", TZ, NOW), {
     name: "get_person",
     input: { contact_id: P1 },
   });
@@ -1722,7 +1725,13 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
     deal_proposal_url: "https://www.quotes.example.com/p/rosa",
   };
   const dealt = await runTool(
-    newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => [onDeal] }), A, "operator", TZ, NOW),
+    newToolContext(
+      ctxFor(tables({ tenants: dealsOn }), { ...RPCS, people_list: () => [onDeal] }),
+      A,
+      "operator",
+      TZ,
+      NOW,
+    ),
     { name: "get_person", input: { contact_id: P1 } },
   );
   assert.equal(dealt.isError, false, dealt.result);
@@ -1734,6 +1743,31 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
   );
   assert.ok(!fact.includes("https://"), "the host, never the address");
   assert.ok(said.about.includes("Proposal: quotes.example.com"), `About: ${said.about}`);
+
+  // Where deals are off -- the workspace books, or was never asked -- no Deal fact, no proposal, no deal line.
+  for (const tenants of [[{ id: A, name: "Harbor", timezone: TZ, sells_by: "booking" }], undefined]) {
+    const off = await runTool(
+      newToolContext(
+        ctxFor(
+          tables({
+            ...(tenants ? { tenants } : {}),
+            contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
+          }),
+          { ...RPCS, people_list: () => [onDeal] },
+        ),
+        A,
+        "operator",
+        TZ,
+        NOW,
+      ),
+      { name: "get_person", input: { contact_id: P1 } },
+    );
+    assert.equal(off.isError, false, off.result);
+    const p = JSON.parse(off.result);
+    assert.ok(!p.facts.some((f) => f.startsWith("Deal:")), `no Deal fact: ${p.facts}`);
+    assert.ok(!p.about.some((a) => a.startsWith("Proposal:")), `no proposal: ${p.about}`);
+    assert.ok(!p.timeline.some((i) => i.kind === "deal"), "no deal on the timeline");
+  }
 });
 
 test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, a named service picks its own open row or is refused, and a bad stage or an unknown person is refused", async () => {

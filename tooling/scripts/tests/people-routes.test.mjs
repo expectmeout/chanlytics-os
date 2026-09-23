@@ -1290,9 +1290,13 @@ test("deal: a proposal's link, its day, a reason for passing and what a person e
     p_version: 2,
     p_clear: ["proposal_url", "amount"],
   });
-  // A day of null and an empty list say nothing, so the door keeps what it has.
-  await run({ stage: "proposed", deal_id: D1, version: 3, valid_until: null, clear: [] });
+  // A day of null, an empty list and a blank link say nothing, so the door keeps what it has. Changed on purpose in
+  // review: a blank link was refused ("A web address is needed."), but the sheet empties one with clear, and a field
+  // left blank is simply not said.
+  await run({ stage: "proposed", deal_id: D1, version: 3, valid_until: null, clear: [], proposal_url: "   " });
   assert.deepEqual(doors.at(-1), { p_contact_id: P2, p_stage: "proposed", p_deal_id: D1, p_version: 3 });
+  await run({ stage: "proposed", proposal_url: "" });
+  assert.deepEqual(doors.at(-1), { p_contact_id: P2, p_stage: "proposed" });
 
   // Refused before the door opens: not a link (in the words that say which kind), not a day, not a reason, not a field.
   const opened = doors.length;
@@ -1306,7 +1310,10 @@ test("deal: a proposal's link, its day, a reason for passing and what a person e
     { stage: "proposed", proposal_url: "mailto:ana@example.com" },
     "That needs to be a web address, starting with https://.",
   );
-  await why({ stage: "proposed", proposal_url: "   " }, "A web address is needed.");
+  await why(
+    { stage: "proposed", proposal_url: "docs" },
+    "That needs a full web address, like docs.example.com/proposal.",
+  );
   await why({ stage: "proposed", proposal_url: "x".repeat(601) });
   await why({ stage: "proposed", valid_until: "2026-02-31" });
   await why({ stage: "proposed", valid_until: "Sep 30" });

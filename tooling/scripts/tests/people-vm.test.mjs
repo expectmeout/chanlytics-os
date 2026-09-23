@@ -756,7 +756,8 @@ test("proposalAction: the send-the-proposal button's words by the wire, 'again' 
 
 test("a person's proposal: the address, its host in About, and the newest message that carried it and went out", () => {
   const url = "https://www.docs.example.com/p/dani";
-  const d = detail({ proposal_url: url });
+  // Deals are on (0007): a proposal is a deal's, and where they are off the page says none (below).
+  const d = detail({ proposal_url: url, deals_on: true });
   d.conversations[0].messages.push(
     msg({
       id: "m-q",
@@ -790,7 +791,7 @@ test("a person's proposal: the address, its host in About, and the newest messag
     toPersonVM(detail(), ZONE, NOW).about.some((a) => a.k === "Proposal"),
     false,
   );
-  const fresh = toPersonVM(detail({ proposal_url: "https://docs.example.com/p/new" }), ZONE, NOW);
+  const fresh = toPersonVM(detail({ proposal_url: "https://docs.example.com/p/new", deals_on: true }), ZONE, NOW);
   assert.equal(fresh.proposal.sent, null, "a new address has not gone out");
   assert.equal(fresh.proposalAction.label, "Send the proposal");
   assert.equal(contracts.proposalMessage(url), `Here's the proposal we put together for you: ${url}`);
@@ -871,12 +872,66 @@ test("a person's proposal is their deal's (0007): the deal's link while it is ou
   );
   assert.equal(vmWith("proposed", null).proposal, null, "a proposal recorded without a link has none to send");
   assert.equal(vmWith("won", onDeal).proposal, null, "a client is not sent a proposal");
-  assert.equal(vmWith("lost", null).proposal.url, own, "no open deal: the person's own, read until it retires");
+  // Changed on purpose in review: a pass is a deal, so the person's own link no longer stands in for it.
+  assert.equal(vmWith("lost", null).proposal, null, "they passed: none");
+  assert.equal(vmWith("ended", null).proposal, null, "it ended: none");
+  assert.ok(!vmWith("lost", null).about.some((a) => a.k === "Proposal"), "and no About row says one");
+  assert.equal(
+    toPersonVM(detail({ proposal_url: own, deals_on: true }), ZONE, NOW).proposal.url,
+    own,
+    "no deal at all: the person's own, read until it retires",
+  );
   // Its value rides on the deal's facts, at every stage.
   assert.ok(
     out.facts.some((f) => f.label === "Deal" && f.meta === "Proposal out · since Sep 1 · $1,200"),
     out.facts,
   );
+});
+
+test("where deals are off the page says nothing of a deal: no fact, no timeline line, no proposal, whatever the database holds (0007)", () => {
+  const own = "https://docs.example.com/p/own";
+  const deal = {
+    id: "d1",
+    contact_id: "c1",
+    service: "Ad management",
+    stage: "proposed",
+    proposed_at: iso(3 * D),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: 120_000,
+    per: "once",
+    currency: "USD",
+    note: null,
+    version: 1,
+    created_at: iso(3 * D),
+    proposal_url: "https://docs.example.com/p/deal",
+  };
+  const columns = {
+    deal_id: "d1",
+    deal_stage: "proposed",
+    deal_service: "Ad management",
+    deal_proposed_at: iso(3 * D),
+    deal_decided_at: null,
+    deal_ended_at: null,
+    deal_amount_cents: 120_000,
+    deal_per: "once",
+    deal_proposal_url: "https://docs.example.com/p/deal",
+  };
+  const vmOf = (on) =>
+    toPersonVM(detail({ proposal_url: own, deals: [deal], deals_on: on, row: row(columns) }), ZONE, NOW);
+  const off = vmOf(false);
+  assert.equal(off.deal, null);
+  assert.deepEqual(off.deals, []);
+  assert.ok(!off.facts.some((f) => f.label === "Deal"), "no Deal fact");
+  assert.ok(!off.timeline.some((i) => i.kind === "deal"), "no deal on the timeline");
+  assert.equal(off.proposal, null, "no proposal, not even the person's own link");
+  assert.ok(!off.about.some((a) => a.k === "Proposal"));
+  assert.ok(!off.acts.some((a) => a.id === "proposal"));
+  const on = vmOf(true);
+  assert.equal(on.deal.stage, "proposed");
+  assert.ok(on.facts.some((f) => f.label === "Deal"));
+  assert.ok(on.timeline.some((i) => i.kind === "deal"));
+  assert.equal(on.proposal.url, "https://docs.example.com/p/deal");
 });
 
 test("the proposal's send is a deal's: a workspace whose customers book is never offered it", () => {

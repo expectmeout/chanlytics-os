@@ -1154,12 +1154,6 @@ const dayToIso = (ymd) => {
   const at = y && m && d ? new Date(y, m - 1, d, 12, 0, 0) : new Date();
   return at.toISOString();
 };
-// Null for anything that is not a number: letters alone strip to "", and Number("") is 0, which made "abc" a $0 client.
-const centsOf = (text) => {
-  const digits = String(text || "").replace(/[^0-9.-]/g, "");
-  const n = digits ? Number(digits) : NaN;
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-};
 const DEAL_EMPTY = { busy: false, error: null, move: null, when: "", amount: "", per: "month", service: "", way: null, note: "" };
 
 // `bare` is the card's fold (#907's record rows): the row at rest says where the deal stands, so inside the fold the
@@ -1181,7 +1175,8 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
     if (m.sameRow && d && d.id) { body.deal_id = d.id; if (d.version != null) body.version = d.version; }
     if (!m.sameRow && st.service) body.service = st.service;
     if (m.to === "won" && st.amount.trim()) {
-      const c = centsOf(st.amount);
+      // What is and is not an amount is contracts' (parseAmount): "abc" is not a $0 client, and "-5" is not five dollars.
+      const c = kit.parseAmount(st.amount);
       if (c === null) { setSt((x) => ({ ...x, error: "An amount is a number, like 2,500." })); return; }
       body.amount_cents = c; body.per = st.per;
     }
@@ -1601,8 +1596,14 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // not gets it only when there is one.
   const aboutFacts = p.about.filter((a) => !said.has(a.k));
   if (canRecord && !aboutFacts.some((a) => a.k === "Email")) aboutFacts.unshift({ k: "Email", v: "" });
-  // The proposal is the other About fact changed here (PersonProposal): under the address, and its send is Right now's.
-  if (canRecord && !aboutFacts.some((a) => a.k === "Proposal")) {
+  // The proposal is the other About fact changed here (PersonProposal): under the address, and its send is the More
+  // menu's. It is the deal's (0007), so it is drawn only where deals are on, for someone with no deal or a proposal out:
+  // a client, a pass or an end has no proposal to change here, and a workspace whose customers book has none at all.
+  const proposalRow = !!p.dealsOn && (!p.deal || p.deal.stage === "proposed");
+  if (!proposalRow) {
+    const at = aboutFacts.findIndex((a) => a.k === "Proposal");
+    if (at >= 0) aboutFacts.splice(at, 1);
+  } else if (canRecord && !aboutFacts.some((a) => a.k === "Proposal")) {
     aboutFacts.splice(aboutFacts.findIndex((a) => a.k === "Email") + 1, 0, { k: "Proposal", v: "" });
   }
   const aboutRows = [history, ...aboutFacts];

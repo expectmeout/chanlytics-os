@@ -1724,7 +1724,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
   assert.ok(labels(tree).includes("Send proposal again"), labels(tree).join(", "));
 
   // None on file: the row invites, the send is absent.
-  tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+  tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
   assert.equal(byTestId(tree, "person-proposal-edit").props["aria-label"], "Add a proposal link");
   assert.equal(byTestId(tree, "person-proposal-link"), null);
   assert.ok(!labels(tree).some((l) => /proposal/.test(l)), "no proposal, no send");
@@ -1737,7 +1737,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
     assert.equal(byTestId(tree, "person-proposal-edit"), null);
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
     assert.ok(labels(tree).includes("Call"), "and may still call them from their own phone");
-    tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+    tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
     assert.equal(byTestId(tree, "person-proposal"), null);
   } finally {
     globalThis.window.__ME = { role: "owner" };
@@ -1768,6 +1768,73 @@ test("a proposal on file (00154): the About row is its control and the send sits
     !labels(tree).some((l) => /proposal/.test(l)),
     `REGRESSION: a salon was offered a proposal: ${labels(tree)}`,
   );
+  // And no About row: neither the link left on the person nor an invitation to add one.
+  assert.equal(byTestId(tree, "person-proposal"), null, "a workspace whose customers book has no proposal row");
+  assert.ok(
+    !all(tree, (n) => String(n.props?.className || "") === "cl-prof-attr-key").some((k) => textOf(k) === "Proposal"),
+  );
+});
+
+test("the About proposal row is the deal's (0007): the deal's link for a proposal out, and no row for a client, a pass or an end", async () => {
+  const own = "https://docs.example.com/p/own";
+  const onDeal = "https://quotes.example.com/p/deal";
+  const at = iso(9 * D);
+  const withDeal = (stage, link) =>
+    toPersonVM(
+      detail({
+        proposal_url: own,
+        deals_on: true,
+        deals: [
+          {
+            id: "d1",
+            contact_id: "p1",
+            service: null,
+            stage,
+            proposed_at: at,
+            decided_at: stage === "proposed" ? null : iso(2 * D),
+            ended_at: stage === "ended" ? iso(D) : null,
+            amount_cents: null,
+            per: null,
+            currency: "USD",
+            note: null,
+            version: 1,
+            created_at: at,
+            proposal_url: link,
+          },
+        ],
+        row: row({
+          visits: VISITS,
+          deal_id: "d1",
+          deal_stage: stage,
+          deal_service: null,
+          deal_proposed_at: at,
+          deal_decided_at: stage === "proposed" ? null : iso(2 * D),
+          deal_ended_at: stage === "ended" ? iso(D) : null,
+          deal_amount_cents: null,
+          deal_per: null,
+          deal_proposal_url: link,
+        }),
+      }),
+      ZONE,
+      new Date(NOW),
+    );
+  let tree = (await profile(withDeal("proposed", onDeal)))();
+  assert.equal(
+    textOf(byTestId(tree, "person-proposal-link")),
+    "quotes.example.com",
+    "the deal's link, not the person's",
+  );
+  assert.equal(byTestId(tree, "person-proposal-link").props.href, onDeal);
+  tree = (await profile(withDeal("proposed", null)))();
+  assert.equal(
+    byTestId(tree, "person-proposal-edit").props["aria-label"],
+    "Add a proposal link",
+    "a proposal recorded without one is where it is added",
+  );
+  for (const stage of ["won", "lost", "ended"]) {
+    tree = (await profile(withDeal(stage, onDeal)))();
+    assert.equal(byTestId(tree, "person-proposal"), null, `${stage}: no proposal row`);
+  }
 });
 
 /* ----------------------------------- the Deal section (0004) ----------------------------------- */
@@ -1780,6 +1847,8 @@ test("the Deal row: drawn only where deals are a thing, says the stage in the ca
     pers: contracts.DEAL_PERS,
     none: contracts.DEAL_LINE_NONE,
     moves: contracts.dealMoves,
+    // The one reading of a typed amount, the page's own copy gone (0007).
+    parseAmount: contracts.parseAmount,
   };
   const calls = [];
   globalThis.window.__recordDeal = async (id, body) => (
@@ -1936,6 +2005,7 @@ test("the Deal row says a proposal's value, as it says a client's (0007)", async
     pers: contracts.DEAL_PERS,
     none: contracts.DEAL_LINE_NONE,
     moves: contracts.dealMoves,
+    parseAmount: contracts.parseAmount,
   };
   const at = iso(9 * D);
   const vm = toPersonVM(

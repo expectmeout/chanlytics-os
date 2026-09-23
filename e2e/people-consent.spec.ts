@@ -169,9 +169,10 @@ test.describe("Consent for one person", () => {
   });
 
   /**
-   * The proposal link, for real, the same way (00154; e2e-workspace.mjs resets `proposal_url` each run): what is
-   * wrong with a typed address is said under the field and sends nothing; a good one goes through PUT details to
-   * set_person_proposal with its scheme supplied, the row shows where it lives, and an empty one clears it.
+   * The proposal link, for real, the same way (00154; e2e-workspace.mjs resets `proposal_url` and the deals each run):
+   * what is wrong with a typed address is said under the field and sends nothing; a good one goes through PUT details
+   * to set_person_proposal with its scheme supplied, the row shows where it lives, and an empty one clears it. The row
+   * is a deal's (0007): a workspace whose customers book has none, and the nightly's answers booking until it is seeded.
    */
   test("a person's proposal link is added, refused when it is not one, stored with its scheme, and cleared — through the real door", async ({
     page,
@@ -183,7 +184,13 @@ test.describe("Consent for one person", () => {
     await robin.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
 
+    // The About rail is drawn with the address row in it; the proposal row beside it only where deals are on.
+    await expect(page.getByTestId("person-email")).toBeVisible();
     const row = page.getByTestId("person-proposal");
+    test.skip(
+      (await row.count()) === 0,
+      "no proposal row: deals are off on this workspace (it answers that its customers book), so a proposal link has nowhere to live",
+    );
     await expect(row).toBeVisible();
     // A run that died half way leaves a link behind until the next seed: start from none.
     if ((await page.getByTestId("person-proposal-edit").getAttribute("aria-label")) === "Change the proposal link") {

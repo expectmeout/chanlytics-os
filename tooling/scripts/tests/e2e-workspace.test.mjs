@@ -333,6 +333,19 @@ test("what the specs leave behind is put back", async () => {
   });
   w.t.tenants.push({ id: "probe", slug: "e2e-probe-1", name: "E2E probe 1757840000000" });
   w.t.memberships.push({ id: "pm", tenant_id: "probe", user_id: owner.id, role: "owner" });
+  // A deal a spec recorded on a seeded person, and the one a proposal link opened on the stray (0004, 0007).
+  const robin = of(w.t, "contacts", T).find((c) => c.display_name === PEOPLE[0].name);
+  (w.t.deals ??= []).push(
+    {
+      id: "deal-robin",
+      tenant_id: T,
+      contact_id: robin.id,
+      stage: "proposed",
+      proposal_url: "https://docs.example.com/p/r",
+    },
+    { id: "deal-stray", tenant_id: T, contact_id: "stray", stage: "won" },
+    { id: "deal-elsewhere", tenant_id: "elsewhere", contact_id: "someone", stage: "won" },
+  );
   const cfg = w.t.tenant_config.find((r) => r.tenant_id === T);
   cfg.config = { ...cfg.config, notifications: { escalation_emails: ["owner@a-real-business.com"] } };
 
@@ -347,6 +360,8 @@ test("what the specs leave behind is put back", async () => {
   assert.equal(of(w.t, "conversations", T).length, 1);
   assert.equal(of(w.t, "messages", T).length, 2);
   assert.equal(of(w.t, "ask_threads", T).length, 0);
+  assert.equal(of(w.t, "deals", T).length, 0, "every run starts from no deal");
+  assert.equal(of(w.t, "deals", "elsewhere").length, 1, "and another workspace's deal is not touched");
   assert.equal(w.t.profiles.find((p) => p.user_id === owner.id).display_name, "");
   assert.deepEqual(w.t.memberships.find((m) => m.user_id === owner.id && m.tenant_id === T).views, {});
   assert.equal(

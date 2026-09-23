@@ -177,8 +177,8 @@ export interface PersonDetailDto {
   /** The team, for a note's "For": absent where the team could not be read. */
   note_team?: PersonNoteTeamDto[];
   /**
-   * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only where they have no
-   * open deal, until the column retires.
+   * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only for someone with no
+   * deal at all, until the column retires.
    */
   proposal_url?: string | null;
   /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
@@ -1896,8 +1896,9 @@ export interface PersonVM extends PersonRowVM {
   /** The workspace's booking link, or null when none is on file. */
   bookingLink: string | null;
   /**
-   * Their proposal (0007): the link on their deal while it is a proposal out; with no open deal, the one on the person
-   * (00154) while it is still read; for a client, none. Null when none is on file.
+   * Their proposal (proposalLinkOf, 0007): the link on their deal while it is a proposal out; for any other deal, none;
+   * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
+   * is on file.
    */
   proposal: PersonProposalVM | null;
   /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
@@ -2080,8 +2081,14 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, tz, now);
+  // Whether deals are on here (dealsAreOn, 0007): where they are off, nothing on the page says a deal -- no fact, no
+  // timeline line, no proposal -- whatever the database holds.
+  const dealsOn = !!d.deals_on;
   // Their deals as the page lists them (0004): each row through the one view model the People row uses.
-  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x);
+  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x) : [];
+  // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
+  // carries the version a move is checked against, which the columns do not.
+  const current = dealsOn ? (deals.find((x) => x.id === base.deal?.id) ?? base.deal) : null;
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -2270,7 +2277,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // Each move of a deal, on the same line as what was said: what a person recorded, when (0004). The amount is the
   // proposal's value until they say yes, and then the client's, so it is said on the line it belongs to (0007); a pass
   // says why.
-  for (const x of d.deals ?? []) {
+  for (const x of dealsOn ? (d.deals ?? []) : []) {
     const svc = x.service ? ` · ${x.service}` : "";
     const put = (id: string, at: string | null, text: string) => {
       const t = ts(at);
@@ -2478,18 +2485,13 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label),
     },
     // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
-    ...(base.deal ? [{ label: "Deal", value: base.deal.word, meta: base.deal.line, tone: "" as const }] : []),
+    ...(current ? [{ label: "Deal", value: current.word, meta: current.line, tone: "" as const }] : []),
   ];
 
-  // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
-  // carries the version a move is checked against, which the columns do not.
-  const current = deals.find((x) => x.id === base.deal?.id) ?? base.deal;
-  // Their proposal (proposalLinkOf, 0007): the link on the deal they are deciding on while it is a proposal out, else
-  // the person's own with no open deal; its host for the row, and whether it went out.
-  const proposalUrl = proposalLinkOf(
-    current ? { stage: current.stage, proposal_url: current.proposal?.url ?? null } : null,
-    d.proposal_url,
-  );
+  // Their proposal (proposalLinkOf, 0007): the link on the deal they are deciding on while it is a proposal out, none
+  // for any other deal, the person's own only with no deal at all; nothing where deals are off. Its host for the row,
+  // and whether it went out.
+  const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
   const proposal: PersonProposalVM | null = proposalUrl
     ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) }
     : null;
@@ -2630,7 +2632,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       : null,
     deal: current,
     deals,
-    dealsOn: !!d.deals_on,
+    dealsOn,
     services: d.services ?? [],
   };
   // The send's words follow the wire the page has settled on, exact window included.

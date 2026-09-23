@@ -32,7 +32,10 @@ const Body = z
     /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
     message_id: z.string().uuid().optional(),
     form_note: z.string().trim().min(1).max(200).optional(),
-    /** The proposal's web address (0007), judged by the one normalizer before the door, which holds the stored shape. */
+    /**
+     * The proposal's web address (0007), judged by the one normalizer before the door, which holds the stored shape.
+     * Blank says nothing, as absent does: an emptied link is `clear`.
+     */
     proposal_url: z.string().max(600).optional(),
     /** The last day the proposal stands; null says nothing, as absent does (an emptied day is `clear`). */
     valid_until: z.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
@@ -67,9 +70,9 @@ export const POST = write({
         ? { form: input.form_note }
         : null;
     // What is and is not a link is decided once (contracts link.ts); its refusal names which kind of not-a-link it was.
-    const url = input.proposal_url === undefined ? null : normalizeLink(input.proposal_url);
-    if (input.proposal_url !== undefined && !url)
-      throw new AppError("validation", whyNotALink(input.proposal_url) ?? DEAL_REFUSALS.bad_link);
+    const typed = input.proposal_url?.trim() ?? "";
+    const url = typed ? normalizeLink(typed) : null;
+    if (typed && !url) throw new AppError("validation", whyNotALink(typed) ?? DEAL_REFUSALS.bad_link);
     const { data, error } = await ctx.supabase.rpc("deal_record", {
       p_contact_id: contact.id,
       p_stage: input.stage,

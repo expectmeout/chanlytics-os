@@ -5706,11 +5706,15 @@ interface LeadContext {
         at: string;
     }[] | null;
     /**
-     * Their proposal, as a web address: the current deal's while it is a proposal out, else the person's own with no open
-     * deal (proposalLinkOf, 0007). Sent when they ask about price, its figures never stated.
+     * Their proposal, as a web address: the current deal's while it is a proposal out, none for any other deal, the
+     * person's own only with no deal at all (proposalLinkOf, 0007); none where deals are off. Sent when they ask about
+     * price, its figures never stated.
      */
     proposalUrl?: string | null;
-    /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
+    /**
+     * Their deal (0004), the newest open or current one: the sentence the receptionist hears; none where deals are off
+     * (dealsAreOn, 0007). Optional so every fake still compiles.
+     */
     deal?: DealFacts | null;
 }
 /**
@@ -5731,7 +5735,9 @@ interface LeadContext {
 declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
  * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
- * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ * None where deals are off (dealsAreOn, 0007): the workspace's answer rides on the contact read, and a database that
+ * cannot say it has deals off. Every deal of theirs is read, because the current one may be the oldest (see
+ * readLeadContext).
  */
 declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
 /**
