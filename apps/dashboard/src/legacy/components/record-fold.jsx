@@ -38,6 +38,10 @@
 // and its registry, its asks and its save are the page's. A width crossed while it is open draws it again in the other
 // frame, still open, with focus in its first field; what was typed is the page's, and stays.
 //
+// A fold whose fields save themselves -- a choice recorded as it is made, a person's consent or their receptionist --
+// is given no `onSave`: it draws no foot, and Close is its only act. Everything else is the fold's as ever: one open at a
+// time, a sheet on a phone, focus in and back, Escape.
+//
 // A page may draw a fold only while it is open, or keep it and flip `open`. Closed, it is `hidden`, whole: its head
 // and its Close go with its fields, out of sight, the tab order and the accessibility tree, and the row it opens from
 // is what shows. (`inert` would do the last two, but React 18 and 19 spell it differently; `hidden` they share.) Either
@@ -617,7 +621,8 @@ const RecordFold = ({
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
   // Every hook here is called on every draw, whichever frame is drawn: the frame is a value, never a hook of its own,
-  // because the tests' stub React keeps every hook on a page in one call order (_legacy-react.mjs).
+  // so the fold holds the same hooks open or closed, as a sheet or under its row (the tests' stub throws as React does
+  // when a component's hooks change in number, _hook-frames.mjs).
   const phone = useRecPhone();
   const sheet = open && phone;
   const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", sheet ? ".rec-sheet-close" : ".rec-fold-close", focusOn, sheet);
@@ -632,7 +637,7 @@ const RecordFold = ({
   // says why): Close once cancelled then, where the foot's Cancel and Escape did not.
   const cancel = (e) => { if (saving) { if (e && e.preventDefault) e.preventDefault(); return; } if (onCancel) onCancel(e); };
   const told = <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} />;
-  const foot = (
+  const foot = onSave ? (
     <RecordFoot
       saveTestid={`rec-fold-save-${id}`}
       cancelTestid={`rec-fold-cancel-${id}`}
@@ -645,7 +650,7 @@ const RecordFold = ({
       gate={gate}
       footNote={footNote}
     />
-  );
+  ) : null;
   if (sheet) {
     const hintId = hint ? `rec-fold-${id}-hint` : undefined;
     // The sheet's frame, as RecordSheet draws it on a phone: a wash over the page, and the sheet from the bottom with
@@ -657,7 +662,8 @@ const RecordFold = ({
       <>
         {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
             reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
-            on the page. */}
+            on the page. A pull down on the sheet from its top is the same Cancel (data-bits touchSwipe): the sheet
+            rose from the bottom, and goes back the way it came. */}
         <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" ref={leaving.wash} onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
         <section
           ref={box}
@@ -669,6 +675,7 @@ const RecordFold = ({
           aria-busy={saving || undefined}
           data-open="true"
           data-testid={`rec-fold-${id}`}
+          {...(window.touchSwipe ? window.touchSwipe({ onDown: cancel, when: () => { const q = recPhoneQuery(); return !!(q && q.matches); } }) : {})}
           onFocus={onFocus}
           onKeyDown={(e) => { if (e.key === "Tab") { window.trapTab(e, e.currentTarget); return; } keys(e); }}
         >
@@ -696,10 +703,12 @@ const RecordFold = ({
               {told}
             </div>
           </div>
-          <footer className="rec-sheet-foot">
-            {ask}
-            {foot}
-          </footer>
+          {ask || foot ? (
+            <footer className="rec-sheet-foot">
+              {ask}
+              {foot}
+            </footer>
+          ) : null}
         </section>
       </>
     );
@@ -874,6 +883,7 @@ const UnsavedAsk = ({ onYes, onNo, busy = false, what = "sent", testid = null })
 );
 
 Object.assign(window, {
+  recPhoneQuery,
   RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, recKeys,
   useUnsavedWork, UnsavedAsk, tabDraft, __recordFolds: recFolds,
 });

@@ -24,6 +24,7 @@ import {
   stateOf,
   toPersonRowVM,
 } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -183,6 +184,7 @@ const wire = ({
   calendar = "none",
   views = {},
   bookingLink = null,
+  dealsOn = false,
 } = {}) => {
   const seen = { offsets: [], queries: [], viewSaves: [] };
   const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
@@ -206,6 +208,7 @@ const wire = ({
             page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more },
             calendar: cal,
             booking_link: bookingLink,
+            deals_on: dealsOn,
           },
         });
       }
@@ -218,6 +221,7 @@ const wire = ({
           page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length },
           calendar: cal,
           booking_link: bookingLink,
+          deals_on: dealsOn,
         },
       });
     }
@@ -293,7 +297,8 @@ test("a saved list keeps every member the server holds, for an Undo, and counts 
 /* ----------------------------------- the pages ----------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const flashes = [];
 const opened = [];
 const went = [];
@@ -303,12 +308,12 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -318,7 +323,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -328,7 +333,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -336,7 +341,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -355,14 +360,13 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props: the items are what these tests press, and a hookless stand-in keeps the stub's hook order.
+// Menus and questions as their props: the items are what these tests press, drawn by hookless stand-ins.
 globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
-// People never opens a lead's peek, but the page it shares with Leads names these two: an effect that arms
-// "Did you send it?" when the tab comes back, and the one that moves focus into the peek. Each returns its
-// own cleanup, so a no-op here keeps the hook order the stub React counts on.
+// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops: People draws no peek, and the
+// Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
@@ -441,8 +445,9 @@ const freshPage = async ({
   calendar = "none",
   views = {},
   bookingLink = null,
+  dealsOn = false,
 } = {}) => {
-  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
+  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink, dealsOn });
   await quietly(() => peopleOverride.apply());
   cells = [];
   flashes.length = 0;
@@ -458,7 +463,7 @@ const freshPage = async ({
   return seen;
 };
 const draw = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props });
 };
 /**
@@ -705,7 +710,7 @@ test("REGRESSION (B27): lists that could not be read say so on the rail, the pro
   );
   assert.equal(typeof globalThis.window.PersonLists, "function", "the profile's lists can be drawn on their own");
   cells = [];
-  seq = 0;
+  frames.begin();
   const onProfile = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Person", flash: () => {} });
   assert.ok(byTestId(onProfile, "person-lists-failed"), 'the profile says so, instead of "No lists yet"');
 });
@@ -1870,12 +1875,12 @@ test("REGRESSION: Esc while a menu or a dialog is open is theirs -- the Esc that
 test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the selection stays; closed, the sheet lets People's Esc through", async () => {
   await freshPage({ people: [person(1), person(2)] });
   // The shell draws the sheet before any page, so its listener hears a key before People's does; by the time People's
-  // hears it, the sheet has closed. Its hooks sit far past the page's in the stub's one call order.
+  // hears it, the sheet has closed. It draws in a frame of its own, its state apart from the page's.
   const chrome = globalThis.window.__chrome;
   globalThis.window.__chrome = { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false };
   const sheet = () => {
-    seq = 10_000;
-    return globalThis.window.ShortcutsSheet();
+    frames.begin();
+    return frames.render(globalThis.window.ShortcutsSheet, {});
   };
   try {
     assert.equal(sheet(), null, "closed until asked");
@@ -2048,6 +2053,45 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
   assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
   assert.equal(press("Escape"), true);
   assert.equal(byTestId(draw(), "people-columns-menu"), null, "Esc closes it");
+});
+
+test("a Deal column waits in the Columns menu only where deals are a thing here, off until asked for, and wears the stage's pill", async () => {
+  // The menu above lists no "deal": that workspace has deals_on false (a salon). Here the read says deals are a
+  // thing (0004), so the column is offered, off, and picked it says each row's stage in the one pill.
+  await freshPage({
+    people: [
+      person(1, {
+        deal_id: "d1",
+        deal_stage: "proposed",
+        deal_service: "Ad management",
+        deal_proposed_at: iso(6 * 86_400_000),
+        deal_decided_at: null,
+        deal_ended_at: null,
+        deal_amount_cents: null,
+        deal_per: null,
+      }),
+      person(2),
+    ],
+    dealsOn: true,
+  });
+  let tree = draw();
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  assert.deepEqual(
+    menuItems(tree).find((c) => c.key === "deal"),
+    { key: "deal", on: false, locked: false },
+    "offered, off",
+  );
+  assert.ok(!headings(tree).includes("Deal"), "off until asked for");
+  click(byTestId(tree, "column-deal"));
+  tree = draw();
+  assert.ok(headings(tree).includes("Deal"));
+  assert.equal(
+    textOf(byTestId(rowOf(tree, "p1"), "row-deal")).trim(),
+    "Proposal out",
+    "the stage's word, the one pill",
+  );
+  assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-deal")).trim(), "", "nothing where no deal was recorded");
 });
 
 test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {

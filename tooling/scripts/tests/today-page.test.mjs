@@ -60,6 +60,10 @@ await import(`${L}/pages/dashboard-a-brief.jsx`);
 await import(`${L}/pages/dashboard-a-command.jsx`);
 await import(`${L}/pages/dashboard-a-day.jsx`);
 await import(`${L}/pages/dashboard-a-week.jsx`);
+// The band between the standing line and the queue reads the palette's words and hooks.
+await import(`${L}/pages/ask-text.jsx`);
+await import(`${L}/pages/ask-hooks.jsx`);
+await import(`${L}/pages/today-face.jsx`);
 await import(`${L}/pages/dashboard-a.jsx`);
 const W = globalThis.window;
 
@@ -1282,6 +1286,12 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
     "BriefBeats",
   ])
     assert.ok(!names.includes(seeded), `${seeded} is gone from Today`);
+  const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
+  assert.deepEqual(
+    page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
+    // The three (today-face.jsx) between the standing line and the queue; its stylesheet draws them on a phone only.
+    ["HeroBrief", "TodayFace", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+  );
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
   assert.deepEqual(
     core.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),

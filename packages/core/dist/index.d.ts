@@ -863,6 +863,8 @@ interface PlaybookRow {
     cadence_days: number;
     created_by: string | null;
     last_run_for: string | null;
+    /** The list a saved_list playbook runs on (00155); null otherwise, and when its list was deleted. */
+    list_id?: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
 interface RunContext {
@@ -880,6 +882,8 @@ interface RunContext {
     calendar: "ok" | "unavailable" | "none";
     /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
     visits: Map<string, PersonVisitsDto>;
+    /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
+    lists: Map<string, ReadonlySet<string>>;
 }
 /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
 type RunBy = {
@@ -911,7 +915,7 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar";
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list";
 } | {
     outcome: "failed";
     error: string;
@@ -973,6 +977,7 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
     /** Everyone, with their visits as of now, the way the People page counts them. */
     people(now: Date): Promise<PersonRowVM[]>;
     /** A list kept by hand: its name and who is on it; null when there is no such list here. */
+    /** A saved list and who is on it: the ids kept on it, or everyone a smart list's rule holds for today. */
     savedList(id: string): Promise<{
         name: string;
         memberIds: string[];
@@ -1120,6 +1125,8 @@ declare function cancelBroadcast(ports: CancelBroadcastPorts, cmd: {
 interface PlaybookInput {
     name: string;
     trigger: PlaybookTrigger;
+    /** The list a saved_list playbook runs on; null for every other trigger. */
+    list_id: string | null;
     template_id: string;
     template_name: string;
     template_language: string;
@@ -1130,13 +1137,11 @@ interface PlaybookInput {
     gap_days: number;
     cadence_days: number;
 }
-/**
- * Everything a playbook names, checked the way a broadcast is: the trigger,
- * then the template and its values through the one judgement, then the
- * whole numbers. A playbook can never name a template a broadcast could not
- * send or a slot the workspace cannot fill.
- */
-declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
+/** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
+interface CheckPlaybookPorts extends TemplateValuesPorts {
+    listName(id: string): Promise<string | null>;
+}
+declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
 /**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
@@ -2179,9 +2184,10 @@ interface InboundPorts {
         personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
         /**
          * That context in a line or two, for the model. A VALUE from the db package
-         * on the edge, so it arrives as a port rather than as an import.
+         * on the edge, so it arrives as a port rather than as an import. The zone is
+         * the business's, for the dates a deal's sentence says (0004).
          */
-        describe(lead: LeadContext, now?: Date): string;
+        describe(lead: LeadContext, now?: Date, tz?: string): string;
     };
     calendar: {
         openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
@@ -2504,4 +2510,4 @@ interface InboundInput {
 }
 declare function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

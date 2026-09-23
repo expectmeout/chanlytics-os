@@ -926,3 +926,73 @@ test("the runs' words read a real broadcast view model: a round trip through toB
   assert.deepEqual(w.soon.status, ["Scheduled", `sends ${vm.when}`]);
   assert.equal(w.people, "3 people");
 });
+
+test("proposals waiting: out past a week with nothing back, said once, with the door to the list", () => {
+  // A proposal out past a week with nothing back since it went (0004; contracts' proposalsWaiting over People's
+  // rows). One is enough: an agency sends a few a month. The count is the rows'; the list's count is the arithmetic.
+  const rowsWith = (n, waiting) =>
+    Array.from({ length: n }, () => ({
+      consent: { state: "opted_in" },
+      askedMs: null,
+      deal: waiting
+        ? { stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" }
+        : null,
+    }));
+  const people = (rows) => ({
+    lists: [list("proposal_out", "Proposal out", rows.filter((r) => r.deal).length, act("Open the Inbox", "inbox"))],
+    aggregates: { total: rows.length },
+    rows,
+  });
+  const rows = todayLeaksV2(
+    reports({ booking: { present: false } }),
+    people(rowsWith(3, true)),
+    [],
+    4,
+    NOW.getTime(),
+  ).rows;
+  const leak = rows.find((r) => r.id === "proposals-waiting");
+  assert.ok(leak);
+  assert.equal(leak.tag, "Waiting");
+  assert.equal(leak.tone, "warn");
+  assert.equal(leak.text, "3 proposals went out more than a week ago with nothing back.");
+  assert.equal(leak.math, "3 on Proposal out · nothing heard since it went");
+  assert.equal(leak.cta.to, "clients/seg:proposal_out");
+  assert.equal(leak.also, null, "the list's step is not the leak's act: nobody is pushed by a broadcast to answer");
+  const one = todayLeaksV2(
+    reports({ booking: { present: false } }),
+    people(rowsWith(1, true)),
+    [],
+    4,
+    NOW.getTime(),
+  ).rows;
+  assert.equal(
+    one.find((r) => r.id === "proposals-waiting").text,
+    "1 proposal went out more than a week ago with nothing back.",
+  );
+  assert.equal(
+    todayLeaksV2(reports({ booking: { present: false } }), people(rowsWith(3, false)), [], 4, NOW.getTime()).rows.find(
+      (r) => r.id === "proposals-waiting",
+    ),
+    undefined,
+    "no proposal waiting: no row",
+  );
+  // A proposal out six days is not waiting yet; one answered since it went is not either.
+  const fresh = rowsWith(1, true).map((r) => ({ ...r, deal: { ...r.deal, sinceMs: NOW.getTime() - 6 * 86_400_000 } }));
+  const answered = rowsWith(1, true).map((r) => ({ ...r, askedMs: NOW.getTime() - 86_400_000 }));
+  for (const rs of [fresh, answered])
+    assert.equal(
+      todayLeaksV2(reports({ booking: { present: false } }), people(rs), [], 4, NOW.getTime()).rows.find(
+        (r) => r.id === "proposals-waiting",
+      ),
+      undefined,
+    );
+  // Between the answered row and the reach row: a customer one step from yes outranks a chance.
+  const order = todayLeaksV2(
+    reports({ vm: { answered: { totals: { in: 21, ai: 16, you: 1, none: 4 } } }, booking: { present: false } }),
+    { ...people(rowsWith(2, true)), lists: [...people(rowsWith(2, true)).lists, list("quiet", "Quiet 30+ days", 9)] },
+    [],
+    4,
+    NOW.getTime(),
+  ).rows.map((r) => r.id);
+  assert.deepEqual(order, ["unanswered", "proposals-waiting", "quiet"]);
+});

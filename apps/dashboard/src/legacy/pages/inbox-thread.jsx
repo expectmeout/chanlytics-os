@@ -410,11 +410,13 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
     window.addEventListener("surface:clients", peopleTick);
     return () => window.removeEventListener("surface:clients", peopleTick);
   }, []);
-  // Who this is, in one chip beside the wires: a visit ahead on the calendar (People's own day and time), or the last
-  // one behind them; nothing when People has neither, or is not read yet. Not the band's words: the band says where
-  // the conversation stands, this says who they are, which was a page away.
+  // Who this is, in one chip beside the wires: their deal when it says more than a visit (0004) -- a client, a
+  // proposal waiting -- else a visit ahead on the calendar (People's own day and time), else the last one behind
+  // them; nothing when People has none of these, or is not read yet. One chip. Not the band's words: the band says
+  // where the conversation stands, this says who they are, which was a page away.
   const person = thread.clientId && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((p) => p.id === thread.clientId) : null;
-  const visit = !person ? null
+  const deal = person && person.deal && person.deal.brief ? person.deal : null;
+  const visit = deal || !person ? null
     : person.nextVisitDay ? { ahead: true, day: person.nextVisitDay, time: (person.nextVisit || "").split(" · ")[1] || "" }
     : person.lastVisitDay ? { ahead: false, day: `Last · ${person.lastVisitDay}`, time: "" }
     : null;
@@ -451,6 +453,12 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           </div>
           <div className="ix-th-sub">
             <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
+            {deal && (
+              <span className={`ix-th-visit${deal.stage === "won" ? " ahead" : ""}`} data-testid="ix-th-deal">
+                <Icon name="deal" size={10} />
+                <span className="ix-th-visit-words">{deal.brief}</span>
+              </span>
+            )}
             {visit && (
               <span className={`ix-th-visit${visit.ahead ? " ahead" : ""}`} data-testid="ix-th-visit">
                 <Icon name="calendar" size={10} />
@@ -504,10 +512,26 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           ],
           [
+            // The owner's proposal for this person (00154), into the box in the words the contract keeps
+            // (window.__proposalMessage): the thread is where a pricing question is answered, and the page was a
+            // detour. Only where free text can go, never to someone who said stop, only on a real thread; the hint
+            // says where the link lives (contracts linkHost).
+            ...(thread.real && thread.proposalUrl && thread.windowOpen && !thread.optedOut && window.__proposalMessage
+              ? [{
+                  label: "Send the proposal",
+                  hint: window.__linkHost ? window.__linkHost(thread.proposalUrl) : "",
+                  icon: "external",
+                  onClick: () => window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: window.__proposalMessage(thread.proposalUrl), link: thread.proposalUrl } })),
+                  gate: window.gate("approve", "put the proposal link in the reply"),
+                }]
+              : []),
             // clientId is the contact behind the thread, so these only render
             // when there is actually somewhere to go (a phone-only caller has none).
             ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
             ...(!window.__DEMO_MODE && thread.clientId ? [{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }] : []),
+            // A deal is recorded on the person's page (0004), so this is a door there, offered only where deals are a
+            // thing here (People's dealsOn): a salon never sees it.
+            ...(!window.__DEMO_MODE && thread.clientId && window.__PEOPLE && window.__PEOPLE.dealsOn ? [{ label: "Record a deal…", icon: "deal", onClick: () => onOpenClient(thread.clientId) }] : []),
           ],
           [
             // The transcript as a file, from the route that writes it. It was a button in Conversations' header only, so the
@@ -1456,10 +1480,24 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     // A reply that waited on a yes (an email going to a different address than it came from) is sent from the
     // toast, after this box was told to keep its words: it lets go of them when that send is accepted.
     const onSent = (e) => { if (e && e.detail && e.detail.threadId === thread.id) write(""); };
+    // The header's "Send the proposal" arrives with the words (00154): an empty box takes the sentence, a box with
+    // words in it takes the address on its own line under them, and the cursor lands in the box either way.
+    const onCompose = (e) => {
+      const d = (e && e.detail) || {};
+      if (typeof d.text !== "string") return;
+      write(text && text.trim() ? `${text.trimEnd()}\n${d.link || d.text}` : d.text);
+      if (taRef.current) taRef.current.focus();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("inbox:focus-composer", onFocus);
     window.addEventListener("inbox:reply-sent", onSent);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); window.removeEventListener("inbox:reply-sent", onSent); };
+    window.addEventListener("inbox:compose", onCompose);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("inbox:focus-composer", onFocus);
+      window.removeEventListener("inbox:reply-sent", onSent);
+      window.removeEventListener("inbox:compose", onCompose);
+    };
   }, [text, thread.id]);
 
   // The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in.

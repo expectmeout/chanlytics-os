@@ -710,6 +710,7 @@ export type Database = {
           merged_into_contact_id: string | null
           notes: string | null
           phone_e164: string | null
+          proposal_url: string | null
           tenant_id: string
           updated_at: string
           wa_profile_name: string | null
@@ -737,6 +738,7 @@ export type Database = {
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
+          proposal_url?: string | null
           tenant_id: string
           updated_at?: string
           wa_profile_name?: string | null
@@ -764,6 +766,7 @@ export type Database = {
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
+          proposal_url?: string | null
           tenant_id?: string
           updated_at?: string
           wa_profile_name?: string | null
@@ -850,6 +853,94 @@ export type Database = {
           },
           {
             foreignKeyName: "conversations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deals: {
+        Row: {
+          amount_cents: number | null
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          decided_at: string | null
+          ended_at: string | null
+          evidence: Json | null
+          id: string
+          lead_id: string | null
+          note: string | null
+          per: string | null
+          proposed_at: string
+          service: string | null
+          source: string
+          stage: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          amount_cents?: number | null
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          decided_at?: string | null
+          ended_at?: string | null
+          evidence?: Json | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          per?: string | null
+          proposed_at?: string
+          service?: string | null
+          source?: string
+          stage: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          amount_cents?: number | null
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          decided_at?: string | null
+          ended_at?: string | null
+          evidence?: Json | null
+          id?: string
+          lead_id?: string | null
+          note?: string | null
+          per?: string | null
+          proposed_at?: string
+          service?: string | null
+          source?: string
+          stage?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3199,6 +3290,7 @@ export type Database = {
           id: string
           last_run_at: string | null
           last_run_for: string | null
+          list_id: string | null
           name: string
           params: Json
           policy_class: string
@@ -3220,6 +3312,7 @@ export type Database = {
           id?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          list_id?: string | null
           name: string
           params?: Json
           policy_class: string
@@ -3241,6 +3334,7 @@ export type Database = {
           id?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          list_id?: string | null
           name?: string
           params?: Json
           policy_class?: string
@@ -3254,6 +3348,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "playbooks_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "playbooks_template_id_fkey"
             columns: ["template_id"]
@@ -3399,6 +3500,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          rule: Json | null
           tenant_id: string
           updated_at: string
         }
@@ -3407,6 +3509,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
+          rule?: Json | null
           tenant_id: string
           updated_at?: string
         }
@@ -3415,6 +3518,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+          rule?: Json | null
           tenant_id?: string
           updated_at?: string
         }
@@ -3833,6 +3937,21 @@ export type Database = {
         }[]
       }
       deadman_mark_alerted: { Args: { p_ids: string[] }; Returns: number }
+      deal_record: {
+        Args: {
+          p_amount_cents?: number
+          p_contact_id: string
+          p_deal_id?: string
+          p_evidence?: Json
+          p_note?: string
+          p_per?: string
+          p_service?: string
+          p_stage: string
+          p_version?: number
+          p_when?: string
+        }
+        Returns: Json
+      }
       drop_google_credentials: {
         Args: { p_tenant_id: string }
         Returns: boolean
@@ -4270,6 +4389,14 @@ export type Database = {
           consent_source: string
           consent_updated_at: string
           conversation_count: number
+          deal_amount_cents: number
+          deal_decided_at: string
+          deal_ended_at: string
+          deal_id: string
+          deal_per: string
+          deal_proposed_at: string
+          deal_service: string
+          deal_stage: string
           display_name: string
           dnc: boolean
           earliest_row_at: string
@@ -4454,6 +4581,10 @@ export type Database = {
       }
       set_person_notes: {
         Args: { p_contact_id: string; p_notes: string }
+        Returns: Json
+      }
+      set_person_proposal: {
+        Args: { p_contact_id: string; p_url: string }
         Returns: Json
       }
       set_template_hidden: {

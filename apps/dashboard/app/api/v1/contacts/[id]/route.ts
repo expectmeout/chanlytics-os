@@ -1,4 +1,4 @@
-import { AppError, consentChangeOf } from "@chanlytics/contracts";
+import { AppError, consentChangeOf, dealsAreAThing } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
@@ -308,69 +308,90 @@ export const GET = read({
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
     const sb = ctx.supabase;
-    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history, runs, lead] = await Promise.all([
-      sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
-      sb
-        .from("conversations")
-        .select(CONVERSATION_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", id)
-        .order("last_message_at", { ascending: false, nullsFirst: false }),
-      sb
-        .from("calls")
-        .select(CALL_COLUMNS)
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", id)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .limit(200),
-      // This person's own receptionist mode, and the workspace's, for the rail.
-      sb
-        .from("policies")
-        .select("mode")
-        .eq("tenant_id", tenantId)
-        .eq("class", "reply")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .maybeSingle(),
-      sb
-        .from("policies")
-        .select("mode")
-        .eq("tenant_id", tenantId)
-        .eq("class", "reply")
-        .is("subject_type", null)
-        .maybeSingle(),
-      // Where they came from, when it was not a message or a call: the
-      // calendar sweep records the appointment that named them.
-      sb
-        .from("events")
-        .select("data, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.added")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .order("created_at")
-        .limit(1)
-        .maybeSingle(),
-      // The owner's notes: the one column people_list does not carry.
-      sb.from("contacts").select("notes").eq("id", id).maybeSingle(),
-      // The booking link, so the profile can text it in one step.
-      sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-      // Every change to either answer: the ledger rows the doors write, which
-      // the timeline shows as evidence. Newest first, two hundred at most.
-      sb
-        .from("events")
-        .select("id, subject_id, created_at, data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "contact.consent_changed")
-        .eq("subject_type", "contact")
-        .eq("subject_id", id)
-        .order("created_at", { ascending: false })
-        .limit(200),
-      // The runs that named them, and the lead they were found as: what a playbook or a broadcast sent them, and the
-      // way back to where the finder found them.
-      personRuns(ctx, tenantId, id),
-      leadOfPerson(ctx, tenantId, id),
-    ]);
+    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history, runs, lead, deals, anyDeal] =
+      await Promise.all([
+        sb
+          .from("contact_identities")
+          .select("channel, external_id, created_at")
+          .eq("contact_id", id)
+          .order("created_at"),
+        sb
+          .from("conversations")
+          .select(CONVERSATION_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .eq("contact_id", id)
+          .order("last_message_at", { ascending: false, nullsFirst: false }),
+        sb
+          .from("calls")
+          .select(CALL_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .eq("contact_id", id)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .limit(200),
+        // This person's own receptionist mode, and the workspace's, for the rail.
+        sb
+          .from("policies")
+          .select("mode")
+          .eq("tenant_id", tenantId)
+          .eq("class", "reply")
+          .eq("subject_type", "contact")
+          .eq("subject_id", id)
+          .maybeSingle(),
+        sb
+          .from("policies")
+          .select("mode")
+          .eq("tenant_id", tenantId)
+          .eq("class", "reply")
+          .is("subject_type", null)
+          .maybeSingle(),
+        // Where they came from, when it was not a message or a call: the
+        // calendar sweep records the appointment that named them.
+        sb
+          .from("events")
+          .select("data, created_at")
+          .eq("tenant_id", tenantId)
+          .eq("kind", "contact.added")
+          .eq("subject_type", "contact")
+          .eq("subject_id", id)
+          .order("created_at")
+          .limit(1)
+          .maybeSingle(),
+        // The owner's notes and their proposal link (00154): the two columns people_list does not carry.
+        sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle(),
+        // The booking link, so the profile can text it in one step.
+        sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+        // Every change to either answer: the ledger rows the doors write, which
+        // the timeline shows as evidence. Newest first, two hundred at most.
+        sb
+          .from("events")
+          .select("id, subject_id, created_at, data")
+          .eq("tenant_id", tenantId)
+          .eq("kind", "contact.consent_changed")
+          .eq("subject_type", "contact")
+          .eq("subject_id", id)
+          .order("created_at", { ascending: false })
+          .limit(200),
+        // The runs that named them, and the lead they were found as: what a playbook or a broadcast sent them, and the
+        // way back to where the finder found them.
+        personRuns(ctx, tenantId, id),
+        leadOfPerson(ctx, tenantId, id),
+        // Their deals, newest first, and whether any deal was ever recorded here (0004). Each is safe on an older
+        // database: a table that is not there costs the section, never the profile.
+        sb
+          .from("deals")
+          .select(
+            "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at",
+          )
+          .eq("tenant_id", tenantId)
+          .eq("contact_id", id)
+          .order("created_at", { ascending: false })
+          .then((r) => (r.error ? null : (r.data ?? []))),
+        sb
+          .from("deals")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .then((r) => (r.error ? false : (r.count ?? 0) > 0)),
+      ]);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
     // Checked like the other seven. A dropped error here reads as "this
@@ -380,6 +401,12 @@ export const GET = read({
     if (cfgRow.error) throw new Error(cfgRow.error.message);
     if (added.error) throw new Error(added.error.message);
     const bookingLink = (cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
+    // The profile's services and its consult-first rule: whether deals are a thing here, and the page's service picker.
+    const profile = (
+      cfgRow.data?.config as {
+        brain?: { profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: string[] } } };
+      } | null
+    )?.brain?.profile;
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);
     if (wsPol.error) throw new Error(wsPol.error.message);
@@ -441,10 +468,14 @@ export const GET = read({
       workspace_reply_mode: wsPol.data?.mode ?? null,
       visits: visits ?? undefined,
       notes: own.data?.notes ?? null,
+      proposal_url: own.data?.proposal_url ?? null,
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
       consent_history: (history.data ?? []).map(consentChangeOf),
       campaigns: runs,
       lead,
+      deals: deals ?? undefined,
+      deals_on: dealsAreAThing(profile?.booking_rules?.consult_first, anyDeal),
+      services: (profile?.services ?? []).map((s) => s.name),
       added: added.data
         ? {
             at: added.data.created_at,

@@ -16,6 +16,8 @@ import type { TemplateValuesPorts } from "./ports";
 export interface PlaybookInput {
   name: string;
   trigger: PlaybookTrigger;
+  /** The list a saved_list playbook runs on; null for every other trigger. */
+  list_id: string | null;
   template_id: string;
   template_name: string;
   template_language: string;
@@ -41,8 +43,15 @@ function int(v: unknown, fallback: number, min: number, max: number, what: strin
  * whole numbers. A playbook can never name a template a broadcast could not
  * send or a slot the workspace cannot fill.
  */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
+export interface CheckPlaybookPorts extends TemplateValuesPorts {
+  listName(id: string): Promise<string | null>;
+}
+
 export async function checkPlaybook(
-  ports: TemplateValuesPorts,
+  ports: CheckPlaybookPorts,
   body: Record<string, unknown> | null,
 ): Promise<PlaybookInput> {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
@@ -50,8 +59,16 @@ export async function checkPlaybook(
   if (!trig)
     throw new AppError(
       "validation",
-      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.",
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists.",
     );
+  // A playbook on one of the workspace's lists names it, and the list must be this workspace's.
+  let listName: string | null = null;
+  const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
+  if (trig.kind === "saved") {
+    if (!listId || !UUID.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
+    listName = await ports.listName(listId);
+    if (!listName) throw new AppError("not_found", "List not found.", 404);
+  }
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
@@ -59,9 +76,11 @@ export async function checkPlaybook(
     visits: trig.kind === "visit",
   });
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
-    name: name || playbookName(trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
+    // list's own name for a playbook on a list.
+    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
+    list_id: listId,
     template_id: tpl.id,
     template_name: tpl.name,
     template_language: tpl.language,

@@ -719,7 +719,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
         try {
           const e164 = from.startsWith("+") ? from : `+${from}`;
           const lead = await ports.leads.read(db, tenantId, e164, 1);
-          leadNote = ports.leads.describe(lead);
+          leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC");
           // Their appointments, from the same feed the openings come from:
           // "when is my appointment?" is answered from the calendar, never guessed.
           const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;

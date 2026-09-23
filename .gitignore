@@ -35,6 +35,9 @@ tooling/scripts/optout-probe.log.jsonl
 # TypeScript incremental build state — machine-local, never shared
 *.tsbuildinfo
 
+# the lead map's basemap bundle, served from public/ on a laptop; production hosts it (docs/runbook.md)
+apps/dashboard/public/lead-map/
+
 # playwright
 /playwright-report/
 /test-results/

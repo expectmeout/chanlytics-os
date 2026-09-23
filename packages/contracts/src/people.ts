@@ -1,5 +1,6 @@
 import { agoWords } from "./time";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "./clock";
+import { linkHost } from "./link";
 import { replyWaitsOnYou, standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
@@ -35,6 +36,7 @@ import {
 } from "./viewmodels";
 import { HELD_REASONS, isReplyTo } from "./run-words";
 import { leadsRoute } from "./leads";
+import { amountWords, dealOf, toDealVM, type DealDto, type DealVM } from "./deals";
 import type { RecipientState } from "./broadcasts";
 
 /* --------------------------------- DTOs ---------------------------------- */
@@ -101,6 +103,15 @@ export interface PersonRowDto {
   /** Their appointments on the owner's calendar, attached by the API when the
    *  workspace has one connected; null means no calendar. */
   visits?: PersonVisitsDto | null;
+  /** The newest open or current deal, else the newest of any (people_list, 00156): absent on a row read before the columns existed. */
+  deal_id?: string | null;
+  deal_stage?: string | null;
+  deal_service?: string | null;
+  deal_proposed_at?: string | null;
+  deal_decided_at?: string | null;
+  deal_ended_at?: string | null;
+  deal_amount_cents?: number | null;
+  deal_per?: string | null;
 }
 
 export interface PersonIdentityDto {
@@ -148,6 +159,14 @@ export interface PersonDetailDto {
   added?: { at: string; source: string; title: string | null };
   /** The owner's notes on this person — the receptionist reads them. */
   notes?: string | null;
+  /** The owner's proposal link for this person (00154): the About row and the one-step send. */
+  proposal_url?: string | null;
+  /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
+  deals?: DealDto[];
+  /** Whether deals are a thing in this workspace: the profile lists a consult-first service, or a deal was ever recorded. */
+  deals_on?: boolean;
+  /** The profile's service names, for the page's picker when it lists more than one. */
+  services?: string[];
   /** The workspace's booking link, for the profile's one-step send. */
   booking_link?: string | null;
   /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
@@ -415,6 +434,59 @@ export function bookingLinkAction(
   };
 }
 
+/** The owner's proposal for a person (00154), for the page: the address, where it lives, and whether it went out. */
+export interface PersonProposalVM {
+  url: string;
+  host: string;
+  /** The newest message that carried the address and went out: when, and on which wire. */
+  sent: { at: string; via: string | null } | null;
+}
+
+/** The words the one-step send carries into the composer — once, for the page and the thread. */
+export function proposalMessage(url: string): string {
+  return `Here's the proposal we put together for you: ${url}`;
+}
+
+/**
+ * What the send-the-proposal button says, by the wire a reply goes out on:
+ * bookingLinkAction's twin. Nothing is sent from the button: it opens the
+ * thread with the address ready in the composer. There is no template for a
+ * proposal, so where WhatsApp's window has shut there is no button (`ready`
+ * false) -- the About rail's Reply window row already says why. "again" once
+ * the address has gone out, so the page says what it knows without a second line.
+ */
+export function proposalAction(
+  replyVia: "WhatsApp" | "Text" | "Email" | null,
+  win: { open: boolean; hoursLeft: number } | null,
+  sentWords: string | null,
+): { label: string; title: string; ready: boolean } {
+  const again = sentWords ? " again" : "";
+  const sent = sentWords ? ` · sent ${sentWords}` : "";
+  if (replyVia === "Email")
+    return {
+      label: `Email the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send by email${sent}`,
+      ready: true,
+    };
+  if (replyVia === "Text")
+    return {
+      label: `Text the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send as a text${sent}`,
+      ready: true,
+    };
+  if (win && win.open)
+    return {
+      label: `Send the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send · ${win.hoursLeft}h left in their reply window${sent}`,
+      ready: true,
+    };
+  return {
+    label: "Send the proposal",
+    title: "Their reply window is closed — the link can go by WhatsApp once they write again",
+    ready: false,
+  };
+}
+
 /** How a reply goes, in the words the page uses for the wire. */
 const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
   whatsapp: "WhatsApp",
@@ -429,6 +501,29 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
   voice: "Phone",
   email: "Email",
 };
+
+/**
+ * The newest message that carried the proposal's address and went out -- a
+ * status that is not queued, canceled or failed, the rule people_list calls
+ * spoken. Derived from the messages the page already reads, so "sent" is never
+ * a stored flag that can disagree with the thread.
+ */
+function proposalSent(conversations: ReadonlyArray<ConversationDto>, url: string): PersonProposalVM["sent"] {
+  let best: { at: number; iso: string; channel: string | null } | null = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "outbound" || !m.body || !m.body.includes(url)) continue;
+      if (m.status && ["queued", "canceled", "failed"].includes(m.status)) continue;
+      const iso = m.channel_ts ?? m.created_at;
+      const at = Date.parse(iso);
+      if (Number.isFinite(at) && (!best || at > best.at)) best = { at, iso, channel: m.channel ?? null };
+    }
+  }
+  if (!best) return null;
+  const via =
+    best.channel && best.channel in PERSON_CHANNEL_WORDS ? PERSON_CHANNEL_WORDS[best.channel as PersonChannel] : null;
+  return { at: best.iso, via };
+}
 
 /**
  * Where a person first came from, as people_list decides it once (00138): the
@@ -572,6 +667,8 @@ export interface PersonConsent {
   state: "unknown" | "opted_in" | "opted_out";
   dnc: boolean;
   label: string;
+  /** The answer in its control's words: "Yes", "Not asked" or "No". */
+  answerLabel: "Yes" | "Not asked" | "No";
   sub: string;
   /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
   source: string | null;
@@ -712,6 +809,8 @@ function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
     state,
     dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
+    answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
     sub,
     source: r.consent_source ?? null,
     marketing,
@@ -890,6 +989,25 @@ export interface PersonRowVM {
   lastVisitDate: string | null;
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
+  /** Their deal, as the page says it (0004); null where none was recorded. */
+  deal: DealVM | null;
+  /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
+  consultationVisit: boolean;
+}
+
+/**
+ * A visit's title as a calendar wrote it, without the person's own name at its end: a booking app titles an
+ * appointment "Consultation · Tom Baker", and on Tom's page and his row the name is said already. Only the whole name,
+ * after a separator, goes; a title that is the name alone, or says anything else, is the calendar's and stays.
+ */
+export function visitTitleFor(title: string, name: string): string {
+  const n = name.trim().toLowerCase();
+  if (!n || isIdentifierName(name)) return title;
+  const t = title.trimEnd();
+  if (!t.toLowerCase().endsWith(n)) return title;
+  // What comes before the name must end in a separator: the name is a part of its own, not the end of a word.
+  const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
+  return m ? m[1].trim() : title;
 }
 
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
@@ -961,8 +1079,8 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     calendar,
     booked,
     nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
-    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : null,
-    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, name)}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
     // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
     // WhatsApp's for everybody, so a person who had only ever emailed was shown
@@ -990,6 +1108,8 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
+    deal: dealOf(r, tz, nowMs),
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
   };
 }
 
@@ -1015,9 +1135,13 @@ export const PEOPLE_LISTS: readonly {
   label: string;
   group: PeopleListGroup;
   needsCalendar?: boolean;
+  /** Only where the profile lists a consult-first service. */
+  needsConsultFirst?: boolean;
+  /** Only where deals are a thing here: a consult-first service listed, or a deal ever recorded. */
+  needsDeals?: boolean;
   /**
    * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-   * say the two answers -- so their Lists section names only the lists it alone can.
+   * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
    */
   onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
@@ -1053,6 +1177,41 @@ export const PEOPLE_LISTS: readonly {
     group: "journey",
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
+  },
+  // The journey past the booking (0004). Each exists only where deals are a thing here.
+  {
+    id: "consultation_booked",
+    label: "Consultation booked",
+    group: "journey",
+    needsCalendar: true,
+    needsConsultFirst: true,
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.consultationVisit && !v.deal,
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "proposed",
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "won",
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "ended",
   },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
@@ -1140,7 +1299,17 @@ const LIST_STEPS: Record<
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
-  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
+  // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
+  // own, named Lapsed.
+  lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
+  consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
+  proposal_out: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "A word from you is the next step; nothing sends on its own.",
+  },
+  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
@@ -1369,6 +1538,9 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
     sentence = oneLine(p.quote, 160);
     quoted = true;
   } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  // A proposal waiting says more than a visit ahead (0004): the row's brief, "Proposal out · 6 d". A client's row
+  // keeps the visit, which is the next thing about them; a pass or an end says nothing here.
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
   else if (p.calls > 0)
@@ -1394,13 +1566,13 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
 /* -------------------------------- profile -------------------------------- */
 
 export type TimelineKind =
-  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
 
 /**
  * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
  * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
  */
-export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
+export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
 export const TIMELINE_FILTERS: readonly {
   id: TimelineFilterId;
   label: string;
@@ -1411,6 +1583,7 @@ export const TIMELINE_FILTERS: readonly {
   { id: "calls", label: "Calls", kinds: ["call"] },
   { id: "visits", label: "Visits", kinds: ["visit"] },
   { id: "consent", label: "Consent", kinds: ["consent"] },
+  { id: "deals", label: "Deals", kinds: ["deal"] },
 ];
 
 /** The items a filter shows, in the order they came; an unknown filter shows everything. */
@@ -1468,6 +1641,24 @@ export interface PersonTimelineItemVM {
   text: string;
   sub?: string;
   link?: { label: string; to: string };
+  /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
+  ahead?: boolean;
+}
+
+/**
+ * A visit that has not ended, as the page's Coming up draws it: a small leaf with the month and the day of the month,
+ * what it is, and when. `day` is "Today", "Tomorrow" or the weekday, by the business's clock.
+ */
+export interface PersonVisitAheadVM {
+  id: string;
+  month: string;
+  date: string;
+  day: string;
+  title: string;
+  time: string;
+  /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
+  byName: boolean;
+  to: string;
 }
 
 export interface PersonRightNow {
@@ -1496,11 +1687,23 @@ export interface PersonVM extends PersonRowVM {
   facts: PersonFact[];
   rightNow: PersonRightNow;
   timeline: PersonTimelineItemVM[];
+  /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
+  comingUp: PersonVisitAheadVM[];
   about: { k: string; v: string }[];
   /** The owner's notes, the receptionist's reading material. */
   notes: string | null;
   /** The workspace's booking link, or null when none is on file. */
   bookingLink: string | null;
+  /** The owner's proposal for them (00154), or null when none is on file. */
+  proposal: PersonProposalVM | null;
+  /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
+  proposalAction: { label: string; title: string; ready: boolean };
+  /** Their deals, newest first, as the page says them (0004). */
+  deals: DealVM[];
+  /** Whether the page draws its Deal section at all. */
+  dealsOn: boolean;
+  /** The profile's service names; the picker appears only past one. */
+  services: string[];
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -1614,6 +1817,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, tz, now);
+  // Their deals as the page lists them (0004): each row through the one view model the People row uses.
+  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x);
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -1760,23 +1965,59 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
 
   // Their visits, from the calendar: what happened in the chair belongs on
   // the same line as what was said. A visit ahead reads as booked.
+  const comingUp: { t: number; vm: PersonVisitAheadVM }[] = [];
   if (d.visits?.all?.length) {
     const tz = d.visits.timezone;
     for (const v of d.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;
+      if (ahead) {
+        const on = visitDay(t, tz, nowMs);
+        comingUp.push({
+          t,
+          vm: {
+            id: `v-${v.id}`,
+            month: new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short" }).format(new Date(t)),
+            date: new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "numeric" }).format(new Date(t)),
+            day:
+              on === "Today" || on === "Tomorrow"
+                ? on
+                : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(t)),
+            title: visitTitleFor(v.title, base.name),
+            time: visitTime(v, tz),
+            byName: v.via === "name",
+            to: `calendar/${visitDateKey(v.start, tz)}`,
+          },
+        });
+      }
       items.push({
+        ...(ahead ? { ahead: true } : {}),
         id: `v-${v.id}`,
         ts: t,
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
+        text: `${ahead ? "Booked" : "Visited"} · ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
       });
     }
+  }
+  // Each move of a deal, on the same line as what was said: what a person recorded, when (0004).
+  for (const x of d.deals ?? []) {
+    const svc = x.service ? ` · ${x.service}` : "";
+    const put = (id: string, at: string | null, text: string) => {
+      const t = ts(at);
+      if (t === null) return;
+      items.push({ id, ts: t, ...stamp(t), kind: "deal", who: "You", text });
+    };
+    put(`dl-${x.id}-p`, x.proposed_at, `Proposal sent${svc}`);
+    const won = amountWords(x.amount_cents, x.per, x.currency);
+    if (x.stage === "won" || x.stage === "ended")
+      put(`dl-${x.id}-w`, x.decided_at, `Became a client${svc}${won ? ` · ${won}` : ""}`);
+    if (x.stage === "lost") put(`dl-${x.id}-l`, x.decided_at, `Passed${svc}`);
+    if (x.stage === "ended") put(`dl-${x.id}-e`, x.ended_at, `Ended${svc}`);
   }
   if (d.added) {
     const t = ts(d.added.at);
@@ -1979,12 +2220,26 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       value: toneWord[base.receptionist.tone],
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label),
     },
+    // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
+    ...(base.deal ? [{ label: "Deal", value: base.deal.word, meta: base.deal.line, tone: "" as const }] : []),
   ];
+
+  // The owner's proposal for them (00154): the address, its host for the row, and whether it went out.
+  const proposalUrl = d.proposal_url?.trim() || null;
+  const proposal: PersonProposalVM | null = proposalUrl
+    ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) }
+    : null;
+  const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
+  const sentWords =
+    proposal?.sent && sentAt !== null
+      ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` · ${proposal.sent.via}` : ""}`
+      : null;
 
   // About rail.
   const about: { k: string; v: string }[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
   if (base.email) about.push({ k: "Email", v: base.email });
+  if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",
@@ -2019,7 +2274,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   if (d.visits) {
     const v = d.visits;
     const nextLine = v.next
-      ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}`
+      ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, base.name)}`
       : v.state === "ok"
         ? "Nothing on the calendar"
         : "Calendar could not be read";
@@ -2034,7 +2289,11 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
           : "could not be read",
     });
     about.push({ k: "Next visit", v: nextLine });
-    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
+    if (v.last)
+      about.push({
+        k: "Last visit",
+        v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, base.name)}`,
+      });
   }
   if (d.added) {
     const at = ts(d.added.at);
@@ -2048,7 +2307,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "—"} · from a lead you found` });
   }
 
-  return {
+  const vm: Omit<PersonVM, "proposal" | "proposalAction"> = {
     ...base,
     ...(via && exactWindow
       ? (() => {
@@ -2076,6 +2335,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     facts,
     rightNow,
     timeline: items,
+    comingUp: comingUp.sort((a, b) => a.t - b.t).map((c) => c.vm),
     about,
     notes: d.notes?.trim() || null,
     bookingLink: d.booking_link?.trim() || null,
@@ -2097,7 +2357,15 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
           to: leadsRoute({ peek: d.lead.id }),
         }
       : null,
+    // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy
+    // of it carries the version a move is checked against, which the columns do not.
+    deal: deals.find((x) => x.id === base.deal?.id) ?? base.deal,
+    deals,
+    dealsOn: !!d.deals_on,
+    services: d.services ?? [],
   };
+  // The send's words follow the wire the page has settled on, exact window included.
+  return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
 }
 
 /**

@@ -33,6 +33,7 @@ import {
   leadEndingLine,
   leadAllowanceFact,
   leadAnd,
+  leadNearWhere,
   LEAD_PAUSED_TITLE,
   leadBand,
   leadTintOf,
@@ -401,6 +402,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     reviewsTitle: "",
     stage: "ready",
     stageLabel: "Ready",
+    contactId: null,
     foundLabel: "6m",
     foundLine: "Found 6m ago",
     foundAt: "Sep 18, 2026 · 2:14 PM",
@@ -669,6 +671,10 @@ test("the endings read as the States artboard wrote them", () => {
   assert.equal(LEAD_PAUSED_TITLE, "Lead searches are paused for now");
   assert.equal(leadAnd(["Alpine", "Fort Davis"]), "Alpine and Fort Davis");
   assert.equal(leadAnd(["Round Rock", "Pflugerville", "Kyle"]), "Round Rock, Pflugerville and Kyle");
+  // ZIP areas are labelled "near 10005": said once, not "in near 10005, near 10464".
+  assert.equal(leadNearWhere(["near 10005", "near 10464", "near 10467"]), "near 10005, 10464 and 10467");
+  assert.equal(leadNearWhere(["Round Rock", "Pflugerville"]), "in Round Rock and Pflugerville");
+  assert.equal(leadNearWhere(["near 10005", "Hoboken"]), "in near 10005 and Hoboken", "a mix keeps every label whole");
 });
 
 test("the month's allowance and the searching budget are one unit on every screen: leads, never dollars", () => {

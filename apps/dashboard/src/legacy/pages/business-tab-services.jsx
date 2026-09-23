@@ -7,11 +7,8 @@
 // each, and a foot that says what the receptionist will be told. Its row at rest is the card's (business-tab-offer.jsx
 // BtwServicesRow), whose act asks the registry for this sheet by its id, as the standing line's door does.
 //
-// A file of its own because the PAGE draws it, after every card, never the card: the kit's sheet holds hooks and is
-// drawn only while it is open, and the tests' stub React keeps every hook on the page as a cell in one order, so the
-// sheet must be the page's last hook-holding child (business-tab-gestures.jsx BtSheet says why, and a page test holds
-// it there). Drawn inside the card, the cards after it (How it answers, What it can do) would have read its cells as
-// their own whenever it opened.
+// A file of its own because the PAGE draws it, through its one sheet slot after every card, never the card: the fold
+// registry opens one editor or sheet at a time, and the slot draws one sheet or none (business-tab.jsx BtSheetSlot).
 //
 // The page composes and never derives: every sentence here with a number in it is contracts' (servicesToldWords,
 // servicesSaveWords, through window.__businessTab); what the sheet opens with, refuses and writes is

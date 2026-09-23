@@ -275,9 +275,17 @@ export function starterByKey(key: string): StarterTemplate | null {
   return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
 }
 
+/**
+ * A moment that sends another moment's starter. Lapsed is the win-back by visits, and the win-back's words ("it's been
+ * a while since we last saw you") are already about a visit: one message, filed with Meta once. One of the workspace's
+ * own lists has no starter of its own -- what it sends is the owner's choice.
+ */
+const STARTER_OF: Partial<Record<string, PlaybookTrigger>> = { lapsed: "quiet_30" };
+
 export function starterForTrigger(trigger: string | null | undefined): StarterTemplate | null {
   if (!trigger) return null;
-  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
+  const own = STARTER_OF[trigger] ?? trigger;
+  return STARTER_TEMPLATES.find((s) => s.trigger === own) ?? null;
 }
 
 /** The text in a language, English when the language is not written. */

@@ -1,8 +1,8 @@
 /* global React, Icon, LeadShape, LeadSlotShape, StatePill, LeadCallMenu */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
 // without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
-// draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is ClientsAReal's
-// (peekId, peekMode, armed, draft), handed down, so the tests' stub React keys its hooks by one call order.
+// draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is LeadsReal's
+// (peekId, peekMode, armed, draft), handed down, so the page's one keyboard listener backs out of it on Esc.
 //
 // Nothing in this file writes a sentence of its own. The words are contracts' (window.__LEAD_WORDS) and the view
 // model is contracts' (window.__leadPeekVM), so a word the owner reads is spelled once; the toasts are the route's
@@ -539,23 +539,14 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
  * One lead, beside the rows. role="dialog" with .pl-peek, which PL_OVERLAY names apart (the page's own overlay), so
  * J and K keep walking the rows behind it and Esc reaches the page's one listener.
  */
-const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, deck = null, ...on }) => {
+const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, deck = null, phone = false, ...on }) => {
   if (!vm) return null;
-  // A swipe is the deck's two buttons under a thumb (D5): 80px of travel, and only across, so a scroll is never
-  // a move. Nothing is kept between draws -- the start is a property of the element the browser hands back.
-  const swipe = deck
-    ? {
-        onTouchStart: (e) => { const t = e && e.touches && e.touches[0]; if (t) { e.currentTarget.dataset.sx = String(t.clientX); e.currentTarget.dataset.sy = String(t.clientY); } },
-        onTouchEnd: (e) => {
-          const t = e && e.changedTouches && e.changedTouches[0];
-          const sx = Number(e.currentTarget.dataset.sx);
-          const sy = Number(e.currentTarget.dataset.sy);
-          if (!t || Number.isNaN(sx)) return;
-          const dx = t.clientX - sx;
-          if (Math.abs(dx) < 80 || Math.abs(t.clientY - sy) > Math.abs(dx)) return;
-          if (dx < 0) deck.onNext(); else deck.onPrev();
-        },
-      }
+  // Under a thumb (D5, data-bits touchSwipe): a swipe across is the deck's two buttons, and on a phone, where the
+  // peek is the whole screen, a pull down from the top of what it shows is its Close -- one small X in a corner was
+  // the only way out. 80px of travel along the axis it went further on, so a scroll is never a move; a pull down
+  // through a scrolled body is a scroll. `phone` is the scope's reading (LeadsScope), not a second one here.
+  const swipe = deck || phone
+    ? window.touchSwipe({ onLeft: deck ? deck.onNext : null, onRight: deck ? deck.onPrev : null, onDown: phone ? on.onClose : null })
     : {};
   return (
     <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek" {...swipe}>

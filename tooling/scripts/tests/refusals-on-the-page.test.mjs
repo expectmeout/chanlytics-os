@@ -13,20 +13,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -36,7 +38,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -46,17 +48,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -95,8 +97,7 @@ for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
-// The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
-// cleanup, so a no-op keeps the hook order the stub React counts on.
+// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 
@@ -197,7 +198,7 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   });
   cells = [];
   const render = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.TemplateComposer({ onDone() {}, onCancel() {}, businessName: "Melany's Beauty Salon" });
   };
   byTestId(render(), "tpl-name").props.onChange({ target: { value: "spring_offer" } });
@@ -254,7 +255,7 @@ const mountBiz = async (api) => {
   Object.assign(globalThis.window, { __businessRecord: api, __ME: { role: "owner", email: "owner@example.com" } });
   cells = [];
   const render = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.BusinessRecordForm({ line: null, flash: (p) => flashes.push(p) });
   };
   render();
@@ -427,7 +428,7 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
     NOW,
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   globalThis.window.AgentCommand();
   const handoff = rows.find((p) => p.also && p.also.testid === "queue-snooze");
   assert.ok(handoff, "a handoff row offers Snooze");
@@ -473,7 +474,7 @@ test("REGRESSION (B5): a refused list delete keeps the question open and says wh
   };
   cells = [];
   const render = () => {
-    seq = 0;
+    frames.begin();
     return DeleteListButton({
       list: { id: "l1", name: "VIP regulars" },
       onDeleted: () => {
@@ -498,7 +499,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   assert.equal(typeof NewListRow, "function");
   cells = [];
   const row = () => {
-    seq = 0;
+    frames.begin();
     return NewListRow({ onCreate: async () => taken() });
   };
   byTestId(row(), "new-list").props.onClick();
@@ -518,7 +519,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
     });
   cells = [];
   const add = () => {
-    seq = 0;
+    frames.begin();
     return AddPersonButton({ onAdded() {}, flash() {} });
   };
   byTestId(add(), "add-person").props.onClick();
@@ -535,7 +536,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list, add
   const ConsentAsk = globalThis.window.ConsentAsk;
   cells = [];
   const ask = () => {
-    seq = 0;
+    frames.begin();
     return ConsentAsk({
       label: "Messages",
       value: "opted_in",
@@ -572,7 +573,7 @@ test("REGRESSION (N20): a failed Ask turn offers Try again on the latest answer,
   globalThis.window.__ask = undefined;
   let retried = 0;
   cells = [];
-  seq = 0;
+  frames.begin();
   const latest = AskTurn({
     ...props,
     m: failed,
@@ -587,14 +588,14 @@ test("REGRESSION (N20): a failed Ask turn offers Try again on the latest answer,
   again.props.onClick();
   assert.equal(retried, 1);
   cells = [];
-  seq = 0;
+  frames.begin();
   assert.equal(
     byTestId(AskTurn({ ...props, m: failed, latest: false, onRetry() {} }), "ask-retry"),
     null,
     "an older failure is history, not a button",
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   assert.equal(
     byTestId(AskTurn({ ...props, m: { ...failed, failed: false }, latest: true, onRetry() {} }), "ask-retry"),
     null,

@@ -28,16 +28,20 @@ export const SCHEMA_SETS = {
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
+  "deals.per": ["once", "month", "year"],
+  "deals.source": ["person", "payment"],
+  "deals.stage": ["proposed", "won", "lost", "ended"],
   "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
-    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace",
+    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
     "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role",
     "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast",
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
+    "record_deal",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",
@@ -108,7 +112,8 @@ export const SCHEMA_SETS = {
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
-    "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited",
+    "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed",
+    "saved_list",
   ],
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],

@@ -185,6 +185,8 @@ await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-home.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
+// Ask's face on the palette's stage (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
+await import("../../../apps/dashboard/src/legacy/components/ask-face.jsx");
 const { askPalette, surfaceFor } = await import("../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
 
@@ -370,6 +372,99 @@ test("REGRESSION (N3): what the shell sends as the palette opens is taken -- a s
   assert.equal(byClass(tree, "ask-msgs").length, 0, "REGRESSION: New chat reopened the last conversation");
   assert.equal(inputOf(tree).props.value, "", "and starts with nothing typed");
   await closes();
+});
+
+test("a seed that names a thread opens that thread, the way a prompt is asked and New chat is taken", async () => {
+  const calls = ask([TH(1), TH(2)]);
+  render(Palette, CLOSED);
+  // Today's band hands its conversation over as the palette opens (today-face.jsx, Continue in Ask).
+  sent("ask:seed", { thread: TH(2).id });
+  const tree = await opens();
+  assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");
+  assert.equal(byClass(tree, "ask-msgs").length, 1, "and its conversation is open");
+  assert.deepEqual(calls.sent, [], "nothing was asked");
+  await closes();
+});
+
+/* ------------------------------ Ask's face ------------------------------ */
+
+test("the palette draws Ask's face on a stage above the conversation, and says Ask's mood as a turn runs", async () => {
+  const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
+  globalThis.window.__mascot = MASCOT;
+  const said = [];
+  const stop = MASCOT.mood.subscribe((ev) =>
+    said.push(ev.t === "state" ? ev.state : ev.t === "react" ? ev.kind : ev.t),
+  );
+  const calls = ask([]);
+  const tick = () => new Promise((r) => setImmediate(r));
+  // A turn as the stream sends it, one event per tick, so the palette draws between them.
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    const final = { id: "m-f", role: "assistant", text: "Nora has waited longest.", atMs: Date.now(), failed: false };
+    for (const ev of [
+      { t: "thread", id: TH(3).id, title: input.text },
+      { t: "trace", text: "Reading the inbox…" },
+      { t: "delta", text: "Nora has " },
+      { t: "delta", text: "waited longest." },
+      { t: "final", message: { ...final, citations: [], followups: [], proposals: [] } },
+    ]) {
+      await tick();
+      on(ev);
+    }
+  };
+  try {
+    render(Palette, CLOSED);
+    sent("ask:seed", { prompt: "who has waited longest?" });
+    let tree = await opens();
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.ok(byTestId(tree, "ask-stage"), "the stage above the conversation");
+    assert.deepEqual(calls.sent, ["who has waited longest?"]);
+    assert.deepEqual(
+      said.filter((s) => s !== "beat"),
+      ["thinking", "speaking", "idle"],
+      "reading until the first words, answering while they stream, then at rest (the row nods on its own)",
+    );
+    assert.equal(said.filter((s) => s === "beat").length, 2, "a beat for each piece of the answer");
+    await closes();
+  } finally {
+    stop();
+    MASCOT.mood.set("idle");
+    delete globalThis.window.__mascot;
+  }
+});
+
+test("a quick answer nods, and a failed turn shakes: the palette says how a turn ended", async () => {
+  const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
+  globalThis.window.__mascot = MASCOT;
+  const said = [];
+  const stop = MASCOT.mood.subscribe((ev) =>
+    said.push(ev.t === "state" ? ev.state : ev.t === "react" ? ev.kind : ev.t),
+  );
+  const calls = ask([]);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "error", text: "Network error — nothing was asked." });
+  };
+  try {
+    render(Palette, CLOSED);
+    // "who needs me?" is one the palette answers itself (contracts fastPath): no turn, a nod. First, because a
+    // conversation left open takes every later question to the model.
+    sent("ask:seed", { prompt: "who needs me?" });
+    await opens();
+    assert.deepEqual(calls.sent, [], "the quick question sent nothing");
+    assert.ok(said.includes("nod"), `a quick answer nods: ${said.join(",")}`);
+    await closes();
+    said.length = 0;
+    sent("ask:seed", { prompt: "how did the weekend go?" });
+    await opens();
+    assert.deepEqual(calls.sent, ["how did the weekend go?"]);
+    assert.ok(said.includes("shake"), `a failure shakes: ${said.join(",")}`);
+    await closes();
+  } finally {
+    stop();
+    MASCOT.mood.set("idle");
+    delete globalThis.window.__mascot;
+  }
 });
 
 /* ------------------------------ N5 ------------------------------ */

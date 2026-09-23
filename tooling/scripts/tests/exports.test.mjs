@@ -342,7 +342,9 @@ test("the pages link to the routes, and only where the bridge can name the works
   const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(
     list.includes("listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE })") &&
-      list.includes("const out = await withVisits(ctx, tenantId, rows);"),
+      list.includes(
+        "const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);",
+      ),
     "the same reading of who exists as the export, with their appointments, a page at a time",
   );
 });

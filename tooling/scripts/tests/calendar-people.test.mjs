@@ -946,14 +946,14 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
   assert.ok(
     readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes(
-      "const out = await withVisits(ctx, tenantId, rows);",
+      "const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);",
     ),
     "the list carries visits and the calendar's state, a page at a time",
   );
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
   assert.ok(
     rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") &&
-      rep.includes("return { report, booking };"),
+      rep.includes("return { report, booking, deals };"),
     "never fatal to the report",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
@@ -965,7 +965,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
-    sd.includes('lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok")') &&
+    sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
+      sd.includes("(!l.needsDeals || dealsOn),") &&
       sd.includes("booking: toBookingReportVM(data.booking),"),
   );
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -1008,10 +1009,13 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     /rpc\("set_person_name", \{\s*p_contact_id: id,\s*p_name: name \?\? "",?\s*\}\)/.test(route) &&
       /rpc\("set_person_notes", \{\s*p_contact_id: id,\s*p_notes: notes \?\? "",?\s*\}\)/.test(route),
   );
-  assert.ok(route.includes('"Send a name, notes or an email address."'), "the schema refuses in the same words");
+  assert.ok(
+    route.includes('"Send a name, notes, an email address or a proposal link."'),
+    "the schema refuses in the same words",
+  );
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(
-    detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') &&
+    detail.includes('sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle()') &&
       detail.includes("notes: own.data?.notes ?? null,"),
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
@@ -1091,7 +1095,18 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "journey").map((l) => l.id),
-    ["new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
+    // The journey continues past the booking (0004): the four deal lists, each drawn only where deals are a thing.
+    [
+      "new_week",
+      "booked_week",
+      "booked",
+      "asked_never_booked",
+      "lapsed",
+      "consultation_booked",
+      "proposal_out",
+      "clients",
+      "deal_ended",
+    ],
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id),
@@ -1111,7 +1126,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const talkOnly = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "unknown" } };
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
     text: "1 of 2 on this list said yes to offers — a broadcast reaches them.",
-    cta: "Win them back",
+    cta: "Bring them back",
     to: "broadcasts/lapsed",
     enabled: true,
   });
@@ -1232,7 +1247,8 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   const ports = readCode("apps/dashboard/src/server/campaign-ports.ts");
   assert.ok(
     // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
-    ports.includes("people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,"),
+    ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
+      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now))"),
     "the enrol path counts what the page counted, every page of it",
   );
 });
@@ -1383,6 +1399,21 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     "newest first, ahead reads as booked",
   );
   assert.equal(visits[1].sub, "10:00 AM – 12:00 PM · from Google Calendar");
+  // What has not ended is Coming up too, above History: marked on the timeline, and said in the leaf's words.
+  assert.deepEqual(
+    visits.map((i) => !!i.ahead),
+    [true, false],
+    "the booked visit is ahead; the visit that happened is not",
+  );
+  assert.equal(vm.comingUp.length, 1);
+  const up = vm.comingUp[0];
+  assert.equal(up.title, "Balayage");
+  assert.equal(up.id, visits[0].id, "the same visit the timeline holds");
+  assert.equal(up.to, visits[0].link.to, "a door to its day, as its timeline row is");
+  assert.ok(visits[0].sub.startsWith(up.time), `the time the row says: ${up.time}`);
+  assert.match(up.month, /^[A-Z][a-z]{2}$/);
+  assert.match(up.date, /^\d{1,2}$/);
+  assert.ok(["Today", "Tomorrow"].includes(up.day) || /^[A-Z][a-z]{2}$/.test(up.day), up.day);
   assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
   assert.equal(vm.bookingLink, "https://booksy.com/melanys");
   assert.equal(vm.replyWindow, null, "no chat, no window");
@@ -1400,7 +1431,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(
-    page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'),
+    page.includes('id: "text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'),
     "the button carries the link into the thread",
   );
   // The words are the contract's now (people bookingLinkAction), not the page's:
@@ -1664,4 +1695,19 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
     "the owner's address is not among the event's contacts shown on the board",
   );
   assert.ok(!extractContacts(balayage, own).names.includes("Ruben"), "nor their name among its guests");
+});
+
+test("a visit's title drops the person's own name at its end, and nothing else: on Tom's page it is Consultation", async () => {
+  const { visitTitleFor } = await import("../../../packages/contracts/src/people.ts");
+  assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
+  assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
+  assert.equal(visitTitleFor("Consultation · Tom", "Tom Baker"), "Consultation · Tom", "not a part of the name");
+  assert.equal(visitTitleFor("Tom Baker", "Tom Baker"), "Tom Baker", "a title that is only the name stays");
+  assert.equal(visitTitleFor("Balayage", "Tom Baker"), "Balayage", "a title without it stays");
+  assert.equal(visitTitleFor("Cut · Mary-Jane Lee", "Mary-Jane Lee"), "Cut", "a hyphen inside the name is the name's");
+  assert.equal(
+    visitTitleFor("Cut · +1 917 555 0116", "+1 917 555 0116"),
+    "Cut · +1 917 555 0116",
+    "a number is not a name",
+  );
 });

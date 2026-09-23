@@ -11,8 +11,9 @@ import { checkPlaybookInput, listPlaybooks, recentTouches, triggerPools } from "
  *
  * GET  /api/v1/playbooks — the workspace's playbooks with what their runs
  *      earned, the business's clock (the hours are its), who any broadcast
- *      reached this week (the breath the page shows), and each trigger's
- *      pool over everyone, counted the way a run counts it.
+ *      reached this week (the breath the page shows), each trigger's pool
+ *      over everyone, counted the way a run counts it, and the workspace's
+ *      lists a playbook may run on, each with its own pool ("list:<id>").
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
  *      cap_per_run?, gap_days?, cadence_days? }. Owner or operator. Checked
  *      the way the send route checks a broadcast (checkPlaybookInput, in its
@@ -29,8 +30,8 @@ export const GET = read({
       tenantFacts(ctx.supabase, tenantId),
       recentTouches(ctx, tenantId, now),
     ]);
-    const { pools, calendar } = await triggerPools(ctx, tenantId, touched, facts.timezone, now);
-    return { playbooks, timezone: facts.timezone, touched, pools, calendar };
+    const { pools, calendar, lists } = await triggerPools(ctx, tenantId, touched, facts.timezone, now);
+    return { playbooks, timezone: facts.timezone, touched, pools, calendar, lists };
   },
 });
 
@@ -47,6 +48,8 @@ export const POST = write({
         tenant_id: member.tenantId,
         name: v.name,
         trigger: v.trigger,
+        // Named only when there is a list: a database 00155 has not reached takes every other playbook as before.
+        ...(v.list_id ? { list_id: v.list_id } : {}),
         template_id: v.template_id,
         template_name: v.template_name,
         template_language: v.template_language,

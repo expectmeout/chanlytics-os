@@ -122,8 +122,14 @@ test.describe("People on a real workspace", () => {
     // two newest messages the timeline opens on, and a six-cell strip said the rail's facts again.
     await expect(page.getByText("Last exchange")).toHaveCount(0);
     await expect(page.locator(".cl-prof-money")).toHaveCount(0);
-    await expect(page.getByText("Right now")).toBeVisible();
-    await expect(page.locator(".cl-prof-section-title", { hasText: "Timeline" })).toBeVisible();
+    // Where they stand is one line under the name now, the standing's word and its sentence; History is what happened.
+    await expect(page.getByTestId("person-now")).toBeVisible();
+    await expect(page.locator(".cl-prof-section-title", { hasText: "History" })).toBeVisible();
+
+    // The page fills the pane and is one scroll: the profile was as wide as its content, 304px short at 1667.
+    const pane = (await page.locator(".cl-profile").boundingBox())!;
+    const main = (await page.locator(".main").boundingBox())!;
+    expect(Math.round(pane.width), "the profile is as wide as the pane it sits in").toBe(Math.round(main.width));
 
     // The strip's counts are About's History row; the line under the name holds the number and since when.
     const keys = (await page.locator(".cl-prof-attr-key").allInnerTexts()).map((k) => k.trim());
@@ -145,6 +151,47 @@ test.describe("People on a real workspace", () => {
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();
     await expect(page.getByTestId("people-standing")).toBeVisible();
+  });
+
+  // Runs for real only where deals are a thing: the seeded nightly workspace lists no consult-first service today, so
+  // this skips there until the seed gains one (a decision for the owner: the Settings journey depends on that seed
+  // being empty). On the local harness there is no People surface at all, so it skips too.
+  test("a deal is recorded on a person's page: the section says the stage first and offers the moves", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    // The real People page stands on its standing line; the local harness has no People surface and draws the
+    // seeded page instead, whose profile never opens. Only the real page has a person to record a deal on.
+    test.skip(
+      (await page.getByTestId("people-standing").count()) === 0,
+      "People is not real here: the local harness draws the seeded page",
+    );
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
+    test.skip((await rows.count()) === 0, "this workspace has nobody to open");
+    await rows.first().click();
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    const section = page.getByTestId("person-deal");
+    if ((await section.count()) === 0) {
+      // Deals are not a thing here (no consult-first service, no deal recorded): the section is not drawn.
+      test.skip(true, "deals are not a thing on this workspace");
+      return;
+    }
+    const line = page.getByTestId("person-deal-line");
+    const before = (await line.innerText()).trim();
+    expect(before.length).toBeGreaterThan(0);
+    const moves = page.getByTestId("person-deal-move");
+    expect(await moves.count()).toBeGreaterThan(0);
+    await moves.first().click();
+    await expect(page.getByTestId("person-deal-how")).toBeVisible();
+    await page.getByTestId("person-deal-record").click();
+    // Production records it and the line moves on; a workspace that refuses the write says so under the row.
+    await expect(async () => {
+      const moved = (await line.innerText()).trim() !== before;
+      const error = page.getByTestId("person-deal-error");
+      const refused = (await error.count()) > 0 && (await error.innerText()).trim().length > 0;
+      expect(moved || refused).toBe(true);
+    }).toPass();
   });
 
   test("a profile deep link to a stranger's id says so instead of inventing a person", async ({ page }) => {
@@ -317,10 +364,17 @@ test.describe("People on a real workspace", () => {
     test.skip(!detail.booking_link, "no booking link on file");
     await page.goto(`/#/clients/${withChat!.id}`);
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    const btn = page.getByTestId("text-booking-link");
-    await expect(btn).toBeVisible();
-    await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
-    await btn.click();
+    // One send is a button; with the proposal too, the two are one Send menu beside the thread.
+    const menu = page.getByTestId("person-send");
+    if ((await menu.count()) > 0) {
+      await menu.click();
+      await page.getByRole("menuitem", { name: /booking link|booking-link/ }).click();
+    } else {
+      const btn = page.getByTestId("text-booking-link");
+      await expect(btn).toBeVisible();
+      await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
+      await btn.click();
+    }
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
   });
 

@@ -1222,6 +1222,107 @@ test("REGRESSION: list_audiences counts everyone and every member, and names a c
   );
 });
 
+test("the deal lists reach Ask only where deals are a thing here -- list_audiences and search_people filtered People's lists on the calendar alone, so a salon was offered Proposal out and Clients, each counting nobody", async () => {
+  const DEAL_LISTS = ["consultation_booked", "proposal_out", "clients", "deal_ended"];
+  const ask = async (t) => {
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "list_audiences", input: {} });
+    assert.equal(out.isError, false, out.result);
+    const ids = JSON.parse(out.result).audiences.map((a) => a.audience_id);
+    const clients = await runTool(tc, { name: "search_people", input: { query: "", list: "clients" } });
+    return { named: DEAL_LISTS.filter((id) => ids.includes(id)), clients: JSON.parse(clients.result) };
+  };
+  // No deal ever recorded, no consult-first service listed: a salon. None of the four is named.
+  const salon = await ask(tables());
+  assert.deepEqual(salon.named, [], "REGRESSION: the deal lists were offered where deals are not a thing");
+  assert.match(salon.clients.error, /deals are a thing here/, "and the narrowing says why, instead of nobody");
+  assert.deepEqual(salon.clients.people, []);
+  // One deal recorded: the three lists a deal alone makes. Consultation booked also needs a calendar and a
+  // consult-first service, and this workspace has neither.
+  const agency = await ask(
+    tables({
+      deals: [
+        {
+          id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9",
+          tenant_id: A,
+          contact_id: ANA,
+          service: "Ad management",
+          stage: "proposed",
+          proposed_at: iso(NOW.getTime() - 86_400_000),
+          created_at: iso(NOW.getTime() - 86_400_000),
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(agency.named, ["proposal_out", "clients", "deal_ended"]);
+  assert.equal(agency.clients.error, undefined, agency.clients.error);
+  assert.deepEqual(agency.clients.people, [], "the list is offered; nobody is a client yet");
+});
+
+test("a gated list's refusal names the condition that failed: with a calendar and a deal recorded but no consult-first service, Consultation booked is refused for the service alone", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e1",
+    "DTSTART:20260915T140000Z",
+    "DTEND:20260915T150000Z",
+    "SUMMARY:Consultation with Ana",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+    deals: [
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd8",
+        tenant_id: A,
+        contact_id: ANA,
+        service: "Ad management",
+        stage: "won",
+        proposed_at: iso(NOW.getTime() - 3 * 86_400_000),
+        decided_at: iso(NOW.getTime() - 86_400_000),
+        created_at: iso(NOW.getTime() - 3 * 86_400_000),
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const listed = await runTool(tc, { name: "list_audiences", input: {} });
+    assert.equal(listed.isError, false, listed.result);
+    const ids = JSON.parse(listed.result).audiences.map((a) => a.audience_id);
+    assert.ok(ids.includes("booked"), "the calendar was read: its lists are offered");
+    assert.ok(
+      ids.includes("clients") && !ids.includes("consultation_booked"),
+      "deals are a thing; the consultation list needs the service",
+    );
+    const consult = JSON.parse(
+      (await runTool(tc, { name: "search_people", input: { query: "", list: "consultation_booked" } })).result,
+    );
+    assert.match(consult.error, /lists a consult-first service under Settings › Business/, consult.error);
+    assert.doesNotMatch(
+      consult.error,
+      /deal recorded|calendar connected/,
+      "REGRESSION: the refusal named both conditions when only the service was missing",
+    );
+    assert.deepEqual(consult.people, []);
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });
@@ -1470,4 +1571,222 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     disclose_ai: true,
     no_health_advice: true,
   });
+});
+
+test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; and nothing when there is none", async () => {
+  const wrote = iso(NOW.getTime() - 2 * 3600_000);
+  const rosaRow = {
+    id: P1,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+13055550100",
+    consent: "opted_in",
+    consent_source: null,
+    consent_updated_at: null,
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: C1,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: wrote,
+    last_message_at: wrote,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "How much would the move be?",
+    last_inbound_at: wrote,
+    last_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: wrote,
+    earliest_row_at: wrote,
+    has_backfill: false,
+    has_chat: true,
+    queued_reply_at: null,
+  };
+  const rpcs = { ...RPCS, people_list: () => [rosaRow] };
+  const withLink = tables({
+    contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
+  });
+  const r = await runTool(newToolContext(ctxFor(withLink, rpcs), A, "operator", TZ, NOW), {
+    name: "get_person",
+    input: { contact_id: P1 },
+  });
+  assert.equal(r.isError, false, r.result);
+  const person = JSON.parse(r.result);
+  assert.ok(person.about.includes("Proposal: docs.example.com"), `About: ${person.about}`);
+
+  const without = await runTool(newToolContext(ctxFor(tables(), rpcs), A, "operator", TZ, NOW), {
+    name: "get_person",
+    input: { contact_id: P1 },
+  });
+  assert.equal(without.isError, false, without.result);
+  assert.ok(!JSON.parse(without.result).about.some((a) => a.startsWith("Proposal:")), "none on file: no row");
+});
+
+test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, a named service picks its own open row or is refused, and a bad stage or an unknown person is refused", async () => {
+  const MARIA = "cccccccc-cccc-4ccc-8ccc-cccccccccc21";
+  const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccc22";
+  const NORA = "cccccccc-cccc-4ccc-8ccc-cccccccccc23";
+  const t = tables({
+    contacts: [
+      { ...contact, tenant_id: A, erased_at: null },
+      {
+        id: MARIA,
+        tenant_id: A,
+        display_name: "Maria",
+        wa_profile_name: null,
+        phone_e164: "+15555550121",
+        email: null,
+        erased_at: null,
+      },
+      {
+        id: LUIS,
+        tenant_id: A,
+        display_name: "Luis",
+        wa_profile_name: null,
+        phone_e164: "+15555550122",
+        email: null,
+        erased_at: null,
+      },
+      {
+        id: NORA,
+        tenant_id: A,
+        display_name: "Nora",
+        wa_profile_name: null,
+        phone_e164: "+15555550123",
+        email: null,
+        erased_at: null,
+      },
+    ],
+    deals: [
+      // Nora holds two open rows (already_open is per service): Ads is the newer, SEO the older.
+      {
+        id: "d4",
+        tenant_id: A,
+        contact_id: NORA,
+        stage: "proposed",
+        service: "Ads",
+        version: 2,
+        created_at: "2026-09-10T00:00:00Z",
+      },
+      {
+        id: "d3",
+        tenant_id: A,
+        contact_id: NORA,
+        stage: "proposed",
+        service: "SEO",
+        version: 1,
+        created_at: "2026-08-15T00:00:00Z",
+      },
+      {
+        id: "d1",
+        tenant_id: A,
+        contact_id: MARIA,
+        stage: "proposed",
+        service: "SEO",
+        version: 3,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "d2",
+        tenant_id: A,
+        contact_id: LUIS,
+        stage: "lost",
+        service: "Ads",
+        version: 2,
+        created_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const p = (name, input) => buildProposal(tc, name, input);
+
+  const fresh = await p("propose_deal", { contact_id: MARIA, stage: "proposed", service: "Ads" });
+  assert.equal(fresh.isError, false, fresh.result);
+  assert.equal(fresh.proposal.kind, "deal");
+  assert.equal(fresh.proposal.needs, "operator");
+  assert.equal(fresh.proposal.payload.deal_id, undefined, "a proposal beside an open one is a new engagement");
+  assert.equal(fresh.proposal.payload.service, "Ads");
+  assert.deepEqual(
+    [fresh.proposal.title, fresh.proposal.summary, fresh.proposal.undo],
+    ["Maria · Proposal out", "Proposal out · Ads", null],
+  );
+  assert.ok(tc.read.person.has(MARIA), "the person enters the read set, so a citation of them is kept");
+  assert.equal(JSON.parse(fresh.result).proposed, true);
+
+  const won = await p("propose_deal", { contact_id: MARIA, stage: "won", amount_cents: 250000, per: "month" });
+  assert.equal(won.proposal.payload.deal_id, "d1");
+  assert.equal(won.proposal.payload.version, 3);
+  assert.equal(won.proposal.payload.service, undefined, "a move keeps the row's own service");
+  assert.deepEqual([won.proposal.payload.amount_cents, won.proposal.payload.per], [250000, "month"]);
+  assert.equal(won.proposal.summary, "Client · SEO · $2,500 a month");
+
+  const again = await p("propose_deal", { contact_id: LUIS, stage: "proposed", note: "Called back in September" });
+  assert.deepEqual(
+    [again.proposal.payload.deal_id, again.proposal.payload.version, again.proposal.payload.note],
+    ["d2", 2, "Called back in September"],
+    "a passed proposal sent again moves its own row (DEAL_MOVES)",
+  );
+  assert.equal(again.proposal.summary, "Proposal out · Ads");
+
+  // REGRESSION: a move that named a service the open row is not for said that service on the card and moved the
+  // open row anyway; the door never changes a row's service, so the card names the row it moves, or refuses.
+  const wrong = await p("propose_deal", { contact_id: MARIA, stage: "won", service: "Ads" });
+  assert.equal(wrong.isError, true);
+  assert.match(wrong.result, /open deal is for SEO; name that service or none/);
+  const bySeo = await p("propose_deal", { contact_id: NORA, stage: "won", service: "SEO" });
+  assert.deepEqual(
+    [bySeo.proposal.payload.deal_id, bySeo.proposal.payload.version, bySeo.proposal.summary],
+    ["d3", 1, "Client · SEO"],
+    "a named service picks its own open row, not the newest",
+  );
+  assert.equal(
+    (await p("propose_deal", { contact_id: NORA, stage: "won", service: "seo" })).proposal.payload.deal_id,
+    "d3",
+    "the service folds (case and accents aside)",
+  );
+  const newest = await p("propose_deal", { contact_id: NORA, stage: "won" });
+  assert.deepEqual(
+    [newest.proposal.payload.deal_id, newest.proposal.summary],
+    ["d4", "Client · Ads"],
+    "no service named: the current row, the newest open one",
+  );
+  assert.match(
+    (await p("propose_deal", { contact_id: NORA, stage: "won", service: "Web design" })).result,
+    /open deals are for Ads and SEO; name one of those or none/,
+  );
+  assert.match(
+    (await p("propose_deal", { contact_id: P1, stage: "won" })).result,
+    /no open deal to move; record a proposal first/,
+    "no deal at all: refused in words before it becomes a card the door would refuse",
+  );
+  // A passed row is movable too (the door allows any move but out of ended); a service that is not its own is not.
+  const lostWon = await p("propose_deal", { contact_id: LUIS, stage: "won" });
+  assert.deepEqual([lostWon.proposal.payload.deal_id, lostWon.proposal.summary], ["d2", "Client · Ads"]);
+  assert.match(
+    (await p("propose_deal", { contact_id: LUIS, stage: "won", service: "SEO" })).result,
+    /last deal is for Ads; name that service or none/,
+  );
+  const other = await p("propose_deal", { contact_id: LUIS, stage: "proposed", service: "SEO" });
+  assert.deepEqual(
+    [other.proposal.payload.deal_id, other.proposal.payload.service, other.proposal.summary],
+    [undefined, "SEO", "Proposal out · SEO"],
+    "a passed proposal sent again for another service is a new row",
+  );
+
+  const bad = await p("propose_deal", { contact_id: MARIA, stage: "banana" });
+  assert.equal(bad.isError, true);
+  assert.match(bad.result, /stage must be proposed, won, lost or ended/);
+  assert.match((await p("propose_deal", { contact_id: C2, stage: "won" })).result, /no such person/);
+  assert.match(
+    (await p("propose_deal", { contact_id: "c1", stage: "won" })).result,
+    /contact_id must be an id a read returned/,
+  );
 });

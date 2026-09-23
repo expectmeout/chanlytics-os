@@ -16,6 +16,8 @@ import "@/legacy/components/icons.jsx";
 import "@/legacy/components/surface-tabs.jsx";
 import "@/legacy/components/sidebar.jsx";
 import "@/legacy/components/shortcuts.jsx";
+// The three as the top bar's Ask button and the palette's stage: before the two that draw it.
+import "@/legacy/components/ask-face.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 import "@/legacy/components/day-agenda.jsx";
@@ -59,6 +61,8 @@ import "@/legacy/pages/ask-hooks.jsx";
 import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
+// The three, Today's face: after the palette's hooks and words it borrows, before the page that places it.
+import "@/legacy/pages/today-face.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";

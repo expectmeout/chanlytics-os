@@ -1260,8 +1260,10 @@ declare function mailboxHeader(name: string, address: string): string;
 declare function replySubject(parentSubject: string | null | undefined): string;
 /**
  * The HTML twin of plain words: paragraphs and line breaks, escaped, nothing
- * else. It exists because mail clients render plain text worse than they
- * should, not to carry design; no markup from the words survives into it.
+ * else -- except that a web address in the words is a link, so a proposal or
+ * a booking link opens where the client does not link plain text itself. It
+ * exists because mail clients render plain text worse than they should, not
+ * to carry design; no markup from the words survives into it.
  */
 declare function emailHtml(text: string): string;
 /** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */

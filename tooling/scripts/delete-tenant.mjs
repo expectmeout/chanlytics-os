@@ -80,6 +80,7 @@ const TABLES = [
   "contact_identities",
   "contacts",
   "conversations",
+  "deals",
   "decisions",
   "escalations",
   "events",

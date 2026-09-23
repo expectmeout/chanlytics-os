@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM, toInboxThreadVM, toCallVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -200,18 +201,19 @@ globalThis.document = {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -221,7 +223,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -231,14 +233,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   // Worked out again on every draw: the page filters its list in a memo keyed on the search.
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -303,7 +305,7 @@ const withRows = (rows) => {
   };
 };
 const page = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return ConversationsPage({ channel: "all", initialId: null, ...props });
 };
 
@@ -315,7 +317,7 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
     NOW,
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
   // The author, not the punctuation after it: the separator used to lead into a repeat of the
   // time that already sits over the bubble, and no longer exists. "by you" must still not match
@@ -331,7 +333,7 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
     NOW,
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   assert.equal(
     textOf(OutcomePill({ outcome: team.outcome, channel: team.channel, answeredBy: team.answeredBy })),
     "Your team replied",
@@ -435,8 +437,7 @@ test("REGRESSION: a search that stops matching the open conversation keeps it op
     THREADS: [nina, rosa].map((c) => toInboxThreadVM(c, null, ZONE, NOW)),
     CHANNEL_LABELS: { whatsapp: "WhatsApp" },
   };
-  // The pane's own drawing is the one thread's (one-thread.test.mjs); here only which thread it was handed. The stub
-  // React keys hooks by call order, and a list that shrinks under the real composer would shift its cells.
+  // The pane's own drawing is the one thread's (one-thread.test.mjs); here only which thread it was handed.
   const opened = [];
   globalThis.InboxThread = (p) => {
     opened.push(p.thread ? p.thread.id : null);

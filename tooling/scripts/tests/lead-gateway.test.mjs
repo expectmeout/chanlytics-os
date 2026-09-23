@@ -37,7 +37,7 @@ const format = {
 };
 
 test("three purposes, and only the two that are not Ask may name an output format", () => {
-  assert.deepEqual([...GATEWAY_PURPOSES], ["ask", "lead_draft", "lead_suggest"]);
+  assert.deepEqual([...GATEWAY_PURPOSES], ["ask", "lead_draft", "lead_suggest", "list_draft"]);
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });
   const ask = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "ask");

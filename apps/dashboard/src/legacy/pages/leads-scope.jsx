@@ -4,9 +4,9 @@
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
 // table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
 //
-// Hookless, every one of them: the page's one stub-React call order is ClientsAReal's, and this file's components
-// are drawn inside it (people-honest's harness keys hooks by call order). Every piece of state here is the page's
-// and arrives as a prop; every act goes out through the courier the bridge installed (legacy-bridge/leads.ts).
+// Hookless, every one of them: every piece of state here is LeadsReal's (clients-a.jsx), where its one keyboard
+// listener and the address can move it, and arrives as a prop; every act goes out through the courier the bridge
+// installed (legacy-bridge/leads.ts).
 //
 // Nothing here names the vendor: the owner sees Claude finding businesses, and where each fact came from.
 
@@ -230,6 +230,16 @@ const LeadRatedCard = ({ l }) => {
 // The row's classes on its tr (leads.css): a lead's row, its state, and its class. One function, so a memoised
 // row sees the same one each draw. The stylesheet reads them rather than asking every tr :has(td.ld-biz-cell).
 const ldRowClass = (l) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
+// A converted lead whose person became a client (0004): the row reads People's row for them, and a deal won says
+// Client in the deal pill's own tone, in place of the lead's own tag. Nothing stored on the lead; a proposal still
+// out, or no deal, keeps the lead's word. People not read yet reads as no deal. The rows come through the cell
+// context (x.peopleRows, clients-a.jsx leadCellCtxFor), never the global: a memoised row is drawn again only when
+// a prop changes, and on a cold load of Leads the people land after the rows were drawn.
+const ldClientOf = (l, x) => {
+  const rows = x && x.peopleRows;
+  const person = l.contactId && rows ? rows.find((p) => p.id === l.contactId) : null;
+  return !!(person && person.deal && person.deal.stage === "won");
+};
 const ldBusinessCell = (l, x) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -239,7 +249,7 @@ const ldBusinessCell = (l, x) => (
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
           {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
-          {l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
+          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />
@@ -292,10 +302,10 @@ const LEAD_COLUMNS = [
 // person's row always says theirs); where it is, or what it waits on, or what left it out; and whether a phone and a
 // mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
 // it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
-const ldCardCell = (l) => window.plRowCard({
+const ldCardCell = (l, x) => window.plRowCard({
   face: { initials: l.tile.initials, image: l.tile.logo || l.tile.image },
   name: l.name,
-  pill: <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
+  pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
   lead: l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub),
   leadTestid: "lead-sub",
   facts: [
@@ -398,26 +408,62 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
 
 // Qualified · Needs review · Excluded, under the search that is open: each a count and a view (c-qualified,
 // c-review, c-excluded). The class is not a stage (§9.1): it says whether the place met the plan.
-// The band (D5): one element that says the search's whole shape and filters it. The three classes with their
-// counts are the tabs; the qualified split by fit band draws only when the fits differ (contracts leadBand), and a
-// fit narrows the rows on screen the way an Excluded chip does.
-const LeadBand = ({ band, cls, onPick, fit, onPickFit }) => (
-  <div className="ld-band" data-testid="lead-band">
-    <div className="ld-classes" role="tablist" aria-label="What the search made of each place" data-testid="lead-classes">
-      {band.classes.map((c) => (
-        <button key={c.id} type="button" role="tab" aria-selected={cls === c.id} className={`ld-class ${c.id} ${cls === c.id ? "on" : ""}`} onClick={() => onPick(cls === c.id ? null : c.id)} data-testid={`lead-class-${c.id}`}>{c.label}</button>
-      ))}
-    </div>
-    {band.mixed && (!cls || cls === "qualified") ? (
-      <div className="ld-band-fits" role="group" aria-label="Qualified, by fit" data-testid="lead-band-fits">
-        <span className="ld-band-bar" aria-hidden="true">{band.fits.map((f) => <span key={f.id} className={`seg ${f.id}`} style={{ flexGrow: f.count }} />)}</span>
-        {band.fits.filter((f) => f.count > 0).map((f) => (
-          <button key={f.id} type="button" className={`ld-band-fit ${f.id}${fit === f.id ? " on" : ""}`} aria-pressed={fit === f.id} onClick={() => onPickFit(fit === f.id ? null : f.id)} data-testid={`lead-band-fit-${f.id}`}>{f.label} <span className="count">{f.count}</span></button>
-        ))}
+/// The band (D5): one element that says the search's whole shape and filters it. The three classes with their
+// counts are the tabs -- a segmented control whose marker slides to the one that is open, over a hairline that is
+// the same three counts as lengths, so the shape of the search reads at a glance without a fourth number. The
+// qualified split by fit band draws once Qualified is open and the fits differ (contracts leadBand): a fit narrows
+// the rows on screen the way an Excluded chip does. The words are contracts' labels; the count is drawn apart from
+// them only so it can sit in tabular figures.
+const { useRef: useBandRef, useEffect: useBandEffect } = React;
+const LEAD_BAND_TONE = { qualified: "ok", review: "warn", excluded: "plain" };
+const ldBandWords = (c) => String(c.label).replace(new RegExp(`^${c.count}\\s+`), "");
+const LeadBand = ({ band, cls, onPick, fit, onPickFit }) => {
+  const tabs = useBandRef(null);
+  // The marker is measured, not guessed: the open tab's own box, written as two custom properties the stylesheet
+  // animates. Nothing re-renders for it.
+  useBandEffect(() => {
+    const el = tabs.current;
+    if (!el || !el.querySelector) return undefined;
+    const place = () => {
+      const on = el.querySelector(".ld-class.on");
+      el.style.setProperty("--mark-x", `${on ? on.offsetLeft : 0}px`);
+      el.style.setProperty("--mark-w", `${on ? on.offsetWidth : 0}px`);
+      el.classList.toggle("has-mark", !!on);
+    };
+    place();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cls, band.classes.map((c) => c.count).join(",")]);
+  const total = band.classes.reduce((n, c) => n + c.count, 0);
+  return (
+    <div className="ld-band" data-testid="lead-band">
+      <div className="ld-band-tabs">
+        <div className="ld-classes" ref={tabs} role="tablist" aria-label="What the search made of each place" data-testid="lead-classes">
+          <span className="ld-class-mark" aria-hidden="true" />
+          {band.classes.map((c) => (
+            <button key={c.id} type="button" role="tab" aria-selected={cls === c.id} className={`ld-class ${c.id} ${cls === c.id ? "on" : ""}`} onClick={() => onPick(cls === c.id ? null : c.id)} data-testid={`lead-class-${c.id}`}>
+              <span className="n">{c.count}</span> <span className="w">{ldBandWords(c)}</span>
+            </button>
+          ))}
+        </div>
+        {total > 0 ? (
+          <span className="ld-band-shape" aria-hidden="true">
+            {band.classes.filter((c) => c.count > 0).map((c) => <span key={c.id} className={`seg tone-${LEAD_BAND_TONE[c.id]}${cls && cls !== c.id ? " dim" : ""}`} style={{ flexGrow: c.count }} />)}
+          </span>
+        ) : null}
       </div>
-    ) : null}
-  </div>
-);
+      {band.mixed && cls === "qualified" ? (
+        <div className="ld-band-fits" role="group" aria-label="Qualified, by fit" data-testid="lead-band-fits">
+          {band.fits.filter((f) => f.count > 0).map((f) => (
+            <button key={f.id} type="button" className={`ld-band-fit ${f.id}${fit === f.id ? " on" : ""}`} aria-pressed={fit === f.id} onClick={() => onPickFit(fit === f.id ? null : f.id)} data-testid={`lead-band-fit-${f.id}`}><span className={`dot ${f.id}`} aria-hidden="true" />{f.label} <span className="count">{f.count}</span></button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 // The Excluded view's head: what each criterion left out, most first, each one narrowing the rows (§8.7). The
 // counts are the loaded rows' own `excludedBy` (lead_search_members.excluded_by, said in words by toLeadRowVM),
@@ -575,10 +621,86 @@ const ldPinTone = (l, by) => {
 const ldPinOut = (l) => (l.state === "out" ? " is-out" : "");
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
+// Streets under the pins, when the product hosts a basemap (legacy-bridge lead-map.ts publishes `__LEAD_MAP`). The
+// page asks once what ground the archive covers and draws streets only where it does; everywhere else, and wherever
+// there is no archive at all (a test, a laptop without the bundle), the square stands as it always did. The pins on
+// the streets are the same elements with the same tones, placed by the bridge from the points the door returned.
+const { useRef: useLmRef, useEffect: useLmEffect, useState: useLmState } = React;
+const useLeadMapCoverage = () => {
+  const [cover, setCover] = useLmState(null);
+  useLmEffect(() => {
+    const M = window.__LEAD_MAP;
+    if (!M) return undefined;
+    let on = true;
+    M.ready().then((c) => { if (on) setCover(() => c); }, () => {});
+    return () => { on = false; };
+  }, []);
+  return cover;
+};
+const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
+  const box = useLmRef(null);
+  const handle = useLmRef(null);
+  const latest = useLmRef({ onPick, x });
+  latest.current = { onPick, x };
+  useLmEffect(() => {
+    const M = window.__LEAD_MAP;
+    if (!M || !box.current) return undefined;
+    const h = M.mount(box.current, { onPick: (id) => latest.current.onPick(id), onOpen: (id) => latest.current.x.onOpen(id) });
+    handle.current = h;
+    return () => { h.destroy(); handle.current = null; };
+  }, []);
+  const ids = plot.pins.map((p) => p.id).join(",");
+  const center = plot.center;
+  useLmEffect(() => {
+    const h = handle.current;
+    if (!h) return;
+    const byId = new Map(rows.map((l) => [l.id, l]));
+    h.setPins(
+      plot.pins
+        .map((p) => byId.get(p.id))
+        .filter((l) => l && l.point)
+        .map((l) => ({ id: l.id, lat: l.point.lat, lng: l.point.lng, tone: ldPinTone(l, by), out: l.state === "out", label: `${l.name} — ${l.sub}` })),
+      picked,
+    );
+  }, [rows, ids, by, picked]);
+  // The area the search asked for: contracts anchored the square on its centre, so the ring's radius in metres is
+  // its share of the span, and its centre is the plot's.
+  const ringM = plot.ring && center ? Math.round(plot.ring.r * plot.spanM) : 0;
+  useLmEffect(() => {
+    const h = handle.current;
+    if (!h) return;
+    h.setRing(ringM && center ? { lat: center.lat, lng: center.lng, radiusM: ringM } : null);
+  }, [ringM, center && center.lat, center && center.lng]);
+  useLmEffect(() => {
+    const h = handle.current;
+    if (h && center) h.fit(center, plot.spanM);
+  }, [ids, center && center.lat, center && center.lng, plot.spanM]);
+  return (
+    <div className="ld-map-streets" data-testid="lead-map-streets">
+      <div className="ld-map-canvas" ref={box} />
+      {children}
+    </div>
+  );
+};
+
 const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
+  const cover = useLeadMapCoverage();
+  const streets = !!(cover && plot.center && !plot.tooWide && cover.covers(plot.center));
+  const card = picked && byId.get(picked) ? (
+    <div className="ld-map-card" data-testid="lead-map-card">
+      <LeadTile l={byId.get(picked)} size={34} />
+      <div className="b">
+        <div className="n">{byId.get(picked).name}</div>
+        <div className="s">{byId.get(picked).sub}</div>
+      </div>
+      {byId.get(picked).slots.phone.value ? (
+        <LeadCallMenu {...ldCallProps(byId.get(picked), x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
+      ) : null}
+    </div>
+  ) : null;
   return (
     <div className="ld-map" data-testid="lead-map">
       <div className="ld-map-side">
@@ -614,6 +736,10 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           <div className="ld-map-plot ld-map-wide" data-testid="lead-map-toowide">
             <span className="ld-map-wide-line">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
           </div>
+        ) : streets ? (
+          <LeadStreets rows={rows} plot={plot} by={by} picked={picked} onPick={onPick} x={x}>
+            {card}
+          </LeadStreets>
         ) : (
         <div className="ld-map-plot" data-testid="lead-map-plot">
           {plot.ring ? (
@@ -640,18 +766,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
               />
             );
           })}
-          {picked && byId.get(picked) ? (
-            <div className="ld-map-card" data-testid="lead-map-card">
-              <LeadTile l={byId.get(picked)} size={34} />
-              <div className="b">
-                <div className="n">{byId.get(picked).name}</div>
-                <div className="s">{byId.get(picked).sub}</div>
-              </div>
-              {byId.get(picked).slots.phone.value ? (
-                <LeadCallMenu {...ldCallProps(byId.get(picked), x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
-              ) : null}
-            </div>
-          ) : null}
+          {card}
           <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
         </div>
         )}
@@ -669,7 +784,6 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
     </div>
   );
 };
-
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
@@ -952,9 +1066,14 @@ const LeadsScope = (p) => {
             </div>
           ) : null}
 
-          {search && <LeadStrip vm={p.strip} onAction={p.onStripAction} />}
-
-          {search && p.band && <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />}
+          {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next
+              step. The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
+          {search && p.strip ? (
+            <LeadStrip vm={p.strip} onAction={p.onStripAction}>
+              {p.band ? <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} /> : null}
+            </LeadStrip>
+          ) : null}
+          {search && !p.strip && p.band && <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />}
           {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
           {p.view.cls === "review" && !p.benchGroups.length && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
 
@@ -1121,7 +1240,7 @@ const LeadsScope = (p) => {
           // Call is the acts' own: it arms "How did the call go?" and then hands the tel: to the browser, which
           // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
           // The deck is a phone's (D5): one lead at a time, with the pile's place under the thumb.
-          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} deck={phone ? p.deck : null} {...acts} />;
+          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} deck={phone ? p.deck : null} phone={phone} {...acts} />;
         })()}
         {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
             searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the

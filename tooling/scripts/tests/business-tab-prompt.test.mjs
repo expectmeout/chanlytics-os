@@ -17,7 +17,7 @@ import {
   PROMPT_READERS,
   PROMPT_NOW,
 } from "@chanlytics/contracts";
-import { unmount, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import { unmount, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import {
   W,
   KNOWN,
@@ -33,16 +33,15 @@ import {
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
 
-const draw = () => W.BusinessTab({ flash: () => {} });
 /** The page with the prompt sheet opened from the told section's door, on the channel asked for. */
 const drawPrompt = (channel = "whatsapp", over = {}) => {
   const tree = drawTab({ profile: melany, ...over });
   press(byTestId(tree, "rec-prompt-open"));
-  let open = again(draw);
+  let open = redrawTab();
   if (channel !== "whatsapp") {
     const phone = find(byTestId(open, "rec-prompt-channel"), (n) => n.props?.role === "radio" && textOf(n) === "Phone");
     press(phone);
-    open = again(draw);
+    open = redrawTab();
   }
   return open;
 };
@@ -143,38 +142,30 @@ test("what is sent beside the prompt is drawn apart, and says why", () => {
 
 /* ------------------------------------ the slot ------------------------------------ */
 
-test("the page draws one sheet slot, last, and it draws one sheet or none", () => {
-  // Two sheets cannot both be the page's last hook-holding child (the plan's Phase 5 note): the kit's RecordSheet holds
-  // hooks and is drawn only while open, and the stub keeps every hook in one order. So one slot, last, draws whichever
-  // the registry has open.
-  const lastDrawn = (tree) =>
-    []
-      .concat(tree.rendered.props.children)
-      .filter((c) => c != null && c !== false)
-      .at(-1);
+test("the page draws one sheet slot, and it draws one sheet or none", () => {
+  // The fold registry opens one editor or sheet at a time, so one slot draws whichever it has open. (The slot was drawn
+  // last because the tests' old stub kept every hook in one order; it keeps each component's where it sits now.)
+  const slotOf = (tree) => find(tree, (n) => n.type === W.BtSheetSlot);
   const sheets = (tree) => all(tree, (n) => n.type === W.RecordSheet);
   let tree = drawTab({ profile: melany });
-  assert.equal(lastDrawn(tree).type, W.BtSheetSlot, "closed");
+  assert.ok(slotOf(tree), "closed");
   assert.equal(sheets(tree).length, 0, "and it draws no sheet");
 
   press(byTestId(tree, "rec-prompt-open"));
   tree = redrawTab();
-  assert.equal(lastDrawn(tree).type, W.BtSheetSlot, "the prompt sheet open");
   assert.deepEqual(
     sheets(tree).map((s) => s.props.id),
     ["prompt"],
   );
-  // The kit's sheet is the last thing the slot draws, so the last hook-holding thing on the page.
-  const slot = lastDrawn(tree);
-  const inSlot = [].concat(slot.rendered.props.children).filter((c) => c != null && c !== false);
-  assert.equal(inSlot.at(-1).type, W.BtPromptSheet);
-  assert.equal(inSlot.at(-1).rendered.type, W.RecordSheet);
+  assert.ok(
+    find(slotOf(tree), (n) => n.type === W.BtPromptSheet),
+    "drawn by the slot",
+  );
 
   press(find(sheetOf(tree), (n) => n.props?.["aria-label"] === "Close"));
   tree = redrawTab();
   W.__recordFolds.request("services");
   tree = redrawTab();
-  assert.equal(lastDrawn(tree).type, W.BtSheetSlot, "the services sheet open");
   assert.deepEqual(
     sheets(tree).map((s) => s.props.id),
     ["services"],

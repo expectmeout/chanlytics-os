@@ -17,6 +17,7 @@
  * miss.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { type DealFacts, dealSentence, pickCurrentDeal } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -190,6 +191,10 @@ export interface LeadContext {
   optedOut: boolean;
   /** The owner's notes on them — facts for the receptionist, never read aloud. */
   notes?: string | null;
+  /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+  proposalUrl?: string | null;
+  /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
+  deal?: DealFacts | null;
 }
 
 const EMPTY_LEAD: LeadContext = {
@@ -225,7 +230,7 @@ export async function readLeadContext(
 ): Promise<LeadContext> {
   const { data: contact, error: cErr } = await db
     .from("contacts")
-    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes")
+    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
@@ -253,6 +258,17 @@ export async function readLeadContext(
     history = assembleHistory((rows ?? []) as never, historyLimit);
   }
 
+  // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
+  // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
+  // for other services, and a cap would hide it behind them.
+  const { data: dealRows } = await db
+    .from("deals")
+    .select("stage, service, proposed_at, decided_at, ended_at, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contact.id)
+    .order("created_at", { ascending: false });
+  const current = pickCurrentDeal(dealRows ?? []);
+
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
@@ -266,7 +282,41 @@ export async function readLeadContext(
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
+    proposalUrl: contact.proposal_url ?? null,
+    deal: current
+      ? {
+          stage: current.stage,
+          service: current.service,
+          proposed_at: current.proposed_at,
+          decided_at: current.decided_at,
+          ended_at: current.ended_at,
+        }
+      : null,
   };
+}
+
+/**
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
+ * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ */
+export async function readDealForPhone(db: Db, tenantId: string, phoneE164: string): Promise<DealFacts | null> {
+  const { data: c } = await db
+    .from("contacts")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("phone_e164", phoneE164)
+    .maybeSingle();
+  if (!c) return null;
+  const { data } = await db
+    .from("deals")
+    .select("stage, service, proposed_at, decided_at, ended_at, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", c.id)
+    .order("created_at", { ascending: false });
+  const d = pickCurrentDeal(data ?? []);
+  return d
+    ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at }
+    : null;
 }
 
 /**
@@ -277,7 +327,7 @@ export async function readLeadContext(
  * nothing said at all when we know nothing, because "New caller" is itself a
  * useful and honest thing to tell an agent.
  */
-export function describeLead(lead: LeadContext, now = new Date()): string {
+export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): string {
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
   bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
@@ -301,5 +351,16 @@ export function describeLead(lead: LeadContext, now = new Date()): string {
   // The owner's own words about them: facts to use, never to recite.
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  // Their deal (0004): one sentence per stage, never an amount. Where a proposal link is on file, the link's own rule
+  // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
+  const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
+  if (deal) bits.push(deal);
+  // The owner's priced answer for this person is a link (00154): the receptionist
+  // hands it over and prices nothing itself. A reader without the column says nothing.
+  const proposal = (lead.proposalUrl ?? "").trim();
+  if (proposal)
+    bits.push(
+      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`,
+    );
   return bits.join(" ");
 }

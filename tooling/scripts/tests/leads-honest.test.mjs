@@ -1,11 +1,11 @@
 /**
  * The Leads scope of People: the same page, its other scope.
  *
- * Drawn the way people-honest.test.mjs draws People -- window.ClientsA on a stub React that keys hooks by call
- * order -- with scope="leads" and the address's view. The surface (window.__LEADS) and the courier
- * (window.__leadX) are faked here: release B's Task 3 writes the real ones, and leads-bridge.test.mjs proves
- * them over a fake wire. What this file proves is the PAGE: its rail, its standing line, its view, its one
- * keyboard listener, its bulk bar, and the three classes' acts.
+ * Drawn the way people-honest.test.mjs draws People -- window.ClientsA on a stub React that keeps each hook's state
+ * where its component sits, as React does (_hook-frames.mjs) -- with scope="leads" and the address's view. The
+ * surface (window.__LEADS) and the courier (window.__leadX) are faked here: release B's Task 3 writes the real ones,
+ * and leads-bridge.test.mjs proves them over a fake wire. What this file proves is the PAGE: its rail, its standing
+ * line, its view, its one keyboard listener, its bulk bar, and the three classes' acts.
  *
  * The view models are contracts' own (4.1 and 4.6, already on this branch): the rows are DTOs put through
  * toLeadRowVM, and the rail and the standing line are leadRail and leadsStanding. The page's view IS the
@@ -41,6 +41,7 @@ import {
   planWhere,
   planWho,
 } from "../../../packages/contracts/src/lead-search.ts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -322,7 +323,8 @@ globalThis.window = {
 
 let cells = [];
 let setters = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const flashes = [];
 const went = [];
 const opened = [];
@@ -332,13 +334,13 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   // The setter is one function for the cell's life, as React's is: a memoised row is handed setters (people-table.jsx).
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     setters[k] ||= (v) => {
       cells[k] = typeof v === "function" ? v(cells[k]) : v;
@@ -346,7 +348,7 @@ globalThis.React = {
     return [cells[k], setters[k]];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -356,13 +358,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   // Kept while its deps hold, as React's is: the page's stable objects (a cell context, the columns) are proved here.
   useMemo: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -377,7 +379,7 @@ globalThis.React = {
   },
   // Kept while its deps hold, as React's is, and a cell of its own: the page hands a memoised row one function.
   useCallback: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -391,7 +393,7 @@ globalThis.React = {
     return fn;
   },
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -414,7 +416,7 @@ installTabMemory(globalThis.window);
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props, hookless, so the page's own hook order is all the stub counts.
+// Menus and questions as their props, hookless: what the page hands them is what these tests press.
 const menus = [];
 const confirms = [];
 globalThis.MoreMenu = (p) => {
@@ -765,7 +767,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   delete globalThis.window.__saveView;
 };
 const draw = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.ClientsA({
     scope: "leads",
     leadsRoute: "leads",
@@ -1352,14 +1354,30 @@ test("the People | Leads switch is a tablist in both scopes, and picking the oth
   assert.deepEqual(went, ["clients/leads"]);
 });
 
-test("drawing People then Leads keeps the page's hook order: every hook the Leads scope needs is declared in both", () => {
+test("People and Leads are two components: each keeps its own state, and People listens for nothing of Leads'", () => {
+  // They were one component, every hook of both scopes declared in both in one order: the order the stub kept hooks
+  // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
   fresh();
-  draw({ scope: "people", leadsRoute: null });
-  const asPeople = seq;
-  cells = [];
+  const peopleBox = (tree) =>
+    find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search by name or phone…");
+  const leadsBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+  peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
+  assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
+  assert.equal(listeners["surface:leads"]?.size ?? 0, 0, "a Leads refresh does not draw People again");
+  assert.equal(listeners["surface:clients"]?.size, 1);
+  assert.equal(listeners.keydown?.size, 1, "one keyboard listener, People's");
+  // Leads drawn over the same cells: its words are its own, and People's are where they were.
+  assert.equal(leadsBox(draw()).props.value, "", "REGRESSION: one component, so one box for both scopes");
+  assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
+  fresh();
   draw();
-  assert.equal(seq, asPeople, "one call order, whichever scope is drawn");
-  assert.ok(asPeople > 20, `and it is the page's own hooks that were counted (${asPeople})`);
+  assert.equal(listeners["surface:leads"]?.size, 1, "Leads listens for its own surface");
+  assert.equal(
+    listeners["surface:clients"]?.size,
+    1,
+    "and for People's, which carries the workspace's copy of its view",
+  );
+  assert.equal(listeners.keydown?.size, 1, "one keyboard listener, Leads'");
 });
 
 test("the Leads view is saved with its list, sort and columns every time, through __saveView('leads', …), one save at a time", async () => {
@@ -1931,8 +1949,9 @@ const paned = (table) => {
       .split(/\s+/)
       .includes("cl-main-scroll"),
   ).props.ref;
-  const at = cells.indexOf(paneRef);
-  assert.ok(at >= 0, "the pane's ref is one of the page's cells");
+  // The cell the ref lives in, by the key its component keeps it under (_hook-frames.mjs).
+  const at = Object.keys(cells).find((k) => cells[k] === paneRef);
+  assert.ok(at !== undefined, "the pane's ref is one of the page's cells");
   const heard = [];
   const attrs = {};
   const capture = (opts) => opts === true || !!(opts && opts.capture);
@@ -2617,7 +2636,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
 
 const bar = (over = {}) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.LeadsPhoneBar({
     scope: "leads",
     onScope() {},
@@ -2688,13 +2707,17 @@ test("Find on a phone is the gate's for anyone who may not find", () => {
 test("the finder's sheet is the page's own dialog and registers no listener of its own", () => {
   fresh();
   cells = [];
-  seq = 0;
-  const before = seq;
+  frames.begin();
+  const before = frames.called();
   const t = globalThis.window.LeadFinderSheet({
     onClose() {},
     children: globalThis.React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type"),
   });
-  assert.equal(seq, before, "hookless: the page's listener owns Esc, and a second one would take the key twice");
+  assert.equal(
+    frames.called(),
+    before,
+    "hookless: the page's listener owns Esc, and a second one would take the key twice",
+  );
   const sheet = byTestId(t, "leads-finder-sheet");
   assert.equal(sheet.props.role, "dialog");
   assert.ok(sheet.props.className.includes("pl-finder"), "PL_OVERLAY names .pl-finder as the page's own");
@@ -3041,11 +3064,15 @@ test("with no recogniser there is no mic, and a page drawn without Ask's hooks k
     assert.equal(finders.at(-1).talk.canTalk, false, "a browser that cannot hear is offered nothing");
     fresh();
     draw();
-    const withHooks = seq;
+    const withHooks = frames.called();
     delete globalThis.window.AskHooks;
     fresh();
     const tree = draw();
-    assert.equal(seq, withHooks, "the stand-in declares the same hooks, so the page's one call order does not move");
+    assert.equal(
+      frames.called(),
+      withHooks,
+      "the stand-in declares the same hooks, so LeadsReal calls as many either way",
+    );
     assert.ok(byTestId(tree, "leads-standing"), "and the page still draws");
   } finally {
     globalThis.window.SpeechRecognition = SR;
@@ -3318,4 +3345,71 @@ test("a pop hangs above its row when the room is there, every hover asks where i
   assert.ok(menu, "a kept search has its menu");
   assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
   assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");
+});
+
+/* ------------------------------ a lead that became a client ------------------------------ */
+
+test("a converted lead whose person became a client reads Client, on the desktop's row and on a phone's card; a proposal out or no deal keeps Converted", () => {
+  // Nothing stored on the lead (0004): the row reads People's row for the person it converted into, and only a deal
+  // won says Client, in the deal pill's own tone. A proposal still out, or no deal at all, is the lead's own word.
+  const vm = (over) => toLeadRowVM(leadRow(over), TZ, NOW);
+  const rows = [
+    vm({ id: "c1", place_id: "ChIJclient1", business_name: "Client Gym", stage: "converted", contact_id: "k1" }),
+    vm({ id: "c2", place_id: "ChIJclient2", business_name: "Proposal Gym", stage: "converted", contact_id: "k2" }),
+    vm({ id: "c3", place_id: "ChIJclient3", business_name: "Nobody Gym", stage: "converted", contact_id: null }),
+  ];
+  const people = [
+    { id: "k1", deal: { stage: "won", brief: "Client · Ad management" } },
+    { id: "k2", deal: { stage: "proposed", brief: "Proposal out · 3 d" } },
+  ];
+  const cls = (n) => String(n?.props?.className || "");
+  fresh({ leads: surface({ searches: [search()], rows }) });
+  globalThis.window.__PEOPLE.rows = people;
+  let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const tagOf = (id) => byTestId(rowOf(tree, id), "lead-state-tag");
+  assert.equal(textOf(tagOf("c1")), "Client", "the stage word of the deal, never a word for a person");
+  assert.equal(cls(tagOf("c1")), "pill pill-ok", "the deal pill's own tone");
+  assert.equal(textOf(tagOf("c2")), rows[1].stateTag, "a proposal still out is not a client: the lead's own word");
+  assert.equal(textOf(tagOf("c3")), rows[2].stateTag, "no person, no deal: the lead's own word");
+  // The rows reach the cell through its context, not the global. The page's rows are memoised (React.memo, which
+  // this stub React lacks, so every row is drawn each time here) and the context is what they compare: on a cold
+  // load of Leads the rows paint before the people land, and a cell that read window.__PEOPLE kept saying Converted
+  // until a sort or a search drew it again. So: the page hands People's rows to the context, and the cell reads them
+  // from there -- with the global emptied, a context carrying the rows still says Client, and one without them does not.
+  const rowNode = find(
+    tree,
+    (n) => n.type && (n.type.name === "PeopleRow" || (n.type.type && n.type.type.name === "PeopleRow")),
+  );
+  assert.ok(rowNode, "the table draws its rows as PeopleRow");
+  assert.equal(rowNode.props.ctx.peopleRows, people, "REGRESSION: the cell context carried nothing from People");
+  const business = globalThis.window.LEAD_COLUMNS.find((c) => c.key === "business");
+  const pillOf = (td, testid) => find(td, (n) => n.props?.testid === testid);
+  globalThis.window.__PEOPLE.rows = [];
+  const withRows = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }), "lead-state-tag");
+  assert.deepEqual([withRows.props.kind, withRows.props.value], ["deal", "won"], "the context's rows say Client");
+  const withCard = pillOf(
+    globalThis.window.LEAD_PHONE_COLUMNS[0].cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }),
+    "lead-state",
+  );
+  assert.deepEqual([withCard.props.kind, withCard.props.value], ["deal", "won"], "and so does the phone's card");
+  globalThis.window.__PEOPLE.rows = people;
+  const without = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] }), "lead-state-tag");
+  assert.equal(
+    without.props.kind,
+    "lead_row_state",
+    "REGRESSION: the cell read the global, so a context without the rows said Client",
+  );
+
+  fresh({ leads: surface({ searches: [search()], rows }) });
+  globalThis.window.__PEOPLE.rows = people;
+  globalThis.__phone = true;
+  try {
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-card");
+    assert.equal(textOf(byTestId(cardOf("c1"), "lead-state")), "Client");
+    assert.equal(cls(byTestId(cardOf("c1"), "lead-state")), "pill pill-ok");
+    assert.equal(textOf(byTestId(cardOf("c2"), "lead-state")), rows[1].stateTag);
+  } finally {
+    globalThis.__phone = false;
+  }
 });

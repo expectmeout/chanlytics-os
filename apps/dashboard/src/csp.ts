@@ -47,6 +47,12 @@
 export interface CspInputs {
   /** NEXT_PUBLIC_SUPABASE_URL; its origin is allowed over https and wss. */
   supabaseUrl?: string | null;
+  /**
+   * NEXT_PUBLIC_LEAD_MAP_BASE: where the lead map's basemap bundle lives (legacy-bridge/lead-map.ts). The browser
+   * reads byte ranges of the archive, its glyphs and its sprites from there, so its origin is allowed for
+   * connections and images. A same-origin path (`/lead-map`) has no origin to name and adds nothing.
+   */
+  leadMapBase?: string | null;
   /** A development server needs eval for React's fast refresh; production never does. */
   dev?: boolean;
   /** Riding the report-only header: upgrade-insecure-requests is ignored there, and the browser says so on every page. */
@@ -73,14 +79,18 @@ function originOf(url: string | null | undefined): string | null {
 export function contentSecurityPolicy(o: CspInputs): string {
   const supabase = originOf(o.supabaseUrl);
   const supabaseWs = supabase ? supabase.replace(/^https:/, "wss:") : null;
+  const leadMap = originOf(o.leadMapBase);
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
     ["script-src", ["'self'", "'unsafe-inline'", ...(o.dev ? ["'unsafe-eval'"] : []), META[0]]],
     ["style-src", ["'self'", "'unsafe-inline'"]],
     ["font-src", ["'self'"]],
-    ["img-src", ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS]],
+    [
+      "img-src",
+      ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS, ...(leadMap ? [leadMap] : [])],
+    ],
     ["media-src", ["'self'", "blob:", ...(supabase ? [supabase] : [])]],
-    ["connect-src", ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META]],
+    ["connect-src", ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META, ...(leadMap ? [leadMap] : [])]],
     ["frame-src", [META[1], META[2]]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],

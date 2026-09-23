@@ -668,6 +668,11 @@ const PL_LIST_TIP = {
   booked_week: "An appointment in the next seven days",
   asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
   lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
+  // The journey past the booking (0004): drawn only where deals are a thing here.
+  consultation_booked: "A consultation ahead or behind them, and no proposal yet",
+  proposal_out: "A proposal went out and is waiting on their answer",
+  clients: "Said yes, or paid — the engagement is running",
+  deal_ended: "An engagement that ended — the win-back list for clients",
 };
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
@@ -677,14 +682,14 @@ const plLoadView = (scope) => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people, JSON.stringify(v)); } catch { /* private mode */ } };
-// Where the owner was in each view of Leads -- the words in the box, the row the cursor was on, whether the map was
-// open and how far the list was scrolled ({ q, cursor, map, top }) -- and a Find half-written: both in the tab's one
-// store for what pages keep (legacy-bridge/tab-memory.ts, window.__tabMemory), which keys them by the workspace, keeps
-// a page's last twelve views, forgets a draft a day old and goes at sign-out. A selection is not part of the place:
-// one that came back unseen after a refresh is the kind of thing a bulk act should never find. Where no store is
-// published (the standalone harness), the place and the draft live for the page.
-const ldPlaceLoad = (view) => (window.__tabMemory ? window.__tabMemory.place("leads", view) : null);
-const ldPlaceSave = (view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace("leads", view, place); };
+// Where the owner was in each view of People or Leads -- the words in the box, the row the cursor was on, how far the
+// list was scrolled, and on Leads whether the map was open ({ q, cursor, top, map }) -- and a Find half-written: both
+// in the tab's one store for what pages keep (legacy-bridge/tab-memory.ts, window.__tabMemory), which keys them by the
+// workspace, keeps a page's last twelve views, forgets a draft a day old and goes at sign-out. A selection is not part
+// of the place: one that came back unseen after a refresh is the kind of thing a bulk act should never find. Where no
+// store is published (the standalone harness), the place and the draft live for the page.
+const plPlaceLoad = (page, view) => (window.__tabMemory ? window.__tabMemory.place(page, view) : null);
+const plPlaceSave = (page, view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace(page, view, place); };
 // The Find kept is its words, and the plan Claude wrote for them with the card it came on. A plan cost a wait to get,
 // and approving one only posts it (legacy-bridge ask/commit.ts), so it is as good after a refresh as before. A turn
 // still being read, or one being started, is not: it comes back as its words.
@@ -698,20 +703,25 @@ const ldFinderSave = (f) => {
     stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
   });
 };
+/** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
+const ldValuesPref = () => { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
 // page's latest closures through `acts`, so the object itself is kept across draws (in `kept`) and a memoised row
-// handed it is left alone.
-const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind) => {
+// handed it is left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004):
+// publishPeople builds a fresh array each time People lands, so the context is new then and the rows redraw -- on a
+// cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
+// sort or a search drew it again.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows) => {
   const k = kept.current;
-  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind) return k.ctx;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows) return k.ctx;
   const door = (name) => (id) => acts.current[name](id);
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
-    values, mixedFits, hasCenter, canFind,
+    values, mixedFits, hasCenter, canFind, peopleRows,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
-  kept.current = { values, mixedFits, hasCenter, canFind, ctx };
+  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, ctx };
   return ctx;
 };
 // Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
@@ -858,21 +868,37 @@ const PeopleReceptionist = ({ r }) => (
 // here; people join from their profile. The POST answers before the rail
 // re-reads the surface, so the new row is the server's. `openSignal` opens the
 // box from outside: the shell's and a profile's "New list" (segments:new).
+// A new list: a name kept by hand, or -- "Describe who" -- a smart list whose rule the assistant drafts from the owner's
+// own words (window.__lists.draft) and the page shows back as chips with who it holds for today, before anything is
+// saved. The mockup's plain-English composer (segments.jsx), on real data: a rule in a vocabulary the row can answer.
 const NewListRow = ({ onCreate, openSignal = 0 }) => {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [smart, setSmart] = React.useState(false);
+  const [words, setWords] = React.useState("");
+  const [draft, setDraft] = React.useState(null);
   React.useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
-  const close = () => { setOpen(false); setName(""); setError(null); };
+  const close = () => { setOpen(false); setName(""); setError(null); setSmart(false); setWords(""); setDraft(null); };
   const submit = async () => {
     const n = name.trim();
     if (!n || busy) return;
     setBusy(true); setError(null);
-    const r = await onCreate(n);
+    const r = await onCreate(n, draft ? draft.rule : null);
     setBusy(false);
     if (!r.ok) { setError(r.message || "Could not make the list."); return; }
     close();
+  };
+  const build = async () => {
+    const w = words.trim();
+    if (!w || busy || !window.__lists || !window.__lists.draft) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.draft(w);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not draft the list."); return; }
+    setDraft(r.data);
+    setName(r.data.name);
   };
   if (!open) {
     return (
@@ -884,8 +910,41 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
       </div>
     );
   }
+  if (smart && !draft) {
+    return (
+      <div className="cl-rail-foot">
+        <div className="cl-rail-newlist">
+          <input
+            autoFocus
+            value={words}
+            placeholder="Describe who — “haven’t visited in two months”"
+            maxLength={300}
+            disabled={busy}
+            aria-label="Describe who is on the list"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "new-list-error" : undefined}
+            data-testid="new-list-words"
+            onChange={(e) => setWords(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") build(); if (e.key === "Escape") close(); }}
+          />
+          <button className="btn btn-sm btn-primary" disabled={busy || !words.trim()} onClick={build} data-testid="new-list-build">{busy ? "Building…" : "Build"}</button>
+        </div>
+        <window.FieldError id="new-list-error" message={error} testid="new-list-error" />
+        <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setSmart(false); setError(null); }} data-testid="new-list-hand">Keep one by hand instead</button>
+      </div>
+    );
+  }
+  // Who a drafted rule holds for today, over the people the page has read (contracts savedListIds, via the courier).
+  const holds = draft && window.__lists && window.__lists.count ? window.__lists.count(draft.rule) : null;
   return (
     <div className="cl-rail-foot">
+      {draft && (
+        <div className="cl-rail-draft" data-testid="new-list-draft">
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="seg-chip" data-testid="new-list-rule">{part}</span>)}</div>
+          {holds !== null && <div className="cl-rail-hint" data-testid="new-list-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today, and it keeps itself current.</div>}
+          {draft.cannot && <div className="cl-rail-hint" data-testid="new-list-cannot">Left out: {draft.cannot}</div>}
+        </div>
+      )}
       <div className="cl-rail-newlist">
         <input
           autoFocus
@@ -899,9 +958,12 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }}
         />
-        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="new-list-add">Add</button>
+        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="new-list-add">{draft ? "Save" : "Add"}</button>
       </div>
       <window.FieldError id="new-list-error" message={error} testid="new-list-error" />
+      {draft
+        ? <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setDraft(null); setError(null); }} data-testid="new-list-redescribe">Describe it again</button>
+        : window.__lists && window.__lists.draft && <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setSmart(true); setError(null); }} data-testid="new-list-smart">Or describe who, and it keeps itself current</button>}
     </div>
   );
 };
@@ -986,8 +1048,10 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
   if (!editing) {
     return (
       <span className="cl-section-title" data-testid="saved-filter">
-        <Icon name="filter" size={12} />
+        <Icon name={list.rule ? "sparkle" : "filter"} size={12} />
         {list.name}
+        {/* A smart list says its rule once, quietly, beside its name: who is on it and why. */}
+        {list.rule && <span className="cl-list-rule" data-testid="list-rule">{list.rule.join(" · ")}</span>}
         {canEdit && (
           <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
             <Icon name="edit" size={11} />
@@ -1069,7 +1133,7 @@ const PeopleScopeTabs = ({ scope, onScope }) => (
    where People's replace, so a list pressed while a search was open only narrowed inside the search, and the rail
    lit neither. Now both scopes draw these, and both pick the same way: one row at a time (aria-current), a pick
    replaces what was picked, and pressing the picked row again goes back to all of them (railToggle). Hookless, like
-   the table: the tests' stub React keys hooks by call order. */
+   the table: what is picked is the page's, and arrives as a prop. */
 
 /** The rail's one rule for a pick: the row pressed, unless it was the one picked, which goes back to none. */
 const railToggle = (current, id) => (current === id ? null : id);
@@ -1154,10 +1218,10 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, ev
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
       {saved.map((s) => (
-        <RailRow key={s.id} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip="A list kept by hand — add people from their profile" />
+        <RailRow key={s.id} smart={!!s.rule} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.rule ? `Keeps itself current: ${s.rule.join(" · ")}` : "A list kept by hand — add people from their profile"} testid={s.rule ? "saved-smart" : undefined} />
       ))}
       {savedRead && saved.length === 0 && (
-        <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
+        <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
     </RailSection>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
@@ -1227,7 +1291,7 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
 // first. Searching, the bar is the field, full width and 16px, so a phone never zooms into it, and Cancel gives the
 // bar back; words in the box keep it open (a view of Leads comes back with its own) without taking focus. The search
 // was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
-// state is the page's (`searchOpen`), so the tests' stub React counts one hook order.
+// state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
 // `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. As one
 // string, "All leads · 96" was drawn "All leads · …" on a 375px phone.
 const PeoplePhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
@@ -1432,6 +1496,9 @@ const PL_COLUMNS = [
   ) },
   { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
+  // The deal's stage as the one pill (0004), off until asked for, and offered only where deals are a thing here: a
+  // salon never sees "Deal" in the menu. The row's second line already says a proposal waiting.
+  { key: "deal", label: "Deal", sortable: false, on: false, needs: (x) => !!x.dealsOn, cell: (p) => <td key="deal" className="shrink cl-deal-cell" data-testid="row-deal">{p.deal ? <StatePill kind="deal" value={p.deal.stage} /> : ""}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
 // A person on a phone, in one cell (900px and under): the Inbox's row. Their face, their name and their state on the
@@ -1642,7 +1709,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
             {canEdit && isOwner && window.__setPersonReceptionistMany ? <PhoneSheetRow icon="agents" label="Receptionist" next disabled={busy} onClick={() => onSheet("receptionist")} testid="bulk-receptionist" /> : null}
             {canEdit && window.__appendPersonNotesMany ? <PhoneSheetRow icon="edit" label="Add a note" next disabled={busy} onClick={() => { setNote(""); onSheet("note"); }} testid="bulk-note" /> : null}
             {canExport ? <PhoneSheetRow icon="external" label="Export" meta="CSV" disabled={busy} onClick={() => { onSheet(null); exportCsv(); }} testid="bulk-export" /> : null}
-            {canEdit && window.__lists && activeSaved ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
+            {canEdit && window.__lists && activeSaved && !activeSaved.rule ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
             {!canEdit ? <p className="pp-sheet-hint pp-sheet-rows-note">Only an owner or operator can add to lists or record a yes.</p> : null}
           </div>
         ),
@@ -1718,7 +1785,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
               gated={busy ? "One moment — the last change is still saving" : null}
               items={savedRead ? [
                 { header: "Add to" },
-                ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+                ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
                 { label: "New list…", icon: "plus", onClick: newList },
               ] : [
                 // Lists that could not be read are not offered; a new one can still be made.
@@ -1749,7 +1816,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           gated={busy ? "One moment — the last change is still saving" : null}
           items={savedRead ? [
             { header: "Add to" },
-            ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+            ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
             { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
           ] : [
             // Lists that could not be read are not offered; a new one can still be made.
@@ -1764,8 +1831,9 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={createAndAdd}>Make it</button>
         </span>
       )}
-      {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them. */}
-      {canEdit && window.__lists && activeSaved && !naming && (
+      {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them.
+          A smart list's rule says who is on it: nobody is taken off one by hand. */}
+      {canEdit && window.__lists && activeSaved && !activeSaved.rule && !naming && (
         <button className="btn btn-sm" disabled={busy} onClick={dropFromList} data-testid="bulk-drop-list">
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
@@ -1964,44 +2032,32 @@ const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [
 // (.pl-cols-menu), which the listener names apart.
 // Hold to talk is Ask's own hook (ask-hooks.jsx), loaded before this file in both lists (manifest.ts:52,
 // Chanlytics.html:90). Where it is not -- a unit harness that draws this page on its own -- the stand-in answers
-// "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so the page keeps
-// one hook call order either way and the finder simply offers no mic.
+// "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so LeadsReal keeps
+// one hook order either way and the finder simply offers no mic.
 const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
-const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); return PL_NO_TALK; };
+const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); React.useRef(false); return PL_NO_TALK; };
 
 const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
 
-const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, scope = "people", leadsRoute = null, onNavigate = null, newList = false }) => {
-  const people = usePeople();
-  // Both surfaces are read in both scopes, and every hook below is declared in both, in one order: the stub React
-  // the page's tests draw it on keys hooks by call order (people-honest.test.mjs), so a hook behind an
-  // `if (scope === "leads")` would move People's.
-  const leads = useLeads();
-  const onLeads = scope === "leads";
-  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
-  const rows = people.rows;
-  const lists = people.lists;
-  const agg = people.aggregates;
-  const withCalendar = !!(people.calendar && people.calendar.state === "ok");
-  const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
-  const [listId, setListId] = useState(listFor(initialSegment));
-  React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
-  const saved = people.saved || PL_NO_LISTS;
-  const [savedId, setSavedId] = useState(initialSaved);
-  React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
-  // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
-  // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
-  const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
-  // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
-  const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
+/* ------------------------------------------------------------ the list page, in both scopes */
+// People and Leads are one page with two scopes, and each scope is a component of its own: PeopleReal and LeadsReal,
+// which the shell mounts apart (app-shell.jsx shellMountKey), each holding only its own state. What a list page is in
+// either scope they take from these two hooks, in this order: usePlControls before the view works out its rows (the
+// width, the toast, the selection, the saved sort and columns, the words in the box), and usePlPlace after (the
+// cursor, the place each view is left in, the first rows, and the page's one keyboard listener).
+
+/**
+ * A list page's controls, before it knows its rows.
+ * - scope: "people" | "leads", whose saved view this is (memberships.views, and this device's copy).
+ * - cols, phoneCols: the columns a desktop may show, and a phone's one cell a row.
+ * - colCtx: what a column's default depends on, `{ withCalendar }` or `{ hasCenter }`.
+ * - people: the People surface, which carries the workspace's copy of every view, Leads' included.
+ * - sortFirst: `{ by, dir }`, the sort before anyone chose one.
+ * - railRow: under Leads, the rail's row, which its saved view carries too.
+ */
+const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null }) => {
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
-  // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their
-  // drafts. The page holds them, so the sheets are hookless and the stub React's one hook order holds.
-  const [addOpen, setAddOpen] = useState(false);
-  const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
-  const [listAct, setListAct] = useState(null);
-  const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
   // nobody picked yet. The page's, so its one keyboard listener shuts the sheet on Esc and the sheet is hookless.
   const [bulkSheet, setBulkSheet] = useState(null);
@@ -2014,137 +2070,38 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  React.useEffect(() => {
-    const onNew = () => {
-      setNewListSignal((n) => n + 1);
-      // The rail is hidden at 900px and under (mobile.css), so there the box opens in the sheet: this asked 720px, and
-      // from 721 to 900 it opened inside a rail nobody could see.
-      if (plPhoneNow()) setListsOpen(true);
-    };
-    window.addEventListener("segments:new", onNew);
-    return () => window.removeEventListener("segments:new", onNew);
-  }, []);
-  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const canExport = !!(window.__href && (!window.canDo || window.canDo("export")));
   const [toastNode, plFlash] = window.usePPToast();
-  // A list made on the rail says so and is the one shown: the rail used to close
-  // with no word, the new list somewhere down it. The answer goes back to the
-  // rail, which shows a refusal where the name was typed.
-  const createList = async (name) => {
-    const r = await window.__lists.create(name);
-    if (r.ok) {
-      plFlash({ msg: <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
-      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
-      setListsOpen(false);
-    }
-    return r;
-  };
   // The selection, by id. Cleared when the view changes: a bar counting people
   // that are no longer on screen is the kind of bug bulk actions are made of.
   const [sel, setSel] = useState(() => new Set());
   // One function for the page's life: a memoised row (people-table.jsx PeopleRow) is handed it, and a new one every
   // draw would redraw every row on every draw.
   const toggleSel = React.useCallback((id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
+  // "Select all 1,240 that match": the bulk bar hands the view's filters to the server instead of a list of ids.
+  const [allMatching, setAllMatching] = useState(false);
+  // Clearing a selection lets go of everything that came with it: the view "all N that match" stood for, the
+  // Select-people mode and the sheet's step. Esc, ✕ and Clear all clear it here. Esc left "all N that match" set, and
+  // the next lead selected was counted, and acted on, as the whole view.
+  const clearSelection = () => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); };
   // The view the workspace remembers for this member (memberships.views, read
   // with the surface) wins over what this device remembers; the device copy
   // stays as the fallback for a route that is not there yet.
   const remembered = React.useMemo(() => ({ ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
-  // Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
-  // The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
-  const leadView = onLeads && window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
-  // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
-  // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
-  // lead opened over a view is the same view, and must not read it again or drop what is selected in it.
-  const viewRoute = leadView && window.__leadsRouteOf ? window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls }) : null;
-  const addrPeek = (leadView && leadView.peek) || null;
-  // The columns this scope draws with: People's, or the Leads scope's (LEAD_COLUMNS, leads-scope.jsx).
-  const cols = onLeads ? LEAD_COLUMNS : PL_COLUMNS;
-  // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
-  // dependency array can be checked against (an expression in one cannot).
-  const leadList = leadView ? leadView.list : null;
-  const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
-  React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const [sortBy, setSortBy] = useState(plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : onLeads ? "fit" : "last");
-  const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : onLeads ? "asc" : "desc");
+  const [sortBy, setSortBy] = useState(plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : sortFirst.by);
+  const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : sortFirst.dir);
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its
   // default (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
   const [colChoices, setColChoices] = useState(() => plColumnChoices(cols, remembered.columns));
   const [colsOpen, setColsOpen] = useState(false);
   // Whether the table has scrolled sideways, for the hairline beside Person: kept here so the table stays hookless.
   const [scrolledX, setScrolledX] = useState(false);
-  // The Leads scope's state. It lives here because every component of that scope is hookless (leads-scope.jsx),
-  // and it is declared under People too, where each value is false or null and nothing draws it.
-  const [peekId, setPeekId] = useState(null);
-  const [finderOpen, setFinderOpen] = useState(false);
-  const [finderStage, setFinderStage] = useState("compose");
-  const [finderWords, setFinderWords] = useState("");
-  const [finderProposal, setFinderProposal] = useState(null);
-  const [finderRefusal, setFinderRefusal] = useState(null);
-  // The first day's "Not right? Change it" (Task 17): the line the owner is
-  // rewriting, or null when the form is closed. Saving it keeps the line with
-  // no items, so the read that follows asks Claude again -- which is the only
-  // control that renews the suggestions, and why their age is never drawn.
-  const [leadLine, setLeadLine] = useState(null);
-  // The plan the card is showing and the owner is editing, the trace line while Claude reads, and which of the
-  // sentence's words has its picker open (Task 9). A plan opened from a strip's next step carries whose round it
-  // belongs to and what approving it does -- `answer: true` answers the question that is still waiting, else it
-  // is another round on the same search (Task 10 step 6).
-  const [finderPlan, setFinderPlan] = useState(null);
-  const [finderTrace, setFinderTrace] = useState(null);
-  const [finderPick, setFinderPick] = useState(null);
-  const [finderMore, setFinderMore] = useState(null);
-  // The five whys, asked once for a whole selection (Task 15).
-  const [bulkWhy, setBulkWhy] = useState(false);
-  // The peek's own pane ("info" while it is just showing the lead; "why" and "draft" are Tasks 15 and 13) and
-  // the draft it is holding.
-  const [peekMode, setPeekMode] = useState("info");
-  const [draft, setDraft] = useState(null);
-  // "Did you send it?" after a draft, "How did the call go?" after a call:
-  // { kind: "sent" | "call", leadId, asked, outcome, note }. `asked` turns true only once the tab is theirs
-  // again (leadArmOnReturn, Task 13), so nothing is asked while they are away.
-  const [armed, setArmed] = useState(null);
-  // D5: the row's Values ⁄ Signals choice (kept per viewer, read in a try: a private window may refuse), the photo
-  // expanded, and the band's fit filter.
-  const [values, setValues] = useState(ldValuesPref());
-  const [lightboxId, setLightboxId] = useState(null);
-  const [fitChip, setFitChip] = useState(null);
-  const [benchGroup, setBenchGroup] = useState(null);
-  const [mapOpen, setMapOpen] = useState(false);
-  const [mapBy, setMapBy] = useState("fit");
-  const [mapPick, setMapPick] = useState(null);
-
-  // One criterion of the Excluded view, from the chips at its head.
-  const [chip, setChip] = useState(null);
-  // "Select all 1,240 that match": the bulk bar hands the view's filters to the server instead of a list of ids.
-  const [allMatching, setAllMatching] = useState(false);
-  // The search being renamed, and the one being removed: each asked where the search is, on the rail.
-  const [renaming, setRenaming] = useState(null);
-  const [removing, setRemoving] = useState(null);
-  const [leadBusy, setLeadBusy] = useState(false);
-  const [removeError, setRemoveError] = useState(null);
-  // Hold to talk, as Ask does it: the browser's own recogniser, started on press and stopped on release, handing
-  // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
-  // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
-  const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
-  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || usePlNoTalk)({
-    lang: talkLang,
-    disabled: !onLeads || finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
-    onWords: setFinderWords,
-    onHeard: (heard, error) => {
-      if (heard) { setFinderWords(heard); return; }
-      // The two things a browser can say about a microphone, in Ask's own words (ask-text.jsx): one spelling.
-      const t = window.askText ? window.askText(talkLang) : null;
-      if (!t) return;
-      if (error === "not-allowed") plFlash({ msg: <>{t.micDenied}</> });
-      else if (error && error !== "aborted" && error !== "no-speech") plFlash({ msg: <>{t.micFailed}</> });
-    },
-  });
-  // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
-  // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
-  // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
-  const savedView = React.useRef(JSON.stringify(onLeads
-    ? { list: remembered.list || "all", sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(cols, remembered.columns) }
-    : { sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(cols, remembered.columns) }));
+  // A view is the sort and the columns, and under Leads the rail's row. The strip's tab was remembered too; a view
+  // saved before it went carries an attentionTab this ignores, and the next save drops it. Every save sends every key
+  // the page owns, because member_view_set replaces the page's whole object (00113): a save of the sort alone would
+  // lose the columns.
+  const viewAs = (by, dir, columns, row) => (scope === "leads" ? { list: row, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns });
+  const savedView = React.useRef(JSON.stringify(viewAs(remembered.sortBy, remembered.sortDir, plColumnChoices(cols, remembered.columns), remembered.list || "all")));
   // One saver for the page's life, so its saves go one at a time (plViewSaver), and it saves THIS scope's view:
   // People's is views.people, the Leads scope's is views.leads, and the page is remounted when the scope changes.
   const viewSaver = React.useRef(null);
@@ -2166,13 +2123,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
     const dir = serverView.sortDir === "asc" || serverView.sortDir === "desc" ? serverView.sortDir : sortDir;
     const columns = plColumnChoices(cols, serverView.columns);
-    savedView.current = JSON.stringify(onLeads ? { list: leadView.list, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns });
+    savedView.current = JSON.stringify(viewAs(by, dir, columns, railRow));
     setSortBy(by);
     setSortDir(dir);
     setColChoices(columns);
   }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    const view = onLeads ? { list: leadView.list, sortBy, sortDir, columns: colChoices } : { sortBy, sortDir, columns: colChoices };
+    const view = viewAs(sortBy, sortDir, colChoices, railRow);
     plSaveView(scope, view);
     // The workspace's copy, once per change and never for the view it already holds. The choices change only when
     // what they say does (pickColumn keeps them for Person), so this runs once per change.
@@ -2181,14 +2138,323 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (!viewKnown.current && !viewTouched.current) return;
     savedView.current = key;
     viewSaver.current(view);
-  }, [sortBy, sortDir, colChoices, leadList]); // eslint-disable-line react-hooks/exhaustive-deps
-  // One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
-  // member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
-  // supersedes, so a slow page of the old view never lands on the new one.
+  }, [sortBy, sortDir, colChoices, railRow]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [q, setQ] = useState("");
+  const searchRef = React.useRef(null);
+  const scrollRef = React.useRef(null);
+  // D5: a list that is moving shows no hover: the pane carries data-scrolling while the list scrolls, and the tips and
+  // cards hide under it (leads.css). Heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
+  // the box that scrolls is the table's own, inside the pane, so the pane's own scroll never came and the cards stayed
+  // up over a moving list. Only the list's box counts (ldScroller): a menu scrolling inside the pane is not the list
+  // moving. One listener for the page's life, taken down with it.
   React.useEffect(() => {
-    if (!onLeads || !window.__leadsView) return;
-    window.__leadsView({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, chips: leadView.chips, sort: sortBy, dir: sortDir });
-  }, [scope, viewRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
+    const el = scrollRef.current;
+    if (!el || !el.addEventListener) return undefined;
+    let t = null;
+    const on = (e) => {
+      if (!e || !e.target || e.target !== ldScroller(el)) return;
+      el.setAttribute("data-scrolling", "1");
+      if (t) clearTimeout(t);
+      t = setTimeout(() => el.removeAttribute("data-scrolling"), 160);
+    };
+    el.addEventListener("scroll", on, { passive: true, capture: true });
+    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
+  }, []);
+
+  const onSort = (key) => {
+    viewTouched.current = true;
+    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
+  };
+  // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
+  const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };
+  // The columns drawn (every one this scope can show, those this member turned off marked for a desktop to hide).
+  // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
+  // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-scope.jsx) for a
+  // lead, one plRowCard between them. Leads' cards of every column (#789) were a second look for the same list.
+  const colKey = JSON.stringify(colCtx);
+  const columns = React.useMemo(() => (phone ? phoneCols : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, colKey, phone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const colOptions = plColumnOptions(cols, colChoices, colCtx);
+  // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
+  // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
+  // gives way to Visits once a calendar connects, as it does for everyone.
+  const pickColumn = (key) => setColChoices((ch) => {
+    viewTouched.current = true;
+    const c = cols.find((x) => x.key === key);
+    if (!c || plLocked(c)) return ch;
+    const on = !plShows(c, ch, colCtx);
+    const rest = { ...ch };
+    delete rest[key];
+    return on === plShows(c, {}, colCtx) ? rest : { ...rest, [key]: on };
+  });
+  // Where Esc puts focus when it closes the menu: back on the button that opened it.
+  const colsButton = React.useRef(null);
+  return {
+    phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, canExport, toastNode, plFlash,
+    sel, setSel, toggleSel, allMatching, setAllMatching, clearSelection,
+    sortBy, setSortBy, sortDir, setSortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX,
+    columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef,
+  };
+};
+
+/**
+ * The rows' place, once the view has worked out its rows: the cursor, where each view was left, the first rows, and
+ * the page's one keyboard listener.
+ * - controls: usePlControls' answer, whose words, selection and scrolling pane these are.
+ * - page: "people" | "leads", whose places the tab keeps (window.__tabMemory); view: the view the rows are of.
+ * - ids: the rows shown, in their order. noun: what the table calls a row (people-table.jsx), its rows' id.
+ * - landed: whether the rows on screen are this view's, in the order asked; a place's scroll waits for them.
+ * - selectionOf: what a selection belongs to; when it changes, the selection goes.
+ * - extra, onPlace(p, again): what else a view's place holds (Leads' map), and the view's own part of putting one
+ *   back (`again`: a view opened after the first).
+ */
+const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionOf, extra = null, onPlace = null }) => {
+  const { phone, setSearchOpen, setBulkSheet, selectMode, setSelectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, colsOpen, setColsOpen, colsButton, q, setQ, searchRef, scrollRef } = controls;
+  // The selection goes with the VIEW, not with the words in the box: someone who selects forty, types a name to find
+  // two more and clears it again still has their forty. Both bars count and act on only the rows they show
+  // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
+  // is shown, so the words do take that back.
+  React.useEffect(() => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); }, [selectionOf]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { setAllMatching(false); }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
+  // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
+  // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
+  // hovered row does (clients.css).
+  const [cursor, setCursor] = useState(null);
+  React.useEffect(() => { setCursor((c) => (c && ids.includes(c) ? c : null)); }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moveCursor = (step) => setCursor((c) => {
+    const i = c ? ids.indexOf(c) : -1;
+    return ids[step > 0 ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
+  });
+  // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
+  // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
+  // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
+  // A cursor that came back with the view (the page keeps the owner's place, below) marks its row and takes nothing:
+  // the list has just been put back where it was, and a scrollIntoView after that moved it on again.
+  const cursorCameBack = React.useRef(null);
+  React.useEffect(() => {
+    if (!cursor || !document.getElementById) return;
+    if (cursorCameBack.current === cursor) { cursorCameBack.current = null; return; }
+    cursorCameBack.current = null;
+    // The row's id wears the table's own noun (people-table.jsx), so the cursor and the peek's focus rule find the
+    // same element under Leads as under People.
+    const row = document.getElementById(`${noun}-${cursor}`);
+    const active = document.activeElement;
+    if (!row || row === active || (active && row.contains && row.contains(active))) return;
+    if (row.focus) row.focus({ preventScroll: true });
+    if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+  }, [cursor]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // The page keeps the owner's place in each view (plPlaceLoad, above), each with its own words in the box, its cursor
+  // and its scroll, and under Leads its map. Leads stays mounted from one view to the next, so a view that is opened
+  // -- by the first draw, the rail, Back -- is given ITS place, or none, and never the last view's filters. People's
+  // views keep theirs the same way (the loading standard's F): everyone, a smart list, a kept list or a state -- a
+  // search typed on a list was gone after a trip to a profile.
+  const placeOf = React.useRef(undefined);  // the view whose place the state below holds
+  const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
+  const placeTop = React.useRef(0);
+  const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
+  // A fresh mount draws its first rows only (PL_FIRST_ROWS) and the rest a frame later: the switch between People
+  // and Leads is a remount, and the table's rows were most of what it waited on (measured on the salon: a 250 ms
+  // draw of 96 leads, 125 ms with the first 24). A place to put back -- a scroll, a cursor -- needs every row on the
+  // first draw, so it draws them all. The budget is the mount's: a view change inside the page never narrows it.
+  const [rowBudget, setRowBudget] = useState(() => {
+    const p = plPlaceLoad(page, view);
+    return p && (p.top || p.cursor) ? Infinity : PL_FIRST_ROWS;
+  });
+  React.useEffect(() => {
+    if (rowBudget === Infinity) return undefined;
+    const lift = () => setRowBudget(Infinity);
+    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
+    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
+    const frame = requestAnimationFrame(lift);
+    const beat = setTimeout(lift, 120);
+    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    const p = plPlaceLoad(page, view) || {};
+    setQ(p.q || "");
+    cursorCameBack.current = p.cursor || null;
+    setCursor(p.cursor || null);
+    if (onPlace) onPlace(p, placeOf.current !== undefined);
+    placeTop.current = p.top || 0;
+    placeDue.current = { view, top: p.top || 0, q: p.q || "", fresh: true };
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
+  const extraKey = extra ? JSON.stringify(extra) : "";
+  React.useEffect(() => {
+    if (placeOf.current !== view) { placeOf.current = view; return; }
+    plPlaceSave(page, view, { q, cursor, ...extra, top: placeTop.current });
+  }, [view, q, cursor, extraKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (placeOf.current === view) placeNow.current = { view, place: { q, cursor, ...extra } };
+  // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
+  // holds) AND are the ones its own words leave. Scrolled before the view landed, it would be the last view's rows
+  // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
+  // only on the next -- the browser re-anchored the list as the words shrank it: 500 became 122 on production.
+  // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
+  React.useEffect(() => {
+    const due = placeDue.current;
+    if (!due || due.view !== view) return;
+    if (q !== due.q) { if (!due.fresh) placeDue.current = null; due.fresh = false; return; }
+    due.fresh = false;
+    if (!landed) return;
+    placeDue.current = null;
+    const sc = ldScroller(scrollRef.current);
+    if (sc) sc.scrollTop = due.top;
+  }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How far the list is scrolled, heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
+  // the box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !el.addEventListener) return undefined;
+    let t = null;
+    const on = (e) => {
+      const sc = e && e.target;
+      if (!sc || sc !== ldScroller(el)) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        const now = placeNow.current;
+        // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
+        if (!now || placeDue.current) return;
+        placeTop.current = sc.scrollTop;
+        plPlaceSave(page, now.view, { ...now.place, top: sc.scrollTop });
+      }, 200);
+    };
+    el.addEventListener("scroll", on, { passive: true, capture: true });
+    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
+  // taken down and added again on every render, and / had a second listener of its own.
+  const keys = React.useRef(null);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const k = keys.current;
+      // Where the key was pressed, not where focus is now: React hears it first, and a field's own Esc can close the
+      // field and take focus with it, so the body had focus by the time this heard an Esc typed in the list's name.
+      const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
+      // A key an earlier listener took (the ? sheet's Esc) is not the page's.
+      if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
+      // The page's own overlays first, in the order Esc closes them: the peek, then the finder, then the Columns
+      // menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and the peek
+      // follows the cursor -- so it is not in PL_OVERLAY either.
+      if (e.key === "Escape" && k.peekOpen) { e.preventDefault(); k.closePeek(); return; }
+      // The finder holds every key while it is open: its input, its pickers and its buttons are its own.
+      if (k.finderOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeFinder(); } return; }
+      // The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's
+      // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
+      // and the key is the page's as ever: it held every key but Esc, the lists sheet's Esc included. The phone's lists
+      // sheet listens for its own Esc.
+      // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
+      if (k.menuOpen && plPhoneNow()) k.closeMenu();
+      else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
+      // The phone's sheets hold every key; the Lists sheet closes on its own Esc listener, People's own two on this one.
+      if (k.sheetOpen) { if (e.key === "Escape" && k.closeSheet) { e.preventDefault(); k.closeSheet(); } return; }
+      // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
+      // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
+      if (document.querySelector(PL_OVERLAY)) return;
+      if (e.key === "/") { e.preventDefault(); k.focusSearch(); return; }
+      // Esc clears a selection wherever focus is, a bulk-bar button included.
+      if (e.key === "Escape") {
+        if (k.selected) { e.preventDefault(); k.clearSel(); }
+        return;
+      }
+      // F opens the finder on the Leads scope, for whoever may find; the gate says why to everyone else, at the
+      // button, so the key is simply not theirs.
+      if ((e.key === "f" || e.key === "F") && k.canFind) { e.preventDefault(); k.find(); return; }
+      if (!k.ids.length) return;
+      // Enter and Space on a focused button, link, box, tab or menu item are that control's: they opened the profile
+      // under the cursor, or selected its row, instead of pressing what had focus.
+      if ((e.key === "Enter" || e.key === " ") && from && from.closest && from.closest(PL_CONTROL)) return;
+      const down = e.key === "ArrowDown" || e.key === "j" || e.key === "J";
+      const up = e.key === "ArrowUp" || e.key === "k" || e.key === "K";
+      // A held key walks on; a held x, Space or Enter acts once, so a row is not selected and unselected over and over.
+      if (e.repeat && !(down || up)) return;
+      if (down || up) { e.preventDefault(); k.move(down ? 1 : -1); }
+      else if (e.key === "Enter" && k.cursor) { e.preventDefault(); k.open(k.cursor); }
+      else if ((e.key === " " || e.key === "x" || e.key === "X") && k.cursor && k.canSelect) { e.preventDefault(); k.toggle(k.cursor); }
+      // C calls the lead under the cursor from the owner's own phone, and arms the call question.
+      else if ((e.key === "c" || e.key === "C") && k.cursor && k.call) { e.preventDefault(); k.call(k.cursor); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  // What the keyboard's one listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and
+  // the view's own (`own`: what Enter opens, whether a row may be selected, the sheets, and under Leads the peek, the
+  // finder, F and C).
+  const keysWith = (own) => {
+    keys.current = {
+      ids,
+      cursor,
+      move: moveCursor,
+      toggle: toggleSel,
+      // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
+      // A Select-people selection with nobody picked yet is one too.
+      selected: sel.size > 0 || (phone && selectMode),
+      clearSel: clearSelection,
+      // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
+      focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
+      menuOpen: colsOpen,
+      closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
+      ...own,
+    };
+  };
+  const toggleAll = () => { setAllMatching(false); setSel((s) => (ids.length && ids.every((id) => s.has(id)) ? new Set() : new Set(ids))); };
+  return { cursor, setCursor, rowBudget, keysWith, toggleAll };
+};
+
+/* ------------------------------------------------------------------------------ People */
+const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, onNavigate = null, newList = false }) => {
+  const people = usePeople();
+  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
+  const rows = people.rows;
+  const lists = people.lists;
+  const agg = people.aggregates;
+  const withCalendar = !!(people.calendar && people.calendar.state === "ok");
+  // Whether deals are a thing here (the surface's dealsOn, 0004): the Deal column is offered only then.
+  const dealsOn = !!people.dealsOn;
+  const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
+  const [listId, setListId] = useState(listFor(initialSegment));
+  React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saved = people.saved || PL_NO_LISTS;
+  const [savedId, setSavedId] = useState(initialSaved);
+  React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
+  const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
+  React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
+  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
+  const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, canExport, toastNode, plFlash, sel, setSel, toggleSel, clearSelection, sortBy, sortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
+  // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
+  // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
+  const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
+  // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
+  const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
+  // People's own sheets on a phone -- Add a person, and the open list's rename, delete and "Save these" -- with their
+  // drafts. The page holds them, so its one keyboard listener closes them on Esc and the sheets are hookless.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDraft, setAddDraft] = useState(PL_ADD_EMPTY);
+  const [listAct, setListAct] = useState(null);
+  const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
+  React.useEffect(() => {
+    const onNew = () => {
+      setNewListSignal((n) => n + 1);
+      // The rail is hidden at 900px and under (mobile.css), so there the box opens in the sheet: this asked 720px, and
+      // from 721 to 900 it opened inside a rail nobody could see.
+      if (plPhoneNow()) setListsOpen(true);
+    };
+    window.addEventListener("segments:new", onNew);
+    return () => window.removeEventListener("segments:new", onNew);
+  }, []);
+  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // A list made on the rail says so and is the one shown: the rail used to close
+  // with no word, the new list somewhere down it. The answer goes back to the
+  // rail, which shows a refusal where the name was typed.
+  const createList = async (name, rule = null) => {
+    const r = await window.__lists.create(name, rule);
+    if (r.ok) {
+      plFlash({ msg: rule ? <><b>{name}</b> made. It keeps itself current.</> : <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
+      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
+      setListsOpen(false);
+    }
+    return r;
+  };
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -2199,7 +2465,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
-  const [q, setQ] = useState("");
   // When the page does not hold everyone (past the fifty pages the surface
   // reads), the box also asks the server, which matches names and numbers. What
   // it finds sits beside the loaded rows, which the box still searches by their
@@ -2230,40 +2495,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     setLoadingMore(true);
     // A page of people that could not be read says so: Show more used to go quiet and stay.
     try { await window.__peopleMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more people loaded")); } finally { setLoadingMore(false); }
-  };
-  // The Leads scope's next page, the same way: its own flag, so the button says Loading… while THIS is out and not
-  // while a Keep is (it read leadBusy), and a second press while it loads asks for nothing.
-  const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
-  const leadsMore = async () => {
-    if (!window.__leadsMore || leadsMoreBusy) return;
-    setLeadsMoreBusy(true);
-    try { await window.__leadsMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more leads loaded")); } finally { setLeadsMoreBusy(false); }
-  };
-  const searchRef = React.useRef(null);
-  const scrollRef = React.useRef(null);
-  // D5: a list that is moving shows no hover: the pane carries data-scrolling while the list scrolls, and the tips and
-  // cards hide under it (leads.css). Heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
-  // the box that scrolls is the table's own, inside the pane, so the pane's own scroll never came and the cards stayed
-  // up over a moving list. Only the list's box counts (ldScroller): a menu scrolling inside the pane is not the list
-  // moving. One listener for the page's life, taken down with it.
-  React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !el.addEventListener) return undefined;
-    let t = null;
-    const on = (e) => {
-      if (!e || !e.target || e.target !== ldScroller(el)) return;
-      el.setAttribute("data-scrolling", "1");
-      if (t) clearTimeout(t);
-      t = setTimeout(() => el.removeAttribute("data-scrolling"), 160);
-    };
-    el.addEventListener("scroll", on, { passive: true, capture: true });
-    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
-  }, [onLeads]);
-
-  const onSort = (key) => {
-    viewTouched.current = true;
-    if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
   };
 
   const shown = useMemo(() => {
@@ -2332,30 +2563,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       undo: async () => { const u = await window.__lists.add(list.id, [p.id]); if (!u.ok) plFlash(window.refusalToast(u, `Not back on ${list.name}`)); },
     });
   };
-  // The columns drawn (PL_COLUMNS: every one this workspace can show, those this member turned off marked for a desktop
-  // to hide), and what a cell needs to draw itself: the booking link, each row's words, the list open for taking people
-  // off, their lists, and which columns a desktop shows.
-  const hasCenter = onLeads && leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
-  const colCtx = onLeads ? { hasCenter } : { withCalendar };
-  // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
-  // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-scope.jsx) for a
-  // lead, one plRowCard between them. Leads' cards of every column (#789) were a second look for the same list.
-  const columns = React.useMemo(() => (phone ? (onLeads ? LEAD_PHONE_COLUMNS : PL_PHONE_COLUMNS) : plShownColumns(plDrawnColumns(cols, colChoices, colCtx), phone)), [cols, colChoices, onLeads, hasCenter, withCalendar, phone]); // eslint-disable-line react-hooks/exhaustive-deps
-  const colOptions = plColumnOptions(cols, colChoices, colCtx);
-  // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
-  // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
-  // gives way to Visits once a calendar connects, as it does for everyone.
-  const pickColumn = (key) => setColChoices((ch) => {
-    viewTouched.current = true;
-    const c = cols.find((x) => x.key === key);
-    if (!c || plLocked(c)) return ch;
-    const on = !plShows(c, ch, colCtx);
-    const rest = { ...ch };
-    delete rest[key];
-    return on === plShows(c, {}, colCtx) ? rest : { ...rest, [key]: on };
-  });
-  // Where Esc puts focus when it closes the menu: back on the button that opened it.
-  const colsButton = React.useRef(null);
   const listsOf = useMemo(() => {
     const m = {};
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
@@ -2365,6 +2572,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // which draws a row again only when a prop of its own changed, and a context made new on every draw redrew every
   // row on every keystroke (the same fault the Leads scope's cellCtxLeads fixed). The doors are the latest closures
   // behind refs, so a new closure is not a new context; the columns are told apart by their keys, not their array.
+  // What a cell draws from: the booking link, each row's words, the list open for taking people off, their lists, and
+  // which columns a desktop shows.
   const cellOpenRef = React.useRef(onOpenProfile);
   cellOpenRef.current = onOpenProfile;
   const cellDropRef = React.useRef(dropFromList);
@@ -2378,7 +2587,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         bookingLink: people.bookingLink || null,
         attention: people.attention,
         onOpen: (id) => cellOpenRef.current(id),
-        drop: activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
+        drop: activeSaved && !activeSaved.rule && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
         listsOf,
         shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
       },
@@ -2389,26 +2598,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // every route change, and a phone in a selection turns a press into a toggle, so the door changes while the rows should not.
   const rowOpenRef = React.useRef(null);
   const rowOpen = React.useRef((id) => rowOpenRef.current(id)).current;
-  // The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion
-  // of the Excluded view. A sentence is not sent anywhere: words to chips is release C.
-  const leadShown = React.useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    let list = leads.rows;
-    if (chip) list = list.filter((l) => l.excludedBy === chip);
-    if (fitChip) list = list.filter((l) => l.fit === fitChip);
-    if (!needle) return list;
-    return list.filter((l) => l.name.toLowerCase().includes(needle) || (l.category || "").toLowerCase().includes(needle) || (l.area || "").toLowerCase().includes(needle));
-  }, [leads.rows, q, chip, fitChip]);
-  // What this scope shows, for the table, the keyboard's cursor and the bulk bar: one list, whichever scope.
-  const rowsShown = onLeads ? leadShown : shown;
-  const filtered = onLeads ? !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
-  // The selection goes with the VIEW, not with the words in the box: someone who selects forty, types a name to find
-  // two more and clears it again still has their forty. Both bars count and act on only the rows they show
-  // (shown AND selected), so a row the words hide is never acted on unseen; "all N that match" is a claim about what
-  // is shown, so the words do take that back.
-  React.useEffect(() => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); }, [tab, listId, savedId, viewRoute, chip]);
-  React.useEffect(() => { setAllMatching(false); }, [q]);
-  const shownIds = rowsShown.map((r) => r.id);
+  const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
+  const shownIds = shown.map((r) => r.id);
+  // Each view keeps its own place: everyone, a smart list, a kept list or a state.
+  const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "people", view: peopleView, ids: shownIds, noun: "person", selectionOf: `${tab}|${listId}|${savedId}` });
   // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
   // page opens, as the desktop's form does.
   const addOnPhone = async () => {
@@ -2452,12 +2646,359 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     closePhoneSheet();
     plFlash(filled.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(id, n, plFlash) } : window.refusalToast(filled, "Not kept as a list"));
   };
-  // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
-  // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
-  // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
-  // hovered row does (clients.css).
-  const [cursor, setCursor] = useState(null);
-  React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  // What the keyboard's one listener reads (usePlPlace): Enter opens the person, and People's own sheets.
+  keysWith({
+    open: onOpenProfile,
+    canSelect: canEditLists || canExport,
+    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
+    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
+    closeSheet: addOpen || listAct ? closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
+  });
+
+  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
+  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
+  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
+  rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
+  // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
+  // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
+  // list open, that list's own acts.
+  const phoneMenu = [
+    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
+    ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
+    ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
+    { header: "Sort" },
+    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
+    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
+    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(activeSaved && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
+      { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
+    ] : []),
+    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
+      { divider: true },
+      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
+    ] : []),
+  ];
+
+  return (
+    <div className="clients">
+      <PeopleRail
+        scope="people"
+        onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+        lists={lists}
+        groups={people.groups || PL_DEFAULT_GROUPS}
+        active={listId}
+        onPick={pickSmart}
+        saved={saved}
+        activeSaved={savedId}
+        onPickSaved={pickSaved}
+        canEdit={canEditLists}
+        onCreateList={window.__lists ? createList : null}
+        savedRead={people.savedRead !== false}
+        newListSignal={newListSignal}
+      />
+
+      <div className="cl-main">
+        <div className="cl-main-scroll pl-main" ref={scrollRef}>
+          {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */}
+          {phone && (
+            <PeoplePhoneBar
+              scope="people"
+              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              onLists={() => setListsOpen(true)}
+              listsOpen={listsOpen}
+              q={q}
+              onQ={setQ}
+              searchRef={searchRef}
+              searchOpen={searchOpen}
+              onSearchOpen={setSearchOpen}
+              searchLabel="Search by name or phone"
+              testid="people"
+              trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
+            />
+          )}
+          <PeopleStanding
+            scope="people"
+            agg={agg}
+            needsShown={tab === "needs_you"}
+            onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
+          />
+
+          {!phone && (
+          <div className="cl-controls">
+            <div className="cl-search-wrap">
+              <Icon name="search" size={13} />
+              <input ref={searchRef} placeholder="Search by name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <span className="kbd">/</span>
+            </div>
+            <div className="cl-controls-right">
+              {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
+              {/* Everyone as a CSV, from the route: owner only, and the button
+                  says so for anyone else instead of leading to a refusal. */}
+              {window.__href && (
+                window.canDo && !window.canDo("export")
+                  ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+              )}
+              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
+                  them only turned round an order the table already shows and changes. */}
+              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
+            </div>
+          </div>
+          )}
+
+          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
+              list's own acts. A list's own step stays, one card. */}
+          {(!phone || listStep) && (
+          <div className="cl-section">
+            {!phone && (
+            <div className="cl-section-head">
+              <div className="cl-section-lead">
+                {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
+                    the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
+                    delete sit on the one line, where the Lists page had them over a second table of the same people. */}
+                {activeSaved
+                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
+                  : activeList
+                    ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
+                    : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved) && (
+                  <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
+                )}
+                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
+                {tab !== "all" && (
+                  <span className="cl-seg-filter" data-testid="state-filter">
+                    <Icon name="filter" size={10} />
+                    {PL_TAB_LABEL[tab]}
+                    <button className="cl-seg-filter-x" title="Show everyone" onClick={() => setTab("all")}>
+                      <Icon name="x" size={9} />
+                    </button>
+                  </span>
+                )}
+              </div>
+              <span className="cl-section-sub">
+                {filtered && shown.length > 0 && canEditLists && window.__lists
+                  ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
+                  : (filtered ? "Filtered" : "")}
+              </span>
+            </div>
+            )}
+            {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
+                said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
+            {listStep && (
+              <div className="cl-list-action" data-testid="list-action">
+                <span className="cl-list-action-text">{listStep.text}</span>
+                <button className={`btn btn-sm ${listStep.enabled ? "btn-primary" : ""}`} disabled={!listStep.enabled} onClick={() => window.CHANLY.nav(listStep.to)}>
+                  {listStep.cta} <Icon name="arrow-right" size={10} />
+                </button>
+              </div>
+            )}
+          </div>
+          )}
+
+          <PeopleTable
+            budget={rowBudget}
+            noun="person"
+            columns={columns}
+            ctx={cellCtx}
+            selectable={canEditLists || canExport}
+            sel={sel}
+            onToggle={toggleSel}
+            onToggleAll={toggleAll}
+            cursor={cursor}
+            onCursor={setCursor}
+            rows={shown}
+            rowClass={phone ? plCardRowClass : null}
+            total={people.page && people.page.has_more ? people.page.total : rows.length}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={onSort}
+            onOpen={rowOpen}
+            selectMode={phone && selectMode}
+            filtered={filtered}
+            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
+            scrolled={scrolledX}
+            onScrolled={setScrolledX}
+            busy={searching}
+            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
+          />
+          {hasMore && (
+            <div className="cl-section-sub pl-more" data-testid="people-more">
+              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
+              {" "}
+              <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
+            </div>
+          )}
+        </div>
+        {/* The bar counts, and acts on, the people shown and selected. */}
+        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={clearSelection} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} sheet={phone ? bulkSheet : null} onSheet={setBulkSheet} onSelectAll={() => setSel(new Set(shownIds))} />}
+        {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its
+            switch is the bar's; its first row is Everyone. */}
+        {listsOpen && (
+          <PeopleListsSheet onClose={() => setListsOpen(false)}>
+            <PeopleRail
+              scope="people"
+              scopeTabs={false}
+              everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
+              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              lists={lists}
+              groups={people.groups || PL_DEFAULT_GROUPS}
+              active={listId}
+              onPick={(id) => { pickSmart(id); setListsOpen(false); }}
+              saved={saved}
+              activeSaved={savedId}
+              onPickSaved={(id) => { pickSaved(id); setListsOpen(false); }}
+              canEdit={canEditLists}
+              onCreateList={window.__lists ? createList : null}
+              savedRead={people.savedRead !== false}
+              newListSignal={newListSignal}
+            />
+          </PeopleListsSheet>
+        )}
+        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
+        {phone && addOpen && (
+          <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
+        )}
+        {phone && listAct && (listAct === "save" || activeSaved) && (
+          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
+        )}
+        {toastNode}
+      </div>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------------------- Leads */
+// The Leads scope's state lives here: every component of the scope is hookless, from its rail to its bulk bar
+// (leads-scope.jsx), and everything it needs is a prop.
+const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = null }) => {
+  // The workspace's copy of every view rides with the People surface (usePlControls), and so do the first day's
+  // facts about the calendar and the people.
+  const people = usePeople();
+  const leads = useLeads();
+  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
+  // Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
+  // The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
+  const leadView = window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
+  // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
+  // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
+  // lead opened over a view is the same view, and must not read it again or drop what is selected in it.
+  const viewRoute = leadView && window.__leadsRouteOf ? window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls }) : null;
+  const addrPeek = (leadView && leadView.peek) || null;
+  // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
+  // dependency array can be checked against (an expression in one cannot).
+  const leadList = leadView ? leadView.list : null;
+  const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
+  // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS, leads-scope.jsx).
+  const controls = usePlControls({ scope: "leads", cols: LEAD_COLUMNS, phoneCols: LEAD_PHONE_COLUMNS, colCtx: { hasCenter }, people, sortFirst: { by: "fit", dir: "asc" }, railRow: leadList });
+  const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, canExport, toastNode, plFlash, sel, setSel, toggleSel, allMatching, setAllMatching, clearSelection, sortBy, setSortBy, sortDir, setSortDir, onSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
+  // The phone's list picker: the rail, as a sheet.
+  const [listsOpen, setListsOpen] = useState(false);
+  const [peekId, setPeekId] = useState(null);
+  const [finderOpen, setFinderOpen] = useState(false);
+  const [finderStage, setFinderStage] = useState("compose");
+  const [finderWords, setFinderWords] = useState("");
+  const [finderProposal, setFinderProposal] = useState(null);
+  const [finderRefusal, setFinderRefusal] = useState(null);
+  // The first day's "Not right? Change it" (Task 17): the line the owner is
+  // rewriting, or null when the form is closed. Saving it keeps the line with
+  // no items, so the read that follows asks Claude again -- which is the only
+  // control that renews the suggestions, and why their age is never drawn.
+  const [leadLine, setLeadLine] = useState(null);
+  // The plan the card is showing and the owner is editing, the trace line while Claude reads, and which of the
+  // sentence's words has its picker open (Task 9). A plan opened from a strip's next step carries whose round it
+  // belongs to and what approving it does -- `answer: true` answers the question that is still waiting, else it
+  // is another round on the same search (Task 10 step 6).
+  const [finderPlan, setFinderPlan] = useState(null);
+  const [finderTrace, setFinderTrace] = useState(null);
+  const [finderPick, setFinderPick] = useState(null);
+  const [finderMore, setFinderMore] = useState(null);
+  // The five whys, asked once for a whole selection (Task 15).
+  const [bulkWhy, setBulkWhy] = useState(false);
+  // The peek's own pane ("info" while it is just showing the lead; "why" and "draft" are Tasks 15 and 13) and
+  // the draft it is holding.
+  const [peekMode, setPeekMode] = useState("info");
+  const [draft, setDraft] = useState(null);
+  // "Did you send it?" after a draft, "How did the call go?" after a call:
+  // { kind: "sent" | "call", leadId, asked, outcome, note }. `asked` turns true only once the tab is theirs
+  // again (leadArmOnReturn, Task 13), so nothing is asked while they are away.
+  const [armed, setArmed] = useState(null);
+  // D5: the row's Values ⁄ Signals choice (kept per viewer, read in a try: a private window may refuse), the photo
+  // expanded, and the band's fit filter.
+  const [values, setValues] = useState(ldValuesPref());
+  const [lightboxId, setLightboxId] = useState(null);
+  const [fitChip, setFitChip] = useState(null);
+  const [benchGroup, setBenchGroup] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapBy, setMapBy] = useState("fit");
+  const [mapPick, setMapPick] = useState(null);
+
+  // One criterion of the Excluded view, from the chips at its head.
+  const [chip, setChip] = useState(null);
+  // The search being renamed, and the one being removed: each asked where the search is, on the rail.
+  const [renaming, setRenaming] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const [leadBusy, setLeadBusy] = useState(false);
+  const [removeError, setRemoveError] = useState(null);
+  // Hold to talk, as Ask does it: the browser's own recogniser, started on press and stopped on release, handing
+  // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
+  // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
+  const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
+  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || usePlNoTalk)({
+    lang: talkLang,
+    disabled: finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
+    onWords: setFinderWords,
+    onHeard: (heard, error) => {
+      if (heard) { setFinderWords(heard); return; }
+      // The two things a browser can say about a microphone, in Ask's own words (ask-text.jsx): one spelling.
+      const t = window.askText ? window.askText(talkLang) : null;
+      if (!t) return;
+      if (error === "not-allowed") plFlash({ msg: <>{t.micDenied}</> });
+      else if (error && error !== "aborted" && error !== "no-speech") plFlash({ msg: <>{t.micFailed}</> });
+    },
+  });
+  // One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
+  // member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
+  // supersedes, so a slow page of the old view never lands on the new one.
+  React.useEffect(() => {
+    if (!window.__leadsView) return;
+    window.__leadsView({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, chips: leadView.chips, sort: sortBy, dir: sortDir });
+  }, [viewRoute, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The next page, its own flag, so the button says Loading… while THIS is out and not while a Keep is (it read
+  // leadBusy), and a second press while it loads asks for nothing.
+  const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
+  const leadsMore = async () => {
+    if (!window.__leadsMore || leadsMoreBusy) return;
+    setLeadsMoreBusy(true);
+    try { await window.__leadsMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more leads loaded")); } finally { setLeadsMoreBusy(false); }
+  };
+  // The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion
+  // of the Excluded view. A sentence is not sent anywhere: words to chips is release C.
+  const leadShown = React.useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    let list = leads.rows;
+    if (chip) list = list.filter((l) => l.excludedBy === chip);
+    if (fitChip) list = list.filter((l) => l.fit === fitChip);
+    if (!needle) return list;
+    return list.filter((l) => l.name.toLowerCase().includes(needle) || (l.category || "").toLowerCase().includes(needle) || (l.area || "").toLowerCase().includes(needle));
+  }, [leads.rows, q, chip, fitChip]);
+  const filtered = !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all";
+  const shownIds = leadShown.map((r) => r.id);
+  // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
+  // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
+  const viewLanded = leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
+  // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts
+  // with none of the last one's filters.
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
+    controls, page: "leads", view: viewRoute, ids: shownIds, noun: "lead", landed: viewLanded, selectionOf: `${viewRoute}|${chip}`,
+    extra: { map: mapOpen },
+    onPlace: (p, again) => {
+      setMapOpen(!!p.map);
+      if (again) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    },
+  });
   // The peek's deck (D5): the lead before or after the one open, by the order on screen. It moves the cursor too,
   // so the rows behind it follow and the keyboard carries on from where the thumb left off.
   const deckMove = (step) => {
@@ -2467,37 +3008,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     setCursor(to);
     setPeekId(to);
   };
-  const moveCursor = (step) => setCursor((c) => {
-    const i = c ? shownIds.indexOf(c) : -1;
-    return shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
-  });
-  // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
-  // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
-  // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
-  // A cursor that came back with the view (the page keeps the owner's place, below) marks its row and takes nothing:
-  // the list has just been put back where it was, and a scrollIntoView after that moved it on again.
-  const cursorCameBack = React.useRef(null);
-  React.useEffect(() => {
-    if (!cursor || !document.getElementById) return;
-    if (cursorCameBack.current === cursor) { cursorCameBack.current = null; return; }
-    cursorCameBack.current = null;
-    // The row's id wears the table's own noun (people-table.jsx), so the cursor and the peek's focus rule find the
-    // same element under Leads as under People.
-    const row = document.getElementById(`${onLeads ? "lead" : "person"}-${cursor}`);
-    const active = document.activeElement;
-    if (!row || row === active || (active && row.contains && row.contains(active))) return;
-    if (row.focus) row.focus({ preventScroll: true });
-    if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-  }, [cursor]);   // eslint-disable-line react-hooks/exhaustive-deps
   // The peek follows the row cursor while it is open, so J and K walk the leads behind it -- unless it is asking
   // a question or holding a draft, which keeps it on its own lead (leadPeekFollows, leads-peek.jsx, Task 12).
   React.useEffect(() => {
-    if (!onLeads || !peekId || !cursor || cursor === peekId || !leadPeekFollows(peekMode, armed)) return;
+    if (!peekId || !cursor || cursor === peekId || !leadPeekFollows(peekMode, armed)) return;
     setPeekId(cursor);
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
   // The owner left for their own mail app or their own phone; the peek asks how it went only once they are back
-  // (leadArmOnReturn, leads-peek.jsx). Nothing is asked while the tab is hidden, and the listeners go with the
-  // arming. Under People `armed` is null, so this is a no-op there.
+  // (leadArmOnReturn, leads-peek.jsx). Nothing is asked while the tab is hidden, and the listeners go with the arming.
   React.useEffect(() => leadArmOnReturn(armed, setArmed), [armed && armed.kind, armed && armed.leadId, armed && armed.asked]);
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it
   // closes, and the row is the cursor, so Tab carries on from where the owner was.
@@ -2510,7 +3028,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // address has no entry of the page's behind it, so it closes by replacing: going back would leave Leads.
   const peekAddr = React.useRef({ view: undefined, peek: undefined, asked: null, pushed: false });
   React.useEffect(() => {
-    if (!onLeads || !window.__leadsRouteOf) return;
+    if (!window.__leadsRouteOf) return;
     const a = peekAddr.current;
     if (a.view !== viewRoute || a.peek !== addrPeek) {
       a.view = viewRoute;
@@ -2529,80 +3047,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
     else nav(want, { replace: true });
   }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The page keeps the owner's place in each view (ldPlaceLoad, above). The page stays mounted from one view to the
-  // next, so a view that is opened -- by the first draw, the rail, Back -- is given ITS place: its own words in the
-  // box, its cursor and its map, or none of them, and never the last view's filters.
-  // People's views keep their place the same way (the loading standard's F): everyone, a smart list, a kept list or a
-  // state, each with its own words, cursor and scroll -- a search typed on a list was gone after a trip to a profile.
-  // Under People the page keys them by its own view; under Leads by the address's (viewRoute), as before.
-  const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
-  const placeView = onLeads ? viewRoute : peopleView;
-  const placePage = onLeads ? "leads" : "people";
-  const placeLoad = (view) => (window.__tabMemory ? window.__tabMemory.place(placePage, view) : null);
-  const placeSave = (view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace(placePage, view, place); };
-  const placeOf = React.useRef(undefined);  // the view whose place the state below holds
-  const placeNow = React.useRef(null);      // that view and its place as last drawn: what a scroll is saved with
-  const placeTop = React.useRef(0);
-  const placeDue = React.useRef(null);      // a scroll position waiting for its view's rows
-  // A fresh mount draws its first rows only (PL_FIRST_ROWS) and the rest a frame later: the switch between People
-  // and Leads is a remount, and the table's rows were most of what it waited on (measured on the salon: a 250 ms
-  // draw of 96 leads, 125 ms with the first 24). A place to put back -- a scroll, a cursor -- needs every row on the
-  // first draw, so it draws them all. The budget is the mount's: a view change inside the page never narrows it.
-  const [rowBudget, setRowBudget] = useState(() => {
-    const p = placeLoad(placeView);
-    return p && (p.top || p.cursor) ? Infinity : PL_FIRST_ROWS;
-  });
-  React.useEffect(() => {
-    if (rowBudget === Infinity) return undefined;
-    const lift = () => setRowBudget(Infinity);
-    if (typeof requestAnimationFrame !== "function") { lift(); return undefined; }
-    // The next frame, or a beat: a tab in the background gets no frames, and its rows must not wait for one.
-    const frame = requestAnimationFrame(lift);
-    const beat = setTimeout(lift, 120);
-    return () => { cancelAnimationFrame(frame); clearTimeout(beat); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    const p = placeLoad(placeView) || {};
-    setQ(p.q || "");
-    cursorCameBack.current = p.cursor || null;
-    setCursor(p.cursor || null);
-    if (onLeads) {
-      setMapOpen(!!p.map);
-      if (placeOf.current !== undefined) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
-    }
-    placeTop.current = p.top || 0;
-    placeDue.current = { view: placeView, top: p.top || 0, q: p.q || "", fresh: true };
-  }, [placeView]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
-  React.useEffect(() => {
-    if (placeOf.current !== placeView) { placeOf.current = placeView; return; }
-    placeSave(placeView, onLeads ? { q, cursor, map: mapOpen, top: placeTop.current } : { q, cursor, top: placeTop.current });
-  }, [placeView, q, cursor, mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (placeOf.current === placeView) placeNow.current = { view: placeView, place: onLeads ? { q, cursor, map: mapOpen } : { q, cursor } };
-  // The list goes back to where it was once the rows on screen are this view's (the surface says which view it
-  // holds) AND are the ones its own words leave. Scrolled before the view landed, it would be the last view's rows
-  // that moved. Scrolled on the draw that opens the view -- which still draws every row, the words being put back
-  // only on the next -- the browser re-anchored the list as the words shrank it: 500 became 122 on production.
-  // Words that are no longer the place's are the owner's, typed since: they have moved on, and nothing is put back.
-  // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
-  // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
-  // People's rows are in hand before the page draws (the surface publishes them), so its view has always landed.
-  const viewLanded = !onLeads || (leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir);
-  React.useEffect(() => {
-    const due = placeDue.current;
-    if (!due || due.view !== placeView) return;
-    if (q !== due.q) { if (!due.fresh) placeDue.current = null; due.fresh = false; return; }
-    due.fresh = false;
-    if (!viewLanded) return;
-    placeDue.current = null;
-    const sc = ldScroller(scrollRef.current);
-    if (sc) sc.scrollTop = due.top;
-  }, [placeView, viewLanded, q]); // eslint-disable-line react-hooks/exhaustive-deps
   // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
   // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
   const finderKept = React.useRef(false);
   React.useEffect(() => {
-    const d = onLeads ? ldFinderLoad() : null;
+    const d = ldFinderLoad();
     if (!d) return;
     setFinderWords(d.words || "");
     setFinderPlan(d.plan || null);
@@ -2612,93 +3061,15 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     setFinderOpen(!!d.open);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    if (!onLeads) return;
     if (!finderKept.current) { finderKept.current = true; return; }
     ldFinderSave({ open: finderOpen, stage: finderStage, words: finderWords, plan: finderPlan, proposal: finderProposal, more: finderMore });
   }, [finderOpen, finderStage, finderWords, finderPlan, finderProposal, finderMore]); // eslint-disable-line react-hooks/exhaustive-deps
-  // How far the list is scrolled, heard on the pane in the capture phase: a scroll does not bubble, and on a desktop
-  // the box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
-  React.useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !el.addEventListener) return undefined;
-    let t = null;
-    const on = (e) => {
-      const sc = e && e.target;
-      if (!sc || sc !== ldScroller(el)) return;
-      if (t) clearTimeout(t);
-      t = setTimeout(() => {
-        const now = placeNow.current;
-        // A scroll while a view's place still waits for its rows is the browser fitting the rows before them.
-        if (!now || placeDue.current) return;
-        placeTop.current = sc.scrollTop;
-        placeSave(now.view, { ...now.place, top: sc.scrollTop });
-      }, 200);
-    };
-    el.addEventListener("scroll", on, { passive: true, capture: true });
-    return () => { el.removeEventListener("scroll", on, { capture: true }); if (t) clearTimeout(t); };
-  }, [onLeads]);
-  // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
-  // taken down and added again on every render, and / had a second listener of its own.
-  const keys = React.useRef(null);
-  React.useEffect(() => {
-    const onKey = (e) => {
-      const k = keys.current;
-      // Where the key was pressed, not where focus is now: React hears it first, and a field's own Esc can close the
-      // field and take focus with it, so the body had focus by the time this heard an Esc typed in the list's name.
-      const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
-      // A key an earlier listener took (the ? sheet's Esc) is not the page's.
-      if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // The page's own overlays first, in the order Esc closes them: the peek, then the finder, then the Columns
-      // menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and the peek
-      // follows the cursor -- so it is not in PL_OVERLAY either.
-      if (e.key === "Escape" && k.peekOpen) { e.preventDefault(); k.closePeek(); return; }
-      // The finder holds every key while it is open: its input, its pickers and its buttons are its own.
-      if (k.finderOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeFinder(); } return; }
-      // The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's
-      // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
-      // and the key is the page's as ever: it held every key but Esc, the lists sheet's Esc included. The phone's lists
-      // sheet listens for its own Esc.
-      // Asked at the key, not from the last draw: the window may have narrowed since, and this is the one moment it matters.
-      if (k.menuOpen && plPhoneNow()) k.closeMenu();
-      else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
-      // The phone's sheets hold every key; the Lists sheet closes on its own Esc listener, People's own two on this one.
-      if (k.sheetOpen) { if (e.key === "Escape" && k.closeSheet) { e.preventDefault(); k.closeSheet(); } return; }
-      // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
-      // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
-      if (document.querySelector(PL_OVERLAY)) return;
-      if (e.key === "/") { e.preventDefault(); k.focusSearch(); return; }
-      // Esc clears a selection wherever focus is, a bulk-bar button included.
-      if (e.key === "Escape") {
-        if (k.selected) { e.preventDefault(); k.clearSel(); }
-        return;
-      }
-      // F opens the finder on the Leads scope, for whoever may find; the gate says why to everyone else, at the
-      // button, so the key is simply not theirs.
-      if ((e.key === "f" || e.key === "F") && k.canFind) { e.preventDefault(); k.find(); return; }
-      if (!k.ids.length) return;
-      // Enter and Space on a focused button, link, box, tab or menu item are that control's: they opened the profile
-      // under the cursor, or selected its row, instead of pressing what had focus.
-      if ((e.key === "Enter" || e.key === " ") && from && from.closest && from.closest(PL_CONTROL)) return;
-      const down = e.key === "ArrowDown" || e.key === "j" || e.key === "J";
-      const up = e.key === "ArrowUp" || e.key === "k" || e.key === "K";
-      // A held key walks on; a held x, Space or Enter acts once, so a row is not selected and unselected over and over.
-      if (e.repeat && !(down || up)) return;
-      if (down || up) { e.preventDefault(); k.move(down ? 1 : -1); }
-      else if (e.key === "Enter" && k.cursor) { e.preventDefault(); k.open(k.cursor); }
-      else if ((e.key === " " || e.key === "x" || e.key === "X") && k.cursor && k.canSelect) { e.preventDefault(); k.toggle(k.cursor); }
-      // C calls the lead under the cursor from the owner's own phone, and arms the call question.
-      else if ((e.key === "c" || e.key === "C") && k.cursor && k.call) { e.preventDefault(); k.call(k.cursor); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  const toggleAll = () => { setAllMatching(false); setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds))); };
 
   /* ---------------------------------------------------- the Leads scope's acts */
   // Every one goes through the courier the bridge installed (legacy-bridge/leads.ts): the route, then the
   // surface patched in place. A toast says what happened and offers Undo through the operation the door
   // answered, which is the only thing an undo names (the review's E9).
-  const canFind = onLeads && (!window.canDo || window.canDo("find"));
+  const canFind = !window.canDo || window.canDo("find");
   const leadById = (id) => leads.rows.find((l) => l.id === id) || null;
   const searchById = (id) => leads.searches.find((s) => s.id === id) || null;
   const leadUndo = (r) => (r.data && r.data.op_id
@@ -2882,528 +3253,293 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
   const leadCellActs = React.useRef({});
   const leadCellKept = React.useRef(null);
-  // Clearing a selection lets go of everything that came with it: the view "all N that match" stood for, the
-  // Select-people mode and the sheet's step. Esc, ✕ and Clear all clear it here. Esc left "all N that match" set, and
-  // the next lead selected was counted, and acted on, as the whole view.
-  const clearSelection = () => { setSel(new Set()); setAllMatching(false); setSelectMode(false); setBulkSheet(null); };
-  // What the keyboard's one listener reads: this render's rows, cursor and doors.
-  keys.current = {
-    ids: shownIds,
-    cursor,
-    move: moveCursor,
-    // Enter opens the person under People and peeks the lead under Leads.
-    open: onLeads ? setPeekId : onOpenProfile,
-    toggle: toggleSel,
-    canSelect: onLeads ? canFind || canExport : canEditLists || canExport,
-    // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
-    // A Select-people selection with nobody picked yet is one too.
-    selected: sel.size > 0 || (phone && selectMode),
-    clearSel: clearSelection,
-    // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
-    focusSearch: () => { if (phone) setSearchOpen(true); if (searchRef.current) searchRef.current.focus(); },
+  // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
+  keysWith({
+    open: setPeekId,
+    canSelect: canFind || canExport,
     // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
-    sheetOpen: listsOpen || addOpen || !!listAct || (phone && !!bulkSheet),
-    closeSheet: addOpen || listAct ? closePhoneSheet : phone && bulkSheet ? () => setBulkSheet(null) : null,
-    menuOpen: colsOpen,
-    closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
-    peekOpen: onLeads && (!!peekId || !!lightboxId),
+    sheetOpen: listsOpen || (phone && !!bulkSheet),
+    closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
+    peekOpen: !!peekId || !!lightboxId,
     // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
     // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the finder, the
     // Columns menu, the selection.
     closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
-    finderOpen: onLeads && finderOpen,
+    finderOpen,
     closeFinder: () => setFinderOpen(false),
     canFind,
     find: () => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); },
-    call: onLeads ? callLead : null,
+    call: callLead,
+  });
+
+  const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
+  const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
+  const openSearch = searchById(leadView.searchId);
+  // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
+  const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
+  // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
+  // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
+  // changes, and a memoised row is left alone otherwise.
+  leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows);
+  const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
+  // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
+  const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
+  const pickSearchRoute = (id) => window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null });
+  // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
+  // make a new round open the plan card instead, because nothing that counts against the month may start
+  // without the owner approving what runs.
+  // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
+  // derivations bag), and until then the page's own file, published beside the component that draws it.
+  const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
+  // "12 new": the view read again in its order. The strip's door and the list head's are this one.
+  const takeOffered = () => window.__leadsTakeOffered && window.__leadsTakeOffered();
+  const onStripAction = (id, arg) => {
+    const s = openSearch;
+    if (!s) return;
+    if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
+    if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
+    if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
+    // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
+    // the route is given the version the owner approved, not the one the round started on.
+    if (id === "include") {
+      const V = window.__LEAD_VM || {};
+      const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;
+      return openPlanFor(s, plan, "answer");
+    }
+    if (id === "excluded" || id === "review") return goto({ cls: arg });
+    if ((window.LEAD_ROUND_MAKERS || []).indexOf(id) >= 0) return openPlanFor(s, arg && arg.version ? arg : s.plan, "more");
+    if (id === "undo") return undoRound(arg && arg.searchId);
+    // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the
+    // page's own state and the effect above asks the surface for it (E8).
+    if (id === "sort_fit") { setSortBy("fit"); setSortDir("asc"); return undefined; }
+    if (id === "take_offered") return takeOffered();
+    return undefined;
   };
-
-  /** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
-function ldValuesPref() { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } }
-
-// The Leads scope, drawn after every hook this component owns, so the two scopes declare one hook order.
-  // Everything it needs is a prop: leads-scope.jsx is hookless from its rail to its bulk bar.
-  if (onLeads) {
-    const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
-    const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
-    const openSearch = searchById(leadView.searchId);
-    // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
-    const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
-    // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
-    // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
-    // changes, and a memoised row is left alone otherwise.
-    leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
-    const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind);
-    const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
-    // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
-    const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
-    const pickSearchRoute = (id) => window.__leadsRouteOf({ searchId: railToggle(leadView.searchId, id), list: "all", cls: null });
-    // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
-    // make a new round open the plan card instead, because nothing that counts against the month may start
-    // without the owner approving what runs.
-    // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
-    // derivations bag), and until then the page's own file, published beside the component that draws it.
-    const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
-    // "12 new": the view read again in its order. The strip's door and the list head's are this one.
-    const takeOffered = () => window.__leadsTakeOffered && window.__leadsTakeOffered();
-    const onStripAction = (id, arg) => {
-      const s = openSearch;
-      if (!s) return;
-      if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
-      if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
-      if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-      // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
-      // the route is given the version the owner approved, not the one the round started on.
-      if (id === "include") {
-        const V = window.__LEAD_VM || {};
-        const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;
-        return openPlanFor(s, plan, "answer");
-      }
-      if (id === "excluded" || id === "review") return goto({ cls: arg });
-      if ((window.LEAD_ROUND_MAKERS || []).indexOf(id) >= 0) return openPlanFor(s, arg && arg.version ? arg : s.plan, "more");
-      if (id === "undo") return undoRound(arg && arg.searchId);
-      // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the
-      // page's own state and the effect above asks the surface for it (E8).
-      if (id === "sort_fit") { setSortBy("fit"); setSortDir("asc"); return undefined; }
-      if (id === "take_offered") return takeOffered();
-      return undefined;
-    };
-    // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
-    // bar never shortens (Task 18; PeoplePhoneBar's listCount).
-    const openList = rail.lists.find((l) => l.id === leadView.list);
-    const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
-    const railCount = openSearch ? openSearch.round.counted : openList ? openList.count : null;
-    return (
-      <LeadsScope
-        surface={leads}
-        rail={rail}
-        railLabel={railLabel}
-        railCount={railCount}
-        listTitle={openList ? openList.label : "All leads"}
-        listsOpen={listsOpen}
-        onLists={() => setListsOpen(true)}
-        onCloseLists={() => setListsOpen(false)}
-        standing={standing}
-        view={leadView}
-        search={openSearch}
-        strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
-        rows={rowsShown}
-        rowBudget={rowBudget}
-        phone={phone}
-        // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
-        // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
-        // right and being wrong.
-        loading={!viewLanded}
-        total={leads.counts[leadView.list] ?? leads.counts.all}
-        columns={columns}
-        colOptions={colOptions}
-        colsOpen={colsOpen}
-        colsButton={colsButton}
-        onColsOpen={setColsOpen}
-        onPickColumn={pickColumn}
-        cellCtx={cellCtxLeads}
-        sortBy={sortBy}
-        sortDir={sortDir}
-        onSort={onSort}
-        q={q}
-        onQ={setQ}
-        searchRef={searchRef}
-        searchOpen={searchOpen}
-        onSearchOpen={setSearchOpen}
-        scrollRef={scrollRef}
-        scrolled={scrolledX}
-        onScrolled={setScrolledX}
-        filtered={filtered}
-        onClearFilters={() => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); }}
-        band={band}
-        // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
-        // the month is the surface's, so what a press costs is a number the owner can see.
-        // The same leads, on the ground (D5): the plot is contracts', from the points the door returned and the
-        // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
-        mapOpen={mapOpen}
-        onMap={setMapOpen}
-        mapBy={mapBy}
-        onMapBy={setMapBy}
-        mapPick={mapPick}
-        onMapPick={setMapPick}
-        plot={mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(rowsShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null}
-        onWiden={() => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); }}
-        benchGroups={leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : []}
-        benchGroup={benchGroup}
-        onBenchGroup={setBenchGroup}
-        month={leads.month}
-        onNearby={(area) => onStripAction("nearby", { ...openSearch.plan, area })}
-        fit={fitChip}
-        onPickFit={setFitChip}
-        values={values}
-        onValues={(v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } }}
-        empty={leadView.cls === "review"
-          ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
-          : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
-        sel={sel}
-        onToggle={toggleSel}
-        onToggleAll={toggleAll}
-        onClearSel={clearSelection}
-        onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
-        // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
-        // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
-        // the bar never offers what no door can do.
-        review={{
-          actsFor: (ids) => {
-            const V = window.__LEAD_VM || {};
-            const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
-            return [...new Set(groups.flatMap((g) => g.acts))];
-          },
-          canCheckAgain: typeof window.__leadCheckAgain === "function",
-          canFindEmail: typeof window.__leadFindEmail === "function",
-          onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
-          onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
-          onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
-          onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
-        }}
-        allMatching={allMatching}
-        onSelectAllMatching={() => setAllMatching(true)}
-        bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}
-        bulkBusy={leadBusy}
-        onBulk={bulkLeads}
-        bulkWhy={bulkWhy}
-        onBulkWhy={setBulkWhy}
-        bulkSheet={phone ? bulkSheet : null}
-        onBulkSheet={setBulkSheet}
-        onBulkNotAFit={bulkNotAFit}
-        onCopyEmails={copyEmails}
-        cursor={cursor}
-        onCursor={setCursor}
-        canFind={canFind}
-        canExport={canExport}
-        exportHref={window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null}
-        onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
-        // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
-        // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
-        // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
-        onPickList={(id) => { setChip(null); nav(pickListRoute(id)); }}
-        onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id)); }}
-        // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
-        onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
-        onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
-        onPickClass={(cls) => { setChip(null); goto({ cls }); }}
-        chip={chip}
-        onPickChip={setChip}
-        onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: null }))}
-        exportHrefFor={exportHrefFor}
-        searchWordsFor={searchWordsFor}
-        renaming={renaming}
-        onRename={setRenaming}
-        onRenameSave={renameSearch}
-        onRenameCancel={() => setRenaming(null)}
-        removing={removing}
-        onRemoveAsk={(s) => { setRemoveError(null); setRemoving(s); }}
-        onUndo={(s) => undoRound(s.id)}
-        onRemoveYes={removeSearch}
-        onRemoveNo={() => { setRemoving(null); setRemoveError(null); }}
-        removeBusy={leadBusy}
-        removeError={removeError}
-        onFindNewOnes={findNewOnes}
-        onSearchAgain={searchAgain}
-        onFind={() => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); }}
-        finderOpen={finderOpen}
-        finderStage={finderStage}
-        finderWords={finderWords}
-        finderProposal={finderProposal}
-        finderRefusal={finderRefusal}
-        finderBusy={leadBusy}
-        finderPlan={finderPlan}
-        finderTrace={finderTrace}
-        finderPick={finderPick}
-        onFinderWords={setFinderWords}
-        onFinderPlan={finderPlanIt}
-        onFinderApprove={finderApprove}
-        onFinderChangePlan={setFinderPlan}
-        onFinderPick={setFinderPick}
-        onFinderBack={() => setFinderStage("compose")}
-        onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
-        talk={talk}
-        peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
-        // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
-        // cursor as J and K do, so the rows behind the peek move with it.
-        deck={peekId && shownIds.indexOf(peekId) >= 0
-          ? {
-            at: shownIds.indexOf(peekId) + 1,
-            of: shownIds.length,
-            onPrev: () => deckMove(-1),
-            onNext: () => deckMove(1),
-          }
-          : null}
-        peekMode={peekMode}
-        onPeekMode={setPeekMode}
-        armed={armed}
-        onArmed={setArmed}
-        draft={draft}
-        onDraftState={setDraft}
-        // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
-        onPeek={phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId}
-        onPeekId={setPeekId}
-        onOpenPerson={onOpenProfile}
-        flash={plFlash}
-        onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId })}
-        onExpandPhoto={setLightboxId}
-        lightbox={lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null}
-        onCloseLightbox={() => setLightboxId(null)}
-        onCall={callLead}
-        onKeep={keepLead}
-        onExclude={excludeLead}
-        onPutBack={putBackLead}
-        onCopy={copyLead}
-        onCopyPhone={copyPhone}
-        onLogCall={logLeadCall}
-        onStripAction={onStripAction}
-        onTakeOffered={takeOffered}
-        onMore={leadsMore}
-        loadingMore={leadsMoreBusy}
-        firstDay={leads.searches.length === 0 && !leads.readFailed}
-        // The three ways claim only what THIS tab has read: the line is the setup
-        // surface's, which this route does not load on a cold open, so it is passed
-        // only when the owner came from Setup in this tab (Task 17, decision 2).
-        ways={window.__leadWays ? window.__leadWays({
-          voice: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.voice : null,
-          whatsapp: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.whatsapp : null,
-          calendar: (people.calendar && people.calendar.state) || "none",
-          people: (people.aggregates && people.aggregates.total) || 0,
-        }) : []}
-        lineOpen={!!leadLine}
-        lineDraft={leadLine ? leadLine.draft : ""}
-        lineError={leadLine ? leadLine.error : null}
-        lineBusy={!!(leadLine && leadLine.busy)}
-        onOpenLine={() => setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false })}
-        onLineDraft={(draft) => setLeadLine((l) => ({ ...l, draft, error: null }))}
-        onSaveLine={saveBusinessLine}
-        onCancelLine={() => setLeadLine(null)}
-        onGo={(to) => nav(to)}
-        onBusinessLine={(line) => window.__leadBusinessLine && window.__leadBusinessLine(line)}
-        toastNode={toastNode}
-      />
-    );
-  }
-
-  // Whether anyone shown is selected, or a phone's Select people is on: the bar shows then, and on a phone a tap on a
-  // row selects it rather than opening the person (Gmail's way; the face is the checkbox, clients.css).
-  const selecting = (phone && selectMode) || shown.some((p) => sel.has(p.id));
-  rowOpenRef.current = phone && selecting ? toggleSel : onOpenProfile;
-  // People's more-menu on a phone, the bar's last control: the acts a desktop spreads over its controls row and a list's
-  // title line. Add a person; the sorts a desktop's headings give (a phone draws none); everyone as a file; and with a
-  // list open, that list's own acts.
-  const phoneMenu = [
-    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
-    ...((canEditLists || canExport) && shown.length > 0 ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }] : []),
-    ...(canEditLists && window.__addPerson ? [{ label: "Add a person", icon: "plus", onClick: () => { setAddDraft(PL_ADD_EMPTY); setAddOpen(true); } }] : []),
-    { header: "Sort" },
-    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => { viewTouched.current = true; setSortBy(s.by); setSortDir(s.dir); } })),
-    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
-    ...(activeSaved && canEditLists && window.__lists ? [
-      { divider: true },
-      { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
-      { label: "Delete this list…", icon: "x", danger: true, onClick: () => { setListDraft(PL_LIST_EMPTY); setListAct("delete"); } },
-    ] : []),
-    ...(!activeSaved && filtered && shown.length > 0 && canEditLists && window.__lists ? [
-      { divider: true },
-      { label: `Save these ${shown.length} as a list`, icon: "filter", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeList ? activeList.label : tab !== "all" ? PL_TAB_LABEL[tab] : "" }); setListAct("save"); } },
-    ] : []),
-  ];
-
+  // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
+  // bar never shortens (Task 18; PeoplePhoneBar's listCount).
+  const openList = rail.lists.find((l) => l.id === leadView.list);
+  const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
+  const railCount = openSearch ? openSearch.round.counted : openList ? openList.count : null;
   return (
-    <div className="clients">
-      <PeopleRail
-        scope="people"
-        onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
-        lists={lists}
-        groups={people.groups || PL_DEFAULT_GROUPS}
-        active={listId}
-        onPick={pickSmart}
-        saved={saved}
-        activeSaved={savedId}
-        onPickSaved={pickSaved}
-        canEdit={canEditLists}
-        onCreateList={window.__lists ? createList : null}
-        savedRead={people.savedRead !== false}
-        newListSignal={newListSignal}
-      />
-
-      <div className="cl-main">
-        <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). */}
-          {phone && (
-            <PeoplePhoneBar
-              scope="people"
-              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
-              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
-              onLists={() => setListsOpen(true)}
-              listsOpen={listsOpen}
-              q={q}
-              onQ={setQ}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              onSearchOpen={setSearchOpen}
-              searchLabel="Search by name or phone"
-              testid="people"
-              trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
-            />
-          )}
-          <PeopleStanding
-            scope="people"
-            agg={agg}
-            needsShown={tab === "needs_you"}
-            onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
-          />
-
-          {!phone && (
-          <div className="cl-controls">
-            <div className="cl-search-wrap">
-              <Icon name="search" size={13} />
-              <input ref={searchRef} placeholder="Search by name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
-              <span className="kbd">/</span>
-            </div>
-            <div className="cl-controls-right">
-              {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}
-              {/* Everyone as a CSV, from the route: owner only, and the button
-                  says so for anyone else instead of leading to a refusal. */}
-              {window.__href && (
-                window.canDo && !window.canDo("export")
-                  ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
-              )}
-              {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
-                  them only turned round an order the table already shows and changes. */}
-              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
-            </div>
-          </div>
-          )}
-
-          {/* A phone draws no list head: the bar names the list, the Lists sheet has Everyone and the more-menu the
-              list's own acts. A list's own step stays, one card. */}
-          {(!phone || listStep) && (
-          <div className="cl-section">
-            {!phone && (
-            <div className="cl-section-head">
-              <div className="cl-section-lead">
-                {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
-                    the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
-                    delete sit on the one line, where the Lists page had them over a second table of the same people. */}
-                {activeSaved
-                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
-                  : activeList
-                    ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
-                    : <span className="cl-section-title">Everyone</span>}
-                {(activeList || activeSaved) && (
-                  <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
-                )}
-                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
-                {tab !== "all" && (
-                  <span className="cl-seg-filter" data-testid="state-filter">
-                    <Icon name="filter" size={10} />
-                    {PL_TAB_LABEL[tab]}
-                    <button className="cl-seg-filter-x" title="Show everyone" onClick={() => setTab("all")}>
-                      <Icon name="x" size={9} />
-                    </button>
-                  </span>
-                )}
-              </div>
-              <span className="cl-section-sub">
-                {filtered && shown.length > 0 && canEditLists && window.__lists
-                  ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
-                  : (filtered ? "Filtered" : "")}
-              </span>
-            </div>
-            )}
-            {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
-                said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
-            {listStep && (
-              <div className="cl-list-action" data-testid="list-action">
-                <span className="cl-list-action-text">{listStep.text}</span>
-                <button className={`btn btn-sm ${listStep.enabled ? "btn-primary" : ""}`} disabled={!listStep.enabled} onClick={() => window.CHANLY.nav(listStep.to)}>
-                  {listStep.cta} <Icon name="arrow-right" size={10} />
-                </button>
-              </div>
-            )}
-          </div>
-          )}
-
-          <PeopleTable
-            budget={rowBudget}
-            noun="person"
-            columns={columns}
-            ctx={cellCtx}
-            selectable={canEditLists || canExport}
-            sel={sel}
-            onToggle={toggleSel}
-            onToggleAll={toggleAll}
-            cursor={cursor}
-            onCursor={setCursor}
-            rows={shown}
-            rowClass={phone ? plCardRowClass : null}
-            total={people.page && people.page.has_more ? people.page.total : rows.length}
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={onSort}
-            onOpen={rowOpen}
-            selectMode={phone && selectMode}
-            filtered={filtered}
-            onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
-            scrolled={scrolledX}
-            onScrolled={setScrolledX}
-            busy={searching}
-            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
-          />
-          {hasMore && (
-            <div className="cl-section-sub pl-more" data-testid="people-more">
-              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
-              {" "}
-              <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
-            </div>
-          )}
-        </div>
-        {/* The bar counts, and acts on, the people shown and selected. */}
-        {selecting && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={clearSelection} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} phone={phone} sheet={phone ? bulkSheet : null} onSheet={setBulkSheet} onSelectAll={() => setSel(new Set(shownIds))} />}
-        {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under). Last in the tree, after
-            everything whose state a stub React keys by order. Its switch is the bar's; its first row is Everyone. */}
-        {listsOpen && (
-          <PeopleListsSheet onClose={() => setListsOpen(false)}>
-            <PeopleRail
-              scope="people"
-              scopeTabs={false}
-              everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
-              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
-              lists={lists}
-              groups={people.groups || PL_DEFAULT_GROUPS}
-              active={listId}
-              onPick={(id) => { pickSmart(id); setListsOpen(false); }}
-              saved={saved}
-              activeSaved={savedId}
-              onPickSaved={(id) => { pickSaved(id); setListsOpen(false); }}
-              canEdit={canEditLists}
-              onCreateList={window.__lists ? createList : null}
-              savedRead={people.savedRead !== false}
-              newListSignal={newListSignal}
-            />
-          </PeopleListsSheet>
-        )}
-        {/* People's own two sheets on a phone, last in the tree like the Lists sheet. */}
-        {phone && addOpen && (
-          <PeopleAddSheet draft={addDraft} onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))} onAdd={addOnPhone} onClose={closePhoneSheet} />
-        )}
-        {phone && listAct && (listAct === "save" || activeSaved) && (
-          <PeopleListActSheet act={listAct} list={activeSaved} count={shown.length} draft={listDraft} onDraft={(patch) => setListDraft((d) => ({ ...d, ...patch }))} onGo={listActGo} onClose={closePhoneSheet} />
-        )}
-        {toastNode}
-      </div>
-    </div>
+    <LeadsScope
+      surface={leads}
+      rail={rail}
+      railLabel={railLabel}
+      railCount={railCount}
+      listTitle={openList ? openList.label : "All leads"}
+      listsOpen={listsOpen}
+      onLists={() => setListsOpen(true)}
+      onCloseLists={() => setListsOpen(false)}
+      standing={standing}
+      view={leadView}
+      search={openSearch}
+      strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
+      rows={leadShown}
+      rowBudget={rowBudget}
+      phone={phone}
+      // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
+      // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
+      // right and being wrong.
+      loading={!viewLanded}
+      total={leads.counts[leadView.list] ?? leads.counts.all}
+      columns={columns}
+      colOptions={colOptions}
+      colsOpen={colsOpen}
+      colsButton={colsButton}
+      onColsOpen={setColsOpen}
+      onPickColumn={pickColumn}
+      cellCtx={cellCtxLeads}
+      sortBy={sortBy}
+      sortDir={sortDir}
+      onSort={onSort}
+      q={q}
+      onQ={setQ}
+      searchRef={searchRef}
+      searchOpen={searchOpen}
+      onSearchOpen={setSearchOpen}
+      scrollRef={scrollRef}
+      scrolled={scrolledX}
+      onScrolled={setScrolledX}
+      filtered={filtered}
+      onClearFilters={() => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); }}
+      band={band}
+      // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
+      // the month is the surface's, so what a press costs is a number the owner can see.
+      // The same leads, on the ground (D5): the plot is contracts', from the points the door returned and the
+      // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
+      mapOpen={mapOpen}
+      onMap={setMapOpen}
+      mapBy={mapBy}
+      onMapBy={setMapBy}
+      mapPick={mapPick}
+      onMapPick={setMapPick}
+      plot={mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null}
+      onWiden={() => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); }}
+      benchGroups={leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : []}
+      benchGroup={benchGroup}
+      onBenchGroup={setBenchGroup}
+      month={leads.month}
+      onNearby={(area) => onStripAction("nearby", { ...openSearch.plan, area })}
+      fit={fitChip}
+      onPickFit={setFitChip}
+      values={values}
+      onValues={(v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } }}
+      empty={leadView.cls === "review"
+        ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
+        : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
+      sel={sel}
+      onToggle={toggleSel}
+      onToggleAll={toggleAll}
+      onClearSel={clearSelection}
+      onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
+      // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
+      // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
+      // the bar never offers what no door can do.
+      review={{
+        actsFor: (ids) => {
+          const V = window.__LEAD_VM || {};
+          const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
+          return [...new Set(groups.flatMap((g) => g.acts))];
+        },
+        canCheckAgain: typeof window.__leadCheckAgain === "function",
+        canFindEmail: typeof window.__leadFindEmail === "function",
+        onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
+        onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
+        onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+        onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+      }}
+      allMatching={allMatching}
+      onSelectAllMatching={() => setAllMatching(true)}
+      bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}
+      bulkBusy={leadBusy}
+      onBulk={bulkLeads}
+      bulkWhy={bulkWhy}
+      onBulkWhy={setBulkWhy}
+      bulkSheet={phone ? bulkSheet : null}
+      onBulkSheet={setBulkSheet}
+      onBulkNotAFit={bulkNotAFit}
+      onCopyEmails={copyEmails}
+      cursor={cursor}
+      onCursor={setCursor}
+      canFind={canFind}
+      canExport={canExport}
+      exportHref={window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null}
+      onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+      // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
+      // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
+      // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
+      onPickList={(id) => { setChip(null); nav(pickListRoute(id)); }}
+      onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id)); }}
+      // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
+      onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
+      onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
+      onPickClass={(cls) => { setChip(null); goto({ cls }); }}
+      chip={chip}
+      onPickChip={setChip}
+      onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: null }))}
+      exportHrefFor={exportHrefFor}
+      searchWordsFor={searchWordsFor}
+      renaming={renaming}
+      onRename={setRenaming}
+      onRenameSave={renameSearch}
+      onRenameCancel={() => setRenaming(null)}
+      removing={removing}
+      onRemoveAsk={(s) => { setRemoveError(null); setRemoving(s); }}
+      onUndo={(s) => undoRound(s.id)}
+      onRemoveYes={removeSearch}
+      onRemoveNo={() => { setRemoving(null); setRemoveError(null); }}
+      removeBusy={leadBusy}
+      removeError={removeError}
+      onFindNewOnes={findNewOnes}
+      onSearchAgain={searchAgain}
+      onFind={() => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); }}
+      finderOpen={finderOpen}
+      finderStage={finderStage}
+      finderWords={finderWords}
+      finderProposal={finderProposal}
+      finderRefusal={finderRefusal}
+      finderBusy={leadBusy}
+      finderPlan={finderPlan}
+      finderTrace={finderTrace}
+      finderPick={finderPick}
+      onFinderWords={setFinderWords}
+      onFinderPlan={finderPlanIt}
+      onFinderApprove={finderApprove}
+      onFinderChangePlan={setFinderPlan}
+      onFinderPick={setFinderPick}
+      onFinderBack={() => setFinderStage("compose")}
+      onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
+      talk={talk}
+      peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
+      // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
+      // cursor as J and K do, so the rows behind the peek move with it.
+      deck={peekId && shownIds.indexOf(peekId) >= 0
+        ? {
+          at: shownIds.indexOf(peekId) + 1,
+          of: shownIds.length,
+          onPrev: () => deckMove(-1),
+          onNext: () => deckMove(1),
+        }
+        : null}
+      peekMode={peekMode}
+      onPeekMode={setPeekMode}
+      armed={armed}
+      onArmed={setArmed}
+      draft={draft}
+      onDraftState={setDraft}
+      // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
+      onPeek={phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId}
+      onPeekId={setPeekId}
+      onOpenPerson={onOpenProfile}
+      flash={plFlash}
+      onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId })}
+      onExpandPhoto={setLightboxId}
+      lightbox={lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null}
+      onCloseLightbox={() => setLightboxId(null)}
+      onCall={callLead}
+      onKeep={keepLead}
+      onExclude={excludeLead}
+      onPutBack={putBackLead}
+      onCopy={copyLead}
+      onCopyPhone={copyPhone}
+      onLogCall={logLeadCall}
+      onStripAction={onStripAction}
+      onTakeOffered={takeOffered}
+      onMore={leadsMore}
+      loadingMore={leadsMoreBusy}
+      firstDay={leads.searches.length === 0 && !leads.readFailed}
+      // The three ways claim only what THIS tab has read: the line is the setup
+      // surface's, which this route does not load on a cold open, so it is passed
+      // only when the owner came from Setup in this tab (Task 17, decision 2).
+      ways={window.__leadWays ? window.__leadWays({
+        voice: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.voice : null,
+        whatsapp: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.whatsapp : null,
+        calendar: (people.calendar && people.calendar.state) || "none",
+        people: (people.aggregates && people.aggregates.total) || 0,
+      }) : []}
+      lineOpen={!!leadLine}
+      lineDraft={leadLine ? leadLine.draft : ""}
+      lineError={leadLine ? leadLine.error : null}
+      lineBusy={!!(leadLine && leadLine.busy)}
+      onOpenLine={() => setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false })}
+      onLineDraft={(draft) => setLeadLine((l) => ({ ...l, draft, error: null }))}
+      onSaveLine={saveBusinessLine}
+      onCancelLine={() => setLeadLine(null)}
+      onGo={(to) => nav(to)}
+      onBusinessLine={(line) => window.__leadBusinessLine && window.__leadBusinessLine(line)}
+      toastNode={toastNode}
+    />
   );
 };
 
 // A real workspace renders its own people; the seeded page keeps the demo. The Leads scope is real as soon as
 // its own surface has landed, whether or not People's has: the route gate waits on the surface the address names
 // (surface-registry routeSurfaceFor), and the seeded page has no Leads scope to draw.
-const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.__PEOPLE) ? <ClientsAReal {...props} /> : <ClientsASeed {...props} />);
+const ClientsA = (props) => {
+  if (props.scope === "leads") return window.__LEADS ? <LeadsReal {...props} /> : <ClientsASeed {...props} />;
+  return window.__PEOPLE ? <PeopleReal {...props} /> : <ClientsASeed {...props} />;
+};
 
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the

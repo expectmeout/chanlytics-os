@@ -190,6 +190,9 @@ import {
   toPersonRowVM,
   peopleAggregates,
   PEOPLE_LISTS,
+  asListRule,
+  listRuleParts,
+  savedListIds,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
   savedListAction,
@@ -211,6 +214,8 @@ import {
   zoneDayKey,
   toBookingReportVM,
   type BookingReportVM,
+  toDealReportVM,
+  type DealReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
 import {
@@ -759,6 +764,8 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
+  /** Deals are a thing here (0004): the Journey's deal lists, the thread's menu item, the column. */
+  dealsOn: boolean;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
@@ -773,9 +780,12 @@ let peopleLoaded: {
   people: PersonRowDto[];
   page: PeopleSurface["page"];
   /** Null when the read of them failed. */
-  saved: { id: string; name: string; ids: string[] }[] | null;
+  saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
+  /** Deals are a thing here, and the profile lists a consult-first service (0004): which Journey lists exist. */
+  dealsOn: boolean;
+  consultFirst: boolean;
   views: Record<string, unknown>;
 } | null = null;
 
@@ -786,10 +796,16 @@ function publishPeople(): void {
   const now = new Date();
   const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
   const calendar = peopleLoaded.calendar;
+  const { dealsOn, consultFirst } = peopleLoaded;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
-    // The outcome lists only when there is a calendar to read them from.
-    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
+    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are a thing.
+    lists: PEOPLE_LISTS.filter(
+      (l) =>
+        (!l.needsCalendar || calendar.state === "ok") &&
+        (!l.needsConsultFirst || consultFirst) &&
+        (!l.needsDeals || dealsOn),
+    ).map((l) => {
       const members = rows.filter(l.test);
       return {
         id: l.id,
@@ -803,12 +819,25 @@ function publishPeople(): void {
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
+    dealsOn,
     saved: (peopleLoaded.saved ?? []).map((l) => {
-      const idSet = new Set(l.ids);
+      // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (savedListIds), over the rows
+      // on the page, so an erased person never counts.
+      const idSet = savedListIds(l, rows, now.getTime(), calendar.state === "ok");
       const members = rows.filter((r) => idSet.has(r.id));
       const ids = members.map((r) => r.id);
-      // The list's own step, the way a smart list carries its: a broadcast to those on it who said yes.
-      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids, action: savedListAction(l.id, members) };
+      const rule = asListRule(l.rule);
+      // The list's own step, the way a built-in list carries its: a broadcast to those on it who said yes.
+      return {
+        id: l.id,
+        name: l.name,
+        count: ids.length,
+        ids,
+        members: l.ids,
+        action: savedListAction(l.id, members),
+        // A smart list's rule, as the chips its page shows; null for a list kept by hand.
+        rule: rule ? listRuleParts(rule) : null,
+      };
     }),
     savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.
@@ -943,6 +972,8 @@ export const peopleOverride: SurfaceOverride = {
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
+      dealsOn: !!data.deals_on,
+      consultFirst: !!data.consult_first,
       views:
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
@@ -1109,7 +1140,9 @@ export const broadcastsOverride: SurfaceOverride = {
           l.id !== "opted_in" &&
           l.id !== "offers_ok" &&
           l.id !== "opted_out" &&
-          (!l.needsCalendar || people.calendar?.state === "ok"),
+          (!l.needsCalendar || people.calendar?.state === "ok") &&
+          (!l.needsConsultFirst || !!people.consult_first) &&
+          (!l.needsDeals || !!people.deals_on),
       ).map((l) => ({
         kind: "list" as const,
         id: l.id,
@@ -1123,7 +1156,7 @@ export const broadcastsOverride: SurfaceOverride = {
             kind: "saved" as const,
             id: s.id,
             label: s.name,
-            ...optionFor("saved", null, new Set(s.ids)),
+            ...optionFor("saved", null, savedListIds(s, rows, now.getTime(), people.calendar?.state === "ok")),
             hint: "A list kept by hand — of those whose yes covers this message",
           }))),
     ];
@@ -1254,6 +1287,15 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
+  /** The lists a playbook may run on, each with its own count; empty when there are none or they were not read. */
+  lists: {
+    id: string;
+    name: string;
+    smart: boolean;
+    candidates: number | null;
+    held: number | null;
+    named: PlaybookNamed | null;
+  }[];
   /** The approved WhatsApp templates, with their variables. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: TemplateDto[] | null;
@@ -1313,22 +1355,34 @@ export const playbooksOverride: SurfaceOverride = {
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
+    // A playbook on one of the workspace's lists is counted by its list ("list:<id>"), and named for it.
+    const listsKept = pb.lists ?? [];
+    const keyOf = (p: { trigger: string; list_id?: string | null }) =>
+      p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
+        const kept = p.trigger === "saved_list" ? listsKept.find((l) => l.id === p.list_id) : undefined;
         return {
           ...p,
-          triggerLabel: t?.label ?? p.trigger,
+          triggerLabel:
+            p.trigger === "saved_list" ? (kept?.name ?? "A list that was deleted") : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
-          candidates: pool(p.trigger),
-          held: held(p.trigger),
-          named: named(p.trigger),
+          candidates: pool(keyOf(p)),
+          held: held(keyOf(p)),
+          named: named(keyOf(p)),
         };
       }),
       timezone: tz,
-      countsRead: PLAYBOOK_TRIGGERS.every((t) => !!pb.pools?.[t.id]),
+      countsRead: PLAYBOOK_TRIGGERS.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
+      lists: listsKept.map((l) => ({
+        ...l,
+        candidates: pool(`list:${l.id}`),
+        held: held(`list:${l.id}`),
+        named: named(`list:${l.id}`),
+      })),
       calendar: pb.calendar ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({
         id: t.id,
@@ -1491,6 +1545,8 @@ export interface ReportsSurface {
   campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
+  /** Deals: one cohort and the stock; present only where a deal was ever recorded (0004). */
+  deals: DealReportVM;
   /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
   facts: ReportFactVM[];
   days: number;
@@ -1535,10 +1591,13 @@ export const reportsOverride: SurfaceOverride = {
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
     if (days !== reportDays) return;
+    const vm = toReportVM(data.report);
     const surface: Omit<ReportsSurface, "facts"> = {
-      vm: toReportVM(data.report),
+      vm,
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
+      // The period's name is the report's, so the two sentences never disagree about the range.
+      deals: toDealReportVM(data.deals, vm.rangeLabel),
       days,
       fetchedAt: Date.now(),
     };

@@ -4,7 +4,7 @@
  * is read by zod here. A refusal of any kind (the budget, a preview deployment,
  * an answer out of shape) is an AppError in words; nothing is guessed.
  *
- * The two purposes that come through here spend Ask's ONE daily budget, so
+ * The purposes that come through here spend Ask's ONE daily budget, so
  * they are capped three ways and add no second budget: the rate buckets
  * (`lead_draft` 60 an hour, `lead_suggest` 10 an hour -- a person, not a
  * workspace), the suggestions' seven-day cache, and small requests
@@ -24,7 +24,7 @@ export function setModelStream(s: typeof streamModel | null): void {
 }
 
 export type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
-  purpose: "lead_draft" | "lead_suggest";
+  purpose: "lead_draft" | "lead_suggest" | "list_draft";
   request: Omit<GatewayCall["request"], "output_config"> & { schema: Record<string, unknown> };
 };
 

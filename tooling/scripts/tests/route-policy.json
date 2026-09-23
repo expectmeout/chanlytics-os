@@ -254,6 +254,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/deal": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/[id]/marketing-consent": {
       "kind": "write",
       "scope": "row",
@@ -896,6 +903,13 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "lists",
+      "spend": false
+    },
+    "POST segments/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
       "spend": false
     },
     "GET settings": {

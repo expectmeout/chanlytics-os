@@ -8,6 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { importSrc } from "./_source.mjs";
 import { toReportVM, toCampaignReportVM, toBookingReportVM, reportFacts, toGoogleVM } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -194,10 +195,20 @@ const campaignDto = () => ({
 });
 const CALENDAR = { calendar: "ok", days: 7, asked: 8, booked: 3 };
 
-const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR } = {}) => {
+/** Deals as the bridge publishes them where none was ever recorded (toDealReportVM(null)): the section is not drawn. */
+const NO_DEALS = { present: false, headline: "", parts: "", stock: "" };
+const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR, deals = NO_DEALS } = {}) => {
   const vm = toReportVM(reportDto(report));
   const cm = campaigns ? toCampaignReportVM(campaigns) : null;
-  return { vm, campaigns: cm, booking: toBookingReportVM(booking), facts: reportFacts(vm, cm), days: 7, fetchedAt: 1 };
+  return {
+    vm,
+    campaigns: cm,
+    booking: toBookingReportVM(booking),
+    deals,
+    facts: reportFacts(vm, cm),
+    days: 7,
+    fetchedAt: 1,
+  };
 };
 const draw = () => globalThis.ReportsPage();
 const page = (opts) => {
@@ -834,4 +845,53 @@ test("REGRESSION (C25): Reports says what the campaigns sent, not what offers ea
     "REGRESSION: offers over visit reminders",
   );
   assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
+});
+
+test("Reports draws a Deals section only where a deal was ever recorded, with the cohort and the stock", () => {
+  // The bridge publishes contracts' DealReportVM (0004): present only where a deal was ever recorded, so a salon's
+  // Reports never grows a section of zeros. The section says the period's cohort and the clients now, each once.
+  const none = page({ deals: NO_DEALS });
+  assert.equal(byTestId(none, "rpt-deals"), null, "nothing where no deal was ever recorded");
+  assert.equal(byTestId(none, "rpt-deals-headline"), null);
+  const some = page({
+    deals: {
+      present: true,
+      headline: "5 proposals went out in the last 30 days.",
+      parts: "3 became clients · 1 passed · 1 still waiting",
+      stock: "4 clients now · $7,500 a month.",
+    },
+  });
+  assert.ok(byTestId(some, "rpt-deals"), "its own section");
+  assert.equal(textOf(byTestId(some, "rpt-deals-headline")), "5 proposals went out in the last 30 days.");
+  assert.equal(textOf(byTestId(some, "rpt-deals-parts")), "3 became clients · 1 passed · 1 still waiting");
+  assert.equal(textOf(byTestId(some, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
+  const quiet = page({
+    deals: { present: true, headline: "No proposals went out in the last 7 days.", parts: "", stock: "2 clients now." },
+  });
+  assert.equal(byTestId(quiet, "rpt-deals-parts"), null, "no cohort: no parts line");
+  assert.equal(textOf(byTestId(quiet, "rpt-deals-stock")), "2 clients now.");
+});
+
+test("REGRESSION: a period nobody wrote or called in still says its deals -- the section sat inside the branch for a period with messages, so a workspace whose deals are made in meetings saw none", () => {
+  const tree = page({
+    report: quiet(),
+    deals: {
+      present: true,
+      headline: "1 proposal went out in the last 7 days.",
+      parts: "0 became clients · 0 passed · 1 still waiting",
+      stock: "No clients right now.",
+    },
+  });
+  assert.ok(card(tree, "reports-empty"), "the period is still said to be quiet");
+  assert.ok(byTestId(tree, "rpt-deals"), "and the deals are there beside it");
+  assert.equal(textOf(byTestId(tree, "rpt-deals-headline")), "1 proposal went out in the last 7 days.");
+  assert.equal(byTestId(page({ report: quiet(), deals: NO_DEALS }), "rpt-deals"), null, "a quiet salon grows nothing");
+});
+
+test("REGRESSION: recording a deal re-reads Reports as well as People -- an open session kept the Deals section's old numbers until a reload", async () => {
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  assert.deepEqual(
+    AFTER["POST contacts/[id]/deal"]().map((o) => o.key),
+    ["people", "reports"],
+  );
 });

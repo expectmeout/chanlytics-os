@@ -15,6 +15,7 @@ import { z as z4 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
 import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -92,6 +93,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
   /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
   "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
@@ -117,7 +120,12 @@ var EVENT_KINDS = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -201,10 +209,61 @@ var DECISION_VERBS = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var FORMATS = /* @__PURE__ */ new Map();
+function formatsFor(tz) {
+  const hit = FORMATS.get(tz);
+  if (hit) return hit;
+  let zone = tz || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const made = {
+    zone,
+    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
+    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+  FORMATS.set(tz, made);
+  return made;
+}
+var WALLS = /* @__PURE__ */ new Map();
+var WALLS_MAX = 2048;
+function wall(atMs, tz) {
+  const id = `${tz}|${atMs}`;
+  const hit = WALLS.get(id);
+  if (hit) return hit;
+  const p = {};
+  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
+  const made = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute)
+  };
+  if (WALLS.size >= WALLS_MAX) WALLS.clear();
+  WALLS.set(id, made);
+  return made;
+}
+function clockDate(atMs, tz, nowMs) {
+  const f = formatsFor(tz);
+  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -989,16 +1048,49 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+function isDealStage(s) {
+  return typeof s === "string" && DEAL_STAGES.includes(s);
+}
+function pickCurrentDeal(rows) {
+  const open = (d) => d.stage === "proposed" || d.stage === "won";
+  const sorted = [...rows].sort(
+    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealSinceMs(d) {
+  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at2 ? Date.parse(at2) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
   inherit: "Follow the workspace"
 };
-var DAY_MS3 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS3;
-var MONTH_MS = 30 * DAY_MS3;
-var NEW_WINDOW_MS = 7 * DAY_MS3;
-var QUIET_AFTER_MS = 30 * DAY_MS3;
+var DAY_MS4 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS4;
+var NEW_WINDOW_MS = 7 * DAY_MS4;
+var QUIET_AFTER_MS = 30 * DAY_MS4;
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -1020,9 +1112,9 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS4 = 24 * 3600 * 1e3;
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DAY_MS5 = 24 * 3600 * 1e3;
+var DAY_MS6 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
@@ -1294,7 +1386,84 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS6 = 864e5;
+var LIST_RULE_FIELDS = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days = z7.object({
+  op: z7.enum(["more_than", "within"]),
+  days: z7.number().int().min(1).max(3650)
+});
+var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
+var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
+var ListConditionSchema = z7.discriminatedUnion("field", [
+  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
+  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
+  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
+  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
+  z7.object({ field: z7.literal("calls"), ...Count.shape }),
+  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
+  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
+]);
+var ListRuleSchema = z7.object({
+  all: z7.array(ListConditionSchema).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS] },
+          from: { type: "string", enum: [...CAME_FROM] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(ListConditionSchema).max(8)
+});
+var DAY_MS8 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1303,7 +1472,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -1339,9 +1508,9 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -1355,17 +1524,17 @@ var SignupSchema = z7.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z7.string().max(200).optional(),
+  password: z8.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z7.string().trim().min(1).max(64).optional(),
+  timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z7.string().trim().max(80).optional()
+  code: z8.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -1447,15 +1616,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z8.object({
-  places: z8.array(
-    z8.object({
-      ref: z8.number().int(),
-      criteria: z8.array(
-        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z8.number().int().nullable(),
-      reason: z8.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -1980,7 +2149,7 @@ var EMPTY_LEAD = {
   optedOut: false
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
   if (!contact) return EMPTY_LEAD;
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
@@ -1991,6 +2160,8 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
     history = assembleHistory(rows ?? [], historyLimit);
   }
+  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
+  const current = pickCurrentDeal(dealRows ?? []);
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
@@ -2003,10 +2174,25 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     lastSeenAt: contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
-    notes: contact.notes ?? null
+    notes: contact.notes ?? null,
+    proposalUrl: contact.proposal_url ?? null,
+    deal: current ? {
+      stage: current.stage,
+      service: current.service,
+      proposed_at: current.proposed_at,
+      decided_at: current.decided_at,
+      ended_at: current.ended_at
+    } : null
   };
 }
-function describeLead(lead, now = /* @__PURE__ */ new Date()) {
+async function readDealForPhone(db, tenantId, phoneE164) {
+  const { data: c } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (!c) return null;
+  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
+  const d = pickCurrentDeal(data ?? []);
+  return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
+}
+function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
   bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
@@ -2020,6 +2206,13 @@ function describeLead(lead, now = /* @__PURE__ */ new Date()) {
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
+  if (deal) bits.push(deal);
+  const proposal = (lead.proposalUrl ?? "").trim();
+  if (proposal)
+    bits.push(
+      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`
+    );
   return bits.join(" ");
 }
 
@@ -2143,12 +2336,25 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
 }
 
 // src/repositories/lists.ts
+var noRuleColumn = (message) => /\brule\b/.test(message) && /does not exist|could not find/i.test(message);
+async function listRows(db, tenantId) {
+  const read = (columns) => readAllRows(
+    "segments",
+    (from, to) => (
+      // The columns are chosen at run time, past the client's typed parser: the rows are the columns named.
+      db.from("segments").select(columns).eq("tenant_id", tenantId).order("name").order("id").range(from, to)
+    )
+  );
+  try {
+    return (await read("id, name, rule")).map((l) => ({ id: l.id, name: l.name, rule: l.rule ?? null }));
+  } catch (e) {
+    if (!(e instanceof Error) || !noRuleColumn(e.message)) throw e;
+    return (await read("id, name")).map((l) => ({ id: l.id, name: l.name, rule: null }));
+  }
+}
 async function savedListsFor(db, tenantId) {
   const [lists, members] = await Promise.all([
-    readAllRows(
-      "segments",
-      (from, to) => db.from("segments").select("id, name").eq("tenant_id", tenantId).order("name").order("id").range(from, to)
-    ),
+    listRows(db, tenantId),
     readAllRows(
       "segment_members",
       (from, to) => db.from("segment_members").select("segment_id, contact_id").eq("tenant_id", tenantId).order("segment_id").order("contact_id").range(from, to)
@@ -2160,7 +2366,7 @@ async function savedListsFor(db, tenantId) {
     ids.push(m.contact_id);
     byList.set(m.segment_id, ids);
   }
-  return lists.map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [] }));
+  return lists.map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [], rule: l.rule ?? null }));
 }
 async function listMemberIds(db, listId) {
   const rows = await readAllRows(
@@ -2170,22 +2376,37 @@ async function listMemberIds(db, listId) {
   return rows.map((m) => m.contact_id);
 }
 async function savedListFor(db, tenantId, id) {
-  const { data, error } = await db.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const read = (columns) => db.from("segments").select(columns).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  let { data, error } = await read("id, name, rule");
+  if (error && noRuleColumn(error.message))
+    ({ data, error } = await read("id, name"));
   if (error) throw new Error(`segments: ${error.message}`);
   if (!data) return null;
-  return { id: data.id, name: data.name, ids: await listMemberIds(db, data.id) };
+  return {
+    id: data.id,
+    name: data.name,
+    ids: data.rule == null ? await listMemberIds(db, data.id) : [],
+    rule: data.rule ?? null
+  };
 }
 async function listRow(db, id) {
-  const { data, error } = await db.from("segments").select("id, tenant_id, name").eq("id", id).maybeSingle();
+  const read = (columns) => db.from("segments").select(columns).eq("id", id).maybeSingle();
+  let { data, error } = await read("id, tenant_id, name, rule");
+  if (error && noRuleColumn(error.message))
+    ({ data, error } = await read("id, tenant_id, name"));
   if (error) throw new Error(`segments: ${error.message}`);
-  return data ? { id: data.id, tenant_id: data.tenant_id, name: data.name } : null;
+  return data ? { id: data.id, tenant_id: data.tenant_id, name: data.name, rule: data.rule ?? null } : null;
 }
-async function createList(db, tenantId, name, userId) {
-  const { data, error } = await db.from("segments").insert({ tenant_id: tenantId, name, created_by: userId }).select("id, name").single();
+async function createList(db, tenantId, name, userId, rule = null) {
+  const { data, error } = await db.from("segments").insert({ tenant_id: tenantId, name, created_by: userId, ...rule ? { rule } : {} }).select("id, name").single();
   return error ? { list: null, error } : { list: { id: data.id, name: data.name }, error: null };
 }
 async function renameList(db, id, name) {
   const { error } = await db.from("segments").update({ name }).eq("id", id);
+  return { error };
+}
+async function setListRule(db, id, rule) {
+  const { error } = await db.from("segments").update({ rule }).eq("id", id);
   return { error };
 }
 async function addToList(db, list, contactIds, userId) {
@@ -2355,6 +2576,7 @@ export {
   personReplyMode,
   putTenantConfig,
   readAllRows,
+  readDealForPhone,
   readLeadContext,
   readThreadState,
   recordCallNote,
@@ -2371,6 +2593,7 @@ export {
   savedListsFor,
   sentEmailWithMessageId,
   setCallRecording,
+  setListRule,
   setPersonReplyMode,
   setPolicyMode,
   stampEmailSent,

@@ -356,7 +356,8 @@ const askTopicFor = (q, prev = null) => {
 };
 
 // Global entry point for agent actions anywhere in the app:
-// askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose" })
+// askAbout({ prompt, title?, answer?, links?, mode: "thread" | "compose", thread?: id })
+// `thread` opens that Ask thread as it is (Today's band hands its conversation over this way, ask-real.jsx).
 window.askAbout = (detail) => {
   if (window.appAsk) window.appAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));

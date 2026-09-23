@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
@@ -205,7 +206,8 @@ const { installTemplates } = await import("../../../apps/dashboard/src/legacy-br
 installTemplates();
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 const toasts = [];
 globalThis.Icon = "Icon";
@@ -214,11 +216,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -228,7 +230,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -238,7 +240,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -246,7 +248,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -325,7 +327,7 @@ const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   went.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
 };
@@ -375,7 +377,7 @@ const page = (props) => {
   return globalThis.window.BroadcastsPage(props);
 };
 const again = (props) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.BroadcastsPage(props);
 };
 /** The composer, opened the way a person opens it: New broadcast, on the ledger. */
@@ -389,7 +391,7 @@ const composerOf = (surface) => {
   fresh();
   globalThis.window.OutboundPage({});
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  seq = 0;
+  frames.begin();
   return globalThis.window.OutboundPage({});
 };
 /** Messages on a workspace with a WhatsApp number, over the starter library the bridge installed. */
@@ -406,7 +408,7 @@ const messages = (over = {}) => {
   return globalThis.window.MessagesPage();
 };
 const messagesAgain = () => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.MessagesPage();
 };
 /** Messages with one message OPEN: a row carries what it is, and the words and the verbs are inside it. */
@@ -2129,7 +2131,7 @@ test("A new template may be written in any language WhatsApp takes, found by typ
   try {
     fresh();
     const draw = () => {
-      seq = 0;
+      frames.begin();
       return globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
     };
     let tree = draw();
@@ -2870,10 +2872,10 @@ test("A template this product cannot send is not offered, and its card says why"
   fresh();
   globalThis.window.OutboundPage({});
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  seq = 0;
+  frames.begin();
   const pb = globalThis.window.OutboundPage({});
   press(byTestId(pb, "pb-template"));
-  seq = 0;
+  frames.begin();
   const list = globalThis.window.OutboundPage({});
   assert.deepEqual(
     [...new Set(all(list, (n) => n.props?.["data-testid"] === "pb-template-option").map((o) => o.props["data-lang"]))],
@@ -3088,7 +3090,7 @@ test("A message written here can carry a Book now button, and it is the one kind
     };
     set("tpl-name", "spring_offer");
     set("tpl-body", "Hi {{1}}, 20% off any colour service this week.");
-    seq = 0;
+    frames.begin();
     tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
     // The address is the workspace's own, and it is shown rather than typed.
     assert.ok(
@@ -3102,7 +3104,7 @@ test("A message written here can carry a Book now button, and it is the one kind
       (n) => n.type === "input" && String(n.props?.placeholder || "").includes("what a real value"),
     );
     if (ex) ex.props.onChange({ target: { value: "Dani" } });
-    seq = 0;
+    frames.begin();
     tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
 
     // It is drawn where the customer will see it, before anything is filed.
@@ -3237,4 +3239,73 @@ test("the send screen says how many of an audience heard from a playbook or a br
     null,
     "nobody heard, nothing said",
   );
+});
+
+test("a playbook may run on one of the workspace's lists: the composer picks the list with its own count, and the save names it", async () => {
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const named = { pool: 5, noYes: 2, stopped: 0, noNumber: 0, saidYes: 3 };
+  const surface = playbooksSurface({
+    rows: [],
+    templates: [offer],
+    triggers: [
+      {
+        id: "saved_list",
+        label: "One of your lists",
+        hint: "Everyone on a list you keep",
+        cls: "campaign",
+        list: null,
+        kind: "saved",
+        candidates: null,
+        held: null,
+      },
+    ],
+    lists: [
+      { id: "l1", name: "Regulars", smart: false, candidates: 3, held: 0, named },
+      {
+        id: "l2",
+        name: "Texters",
+        smart: true,
+        candidates: 1,
+        held: 0,
+        named: { ...named, pool: 1, saidYes: 1, noYes: 0 },
+      },
+    ],
+  });
+  const bodies = [];
+  const was = globalThis.window.__playbooks;
+  globalThis.window.__playbooks = {
+    ...(was || {}),
+    create: async (body) => {
+      bodies.push(body);
+      return { ok: true, data: { id: "p9", name: "Regulars · Fall offer", state: "running" } };
+    },
+  };
+  try {
+    let tree = composerOf(surface);
+    const picker = (t, id) => find(t, (n) => n.type === globalThis.window.CmPicker && n.props.testid === id);
+    const lists = picker(tree, "pb-list");
+    assert.ok(lists, "a list to pick, under the moment");
+    assert.deepEqual(
+      lists.props.choices.map((c) => [c.id, c.label, c.sub, c.hint]),
+      [
+        ["l1", "Regulars", "Kept by hand", "3 today"],
+        ["l2", "Texters", "Keeps itself current", "1 today"],
+      ],
+    );
+    assert.equal(lists.props.value, "l1", "the first list kept, until another is picked");
+    lists.props.onPick("l2");
+    frames.begin();
+    tree = globalThis.window.OutboundPage({});
+    picker(tree, "pb-template").props.onPick("fall_offer");
+    frames.begin();
+    tree = globalThis.window.OutboundPage({});
+    await press(byTestId(tree, "pb-save"));
+    assert.equal(bodies.length, 1, "saved");
+    assert.equal(bodies[0].trigger, "saved_list");
+    assert.equal(bodies[0].list_id, "l2", "the list picked, named on the playbook");
+  } finally {
+    globalThis.window.__playbooks = was;
+  }
+  const none = composerOf(playbooksSurface({ ...surface, lists: [] }));
+  assert.ok(byTestId(none, "pb-no-lists"), "no list kept yet: where to make one");
 });

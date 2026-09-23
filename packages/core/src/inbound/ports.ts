@@ -198,9 +198,10 @@ export interface InboundPorts {
     personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
     /**
      * That context in a line or two, for the model. A VALUE from the db package
-     * on the edge, so it arrives as a port rather than as an import.
+     * on the edge, so it arrives as a port rather than as an import. The zone is
+     * the business's, for the dates a deal's sentence says (0004).
      */
-    describe(lead: LeadContext, now?: Date): string;
+    describe(lead: LeadContext, now?: Date, tz?: string): string;
   };
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;

@@ -21,6 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pageTitle, shellStatusLine, toBillingVM, toLiveVM } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -347,7 +348,8 @@ test("a session that ends mid-page signs in again to the same page: the hash rid
 /* ---------------------------------- the page ---------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 /** Deep for the line, which is all in one file; shallow for the shell, whose children are other files' pages. */
 let deep = true;
 globalThis.Icon = "Icon";
@@ -357,11 +359,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (deep && typeof type === "function") node.rendered = type(props);
+    if (deep && typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -371,7 +373,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -381,17 +383,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -434,7 +436,7 @@ test("the line under the top bar: a live region that is always there, the words,
   deep = true;
   cells = [];
   const bar = () => {
-    seq = 0;
+    frames.begin();
     return win.ShellStatusBar({});
   };
   const cta = (tree) => find(tree, (n) => n.props?.["data-testid"] === "shell-status-cta");
@@ -539,7 +541,7 @@ for (const name of [
 const mount = (hash) => {
   deep = false;
   cells = [];
-  seq = 0;
+  frames.begin();
   win.location.hash = hash;
   globalThis.document.title = "Chanlytics OS";
   globalThis.ShellStatusBar = win.ShellStatusBar;
@@ -896,7 +898,7 @@ test("a page can say the same place more exactly: a replaced address makes no en
     );
     // Drawn again with the state it kept, as React would after the shell's own setRoute.
     deep = false;
-    seq = 0;
+    frames.begin();
     const again = win.ChanlyticsApp({
       theme: "dark",
       themePref: "dark",
@@ -936,7 +938,7 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
     win.location.hash = hash;
     fire("hashchange");
     deep = false;
-    seq = 0;
+    frames.begin();
     const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
     deep = true;
     return t;
@@ -1089,7 +1091,7 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
   const themeButton = (themePref, theme) => {
     deep = true;
     cells = [];
-    seq = 0;
+    frames.begin();
     const tree = win.Topbar({
       crumbs: ["Today"],
       theme,
@@ -1118,7 +1120,7 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
     // The shell hands the top bar the preference, not only the theme it resolves to.
     deep = false;
     cells = [];
-    seq = 0;
+    frames.begin();
     win.location.hash = "#/today";
     globalThis.ShellStatusBar = win.ShellStatusBar;
     const shellTree = win.ChanlyticsApp({
@@ -1144,7 +1146,7 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
   const tabsAt = (param) => {
     deep = true;
     cells = [];
-    seq = 0;
+    frames.begin();
     return win.SurfaceTabs({ page: "clients", param, onNavigate() {} });
   };
   const labels = (tree) => (tree ? tree.props.children.map((b) => textOf(b).trim()) : null);
@@ -1221,7 +1223,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   win.clearInterval = () => {};
   const drawn = () => {
     cells = [];
-    seq = 0;
+    frames.begin();
     return win.LiveCallBar({});
   };
 
@@ -1399,7 +1401,7 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   // Drawn again with the state the last draw left, as React draws after a press.
   const redraw = () => {
     deep = false;
-    seq = 0;
+    frames.begin();
     const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
     deep = true;
     return tree;
@@ -1478,7 +1480,7 @@ test("a move that stays on the page -- People to Leads and back -- draws without
     win.location.hash = hash;
     fire("hashchange");
     deep = false;
-    seq = 0;
+    frames.begin();
     const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
     deep = true;
     return t;

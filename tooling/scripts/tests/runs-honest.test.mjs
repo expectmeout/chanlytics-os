@@ -24,6 +24,7 @@ import {
   POLICY_CLASS_WORDS,
   POLICY_MODE_WORDS,
 } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -290,7 +291,8 @@ const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge
 installClock();
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 const toasts = [];
 globalThis.Icon = "Icon";
@@ -299,11 +301,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -313,7 +315,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -323,7 +325,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -331,7 +333,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -411,7 +413,7 @@ const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   went.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
 };
@@ -445,7 +447,7 @@ const page = (props) => {
   return globalThis.window.BroadcastsPage(props);
 };
 const again = (props) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.BroadcastsPage(props);
 };
 const card = (p) => {
@@ -453,7 +455,7 @@ const card = (p) => {
   return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
 };
 const redraw = (p) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
 };
 
@@ -817,7 +819,7 @@ test("REGRESSION (C19): with no approved template, the composer's hint opens Mes
   fresh();
   globalThis.window.OutboundPage({});
   globalThis.window.dispatchEvent({ type: "playbooks:new" });
-  seq = 0;
+  frames.begin();
   const tree = globalThis.window.OutboundPage({});
   const hint = byTestId(tree, "pb-no-template");
   assert.ok(hint, "the composer is open on a workspace with no template");
@@ -1031,7 +1033,7 @@ test("REGRESSION: counts that could not be read are said once, and nothing draws
       all(page, (n) => n.props?.["data-testid"] === "pb-slot")[0],
       (n) => n.props?.["data-testid"] === "pb-slot-start",
     ).props.onClick();
-    seq = 0;
+    frames.begin();
     page = globalThis.window.OutboundPage({});
     // Its "Who it's for" section (the sheet around it is record-sheet.jsx, not loaded here).
     const who = byTestId(page, "pb-who");
@@ -1042,7 +1044,7 @@ test("REGRESSION: counts that could not be read are said once, and nothing draws
       who,
       (n) => String(n.props?.className || "").includes("pb-pick") && typeof n.props?.onClick === "function",
     ).props.onClick({});
-    seq = 0;
+    frames.begin();
     page = globalThis.window.OutboundPage({});
     const options = all(page, (n) => n.props?.role === "option");
     assert.ok(options.length > 0, "the moments are listed");

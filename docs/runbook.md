@@ -91,6 +91,41 @@ Three things trip this up, in this order:
 A page that a spec should hold is still a spec (`e2e:local`, below); this is for
 looking at one while you change it.
 
+### The lead map's streets
+
+The lead map draws a square of pins from what the search found and asks nobody
+for anything. Streets under it come from a basemap the product hosts ITSELF --
+one PMTiles archive plus the fonts and sprites its style reads -- under one
+address, `NEXT_PUBLIC_LEAD_MAP_BASE` (`legacy-bridge/lead-map.ts`). Unset, the
+square stands. Set, the page draws streets wherever the archive has ground under
+the leads and the square everywhere else, so a metro extract is honest, not
+broken. Nothing reaches a map vendor: the browser reads byte ranges of the
+archive from that address.
+
+Make the bundle (sizes measured 23 September 2026 against build `20260922`):
+
+```bash
+# 1. The pmtiles CLI: one binary from https://github.com/protomaps/go-pmtiles/releases
+# 2. The archive. --dry-run says the size first. The contiguous US at full detail is
+#    19 GB; with --maxzoom=14 (streets, fewer footpaths and buildings) 8.9 GB; one
+#    metro is a few hundred MB (NYC and its suburbs, 192 MB):
+pmtiles extract https://build.protomaps.com/20260922.pmtiles lead-map/basemap.pmtiles --bbox=-125,24,-66.5,49.5
+# 3. The fonts and sprites the style reads, about 20 MB:
+git clone --depth 1 https://github.com/protomaps/basemaps-assets
+cp -r basemaps-assets/fonts lead-map/fonts
+mkdir -p lead-map/sprites && cp -r basemaps-assets/sprites/v4 lead-map/sprites/v4
+```
+
+Host the `lead-map/` folder where a browser can read it with Range requests and
+CORS. A public Storage bucket on the workspace's Supabase project needs no CSP
+change (its origin is already allowed); any other origin is added to
+`connect-src` and `img-src` from the variable by `src/csp.ts`. Set
+`NEXT_PUBLIC_LEAD_MAP_BASE` to the folder's address without a trailing slash,
+e.g. `https://<ref>.supabase.co/storage/v1/object/public/lead-map`. On a laptop,
+put the folder at `apps/dashboard/public/lead-map/` (ignored by git) and set the
+variable to `/lead-map`. The basemap is OpenStreetMap data under the ODbL, and
+the map carries its attribution.
+
 ## Format it
 
 Prettier owns formatting (`.prettierrc.json`); `.prettierignore` names what it

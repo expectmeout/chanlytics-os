@@ -66,6 +66,9 @@ const AskReal = ({ open, onClose }) => {
   const H = window.AskHooks;
   const { buildAskSections, AskFast, AskRows, flatRows } = window.AskHome;
   const AskTurn = window.AskTurn;
+  // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts) and the stage it stands on here.
+  const M = window.__mascot || null;
+  const AskFace = window.AskFace || null;
 
   const [query, setQuery] = useArState("");
   const [threads, setThreads] = useArState([]);
@@ -98,10 +101,23 @@ const AskReal = ({ open, onClose }) => {
     onWords: (words) => setQuery(words),
     onHeard: (heard, error) => {
       if (heard) { submit(heard); return; }
-      if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
+      if (error === "blocked") flash({ msg: <>{t.micBlocked}</> });
+      else if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
       else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
     },
   });
+
+  // Ask's mood, said once for every face (the top bar's button, the stage above the conversation): listening while
+  // held, reading until the first words, answering while they stream or are read aloud, at rest otherwise. Said
+  // while the palette is closed too, so a turn left running still shows on the button.
+  const moodState = talk.listening
+    ? "listening"
+    : live
+      ? live.text ? "speaking" : "thinking"
+      : fast && fast.pending
+        ? "thinking"
+        : speech.speakingId ? "speaking" : "idle";
+  useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
 
   // Open: take the route's scope, load the threads, follow the surfaces.
   useArEffect(() => {
@@ -144,7 +160,9 @@ const AskReal = ({ open, onClose }) => {
       if (d.fresh) newChat();
       else {
         if (d.about) setScope(typeof d.about === "object" ? d.about : null);
-        if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
+        // Today's band hands its thread over: the same conversation, continued here.
+        if (d.thread) openThread({ id: d.thread });
+        else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
         else submit(d.prompt);
       }
     }
@@ -193,12 +211,13 @@ const AskReal = ({ open, onClose }) => {
 
   // A quick answer: no model, no thread. Openings ask the calendar route.
   const answerFast = async (q, fp) => {
-    if (fp.kind !== "openings") { setFast({ q, text: fp.answer, links: fp.links || [] }); return; }
+    if (fp.kind !== "openings") { setFast({ q, text: fp.answer, links: fp.links || [] }); if (M) M.mood.react("nod"); return; }
     setFast({ q, text: t.thinking, links: [], pending: true });
     try {
       const o = await A.openings(fp.day, fp.service);
       const text = o.state === "no_calendar" ? t.noCalendar : o.state === "unavailable" ? t.unavailable : o.text;
       setFast({ q, text, days: o.state === "ok" ? o.days : [], links: o.state === "ok" ? [] : [{ label: t.openings, to: "admin/integrations" }] });
+      if (M) { M.mood.set("idle"); M.mood.react("nod"); }
     } catch {
       setFast({ q, text: t.unavailable, links: [] });
     }
@@ -229,15 +248,26 @@ const AskReal = ({ open, onClose }) => {
     setLive({ text: "", trace: null });
     let threadId = thread.id;
     let final = null;
+    let spoke = false;
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") setLive((prev) => ({ ...(prev || { text: "" }), trace: ev.text }));
-      else if (ev.t === "delta") setLive((prev) => ({ text: ((prev && prev.text) || "") + ev.text, trace: null }));
+      else if (ev.t === "delta") {
+        setLive((prev) => ({ text: ((prev && prev.text) || "") + ev.text, trace: null }));
+        spoke = true;
+        if (M) M.mood.beat(Math.min(1, ev.text.length / 6));
+      }
       else if (ev.t === "final") final = ev.message;
       else if (ev.t === "error") final = arFailed("e-" + Date.now(), ev.text);
     });
     if (!final) final = arFailed("e-" + Date.now(), t.cutOff);
     setLive(null);
+    // Done: a failure shakes; an answer that streamed nods on its own as the row settles, one that did not nods here.
+    if (M) {
+      M.mood.set("idle");
+      if (final.failed) M.mood.react("shake");
+      else if (!spoke) M.mood.react("nod");
+    }
     setActive((prev) => (prev ? { ...prev, id: threadId || prev.id, messages: [...prev.messages, final] } : prev));
     if (threadId) A.threads().then((list) => {
       setThreads(list);
@@ -280,10 +310,17 @@ const AskReal = ({ open, onClose }) => {
       <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real">
         {railOn && <AskRail threads={threads} active={active} more={railMore} t={t} onNew={newChat} onOpen={openThread} onDelete={askDelete} onMore={() => setRailMore(true)} />}
         <div className={railOn ? "ask-main" : "ask-single"}>
+          {/* The three, Ask's face (components/ask-face.jsx): they grow from the button's size as the palette
+              opens, and act out the turn: huddle while held, leapfrog while reading, the row while answering. */}
+          {AskFace && (
+            <div className="ask-stage" data-testid="ask-stage">
+              <AskFace className="ask-stage-face" grow />
+            </div>
+          )}
           <div className={`cmd-input-bar ${talk.listening ? "listening" : ""}`}>
             {active
               ? <button className="cmd-back" onClick={newChat} aria-label="Back to the palette"><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /></button>
-              : <Icon name="sparkle" size={15} style={{ color: "var(--accent)", flexShrink: 0 }} />}
+              : AskFace ? null : <Icon name="sparkle" size={15} style={{ color: "var(--accent)", flexShrink: 0 }} />}
             {scope && (
               <span className="cmd-ctx ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
                 <Icon name={arScopeIcon(scope)} size={10} /> {scope.label}

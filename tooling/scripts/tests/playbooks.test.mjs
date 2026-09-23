@@ -117,11 +117,14 @@ test("the reminder's words are relative to the moment it goes: tomorrow, today, 
   );
 });
 
-test("six triggers: four lists and cadences, two the calendar makes possible, each under one of the three autonomy rows", () => {
+test("eight triggers: People's lists and a cadence, two the calendar makes possible, Lapsed, and one of the workspace's own lists, each under one of the three autonomy rows", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.map((t) => t.id),
-    ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited"],
+    ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"],
   );
+  assert.equal(triggerOf("lapsed").list, "lapsed", "the win-back by visits runs on People's own Lapsed list");
+  assert.notEqual(triggerOf("lapsed").label, triggerOf("quiet_30").label, "never a second Win-back");
+  assert.equal(triggerOf("saved_list").kind, "saved");
   assert.equal(triggerOf("quiet_30").list, "quiet");
   assert.equal(triggerOf("everyone_monthly").list, null);
   assert.equal(triggerOf("quiet_30").cls, "reengage");
@@ -399,7 +402,9 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     );
   const pools = readCode("apps/dashboard/src/server/playbooks.ts");
   assert.ok(
-    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),?\s*\);/.test(pools),
+    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),\s*listIds,?\s*\);/.test(
+      pools,
+    ),
     "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)",
   );
   assert.ok(

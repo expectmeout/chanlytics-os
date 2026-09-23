@@ -9,19 +9,35 @@ const useAhRef = React.useRef;
 
 const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
+// A browser told No once never asks again: it blocks in silence. Where the Permissions API says so (Chrome, Android),
+// the press is told before the recogniser is started, so the toast can say where to allow it. Browsers without the
+// API (Safari, Firefox) answer "not blocked" and prompt on their own.
+const ahMicBlocked = async () => {
+  try {
+    if (!navigator.permissions || typeof navigator.permissions.query !== "function") return false;
+    const status = await navigator.permissions.query({ name: "microphone" });
+    return status.state === "denied";
+  } catch {
+    return false;
+  }
+};
+
 // Hold to talk, as the live whisper does it: press starts the browser's own
 // recogniser, release stops it, and what was heard is handed back on its own.
 // Interim words are handed back as they come, so the input shows them.
-// Nothing is recorded or uploaded.
+// Nothing is recorded or uploaded. Where the browser can say whether the
+// microphone is blocked, the press waits for that answer first, and a press
+// released before it starts nothing (`wantRef`); elsewhere it starts at once.
+// Four cells: a page drawn without these hooks mirrors them (clients-a.jsx usePlNoTalk).
 const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
   const [listening, setListening] = useAhState(false);
   const recRef = useAhRef(null);
   const heardRef = useAhRef("");
+  const wantRef = useAhRef(false);
   const canTalk = !!ahRecognizer();
-  const start = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const SR = ahRecognizer();
-    if (!SR || listening || disabled) return;
+  const begin = (SR) => {
+    if (!wantRef.current || recRef.current) return;
+    wantRef.current = false;
     const rec = new SR();
     rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");
     rec.interimResults = true;
@@ -54,7 +70,21 @@ const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
     setListening(true);
     try { rec.start(); } catch { setListening(false); recRef.current = null; }
   };
+  const start = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const SR = ahRecognizer();
+    if (!SR || listening || disabled) return;
+    wantRef.current = true;
+    const perms = typeof navigator !== "undefined" ? navigator.permissions : null;
+    if (perms && typeof perms.query === "function") {
+      ahMicBlocked().then((blocked) => {
+        if (blocked) { wantRef.current = false; onHeard(null, "blocked"); }
+        else begin(SR);
+      });
+    } else begin(SR);
+  };
   const stop = () => {
+    wantRef.current = false;
     const rec = recRef.current;
     if (rec) { try { rec.stop(); } catch { /* already stopped */ } }
   };

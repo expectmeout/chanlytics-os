@@ -13,7 +13,7 @@ import type { CallDto, ConversationDto, MessageDto } from "@chanlytics/contracts
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
@@ -39,6 +39,8 @@ export interface ConversationRow {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /** The owner's proposal link for this person (00154): the thread's Actions put it in the reply. */
+    proposal_url: string | null;
   } | null;
 }
 
@@ -166,6 +168,7 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       dnc: c.contacts?.dnc ?? false,
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
       marketing_consent: c.contacts?.marketing_consent ?? null,
+      proposal_url: c.contacts?.proposal_url ?? null,
     },
     messages,
   };

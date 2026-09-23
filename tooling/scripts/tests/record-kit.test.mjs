@@ -479,7 +479,7 @@ test("a box in a row of a list carries its own name and its sentence, needs no h
     [input.props["aria-invalid"], input.props["aria-describedby"]],
     [true, "rec-closure-1-date-problem"],
   );
-  // No hook: the stub keeps one order of cells, and none is taken.
+  // No hook: the box carries the id it was given, and none is taken.
   assert.equal(
     all(tree, (n) => typeof n.type === "function").length,
     2,
@@ -1766,9 +1766,9 @@ test("a fold's sheet is held by the registry as a fold is, and draws the same ho
   let hours;
   const seen = [];
   let keep = null;
-  // A hook-holding thing drawn after the fold, holding a value it was given after its first draw: were the fold to hold
-  // a hook more at one width than the other, or open than closed, this would read another cell as its own (the stub
-  // keeps one call order for the whole page), the fold's or a fresh one, and not what it was given.
+  // A hook-holding thing drawn after the fold, holding a value it was given after its first draw: it keeps it whatever
+  // the fold draws. A fold that held a hook more at one width than the other, or open than closed, throws here as React
+  // throws (_hook-frames.mjs).
   const After = () => {
     const [mine, set] = W.React.useState("fresh");
     keep = set;
@@ -2746,8 +2746,11 @@ test("Escape closes a sheet, once, unless something in it took the key", () => {
   assert.equal(closed.length, 2, "a key a combobox inside already took is not the sheet's");
 });
 
-test("a press on the wash behind a sheet keeps focus where it was", () => {
-  const wash = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet-backdrop"));
+test("a press on the wash behind a sheet keeps focus where it was, and is the sheet's Close -- not while its save is out", () => {
+  const closed = [];
+  const wash = find(draw(W.RecordSheet, offer({ onClose: () => closed.push(1) })), (n) =>
+    classes(n).includes("rec-sheet-backdrop"),
+  );
   let prevented = false;
   wash.props.onMouseDown({
     preventDefault() {
@@ -2757,6 +2760,87 @@ test("a press on the wash behind a sheet keeps focus where it was", () => {
   // A mousedown's default moves focus to what was pressed, here the page's body, and Shift+Tab would then walk the
   // page behind the modal.
   assert.equal(prevented, true);
+  press(wash);
+  assert.deepEqual(closed, [1], "REGRESSION: the wash took the press and did nothing, so the X was the only way out");
+  press(
+    find(draw(W.RecordSheet, offer({ saving: true, onClose: () => closed.push(1) })), (n) =>
+      classes(n).includes("rec-sheet-backdrop"),
+    ),
+  );
+  assert.deepEqual(closed, [1], "the save is on its way, and nothing throws it away");
+});
+
+/* ------------------------------ a thumb's pull down ------------------------------ */
+
+// A touch on `target`, ending `dx, dy` away, on the element the handlers are on.
+const thumb = (handlers, dx, dy, target = null) => {
+  const el = { dataset: {} };
+  handlers.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: el, target });
+  handlers.onTouchEnd({ changedTouches: [{ clientX: 200 + dx, clientY: 300 + dy }], currentTarget: el });
+};
+const asPhone = (fn) => {
+  const was = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 760px)" });
+  try {
+    fn();
+  } finally {
+    W.matchMedia = was;
+  }
+};
+
+test("touchSwipe reads one way from a thumb's travel: across when it went further across, down only from a scroller's top", () => {
+  const went = [];
+  const ways = W.touchSwipe({
+    onLeft: () => went.push("left"),
+    onRight: () => went.push("right"),
+    onDown: () => went.push("down"),
+  });
+  thumb(ways, -120, 6);
+  thumb(ways, 140, -4);
+  thumb(ways, 8, 120);
+  assert.deepEqual(went, ["left", "right", "down"]);
+  thumb(ways, -40, 10);
+  thumb(ways, 4, 60);
+  thumb(ways, 8, -120);
+  assert.deepEqual(went, ["left", "right", "down"], "a short drag, and a push up, are nothing");
+  // Down through a scrolled body is a scroll back up: the scroller under the finger was not at its top.
+  const scrolled = { scrollHeight: 900, clientHeight: 300, scrollTop: 120, parentElement: null };
+  thumb(ways, 0, 200, scrolled);
+  assert.deepEqual(went, ["left", "right", "down"]);
+  thumb(ways, 0, 200, { ...scrolled, scrollTop: 0 });
+  assert.deepEqual(went, ["left", "right", "down", "down"], "and from its top, a pull down");
+  // `when` gates the pull down alone: a peek walks its pile wherever it is.
+  const gated = [];
+  const off = W.touchSwipe({ onLeft: () => gated.push("left"), onDown: () => gated.push("down"), when: () => false });
+  thumb(off, -120, 0);
+  thumb(off, 0, 120);
+  assert.deepEqual(gated, ["left"]);
+});
+
+test("on a phone a pull down on a sheet from its top is its Close; beside a desktop page it is not", () => {
+  const closed = [];
+  const sheetOf = (props = {}) =>
+    find(draw(W.RecordSheet, offer({ onClose: () => closed.push(1), ...props })), (n) =>
+      classes(n).includes("rec-sheet"),
+    );
+  asPhone(() => {
+    thumb(sheetOf().props, 4, 120);
+    assert.deepEqual(closed, [1], "the sheet rose from the bottom, and goes back the way it came");
+    thumb(sheetOf({ saving: true }).props, 4, 120);
+    assert.deepEqual(closed, [1], "not while its save is out");
+    thumb(sheetOf().props, 4, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 80, parentElement: null });
+    assert.deepEqual(closed, [1], "a pull through a scrolled body is a scroll");
+  });
+  thumb(sheetOf().props, 4, 120);
+  assert.deepEqual(closed, [1], "beside a desktop page the sheet is not pulled");
+  // The fold's sheet, the same way: the pull is its Cancel.
+  const cancelled = [];
+  asPhone(() => {
+    thumb(dialogOf(drawFold(bookingRules({ onCancel: () => cancelled.push(1) }))).props, 0, 100);
+    assert.deepEqual(cancelled, [1]);
+    thumb(dialogOf(drawFold(bookingRules({ saving: true, onCancel: () => cancelled.push(1) }))).props, 0, 100);
+    assert.deepEqual(cancelled, [1], "and nothing cancels a save on its way");
+  });
 });
 
 test("Tab stays inside a sheet, and wraps round both ways", () => {

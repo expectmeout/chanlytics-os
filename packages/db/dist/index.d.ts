@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PurposeBearing, EventKind, SchemaSet, PersonRowDto } from '@chanlytics/contracts';
+import { PurposeBearing, EventKind, SchemaSet, DealFacts, PersonRowDto } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -708,6 +708,7 @@ type Database = {
                     merged_into_contact_id: string | null;
                     notes: string | null;
                     phone_e164: string | null;
+                    proposal_url: string | null;
                     tenant_id: string;
                     updated_at: string;
                     wa_profile_name: string | null;
@@ -735,6 +736,7 @@ type Database = {
                     merged_into_contact_id?: string | null;
                     notes?: string | null;
                     phone_e164?: string | null;
+                    proposal_url?: string | null;
                     tenant_id: string;
                     updated_at?: string;
                     wa_profile_name?: string | null;
@@ -762,6 +764,7 @@ type Database = {
                     merged_into_contact_id?: string | null;
                     notes?: string | null;
                     phone_e164?: string | null;
+                    proposal_url?: string | null;
                     tenant_id?: string;
                     updated_at?: string;
                     wa_profile_name?: string | null;
@@ -848,6 +851,94 @@ type Database = {
                     },
                     {
                         foreignKeyName: "conversations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            deals: {
+                Row: {
+                    amount_cents: number | null;
+                    contact_id: string;
+                    created_at: string;
+                    created_by: string | null;
+                    currency: string;
+                    decided_at: string | null;
+                    ended_at: string | null;
+                    evidence: Json | null;
+                    id: string;
+                    lead_id: string | null;
+                    note: string | null;
+                    per: string | null;
+                    proposed_at: string;
+                    service: string | null;
+                    source: string;
+                    stage: string;
+                    tenant_id: string;
+                    updated_at: string;
+                    version: number;
+                };
+                Insert: {
+                    amount_cents?: number | null;
+                    contact_id: string;
+                    created_at?: string;
+                    created_by?: string | null;
+                    currency?: string;
+                    decided_at?: string | null;
+                    ended_at?: string | null;
+                    evidence?: Json | null;
+                    id?: string;
+                    lead_id?: string | null;
+                    note?: string | null;
+                    per?: string | null;
+                    proposed_at?: string;
+                    service?: string | null;
+                    source?: string;
+                    stage: string;
+                    tenant_id: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Update: {
+                    amount_cents?: number | null;
+                    contact_id?: string;
+                    created_at?: string;
+                    created_by?: string | null;
+                    currency?: string;
+                    decided_at?: string | null;
+                    ended_at?: string | null;
+                    evidence?: Json | null;
+                    id?: string;
+                    lead_id?: string | null;
+                    note?: string | null;
+                    per?: string | null;
+                    proposed_at?: string;
+                    service?: string | null;
+                    source?: string;
+                    stage?: string;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "deals_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "deals_lead_id_fkey";
+                        columns: ["lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "deals_tenant_id_fkey";
                         columns: ["tenant_id"];
                         isOneToOne: false;
                         referencedRelation: "tenants";
@@ -3197,6 +3288,7 @@ type Database = {
                     id: string;
                     last_run_at: string | null;
                     last_run_for: string | null;
+                    list_id: string | null;
                     name: string;
                     params: Json;
                     policy_class: string;
@@ -3218,6 +3310,7 @@ type Database = {
                     id?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    list_id?: string | null;
                     name: string;
                     params?: Json;
                     policy_class: string;
@@ -3239,6 +3332,7 @@ type Database = {
                     id?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    list_id?: string | null;
                     name?: string;
                     params?: Json;
                     policy_class?: string;
@@ -3252,6 +3346,13 @@ type Database = {
                     updated_at?: string;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "playbooks_list_id_fkey";
+                        columns: ["list_id"];
+                        isOneToOne: false;
+                        referencedRelation: "segments";
+                        referencedColumns: ["id"];
+                    },
                     {
                         foreignKeyName: "playbooks_template_id_fkey";
                         columns: ["template_id"];
@@ -3397,6 +3498,7 @@ type Database = {
                     created_by: string | null;
                     id: string;
                     name: string;
+                    rule: Json | null;
                     tenant_id: string;
                     updated_at: string;
                 };
@@ -3405,6 +3507,7 @@ type Database = {
                     created_by?: string | null;
                     id?: string;
                     name: string;
+                    rule?: Json | null;
                     tenant_id: string;
                     updated_at?: string;
                 };
@@ -3413,6 +3516,7 @@ type Database = {
                     created_by?: string | null;
                     id?: string;
                     name?: string;
+                    rule?: Json | null;
                     tenant_id?: string;
                     updated_at?: string;
                 };
@@ -3859,6 +3963,21 @@ type Database = {
                     p_ids: string[];
                 };
                 Returns: number;
+            };
+            deal_record: {
+                Args: {
+                    p_amount_cents?: number;
+                    p_contact_id: string;
+                    p_deal_id?: string;
+                    p_evidence?: Json;
+                    p_note?: string;
+                    p_per?: string;
+                    p_service?: string;
+                    p_stage: string;
+                    p_version?: number;
+                    p_when?: string;
+                };
+                Returns: Json;
             };
             drop_google_credentials: {
                 Args: {
@@ -4505,6 +4624,14 @@ type Database = {
                     consent_source: string;
                     consent_updated_at: string;
                     conversation_count: number;
+                    deal_amount_cents: number;
+                    deal_decided_at: string;
+                    deal_ended_at: string;
+                    deal_id: string;
+                    deal_per: string;
+                    deal_proposed_at: string;
+                    deal_service: string;
+                    deal_stage: string;
                     display_name: string;
                     dnc: boolean;
                     earliest_row_at: string;
@@ -4766,6 +4893,13 @@ type Database = {
                 Args: {
                     p_contact_id: string;
                     p_notes: string;
+                };
+                Returns: Json;
+            };
+            set_person_proposal: {
+                Args: {
+                    p_contact_id: string;
+                    p_url: string;
                 };
                 Returns: Json;
             };
@@ -5388,6 +5522,10 @@ interface LeadContext {
     optedOut: boolean;
     /** The owner's notes on them — facts for the receptionist, never read aloud. */
     notes?: string | null;
+    /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+    proposalUrl?: string | null;
+    /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
+    deal?: DealFacts | null;
 }
 /**
  * Everything both agents know about one lead, from the one place that knows it.
@@ -5406,6 +5544,11 @@ interface LeadContext {
  */
 declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
+ * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ */
+declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
+/**
  * The lead, described for a model in a few plain lines.
  *
  * Shared so both agents introduce the same person the same way. Facts only —
@@ -5413,7 +5556,7 @@ declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, 
  * nothing said at all when we know nothing, because "New caller" is itself a
  * useful and honest thing to tell an agent.
  */
-declare function describeLead(lead: LeadContext, now?: Date): string;
+declare function describeLead(lead: LeadContext, now?: Date, tz?: string): string;
 
 /**
  * Who is speaking on a thread right now.
@@ -5621,17 +5764,23 @@ declare function everyoneIn(db: Db$2, tenantId: string): Promise<PersonRowDto[]>
  */
 
 type Db$1 = SupabaseClient<Database>;
-/** A list with every id on it. */
+/**
+ * A list with every id on it, and its rule when it is a smart list (00155): who is on a smart list is judged on every
+ * read (contracts savedListIds), and `ids` is empty for one.
+ */
 interface SavedListRow {
     id: string;
     name: string;
     ids: string[];
+    rule: unknown;
 }
 /** A list as a verb acts on it: the workspace it belongs to is the one its role is judged in. */
 interface ListRow {
     id: string;
     tenant_id: string;
     name: string;
+    /** A smart list's rule, or null for a list kept by hand: nobody is put on or taken off a rule by hand. */
+    rule: unknown;
 }
 interface WriteError {
     code?: string;
@@ -5645,16 +5794,23 @@ declare function listMemberIds(db: Db$1, listId: string): Promise<string[]>;
 declare function savedListFor(db: Db$1, tenantId: string, id: string): Promise<SavedListRow | null>;
 /** The list a verb acts on, read under row security alone: one the caller cannot see is no list. */
 declare function listRow(db: Db$1, id: string): Promise<ListRow | null>;
-/** A new, empty list in the maker's name. A name the workspace already has is the database's 23505. */
-declare function createList(db: Db$1, tenantId: string, name: string, userId: string): Promise<{
+/**
+ * A new list in the maker's name: empty and kept by hand, or smart with its rule. A name the workspace already has is
+ * the database's 23505.
+ */
+declare function createList(db: Db$1, tenantId: string, name: string, userId: string, rule?: Json | null): Promise<{
     list: {
         id: string;
         name: string;
     } | null;
     error: WriteError | null;
 }>;
-/** A list's new name: the one column a member may change (00044's column grant). */
+/** A list's new name: one of the two columns a member may change (00155's column grant). */
 declare function renameList(db: Db$1, id: string, name: string): Promise<{
+    error: WriteError | null;
+}>;
+/** A smart list's new rule: the other column a member may change. */
+declare function setListRule(db: Db$1, id: string, rule: Json): Promise<{
     error: WriteError | null;
 }>;
 /**
@@ -5778,4 +5934,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
