@@ -144,6 +144,8 @@ const Topbar = ({
   onMenu = () => {},
   right = null,
 }) => {
+  // The Ask button's icon: the three (components/ask-face.jsx), or the sparkle where they are not loaded.
+  const TbFace = window.AskFace || null;
   const [notifs, setNotifs] = React.useState(TB_NOTIFS);
   // Outside a demo the bell reads the workspace's own rows through the bridge
   // (legacy-bridge/notifications.ts): who needs you, a draft waiting, a
@@ -430,9 +432,13 @@ const Topbar = ({
       <div className="topbar-spacer" />
 
       {/* Ask reads the workspace as the signed-in person (ask-real.jsx); in a
-          demo it answers the seed world. Either way the button opens it. */}
+          demo it answers the seed world. Either way the button opens it. Its
+          icon is the three (ask-face.jsx), Ask's face: ink at rest, coral and
+          moving while Ask listens, reads or answers, on every page. */}
       <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics (⌘K)" data-testid="tb-ask">
-        <Icon name="sparkle" size={13} />
+        {TbFace
+          ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
+          : <Icon name="sparkle" size={13} />}
         <span className="tb-ask-label">Ask Chanlytics</span>
         <span className="kbd">⌘K</span>
       </button>

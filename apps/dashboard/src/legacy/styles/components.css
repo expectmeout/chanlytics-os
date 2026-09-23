@@ -429,6 +429,9 @@
   color: var(--ink);
 }
 .tb-ask .icon { color: var(--accent); flex-shrink: 0; }
+/* The three as the button's icon (components/ask-face.jsx): a canvas whose height holds the whole leap, so the
+   squares are about 6px and the stair about 20 by 14. Ink at rest; coral only while Ask works. */
+.tb-ask .tb-ask-face { display: block; flex: none; width: 28px; height: 24px; margin-left: -4px; margin-right: -2px; }
 .tb-ask .tb-ask-label {
   flex: 1;
   text-align: left;

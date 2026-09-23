@@ -49,6 +49,9 @@ test.describe("Ask on a real workspace", () => {
     await expect(pal).toBeHidden();
     await page.getByTestId("tb-ask").click();
     await expect(page.getByTestId("ask-real")).toBeVisible();
+    // Ask's face: the three are the button's icon and stand on a stage above the conversation (ask-face.jsx).
+    await expect(page.getByTestId("tb-ask-face")).toBeVisible();
+    await expect(page.getByTestId("ask-real").getByTestId("ask-stage")).toBeVisible();
   });
 
   test("two words jump; a quick question is answered without a model", async ({ page }) => {
