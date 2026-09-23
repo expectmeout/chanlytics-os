@@ -13,6 +13,7 @@
  * changes nothing.
  */
 import {
+  calendarPeekDeal,
   clockLabel,
   coversSpan,
   durationLabel,
@@ -116,6 +117,9 @@ export const calendar = {
   clockLabel,
   // The agenda's rows say how long an appointment runs, as Today's do: one spelling, the view model's.
   durationLabel,
+  // What an appointment's peek says of its person's deal, from the People row the page holds (0008): the rule and the
+  // words are contracts', so the page only draws them.
+  peekDeal: calendarPeekDeal,
 };
 
 declare global {

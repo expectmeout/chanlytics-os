@@ -15,10 +15,11 @@ import {
   samePhone,
   whyNotAPhone,
   whyNotAnEmail,
-  whyNotALink,
   linkHost,
   proposalMessage,
   proposalLinkOf,
+  pipelineOf,
+  PIPELINE_WORDS,
   whyNotAHandoff,
   handoffE164,
   formatPhoneDisplay,
@@ -69,10 +70,10 @@ declare global {
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAnEmail: typeof whyNotAnEmail;
-    __whyNotALink: typeof whyNotALink;
     __linkHost: typeof linkHost;
     __proposalMessage: typeof proposalMessage;
     __proposalLinkOf: typeof proposalLinkOf;
+    __pipeline: { of: typeof pipelineOf; words: typeof PIPELINE_WORDS };
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -144,8 +145,6 @@ if (typeof window !== "undefined") {
   window.__whyNotAPhone = whyNotAPhone;
   // The same for an address typed on a person's page: said under the field, before a round trip.
   window.__whyNotAnEmail = whyNotAnEmail;
-  // And for a proposal link typed there (contracts link.ts, 00154).
-  window.__whyNotALink = whyNotALink;
   // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;
@@ -153,6 +152,9 @@ if (typeof window !== "undefined") {
   // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
   // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.
   window.__proposalLinkOf = proposalLinkOf;
+  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, and every word the
+  // scope says. The page composes them; it decides nothing (pipeline-scope.jsx).
+  window.__pipeline = { of: pipelineOf, words: PIPELINE_WORDS };
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

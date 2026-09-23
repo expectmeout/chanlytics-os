@@ -637,85 +637,6 @@ const PersonEmail = ({ p, canEdit, flash }) => {
   );
 };
 
-// The owner's proposal for this person -- a link, never a file (00154) -- in the About list under the address: said
-// once, changed where it is said. Someone who may change it sees where the link lives (its host, the whole address on
-// hover, opening in a new tab) with a quiet pencil, or "Add a proposal link" when there is none; someone who may not
-// sees the host, or no row at all. What is wrong with a typed address is said under the field before a round trip
-// (whyNotALink). The send is not here: it lives in Right now, beside the booking link, where the page's acts are.
-const PersonProposal = ({ p, canEdit, flash }) => {
-  const [editing, setEditing] = useStateP(false);
-  const [value, setValue] = useStateP("");
-  const [busy, setBusy] = useStateP(false);
-  const [problem, setProblem] = useStateP(null);
-  const url = p.proposal ? p.proposal.url : null;
-  useEffectP(() => { setEditing(false); setProblem(null); }, [p.id, url]);
-  const open = () => { setValue(url || ""); setProblem(null); setEditing(true); };
-  const save = async () => {
-    if (!window.__setPersonDetails || busy) return;
-    const next = value.trim();
-    if (next === (url || "")) { setEditing(false); return; }
-    const why = next && window.__whyNotALink ? window.__whyNotALink(next) : null;
-    if (why) { setProblem(why); return; }
-    setBusy(true);
-    const r = await window.__setPersonDetails(p.id, { proposal: next });
-    setBusy(false);
-    if (!r.ok) { setProblem(r.message || "Could not save the link."); return; }
-    setEditing(false);
-    flash({ msg: next ? <>Proposal link saved — the receptionist sends it when they ask</> : <>Proposal link removed</> });
-  };
-  if (!editing) {
-    return (
-      <span className="cl-prof-email" data-testid="person-proposal">
-        {url && (
-          <a className="cl-prof-email-val" href={url} target="_blank" rel="noopener noreferrer" title={url} data-testid="person-proposal-link">
-            {p.proposal.host}
-          </a>
-        )}
-        {canEdit && (
-          <button
-            type="button"
-            className={`cl-prof-rename ${url ? "" : "is-plain"}`}
-            title={url ? "Change the proposal link" : "Add a proposal link"}
-            aria-label={url ? "Change the proposal link" : "Add a proposal link"}
-            onClick={open}
-            data-testid="person-proposal-edit"
-          >
-            <Icon name="edit" size={11} />
-            {!url && <span className="cl-prof-rename-word">Add a proposal link</span>}
-          </button>
-        )}
-      </span>
-    );
-  }
-  return (
-    <span className="cl-prof-email editing" data-testid="person-proposal">
-      <input
-        className="cl-prof-email-input"
-        type="url"
-        inputMode="url"
-        autoComplete="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        autoFocus
-        value={value}
-        placeholder="https://…"
-        maxLength={500}
-        disabled={busy}
-        aria-label="Their proposal link"
-        aria-invalid={problem ? "true" : undefined}
-        data-testid="person-proposal-input"
-        onChange={(e) => { setValue(e.target.value); setProblem(null); }}
-        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
-      />
-      {problem && <span className="cl-prof-email-problem" role="alert" data-testid="person-proposal-problem">{problem}</span>}
-      <span className="cl-prof-name-acts">
-        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-proposal-save">{busy ? "Saving…" : "Save"}</button>
-      </span>
-    </span>
-  );
-};
-
 // A person's notes (0007): each one dated and signed, newest first, the receptionist's suggestions above them until
 // someone keeps or dismisses them. A member writes one, optionally for a teammate ("For Maria") and optionally for the
 // team only (the receptionist never reads it); its author changes it; its author or an owner deletes it. Every word
@@ -1135,134 +1056,6 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
 // it is said. `why` is the explanation a reader may want and never needs in the
 // way: one line behind a tap. `lockedNote` is appended when the ask is locked; the
 // page passes null and says the role once for the whole rail.
-/*
-  The deal, in the consent asks' family (0004): the stage said first, the moves
-  under it as chips, and a how-row for the one pressed -- a date (today), an
-  amount and a per on "Became a client", a service picker only where the
-  profile lists more than one, and the consent's evidence, optional here. No
-  new CSS: .cl-prof-attr for the line, .cl-prof-how* for the row. Drawn on
-  every render and gated INSIDE, so it holds the same hooks either way; nothing
-  where deals are not a thing in this workspace.
-*/
-const localToday = () => {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-const dayToIso = (ymd) => {
-  const [y, m, d] = String(ymd || "").split("-").map(Number);
-  const at = y && m && d ? new Date(y, m - 1, d, 12, 0, 0) : new Date();
-  return at.toISOString();
-};
-const DEAL_EMPTY = { busy: false, error: null, move: null, when: "", amount: "", per: "month", service: "", way: null, note: "" };
-
-// `bare` is the card's fold (#907's record rows): the row at rest says where the deal stands, so inside the fold the
-// section draws what can be done next and the one line it would change, never its own label or a second rail box.
-const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or operator can change this.", bare = false }) => {
-  const [st, setSt] = useStateP(DEAL_EMPTY);
-  const kit = window.__deal;
-  if (!p || !p.dealsOn || !kit) return null;
-  const d = p.deal || null;
-  const moves = kit.moves(d);
-  const services = p.services || [];
-  const close = () => setSt(DEAL_EMPTY);
-  const same = (a, b) => !!a && !!b && a.to === b.to && a.sameRow === b.sameRow;
-  const pick = (m) => setSt((c) => (same(c.move, m) ? DEAL_EMPTY : { ...DEAL_EMPTY, move: m, when: localToday(), service: d && m.sameRow ? d.service || "" : "" }));
-  const record = async (evidence) => {
-    if (st.busy || !st.move) return;
-    const m = st.move;
-    const body = { stage: m.to, when: dayToIso(st.when) };
-    if (m.sameRow && d && d.id) { body.deal_id = d.id; if (d.version != null) body.version = d.version; }
-    if (!m.sameRow && st.service) body.service = st.service;
-    if (m.to === "won" && st.amount.trim()) {
-      // What is and is not an amount is contracts' (parseAmount): "abc" is not a $0 client, and "-5" is not five dollars.
-      const c = kit.parseAmount(st.amount);
-      if (c === null) { setSt((x) => ({ ...x, error: "An amount is a number, like 2,500." })); return; }
-      body.amount_cents = c; body.per = st.per;
-    }
-    if (evidence) Object.assign(body, evidence);
-    setSt((c) => ({ ...c, busy: true, error: null }));
-    const r = await onRecord(body);
-    if (!r || !r.ok) { setSt((c) => ({ ...c, busy: false, error: (r && r.message) || "Could not record this." })); return; }
-    close();
-  };
-  const move = st.move;
-  return (
-    <div className={bare ? undefined : "cl-prof-rail-section"} data-testid="person-deal">
-      {bare ? null : (
-        <>
-          <div className="cl-prof-rail-label">Deal</div>
-          <div className="cl-prof-attr-list">
-            <div className="cl-prof-attr">
-              <span className="cl-prof-attr-key">{d ? d.service || "Deal" : ""}</span>
-              <span className="cl-prof-attr-val" data-testid="person-deal-line">{d ? d.said : kit.none}</span>
-            </div>
-          </div>
-        </>
-      )}
-      <div className="cl-prof-how-chips" role="group" aria-label="Record a deal">
-        {moves.map((m) => (
-          <button key={`${m.to}-${m.sameRow}`} type="button" className={`cl-prof-how-chip${same(move, m) ? " armed" : ""}`} disabled={!canRecord || st.busy} aria-pressed={same(move, m)} onClick={() => pick(m)} data-testid="person-deal-move">{m.label}</button>
-        ))}
-      </div>
-      {/* In the fold the row is hidden, so the line it said stays under the moves, as the other folds' hints do. */}
-      {bare && !move ? <div className="cl-prof-aut-hint" data-testid="person-deal-now">{d ? d.line : kit.none}</div> : null}
-      {move && (
-        <div className="cl-prof-how" data-testid="person-deal-how">
-          <div className="cl-prof-note">
-            <input type="date" value={st.when} aria-label="When" disabled={st.busy} data-testid="person-deal-when" onChange={(e) => setSt((c) => ({ ...c, when: e.target.value }))} />
-            {!move.sameRow && services.length > 1 && (
-              <select value={st.service} aria-label="Which service" disabled={st.busy} data-testid="person-deal-service" onChange={(e) => setSt((c) => ({ ...c, service: e.target.value }))}>
-                <option value="">Any</option>
-                {services.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            )}
-            {move.to === "won" && (
-              <>
-                <input inputMode="decimal" value={st.amount} placeholder="2,500" aria-label="Amount" disabled={st.busy} data-testid="person-deal-amount" onChange={(e) => setSt((c) => ({ ...c, amount: e.target.value }))} />
-                <select value={st.per} aria-label="Per" disabled={st.busy} data-testid="person-deal-per" onChange={(e) => setSt((c) => ({ ...c, per: e.target.value }))}>
-                  {kit.pers.map((x) => <option key={x} value={x}>{kit.perWords[x]}</option>)}
-                </select>
-              </>
-            )}
-          </div>
-          {move.to === "won" && st.way === null && (
-            <div className="cl-prof-aut-hint">
-              How did they say yes? Optional.{" "}
-              <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={() => setSt((c) => ({ ...c, way: "customer_message" }))}>In their own message</button>
-              {" · "}
-              <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={() => setSt((c) => ({ ...c, way: "form" }))}>Signed elsewhere</button>
-            </div>
-          )}
-          {st.way === "customer_message" && (
-            (p.ownMessages || []).length > 0 ? (
-              <div className="cl-prof-msgs" role="group" aria-label="Their messages">
-                {p.ownMessages.map((m) => (
-                  <button key={m.id} type="button" className="cl-prof-msg" disabled={st.busy} onClick={() => record({ message_id: m.id })} data-testid="person-deal-message">
-                    <span className="cl-prof-msg-words">“{m.words}”</span>
-                    <span className="cl-prof-msg-meta">{m.via ? `${m.via} · ` : ""}{m.when}</span>
-                  </button>
-                ))}
-              </div>
-            ) : <div className="cl-prof-aut-hint">Nothing they've written to you is here to choose.</div>
-          )}
-          {st.way === "form" && (
-            <div className="cl-prof-note">
-              <input autoFocus value={st.note} maxLength={200} placeholder="DocuSign, Sep 20" aria-label="Where it was signed" disabled={st.busy} data-testid="person-deal-note" onChange={(e) => setSt((c) => ({ ...c, note: e.target.value }))} onKeyDown={(e) => { if (e.key === "Escape") close(); }} />
-            </div>
-          )}
-          <div className="cl-prof-how-chips">
-            <button type="button" className="btn btn-sm btn-primary" disabled={st.busy} onClick={() => record(st.way === "form" && st.note.trim() ? { form_note: st.note.trim() } : null)} data-testid="person-deal-record">Record</button>
-            <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={close}>Cancel</button>
-          </div>
-          <window.FieldError message={st.error} testid="person-deal-error" />
-        </div>
-      )}
-      {!canRecord && lockedNote ? <div className="cl-prof-aut-hint">{lockedNote}</div> : null}
-    </div>
-  );
-};
-
 const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this.", messages = [], bare = false }) => {
   // `way` is a written way waiting for its evidence: the message, or the form's note.
   const [st, setSt] = useStateP({ busy: false, error: null, pick: null, way: null, note: "" });
@@ -1415,7 +1208,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const rmFold = foldOf("person-receptionist");
   const visitFold = foldOf("person-visit");
   const offersFold = foldOf("person-offers");
-  const dealFold = foldOf("person-deal");
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     // Held from the last time this tab opened them, so going back to the list
@@ -1432,6 +1224,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     window.addEventListener("surface:clients", load);
     return () => window.removeEventListener("surface:clients", load);
   }, [load]);
+  // A deal recorded or moved in the sheet (components/deal-sheet.jsx), from here or from their thread: read them again.
+  useEffectP(() => {
+    const onDeal = (e) => { if (e && e.detail && e.detail.personId === id) load(); };
+    window.addEventListener("deal:recorded", onDeal);
+    return () => window.removeEventListener("deal:recorded", onDeal);
+  }, [id, load]);
 
   const { vm, loading, missing, error } = st;
   if (missing) return (
@@ -1537,18 +1335,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     if (r && r.ok) fold.close();
     return r;
   };
-  // A deal on their word (0004): the courier, a flash in the stage's word, and a reload -- the row, the
-  // lists and the timeline are computed from what was written.
-  const recordDeal = async (body) => {
-    if (!window.__recordDeal) return { ok: false, message: "That cannot be recorded here." };
-    const r = await window.__recordDeal(p.id, body);
-    if (!r.ok) return r;
-    const w = window.__deal ? window.__deal.words[body.stage] : body.stage;
-    ppFlash({ msg: <><b>{who}</b> · {w}</> });
-    dealFold.close();
-    load();
-    return r;
-  };
   const confirmDelete = async () => {
     if (!window.__deletePerson || !typedMatches) return;
     setDel((d) => ({ ...d, busy: true, error: null }));
@@ -1581,8 +1367,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const threadCta = p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
   // About holds what the line under the name does not. The six-cell strip that sat above Right now said first
   // contact, the channels, the counts and the next visit again, beside a rail that said them too; its counts and
-  // its day door move here. History leads, whatever else the row holds.
-  const said = new Set(["Phone", "Channels", "First contact"]);
+  // its day door move here. History leads, whatever else the row holds. The proposal is the deal's (0008): its link,
+  // whether it went and the day it stands until are the Deal section's, said once, there.
+  const said = new Set(["Phone", "Channels", "First contact", "Proposal"]);
   const count = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
   // Ten seconds on the phone is not "1 min".
   const callTime = p.callSeconds >= 60 ? `${Math.round(p.callSeconds / 60)} min` : `${p.callSeconds} s`;
@@ -1596,25 +1383,18 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // not gets it only when there is one.
   const aboutFacts = p.about.filter((a) => !said.has(a.k));
   if (canRecord && !aboutFacts.some((a) => a.k === "Email")) aboutFacts.unshift({ k: "Email", v: "" });
-  // The proposal is the other About fact changed here (PersonProposal): under the address, and its send is the More
-  // menu's. It is the deal's (0008), so it is drawn only where deals are on, for someone with no deal or a proposal out:
-  // a client, a pass or an end has no proposal to change here, and a workspace whose customers book has none at all.
-  const proposalRow = !!p.dealsOn && (!p.deal || p.deal.stage === "proposed");
-  if (!proposalRow) {
-    const at = aboutFacts.findIndex((a) => a.k === "Proposal");
-    if (at >= 0) aboutFacts.splice(at, 1);
-  } else if (canRecord && !aboutFacts.some((a) => a.k === "Proposal")) {
-    aboutFacts.splice(aboutFacts.findIndex((a) => a.k === "Email") + 1, 0, { k: "Proposal", v: "" });
-  }
   const aboutRows = [history, ...aboutFacts];
   // The role, said once for the rail: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
   // The page's one primary act is their thread. Everything else it can do for them is the More menu: which acts, their
   // words and who may press them are contracts' (personActs); the page keeps what its reader's role allows and does them.
   // A send opens their thread with the words ready; nothing is sent from here. It was a button of its own, "Send the
-  // booking-link template", beside a thread button that went to the same place.
+  // booking-link template", beside a thread button that went to the same place. A send with no words (the deal card's,
+  // where only an approved message can go) opens the thread and leaves its box alone: the thread offers those.
   const openWith = (text) => {
-    try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text })); } catch { /* nothing to carry */ }
+    if (text) {
+      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text })); } catch { /* nothing to carry */ }
+    }
     window.CHANLY.nav(p.openThread);
   };
   const copyOut = (text, what) => {
@@ -1707,6 +1487,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         </div>
 
         <div className="cl-prof-body">
+          {/* Their deal (0008), first, where the work with them is: a card per open deal and its one next act, or one
+              quiet line. Nothing where deals are off. Its sends are the More menu's own path (openWith). */}
+          {window.PersonDealCard ? <window.PersonDealCard p={p} canRecord={canRecord} onCompose={openWith} /> : null}
           {comingUp.length > 0 && (
             <section className="cl-prof-section cl-prof-up" aria-labelledby="person-coming-up-title" data-testid="person-coming-up">
               <h2 className="cl-prof-section-title" id="person-coming-up-title">Coming up</h2>
@@ -1744,7 +1527,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   <div className="cl-prof-attr" key={a.k}>
                     <span className="cl-prof-attr-key">{a.k}</span>
                     <span className="cl-prof-attr-val">
-                      {a.k === "Email" ? <PersonEmail p={p} canEdit={canRecord} flash={ppFlash} /> : a.k === "Proposal" ? <PersonProposal p={p} canEdit={canRecord} flash={ppFlash} /> : a.v}
+                      {a.k === "Email" ? <PersonEmail p={p} canEdit={canRecord} flash={ppFlash} /> : a.v}
                       {/* The next visit opens its day on the Calendar; the row opened nothing. */}
                       {a.k === "Next visit" && p.nextVisitDate && (
                         <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
@@ -1877,25 +1660,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   } : null}
                 />
               </window.RecordFold>
-              {/* Their deal (0004), where deals are a thing here: the stage's word at rest with the service, the day and
-                  the amount under it, as the answers above say theirs, and Change opens the moves under it. Last, because the three above are about the receptionist and their answers,
-                  and this is about the business's work with them. */}
-              {p.dealsOn && window.__deal ? (
-                <>
-                  {dealFold.open ? null : (
-                    <window.RecordRow
-                      id="person-deal"
-                      label="Deal"
-                      value={<span data-testid="person-deal-line">{p.deal ? p.deal.word : window.__deal.none}</span>}
-                      hint={p.deal && p.deal.facts ? <span data-testid="person-deal-facts">{p.deal.facts}</span> : null}
-                      act={canRecord ? { label: "Change", onClick: dealFold.request } : null}
-                    />
-                  )}
-                  <window.RecordFold wide id="person-deal" label="Deal" open={dealFold.open} onCancel={dealFold.close}>
-                    <PersonDeal bare p={p} canRecord={canRecord} onRecord={recordDeal} lockedNote={null} />
-                  </window.RecordFold>
-                </>
-              ) : null}
             </div>
             <div className="cl-prof-rail-section">
               <div className="cl-prof-rail-label">{window.__personNotes ? window.__personNotes.words.title : "Notes"}</div>

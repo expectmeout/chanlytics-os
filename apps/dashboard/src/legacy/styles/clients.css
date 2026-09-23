@@ -37,14 +37,16 @@
   overflow-y: auto;
 }
 
-/* People | Leads: the one switch between the page's two scopes, at the head of
+/* People | Leads: the one switch between the page's scopes, at the head of
    the rail (clients-a.jsx PeopleScopeTabs). A segmented control, because which
    scope you are on has to be visible at a glance; the phone draws the same
    control in the slim bar (leads.css). Until this rule existed the two buttons
-   were bare text at the same colour and ran together as one word. */
+   were bare text at the same colour and ran together as one word. Two tabs or
+   three, each an equal part: the Pipeline is the third where deals are on. */
 .pt-scope {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
   margin: 12px 12px 2px;
   padding: 2px;
@@ -1176,6 +1178,15 @@
   .cl-prof-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "up" "rail" "hist"; grid-template-rows: auto; }
   .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "rail" "hist"; }
 }
+/* Their deal (0008) comes first in the column, above what is coming, where deals are on: beside the card on a desk,
+   and first of everything on a phone. After the rules above, which it overrides where it is drawn. */
+.cl-prof-body > .cl-prof-deal { grid-area: deal; }
+.cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal rail" "up rail" "hist rail"; grid-template-rows: auto auto 1fr; }
+.cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal rail" "hist rail"; grid-template-rows: auto 1fr; }
+@container person (max-width: 880px) {
+  .cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal" "up" "rail" "hist"; grid-template-rows: auto; }
+  .cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal" "rail" "hist"; }
+}
 
 .cl-prof-rail {
   /* The record kit's measures for the rows the card holds (record.css reads them from what rows sit in). */
@@ -1422,6 +1433,56 @@
 .cl-prof-up-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-up-when { font-size: 12px; color: var(--ink-dim); }
 .cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
+
+/* Their deal (0008, pages/person-deal.jsx): a card per open deal in Coming up's family -- the raised ground, one
+   hairline, the middle radius, no shadow -- held to the prose measure, so its three steps read as steps rather than a
+   rule across a wide window. With none open, one slim line and its act. */
+.cl-prof-deal { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cl-prof-deal-list { display: flex; flex-direction: column; gap: 8px; }
+.cl-prof-deal-card {
+  box-sizing: border-box; max-width: var(--measure-prose); min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+.cl-prof-deal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.cl-prof-deal-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-value { flex: none; font-size: 13px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Three quiet steps, a 3px bar each with its word and its day: behind is a dim ink, where it stands the stage's own
+   tone (contracts tone.ts, deal), ahead the hairline. */
+.cl-prof-deal-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.cl-prof-deal-step { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cl-prof-deal-bar { height: 3px; border-radius: var(--radius-full); background: var(--line); }
+.cl-prof-deal-step[data-at="done"] .cl-prof-deal-bar,
+.cl-prof-deal-step[data-at="current"] .cl-prof-deal-bar { background: var(--ink-dim); }
+.cl-prof-deal-step[data-tone="info"] .cl-prof-deal-bar { background: var(--info); }
+.cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
+.cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
+.cl-prof-deal-step-day { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* The link, whether it went and the day it stands until: one line that breaks between its facts, after the dot. */
+.cl-prof-deal-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-link { color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
+.cl-prof-deal-link .icon { margin-right: 4px; vertical-align: -1px; color: var(--ink-dim); }
+.cl-prof-deal-link:hover .cl-prof-deal-host { text-decoration: underline; text-underline-offset: 2px; }
+.cl-prof-deal-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cl-prof-deal-fact { white-space: nowrap; }
+.cl-prof-deal-dot { color: var(--ink-faint); }
+/* What wants a look: the house's StatePill, each in its tone, never a badge of the card's own. */
+.cl-prof-deal-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The one next act is an outline button (the page's one filled button is the thread's); the other moves are words,
+   with no box of their own, so each lines up with the card's text wherever the row wraps. */
+.cl-prof-deal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 2px; }
+.cl-prof-deal-act {
+  display: inline-flex; align-items: center; height: 26px; padding: 0; border: 0; border-radius: var(--radius-xs);
+  background: none; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.cl-prof-deal-act:hover { color: var(--ink); }
+.cl-prof-deal-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* None open: the line and its act, and nothing around them. */
+.cl-prof-deal-none { max-width: var(--measure-prose); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
+.cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-sub { color: var(--ink-dim); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
   display: flex;
@@ -2261,6 +2322,13 @@
 /* The switch stands as tall as the list button beside it (44px with its frame); its halves are 38px, not the touch
    floor's 44 each, which drew the switch 50px tall beside a 44px button. */
 html.legacy-on .pp-bar .pt-scope button { min-height: 0; }
+/* Three scopes (the Pipeline, where deals are on): each tab as wide as its word, and never under the touch floor's
+   44px ("Leads" was 43); the room comes from the spacing, never the type: the switch's own gaps and the bar's close
+   up, so the list button keeps its words beside search and the last control at 375px (measured in Geist: "Everyone"
+   whole on People's bar). What still does not fit is a list's name, which an ellipsis shortens. */
+.pp-bar:has(> .pt-scope > :nth-child(3)) { gap: 4px; }
+.pp-bar .pt-scope:has(> :nth-child(3)) { grid-auto-columns: auto; gap: 1px; }
+.pp-bar .pt-scope:has(> :nth-child(3)) button { min-width: 44px; padding: 0 4px; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
 .pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
@@ -2413,3 +2481,49 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
      row was as wide as its words, and Everyone's picked ground a box around two words. */
   .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
 }
+
+/* ---- The table in sections (people-table.jsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------
+   A section's head is a row of its own across every column: its name, how many (the one count, `.tally`), and what
+   they come to, in the table's own small ink-dim, on the rows' ground, with a hairline under it; a folded section's
+   toggle is a quiet word at the line's end. It is words, not a row to press: no pointer, no hover, and the cursor
+   passes it (it has no id). */
+.cl-table tbody tr.pl-sec-head { cursor: default; }
+.cl-table tbody tr.pl-sec-head:hover { background: transparent; }
+.pl-sec-head > th { padding: 14px 12px 6px; text-align: left; font-size: var(--text-xs); font-weight: var(--weight-regular); line-height: 18px; color: var(--ink-dim); background: var(--bg); border-bottom: 1px solid var(--line); }
+.pl-sec-line { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.pl-sec-label { font-weight: var(--weight-medium); }
+.pl-sec-meta { font-variant-numeric: tabular-nums; }
+.pl-sec-dot { color: var(--ink-faint); }
+.pl-sec-toggle { margin-left: 6px; padding: 0; border: 0; background: none; font: inherit; color: var(--ink-dim); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; cursor: pointer; }
+.pl-sec-toggle:hover { color: var(--ink); text-decoration-color: currentColor; }
+.pl-sec-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+/* On a touch screen the word keeps its look and grows its target, as a pressed chip does (legacy.css): the touch
+   floor would make it a 44px box in a line of small type. */
+@media (pointer: coarse) {
+  html.legacy-on .pl-sec-toggle { position: relative; min-height: 0; }
+  html.legacy-on .pl-sec-toggle::after { content: ""; position: absolute; inset: -12px -8px; }
+}
+@media (width > 900px) {
+  /* A section after another: the hairline over its head closes the one above, whose last row draws none (a card on
+     a phone draws its own). */
+  .cl-table tbody + tbody > tr.pl-sec-head > th { border-top: 1px solid var(--line); }
+  /* A folded section is its head alone, and the next head's hairline is the only one it needs. */
+  .cl-table tbody > tr.pl-sec-head.is-folded > th { border-bottom: 0; padding-bottom: 12px; }
+  /* The head's words stay at the box's left edge when the table scrolls sideways, as Person's cells do. */
+  .pl-sec-line { position: sticky; left: 12px; }
+}
+@media (max-width: 900px) {
+  /* A card list's head: the row's gutter, edge to edge, a hairline under it, and none over it. */
+  .pl-table tbody tr.pl-sec-head { display: block; padding: 0; border-bottom: 0; }
+  .pl-table tbody tr.pl-sec-head > th { display: block; padding: 14px 16px 6px; border-bottom: 1px solid var(--line); background: transparent; }
+  .pl-table tbody tr.pl-sec-head.is-folded > th { padding-bottom: 10px; }
+  .pl-table tbody tr.pl-sec-head:hover { background: transparent; }
+}
+
+/* ---- People › Pipeline (pipeline-scope.jsx): the rows' own cells ------------------------------------------------
+   The service in the muted ink beside the person's name, the value in the row's ink and tabular figures, the time in
+   stage in the dim small type the table keeps for dates. The chip is the one state pill (StatePill), in its tone and
+   at its one size: this page adds none of its own. */
+.cl-table td.pipe-service { max-width: 28ch; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-table td.pipe-value { color: var(--ink); }
+.pipe-card-value { flex: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; }

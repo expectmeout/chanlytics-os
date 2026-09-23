@@ -68,6 +68,68 @@ export function dealsAreOn(sellsBy: string | null | undefined): boolean {
   return sellsBy === "proposal";
 }
 
+/** The answer a new workspace's create card has chosen before anyone presses (0008): most businesses book one. */
+export const SELLS_BY_FIRST: SellsBy = "booking";
+
+/** "Needs a consult first", where deals are on (0008): a consultation for one of those is where a deal starts. */
+export const CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+
+/** What Settings › Business says of the answer (0008): its row, the choice, and what the answer switches there. */
+export interface SellsByVM {
+  /** The row's label, and the choice's name. */
+  question: string;
+  /** The answer's label; null where it was never said. */
+  value: string | null;
+  /** What the row says with no answer. */
+  empty: string;
+  /** The row's act, and what a screen reader hears it as: its words with the question. */
+  act: string;
+  name: string;
+  /** The two answers, each with what choosing it means: the kit's RecordToggleGroup options. */
+  choices: { value: SellsBy; label: string; hint: string }[];
+  /** What stops a Save with neither chosen: the route's own refusal. */
+  refusal: string;
+  /** What the create card has chosen before anyone presses: the answer, or they book an appointment. */
+  first: SellsBy;
+  /** Deals are on here (dealsAreOn). */
+  dealsOn: boolean;
+  /** The hint the consult-first row carries where deals are on; null where they are off. */
+  consultHint: string | null;
+}
+
+/**
+ * The view model of the answer for the Business tab. `answer` is the workspace's `sells_by` as the workspace list
+ * carries it; anything but the two answers is never said. Pure.
+ */
+export function sellsByVM(answer: string | null | undefined): SellsByVM {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null,
+  };
+}
+
+/**
+ * The toast once an answer is saved (0008): what it switched. Turning deals off says that those on file are kept,
+ * since every surface hides them and answering "proposal" again brings them back.
+ */
+export function sellsBySaved(was: string | null | undefined, now: SellsBy): string {
+  if (dealsAreOn(now)) return "Saved — deals are on.";
+  return dealsAreOn(was)
+    ? "Saved — deals are off. Any already recorded are kept."
+    : "Saved — customers book an appointment.";
+}
+
 /** The word a stage wears; "Client" is a stage word, never a word for a person (docs/glossary.md). */
 export const DEAL_STAGE_WORDS: Record<DealStage, string> = {
   proposed: "Proposal out",
@@ -91,6 +153,10 @@ export function isDealStage(s: unknown): s is DealStage {
 
 export function isDealLostReason(s: unknown): s is DealLostReason {
   return typeof s === "string" && (DEAL_LOST_REASONS as readonly string[]).includes(s);
+}
+
+export function isDealPer(s: unknown): s is DealPer {
+  return typeof s === "string" && (DEAL_PERS as readonly string[]).includes(s);
 }
 
 /** What a move may empty (deal_record's p_clear, 00160): the link, the valid-until day, the amount with its per, the note. */
@@ -173,11 +239,15 @@ export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFac
  * people_list orders the same way.
  */
 export function pickCurrentDeal<T extends { stage: string; created_at: string }>(rows: readonly T[]): T | null {
-  const open = (d: T) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
   );
   return sorted[0] ?? null;
+}
+
+/** Whether a deal is open (0004): a proposal out, or a client. A pass or an end is history. */
+export function dealIsOpen(d: { stage: string } | null | undefined): boolean {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 
 /**
@@ -258,6 +328,14 @@ export function amountTotalsWords(items: readonly AmountFact[]): string | null {
     .join(" + ");
 }
 
+/**
+ * Whole days since a moment, as a deal counts its time in a stage: 0 on the day it began, never below it; null without
+ * the moment. A proposal's wait (DealVM.waitingDays) and the Pipeline's time in stage are this one count.
+ */
+export function wholeDaysSince(atMs: number | null, nowMs: number): number | null {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
+}
+
 /** When the stage began: the proposal's send, the answer, or the end. */
 export function dealSinceMs(d: DealFacts): number | null {
   const at =
@@ -291,8 +369,19 @@ export interface DealVM {
   waitingDays: number | null;
   /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0008). Null without one. */
   amount: string | null;
-  /** The proposal's link and the host it lives at; null where the deal carries none. */
-  proposal: { url: string; host: string } | null;
+  /** The same amount as stored, for a box that edits it (the deal sheet): its cents and how it recurs; null without one. */
+  amountCents: number | null;
+  per: DealPer | null;
+  /** The currency it is in: what the sheet's box says it in (amountWords). */
+  currency: string;
+  /** When the proposal went (its proposed_at), at every stage: the deal card's Proposal out step. Null when unknown. */
+  proposedMs: number | null;
+  /**
+   * The proposal's link and the host it lives at; null where the deal carries none. On a person's page it also says
+   * whether it went (`sent`, from the thread's own messages, as PersonVM.proposal does), and whether a message carrying
+   * it is still on its way (`sending`: queued, in the seconds its send can be undone); a People row can say neither.
+   */
+  proposal: { url: string; host: string; sent?: { at: string; via: string | null } | null; sending?: boolean } | null;
   /** "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only. */
   validUntil: { day: string; words: string; lapsed: boolean } | null;
   /** Why they passed, and its word: a passed deal's only. */
@@ -316,11 +405,11 @@ export function toDealVM(
   if (!isDealStage(d.stage)) return null;
   const sinceMs = dealSinceMs(d);
   const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays =
-    d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS)) : null;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
   // A proposal carries a value as a client does (0008): the page says it at every stage.
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
   const word = DEAL_STAGE_WORDS[d.stage];
   const said = [word, since, amount].filter((x): x is string => !!x).join(" · ");
   const line = [d.service, said].filter((x): x is string => !!x).join(" · ");
@@ -345,6 +434,13 @@ export function toDealVM(
     brief,
     waitingDays,
     amount,
+    amountCents:
+      d.amount_cents === null || d.amount_cents === undefined || !Number.isFinite(d.amount_cents)
+        ? null
+        : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
     proposal: url ? { url, host: linkHost(url) } : null,
     validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
     reason:
@@ -360,32 +456,23 @@ export function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, n
   return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
 }
 
-/** Which of the deal sheet's modes a move opens (0008): a new proposal, one proposed again, a yes, a pass, an end. */
-export type DealMoveMode = "propose" | "again" | "won" | "lost" | "ended";
+/** An act on a deal (0008): most open the deal sheet (deal-sheet.ts) in a mode; a send opens their thread. */
+export type DealActId = "propose" | "again" | "edit" | "won" | "lost" | "ended" | "send" | "follow-up";
 
-/** A move the person's page offers: where it goes, its words, and whether it moves the row it was pressed on or starts a new one. */
-export interface DealMove {
-  to: DealStage;
-  label: string;
-  sameRow: boolean;
-  mode: DealMoveMode;
-}
-
-/** From each stage, the moves in the order the page draws them. An ended engagement is re-signed as a new row. */
-export const DEAL_MOVES: Record<DealStage | "none", readonly DealMove[]> = {
-  none: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
-  proposed: [
-    { to: "won", label: "Became a client", sameRow: true, mode: "won" },
-    { to: "lost", label: "Passed", sameRow: true, mode: "lost" },
-  ],
-  won: [{ to: "ended", label: "Ended", sameRow: true, mode: "ended" }],
-  lost: [{ to: "proposed", label: "Proposal sent again", sameRow: true, mode: "again" }],
-  ended: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
+/**
+ * One act, one label, wherever it is drawn: the person page's deal card and its quiet line, the thread's Deal group,
+ * and the person's More menu, whose send is the proposal's (people.ts personActs).
+ */
+export const DEAL_ACT_WORDS: Record<DealActId, string> = {
+  propose: "Start a proposal",
+  again: "Propose again",
+  edit: "Edit proposal",
+  won: "Mark as client",
+  lost: "Mark as passed",
+  ended: "End the engagement",
+  send: "Send proposal",
+  "follow-up": "Follow up",
 };
-
-export function dealMoves(d: DealVM | null): readonly DealMove[] {
-  return DEAL_MOVES[d ? d.stage : "none"];
-}
 
 /**
  * The sentence the receptionist hears about this person's deal, beside the
@@ -420,7 +507,29 @@ export function dealSentence(
   }
 }
 
-/** A calendar title that is a consultation: it says so, or it names a consult-first service. The fold is availability's. */
+/**
+ * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
+ * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
+ * it names none. The fold is availability's.
+ */
+export function consultServiceOf(
+  title: string | null | undefined,
+  services: readonly { name: string }[] | undefined,
+  rules: ConsultRules | null | undefined,
+): string | null {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best: { name: string; folded: string } | null = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+
+/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
 export function isConsultationTitle(
   title: string | null | undefined,
   services: readonly { name: string }[] | undefined,
@@ -429,15 +538,24 @@ export function isConsultationTitle(
   const t = foldName(String(title ?? "").trim());
   if (!t) return false;
   if (t.includes("consult")) return true;
-  return (services ?? []).some((s) => {
-    const n = foldName(String(s.name ?? "").trim());
-    return !!n && t.includes(n) && needsConsultation(s.name, rules);
-  });
+  return consultServiceOf(title, services, rules) !== null;
 }
 
 /**
- * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. `askedMs` is when
- * the person last wrote or called. Today's leak and the Pipeline both ask it, one row at a time.
+ * Whether anything came back since a proposal went (0008): they wrote or called after it. `askedMs` is when the person
+ * last did either. What "nothing back" is measured against, and what the Pipeline's "Heard back" says.
+ */
+export function heardSinceProposal(r: {
+  deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+  askedMs: number | null;
+}): boolean {
+  const d = r.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
+}
+
+/**
+ * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. Today's leak and
+ * the Pipeline both ask it, one row at a time.
  */
 export function waitingOnProposal(
   r: { deal: Pick<DealVM, "stage" | "sinceMs"> | null; askedMs: number | null },
@@ -446,7 +564,7 @@ export function waitingOnProposal(
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
   if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS) return false;
-  return r.askedMs === null || r.askedMs < d.sinceMs;
+  return !heardSinceProposal(r);
 }
 
 /** Today's leak: the rows waiting on a proposal, by waitingOnProposal. */
@@ -458,21 +576,53 @@ export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: numbe
 }
 
 /**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
- * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
- * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
+ * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
+ * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
+ * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
+ * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
+ */
+export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+
+/**
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
+ * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
+ * a number there has no consultation to follow.
  */
 export function consultationsWithoutProposal<
-  T extends { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
+  T extends {
+    id?: string;
+    name?: string;
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+  },
 >(rows: readonly T[], nowMs: number): T[] {
-  return rows.filter((r) => {
-    const at = r.consultedMs;
-    if (at === null || at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-    const d = r.deal;
-    if (!d) return true;
-    if (d.stage === "proposed" || d.stage === "won") return false;
-    return d.sinceMs !== null && d.sinceMs < at;
-  });
+  const endOf = (r: T): number => r.consultedMs as number;
+  return rows
+    .filter((r) => {
+      const at = r.consultedMs;
+      if (typeof at !== "number" || !Number.isFinite(at)) return false;
+      if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+      return noProposalSince(r.deal, at);
+    })
+    .sort(
+      (a, b) =>
+        endOf(a) - endOf(b) ||
+        String(a.name ?? "").localeCompare(String(b.name ?? "")) ||
+        String(a.id ?? "").localeCompare(String(b.id ?? "")),
+    );
+}
+
+/**
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
+ * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ */
+export function consultsHeldWords(n: number): string {
+  return `${n} held in the last week, no proposal yet`;
 }
 
 /** What the door can answer, in a sentence the page shows at the control. */

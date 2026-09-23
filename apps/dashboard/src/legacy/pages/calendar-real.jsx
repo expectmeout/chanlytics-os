@@ -40,6 +40,10 @@ window.__calendarPage = { refreshMs: CR_REFRESH_MS, words: CR_FEED_WORDS };
 // The date arithmetic is contracts' (shiftKey, shiftMonth, monthLabelOf, clockLabel), reached through the bridge:
 // one implementation for the page, the surface and the tests.
 const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
+// What can be open over the board and has the keys while it is: the deal sheet, Ask, a menu. Only the app's (each sits
+// inside .app-root), by People's rule (clients-a.jsx PL_OVERLAY), so a dialog a browser extension adds cannot silence
+// the board. The appointment's own dialog is the page's: it holds Escape, and the key handler asks it first.
+const CR_OVERLAY = '.app-root [role="dialog"], .app-root [role="menu"]';
 
 // Where ‹ › and ← → take the board, one rule per view: a day in Day view, a
 // week in Week view, fourteen days in Agenda, a month in Month. Day view used
@@ -164,6 +168,26 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
     if (boxRef.current) boxRef.current.focus();
     return () => { if (opener && typeof opener.focus === "function" && opener.isConnected !== false) opener.focus(); };
   }, []);
+  // The person's deal is People's (0008), which can land after the dialog opens and moves when a proposal is recorded:
+  // the dialog draws again whenever People does.
+  const [, peopleMoved] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:clients", peopleMoved);
+    return () => window.removeEventListener("surface:clients", peopleMoved);
+  }, []);
+  // Their deal's stage beside their name, and, once a consultation is over with no proposal since, the sheet's own act
+  // that starts one: contracts' rule, words and mode (calendarPeekDeal, through the bridge), nothing where deals are off
+  // or People does not hold them. The act opens the one deal sheet, so it is offered only where the sheet is installed.
+  const deal = window.__calendar && window.__calendar.peekDeal ? window.__calendar.peekDeal(b, window.__PEOPLE, Date.now()) : null;
+  const start = deal && deal.start && typeof window.openDealSheet === "function" ? deal.start : null;
+  // The sheet takes over from the dialog, and focus with it. The dialog closes first and gives focus back to the
+  // appointment that opened it; the sheet opens on the next task, takes focus, and has that appointment as its way
+  // back. Opened in the same press, the dialog's way back ran after the sheet had taken focus and took it out again.
+  const startProposal = () => {
+    const { act, personId, service } = start;
+    onClose();
+    setTimeout(() => window.openDealSheet({ personId, mode: act.mode, service }), 0);
+  };
   const contacts = b.contacts || { phones: [], emails: [] };
   const e164 = contacts.e164 || [];
   // The day before and after this board's today, so "Tomorrow" can be said without a second clock.
@@ -197,6 +221,7 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
             <div className="cal-ev-who" data-testid="cal-panel-person">
               <Icon name="users" size={12} />
               {namedInTitle ? <span>In People</span> : <><b>{b.person.name}</b> is in People</>}
+              {deal && deal.stage && <StatePill kind="deal" value={deal.stage} testid="cal-panel-deal" />}
               {b.person.via && <span className="cal-ev-via">matched by {b.person.via}</span>}
             </div>
           ) : found.length > 0 ? (
@@ -234,6 +259,10 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
           <div className="st-modal-foot-actions">
             {bookingLink && (
               <button className="btn btn-ghost btn-sm" data-testid="cal-panel-copy-link" title={bookingLink} onClick={onCopyLink}>Copy the booking link</button>
+            )}
+            {/* The dialog's primary act, gated as the sheet's Save is: a role that may not record a deal is told why here. */}
+            {start && (
+              <button className="btn btn-primary btn-sm" onClick={startProposal} data-testid="cal-panel-propose" {...window.gate("approve", "record a deal")}>{start.act.label}</button>
             )}
             <button className="btn btn-sm" onClick={onClose}>Close</button>
           </div>
@@ -468,8 +497,11 @@ const CalendarReal = ({ initialDay = null }) => {
   React.useEffect(() => {
     const onKey = (e) => {
       const k = keys.current;
-      if (!k || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
+      // A key something took before the window heard it (a group of choices in the deal sheet) is not the board's.
+      if (!k || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
       if (k.open) { if (e.key === "Escape") { e.preventDefault(); k.close(); } return; }
+      // Anything else open over the page has the keys, the deal sheet among them: ←, → and T moved the board behind it.
+      if (document.querySelector && document.querySelector(CR_OVERLAY)) return;
       if (e.key === "ArrowLeft") { e.preventDefault(); k.move(-1); }
       else if (e.key === "ArrowRight") { e.preventDefault(); k.move(1); }
       else if (e.key === "t" || e.key === "T") { e.preventDefault(); k.today(); }

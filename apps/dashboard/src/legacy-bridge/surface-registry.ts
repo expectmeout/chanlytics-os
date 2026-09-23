@@ -136,10 +136,14 @@ export const ROUTE_SURFACE: Record<string, string> = {
  * and again when it lands (surface:clients). Measured on the salon
  * (22 Sep 2026): the calendar was read eleventh, behind Settings, People and
  * Leads that nobody was looking at, so the day popped in 1.6 s after the queue
- * beside it. A route absent here draws only its own surface.
+ * beside it. The Calendar draws an appointment's person's deal from People
+ * (its peek's stage and "Start a proposal", 0008), and whether deals are on at
+ * all, so a cold Calendar reads People next. A route absent here draws only its
+ * own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   today: ["calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "setup", "google", "people"],
+  calendar: ["people"],
 };
 
 /**

@@ -380,6 +380,8 @@ await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 // The record kit, as both load lists put it before the pages: the profile's card draws its rows and folds.
 for (const f of ["record-row", "record-field", "record-fold", "record-sheet"])
   await import(`../../../apps/dashboard/src/legacy/components/${f}.jsx`);
+// A person's deal (0008), which the profile draws first in its column: before the profile, as both load lists put it.
+await import("../../../apps/dashboard/src/legacy/pages/person-deal.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 
 const walk = (n, fn) => {
@@ -1643,11 +1645,10 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
   );
 });
 
-test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer, for someone who said stop, or where customers book", async () => {
-  const cls = (n) => String(n.props?.className || "");
+test("a proposal's send sits beside the booking link in More, 'again' once it went out, nothing to press for a viewer, for someone who said stop, or where customers book; and About no longer says the link, the deal does (0008)", async () => {
   const url = "https://docs.example.com/p/dani";
   // The send is a deal's (0008): the workspace here says some customers get a proposal first. The last case is one
-  // whose customers book.
+  // whose customers book. With no deal at all, the link left on the person (00154) is theirs, until it retires.
   const outbound = (at, status) => ({
     id: `m-${status}`,
     conversation_id: "cv1",
@@ -1661,20 +1662,15 @@ test("a proposal on file (00154): the About row is its control and the send sits
     channel: "whatsapp",
     created_at: at,
   });
+  const aboutKeys = (t) => all(t, (n) => String(n.props?.className || "") === "cl-prof-attr-key").map((k) => textOf(k));
   const vm = toPersonVM(
     detail({ proposal_url: url, booking_link: "https://book.example/salon", deals_on: true }),
     ZONE,
     new Date(NOW),
   );
   let tree = (await profile(vm))();
-  const rowEl = byTestId(tree, "person-proposal");
-  assert.ok(rowEl, "the About row");
-  const link = byTestId(rowEl, "person-proposal-link");
-  assert.equal(link.props.href, url);
-  assert.equal(textOf(link), "docs.example.com", "the host, not the whole address");
-  assert.equal(byTestId(rowEl, "person-proposal-edit").props["aria-label"], "Change the proposal link");
-  const keys = all(tree, (n) => cls(n) === "cl-prof-attr-key").map((k) => textOf(k));
-  assert.equal(keys.indexOf("Proposal"), keys.indexOf("Email") + 1, `under the address: ${keys}`);
+  assert.equal(byTestId(tree, "person-proposal"), null, "REGRESSION: the link was an About row of its own");
+  assert.ok(!aboutKeys(tree).includes("Proposal"), `About says it no more: ${aboutKeys(tree)}`);
   // The sends are the More menu's first items, in plain words, each saying what it does under it.
   const moreOf = (t) => find(t, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-more");
   const labels = (t) =>
@@ -1723,37 +1719,31 @@ test("a proposal on file (00154): the About row is its control and the send sits
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
   assert.ok(labels(tree).includes("Send proposal again"), labels(tree).join(", "));
 
-  // None on file: the row invites, the send is absent.
+  // None on file: no send, and no row inviting one: a proposal is started from the Deal section.
   tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
-  assert.equal(byTestId(tree, "person-proposal-edit").props["aria-label"], "Add a proposal link");
-  assert.equal(byTestId(tree, "person-proposal-link"), null);
+  assert.equal(byTestId(tree, "person-proposal"), null);
   assert.ok(!labels(tree).some((l) => /proposal/.test(l)), "no proposal, no send");
 
-  // A viewer sees where it lives and changes nothing; no row at all when there is none.
+  // A viewer sends nothing, and may still call them from their own phone.
   globalThis.window.__ME = { role: "viewer" };
   try {
     tree = (await profile(vm))();
-    assert.ok(byTestId(tree, "person-proposal-link"));
-    assert.equal(byTestId(tree, "person-proposal-edit"), null);
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
-    assert.ok(labels(tree).includes("Call"), "and may still call them from their own phone");
-    tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
-    assert.equal(byTestId(tree, "person-proposal"), null);
+    assert.ok(labels(tree).includes("Call"));
   } finally {
     globalThis.window.__ME = { role: "owner" };
   }
 
-  // Someone who said stop: the row, never the send.
+  // Someone who said stop: never the send.
   const quiet = toPersonVM(
     detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url, deals_on: true }),
     ZONE,
     new Date(NOW),
   );
   tree = (await profile(quiet))();
-  assert.ok(byTestId(tree, "person-proposal"));
   assert.ok(!labels(tree).some((l) => /^Send/.test(l)), "nothing is sent to someone who said stop");
 
-  // A workspace whose customers book: the booking link's send, and no proposal's (0008).
+  // A workspace whose customers book: the booking link's send, and no proposal anywhere (0008).
   tree = (
     await profile(
       toPersonVM(
@@ -1768,285 +1758,294 @@ test("a proposal on file (00154): the About row is its control and the send sits
     !labels(tree).some((l) => /proposal/.test(l)),
     `REGRESSION: a salon was offered a proposal: ${labels(tree)}`,
   );
-  // And no About row: neither the link left on the person nor an invitation to add one.
-  assert.equal(byTestId(tree, "person-proposal"), null, "a workspace whose customers book has no proposal row");
-  assert.ok(
-    !all(tree, (n) => String(n.props?.className || "") === "cl-prof-attr-key").some((k) => textOf(k) === "Proposal"),
-  );
+  assert.equal(byTestId(tree, "person-deal"), null, "and no Deal section");
+  assert.ok(!aboutKeys(tree).includes("Proposal"));
 });
 
-test("the About proposal row is the deal's (0008): the deal's link for a proposal out, and no row for a client, a pass or an end", async () => {
-  const own = "https://docs.example.com/p/own";
-  const onDeal = "https://quotes.example.com/p/deal";
-  const at = iso(9 * D);
-  const withDeal = (stage, link) =>
-    toPersonVM(
-      detail({
-        proposal_url: own,
-        deals_on: true,
-        deals: [
-          {
-            id: "d1",
-            contact_id: "p1",
-            service: null,
-            stage,
-            proposed_at: at,
-            decided_at: stage === "proposed" ? null : iso(2 * D),
-            ended_at: stage === "ended" ? iso(D) : null,
-            amount_cents: null,
-            per: null,
-            currency: "USD",
-            note: null,
-            version: 1,
-            created_at: at,
-            proposal_url: link,
-          },
-        ],
-        row: row({
-          visits: VISITS,
-          deal_id: "d1",
-          deal_stage: stage,
-          deal_service: null,
-          deal_proposed_at: at,
-          deal_decided_at: stage === "proposed" ? null : iso(2 * D),
-          deal_ended_at: stage === "ended" ? iso(D) : null,
-          deal_amount_cents: null,
-          deal_per: null,
-          deal_proposal_url: link,
-        }),
-      }),
-      ZONE,
-      new Date(NOW),
-    );
-  let tree = (await profile(withDeal("proposed", onDeal)))();
-  assert.equal(
-    textOf(byTestId(tree, "person-proposal-link")),
-    "quotes.example.com",
-    "the deal's link, not the person's",
-  );
-  assert.equal(byTestId(tree, "person-proposal-link").props.href, onDeal);
-  tree = (await profile(withDeal("proposed", null)))();
-  assert.equal(
-    byTestId(tree, "person-proposal-edit").props["aria-label"],
-    "Add a proposal link",
-    "a proposal recorded without one is where it is added",
-  );
-  for (const stage of ["won", "lost", "ended"]) {
-    tree = (await profile(withDeal(stage, onDeal)))();
-    assert.equal(byTestId(tree, "person-proposal"), null, `${stage}: no proposal row`);
-  }
+/* ----------------------------------- the Deal section (0004, 0008) ----------------------------------- */
+
+/** A person's deal row, as the route lists it, and the row's columns for it, as people_list's lateral join picks it. */
+const dealRow = (over = {}) => ({
+  id: "d1",
+  contact_id: "p1",
+  service: "Ad management",
+  stage: "proposed",
+  proposed_at: iso(9 * D),
+  decided_at: null,
+  ended_at: null,
+  amount_cents: 120_000,
+  per: "once",
+  currency: "USD",
+  note: null,
+  version: 1,
+  created_at: iso(9 * D),
+  proposal_url: null,
+  valid_until: null,
+  lost_reason: null,
+  ...over,
 });
-
-/* ----------------------------------- the Deal section (0004) ----------------------------------- */
-
-test("the Deal row: drawn only where deals are a thing, says the stage in the card's settings, opens its moves under Change, and records through the courier", async () => {
-  globalThis.window.__recordFolds.reset();
-  globalThis.window.__deal = {
-    words: contracts.DEAL_STAGE_WORDS,
-    perWords: contracts.DEAL_PER_WORDS,
-    pers: contracts.DEAL_PERS,
-    none: contracts.DEAL_LINE_NONE,
-    moves: contracts.dealMoves,
-    // The one reading of a typed amount, the page's own copy gone (0008).
-    parseAmount: contracts.parseAmount,
-  };
-  const calls = [];
-  globalThis.window.__recordDeal = async (id, body) => (
-    calls.push([id, body]),
-    { ok: true, data: { deal: { id: "d9" }, from: null, decision_id: "x" } }
-  );
-
-  const none = await profile(toPersonVM(detail({ deals_on: false, deals: [], services: [] }), ZONE, new Date(NOW)));
-  assert.equal(byTestId(none(), "person-deal"), null, "a salon never sees it");
-  assert.equal(byTestId(none(), "rec-row-person-deal"), null, "nor its row");
-
-  const on = await profile(
-    toPersonVM(detail({ deals_on: true, deals: [], services: ["Ad management", "SEO"] }), ZONE, new Date(NOW)),
-  );
-  // The fold is a drawn component, so the walk meets what it holds twice (as its children and as what it drew): the
-  // moves are counted in the section's own box.
-  const moves = (t) => all(byTestId(t, "person-deal"), (n) => n.props?.["data-testid"] === "person-deal-move");
-  let tree = on();
-  // One line in the card's settings, last, like the three answers above it: never a second box of chips on the rail.
-  const cls = (n) => String(n.props?.className || "");
-  const keys = (t) =>
-    all(byTestId(t, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
-      textOf(find(r, (n) => cls(n) === "rec-row-key")),
-    );
-  assert.deepEqual(keys(tree), ["Receptionist", "Visit messages", "Offers & news", "Deal"]);
-  assert.equal(textOf(byTestId(tree, "person-deal-line")), "No proposal yet");
-  assert.equal(byTestId(tree, "person-deal-facts"), null, "nothing under a line that is all there is");
-  assert.equal(byTestId(tree, "rec-fold-person-deal").props.hidden, true, "closed, the moves are out of sight");
-  press(byTestId(tree, "rec-row-act-person-deal"));
-  tree = on();
-  assert.equal(byTestId(tree, "rec-fold-person-deal").props["data-open"], "true", "Change opens the moves");
-  assert.equal(byTestId(tree, "rec-row-person-deal"), null, "and the row gives them its place");
-  // The row is gone, so the line it said stays in the fold, under the moves.
-  assert.equal(textOf(byTestId(tree, "person-deal-now")), "No proposal yet");
-  assert.deepEqual(moves(tree).map(textOf), ["Proposal sent"]);
-  press(byTestId(tree, "person-deal-move"));
-  tree = on();
-  assert.ok(byTestId(tree, "person-deal-service"), "two services: the picker shows");
-  press(byTestId(tree, "person-deal-record"));
-  await settle();
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], "p1");
-  assert.equal(calls[0][1].stage, "proposed");
-  assert.ok(calls[0][1].when, "a date always goes, today by default");
-  tree = on();
-  assert.ok(byTestId(tree, "rec-row-person-deal"), "a recorded move closes the fold and puts the row back");
-
-  const proposed = {
-    id: "d1",
-    contact_id: "p1",
-    service: "Ad management",
-    stage: "proposed",
-    proposed_at: iso(9 * D),
-    decided_at: null,
-    ended_at: null,
-    amount_cents: null,
-    per: null,
-    currency: "USD",
-    note: null,
-    version: 1,
-    created_at: iso(9 * D),
-  };
-  const client = await profile(
-    toPersonVM(
-      detail({
-        deals_on: true,
-        deals: [proposed],
-        services: ["Ad management"],
-        row: row({
-          visits: VISITS,
-          deal_id: "d1",
-          deal_stage: "proposed",
-          deal_service: "Ad management",
-          deal_proposed_at: proposed.proposed_at,
-          deal_decided_at: null,
-          deal_ended_at: null,
-          deal_amount_cents: null,
-          deal_per: null,
-        }),
-      }),
-      ZONE,
-      new Date(NOW),
-    ),
-  );
-  tree = client();
-  // The row says the stage's word, as the answers above say theirs; the service and the day go under it, quieter.
-  assert.equal(textOf(byTestId(tree, "person-deal-line")), "Proposal out");
-  assert.match(textOf(byTestId(tree, "person-deal-facts")), /^Ad management · since \w{3} \d+$/);
-  press(byTestId(tree, "rec-row-act-person-deal"));
-  tree = client();
-  assert.deepEqual(moves(tree).map(textOf), ["Became a client", "Passed"]);
-  press(byTestId(tree, "person-deal-move"));
-  tree = client();
-  const amount = byTestId(tree, "person-deal-amount");
-  assert.ok(amount, "a client's move asks for the amount");
-  // An amount that is not a number is refused at the field, and nothing goes: it was dropped without a word.
-  type(amount, "abc");
-  tree = client();
-  press(byTestId(tree, "person-deal-record"));
-  await settle();
-  assert.equal(calls.length, 1, "nothing recorded for an amount that is not a number");
-  tree = client();
-  assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
-  // A negative amount is refused the same way: the minus survives the strip, so "-5" is not five dollars.
-  type(byTestId(tree, "person-deal-amount"), "-5");
-  tree = client();
-  press(byTestId(tree, "person-deal-record"));
-  await settle();
-  assert.equal(calls.length, 1, "REGRESSION: -5 went as 500 cents");
-  tree = client();
-  assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
-  type(byTestId(tree, "person-deal-amount"), "2,500");
-  tree = client();
-  press(byTestId(tree, "person-deal-record"));
-  await settle();
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1][1].stage, "won");
-  assert.equal(calls[1][1].deal_id, "d1");
-  assert.equal(calls[1][1].version, 1, "the version the page saw goes with a move");
-  assert.equal(calls[1][1].amount_cents, 250000);
-  assert.equal(calls[1][1].per, "month");
-
-  // A refused move keeps the fold open with the reason in it: closing on a refusal would lose what was typed.
-  globalThis.window.__recordDeal = async () => ({ ok: false, message: "Someone changed this deal a moment ago." });
-  tree = client();
-  press(byTestId(tree, "rec-row-act-person-deal"));
-  tree = client();
-  press(moves(tree)[1]);
-  tree = client();
-  press(byTestId(tree, "person-deal-record"));
-  await settle();
-  tree = client();
-  assert.equal(byTestId(tree, "rec-fold-person-deal").props["data-open"], "true");
-  assert.equal(textOf(byTestId(tree, "person-deal-error")), "Someone changed this deal a moment ago.");
-
-  // Someone who may only read sees the line and no Change.
-  const me = globalThis.window.__ME;
-  globalThis.window.__ME = { role: "viewer" };
-  try {
-    globalThis.window.__recordFolds.reset();
-    tree = client();
-    assert.ok(byTestId(tree, "rec-row-person-deal"));
-    assert.equal(byTestId(tree, "rec-row-act-person-deal"), null);
-  } finally {
-    globalThis.window.__ME = me;
-  }
-});
-
-test("the Deal row says a proposal's value, as it says a client's (0008)", async () => {
-  globalThis.window.__recordFolds.reset();
-  globalThis.window.__deal = {
-    words: contracts.DEAL_STAGE_WORDS,
-    perWords: contracts.DEAL_PER_WORDS,
-    pers: contracts.DEAL_PERS,
-    none: contracts.DEAL_LINE_NONE,
-    moves: contracts.dealMoves,
-    parseAmount: contracts.parseAmount,
-  };
-  const at = iso(9 * D);
-  const vm = toPersonVM(
+const withDeals = (deals, over = {}, rowOver = {}) => {
+  const d = contracts.pickCurrentDeal(deals);
+  return toPersonVM(
     detail({
       deals_on: true,
-      services: ["Ad management"],
-      deals: [
-        {
-          id: "d1",
-          contact_id: "p1",
-          service: "Ad management",
-          stage: "proposed",
-          proposed_at: at,
-          decided_at: null,
-          ended_at: null,
-          amount_cents: 120_000,
-          per: "once",
-          currency: "USD",
-          note: null,
-          version: 1,
-          created_at: at,
-        },
-      ],
+      services: ["Ad management", "SEO"],
+      deals,
       row: row({
         visits: VISITS,
-        deal_id: "d1",
-        deal_stage: "proposed",
-        deal_service: "Ad management",
-        deal_proposed_at: at,
-        deal_decided_at: null,
-        deal_ended_at: null,
-        deal_amount_cents: 120_000,
-        deal_per: "once",
+        ...(d
+          ? {
+              deal_id: d.id,
+              deal_stage: d.stage,
+              deal_service: d.service,
+              deal_proposed_at: d.proposed_at,
+              deal_decided_at: d.decided_at,
+              deal_ended_at: d.ended_at,
+              deal_amount_cents: d.amount_cents,
+              deal_per: d.per,
+              deal_proposal_url: d.proposal_url,
+              deal_valid_until: d.valid_until,
+              deal_lost_reason: d.lost_reason,
+            }
+          : {}),
+        ...rowOver,
       }),
+      ...over,
     }),
     ZONE,
     new Date(NOW),
   );
-  const tree = (await profile(vm))();
-  assert.equal(textOf(byTestId(tree, "person-deal-line")), "Proposal out");
-  assert.match(textOf(byTestId(tree, "person-deal-facts")), /^Ad management · since \w{3} \d+ · \$1,200$/);
+};
+/** The sheet's door, as the shell's host answers it: every ask the page makes of it. */
+const sheetAsks = () => {
+  const asked = [];
+  globalThis.window.openDealSheet = (ask) => {
+    asked.push(ask);
+    return true;
+  };
+  return asked;
+};
+const cardOf = (t) => byTestId(t, "person-deal-card");
+const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
+
+test("the Deal section stands first in the column, above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
+  globalThis.window.__recordFolds.reset();
+  const asked = sheetAsks();
+  try {
+    const off = (await profile(toPersonVM(detail({ deals_on: false, deals: [] }), ZONE, new Date(NOW))))();
+    assert.equal(byTestId(off, "person-deal"), null, "a salon never sees it");
+
+    const tree = (await profile(withDeals([])))();
+    const section = byTestId(tree, "person-deal");
+    assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deal");
+    // First in the column: the body draws it, then Coming up (VISITS has a visit ahead).
+    const body = find(tree, (n) => n.props?.className === "cl-prof-body");
+    const kids = body.props.children.filter((k) => k && typeof k === "object");
+    assert.equal(kids[0].type, globalThis.window.PersonDealCard, "the deal first");
+    assert.equal(kids[1].props["data-testid"], "person-coming-up", "then what is coming");
+    // Nothing recorded: one line, and its act in quiet words.
+    assert.equal(textOf(byTestId(tree, "person-deal-said")), "No proposal yet");
+    assert.equal(byTestId(tree, "person-deal-card"), null);
+    const start = byTestId(tree, "person-deal-start");
+    assert.equal(textOf(start), "Start a proposal");
+    assert.equal(start.props.className, "cl-prof-deal-act", "quiet: no consultation is waiting on it");
+    press(start);
+    assert.deepEqual(asked, [{ personId: "p1", mode: "propose", dealId: null }], "the one sheet, for a new proposal");
+    // The card's settings are the three answers: the deal says itself once, in its own section.
+    const cls = (n) => String(n.props?.className || "");
+    assert.deepEqual(
+      all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
+        textOf(find(r, (n) => cls(n) === "rec-row-key")),
+      ),
+      ["Receptionist", "Visit messages", "Offers & news"],
+      "REGRESSION: the deal was a row of the card and a fold under it",
+    );
+    assert.equal(byTestId(tree, "rec-row-person-deal"), null);
+    assert.ok(!all(tree, (n) => n.type === "h2").some((h) => textOf(h) === "Proposal"));
+  } finally {
+    delete globalThis.window.openDealSheet;
+  }
+});
+
+test("a proposal out is a card: its service and value, its steps, its link and whether it went, its one next act as the outline button and the other moves as words, each opening the sheet or the thread", async () => {
+  globalThis.window.__recordFolds.reset();
+  const asked = sheetAsks();
+  const url = "https://quotes.example.com/p/dani";
+  const carried = [];
+  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  try {
+    // The person's own link (00154) stays theirs: the card says the deal's.
+    const vm = withDeals([dealRow({ proposal_url: url })], { proposal_url: "https://docs.example.com/p/own" });
+    let tree = (await profile(vm))();
+    const card = cardOf(tree);
+    assert.equal(textOf(byTestId(card, "person-deal-title")), "Ad management");
+    assert.equal(textOf(byTestId(card, "person-deal-value")), "$1,200", "a proposal says its value (0008)");
+    assert.deepEqual(
+      all(card, (n) => n.props?.["data-testid"] === "person-deal-step").map((s) => [
+        textOf(find(s, (n) => n.props?.className === "cl-prof-deal-step-label")),
+        s.props["data-at"],
+      ]),
+      [
+        ["Proposal out", "current"],
+        ["Client", "ahead"],
+      ],
+      "no consultation, no Consultation step",
+    );
+    const link = byTestId(card, "person-deal-link");
+    assert.deepEqual([link.props.href, link.props.target, link.props.rel], [url, "_blank", "noopener noreferrer"]);
+    assert.equal(textOf(link), "quotes.example.com", "the deal's link, not the one left on the person");
+    assert.deepEqual(all(card, (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), ["Not sent yet"]);
+    // Not sent, and it can go: the next act is the send, an outline button; the page's one filled button is the thread.
+    const next = byTestId(card, "person-deal-next");
+    assert.deepEqual([textOf(next), next.props.className], ["Send proposal", "btn btn-sm"]);
+    assert.deepEqual(movesOf(card).map(textOf), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    // The card leads with the send, so the More menu does not say it again.
+    const more = find(tree, (n) => n.props?.testid === "person-more");
+    assert.ok(
+      !more.props.items.some((i) => /proposal/i.test(i.label || "")),
+      "REGRESSION: Send proposal on the card and again under More",
+    );
+    went.length = 0;
+    press(next);
+    assert.deepEqual(went, [vm.openThread], "the send opens their thread...");
+    assert.deepEqual(JSON.parse(carried.at(-1)[1]), {
+      threadId: vm.openThread.replace(/^inbox\//, ""),
+      text: contracts.proposalMessage(url),
+    });
+    assert.equal(asked.length, 0, "...and never the sheet");
+    press(movesOf(card)[0]);
+    press(movesOf(card)[1]);
+    assert.deepEqual(asked, [
+      { personId: "p1", mode: "won", dealId: "d1" },
+      { personId: "p1", mode: "lost", dealId: "d1" },
+    ]);
+
+    // Recorded without a link: said, and adding it is the next act.
+    tree = (await profile(withDeals([dealRow()])))();
+    assert.deepEqual(all(cardOf(tree), (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), [
+      "No link",
+    ]);
+    assert.equal(textOf(byTestId(tree, "person-deal-next")), "Edit proposal");
+    assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Mark as passed"], "the edit is said once");
+    assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
+    // Nothing back in a week: a state in the warn tone, the house's one pill.
+    tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) })))();
+    const flag = find(tree, (n) => n.type === globalThis.window.StatePill && n.props.testid === "person-deal-flag");
+    assert.deepEqual([flag.props.kind, flag.props.value, flag.props.label], ["tone", "warn", "Nothing back in 9 days"]);
+
+    // A client: the steps say it; the one move is the end, in quiet words.
+    tree = (
+      await profile(
+        withDeals([
+          dealRow({ stage: "won", decided_at: iso(2 * D), per: "month", amount_cents: 250_000, proposal_url: url }),
+        ]),
+      )
+    )();
+    assert.equal(textOf(byTestId(cardOf(tree), "person-deal-value")), "$2,500 a month");
+    assert.equal(byTestId(tree, "person-deal-link"), null, "a client's proposal is history");
+    assert.equal(byTestId(tree, "person-deal-next"), null);
+    assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement"]);
+    const current = find(cardOf(tree), (n) => n.props?.["aria-current"] === "step");
+    assert.deepEqual(
+      [current.props["data-tone"], textOf(find(current, (n) => n.props?.className === "cl-prof-deal-step-label"))],
+      ["ok", "Client"],
+    );
+
+    // Passed: no card, one line with the reason, and proposing again moves that row.
+    asked.length = 0;
+    tree = (await profile(withDeals([dealRow({ stage: "lost", decided_at: iso(2 * D), lost_reason: "price" })])))();
+    assert.equal(cardOf(tree), null);
+    assert.match(textOf(byTestId(tree, "person-deal-said")), /^Ad management · Passed \w{3} \d+ · Price$/);
+    press(byTestId(tree, "person-deal-start"));
+    assert.deepEqual(asked, [{ personId: "p1", mode: "again", dealId: "d1" }]);
+
+    // A viewer reads the card and presses nothing.
+    globalThis.window.__ME = { role: "viewer" };
+    try {
+      tree = (await profile(vm))();
+      assert.ok(cardOf(tree));
+      assert.equal(byTestId(tree, "person-deal-next"), null);
+      assert.deepEqual(movesOf(tree), []);
+    } finally {
+      globalThis.window.__ME = { role: "owner" };
+    }
+  } finally {
+    delete globalThis.window.openDealSheet;
+    delete globalThis.sessionStorage;
+  }
+});
+
+test("where only an approved message can reach them, the card's follow-up opens their thread with nothing written in it and says why on hover; someone who said stop is offered none", async () => {
+  globalThis.window.__recordFolds.reset();
+  const url = "https://quotes.example.com/p/dani";
+  const carried = [];
+  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  const said = (id, dir, body, ago) => ({
+    id,
+    conversation_id: "cv1",
+    direction: dir,
+    sender: dir === "inbound" ? "customer" : "human",
+    type: "text",
+    body,
+    media: null,
+    meta: null,
+    status: dir === "inbound" ? "received" : "sent",
+    channel: "whatsapp",
+    created_at: iso(ago),
+  });
+  // Sent on WhatsApp eight days ago, and nothing from them in twelve: their window is shut.
+  const quiet = (rowOver = {}) =>
+    withDeals(
+      [dealRow({ proposal_url: url })],
+      {
+        conversations: [
+          {
+            ...detail().conversations[0],
+            last_wa_inbound_at: iso(12 * D),
+            messages: [
+              said("m1", "inbound", "Send it over", 12 * D),
+              said("m2", "outbound", contracts.proposalMessage(url), 8 * D),
+            ],
+          },
+        ],
+      },
+      { latest_wa_inbound_at: iso(12 * D), last_inbound_at: iso(12 * D), last_message_at: iso(8 * D), ...rowOver },
+    );
+  try {
+    const vm = quiet();
+    const tree = (await profile(vm))();
+    const next = byTestId(tree, "person-deal-next");
+    assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
+    press(next);
+    assert.deepEqual(went, [vm.openThread], "their thread, which offers the approved messages");
+    assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
+    for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
+      const stopped = (await profile(quiet(rowOver)))();
+      assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
+    }
+  } finally {
+    delete globalThis.sessionStorage;
+  }
+});
+
+test("the page reads the person again when a deal of theirs is recorded in the sheet, and not for anyone else's", async () => {
+  const vm = withDeals([dealRow()]);
+  // Only this page's listener: the pages the tests above drew were never taken off the stub's window.
+  delete listeners["deal:recorded"];
+  const draw = await profile(vm);
+  draw();
+  // Counted from here: drawing the page is not what is being proved.
+  let reads = 0;
+  globalThis.window.__personDetail = async () => {
+    reads += 1;
+    return vm;
+  };
+  globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "someone-else" } });
+  await settle();
+  assert.equal(reads, 0);
+  globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "p1" } });
+  await settle();
+  assert.equal(reads, 1, "their page is read again");
 });
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */

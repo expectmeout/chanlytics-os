@@ -1169,6 +1169,108 @@ test("REGRESSION: worth a look over People's real rows -- a yes to offers with n
   assert.equal(went.at(-1), "clients/seg:opted_in", "the number is People's list, and the door opens it");
 });
 
+test("worth a look where deals are on: the consultations row names the count's own people under its own lead, each to their page, and its door is the Pipeline", () => {
+  clear();
+  const DAY = 86_400_000;
+  // The page asks contracts with the clock it runs on, so the consultations ended within the last week of now.
+  const ago = (days) => new Date(Date.now() - days * DAY).toISOString();
+  const consulted = (id, name, days) =>
+    toPersonRowVM(
+      {
+        id,
+        display_name: name,
+        wa_profile_name: null,
+        phone_e164: null,
+        email: null,
+        consent: "opted_in",
+        consent_source: "in_person",
+        consent_updated_at: ago(20),
+        dnc: false,
+        marketing_consent: null,
+        marketing_consent_source: null,
+        marketing_consent_updated_at: null,
+        channels: ["whatsapp"],
+        conversation_count: 1,
+        escalation_count: 0,
+        needs_human: false,
+        open_escalation_reason: null,
+        open_escalation_since: null,
+        latest_conversation_id: null,
+        latest_state: "open",
+        latest_paused_until: null,
+        latest_assignee_user_id: null,
+        latest_snooze_until: null,
+        latest_wa_inbound_at: null,
+        last_message_at: ago(days + 1),
+        last_message_direction: "inbound",
+        last_message_sender: "customer",
+        last_inbound_text: "See you then",
+        last_inbound_at: ago(days + 1),
+        last_call_at: null,
+        call_count: 0,
+        call_seconds: 0,
+        first_contact_at: ago(30),
+        earliest_row_at: ago(30),
+        has_backfill: false,
+        has_chat: true,
+        queued_reply_at: null,
+        visits: {
+          timezone: ZONE,
+          source: "Google Calendar",
+          state: "ok",
+          next: null,
+          last: {
+            id: `v-${id}`,
+            start: new Date(Date.parse(ago(days)) - 3_600_000).toISOString(),
+            end: ago(days),
+            title: "Consultation",
+            all_day: false,
+            via: "phone",
+            consultation: true,
+          },
+        },
+      },
+      ZONE,
+      new Date(),
+    );
+  const rows = [consulted("p-b", "Bea Ortiz", 2), consulted("p-a", "Abel Cruz", 4), consulted("p-c", "Cora Diaz", 1)];
+  const P = { rows, lists: [], aggregates: { total: rows.length }, dealsOn: true };
+  // A week that booked and answered, so the consultations are the one row.
+  const R = {
+    ...reports(),
+    vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } },
+    booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 },
+  };
+  set({ TODAY_DATA: busy(), __REPORTS: R, __PEOPLE: P });
+  const want = todayLeaks(R, P).rows.find((l) => l.id === "consults-waiting");
+  assert.ok(want, "three consultations this week, no proposal after any");
+  const row = byTestId(draw(W.TodayLeaks), "today-leak-consults-waiting");
+  assert.ok(row, "the row is drawn");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("tl-tag"))), "Next step");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("tl-text"))), want.text);
+  assert.equal(textOf(find(row, (n) => classes(n).includes("tl-math"))), want.math);
+  assert.equal(want.text, "3 consultations in the last week ended with no proposal yet.");
+  assert.equal(
+    textOf(find(row, (n) => classes(n).includes("tl-people-lead"))),
+    "Held with",
+    "not 'Waiting now': these are the count's own people, and the lead is contracts'",
+  );
+  const chips = all(row, (n) => classes(n).includes("tl-person"));
+  assert.deepEqual(chips.map(textOf), ["Abel Cruz", "Bea Ortiz"], "two, the oldest first, as the Pipeline lists them");
+  assert.deepEqual(
+    chips.map((c) => c.props.title),
+    ["Open Abel Cruz in People", "Open Bea Ortiz in People"],
+    "each says where it goes: their page, not a thread",
+  );
+  press(chips[0]);
+  assert.equal(went.at(-1), "clients/p-a");
+  press(buttons(row, "See who")[0]);
+  assert.equal(went.at(-1), "clients/pipeline", "the door is the Pipeline, whose number the row re-prints");
+  // Where deals are off the same calendar says nothing here.
+  set({ __PEOPLE: { ...P, dealsOn: false } });
+  assert.equal(draw(W.TodayLeaks).rendered, null, "no deals, no row, and no band with nothing in it");
+});
+
 /* ------------------------------------ while you were away ------------------------------------ */
 
 test("while you were away: drawn wherever the bell is, deduped over every queue kind, the head the bell's own number", () => {

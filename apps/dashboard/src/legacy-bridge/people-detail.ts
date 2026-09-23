@@ -1,22 +1,23 @@
 import {
   CONSENT_SOURCES,
-  DEAL_LINE_NONE,
-  DEAL_LOST_REASONS,
-  DEAL_LOST_REASON_WORDS,
-  DEAL_PERS,
-  DEAL_PER_WORDS,
-  DEAL_STAGE_WORDS,
+  DEAL_ACT_WORDS,
+  DEAL_CARD_WORDS,
+  DEAL_SHEET_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
-  SELLS_BY,
-  SELLS_BY_QUESTION,
-  SELLS_BY_WORDS,
   TIMELINE_FILTERS,
-  dealMoves,
+  dealCardsOf,
+  dealMenuActs,
+  dealSheetBody,
+  dealSheetDirty,
+  dealSheetFor,
+  dealSheetMerge,
+  dealSheetMessage,
+  dealSheetRefusal,
   filterTimeline,
+  isDealSheetMode,
   mayReceive,
   offersYesRefusal,
-  parseAmount,
   toPersonVM,
   verbalOptInScript,
   type DealClearable,
@@ -340,19 +341,23 @@ declare global {
     __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     __recordDeal?: typeof recordDeal;
     /**
-     * The deal's words for the page (0004, 0008): the stage words, the per words, the pers, the empty line, the moves
-     * from a stage, the reasons for passing and theirs, the one reading of a typed amount, and how customers buy.
+     * A deal on the page (0008): the one sheet every move goes through (deal-sheet.ts: its modes, what it says and
+     * opens with, the draft once they are read again, the body it sends, where a refusal goes), the person page's deal
+     * cards and their words, and the thread's Deal group with the acts' words.
      */
     __deal?: {
-      words: typeof DEAL_STAGE_WORDS;
-      perWords: typeof DEAL_PER_WORDS;
-      pers: typeof DEAL_PERS;
-      none: string;
-      moves: typeof dealMoves;
-      reasons: typeof DEAL_LOST_REASONS;
-      reasonWords: typeof DEAL_LOST_REASON_WORDS;
-      parseAmount: typeof parseAmount;
-      sellsBy: { question: string; answers: typeof SELLS_BY; words: typeof SELLS_BY_WORDS };
+      isMode: typeof isDealSheetMode;
+      sheet: typeof dealSheetFor;
+      body: typeof dealSheetBody;
+      message: typeof dealSheetMessage;
+      dirty: typeof dealSheetDirty;
+      merge: typeof dealSheetMerge;
+      refusal: typeof dealSheetRefusal;
+      sheetWords: typeof DEAL_SHEET_WORDS;
+      cards: typeof dealCardsOf;
+      cardWords: typeof DEAL_CARD_WORDS;
+      menu: typeof dealMenuActs;
+      actWords: typeof DEAL_ACT_WORDS;
     };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
@@ -377,8 +382,9 @@ declare global {
 }
 
 /**
- * A person's name, the owner's notes, their email address and their proposal link:
- * `window.__setPersonDetails(id, { name?, notes?, email?, proposal? })`.
+ * A person's name, the owner's notes and their email address:
+ * `window.__setPersonDetails(id, { name?, notes?, email? })`. A proposal's link is its deal's, set in the deal
+ * sheet (0008).
  *
  * Owner or operator on the server; an empty string clears. The People list
  * is re-read because names show on every row, and the profile reloads on
@@ -388,8 +394,6 @@ export interface DetailsBody {
   name?: string;
   notes?: string;
   email?: string;
-  /** A web address (contracts normalizeLink); the receptionist sends it when they ask about price (00154). */
-  proposal?: string;
 }
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
@@ -419,16 +423,20 @@ export function installPeopleCourier(): void {
   window.__timeline = { filters: TIMELINE_FILTERS, filter: filterTimeline };
   // A deal on a person's word, and the words the page says one in: the rule, not a copy of it (0004).
   window.__recordDeal = recordDeal;
+  // One sheet for every move, and the card and the thread's group that open it (0008): the rules, never a copy.
   window.__deal = {
-    words: DEAL_STAGE_WORDS,
-    perWords: DEAL_PER_WORDS,
-    pers: DEAL_PERS,
-    none: DEAL_LINE_NONE,
-    moves: dealMoves,
-    reasons: DEAL_LOST_REASONS,
-    reasonWords: DEAL_LOST_REASON_WORDS,
-    parseAmount,
-    sellsBy: { question: SELLS_BY_QUESTION, answers: SELLS_BY, words: SELLS_BY_WORDS },
+    isMode: isDealSheetMode,
+    sheet: dealSheetFor,
+    body: dealSheetBody,
+    message: dealSheetMessage,
+    dirty: dealSheetDirty,
+    merge: dealSheetMerge,
+    refusal: dealSheetRefusal,
+    sheetWords: DEAL_SHEET_WORDS,
+    cards: dealCardsOf,
+    cardWords: DEAL_CARD_WORDS,
+    menu: dealMenuActs,
+    actWords: DEAL_ACT_WORDS,
   };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.

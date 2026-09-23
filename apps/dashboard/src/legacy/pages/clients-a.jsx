@@ -1121,12 +1121,21 @@ window.__listRoute = plListRoute;
 
 const PL_DEFAULT_GROUPS = [{ id: "attention", label: "Attention" }, { id: "journey", label: "Journey" }, { id: "reach", label: "Reach" }];
 
-// People | Leads: the one switch between this page's two scopes (PRD 6.1). A tablist, because they are two views
-// of one page, not two pages; on a phone the switch is the slim bar's (Task 18).
-const PeopleScopeTabs = ({ scope, onScope }) => (
+// The page's scopes, in the switch's order: People and Leads everywhere, and the Pipeline only where deals are on (the
+// People surface's dealsOn, contracts dealsAreOn, 0008) -- a workspace whose customers book is never offered one.
+const PL_SCOPES = [{ id: "people", label: "People" }, { id: "leads", label: "Leads" }, { id: "pipeline", label: "Pipeline" }];
+const plScopes = (dealsOn) => (dealsOn ? PL_SCOPES : PL_SCOPES.slice(0, 2));
+// Where the switch goes: each scope is an address of People's (app-shell.jsx). `#/pipeline` is the retired demo board's
+// address, which still lands on People; the Pipeline scope is `clients/pipeline`.
+const plScopeRoute = (to) => (to === "leads" ? "clients/leads" : to === "pipeline" ? "clients/pipeline" : "clients");
+
+// People | Leads (| Pipeline): the one switch between this page's scopes (PRD 6.1). A tablist, because they are views
+// of one page, not pages; on a phone the switch is the slim bar's (Task 18).
+const PeopleScopeTabs = ({ scope, onScope, dealsOn = false }) => (
   <div className="pt-scope" role="tablist" aria-label="Which people" data-testid="people-scope">
-    <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")} data-testid="scope-people">People</button>
-    <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")} data-testid="scope-leads">Leads</button>
+    {plScopes(dealsOn).map((s) => (
+      <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={scope === s.id ? "on" : ""} onClick={() => onScope(s.id)} data-testid={`scope-${s.id}`}>{s.label}</button>
+    ))}
   </div>
 );
 
@@ -1192,10 +1201,11 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 // The rail. The switch heads it in both scopes; under Leads the rows below it are the Leads scope's (LeadsRailRows,
 // leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
 // `scopeTabs` is false in the phone's sheet, whose bar has the switch; `everyone` ({ count, active, onPick }) is the
-// sheet's first row, the way back to everyone.
-const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
+// sheet's first row, the way back to everyone. `dealsOn` puts the Pipeline in the switch. Under the Pipeline the rows
+// are People's own lists, and a pick opens that list on People (pipeline-scope.jsx).
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
   <aside className="cl-rail">
-    {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} />}
+    {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} />}
     {scope === "leads" ? children : (
     <>
     {/* The way back to everyone, first, where a phone looks for it: a desktop's is Show everyone on the list's title
@@ -1298,8 +1308,9 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
 // was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
 // state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
 // `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. As one
-// string, "All leads · 96" was drawn "All leads · …" on a 375px phone.
-const PeoplePhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
+// string, "All leads · 96" was drawn "All leads · …" on a 375px phone. `dealsOn` puts the Pipeline in the switch; with
+// no `onLists` there is no list to pick (the Pipeline is one view) and the bar draws no list button.
+const PeoplePhoneBar = ({ scope, onScope, dealsOn = false, listLabel = null, listCount = null, onLists = null, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
   const id = (part) => `${testid}-phone-${part}`;
   if (searchOpen || q) {
     return (
@@ -1332,14 +1343,17 @@ const PeoplePhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, 
   return (
     <div className="pp-bar" data-testid={id("bar")}>
       <div className="pt-scope" role="tablist" aria-label="Which people">
-        <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
-        <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
+        {plScopes(dealsOn).map((s) => (
+          <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={scope === s.id ? "on" : ""} onClick={() => onScope(s.id)}>{s.label}</button>
+        ))}
       </div>
-      <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
-        <span className="pp-bar-pick-words">{listLabel}</span>
-        {listCount != null ? <span className="pp-bar-pick-count" data-testid={id("lists-count")}>{Number(listCount).toLocaleString()}</span> : null}
-        <Icon name="chevron-down" size={11} />
-      </button>
+      {onLists ? (
+        <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
+          <span className="pp-bar-pick-words">{listLabel}</span>
+          {listCount != null ? <span className="pp-bar-pick-count" data-testid={id("lists-count")}>{Number(listCount).toLocaleString()}</span> : null}
+          <Icon name="chevron-down" size={11} />
+        </button>
+      ) : null}
       <button type="button" className="pp-bar-icon pp-bar-push" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
         <Icon name="search" size={18} />
       </button>
@@ -1362,6 +1376,26 @@ const plModeWord = (id) => (window.__chrome && window.__chrome.state ? window.__
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
 // A person shown by their address because they have no name and no number (contracts personName).
 const plIsAddress = (p) => !!p.email && p.name === p.email;
+// A person's face on a card: their initials, or the glyph for what names them while nobody has named them.
+const plFace = (p) => ({ initials: p.initials, glyph: plIsNumber(p.name) ? "phone" : plIsAddress(p) ? "mail" : null });
+// What the search box says it finds, in both of its places: the desktop's placeholder and the phone's bar.
+const PL_SEARCH_LABEL = "Search by name or phone";
+// Who the words in the box find: the name, the number, the address, their name on WhatsApp -- and the words on the
+// row: their last message and their visits, so "balayage" finds people. The server's search and count match the same
+// (00125). People's views and the Pipeline ask it alike. Null for no words, which finds everyone.
+const plMatcher = (q) => {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return null;
+  const digits = needle.replace(/\D/g, "");
+  return (p) =>
+    p.name.toLowerCase().includes(needle) ||
+    (p.waName || "").toLowerCase().includes(needle) ||
+    (p.email || "").includes(needle) ||
+    (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits)) ||
+    (p.quote || "").toLowerCase().includes(needle) ||
+    (p.nextVisit || "").toLowerCase().includes(needle) ||
+    (p.lastVisit || "").toLowerCase().includes(needle);
+};
 // The exact moment, by the business's clock (window.__clock): "Sep 6, 2026 · 3:10 PM".
 const plWhen = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? undefined : `${window.__clock.dateYear(ms)} · ${window.__clock.time(ms)}`; };
 
@@ -1540,7 +1574,7 @@ const plCardCell = (p, { attention }) => {
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
   const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
   return plRowCard({
-    face: { initials: p.initials, glyph: byNumber ? "phone" : plIsAddress(p) ? "mail" : null },
+    face: plFace(p),
     name: p.name,
     numeric: byNumber,
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
@@ -1559,6 +1593,9 @@ const plCardRowClass = () => "pl-card-row";
 const PL_BATCH = 50;
 // The loaded rows and what a search found past them, each person once.
 const plWithFound = (loaded, found) => { const seen = new Set(loaded.map((p) => p.id)); return [...loaded, ...found.filter((p) => !seen.has(p.id))]; };
+// What People says while more people follow than it has loaded ("1,000 of 1,400 loaded"): its line under the table,
+// and the Pipeline's line, which counts only the loaded too.
+const plLoadedWords = (loaded, total) => `${loaded.toLocaleString()} of ${total.toLocaleString()} loaded`;
 // A list just made, by its own answer's id; by name only when the answer carries none. The server
 // tidies the spaces in a name, so a lookup by name alone could miss the list it had just made.
 const plMadeId = (c, name) => (c.data && c.data.id) || (((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === name) || {}).id || null;
@@ -2060,8 +2097,10 @@ const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):no
  * - people: the People surface, which carries the workspace's copy of every view, Leads' included.
  * - sortFirst: `{ by, dir }`, the sort before anyone chose one.
  * - railRow: under Leads, the rail's row, which its saved view carries too.
+ * - keepsView: false for a scope with no view of its own to keep (the Pipeline: its order is contracts' and its columns
+ *   are fixed), which reads none and saves none, on this device or the workspace's.
  */
-const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null }) => {
+const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null, keepsView = true }) => {
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
   // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
@@ -2093,7 +2132,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   // The view the workspace remembers for this member (memberships.views, read
   // with the surface) wins over what this device remembers; the device copy
   // stays as the fallback for a route that is not there yet.
-  const remembered = React.useMemo(() => ({ ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const remembered = React.useMemo(() => (keepsView ? { ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) } : {}), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [sortBy, setSortBy] = useState(plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : sortFirst.by);
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : sortFirst.dir);
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its
@@ -2123,7 +2162,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const viewKnown = React.useRef(peopleLanded);
   const viewTouched = React.useRef(false);
   React.useEffect(() => {
-    if (viewKnown.current || !peopleLanded) return;
+    if (!keepsView || viewKnown.current || !peopleLanded) return;
     viewKnown.current = true;
     if (viewTouched.current || !serverView) return;
     const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
@@ -2135,6 +2174,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
     setColChoices(columns);
   }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
+    if (!keepsView) return;
     const view = viewAs(sortBy, sortDir, colChoices, railRow);
     plSaveView(scope, view);
     // The workspace's copy, once per change and never for the view it already holds. The choices change only when
@@ -2415,7 +2455,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const lists = people.lists;
   const agg = people.aggregates;
   const withCalendar = !!(people.calendar && people.calendar.state === "ok");
-  // Whether deals are a thing here (the surface's dealsOn, 0004): the Deal column is offered only then.
+  // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
+  // Pipeline, only then.
   const dealsOn = !!people.dealsOn;
   const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
   const [listId, setListId] = useState(listFor(initialSegment));
@@ -2463,10 +2504,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   };
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
+  // The Pipeline's address draws People where deals are off (app-shell.jsx), and People's own address takes its place.
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
-    if (/^clients\/(?!seg:|list:|state:)./.test(cur)) return;
+    if (/^clients\/(?!seg:|list:|state:|pipeline$)./.test(cur)) return;
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
@@ -2516,22 +2558,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
       const ids = new Set(s ? s.ids : []);
       list = list.filter((p) => ids.has(p.id));
     }
-    const needle = q.trim().toLowerCase();
-    const digits = needle.replace(/\D/g, "");
-    if (needle) {
-      // The name, the number, the address, their name on WhatsApp — and the
-      // words on the row: their last message and their visits, so "balayage"
-      // finds people. The server's search and count match the same (00125).
-      list = list.filter((p) =>
-        p.name.toLowerCase().includes(needle) ||
-        (p.waName || "").toLowerCase().includes(needle) ||
-        (p.email || "").includes(needle) ||
-        (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits)) ||
-        (p.quote || "").toLowerCase().includes(needle) ||
-        (p.nextVisit || "").toLowerCase().includes(needle) ||
-        (p.lastVisit || "").toLowerCase().includes(needle)
-      );
-    }
+    const match = plMatcher(q);
+    if (match) list = list.filter(match);
     // By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. The ranks ran
     // the other way, so "By state" (the descending sort a first press gives) put Active first and Needs you last.
     const order = { needs_you: 5, waiting_on_you: 4, opted_out: 3, new: 2, quiet: 1, active: 0 };
@@ -2693,7 +2721,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     <div className="clients">
       <PeopleRail
         scope="people"
-        onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+        onScope={(to) => nav(plScopeRoute(to))}
+        dealsOn={dealsOn}
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
@@ -2713,7 +2742,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           {phone && (
             <PeoplePhoneBar
               scope="people"
-              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              onScope={(to) => nav(plScopeRoute(to))}
+              dealsOn={dealsOn}
               listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}
@@ -2722,7 +2752,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               searchRef={searchRef}
               searchOpen={searchOpen}
               onSearchOpen={setSearchOpen}
-              searchLabel="Search by name or phone"
+              searchLabel={PL_SEARCH_LABEL}
               testid="people"
               trailing={<MoreMenu items={phoneMenu} title="More" size={18} btnClass="pp-bar-icon" escape />}
             />
@@ -2738,7 +2768,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           <div className="cl-controls">
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
-              <input ref={searchRef} placeholder="Search by name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input ref={searchRef} placeholder={`${PL_SEARCH_LABEL}…`} value={q} onChange={(e) => setQ(e.target.value)} />
               <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
@@ -2834,7 +2864,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
-              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
+              {plLoadedWords(rows.length, people.page.total)}{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
               {" "}
               <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
             </div>
@@ -2850,7 +2880,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               scope="people"
               scopeTabs={false}
               everyone={{ count: agg.total, active: !listId && !savedId, onPick: () => { setListId(null); setSavedId(null); setListsOpen(false); } }}
-              onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+              onScope={(to) => nav(plScopeRoute(to))}
               lists={lists}
               groups={people.groups || PL_DEFAULT_GROUPS}
               active={listId}
@@ -3458,7 +3488,10 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       canFind={canFind}
       canExport={canExport}
       exportHref={window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null}
-      onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
+      onScope={(to) => nav(plScopeRoute(to))}
+      // The Pipeline is in the switch where deals are on (0008): People's surface says so, and it lands after Leads' on a
+      // cold load of Leads, when the switch gains its third tab.
+      dealsOn={!!people.dealsOn}
       // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
       // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
       // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
@@ -3569,12 +3602,16 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
 // A real workspace renders its own people; the seeded page keeps the demo. The Leads scope is real as soon as
 // its own surface has landed, whether or not People's has: the route gate waits on the surface the address names
 // (surface-registry routeSurfaceFor), and the seeded page has no Leads scope to draw.
+// The Pipeline is the third scope (pipeline-scope.jsx), People's own rows by their deals, and only where deals are on:
+// on a workspace whose customers book, its address draws People.
 const ClientsA = (props) => {
   if (props.scope === "leads") return window.__LEADS ? <LeadsReal {...props} /> : <ClientsASeed {...props} />;
+  if (props.scope === "pipeline" && window.__PEOPLE && window.__PEOPLE.dealsOn && window.PipelineScope) return <window.PipelineScope {...props} />;
   return window.__PEOPLE ? <PeopleReal {...props} /> : <ClientsASeed {...props} />;
 };
 
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
-// Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle });
+// Leads scope's too (leads-scope.jsx draws them with scope="leads"). The Pipeline (pipeline-scope.jsx) is a third view
+// over the same list page, and takes its hooks, its person cell and its search from here: one rule each.
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });

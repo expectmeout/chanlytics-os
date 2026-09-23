@@ -748,3 +748,105 @@ test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and sa
   find(tree, byTestId("ix-archive-yes")).props.onClick(click);
   assert.equal(archived, vm.id);
 });
+
+/* ---------------------------- a key meant for a dialog over the Inbox ---------------------------- */
+
+// A key as the window hears it: from inside a dialog over the page (the deal sheet is an aria-modal RecordSheet), or
+// from the page itself; one a control already took says so.
+const keyFrom = (key, { modal = false, prevented = false, ...mods } = {}) => ({
+  key,
+  target: {
+    tagName: "BUTTON",
+    closest: (sel) => (modal && sel === '[aria-modal="true"]' ? { className: "rec-sheet deal-sheet" } : null),
+  },
+  defaultPrevented: prevented,
+  metaKey: false,
+  ctrlKey: false,
+  altKey: false,
+  preventDefault() {
+    this.defaultPrevented = true;
+  },
+  ...mods,
+});
+const hear = (ev) => {
+  for (const fn of [...(listeners.keydown ?? [])]) fn(ev);
+};
+
+test("REGRESSION: Cmd or Ctrl with Enter pressed inside a dialog over the thread (the deal sheet records with it) never sends what is in the reply box", () => {
+  for (const k of Object.keys(listeners)) delete listeners[k];
+  cells = [];
+  frames.begin();
+  const sent = [];
+  const thread = {
+    id: "th-rosa",
+    real: true,
+    who: "Rosa Díaz",
+    primaryChannel: "whatsapp",
+    hasChat: true,
+    windowOpen: true,
+    optedOut: false,
+  };
+  InboxComposer({ thread, reply: "Friday at 3 works for us", onSend: (id, words) => sent.push(words) });
+  hear(keyFrom("Enter", { modal: true, ctrlKey: true }));
+  hear(keyFrom("Enter", { modal: true, metaKey: true }));
+  assert.deepEqual(sent, [], "REGRESSION: the sheet's own Ctrl+Enter sent the half-written reply behind it");
+  hear(keyFrom("Enter", { ctrlKey: true, prevented: true }));
+  assert.deepEqual(sent, [], "nor one a control already took");
+  hear(keyFrom("Enter", { ctrlKey: true }));
+  assert.deepEqual(sent, ["Friday at 3 works for us"], "on the page it still sends");
+});
+
+test("REGRESSION: j, k and the arrows pressed inside a dialog over the Inbox move nothing behind it; on the page they still walk the list", () => {
+  const drawn = [];
+  globalThis.InboxList = () => null;
+  globalThis.InboxThread = (p) => {
+    drawn.push(p.thread ? p.thread.id : null);
+    return null;
+  };
+  globalThis.InboxAgentRail = () => null;
+  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  const rosa = {
+    id: "th-rosa",
+    real: true,
+    who: "Rosa Díaz",
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+    tags: [],
+    whoMeta: "",
+    lastAtMs: 2000,
+    timeline: [],
+  };
+  cells = [];
+  for (const k of Object.keys(listeners)) delete listeners[k];
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: {},
+    THREADS: [rosa, { ...rosa, id: "th-nina", who: "Nina Park", lastAtMs: 1000 }],
+  };
+  const render = () => {
+    frames.begin();
+    return globalThis.window.Inbox({ initialThreadId: null, showAgentRail: false });
+  };
+  try {
+    render();
+    const first = drawn.at(-1);
+    assert.ok(first, "a thread is open");
+    for (const key of ["j", "k", "ArrowDown", "ArrowUp"]) {
+      const ev = keyFrom(key, { modal: true });
+      hear(ev);
+      assert.equal(ev.defaultPrevented, false, `${key}: the dialog's own control keeps its key`);
+    }
+    render();
+    assert.equal(drawn.at(-1), first, "REGRESSION: an arrow on the sheet's select moved the thread behind it");
+    hear(keyFrom("j"));
+    render();
+    assert.notEqual(drawn.at(-1), first, "on the page, j still walks the list");
+  } finally {
+    globalThis.InboxThread = RealInboxThread;
+  }
+});

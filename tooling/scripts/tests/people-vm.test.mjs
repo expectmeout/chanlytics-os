@@ -866,10 +866,9 @@ test("a person's proposal is their deal's (0008): the deal's link while it is ou
   const out = vmWith("proposed", onDeal);
   assert.equal(out.proposal.url, onDeal, "the deal's link, not the one left on the person");
   assert.ok(out.about.some((a) => a.k === "Proposal" && a.v === "docs.example.com"));
-  assert.ok(
-    out.acts.some((a) => a.id === "proposal"),
-    "and the send, where deals are on",
-  );
+  // Its first send is the deal card's next act (deal-sheet.ts dealNextAct), so the More menu does not say it again; a
+  // link left on someone with no deal is the menu's own to send (below).
+  assert.ok(!out.acts.some((a) => a.id === "proposal"), "the card leads with the first send");
   assert.equal(vmWith("proposed", null).proposal, null, "a proposal recorded without a link has none to send");
   assert.equal(vmWith("won", onDeal).proposal, null, "a client is not sent a proposal");
   // Changed on purpose in review: a pass is a deal, so the person's own link no longer stands in for it.
@@ -880,6 +879,13 @@ test("a person's proposal is their deal's (0008): the deal's link while it is ou
     toPersonVM(detail({ proposal_url: own, deals_on: true }), ZONE, NOW).proposal.url,
     own,
     "no deal at all: the person's own, read until it retires",
+  );
+  assert.deepEqual(
+    toPersonVM(detail({ proposal_url: own, deals_on: true }), ZONE, NOW)
+      .acts.filter((a) => a.id === "proposal")
+      .map((a) => a.label),
+    ["Send proposal"],
+    "and the More menu sends it",
   );
   // Its value rides on the deal's facts, at every stage.
   assert.ok(

@@ -7,7 +7,8 @@
 // editor a fold and a sheet both are (useBtEditor), written once. The kit (components/record-*.jsx) holds the gesture
 // itself -- focus, keys, the foot, the registry that keeps one editor open; what is the page's is here, once, for every
 // row, fold and sheet of every card: the draft, what stops a save, the save through the tab's one saver
-// (business-tab-save.jsx) or a row's own door, and what the receptionist will be told (business-tab-folds.jsx willSay).
+// (business-tab-save.jsx) or a row's or a fold's own door, and what the receptionist will be told (business-tab-folds.jsx
+// willSay).
 // A card (business-tab-who.jsx, business-tab-open.jsx, business-tab-offer.jsx, business-tab-answers.jsx) draws its
 // rows' values and its folds' and sheets' fields, and nothing of this.
 //
@@ -404,12 +405,18 @@ const btOpening = (id, saver) => {
  *
  * `prefix` names its two asks' Confirms (rec-fold-<id>, rec-sheet-<id>). What a body is handed is `fields` in what it
  * answers, which BtFold's contract says in full.
+ *
+ * `door` is an editor the settings save does not write, as a row's door is (BtRow): { initial, save(draft, done),
+ * pending() }. It opens with `initial`, not with a part of the config; is judged by its card's `check` alone; sends
+ * through `save`, which calls `done` once taken; and has nothing to say it will tell the receptionist. `after(draft)`
+ * runs once a save is taken, with the draft it saved, for a card that does something more then (business-tab-create.jsx).
  */
-const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver = null, said = BT_SAVED, channel = "whatsapp", check = null, nothingYet = false, prefix }) => {
+const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver = null, said = BT_SAVED, channel = "whatsapp", check = null, nothingYet = false, door = null, after = null, prefix }) => {
   const S = window.__businessTabSave;
   // The page's own checks: the fold's (problemsOf, pure) and the card's (`check`), for what the draft does not hold
-  // and only the page knows (the line the workspace answers on). The card's wins under a field both would speak of.
-  const pageProblems = (d) => Object.assign({}, S.problemsOf(id, d), check ? check(d) || {} : {});
+  // and only the page knows (the line the workspace answers on). The card's wins under a field both would speak of. A
+  // door's draft is no part of the config, so only its card's.
+  const pageProblems = (d) => Object.assign({}, door ? {} : S.problemsOf(id, d), check ? check(d) || {} : {});
   const [draft, setDraft] = useBtgState(null);
   const [problems, setProblems] = useBtgState(null);
   const ask = useBtAsk();
@@ -418,15 +425,20 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // What the registry, an Undo and a keystroke read: the latest draft, whatever the page has drawn since.
   // `backs` are the rows taken out of the draft's lists that an Undo may still put back (BtPutBacks), `agains` each one's
   // Undo by its id, and `produced` each list as its own rows() last left it (rows, below).
-  const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0, backs: BtPutBacks.none, agains: new Map(), produced: new Map(), seq: 0 });
-  const busy = saver ? saver.pending(id) : false;
-  const { base, stored, can } = btOpening(id, saver);
+  const live = useBtgRef({ draft: null, opened: null, open: false, opening: 0, backs: BtPutBacks.none, agains: new Map(), produced: new Map(), seq: 0, door: null });
+  // Whether this editor's save is out: at its door, or in the tab's saver. Read through `live`, since the registry
+  // holds the test it was first handed for the editor's life, and the door a card hands over is new on every draw.
+  live.current.door = door;
+  const out = () => (live.current.door ? !!live.current.door.pending() : !!(saver && saver.pending(id)));
+  const busy = out();
+  // A door opens on its own answer: there is always something to open it onto.
+  const { base, stored, can } = door ? { base: null, stored: { draft: door.initial }, can: true } : btOpening(id, saver);
   // Anything typed is something to ask about, whether or not the save would write it (the header says why).
   const holds = () => {
     const l = live.current;
     return !!(l.open && l.draft != null && !S.same(l.draft, l.opened));
   };
-  const fold = window.useRecordFold(id, { dirty: holds, saving: () => !!(saver && saver.pending(id)) });
+  const fold = window.useRecordFold(id, { dirty: holds, saving: out });
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
   // read to save onto, nor a part of the record its draft cannot be worked out of (btOpening).
   const open = fold.open && canEdit && can;
@@ -450,7 +462,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // Undo is pressed long after the draw that made it. It answers whether it took the change, for whoever would say so.
   const update = (fn, keys) => {
     const l = live.current;
-    if (!l.open || (saver && saver.pending(id))) return false;
+    if (!l.open || out()) return false;
     const next = fn(l.draft != null ? l.draft : l.opened);
     l.draft = next;
     setDraft(next);
@@ -575,20 +587,25 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
     // rather than closing as if it had saved -- which is what the create form it replaces did.
     if (draft == null && !nothingYet) { close(); return; }
     const typed = draft != null ? draft : live.current.opened;
+    // Taken: the editor closes, the row it closes into says so (settled), and the card's own `after` runs.
+    const taken = () => { live.current.settled = true; close(); if (after) after(typed); };
     // The checks are the helpers', and a draft they throw on is one they cannot judge: said, in the danger tone, and
-    // nothing sent. `judged` is what to do next; null is a check that could not run.
+    // nothing sent. `judged` is what to do next; null is a check that could not run. A door's draft is judged by its
+    // card's check, and holds a change when it is not what the door opened on; it goes through the door.
     const judged = btWorkedOut(`whether the ${id} fold may be saved`, () => {
       const own = pageProblems(typed);
       if (Object.keys(own).length) return { problems: own };
+      if (door) return S.same(typed, door.initial) ? { nothing: true } : { door: true };
       if (!S.holdsChanges(id, base, typed)) return { nothing: true };
       const all = S.saveProblems(id, base, typed);
       if (Object.keys(all).length) return { problems: all };
-      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: () => { live.current.settled = true; close(); }, flash }) };
+      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: taken, flash }) };
     });
     if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
     if (judged.problems) { setProblems(judged.problems); return; }
     if (judged.nothing) { close(); return; }
     if (ask.armed) ask.disarm();
+    if (judged.door) { door.save(typed, taken); return; }
     saver.save(judged.job);
   };
 
@@ -597,7 +614,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   // written as the save writes it can cross the resolver's line when nothing was typed (the instructions of a record
   // that composes nothing, carried into the owner's field, S4), and the fold said the details would start being given
   // of a Save that then sent nothing (the review's probe P1).
-  const will = open && channel ? btWorkedOut(`what the ${id} fold will say`, () => {
+  const will = open && channel && !door ? btWorkedOut(`what the ${id} fold will say`, () => {
     if (Object.keys(pageProblems(now)).length) return null;
     const said = S.willSay({ was: base.brain, next: S.saveFold(id, base, now).brain, sections: id, channel });
     return said && said.note && !S.holdsChanges(id, base, now) ? { ...said, note: null } : said;
@@ -678,6 +695,12 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * at the press, where a row's own act is simply absent. A fold with a `rest` states no fact yet, so its untouched Save
  * is judged rather than closed (useBtEditor's `nothingYet`).
  * `check(draft)` is the card's own check, beside problemsOf: { fieldKey: sentence } for what the draft does not hold.
+ * `door` is for a fold the settings save does not write (how customers buy, which is the workspace's as the zone is):
+ * { initial, save(draft, done), pending() }, the fold's own way out in place of the tab's saver, as a row's door is
+ * (BtRow). It opens on `initial`, is judged by `check` alone, and says nothing it will tell the receptionist; with
+ * nothing stored yet (`initial` null) its untouched Save is judged, as a `rest` fold's is, so a Save with nothing
+ * chosen says why under the choice rather than closing as if it had saved. `after(draft)` runs once the fold's save is
+ * taken, with the draft it saved: the create card sends what the settings do not hold through its own door then.
  *
  * What it will say is its blocks whole, under "Your receptionist will be told", with the lines that go under "It will
  * no longer be told", and before them the sentence for a save that crosses the resolver's line and each block's own
@@ -689,9 +712,9 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  */
 const BtFold = ({
   id, label, hint = null, row = {}, rest = null, wide = false, lines = false, saveLabel = "Save", said = BT_SAVED, footNote = null, channel = "whatsapp",
-  canEdit = true, gate = null, flash = () => {}, saver = null, check = null, body,
+  canEdit = true, gate = null, flash = () => {}, saver = null, check = null, door = null, after = null, body,
 }) => {
-  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, check, nothingYet: !!rest, prefix: `rec-fold-${id}` });
+  const e = useBtEditor({ id, canEdit, gate, flash, saver, said, channel, check, door, after, nothingYet: !!rest || !!(door && door.initial == null), prefix: `rec-fold-${id}` });
   const found = e.fields.problems;
   const has = !(row.value == null || row.value === "" || row.value === false);
   const will = e.will;

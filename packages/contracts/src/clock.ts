@@ -15,6 +15,8 @@
  *   clockStamp     today "3:10 PM", else "Sep 6 · 3:10 PM"       a message
  *   clockWhen      "today 6:00 PM" · "tomorrow 10:00 AM" · "Sep 12 · 10:00 AM"
  *   clockDayLabel  "Today · Sep 4" · "Yesterday · Sep 3" · "Sep 2"
+ *   clockNear      "today" · "yesterday" · "tomorrow" · "Tue" · "Sep 12"     a chip, a week either side by name
+ *   clockNearWhen  "today 2:00 PM" · "Fri 2:00 PM" · "Oct 2 · 2:00 PM"
  *
  * And the other way, a wall-clock time by the business's clock as an instant:
  * wallClockAt, tomorrowAtIn (a snooze target), and a datetime-local box read and
@@ -33,6 +35,7 @@ interface ZoneFormats {
   time: Intl.DateTimeFormat;
   date: Intl.DateTimeFormat;
   dateYear: Intl.DateTimeFormat;
+  weekday: Intl.DateTimeFormat;
   parts: Intl.DateTimeFormat;
 }
 
@@ -52,6 +55,7 @@ function formatsFor(tz: string): ZoneFormats {
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
     parts: new Intl.DateTimeFormat("en-US", {
       timeZone: zone,
       hourCycle: "h23",
@@ -147,6 +151,39 @@ export function clockWhen(atMs: number, tz: string, nowMs: number): string {
   if (day === today) return `today ${time}`;
   if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
   return `${clockDate(atMs, tz, nowMs)} · ${time}`;
+}
+
+/** Whole days from one business day to another ("2026-09-06" to "2026-09-08" is 2): the dates alone, never a clock. */
+function daysBetween(fromKey: string, toKey: string): number {
+  const at = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
+  return Math.round((at(toKey) - at(fromKey)) / 86_400_000);
+}
+
+/** How many business days a moment is from today: 0 today, -1 yesterday, 1 tomorrow. */
+function daysFromToday(atMs: number, tz: string, nowMs: number): number {
+  return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
+}
+
+/**
+ * A day near the business's today, as a chip says it: "today", "yesterday", "tomorrow", its weekday within six days
+ * either side ("Tue"), else its date ("Sep 12"). A week away is a date, because its weekday is today's. Lower case: the
+ * words it sits in say where a sentence starts ("Held Tue", "Heard back today").
+ */
+export function clockNear(atMs: number, tz: string, nowMs: number): string {
+  const gap = daysFromToday(atMs, tz, nowMs);
+  if (gap === 0) return "today";
+  if (gap === -1) return "yesterday";
+  if (gap === 1) return "tomorrow";
+  if (Math.abs(gap) <= 6) return formatsFor(tz).weekday.format(new Date(atMs));
+  return clockDate(atMs, tz, nowMs);
+}
+
+/** A moment near today: its day as clockNear says it and the time, "Fri 2:00 PM"; past a week, "Oct 2 · 2:00 PM", as clockWhen joins a date. */
+export function clockNearWhen(atMs: number, tz: string, nowMs: number): string {
+  const time = clockTime(atMs, tz);
+  return Math.abs(daysFromToday(atMs, tz, nowMs)) <= 6
+    ? `${clockNear(atMs, tz, nowMs)} ${time}`
+    : `${clockDate(atMs, tz, nowMs)} · ${time}`;
 }
 
 /** A day on a timeline: "Today · Sep 4" · "Yesterday · Sep 3" · "Sep 2". */

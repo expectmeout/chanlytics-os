@@ -153,10 +153,11 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 
-  // Runs for real only where deals are a thing: the seeded nightly workspace lists no consult-first service today, so
-  // this skips there until the seed gains one (a decision for the owner: the Settings journey depends on that seed
-  // being empty). On the local harness there is no People surface at all, so it skips too.
-  test("a deal is recorded on a person's page: the section says the stage first and offers the moves", async ({
+  // Runs for real only where deals are on (0008: the workspace answers that some customers get a proposal first): the
+  // seeded nightly workspace answers that its customers book, so this skips there until the seed says otherwise (the
+  // owner's call). On the local harness there is no People surface at all, so it skips too. Nothing is sent: the walk
+  // records with the sheet's send turned off.
+  test("a deal is recorded through the one sheet: the person's Deal section starts a proposal, the sheet records it without sending, and the card says it", async ({
     page,
   }) => {
     await page.goto("/#/clients");
@@ -171,29 +172,43 @@ test.describe("People on a real workspace", () => {
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    // The deal is the last line of the card's settings; its moves open under Change.
-    const row = page.getByTestId("rec-row-person-deal");
-    if ((await row.count()) === 0) {
-      // Deals are off here (0008: the workspace answers that its customers book, or was never asked): no row is drawn.
+    const section = page.getByTestId("person-deal");
+    if ((await section.count()) === 0) {
+      // Deals are off here (0008: the workspace answers that its customers book, or was never asked): nothing is drawn.
       test.skip(true, "deals are off on this workspace (it answers that its customers book)");
       return;
     }
-    const line = page.getByTestId("person-deal-line");
-    const before = (await line.innerText()).trim();
-    expect(before.length).toBeGreaterThan(0);
-    await page.getByTestId("rec-row-act-person-deal").click();
-    const moves = page.getByTestId("person-deal-move");
-    await expect(moves.first()).toBeVisible();
-    await moves.first().click();
-    await expect(page.getByTestId("person-deal-how")).toBeVisible();
-    await page.getByTestId("person-deal-record").click();
-    // Production records it, the fold closes and the row's line moves on; a refused write stays open and says why.
+    // The deal says itself once, in its section: no Deal row among the card's settings, no Proposal row in About.
+    await expect(page.getByTestId("rec-row-person-deal")).toHaveCount(0);
+    await expect(page.locator(".cl-prof-attr-key", { hasText: /^Proposal$/ })).toHaveCount(0);
+    const start = page.getByTestId("person-deal-start");
+    test.skip(
+      (await start.count()) === 0 || (await start.innerText()).trim() !== "Start a proposal",
+      "the first person already has a proposal out or an engagement running",
+    );
+    await start.click();
+    const sheet = page.getByTestId("rec-sheet-deal-sheet");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator(".rec-sheet-title")).toHaveText("New proposal");
+    await sheet.getByTestId("deal-sheet-link-input").fill("docs.example.com/p/e2e-walk");
+    // Recorded, never sent: the switch goes off where it is on, and Save says so.
+    const send = sheet.getByTestId("deal-sheet-send-switch");
+    if ((await send.getAttribute("aria-checked")) === "true") await send.click();
+    await expect(page.getByTestId("rec-sheet-save-deal-sheet")).toHaveText("Record");
+    await page.getByTestId("rec-sheet-save-deal-sheet").click();
+    // Production records it, the sheet closes and the card says the proposal; a refused write stays in the sheet and
+    // says why.
     await expect(async () => {
-      const moved = (await line.count()) > 0 && (await line.innerText()).trim() !== before;
-      const error = page.getByTestId("person-deal-error");
-      const refused = (await error.count()) > 0 && (await error.innerText()).trim().length > 0;
-      expect(moved || refused).toBe(true);
+      const recorded = (await sheet.count()) === 0 && (await page.getByTestId("person-deal-card").count()) > 0;
+      const refused = (await sheet.count()) > 0 && (await sheet.getByRole("alert").count()) > 0;
+      expect(recorded || refused).toBe(true);
     }).toPass();
+    if ((await sheet.count()) === 0) {
+      const card = page.getByTestId("person-deal-card").first();
+      await expect(card.getByTestId("person-deal-link")).toHaveText("docs.example.com");
+      await expect(card.getByTestId("person-deal-link")).toHaveAttribute("href", "https://docs.example.com/p/e2e-walk");
+      await expect(card.getByTestId("person-deal-fact").first()).toHaveText("Not sent yet");
+    }
   });
 
   test("a profile deep link to a stranger's id says so instead of inventing a person", async ({ page }) => {
@@ -243,6 +258,40 @@ test.describe("People on a real workspace", () => {
       await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe(lands);
       // The Leads scope draws its own standing line, not People's: the old address lands on the scope, not beside it.
       await expect(page.getByTestId(standing)).toBeVisible();
+    }
+  });
+
+  // People › Pipeline (0008) is a scope of People only where deals are on. The nightly workspace answers that its
+  // customers book, so there it has no tab and its address draws People; where deals are on, the tab opens it.
+  test("the Pipeline is a third scope of People only where deals are on, at clients/pipeline", async ({ page }) => {
+    const body = (await (await apiGet(page, "/api/v1/contacts")).json()).data as { deals_on?: boolean };
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    test.skip(
+      (await page.getByTestId("people-standing").count()) === 0,
+      "People is not real here: the local harness draws the seeded page",
+    );
+    await expect(page.getByTestId("scope-people")).toBeVisible();
+    const tab = page.getByTestId("scope-pipeline");
+    if (!body.deals_on) {
+      await expect(tab, "a workspace whose customers book is never offered a Pipeline").toHaveCount(0);
+      await page.goto("/#/clients/pipeline");
+      await expect(page.getByTestId("people-standing")).toBeVisible();
+      await expect(page.getByTestId("pipeline")).toHaveCount(0);
+      await expect
+        .poll(() => new URL(page.url()).hash, { message: "People's own address takes its place" })
+        .toBe("#/clients");
+      return;
+    }
+    await tab.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/pipeline");
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+    await expect(page.getByTestId("scope-pipeline")).toHaveAttribute("aria-selected", "true");
+    // Its rows are People's, grouped; a row opens its person.
+    const rows = page.locator('[data-testid="pipeline"] .pl-table tbody tr[id^="person-"]');
+    if ((await rows.count()) > 0) {
+      await rows.first().click();
+      await expect(page.locator(".cl-prof-name")).toBeVisible();
     }
   });
 

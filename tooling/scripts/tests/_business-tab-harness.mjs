@@ -300,7 +300,8 @@ const facts = (over = {}) => ({
  * last test left out, or its answer, is not this record's. `brain` changes the stored brain beside its profile; `facts`
  * replaces resolved facts, and `resolved` resolves them all from the brain the way the settings read does (contracts
  * resolveFacts). `config` replaces parts of the config beside the brain (the calendar's address), and `zone` is the
- * workspace's, which the settings read resolved the preview in.
+ * workspace's, which the settings read resolved the preview in. `sellsBy` is the workspace's answer to how its
+ * customers buy (0008), as the workspace list carries it: null, never asked, unless a test says otherwise.
  */
 const drawTab = ({
   profile = melany,
@@ -311,6 +312,7 @@ const drawTab = ({
   resolved = null,
   config = {},
   zone = "America/New_York",
+  sellsBy = null,
   setup = SETUP(),
   policies = POLICIES(),
   templates = TEMPLATES(),
@@ -328,13 +330,14 @@ const drawTab = ({
   } else {
     W.__FACTS = facts({ conflicts, facts: known });
   }
-  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: zone }];
+  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: zone, sells_by: sellsBy }];
   W.__ACTIVE_WORKSPACE = "t-melany";
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
-  // The zone's own door outlives the page too, and a zone the last test left out is not this record's.
+  // The workspace's own doors outlive the page too, and a zone or an answer the last test left out is not this record's.
   W.__businessTabSave.zone.reset();
+  W.__businessTabSave.sellsBy.reset();
   return W.React.createElement(W.BusinessTab, { flash });
 };
 /** The same page again, over the same hook cells, as React draws it after a state change. */

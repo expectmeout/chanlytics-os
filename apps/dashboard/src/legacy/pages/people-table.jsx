@@ -25,6 +25,10 @@ const plDrawnColumns = (columns, choices, x) => columns.filter((c) => !c.needs |
 const plShownColumns = (drawn, phone) => (phone ? drawn : drawn.filter((c) => !c.off));
 
 const PL_NO_SEL = new Set();
+// The table's default for a door its page does not pass: one function for the page's life. A default written in the
+// parameter list is a new function on every draw, and the memoised rows handed one (onToggle, onCursor) drew again on
+// every keystroke, J, fold and toast of a page that never selects -- the Pipeline's.
+const PL_NOOP = () => {};
 // The rows a fresh mount draws first; the page lifts the budget a frame later (clients-a.jsx rowBudget). The switch
 // between People and Leads is a remount, and the Leads table's rows were most of what it waited on: measured on the
 // salon, a 250 ms draw of 96 leads, 125 ms with the first 24. Enough rows for a tall screen's first view.
@@ -65,11 +69,25 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // `busy`: the rows drawn are the last view's while the one asked for is on its way; a screen reader hears it, and
 // the page's stylesheet dims them (Leads: leads.css [data-loading]).
 // The columns are the page's to choose (plShownColumns): the table draws every one it is given.
-const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, selectMode = false }) => {
+// `sections`: the rows in groups (the Pipeline's stages), [{ key, label, meta, rows, collapsed, onToggle, toggle }], each
+// its own <tbody> under a header row that names it, counts its rows and says its meta; a collapsed one draws its header
+// alone, with its `toggle` (the words that open it, "Show") pressing `onToggle`. The header row has no id, so the
+// cursor and select-all, which go by rows' ids, pass it by. `rows` is still every row shown, in their order: what the
+// foot counts, select-all takes and the cursor walks. Without `sections` the table is one body, as it always was.
+const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = PL_NOOP, onToggleAll = PL_NOOP, cursor = null, onCursor = PL_NOOP, empty = null, scrolled = false, onScrolled = PL_NOOP, noun = "person", rowClass = null, busy = false, selectMode = false, sections = null }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet: the faces are
   // rings from the start.
   const selecting = selectMode || rows.some((p) => sel.has(p.id));
+  const span = columns.length + (selectable ? 1 : 0);
+  const row = (p, i) => <PeopleRowMemo key={p.id} p={p} columns={columns} ctx={ctx} words={words} selectable={selectable} selected={sel.has(p.id)} focused={cursor === p.id} tabStop={cursor === p.id || (!cursor && i === 0)} onToggle={onToggle} onCursor={onCursor} onOpen={onOpen} rowClass={rowClass} />;
+  const emptyRow = () => (
+    <tr>
+      <td colSpan={span}>
+        <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
+      </td>
+    </tr>
+  );
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
       <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} aria-busy={busy ? "true" : undefined} data-testid="people-table-scroll">
@@ -95,21 +113,15 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
             </tr>
           </thead>
           {/* What a view on its way dims (components.css [data-loading] [data-dims]): the rows, never the heads. */}
+          {sections && sections.some((s) => s.rows.length > 0) ? plSectionBodies(sections, span, budget, row) : (
           <tbody data-dims>
             {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}
-            {(budget < rows.length ? rows.slice(0, budget) : rows).map((p, i) => (
-              <PeopleRowMemo key={p.id} p={p} columns={columns} ctx={ctx} words={words} selectable={selectable} selected={sel.has(p.id)} focused={cursor === p.id} tabStop={cursor === p.id || (!cursor && i === 0)} onToggle={onToggle} onCursor={onCursor} onOpen={onOpen} rowClass={rowClass} />
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={columns.length + (selectable ? 1 : 0)}>
-                  <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
-                </td>
-              </tr>
-            )}
+            {(budget < rows.length ? rows.slice(0, budget) : rows).map(row)}
+            {rows.length === 0 && emptyRow()}
           </tbody>
+          )}
         </table>
       </div>
       <div className="cl-table-foot">
@@ -118,6 +130,40 @@ const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sor
       </div>
     </div>
   );
+};
+
+// The table's sections, one <tbody> each: a header row (a <th scope="rowgroup"> across every column, with no id), then
+// the section's rows unless it is collapsed. A first draw's budget runs across the sections in turn, and a section it
+// cannot reach waits for the next draw whole, header and all: a header over none of its rows would read, for a frame,
+// as a folded one. `row(p, i)` draws a row, `i` counting from the first row drawn, which is the table's tab stop until
+// there is a cursor.
+const plSectionBodies = (sections, span, budget, row) => {
+  const out = [];
+  let left = budget;
+  let at = 0;
+  for (const s of sections) {
+    if (!s.collapsed && left <= 0) break;
+    const shown = s.collapsed ? [] : left < s.rows.length ? s.rows.slice(0, left) : s.rows;
+    left -= shown.length;
+    const first = at;
+    at += shown.length;
+    out.push(
+      <tbody key={s.key} data-dims data-section={s.key}>
+        <tr className={`pl-sec-head${s.collapsed ? " is-folded" : ""}`} data-testid="table-section">
+          <th scope="rowgroup" colSpan={span}>
+            <span className="pl-sec-line">
+              <span className="pl-sec-label">{s.label}</span>
+              <span className="tally">{s.rows.length}</span>
+              {s.meta ? <><span className="pl-sec-dot" aria-hidden="true">·</span><span className="pl-sec-meta" data-testid="table-section-meta">{s.meta}</span></> : null}
+              {s.onToggle && s.toggle ? <button type="button" className="pl-sec-toggle" aria-expanded={!s.collapsed} onClick={s.onToggle} data-testid="table-section-toggle">{s.toggle}</button> : null}
+            </span>
+          </th>
+        </tr>
+        {shown.map((p, i) => row(p, first + i))}
+      </tbody>,
+    );
+  }
+  return out;
 };
 
 // A saved `columns` value, read with care: only the columns a member may hide, and only true or false. A view is the

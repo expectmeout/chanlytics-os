@@ -33,7 +33,7 @@ import {
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { NO_NUMBER_REACH, reasonShort, saidYesTo, type PersonRowVM } from "./people";
-import { proposalsWaiting, type DealVM } from "./deals";
+import { consultationsWithoutProposal, consultsHeldWords, proposalsWaiting, type DealVM } from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
@@ -1759,7 +1759,8 @@ export interface JourneyListLike {
  * is counted twice, and nothing here is a trend -- a period over a period is
  * noise at these counts (reports.ts dropped tile deltas for exactly that).
  */
-export type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | "unreachable" | "quiet";
+export type TodayLeakId =
+  "never-booked" | "unanswered" | "consults-waiting" | "proposals-waiting" | "unreachable" | "quiet";
 
 export interface TodayLeakVM {
   id: TodayLeakId;
@@ -1774,11 +1775,14 @@ export interface TodayLeakVM {
   /** The arithmetic behind the sentence, so nobody has to take it on faith. */
   math: string;
   /**
-   * Who is waiting NOW with nothing back, up to two, on the unanswered row: the threads Today holds. They are not the
-   * count's own subjects (the count is Reports' over its period), so the page draws them under "Waiting now" and
-   * never as the people the sentence counts.
+   * Who the row names, up to two, each with where a press goes and the words it says on hover. The unanswered row
+   * names who is waiting NOW with nothing back, the threads Today holds: not the count's own subjects (the count is
+   * Reports' over its period), so its lead says "Waiting now" and never draws them as the people the sentence counts.
+   * The consultations row names the count's own people, the first two the Pipeline lists, each to their page.
    */
-  people: Array<{ id: string; name: string; to: string }>;
+  people: Array<{ id: string; name: string; to: string; title: string }>;
+  /** The words in front of `people`, which say who they are; null on a row that names nobody. */
+  peopleLead: string | null;
   /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
   ask: string;
   /** The door. */
@@ -1799,26 +1803,43 @@ export interface PeopleListsLike {
   lists: JourneyListLike[];
   aggregates?: { total: number };
   /**
-   * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; and
-   * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
+   * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; their
+   * deal and when they last wrote, for the proposals waiting (0004); and who they are and when their last
+   * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
    */
-  rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
-  /** Whether deals are on here (dealsAreOn, 0008): the proposals waiting are a row only then. */
+  rows: ReadonlyArray<
+    Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs">>
+  >;
+  /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
   dealsOn?: boolean;
+  /**
+   * When People was read and its rows worked out: the deal rows are counted at that moment, as the Pipeline counts
+   * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
+   */
+  fetchedAt?: number;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
 export const TODAY_LEAK_MAX = 2;
 
 /**
- * In this order, and the order is the point: the first three all cost a
+ * In this order, and the order is the point: the first four all cost a
  * customer, and the one that costs more of them comes first. A person who
  * asked and never got onto the calendar is the business's whole purpose
- * missed; a message nobody answered is one conversation; a proposal waiting
- * past a week is a customer one step from yes (0004). Then the two that
- * cost a chance rather than a customer.
+ * missed; a message nobody answered is one conversation; a consultation with
+ * no proposal after it is a step the business has not taken (0008), and a
+ * proposal waiting past a week is one the customer has not answered (0004),
+ * so the business's own step comes first. Then the two that cost a chance
+ * rather than a customer.
  */
-const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
+const LEAK_ORDER: readonly TodayLeakId[] = [
+  "never-booked",
+  "unanswered",
+  "consults-waiting",
+  "proposals-waiting",
+  "unreachable",
+  "quiet",
+];
 
 // The arithmetic was written to sit under the sentence ("of 21 in the last 30 days"); as a sentence of its own it takes a capital.
 const askWhy = (text: string, math: string): string => `${text} ${capitalize(math)}. Why is that?`;
@@ -1857,6 +1878,7 @@ export function todayLeaks(
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked"),
@@ -1878,9 +1900,48 @@ export function todayLeaks(
       icon: "alert",
       text,
       math,
-      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
+      people: noReply
+        .slice(0, 2)
+        .map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s thread` })),
+      peopleLead: "Waiting now",
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null,
+    });
+  }
+
+  // The deal rows are counted at the moment People's rows were worked out, as the Pipeline counts the same rows: one
+  // clock, so the two pages say one number.
+  const dealsAt = (people && people.fetchedAt) || nowMs;
+
+  // A consultation that ended in the last week with no proposal after it is the next step nobody has taken (0008). One
+  // is enough, as a proposal waiting is. The rule is contracts' consultationsWithoutProposal over the rows People
+  // holds, the rows, the rule and the clock the Pipeline counts its Consultations by, so the number is the Pipeline's,
+  // re-printed in its own sentence (consultsHeldWords). The names are the count's own people, the first two the rule
+  // gives, as the Pipeline lists them, each to their page. Amber, as a person should look (#928). Only where deals are
+  // on (0008).
+  const consultRows = (people?.rows ?? []).filter(
+    (r): r is typeof r & Pick<PersonRowVM, "id" | "name" | "deal" | "consultedMs"> =>
+      typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r,
+  );
+  const held = consultationsWithoutProposal(consultRows, dealsAt);
+  if (people && people.dealsOn && held.length >= 1) {
+    const n = held.length;
+    const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+    const math = `${consultsHeldWords(n)} · on Pipeline`;
+    found.set("consults-waiting", {
+      id: "consults-waiting",
+      tone: "warn",
+      tag: "Next step",
+      icon: "calendar",
+      text,
+      math,
+      people: held
+        .slice(0, 2)
+        .map((r) => ({ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name} in People` })),
+      peopleLead: "Held with",
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: "clients/pipeline" },
       also: null,
     });
   }
@@ -1891,7 +1952,7 @@ export function todayLeaks(
   const dealRows = (people?.rows ?? []).filter(
     (r): r is typeof r & { deal: DealVM | null; askedMs: number | null } => "deal" in r && "askedMs" in r,
   );
-  const waiting = proposalsWaiting(dealRows, nowMs);
+  const waiting = proposalsWaiting(dealRows, dealsAt);
   const po = list("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
@@ -1904,6 +1965,7 @@ export function todayLeaks(
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null,
@@ -1931,6 +1993,7 @@ export function todayLeaks(
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
@@ -1949,6 +2012,7 @@ export function todayLeaks(
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet"),

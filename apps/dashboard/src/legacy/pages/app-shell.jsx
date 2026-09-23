@@ -7,6 +7,7 @@
 //   #/today                → Operator's brief
 //   #/inbox                → Inbox
 //   #/clients              → Clients portfolio
+//   #/clients/pipeline     → People › Pipeline, where deals are on (else People)
 //   #/clients/<id>         → Client profile
 //   #/soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
 
@@ -420,6 +421,15 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       : [{ label: "People", to: "clients" }, "Leads"];
     pane = true;
     content = <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+  } else if (page === "clients" && param === "pipeline") {
+    // People › Pipeline (0008): People's rows by where their deal stands, the page's third scope. Only where deals are
+    // on, by the People surface's answer (contracts dealsAreOn): anywhere else the address draws People, whose switch
+    // offers no Pipeline there. The retired demo board keeps its own address, #/pipeline, which lands on People.
+    const dealsOn = !!(window.__PEOPLE && window.__PEOPLE.dealsOn);
+    activeNav = "clients";
+    crumbs = dealsOn ? [{ label: "People", to: "clients" }, "Pipeline"] : ["People"];
+    pane = true;
+    content = <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param === "new-list") {
     // People with the New list box open: a door elsewhere (a profile's "Make one on People") says where it goes in
     // the address, rather than navigating and then firing segments:new on a timer it hoped the page had loaded by.
@@ -761,15 +771,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   const surfaceReady = routeReady(page, param);
   const surfaceUnavailable = !surfaceReady && (routeFailed(page, param) || routeTimedOut);
   const routeLoading = !surfaceReady && !surfaceUnavailable;
-  // A move that stays on the page -- People to Leads and back -- is still a remount (the two scopes are two mounts),
-  // and the route fade played on every one, on top of the rows' own draw: the switch read as a wait. The fade is for
-  // arriving somewhere else, and for a page landing where the reading pane stood; a view that follows another of the
-  // same page draws at once. A person's profile is somewhere else, though its route starts with the list's word.
+  // A move that stays on the page -- People to Leads or the Pipeline and back -- is still a remount (each scope is a
+  // mount of its own), and the route fade played on every one, on top of the rows' own draw: the switch read as a
+  // wait. The fade is for arriving somewhere else, and for a page landing where the reading pane stood; a view that
+  // follows another of the same page draws at once. A person's profile is somewhere else, though its route starts with
+  // the list's word.
   // Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
   // (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
   // frame in.
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
-  const family = page === "clients" && param && !/^(leads(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
+  const family = page === "clients" && param && !/^(leads(:|$)|pipeline$|seg:|list:|state:)/.test(param) ? "clients/person" : page;
   const viewRef = useShellRef({ key: null, family: null, reading: false, stay: false });
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
@@ -861,6 +872,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
 
       <AskBar open={askOpen} onClose={() => setAskOpen(false)} />
       <ShortcutsSheet />
+      {/* The one deal sheet (0008), opened from anywhere by window.openDealSheet: the person's card, the thread. */}
+      {window.DealSheetHost ? <window.DealSheetHost /> : null}
     </div>
   );
 };
