@@ -649,7 +649,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         {...shared}
         id="fallbacks"
         label="When it can't answer"
-        hint="Three messages, sent in your name."
+        hint="What a customer is sent when it cannot reply itself."
         channel={null}
         gate={gate("the messages sent when it can't answer")}
         row={{

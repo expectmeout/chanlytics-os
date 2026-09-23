@@ -89,6 +89,8 @@ const RETIRED = [
   "you set this",
   "differ from the default wording",
   "All times America/New_York",
+  // Task 4.0: "3 messages sent in your name", said of the fallbacks wherever it stood.
+  "sent in your name",
 ];
 
 test("no phrase §10 retired is drawn anywhere on the Business tab", () => {
@@ -117,6 +119,24 @@ test("nobody's email is drawn, and no count sits on a row at rest", () => {
   for (const row of all(tree, (n) => classes(n).includes("rec-row"))) {
     assert.doesNotMatch(textOf(row), /\d[\d,]*\s+characters?/, `${row.props["data-testid"]} carries a count`);
   }
+});
+
+test("the told section has no Show: its one door is Read it (Task 5.1)", () => {
+  // "Show" opened the prompt inside the card; the told section's door opens the prompt sheet, and nothing on the page
+  // is a Show any more.
+  for (const { where, tree } of everything()) {
+    const shows = all(tree, (n) => (n.type === "button" || n.type === "a") && /^show/i.test(textOf(n).trim()));
+    assert.deepEqual(
+      shows.map((n) => textOf(n).trim()),
+      [],
+      `${where} offers a Show`,
+    );
+  }
+  const told = byTestId(drawTab(), "rec-card-told");
+  assert.deepEqual(
+    all(told, (n) => n.type === "button").map((n) => textOf(n).trim()),
+    ["Read it"],
+  );
 });
 
 /* ------------------------------------ kept ------------------------------------ */
