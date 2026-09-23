@@ -3,10 +3,17 @@
    ============================================================ */
 
 /* ---------- App shell ---------- */
+/* As tall as the phone SHOWS, not as tall as it could show. On iOS Safari (and Chrome on Android) 100vh is the
+   largest viewport, the one with the browser's toolbar tucked away; with the toolbar showing the visible page is
+   about 50px shorter. This shell is one box that never scrolls, its tab bar is fixed to the visible bottom, and the
+   room every page keeps under the bar (.main-scroll's padding, mobile.css) was the part pushed below the visible
+   edge: on a phone the thread's reply box, Today's last card, every page's foot ended behind the tab bar. dvh is
+   the visible height; 100vh stays in front of it for a browser without dvh. */
 .app {
   display: grid;
   grid-template-columns: auto 1fr;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background: var(--bg);
   color: var(--ink);
@@ -828,10 +835,12 @@ a.btn { text-decoration: none; }
    ============================================================ */
 
 /* ---------- App root (live product frame) ---------- */
+/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it. */
 .app-root {
   display: grid;
   grid-template-columns: auto 1fr;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background: var(--bg);
   color: var(--ink);
@@ -1446,7 +1455,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 }
 .rp-share-link .icon { color: var(--ink-faint); }
 .rp-share-url { flex: 1; min-width: 0; font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shared-root { height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: hidden; }
+.shared-root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: hidden; }
 .shared-banner {
   display: flex;
   align-items: center;

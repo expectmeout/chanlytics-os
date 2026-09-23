@@ -26,8 +26,25 @@ import { ROOT, readRaw } from "./_source.mjs";
 
 const STYLES = path.join(ROOT, "apps/dashboard/src/legacy/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
-// Read once for the two tests below: the ratchet counts reads, and a phone rule is proven in the browser, pinned here.
+// Read once for the tests below: the ratchet counts reads, and a phone rule is proven in the browser, pinned here.
 const MOBILE = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+const COMPONENTS = readRaw("apps/dashboard/src/legacy/styles/components.css");
+
+test("the shell is as tall as the phone shows, not as tall as it could show: 100dvh, with 100vh in front of it", () => {
+  // On iOS Safari (and Chrome on Android) 100vh is the LARGEST viewport, the one with the browser's toolbar tucked
+  // away; with the toolbar showing, the visible page is about 50px shorter. The shell is one 100vh box that never
+  // scrolls, its tab bar is fixed to the visible bottom, and the room every page keeps under the bar (.main-scroll's
+  // padding) was the part pushed below the visible edge: on the salon's phone the thread's reply box, Today's last
+  // card and every page's foot ended behind the tab bar (22 Sep). dvh is the visible height. Chrome's viewport is
+  // one size, so the browser cannot show this; the rule is pinned.
+  for (const root of [".app-root", ".app", ".shared-root"]) {
+    const rule = COMPONENTS.match(new RegExp(`\\${root} \\{[^}]*\\}`));
+    assert.ok(rule, `${root} has a rule`);
+    assert.match(rule[0], /height: 100vh;\s*height: 100dvh;/, `${root}: 100vh for a browser without dvh, then 100dvh`);
+  }
+  // The room under the bar, which dvh keeps on screen: the bar is 6 + 44 + 6px and a hairline over the safe area.
+  assert.match(MOBILE, /\.main-scroll \{ padding-bottom: calc\(64px \+ env\(safe-area-inset-bottom\)\); \}/);
+});
 
 test("the measures are tokens, and every page takes one of them", () => {
   const tokens = readRaw("apps/dashboard/src/legacy/styles/tokens.css");
@@ -121,7 +138,7 @@ test("the focus ring is a default, not a list of names", () => {
   // construction: it covered 29 selectors and missed 39 real controls —
   // calendar appointments, segment rows, policy dots, every chip and inline
   // link — so a keyboard user tabbing through them saw nothing move.
-  const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  const components = COMPONENTS;
   assert.match(
     components,
     /:where\(button, a\[href\], summary, \[role="button"\], \[role="switch"\], \[role="tab"\],\s*\[role="option"\], \[tabindex="0"\]\):focus-visible \{/,
@@ -182,7 +199,7 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   // and a 220px rail beside a 155px column on a 375px phone. Every page jumped when it left. A loading state that
   // moves the page when it leaves is worse than none, so the pane stays empty and says it is reading once a beat
   // has passed (app-shell.jsx, the route view; shell-status.test.mjs draws it).
-  const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  const components = COMPONENTS;
   assert.doesNotMatch(components, /\.skel\b|skel-/, "no skeleton rules");
   const reading = components.match(/\.route-reading \{[^}]*\}/);
   assert.ok(reading, "the reading line has a rule");
@@ -228,7 +245,7 @@ test("digits in a column line up without being asked", () => {
   // in, so figures a reader is there to COMPARE sat on proportional digits and
   // the column edges wandered. Measured after: 66 numeric cells across four
   // surfaces, none proportional.
-  const components = readRaw("apps/dashboard/src/legacy/styles/components.css");
+  const components = COMPONENTS;
   assert.match(
     components,
     /\.tbl th, \.tbl td, \.cl-table th, \.cl-table td \{ font-variant-numeric: tabular-nums; \}/,

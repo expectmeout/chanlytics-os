@@ -50,7 +50,7 @@
     "hygiene.test.mjs": 6,
     "identity.test.mjs": 10,
     "inbox-channels.test.mjs": 3,
-    "layout-measure.test.mjs": 11,
+    "layout-measure.test.mjs": 9,
     "lead-context.test.mjs": 1,
     "legacy-harness.test.mjs": 5,
     "line-recovery.test.mjs": 6,
