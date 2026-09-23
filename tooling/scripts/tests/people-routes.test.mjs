@@ -25,6 +25,9 @@ const viewSet = await import(at("apps/dashboard/app/api/v1/views/[page]/route.ts
 const person = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 const details = await import(at("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts"));
 const deal = await import(at("apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts"));
+const noteWrite = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/route.ts"));
+const noteRemove = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/remove/route.ts"));
+const noteDecide = await import(at("apps/dashboard/app/api/v1/contacts/[id]/notes/decide/route.ts"));
 const receptionist = await import(at("apps/dashboard/app/api/v1/contacts/[id]/receptionist/route.ts"));
 const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
@@ -727,7 +730,7 @@ test("the receptionist's mode for many: owners, ours and not erased, the same po
   );
 });
 
-test("a note line for many: appended under what is there, through the single door; full notes are reported by name, not truncated", async () => {
+test("a note for many: each person gets it as a note of their own, through the one note door -- a person whose notes were full was refused", async () => {
   assert.deepEqual(notesMany.PUT.policy, {
     kind: "write",
     scope: "workspace",
@@ -737,18 +740,14 @@ test("a note line for many: appended under what is there, through the single doo
   });
   const written = [];
   const rpcs = {
-    set_person_notes: (a) => {
+    person_note_add: (a) => {
       written.push(a);
-      return { notes: a.p_notes };
+      return a.p_contact_id === P3 ? { error: "not_found" } : { note: { id: `n-${a.p_contact_id}` } };
     },
   };
   const tables = {
     memberships: both("operator", "viewer"),
-    contacts: [
-      liveContact(P1, A, { notes: "Sees Sofia" }),
-      liveContact(P2, A, { notes: null }),
-      liveContact(P3, A, { notes: "x".repeat(590) }),
-    ],
+    contacts: [liveContact(P1, A), liveContact(P2, A), liveContact(P3, A)],
   };
   const out = await notesMany.PUT.run(
     send("PUT", { ids: [P1, P2, P3], append: "  class of 12 Sep  " }, inA),
@@ -756,15 +755,17 @@ test("a note line for many: appended under what is there, through the single doo
   );
   assert.deepEqual(out, {
     done: 2,
-    failed: [{ id: P3, message: "Their notes are full (600 characters)." }],
+    failed: [{ id: P3, message: "This person or this note is no longer here." }],
     skipped: [],
   });
   assert.deepEqual(
-    written.map((w) => [w.p_contact_id, w.p_notes]),
+    written.map((w) => [w.p_contact_id, w.p_body, w.p_source]),
     [
-      [P1, "Sees Sofia\nclass of 12 Sep"],
-      [P2, "class of 12 Sep"],
+      [P1, "class of 12 Sep", "bulk"],
+      [P2, "class of 12 Sep", "bulk"],
+      [P3, "class of 12 Sep", "bulk"],
     ],
+    "trimmed, the same words for each, marked as People's bulk note",
   );
   await refused(
     notesMany.PUT.run(send("PUT", { ids: [P1], append: "   " }, inA), ctxFor(tables, {}, rpcs)),
@@ -1115,4 +1116,118 @@ test("deal: the door's refusal is a sentence in the owner's words, and no decisi
     ctxFor(tables, { id: P2 }, won),
   );
   assert.deepEqual(doors.at(-1).p_evidence, { form: "DocuSign, Sep 20" });
+});
+
+test("a note on a person (0007): one route writes or changes it, one takes it away, one keeps or dismisses a suggestion -- owner or operator, each on this person only", async () => {
+  for (const r of [noteWrite, noteRemove, noteDecide])
+    assert.deepEqual(r.POST.policy, {
+      kind: "write",
+      scope: "row",
+      role: "operator",
+      rate: "person_edit",
+      spend: false,
+    });
+  const N1 = "abababab-1111-4111-8111-abababababab";
+  const N2 = "cdcdcdcd-2222-4222-8222-cdcdcdcdcdcd";
+  const at = "2026-09-20T15:00:00.000Z";
+  const stored = (id, over = {}) => ({
+    id,
+    tenant_id: B,
+    contact_id: P2,
+    body: "Prefers Saturdays.",
+    author_kind: "member",
+    author_user_id: USER,
+    for_user_id: null,
+    team_only: false,
+    state: "kept",
+    source: "page",
+    version: 1,
+    created_at: at,
+    updated_at: at,
+    ...over,
+  });
+  const doors = [];
+  const rpcs = {
+    person_note_add: (a) => (
+      doors.push(["add", a]),
+      { note: stored(N1, { body: a.p_body, team_only: a.p_team_only }) }
+    ),
+    person_note_edit: (a) => (
+      doors.push(["edit", a]),
+      a.p_version === 1 ? { note: stored(N1, { body: a.p_body, version: 2 }) } : { error: "moved" }
+    ),
+    person_note_remove: (a) => (doors.push(["remove", a]), { removed: a.p_note_id }),
+    person_note_decide: (a) => (
+      doors.push(["decide", a]),
+      a.p_keep ? { note: stored(N2, { state: "kept" }) } : { removed: a.p_note_id }
+    ),
+  };
+  const tables = () => ({
+    memberships: both("viewer", "operator"),
+    contacts: [contact(P1, A), contact(P2, B)],
+    person_notes: [
+      stored(N1),
+      stored(N2, { author_kind: "receptionist", author_user_id: null, state: "suggested" }),
+      stored("efefefef-3333-4333-8333-efefefefefef", { contact_id: P1, tenant_id: A }),
+    ],
+  });
+
+  await refused(
+    noteWrite.POST.run(send("POST", { body: "Hi" }), ctxFor(tables(), { id: P1 }, rpcs)),
+    "forbidden",
+    403,
+    "a viewer writes nothing",
+  );
+  await assert.rejects(
+    noteWrite.POST.run(send("POST", { body: "x".repeat(601) }), ctxFor(tables(), { id: P2 }, rpcs)),
+    (e) => (assert.equal(e.code, "validation"), true),
+  );
+  assert.equal(doors.length, 0, "refused before any door opens");
+
+  const added = await noteWrite.POST.run(
+    send("POST", { body: "  Prefers Saturdays.  ", team_only: true }),
+    ctxFor(tables(), { id: P2 }, rpcs),
+  );
+  assert.deepEqual(doors.at(-1), ["add", { p_contact_id: P2, p_body: "Prefers Saturdays.", p_team_only: true }]);
+  assert.equal(added.note.mine, true, "the writer's own");
+  assert.equal(added.note.team_only, true);
+
+  await noteWrite.POST.run(
+    send("POST", { body: "Changed.", note_id: N1, version: 1 }),
+    ctxFor(tables(), { id: P2 }, rpcs),
+  );
+  assert.deepEqual(doors.at(-1), ["edit", { p_note_id: N1, p_body: "Changed.", p_team_only: false, p_version: 1 }]);
+  await refused(
+    noteWrite.POST.run(send("POST", { body: "Stale.", note_id: N1, version: 3 }), ctxFor(tables(), { id: P2 }, rpcs)),
+    "conflict",
+    409,
+    "a stale version is refused in the owner's words",
+  );
+
+  const n = doors.length;
+  await refused(
+    noteRemove.POST.run(
+      send("POST", { note_id: "efefefef-3333-4333-8333-efefefefefef" }),
+      ctxFor(tables(), { id: P2 }, rpcs),
+    ),
+    "not_found",
+    404,
+    "a note on someone else is not this person's to take away",
+  );
+  assert.equal(doors.length, n, "and no door opened for it");
+  assert.deepEqual(await noteRemove.POST.run(send("POST", { note_id: N1 }), ctxFor(tables(), { id: P2 }, rpcs)), {
+    removed: N1,
+  });
+
+  const keptOut = await noteDecide.POST.run(
+    send("POST", { note_id: N2, keep: true }),
+    ctxFor(tables(), { id: P2 }, rpcs),
+  );
+  assert.equal(keptOut.note.state, "kept");
+  assert.deepEqual(
+    await noteDecide.POST.run(send("POST", { note_id: N2, keep: false }), ctxFor(tables(), { id: P2 }, rpcs)),
+    {
+      removed: N2,
+    },
+  );
 });

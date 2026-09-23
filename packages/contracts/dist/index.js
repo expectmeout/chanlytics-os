@@ -350,6 +350,12 @@ var EVENT_KINDS = [
   /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
+  "contact.note_changed",
+  "contact.note_removed",
+  "contact.note_suggested",
+  "contact.note_kept",
+  "contact.note_dismissed",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -6454,6 +6460,80 @@ function proposalAction(replyVia, win, sentWords) {
     ready: false
   };
 }
+var NOTE_MAX = 600;
+var NOTE_WORDS = {
+  title: "Notes",
+  placeholder: "Add a note\u2026",
+  add: "Add note",
+  save: "Save",
+  cancel: "Cancel",
+  edit: "Edit",
+  remove: "Delete",
+  askRemove: "Delete this note?",
+  more: "More for this note",
+  edited: "edited",
+  forAnyone: "For anyone",
+  forLabel: "For",
+  teamOnly: "Team only",
+  teamOnlyHint: "The receptionist won't read it",
+  readsHint: "The receptionist uses notes as facts and never reads them aloud.",
+  none: "No notes yet.",
+  suggested: "Suggested by the receptionist",
+  keep: "Keep",
+  dismiss: "Dismiss",
+  added: "Note added",
+  saved: "Note saved",
+  removed: "Note deleted",
+  kept: "Kept: the receptionist uses it from now on",
+  dismissed: "Dismissed",
+  showAll: (n) => `Show all ${n}`,
+  showFewer: "Show fewer",
+  left: (n) => `${n} left`
+};
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note."
+};
+var NOTE_FROM = {
+  page: null,
+  bulk: null,
+  moved: null,
+  call: "After a call",
+  thread: "After a conversation"
+};
+function personNotesVM(notes, tz, nowMs) {
+  const at2 = (iso) => {
+    const t = Date.parse(iso);
+    return Number.isFinite(t) ? t : nowMs;
+  };
+  return [...notes ?? []].sort(
+    (a, b) => Number(b.state === "suggested") - Number(a.state === "suggested") || at2(b.created_at) - at2(a.created_at)
+  ).map((n) => {
+    const t = at2(n.created_at);
+    return {
+      id: n.id,
+      body: n.body,
+      who: n.author_kind === "receptionist" ? "The receptionist" : n.mine ? "You" : (n.author_name ?? "").trim() || "A former teammate",
+      when: clockShort(t, tz, nowMs),
+      whenFull: `${clockDateYear(t, tz)} \xB7 ${clockTime(t, tz)}`,
+      forWho: n.for_me ? "For you" : n.for_user_id && n.for_name ? `For ${n.for_name}` : null,
+      forMe: n.for_me,
+      forUserId: n.for_user_id,
+      teamOnly: n.team_only,
+      suggested: n.state === "suggested",
+      from: n.author_kind === "receptionist" ? NOTE_FROM[n.source] : null,
+      mine: n.mine && n.author_kind === "member",
+      edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
+      version: n.version
+    };
+  });
+}
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -7493,7 +7573,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     timeline: items,
     comingUp: comingUp.sort((a, b) => a.t - b.t).map((c) => c.vm),
     about,
-    notes: d.notes?.trim() || null,
+    noteList: personNotesVM(d.person_notes, tz, nowMs),
+    noteTeam: d.note_team ?? [],
     bookingLink: d.booking_link?.trim() || null,
     openThread: base.threadId ? `inbox/${base.threadId}` : null,
     receptionistMode: {
@@ -15213,6 +15294,11 @@ var WORDS = {
   "contact.added": "A person was added",
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
+  "contact.note_changed": "A note was changed",
+  "contact.note_removed": "A note was taken away",
+  "contact.note_suggested": "The receptionist suggested a note",
+  "contact.note_kept": "A suggested note was kept",
+  "contact.note_dismissed": "A suggested note was dismissed",
   "contact.email_set": "A person's email address changed",
   "contact.proposal_set": "A person's proposal link changed",
   // A deal is a record (0004): each move of one, in the owner's words.
@@ -16905,6 +16991,9 @@ var SCHEMA_SETS = {
     "leads_ready",
     "leads_question"
   ],
+  "person_notes.author_kind": ["member", "receptionist"],
+  "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
+  "person_notes.state": ["kept", "suggested"],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
@@ -17666,6 +17755,9 @@ export {
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
+  NOTE_MAX,
+  NOTE_REFUSALS,
+  NOTE_WORDS,
   NO_FIELDS_COMPOSED_WORDS,
   NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
@@ -18192,6 +18284,7 @@ export {
   personInText,
   personInitials,
   personName,
+  personNotesVM,
   personStanding,
   personStateFor,
   phoneTail,

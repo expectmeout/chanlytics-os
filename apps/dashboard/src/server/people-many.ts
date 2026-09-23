@@ -1,3 +1,4 @@
+import { NOTE_REFUSALS } from "@chanlytics/contracts";
 import { setPersonReplyMode } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
@@ -18,7 +19,6 @@ export interface ManyOutcome {
   skipped: string[];
 }
 
-export const NOTES_MAX = 600;
 export const NOTE_LINE_MAX = 200;
 export const RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"] as const;
 export type ReceptionistMode = (typeof RECEPTIONIST_MODES)[number];
@@ -77,10 +77,11 @@ export async function setReceptionistMany(
 }
 
 /**
- * One line added to many people's notes: "class of 12 Sep", "asked for the
- * new stylist". Appended under what is there, through the single door
- * (set_person_notes), never replacing it; a person whose notes are full is
- * reported by name rather than truncated.
+ * One note on many people: "class of 12 Sep", "asked for the new stylist".
+ * Each person gets it as a note of their own (0007), through the single door
+ * a note on one person goes through (person_note_add, source bulk), dated and
+ * signed by who wrote it. It used to be a line added under one field, and a
+ * person whose field was full was refused.
  */
 export async function appendNotesMany(
   ctx: RouteContext,
@@ -94,20 +95,18 @@ export async function appendNotesMany(
     id: string;
     tenant_id: string;
     erased_at: string | null;
-    notes: string | null;
-  }>(ctx, tenantId, uniq, "id, tenant_id, erased_at, notes");
+  }>(ctx, tenantId, uniq, "id, tenant_id, erased_at");
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
   for (const c of rows) {
-    const existing = (c.notes ?? "").trim();
-    const next = existing ? `${existing}\n${text}` : text;
-    if (next.length > NOTES_MAX) {
-      failed.push({ id: c.id, message: `Their notes are full (${NOTES_MAX} characters).` });
-      continue;
-    }
-    const { error } = await ctx.supabase.rpc("set_person_notes", { p_contact_id: c.id, p_notes: next });
-    if (error) {
-      failed.push({ id: c.id, message: error.message });
+    const { data, error } = await ctx.supabase.rpc("person_note_add", {
+      p_contact_id: c.id,
+      p_body: text,
+      p_source: "bulk",
+    });
+    const refused = (data as { error?: string } | null)?.error;
+    if (error || refused) {
+      failed.push({ id: c.id, message: error?.message ?? NOTE_REFUSALS[refused ?? ""] ?? "Could not add the note." });
       continue;
     }
     done += 1;

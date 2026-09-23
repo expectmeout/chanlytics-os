@@ -82,6 +82,9 @@ export const ROUTES = {
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
   "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
+  "POST contacts/[id]/notes": { method: "POST", path: "/api/v1/contacts/[id]/notes" },
+  "POST contacts/[id]/notes/decide": { method: "POST", path: "/api/v1/contacts/[id]/notes/decide" },
+  "POST contacts/[id]/notes/remove": { method: "POST", path: "/api/v1/contacts/[id]/notes/remove" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
@@ -236,6 +239,9 @@ export type Routes = {
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
   "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
+  "POST contacts/[id]/notes": typeof import("../../app/api/v1/contacts/[id]/notes/route").POST;
+  "POST contacts/[id]/notes/decide": typeof import("../../app/api/v1/contacts/[id]/notes/decide/route").POST;
+  "POST contacts/[id]/notes/remove": typeof import("../../app/api/v1/contacts/[id]/notes/remove/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;

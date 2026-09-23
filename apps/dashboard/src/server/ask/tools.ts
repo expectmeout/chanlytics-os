@@ -67,6 +67,7 @@ import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
 import { workspaceFacts } from "./prompt";
+import { personNotesRead } from "../person-notes";
 
 /**
  * What the assistant may read, and how each read is shaped.
@@ -715,9 +716,12 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     escalations = escs.data ?? [];
     decisions = (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
   }
+  // Their notes (0007): the team's own words about them, which Ask reads as the team does -- team-only ones too.
+  const notesRead = await personNotesRead(t.ctx, t.tenantId, id);
   const detail: PersonDetailDto = {
     row: { ...row, effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null },
     identities: [],
+    ...(notesRead.notes ? { person_notes: notesRead.notes } : {}),
     conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], t.ctx.userId)),
     calls: (calls.data ?? []).map(toCallDto),
     escalations,
@@ -753,6 +757,15 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     timeline: vm.timeline
       .slice(0, 20)
       .map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
+    // A suggestion is the receptionist's, not yet kept by anyone: said as such, never as a fact the team wrote.
+    notes: vm.noteList.slice(0, 20).map((n) => ({
+      who: n.who,
+      when: n.whenFull,
+      for: n.forWho,
+      team_only: n.teamOnly,
+      suggested_by_the_receptionist: n.suggested,
+      text: n.body,
+    })),
   };
 }
 

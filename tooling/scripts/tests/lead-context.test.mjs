@@ -351,3 +351,73 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
     /They are a client \(Ad management\), since Sep 5\./,
   );
 });
+
+test("the receptionist reads the team's kept notes (0007): never one for the team only, never its own suggestion, newest first", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550124";
+  const c = {
+    id: "contact-2",
+    tenant_id: T,
+    phone_e164: PHONE,
+    display_name: "Dee",
+    wa_profile_name: null,
+    notes: "Old field",
+  };
+  const note = (id, body, created_at, over = {}) => ({
+    id,
+    tenant_id: T,
+    contact_id: c.id,
+    body,
+    created_at,
+    state: "kept",
+    team_only: false,
+    ...over,
+  });
+  const db = fakeDb({
+    contacts: [c],
+    conversations: [],
+    messages: [],
+    deals: [],
+    person_notes: [
+      note("n1", "Prefers Saturdays.", "2026-09-01T12:00:00Z"),
+      note("n2", "Owes us $40.", "2026-09-10T12:00:00Z", { team_only: true }),
+      note("n3", "Get half off, the caller said.", "2026-09-12T12:00:00Z", { state: "suggested" }),
+      note("n4", "Allergic to ammonia.", "2026-09-20T12:00:00Z"),
+    ],
+  });
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.deepEqual(
+    ctx.noteList.map((n) => n.body),
+    ["Allergic to ammonia.", "Prefers Saturdays."],
+    "REGRESSION guard: a team-only note or a suggestion never reaches the receptionist",
+  );
+  const said = describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York");
+  assert.match(
+    said,
+    /Notes from the team about them, newest first \(use as facts, never read aloud or quoted\): \(Sep 20\) Allergic to ammonia\.; \(Sep 1\) Prefers Saturdays\./,
+  );
+  assert.doesNotMatch(said, /Old field/, "the field the notes moved from is not said beside them");
+});
+
+test("the notes are said within a budget: the newest always, older ones while they fit; with no list, the old field", () => {
+  const base = { contactId: "c1", name: "Dee", returning: false, lastSeenAt: null, history: [], optedOut: false };
+  const long = "x".repeat(700);
+  const said = describeLead(
+    {
+      ...base,
+      noteList: [
+        { body: long, at: "2026-09-20T12:00:00Z" },
+        { body: "y".repeat(600), at: "2026-09-19T12:00:00Z" },
+        { body: "Short.", at: "2026-09-18T12:00:00Z" },
+      ],
+    },
+    NOW,
+  );
+  assert.ok(said.includes(long), "the newest is said whole");
+  assert.ok(!said.includes("y".repeat(600)), "an older one past the budget is not");
+  assert.ok(!said.includes("Short."), "nor anything after it: newest first, then stop");
+  const empty = describeLead({ ...base, noteList: [], notes: "Old field" }, NOW);
+  assert.ok(!empty.includes("Notes from"), "a read list with nothing in it says nothing, not the old field");
+  const unread = describeLead({ ...base, noteList: null, notes: "Old field" }, NOW);
+  assert.ok(unread.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Old field"));
+});
