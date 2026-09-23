@@ -6197,6 +6197,29 @@ var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get
 function dealsAreOn(sellsBy) {
   return sellsBy === "proposal";
 }
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
 var DEAL_STAGE_WORDS = {
   proposed: "Proposal out",
   won: "Client",
@@ -18759,6 +18782,7 @@ export {
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   CONSENT_STATES,
+  CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
@@ -19077,6 +19101,7 @@ export {
   RenameLeadSearchSchema,
   SCHEMA_SETS,
   SELLS_BY,
+  SELLS_BY_FIRST,
   SELLS_BY_QUESTION,
   SELLS_BY_REFUSAL,
   SELLS_BY_WORDS,
@@ -19655,6 +19680,8 @@ export {
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
+  sellsBySaved,
+  sellsByVM,
   sendFailureIsOurs,
   sendableTemplates,
   serverNotificationRows,
