@@ -1186,6 +1186,9 @@
 }
 
 .cl-prof-rail {
+  /* The record kit's measures for the rows the card holds (record.css reads them from what rows sit in). */
+  --rec-gutter: 16px;
+  --rec-key: 112px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -1391,6 +1394,12 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions > .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-danger { max-width: var(--measure-prose); }
+
+/* The card's rows that change something about them: the record kit's rows and folds, one line each at rest. */
+.cl-prof-rec { padding: 2px var(--rec-gutter) 6px; border-bottom: 1px solid var(--line); }
+.cl-prof-rec > .rec-row:first-child { border-top: 0; }
+.cl-prof-rec .rec-fold-inner { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.cl-prof-consent { display: flex; flex-direction: column; gap: 10px; }
 
 /* Coming up: their visits that have not ended, each a door to its day. */
 .cl-prof-up { display: flex; flex-direction: column; gap: 10px; }

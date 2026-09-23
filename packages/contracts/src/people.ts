@@ -667,6 +667,8 @@ export interface PersonConsent {
   state: "unknown" | "opted_in" | "opted_out";
   dnc: boolean;
   label: string;
+  /** The answer in its control's words: "Yes", "Not asked" or "No". */
+  answerLabel: "Yes" | "Not asked" | "No";
   sub: string;
   /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
   source: string | null;
@@ -807,6 +809,8 @@ function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
     state,
     dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
+    answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
     sub,
     source: r.consent_source ?? null,
     marketing,

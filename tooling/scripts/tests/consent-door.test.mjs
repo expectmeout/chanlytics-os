@@ -181,7 +181,11 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
     p.includes("value={p.consent.state}") && p.includes("value={p.consent.marketing}"),
     "each ask reads its OWN column",
   );
-  assert.ok(p.includes('onRecord={recordFor("conversational")}') && p.includes('onRecord={recordFor("marketing")}'));
+  // Each records through its own purpose, and its fold closes once the door takes it.
+  assert.ok(
+    p.includes('onRecord={recordAndClose("conversational", visitFold)}') &&
+      p.includes('onRecord={recordAndClose("marketing", offersFold)}'),
+  );
   assert.ok(p.includes("data-testid={`${testid}-how`}"), "a yes is not written until the page knows how it was given");
   assert.ok(p.includes('window.__ME.role === "operator"'), "operators record answers too");
   assert.ok(

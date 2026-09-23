@@ -1098,7 +1098,7 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
   );
 };
 
-const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this.", messages = [] }) => {
+const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this.", messages = [], bare = false }) => {
   // `way` is a written way waiting for its evidence: the message, or the form's note.
   const [st, setSt] = useStateP({ busy: false, error: null, pick: null, way: null, note: "" });
   const pick = (state) => {
@@ -1125,8 +1125,8 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
   const recordForm = () => { if (note) record(st.pick, "form", { note }); };
   const close = () => setSt({ busy: false, error: null, pick: null, way: null, note: "" });
   return (
-    <div className="cl-prof-rail-section" data-testid={testid}>
-      <div className="cl-prof-rail-label">{label}</div>
+    <div className={bare ? "cl-prof-consent" : "cl-prof-rail-section"} data-testid={testid}>
+      {bare ? null : <div className="cl-prof-rail-label">{label}</div>}
       <div className="cl-prof-autonomy" role="group" aria-label={label}>
         {[["opted_in", "Yes"], ["unknown", "Not asked"], ["opted_out", "No"]].map(([sv, text]) => (
           <button
@@ -1231,6 +1231,9 @@ const PersonProfileFrame = ({ onBack, children }) => (
   </div>
 );
 
+// Where the record kit is not loaded (a unit harness that draws this page alone): folds that never open, drawn closed.
+const PERSON_NO_FOLD = { open: false, request: () => {}, close: () => {} };
+
 const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const [st, setSt] = useStateP({ loading: true, vm: null, missing: false, error: null });
   const [toastNode, ppFlash] = window.usePPToast();
@@ -1242,6 +1245,11 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // What the timeline shows, and whether the fold is open; the timeline itself stays a plain function of its props.
   const [tlFilter, setTlFilter] = useStateP("all");
   const [tlAll, setTlAll] = useStateP(false);
+  // The card's three editors (the record kit's folds): one open at a time, anywhere in the app, and a sheet on a phone.
+  const foldOf = (fid) => (window.useRecordFold ? window.useRecordFold(fid) : PERSON_NO_FOLD);
+  const rmFold = foldOf("person-receptionist");
+  const visitFold = foldOf("person-visit");
+  const offersFold = foldOf("person-offers");
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     // Held from the last time this tab opened them, so going back to the list
@@ -1294,6 +1302,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     const r = await window.__setPersonReceptionist(p.id, mode);
     if (!r.ok) { setRm({ busy: false, error: r.message || "Could not change this." }); return; }
     setRm({ busy: false, error: null });
+    rmFold.close();
     ppFlash({
       msg: mode === "inherit"
         ? <><b>{first === "them" ? "This person" : first}</b> follows the workspace again</>
@@ -1336,6 +1345,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           : <><b>{who}</b> is back to "not asked"</>),
     });
     load();
+    return r;
+  };
+  // An answer recorded from its fold closes the fold, and its row says the answer.
+  const recordAndClose = (purpose, fold) => async (consent, source, evidence) => {
+    const r = await recordFor(purpose)(consent, source, evidence);
+    if (r && r.ok) fold.close();
     return r;
   };
   // A deal on their word (0004): the courier, a flash in the stage's word, and a reload -- the row, the
@@ -1551,93 +1566,131 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 ))}
               </div>
             </div>
+            {/* What the page changes about them, each one line: its label, where it stands, and Change, which opens its
+                editor under the row (a sheet on a phone). The three were stacked controls with a paragraph under each,
+                1,249px of rail. The record kit's row and fold, as Settings › Business draws them; these save as they are
+                chosen, so their folds carry no Save, only Close. */}
+            <div className="cl-prof-rec" data-testid="person-settings">
+              {rmFold.open ? null : (
+                <window.RecordRow
+                  id="person-receptionist"
+                  label="Receptionist"
+                  value={rmWord(rmEffective)}
+                  source={rmPerson ? null : "workspace"}
+                  act={isOwner ? { label: "Change", onClick: rmFold.request } : null}
+                />
+              )}
+              <window.RecordFold wide id="person-receptionist" label="Receptionist" open={rmFold.open} onCancel={rmFold.close}>
+                <div data-testid="receptionist-mode">
+                  <div className="cl-prof-autonomy" role="group" aria-label={`Receptionist for ${first === "them" ? "this person" : first}`}>
+                    {["auto", "ask", "never"].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`cl-prof-aut-seg ${rmEffective === m ? "active" : ""}`}
+                        aria-pressed={rmEffective === m}
+                        disabled={!isOwner || rm.busy}
+                        onClick={() => setMode(m)}
+                      >
+                        {rmWord(m)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="cl-prof-aut-hint">
+                    {rmPerson
+                      ? (rmPerson === "auto" ? "Answers this person automatically — set for them alone."
+                        : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
+                        : "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.")
+                      : `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`}
+                    {!isOwner && canRecord && " Only an owner can change this."}
+                  </div>
+                  {rmPerson && isOwner && (
+                    <button type="button" className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
+                      {rmWord("inherit")} <Icon name="arrow-right" size={10} />
+                    </button>
+                  )}
+                  <window.FieldError message={rm.error} testid="receptionist-mode-error" />
+                </div>
+              </window.RecordFold>
+              {/*
+                TWO ASKS, the same pair the public /yes page renders. One control that
+                said "Offers by WhatsApp" and wrote the conversational column is what
+                made a signed marketing consent impossible to record: the profile then
+                claimed offers could go out, and the composer refused every one of them.
+              */}
+              {visitFold.open ? null : (
+                <window.RecordRow
+                  id="person-visit"
+                  label="Visit messages"
+                  value={p.consent.answerLabel}
+                  act={canRecord ? { label: "Change", onClick: visitFold.request } : null}
+                />
+              )}
+              <window.RecordFold wide id="person-visit" label="Visit messages" open={visitFold.open} onCancel={visitFold.close}>
+                <ConsentAsk
+                  bare
+                  testid="consent-control"
+                  label="Messages about their visit"
+                  value={p.consent.state}
+                  sources={CS_SOURCES}
+                  yesHow={askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined}
+                  canRecord={canRecord}
+                  lockedNote={null}
+                  messages={p.ownMessages}
+                  onRecord={recordAndClose("conversational", visitFold)}
+                  hint={
+                    p.consent.state === "opted_in"
+                      ? `Yes — ${p.consent.sub}. Reminders and confirmations about their own visit may go to them.`
+                      : p.consent.state === "opted_out"
+                        ? (p.consent.source === "customer_message"
+                            ? `${p.consent.sub}. This stops everything, offers included. Record a yes only if they have asked again themselves.`
+                            : `No — ${p.consent.sub}. Nothing goes out to them, offers included.`)
+                        : "No answer recorded. A reply to something they wrote is always fine; anything we start needs their yes."
+                  }
+                />
+              </window.RecordFold>
+              {offersFold.open ? null : (
+                <window.RecordRow
+                  id="person-offers"
+                  label="Offers & news"
+                  value={p.consent.marketingLabel}
+                  act={canRecord && p.consent.state !== "opted_out" ? { label: "Change", onClick: offersFold.request } : null}
+                />
+              )}
+              <window.RecordFold wide id="person-offers" label="Offers & news" open={offersFold.open} onCancel={offersFold.close}>
+                <ConsentAsk
+                  bare
+                  testid="consent-marketing"
+                  label="Offers and news"
+                  value={p.consent.marketing}
+                  sources={CS_SOURCES}
+                  yesSources={OFFERS_YES}
+                  yesHow="How did they give it in writing? A spoken yes is not enough for offers."
+                  canRecord={canRecord && p.consent.state !== "opted_out"}
+                  lockedNote={null}
+                  messages={p.ownMessages}
+                  onRecord={recordAndClose("marketing", offersFold)}
+                  hint={
+                    p.consent.state === "opted_out"
+                      ? "They asked us to stop, which stops offers too. Nothing to record here until that changes."
+                      : p.consent.marketing === "opted_in"
+                        ? `Yes — ${p.consent.marketingSub}. This is the answer a broadcast needs.`
+                        : p.consent.marketing === "opted_out"
+                          ? `No — ${p.consent.marketingSub}. Messages about their own visit still reach them.`
+                          : "Not asked. Separate and optional — the one answer a broadcast may be sent on."
+                  }
+                  why={p.consent.state !== "opted_out" && p.consent.marketing === "unknown" ? {
+                    label: "Why in writing?",
+                    text: <>The carriers require it: their own message, or a sign-up form they signed — <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("broadcasts")}>print one from Broadcasts</button>.</>,
+                  } : null}
+                />
+              </window.RecordFold>
+            </div>
+            <PersonDeal p={p} canRecord={canRecord} onRecord={recordDeal} lockedNote={null} />
             <div className="cl-prof-rail-section">
               <div className="cl-prof-rail-label">Notes for the receptionist</div>
               <PersonNotes p={p} canEdit={canRecord} flash={ppFlash} />
             </div>
-            <div className="cl-prof-rail-section" data-testid="receptionist-mode">
-              <div className="cl-prof-rail-label">Receptionist for {first === "them" ? "this person" : first}</div>
-              <div className="cl-prof-autonomy" role="group" aria-label={`Receptionist for ${first === "them" ? "this person" : first}`}>
-                {["auto", "ask", "never"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`cl-prof-aut-seg ${rmEffective === m ? "active" : ""}`}
-                    aria-pressed={rmEffective === m}
-                    disabled={!isOwner || rm.busy}
-                    onClick={() => setMode(m)}
-                  >
-                    {rmWord(m)}
-                  </button>
-                ))}
-              </div>
-              <div className="cl-prof-aut-hint">
-                {rmPerson
-                  ? (rmPerson === "auto" ? "Answers this person automatically — set for them alone."
-                    : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
-                    : "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.")
-                  : `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`}
-                {!isOwner && canRecord && " Only an owner can change this."}
-              </div>
-              {rmPerson && isOwner && (
-                <button type="button" className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
-                  {rmWord("inherit")} <Icon name="arrow-right" size={10} />
-                </button>
-              )}
-              <window.FieldError message={rm.error} testid="receptionist-mode-error" />
-            </div>
-            <PersonDeal p={p} canRecord={canRecord} onRecord={recordDeal} lockedNote={null} />
-            {/*
-              TWO ASKS, the same pair the public /yes page renders. One control that
-              said "Offers by WhatsApp" and wrote the conversational column is what
-              made a signed marketing consent impossible to record: the profile then
-              claimed offers could go out, and the composer refused every one of them.
-            */}
-            <ConsentAsk
-              testid="consent-control"
-              label="Messages about their visit"
-              value={p.consent.state}
-              sources={CS_SOURCES}
-              yesHow={askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined}
-              canRecord={canRecord}
-              lockedNote={null}
-              messages={p.ownMessages}
-              onRecord={recordFor("conversational")}
-              hint={
-                p.consent.state === "opted_in"
-                  ? `Yes — ${p.consent.sub}. Reminders and confirmations about their own visit may go to them.`
-                  : p.consent.state === "opted_out"
-                    ? (p.consent.source === "customer_message"
-                        ? `${p.consent.sub}. This stops everything, offers included. Record a yes only if they have asked again themselves.`
-                        : `No — ${p.consent.sub}. Nothing goes out to them, offers included.`)
-                    : "No answer recorded. A reply to something they wrote is always fine; anything we start needs their yes."
-              }
-            />
-            <ConsentAsk
-              testid="consent-marketing"
-              label="Offers and news"
-              value={p.consent.marketing}
-              sources={CS_SOURCES}
-              yesSources={OFFERS_YES}
-              yesHow="How did they give it in writing? A spoken yes is not enough for offers."
-              canRecord={canRecord && p.consent.state !== "opted_out"}
-              lockedNote={null}
-              messages={p.ownMessages}
-              onRecord={recordFor("marketing")}
-              hint={
-                p.consent.state === "opted_out"
-                  ? "They asked us to stop, which stops offers too. Nothing to record here until that changes."
-                  : p.consent.marketing === "opted_in"
-                    ? `Yes — ${p.consent.marketingSub}. This is the answer a broadcast needs.`
-                    : p.consent.marketing === "opted_out"
-                      ? `No — ${p.consent.marketingSub}. Messages about their own visit still reach them.`
-                      : "Not asked. Separate and optional — the one answer a broadcast may be sent on."
-              }
-              why={p.consent.state !== "opted_out" && p.consent.marketing === "unknown" ? {
-                label: "Why in writing?",
-                text: <>The carriers require it: their own message, or a sign-up form they signed — <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("broadcasts")}>print one from Broadcasts</button>.</>,
-              } : null}
-            />
             <div className="cl-prof-rail-section" data-testid="person-lists">
               <div className="cl-prof-rail-label">Lists</div>
               <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={ppFlash} smart={p.smartLists || []} />
