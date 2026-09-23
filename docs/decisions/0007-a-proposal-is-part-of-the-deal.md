@@ -95,13 +95,21 @@ answer. This supersedes 0004 on four points, each named where it applies.
   client's fact"._
 - **`deal_record` takes the three fields and says what to clear.** A move
   keeps what it is not told, as it does today, and `p_clear` names the fields a
-  person emptied. Passing sets the reason; leaving "passed" clears it.
+  person emptied. Passing sets the reason; leaving "passed" clears it. A
+  passed proposal sent again stands until the day it is given, or none: the
+  old day was the proposal they passed on.
 - **The person's link moves onto their deal.** The migration attaches every
-  `contacts.proposal_url` to the person's open deal, or opens a Proposal out
-  for them, dated when the link was set. `set_person_proposal` writes through
-  to the deal, so a page from the release before this one cannot split the
-  two. The column is read as a fallback for one release, then retired
-  (step 7).
+  `contacts.proposal_url` to the person's open deal (a proposal first), else
+  to their newest deal, as history. It opens a Proposal out only for someone
+  with no deal at all, or whose link was set after their newest deal passed
+  or ended; that proposal and its event are dated when the link was set.
+  `set_person_proposal` writes through to the deal: an open proposal takes the
+  link, and with no open deal it opens a Proposal out, only where deals are
+  on. So a page from the release before this one cannot split the two. The
+  column is read only for someone with no deal at all, for one release, then
+  retired (step 7). `proposalLinkOf` is the one reading: the deal's link while
+  it is a proposal out, none for any other deal, the person's only with no
+  deal.
 
 ### One switch
 
@@ -190,7 +198,9 @@ grant update (sells_by) on public.tenants to authenticated;   -- 00084's door, o
 -- New refusals: bad_link, bad_reason, bad_clear.
 -- people_list: + deal_proposal_url, deal_valid_until, deal_lost_reason.
 -- deals_erase_on_contact: also blanks proposal_url.
--- set_person_proposal: also writes the link onto the person's open deal, or opens one.
+-- set_person_proposal: also writes the link onto the person's open proposal, or opens one where deals are on.
+-- The backfill: an open deal takes the link, else the newest deal as history; a Proposal out is opened only with
+-- no deal, or when the link was set after the newest deal passed or ended, dated (with its event) when it was set.
 ```
 
 Contracts, in the house's own files:
@@ -217,9 +227,11 @@ step below that reads a new column needs 00157 pushed first.
 
 1. **The record.** 00157, contracts, the deal route's new fields, `PATCH
 workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
-   and Ask reading the deal's link with the person's as fallback. _Both
-   orders:_ an older page calls the door with the arguments it knows and gets
-   the old behaviour; an older edge ignores new columns.
+   and Ask reading the deal's link (the person's only with no deal), and
+   nothing of a deal where deals are off. _Both orders:_ an older page calls
+   the door with the arguments it knows and gets the old behaviour; an older
+   edge ignores new columns, and a newer one reading an older database treats
+   every workspace as not asked.
 2. **One sheet and the deal card.** The sheet and its host, the card, the
    thread's Deal group; the About Proposal row, the settings Deal row and
    `PersonDeal` go. _Both orders:_ the edge reads nothing new.
@@ -251,8 +263,13 @@ workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
 
 - **A proposal with no link.** A deal recorded without one is honest (a PDF
   sent by email, a meeting) and says "No link" on the card and the Pipeline.
-- **The mirror column.** Until step 7 the person's link is written in two
-  places by one door. The door is the only writer, so they cannot disagree.
+- **The mirror column.** Until step 7 there are two writers: the person's
+  door (`set_person_proposal`) writes the person's column and through to their
+  open proposal, and `deal_record` writes the deal alone. They can disagree:
+  a link changed through the deal leaves the person's column behind, and a
+  client's or a passed deal is never written from the person. Every reader
+  goes through `proposalLinkOf`, which reads the person's column only for
+  someone with no deal at all, so what disagrees is never read.
 - **A workspace that answers "booking" with deals on file.** Its deals stay in
   the database and every surface hides them; answering "proposal" brings them
   back.

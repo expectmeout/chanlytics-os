@@ -242,7 +242,11 @@ does not insist.
   whole change. Where a proposal link is on file for the person (PR #888's
   `contacts.proposal_url`), that link's own rule stands for a price question
   — send the address and state no figure — and the deal's sentence defers to
-  it rather than promising a follow-up.
+  it rather than promising a follow-up. _Amended by
+  [0007](0007-a-proposal-is-part-of-the-deal.md): the link is the deal's
+  (`proposalLinkOf`: a proposal's own, none for any other deal, the person's
+  only with no deal), and where deals are off the receptionist hears no deal
+  and no link._
 - **Ask** — `get_person` carries the deal in its facts; `search_people` names
   the new lists; a `propose_deal` act tool in `propose_person_mode`'s shape
   returns a card the member approves through the route.
