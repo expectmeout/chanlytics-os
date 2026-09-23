@@ -20,6 +20,7 @@ import {
   toPersonRowVM,
   PEOPLE_LISTS,
   peopleListAction,
+  stateOf,
 } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
@@ -952,10 +953,11 @@ test("a calendar it HAS and could not read says so where the day goes: the feed'
 
 /* ------------------------------------ worth a look ------------------------------------ */
 
-test("worth a look: a word and an icon for the tone, who is waiting, Ask why with the row's own facts, the doors, and the count past the cap", () => {
+test("worth a look: the tone once, as the row's pill; who is waiting as chips; Ask why with the row's own facts; the doors; the count past the cap", () => {
   clear();
   const vm = busy();
-  set({ TODAY_DATA: vm, __REPORTS: reports(), __PEOPLE: people() });
+  // The chrome bridge, as the app publishes it, so the one pill draws the row's tone.
+  set({ TODAY_DATA: vm, __REPORTS: reports(), __PEOPLE: people(), __chrome: { state: stateOf } });
   const tree = draw(W.TodayLeaks);
   const band = byTestId(tree, "today-leaks");
   const { rows, moreLine } = todayLeaks(reports(), people(), vm.noReply);
@@ -965,8 +967,17 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   for (const l of rows) {
     const row = byTestId(band, `today-leak-${l.id}`);
     assert.ok(row, l.id);
-    assert.equal(textOf(find(row, (n) => classes(n).includes("tl-tag"))), l.tag);
-    assert.equal(find(row, (n) => n.type === "Icon").props.name, l.icon);
+    const tag = find(row, (n) => n.type === "span" && classes(n).includes("tl-tag"));
+    assert.equal(textOf(tag), l.tag);
+    assert.ok(
+      classes(tag).includes("pill") && classes(tag).includes(`pill-${l.tone}`),
+      "the tone is the row's one pill",
+    );
+    assert.equal(
+      find(row, (n) => classes(n).includes("tl-glyph")),
+      null,
+      "no tile: it said the pill's tone a second time",
+    );
     assert.equal(textOf(find(row, (n) => classes(n).includes("tl-text"))), l.text);
     assert.equal(textOf(find(row, (n) => classes(n).includes("tl-math"))), l.math);
     press(byTestId(row, `today-leak-ask-${l.id}`));
@@ -976,6 +987,10 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   assert.equal(rows[0].id, "never-booked");
   assert.equal(rows[1].id, "unanswered");
   const waiting = all(byTestId(band, "today-leak-unanswered"), (n) => classes(n).includes("tl-person"));
+  assert.ok(
+    waiting.length > 0 && waiting.every((b) => classes(b).includes("chip")),
+    "a person waiting is a name: the one chip",
+  );
   assert.deepEqual(
     waiting.map(textOf),
     ["Dulce Amaro"],
@@ -1008,6 +1023,7 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   assert.match(textOf(byTestId(draw(W.TodayLeaks), "today-leaks-failed")), /Couldn't read People/);
   failed.clear();
   assert.equal(draw(W.TodayLeaks).rendered, null, "not read yet is not failed");
+  set({ __chrome: undefined });
 });
 
 test("worth a look on a phone: the arithmetic waits behind the sentence, and the sentence is its door", () => {
