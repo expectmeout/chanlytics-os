@@ -1,4 +1,4 @@
--- 00154 · A deal is a record.
+-- 00155 · A deal is a record.
 --
 -- docs/decisions/0004-deals-record.md. One row per engagement a person is
 -- deciding on or has taken: a proposal out, a client, passed, ended. Written
@@ -183,7 +183,7 @@ begin
     -- An ended engagement is re-signed as a new row, so tenure and amounts keep their history.
     return jsonb_build_object('error', 'ended');
   end if;
-  if p_stage = 'proposed' and v_row.stage <> 'proposed' and exists (
+  if p_stage in ('proposed', 'won') and v_row.stage = 'lost' and exists (
     select 1 from deals d
      where d.contact_id = p_contact_id and d.id <> v_row.id and d.stage in ('proposed', 'won')
        and coalesce(d.service, '') = coalesce(v_row.service, '')
@@ -194,7 +194,7 @@ begin
   v_from := v_row.stage;
   update deals d
      set stage        = p_stage,
-         proposed_at  = case when p_stage = 'proposed' and v_from <> 'proposed' then v_when else d.proposed_at end,
+         proposed_at  = case when p_stage = 'proposed' and v_from = 'lost' then v_when else d.proposed_at end,
          decided_at   = case when p_stage in ('won', 'lost') and v_from <> p_stage then v_when
                              when p_stage = 'proposed' then null
                              else d.decided_at end,
