@@ -11,11 +11,16 @@ import { streamModel, type GatewayCall } from "./gateway";
  */
 
 export interface RoundBlock {
-  type: "text" | "tool_use";
+  type: "text" | "tool_use" | "thinking" | "redacted_thinking";
   id: string;
   name: string;
   text: string;
   json: string;
+  /** A thinking block's words (empty when the display is omitted) and its signature, carried back unmodified. */
+  thinking?: string;
+  signature?: string;
+  /** A redacted thinking block's data, carried back unmodified. */
+  data?: string;
 }
 
 export interface RoundResult {
@@ -46,6 +51,8 @@ export async function runRound(
           name: ev.block.type === "tool_use" ? ev.block.name : "",
           text: "",
           json: "",
+          ...(ev.block.type === "thinking" ? { thinking: "", signature: "" } : {}),
+          ...(ev.block.type === "redacted_thinking" ? { data: ev.block.data } : {}),
         });
         if (ev.block.type === "tool_use" && ev.block.name === "finish") finishIndex = ev.index;
         break;
@@ -67,6 +74,16 @@ export async function runRound(
         }
         break;
       }
+      case "thinking": {
+        const b = blocks.get(ev.index);
+        if (b) b.thinking = (b.thinking ?? "") + ev.thinking;
+        break;
+      }
+      case "signature": {
+        const b = blocks.get(ev.index);
+        if (b) b.signature = (b.signature ?? "") + ev.signature;
+        break;
+      }
       case "stop":
         stopReason = ev.stopReason;
         break;
@@ -86,4 +103,27 @@ export function parseInput(json: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/**
+ * A round's blocks as the next request carries them back: in the order
+ * written, and a thinking block exactly as it came -- its words and its
+ * signature, or a redacted block's data -- because a model that always thinks
+ * refuses a turn whose thinking was changed (Opus 5.5's migration guide). An
+ * empty text block goes back as a space, which the API accepts; a tool call as
+ * its parsed input.
+ */
+export function replayBlocks(blocks: RoundBlock[]): unknown[] {
+  return blocks.map((b) => {
+    switch (b.type) {
+      case "thinking":
+        return { type: "thinking", thinking: b.thinking ?? "", signature: b.signature ?? "" };
+      case "redacted_thinking":
+        return { type: "redacted_thinking", data: b.data ?? "" };
+      case "text":
+        return { type: "text", text: b.text || " " };
+      default:
+        return { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+    }
+  });
 }

@@ -24,7 +24,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, proposalsAnswer, askPorts } = await import(
   at("apps/dashboard/src/server/ask/loop.ts")
 );
-const { runRound } = await import(at("apps/dashboard/src/server/ask/round.ts"));
+const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
 const { buildSnapshot } = await import(at("apps/dashboard/src/server/ask/snapshot.ts"));
@@ -610,6 +610,45 @@ test("the round gathers the stream: blocks in order, the finish's answer streame
   assert.deepEqual(
     [b.blocks.length, b.blocks[0].name, b.streamError, b.stopReason],
     [1, "list_threads", "connection reset", null],
+  );
+});
+
+test("the round keeps a thinking block whole -- its words and its signature, or a redacted block's data -- and hands every block back in the order written", async () => {
+  async function* stream() {
+    yield { type: "block_start", index: 0, block: { type: "thinking" } };
+    yield { type: "thinking", index: 0, thinking: "The day " };
+    yield { type: "thinking", index: 0, thinking: "is in the snapshot." };
+    yield { type: "signature", index: 0, signature: "sig-1" };
+    yield { type: "block_stop", index: 0 };
+    yield { type: "block_start", index: 1, block: { type: "redacted_thinking", data: "EmwKAhgB" } };
+    yield { type: "block_stop", index: 1 };
+    yield { type: "block_start", index: 2, block: { type: "tool_use", id: "t1", name: "list_threads" } };
+    yield { type: "input_json", index: 2, partial: '{"filter":"recent"}' };
+    yield { type: "block_stop", index: 2 };
+    yield { type: "stop", stopReason: "tool_use" };
+  }
+  const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
+  assert.deepEqual(
+    r.blocks.map((b) => [b.type, b.thinking, b.signature, b.data, b.name]),
+    [
+      ["thinking", "The day is in the snapshot.", "sig-1", undefined, ""],
+      ["redacted_thinking", undefined, undefined, "EmwKAhgB", ""],
+      ["tool_use", undefined, undefined, undefined, "list_threads"],
+    ],
+  );
+  assert.deepEqual(
+    replayBlocks(r.blocks),
+    [
+      { type: "thinking", thinking: "The day is in the snapshot.", signature: "sig-1" },
+      { type: "redacted_thinking", data: "EmwKAhgB" },
+      { type: "tool_use", id: "t1", name: "list_threads", input: { filter: "recent" } },
+    ],
+    "what the next request carries back: every block, unmodified, in order",
+  );
+  assert.deepEqual(
+    replayBlocks([{ type: "text", id: "", name: "", text: "", json: "" }]),
+    [{ type: "text", text: " " }],
+    "an empty text block still goes back as a space, as before: the API refuses an empty one",
   );
 });
 
