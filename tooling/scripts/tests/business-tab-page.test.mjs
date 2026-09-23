@@ -2433,6 +2433,66 @@ test("on a phone a row open as a sheet is still drawn in its card behind it, so 
   assert.equal(byTestId(tree, "rec-row-tone"), null);
 });
 
+test("the line the page marks as changed is the line the kit draws as a new element, and no other", () => {
+  // changedLines (business-tab-folds.jsx) says which lines of a block are new; RecordSays keys each line by its words
+  // and which time they occur, so a line that is new to the browser is drawn as a new element, which is what lets the
+  // wash play once as it arrives. The two must agree: a marked line that kept its element would never wash, and an
+  // unmarked line that arrived new is simply drawn. Both count occurrences in order, so of two lines alike the LATER
+  // is the new one on both sides. Only a blank line may be new without being marked: blank lines are never a change.
+  const changedLines = W.__businessTabSave.changedLines;
+  const keysOf = (text) => {
+    const tree = W.React.createElement(W.RecordSays, { text });
+    return all(
+      find(tree, (n) => n.type === "pre"),
+      (n) => n.type === W.React.Fragment,
+    ).map((f) => f.props.key);
+  };
+  const cases = [
+    ["reordered", "Mon: 9-5\nTue: 9-5\nWed: closed", "Wed: closed\nMon: 9-5\nTue: 9-5"],
+    [
+      "a duplicate added",
+      "- Walk-ins welcome\n- Parking at the back",
+      "- Walk-ins welcome\n- Parking at the back\n- Walk-ins welcome",
+    ],
+    [
+      "a duplicate removed",
+      "- Walk-ins welcome\n- Walk-ins welcome\n- Parking at the back",
+      "- Walk-ins welcome\n- Parking at the back",
+    ],
+    [
+      "blank lines",
+      "Booking rules:\n- At least 2 hours' notice.\n\nHours:",
+      "Booking rules:\n- At least 3 hours' notice.\n\n\nHours:",
+    ],
+    ["one line rewritten", "Tone: warm\nLanguages: English", "Tone: calm\nLanguages: English"],
+    ["no change", "Tone: warm", "Tone: warm"],
+  ];
+  for (const [what, was, now] of cases) {
+    const before = new Set(keysOf(was));
+    const lines = now.split("\n");
+    const fresh = keysOf(now)
+      .map((k, i) => (before.has(k) ? null : i))
+      .filter((i) => i != null);
+    const marked = changedLines(was, now);
+    assert.deepEqual(
+      fresh.filter((i) => lines[i].trim() !== ""),
+      marked,
+      `${what}: the marked lines are the new elements`,
+    );
+    for (const i of fresh.filter((i) => !marked.includes(i))) {
+      assert.equal(lines[i].trim(), "", `${what}: only a blank line arrives unmarked`);
+    }
+  }
+  assert.deepEqual(
+    changedLines("- Walk-ins welcome", "- Walk-ins welcome\n- Walk-ins welcome"),
+    [1],
+    "the later of two",
+  );
+  // A block that appears is arriving, not changing; one that goes marks nothing.
+  assert.deepEqual(changedLines(null, "Tone: warm"), []);
+  assert.deepEqual(changedLines("Tone: warm", null), []);
+});
+
 /* ------------------------------------ what is on screen at rest ------------------------------------ */
 
 // Spec §11, as amended by Task 6.3: at rest the page draws only what an owner acts on without looking for it, and every
