@@ -349,14 +349,21 @@ test("the header's menu says what it is -- Actions, with the chevron -- and stay
 
 /* ------------------------------ what it needs from you ------------------------------ */
 
-test("Needs you: the pill its row wears, how long they have waited, the reason's sentence, and soft acts -- no white slab", () => {
-  const needs = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), byTestId("ix-needs-you"));
-  assert.ok(needs, "the state line");
+test("Needs you: the pill its row wears and how long they have waited, in the bar under the header; the reason's sentence and soft acts by the reply box -- no white slab", () => {
+  const tree = draw(toInboxThreadVM(conv(), asked, ZONE, NOW));
+  const standing = find(tree, byTestId("ix-th-standing"));
   assert.ok(
-    find(needs, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
-    "the row's own pill",
+    find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
+    "the row's own pill, in the bar",
   );
-  assert.equal(textOf(find(needs, hasClass("ix-state-meta"))), "waiting 40m");
+  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "waiting 40m");
+  const needs = find(tree, byTestId("ix-needs-you"));
+  assert.ok(needs, "the state line");
+  assert.equal(
+    find(needs, (n) => n.props?.kind === "thread"),
+    undefined,
+    "REGRESSION: the pill said the state again by the reply box",
+  );
   const acts = find(needs, hasClass("ix-state-acts"));
   const answer = find(acts, (n) => n.type === "button" && textOf(n).includes("I'll answer this"));
   assert.ok(answer, "the act that answers it");
@@ -370,40 +377,153 @@ test("Needs you: the pill its row wears, how long they have waited, the reason's
   );
 });
 
-test("a teammate's thread wears the pill their row wears, and offers nothing to take", () => {
+test("a teammate's thread wears the pill their row wears, in the bar, and offers nothing to take", () => {
   globalThis.window.__TEAM = [{ id: "u-ana", name: "Ana García" }];
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   try {
-    const theirs = find(
-      draw(
-        toInboxThreadVM(
-          conv({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
-          asked,
-          ZONE,
-          NOW,
-        ),
+    const tree = draw(
+      toInboxThreadVM(
+        conv({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
+        asked,
+        ZONE,
+        NOW,
       ),
-      byTestId("ix-theirs"),
     );
-    assert.ok(
-      find(theirs, (n) => n.props?.kind === "thread" && n.props?.value === "theirs"),
-      "the row's pill",
+    const pill = find(
+      find(tree, byTestId("ix-th-standing")),
+      (n) => n.props?.kind === "thread" && n.props?.value === "theirs",
     );
+    assert.ok(pill, "the row's pill");
+    const theirs = find(tree, byTestId("ix-theirs"));
+    assert.ok(theirs, "and what it means, by the reply box");
     assert.equal(find(theirs, hasClass("ix-state-acts")), undefined, "nothing to take from them");
   } finally {
     globalThis.window.__TEAM = null;
   }
 });
 
-test("a quiet thread is one quiet sentence -- no pill, no acts", () => {
-  const quiet = conv({
+const quietConv = () =>
+  conv({
     state: "open",
     messages: [
       m("m1", 30, { body: "Open Sunday?" }),
       m("m2", 29, { direction: "outbound", sender: "ai", body: "Closed Sundays.", status: "read" }),
     ],
   });
-  const word = find(draw(toInboxThreadVM(quiet, null, ZONE, NOW)), byTestId("ix-last-word"));
-  assert.ok(word && hasClass("bare")(word), "a bare line");
-  assert.equal(textOf(word), "Answered by the receptionist — no one asked for you.");
+
+test("a quiet thread is one quiet sentence, in the bar under the header -- no pill, no acts, and nothing by the reply box", () => {
+  const tree = draw(toInboxThreadVM(quietConv(), null, ZONE, NOW));
+  const words = find(tree, hasClass("ix-th-standing-words"));
+  assert.equal(textOf(words), "Answered by the receptionist — no one asked for you.");
+  assert.ok(hasClass("ok")(words), "in the tone of what it says");
+  assert.equal(find(tree, byTestId("ix-last-word")), undefined, "REGRESSION: the sentence sat by the reply box too");
+  assert.equal(
+    find(find(tree, byTestId("ix-th-status")), hasClass("ix-state")),
+    undefined,
+    "nothing left to say there",
+  );
+});
+
+/* ------------------------------ where the conversation stands ------------------------------ */
+
+// Two days since they last wrote: WhatsApp's window has closed, and only a template sends.
+const DAY = 24 * 60;
+const closedConv = (over = {}) =>
+  conv({ last_wa_inbound_at: at(2 * DAY), last_message_at: at(2 * DAY), messages: [m("m1", 2 * DAY)], ...over });
+
+test("the bar under the header says where the conversation stands and that the window has closed, once; the reply box is only the send that works", () => {
+  globalThis.window.__TEMPLATES = [];
+  try {
+    const tree = draw(toInboxThreadVM(closedConv(), asked, ZONE, NOW));
+    const bar = find(tree, byTestId("ix-th-bar"));
+    assert.ok(bar, "the bar");
+    // Under the header, over the conversation: a thread opens on it.
+    const rows = tree.props.children
+      .filter((k) => k && typeof k === "object")
+      .map((k) => k.type?.name || k.props?.className || k.type);
+    assert.deepEqual(rows.slice(0, 2), ["ThreadHeader", "ThreadBar"], `header, then the bar: ${rows.join(", ")}`);
+    assert.match(textOf(find(bar, byTestId("ix-th-standing"))), /^Needs youwaiting 40m$/);
+    assert.equal(textOf(find(bar, byTestId("ix-th-window"))), "Window closed");
+    assert.equal(find(bar, byTestId("ix-th-window-why")), undefined, "why, not until it is asked");
+    find(bar, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
+    seq = 0;
+    const opened = InboxThread({ thread: toInboxThreadVM(closedConv(), asked, ZONE, NOW), channelLabels: labels });
+    assert.equal(
+      textOf(find(opened, byTestId("ix-th-window-why"))),
+      "The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only.",
+    );
+    // The reply box says none of it again: no red block, no "WhatsApp · to Rosa Díaz" under the header that names both.
+    const box = find(opened, hasClass("ix-composer"));
+    assert.equal(find(box, hasClass("ix-composer-banner")), undefined, "REGRESSION: the window's red block");
+    assert.equal(
+      find(box, hasClass("ix-composer-channel")),
+      undefined,
+      "REGRESSION: the wire and the name, said again",
+    );
+    assert.equal(textOf(opened).split("24-hour").length - 1, 1, "the window is said once, where it was asked for");
+    assert.match(textOf(box), /^No approved template yet — nothing can be sent until one is\.$/);
+  } finally {
+    delete globalThis.window.__TEMPLATES;
+  }
+});
+
+test("the window is the bar's only while it is WhatsApp's to say: open, a text, a caller with no chat, an opt-out", () => {
+  const windowOf = (dto) => find(draw(toInboxThreadVM(dto, null, ZONE, NOW)), byTestId("ix-th-window"));
+  assert.ok(windowOf(closedConv()), "closed");
+  assert.equal(windowOf(conv()), undefined, "open: they wrote 40 minutes ago");
+  assert.equal(
+    windowOf(closedConv({ messages: [m("m1", 2 * DAY, { channel: "sms" })] })),
+    undefined,
+    "a text has no window",
+  );
+  assert.equal(
+    windowOf(
+      closedConv({
+        last_wa_inbound_at: null,
+        messages: [m("m1", 56, { type: "call_summary", sender: "system", body: "Inbound call · 3 min" })],
+      }),
+    ),
+    undefined,
+    "a caller with no chat",
+  );
+  assert.equal(
+    windowOf(closedConv({ contact: { ...conv().contact, consent: "opted_out", dnc: true } })),
+    undefined,
+    "an opt-out is the reply box's to say: nothing can be sent at all",
+  );
+});
+
+test("a reply that didn't send: the row's pill in the bar, and what it means by the reply box", () => {
+  const failed = conv({
+    state: "open",
+    messages: [
+      m("m1", 30, { body: "Can I book at 3?" }),
+      m("m2", 29, { direction: "outbound", sender: "ai", body: "Booked!", status: "failed" }),
+    ],
+  });
+  const tree = draw(toInboxThreadVM(failed, null, ZONE, NOW));
+  const pill = find(find(tree, byTestId("ix-th-standing")), (n) => n.props?.kind === "tone");
+  assert.ok(pill && pill.props.label === "Didn't send" && pill.props.value === "danger", "the pill its row wears");
+  const word = find(tree, byTestId("ix-last-word"));
+  assert.match(textOf(word), /They wrote last, and the reply from the receptionist didn't send/);
+  assert.ok(hasClass("danger")(word));
+});
+
+test("a draft still waiting to go out is the thread's state: the bar says nothing over the countdown", () => {
+  const draft = m("m3", 0.5, {
+    direction: "outbound",
+    sender: "ai",
+    body: "Friday at 3 works.",
+    status: "queued",
+    meta: { delay_ms: 90_000 },
+    channel_ts: null,
+  });
+  const tree = draw(toInboxThreadVM(conv({ state: "open", messages: [m("m1", 2), draft] }), null, ZONE, NOW), {
+    veto: 72,
+  });
+  assert.equal(
+    find(tree, byTestId("ix-th-standing")),
+    undefined,
+    "REGRESSION: 'no reply yet' over 'Auto-sends in 72s'",
+  );
 });

@@ -705,9 +705,13 @@ test("REGRESSION (A11): an archived thread says it was archived, not that nobody
   cells = [];
   seq = 0;
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
+  assert.equal(
+    textOf(find(tree, byTestId("ix-th-standing"))),
+    "Archived",
+    "the pill says it, in the bar under the header",
+  );
   const archived = textOf(find(tree, byTestId("ix-archived")));
-  assert.ok(archived.startsWith("Archived"), `the pill says it: ${archived}`);
-  assert.match(archived, /Their request is closed\. If they write again, it comes back\./);
+  assert.match(archived, /^Their request is closed\. If they write again, it comes back\./);
   assert.ok(!textOf(tree).includes("no one asked for you"));
   assert.equal(toInboxThreadVM(conv({ state: "open" }), null, ZONE, NOW).archived, false);
 });

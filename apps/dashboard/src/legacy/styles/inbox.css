@@ -1356,6 +1356,8 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   color: var(--ink-dim);
 }
 .ix-composer-actions { display: flex; gap: 6px; align-items: center; }
+/* A reply box that is only its acts -- a closed window, a caller with no chat -- has nothing over them to stand off. */
+.ix-composer > .ix-composer-foot:first-child { margin-top: 0; }
 
 /* ====================================================================
    AGENT RAIL — refined
@@ -1962,37 +1964,55 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 .ix-th-status .ix-resolved.warn > .icon { color: var(--warn); }
 .ix-th-status .ix-resolved.danger > .icon { color: var(--danger); }
 .ix-th-status .ix-take { column-gap: 12px; row-gap: 8px; }
-/* The one signal: a thread that needs you has a dot, and its wait turns amber past 30 minutes. */
-/* ---- The state a real thread is in (IxState): one anatomy for every state ----
-   The row's own pill and a quiet word beside it, what you can do set to the right, and one sentence under them. */
-.ix-state {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "head acts" "says says";
-  align-items: center;
-  column-gap: 12px;
-  row-gap: 6px;
-}
-.ix-state.bare { display: block; }
-.ix-state-head { grid-area: head; display: flex; align-items: center; gap: 8px; min-width: 0; }
-/* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
-.ix-state-head .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
-.ix-state-head .pill::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
-.ix-state-meta { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
-/* As the row's pill does: amber once they have waited past half an hour. */
-.ix-state-meta.late { color: var(--warn-ink); }
-.ix-state-acts { grid-area: acts; display: flex; flex-direction: row-reverse; align-items: center; gap: 4px; }
-.ix-state-says { grid-area: says; font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
+/* ---- What a state asks of you (IxState): one anatomy for every state ----
+   One sentence, what they asked, and the acts under them, the first act first: the words take the width, and the
+   buttons never share their row (at 1024 the words were 0px wide). The state's name is the bar's, under the header. */
+.ix-state { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ix-state-says { font-size: 13px; line-height: 1.5; color: var(--ink-muted); }
 .ix-state-says .ix-take-ask { margin-top: 8px; }
+.ix-state-acts { display: flex; align-items: center; gap: 4px; }
 /* The act that answers the state: a soft fill, not a slab. The screen keeps one solid button, the reply box's Send. */
 .btn.ix-state-go { background: color-mix(in oklab, var(--ink) 9%, transparent); border-color: transparent; color: var(--ink); }
 .btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; }
 .btn.ix-state-go .icon { color: currentColor; }
-/* A narrow pane -- a phone, a closed sidebar -- puts the acts under the sentence, the first act first. */
-@container ixpane (max-width: 560px) {
-  .ix-state { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "says" "acts"; }
-  .ix-state-acts { flex-direction: row; justify-content: flex-start; margin-top: 2px; }
+
+/* ---- Where the conversation stands: one slim bar under the header (ThreadBar) ----
+   The pill its row wears and its wait, or a quiet thread's one sentence, on the left; the reply window on the right
+   when it has closed, its why a tap away, on a line of its own under the bar. A thread opens on it, before a word is
+   read: the standing sat at the foot of the screen, over a red block about the window, over the reply box's refusal.
+   The standing gives way when the line is short (a phone): its words clip, the window's never do. */
+.ix-th-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  min-height: 30px;
+  padding: 5px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-sunken);
+  font-size: 11.5px;
+  color: var(--ink-dim);
 }
+.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
+.ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
+.ix-th-standing .pill::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
+/* A quiet thread's sentence, with a dot in the tone of what it says (the view model's lastWord). A block, so its
+   words clip with an ellipsis (a flex box's never do); the dot sits in its left padding. */
+.ix-th-standing-words { position: relative; display: block; min-width: 0; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.ix-th-standing-words::before { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--ink-faint); }
+.ix-th-standing-words.ok::before { background: var(--ok); }
+.ix-th-standing-words.warn::before { background: var(--warn); }
+.ix-th-standing-words.danger::before { background: var(--danger); }
+.ix-th-standing-meta { white-space: nowrap; }
+/* As the row's pill does: amber once they have waited past half an hour. */
+.ix-th-standing-meta.late { color: var(--warn-ink); }
+.ix-th-window { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; }
+.ix-th-window::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.ix-th-bar .ix-why { flex: none; }
+.ix-th-bar .ix-why-said { flex-basis: 100%; margin-top: 0; line-height: 1.4; }
 /* The thread's Actions: a ghost button with a word, lit while its menu is open. A ⋯ alone in the dim ink was too
    faint to find on a phone. */
 .btn.ix-th-more { height: 30px; padding: 0 10px; border-radius: 8px; color: var(--ink-muted); font-size: 12px; }
