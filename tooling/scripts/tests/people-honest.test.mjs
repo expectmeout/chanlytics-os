@@ -24,6 +24,7 @@ import {
   stateOf,
   toPersonRowVM,
 } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -293,7 +294,8 @@ test("a saved list keeps every member the server holds, for an Undo, and counts 
 /* ----------------------------------- the pages ----------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const flashes = [];
 const opened = [];
 const went = [];
@@ -303,12 +305,12 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -318,7 +320,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -328,7 +330,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -336,7 +338,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -458,7 +460,7 @@ const freshPage = async ({
   return seen;
 };
 const draw = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props });
 };
 /**
@@ -705,7 +707,7 @@ test("REGRESSION (B27): lists that could not be read say so on the rail, the pro
   );
   assert.equal(typeof globalThis.window.PersonLists, "function", "the profile's lists can be drawn on their own");
   cells = [];
-  seq = 0;
+  frames.begin();
   const onProfile = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Person", flash: () => {} });
   assert.ok(byTestId(onProfile, "person-lists-failed"), 'the profile says so, instead of "No lists yet"');
 });
@@ -1870,12 +1872,12 @@ test("REGRESSION: Esc while a menu or a dialog is open is theirs -- the Esc that
 test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the selection stays; closed, the sheet lets People's Esc through", async () => {
   await freshPage({ people: [person(1), person(2)] });
   // The shell draws the sheet before any page, so its listener hears a key before People's does; by the time People's
-  // hears it, the sheet has closed. Its hooks sit far past the page's in the stub's one call order.
+  // hears it, the sheet has closed. It draws in a frame of its own, its state apart from the page's.
   const chrome = globalThis.window.__chrome;
   globalThis.window.__chrome = { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false };
   const sheet = () => {
-    seq = 10_000;
-    return globalThis.window.ShortcutsSheet();
+    frames.begin();
+    return frames.render(globalThis.window.ShortcutsSheet, {});
   };
   try {
     assert.equal(sheet(), null, "closed until asked");

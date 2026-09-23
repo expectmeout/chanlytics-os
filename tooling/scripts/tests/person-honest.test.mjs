@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
@@ -276,7 +277,8 @@ const wire = (people, lists = []) => {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 globalThis.Icon = "Icon";
 globalThis.React = {
@@ -284,12 +286,12 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -299,7 +301,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -309,7 +311,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -317,7 +319,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -415,7 +417,7 @@ const peoplePage = async (people, lists = []) => {
   went.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   return () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.ClientsA({ onOpenProfile: (id) => went.push(`profile:${id}`) });
   };
 };
@@ -425,7 +427,7 @@ const profile = async (vm) => {
   cells = [];
   went.length = 0;
   const draw = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.ClientProfile({ id: vm.id, onBack: () => went.push("back") });
   };
   draw();
@@ -575,7 +577,7 @@ test("REGRESSION (B26): the profile's next visit opens that day on the Calendar 
 test("REGRESSION (B18): a list chip on a profile opens its list -- the name was text", async () => {
   await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
   cells = [];
-  seq = 0;
+  frames.begin();
   const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
   const open = byTestId(lists, "person-list-open");
   assert.ok(open && textOf(open).includes("Regulars"), "the name is a door");
@@ -855,7 +857,7 @@ test("a frame with nobody to draw has no rail column; History leads About; ten s
   globalThis.window.__personDetail = async () => null;
   cells = [];
   const frame = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.ClientProfile({ id: "p-none", onBack: () => went.push("back") });
   };
   frame();
@@ -1457,7 +1459,7 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
 
   await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
   cells = [];
-  seq = 0;
+  frames.begin();
   const lists = globalThis.window.PersonLists({
     personId: "p1",
     canEdit: true,
@@ -1477,9 +1479,9 @@ test("clients/new-list opens People with the New list box open from the first dr
   globalThis.window.__lists = { create: async () => ({ ok: true, data: { id: "s9" } }) };
   try {
     cells = [];
-    seq = 0;
+    frames.begin();
     globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
-    seq = 0;
+    frames.begin();
     const tree = globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
     assert.ok(byTestId(tree, "new-list-name"), "the box, open, waiting for a name");
   } finally {
