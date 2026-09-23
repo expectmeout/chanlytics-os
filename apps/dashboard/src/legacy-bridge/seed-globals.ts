@@ -40,6 +40,7 @@ import {
   leadPlanFacts,
   leadPlanLikely,
   leadEndingLine,
+  leadNearWhere,
   leadsFirstDayWays,
   leadUndoable,
   planCeiling,
@@ -92,6 +93,7 @@ declare global {
       leadPlanFacts: typeof leadPlanFacts;
       leadPlanAsk: typeof leadPlanAsk;
       leadEndingLine: typeof leadEndingLine;
+      leadNearWhere: typeof leadNearWhere;
       planCeiling: typeof planCeiling;
       leadUndoable: typeof leadUndoable;
       leadReviewGroups: typeof leadReviewGroups;
@@ -186,6 +188,7 @@ if (typeof window !== "undefined") {
     leadPlanFacts,
     leadPlanAsk,
     leadEndingLine,
+    leadNearWhere,
     leadUndoable,
     leadReviewGroups,
     leadBand,

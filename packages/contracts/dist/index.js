@@ -5100,6 +5100,10 @@ function leadNoCardLine(what) {
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
 var plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function leadNearWhere(labels) {
+  const isNear = (l) => l.toLowerCase().startsWith("near ");
+  return labels.length && labels.every(isNear) ? `near ${leadAnd(labels.map((l) => l.slice(5).trim()))}` : `in ${leadAnd(labels)}`;
+}
 function leadAnd(items) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -5123,7 +5127,7 @@ function leadEndingLine(ending, f) {
           mark,
           title: `There are ${plural(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
-          step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null
+          step: f.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(f.nearby)}` } : null
         };
       }
       return {
@@ -5146,7 +5150,7 @@ function leadEndingLine(ending, f) {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
         title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
-        parts: [yours, ...f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : []],
+        parts: [yours, ...f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
     case "stopped":
@@ -18018,6 +18022,7 @@ export {
   leadMapNote,
   leadMapPlot,
   leadMonth,
+  leadNearWhere,
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
