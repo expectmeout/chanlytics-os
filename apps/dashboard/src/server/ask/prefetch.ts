@@ -69,7 +69,7 @@ export function prefetchPlan(text: string): ToolRun[] {
 export function prefetchBlock(reads: ReadonlyArray<{ run: ToolRun; result: string }>): string {
   if (!reads.length) return "";
   return [
-    "Read for this question before you were asked — the same rows those tools return now. Cite their ids as read this turn; call the tool again only for a different input.",
+    "Read for this question before you were asked — the same rows those tools return now, and read this turn. Answer from them, naming their rows as sources; call one of these tools again only for rows these do not hold.",
     ...reads.map((r) => `${r.run.name} ${JSON.stringify(r.run.input)} → ${r.result}`),
   ].join("\n");
 }

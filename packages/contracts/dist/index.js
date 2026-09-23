@@ -4065,10 +4065,10 @@ function guessName(item, services = []) {
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
   for (const part of parts2) {
     if (svc.has(part.toLowerCase())) continue;
-    const words3 = part.split(/\s+/);
-    if (words3.length < 2 || words3.length > 4) continue;
-    if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
+    const words4 = part.split(/\s+/);
+    if (words4.length < 2 || words4.length > 4) continue;
+    if (!words4.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words4.some((w) => svc.has(w.toLowerCase()))) continue;
     return part;
   }
   return null;
@@ -4150,14 +4150,14 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
-  const words3 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const words4 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct2}% ${words3}`,
-    words: words3,
+    sub: `${pct2}% ${words4}`,
+    words: words4,
     pct: pct2,
     asked: dto.asked,
     booked: dto.booked,
@@ -6005,8 +6005,8 @@ function leadBand(search) {
 }
 var METRES_PER_MILE = 1609.344;
 var keyInWords = (key) => {
-  const words3 = key.replace(/_/g, " ").trim();
-  return words3 ? words3.charAt(0).toUpperCase() + words3.slice(1) : "";
+  const words4 = key.replace(/_/g, " ").trim();
+  return words4 ? words4.charAt(0).toUpperCase() + words4.slice(1) : "";
 };
 var milesLabel = (m) => {
   if (m === null || m === void 0) return "";
@@ -6282,8 +6282,8 @@ function amountWords(cents, per, currency = "USD") {
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money} ${p}` : money;
 }
-function parseAmount(words3) {
-  const digits2 = String(words3 || "").replace(/[^0-9.-]/g, "");
+function parseAmount(words4) {
+  const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
   const n = digits2 ? Number(digits2) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 }
@@ -7242,8 +7242,8 @@ function noNumberWords(who, purpose) {
 function saidYesWords(who, purpose, sending, saidYes) {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
-  const words3 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words3}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words3;
+  const words4 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words4}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words4;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
@@ -7335,18 +7335,18 @@ function attentionRow(p, tz, nowMs) {
   const lc = p.lastContact;
   const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
-  let sentence;
+  let sentence2;
   let quoted = false;
   if (p.quote) {
-    sentence = oneLine(p.quote, 160);
+    sentence2 = oneLine(p.quote, 160);
     quoted = true;
-  } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
-  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
-  else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
-  else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
+  } else if (p.callSummary) sentence2 = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
+  else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
+  else if (p.lastVisit) sentence2 = `Last visit \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)
-    sentence = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
-  else sentence = "Nothing written yet";
+    sentence2 = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
+  else sentence2 = "Nothing written yet";
   const r = p.receptionist;
   let status;
   if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
@@ -7356,7 +7356,7 @@ function attentionRow(p, tz, nowMs) {
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
     status = [...status, `since ${clock(p.needsYouSinceMs, tz, nowMs)}`];
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
-  return { channel, when, sentence, quoted, status, tone: r.tone, cta };
+  return { channel, when, sentence: sentence2, quoted, status, tone: r.tone, cta };
 }
 var TIMELINE_FILTERS = [
   { id: "all", label: "All", kinds: null },
@@ -7528,14 +7528,14 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
-    const sentence = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+    const sentence2 = missed ? "The call never connected." : wanted || (summary ? summary.split(/(?<=[.!?])\s/)[0] ?? summary : k.in_voicemail ? "Reached voicemail." : "No summary from this call.");
     items.push({
       id: `k-${k.id}`,
       ts: t,
       ...stamp(t),
       kind: "call",
       who: missed ? "Missed call" : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""}`,
-      text: sentence,
+      text: sentence2,
       sub: missed ? "Never connected" : k.recording?.fetch_state === "stored" ? "Recording and transcript in Conversations" : "Transcript in Conversations",
       link: { label: "Open", to: `conversations/cv-${k.id}` }
     });
@@ -9437,123 +9437,12 @@ var ASK_CAPS = {
 };
 var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip = (n) => (s) => s.trim().slice(0, n);
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
   const cut = s.search(TAG_CUT);
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-function recoverCitations(raw) {
-  const at2 = raw.search(/name=["']citations["']/i);
-  if (at2 < 0) return [];
-  const start = raw.indexOf("[", at2);
-  if (start < 0) return [];
-  let depth = 0;
-  let end = -1;
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === "[") depth++;
-    else if (raw[i] === "]") {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
-  if (end < 0) return [];
-  try {
-    const arr = JSON.parse(raw.slice(start, end + 1));
-    if (!Array.isArray(arr)) return [];
-    return arr.filter(
-      (c) => !!c && typeof c === "object" && typeof c.id === "string" && typeof c.label === "string"
-    ).map((c) => ({
-      kind: ASK_CITATION_KINDS.includes(String(c.kind)) ? c.kind : "page",
-      id: c.id.slice(0, 200),
-      label: c.label.slice(0, 80)
-    })).slice(0, ASK_CAPS.citations);
-  } catch {
-    return [];
-  }
-}
-var AskFinishSchema = z6.object({
-  answer: z6.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
-  citations: z6.array(
-    z6.object({
-      kind: z6.enum(ASK_CITATION_KINDS).catch("page"),
-      id: z6.string().catch("").transform(clip(200)),
-      label: z6.string().catch("").transform(clip(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z6.array(z6.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z6.enum(ASK_LANGUAGES).catch("other")
-});
-function parseAskFinish(raw) {
-  let json = raw;
-  if (typeof raw === "string") {
-    try {
-      json = JSON.parse(raw);
-    } catch (e) {
-      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
-    }
-  }
-  const r = AskFinishSchema.safeParse(json);
-  if (!r.success)
-    return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  if (!r.data.answer) return { ok: false, error: "empty answer" };
-  if (!r.data.citations.length && json && typeof json === "object" && typeof json.answer === "string") {
-    const leaked = recoverCitations(json.answer);
-    if (leaked.length) return { ok: true, value: { ...r.data, citations: leaked } };
-  }
-  return { ok: true, value: r.data };
 }
 function emptyReadSet() {
   return { thread: /* @__PURE__ */ new Set(), conversation: /* @__PURE__ */ new Set(), call: /* @__PURE__ */ new Set(), person: /* @__PURE__ */ new Set() };
@@ -9612,77 +9501,8 @@ function citationRoute(c) {
       return c.id;
   }
 }
-var UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-function normalizeNavigate(to, read) {
-  const s = (to ?? "").trim().replace(/^#?\/+/, "");
-  if (!s) return null;
-  const id = (UUID_RE.exec(s) ?? [])[0]?.toLowerCase();
-  if (id) {
-    const head = s.toLowerCase();
-    const isCall = /call|cv-|live/.test(head);
-    const isPerson = /client|people|person|contact|profile/.test(head);
-    const isThread = /inbox|thread|th-|conversation/.test(head);
-    if (isCall && read.call.has(id)) return `conversations/cv-${id}`;
-    if (isPerson && read.person.has(id)) return `clients/${id}`;
-    if (isThread && (read.thread.has(id) || read.conversation.has(id))) return `inbox/th-${id}`;
-    if (read.call.has(id)) return `conversations/cv-${id}`;
-    if (read.thread.has(id) || read.conversation.has(id)) return `inbox/th-${id}`;
-    if (read.person.has(id)) return `clients/${id}`;
-    return null;
-  }
-  return PAGE_PREFIX.test(s) ? s : null;
-}
-function safeNavigate(to, read) {
-  if (!to) return false;
-  if (PAGE_PREFIX.test(to)) {
-    const m = /^inbox\/th-(.+)$/.exec(to);
-    if (m) return read.thread.has(m[1]) || read.conversation.has(m[1]);
-    const cv = /^conversations\/cv-(.+)$/.exec(to);
-    if (cv) return read.call.has(cv[1]);
-    const conv = /^conversations\/([0-9a-f-]{36})$/.exec(to);
-    if (conv) return read.conversation.has(conv[1]);
-    const person = /^clients\/([0-9a-f-]{36})$/.exec(to);
-    if (person) return read.person.has(person[1]);
-    return true;
-  }
-  return false;
-}
 function isUngrounded(answer, reads) {
   return reads === 0 && /\d/.test(answer);
-}
-function partialAnswer(prefix) {
-  const key = prefix.indexOf('"answer"');
-  if (key < 0) return "";
-  const raw = partialString(prefix, key);
-  const cut = raw.search(TAG_CUT);
-  return (cut >= 0 ? raw.slice(0, cut) : raw).replace(/^\s*<answer>\s*/i, "");
-}
-function partialString(prefix, key) {
-  let i = prefix.indexOf('"', prefix.indexOf(":", key) + 1);
-  if (i < 0) return "";
-  i++;
-  let out = "";
-  while (i < prefix.length) {
-    const c = prefix[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = prefix[i + 1];
-      if (n === void 0) break;
-      if (n === "n") out += "\n";
-      else if (n === "t") out += "	";
-      else if (n === "u") {
-        const hex = prefix.slice(i + 2, i + 6);
-        if (hex.length < 4) break;
-        out += String.fromCharCode(parseInt(hex, 16) || 32);
-        i += 4;
-      } else out += n;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
 }
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var PROPOSAL_GATE = {
@@ -10060,23 +9880,11 @@ function navigateLabel(nav, language) {
   if (/^clients\/[0-9a-f-]{36}$/.test(nav.to)) return es ? "Abrir el perfil" : "Open the profile";
   return nav.label || (es ? "Abrir" : "Open");
 }
-function citationsToShow(citations, nav) {
-  const seen = new Set(nav && nav.to ? [nav.to] : []);
-  return citations.filter((c) => {
-    if (!c || !c.to || seen.has(c.to)) return false;
-    seen.add(c.to);
-    return true;
-  });
-}
 var FOLLOWUP_ECHO = [
   [/profile|perfil/i, /^clients\//],
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/]
 ];
-function followupsToShow(followups, citations, nav) {
-  const places = [...citations.map((c) => c.to), ...nav && nav.to ? [nav.to] : []];
-  return followups.filter((f) => !FOLLOWUP_ECHO.some(([words3, route]) => words3.test(f) && places.some((p) => route.test(p)))).slice(0, ASK_CAPS.followups);
-}
 
 // src/ask-answer.ts
 var ASK_ANSWER_CAPS = {
@@ -10094,11 +9902,17 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
-var clip2 = (s, n) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+var clip = (s, n) => {
+  const t = (s ?? "").replace(/\s+/g, " ").trim();
+  if (t.length <= n) return t;
+  const cut = t.slice(0, n - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}\u2026`;
+};
 var structured = (headline, language) => ({
   v: 2,
   form: "structured",
-  say: { headline: clip2(headline, ASK_ANSWER_CAPS.headline), detail: "" },
+  say: { headline: clip(headline, ASK_ANSWER_CAPS.headline), detail: "" },
   show: { figures: [], items: [], breakdown: null },
   do: { open: null, next: [] },
   language
@@ -10135,17 +9949,21 @@ function cardOpenRoute(p) {
 function nextQuestions(next, places) {
   const out = [];
   for (const raw of next) {
-    const q = clip2(raw, ASK_ANSWER_CAPS.question);
+    const q = clip(raw, ASK_ANSWER_CAPS.question);
     if (!q || out.some((x) => sameQuestion(x, q))) continue;
-    if (FOLLOWUP_ECHO.some(([words3, route]) => words3.test(q) && places.some((p) => route.test(p)))) continue;
+    if (FOLLOWUP_ECHO.some(([words4, route]) => words4.test(q) && places.some((p) => route.test(p)))) continue;
     out.push(q);
     if (out.length >= ASK_ANSWER_CAPS.next) break;
   }
   return out;
 }
 function oneDoor(a, cards = []) {
-  const items = a.show.items.map((it) => ({ ...it, source: { ...it.source, door: true } }));
-  const offered = new Set(items.map((it) => it.source.to));
+  const offered = /* @__PURE__ */ new Set();
+  const items = a.show.items.map((it) => {
+    const door = !offered.has(it.source.to);
+    offered.add(it.source.to);
+    return { ...it, source: { ...it.source, door } };
+  });
   const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
   if (open) offered.add(open.to);
   const cardOpen = {};
@@ -10173,11 +9991,11 @@ var KIND_WORDS = {
 };
 function answerFromV1(m) {
   const language = m.language ?? "en";
-  const words3 = KIND_WORDS[language === "es" ? "es" : "en"];
+  const words4 = KIND_WORDS[language === "es" ? "es" : "en"];
   const cites = m.citations ?? [];
   const items = cites.filter((c) => c.kind !== "page").slice(0, ASK_ANSWER_CAPS.items).map((c) => ({
-    title: clip2(c.label, ASK_ANSWER_CAPS.title),
-    meta: words3[c.kind],
+    title: clip(c.label, ASK_ANSWER_CAPS.title),
+    meta: words4[c.kind],
     line: "",
     source: { kind: c.kind, id: c.id, label: c.label, to: c.to || citationRoute(c), door: true }
   }));
@@ -10304,6 +10122,321 @@ function openingsAnswer(o, language, day = null) {
   }));
   a.do.open = { to: "calendar", label: es ? "Abrir el Calendario" : "Open the Calendar", now: false };
   return a;
+}
+var C = ASK_ANSWER_CAPS;
+var SOURCE = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
+};
+var ASK_ANSWER_FORMAT = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
+              },
+              source: SOURCE
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
+              source: SOURCE
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE,
+            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
+};
+var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var asArr = (v) => Array.isArray(v) ? v : [];
+var words3 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
+var UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+var ROW_KINDS = ["call", "thread", "conversation", "person"];
+var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
+function groundRef(v, read) {
+  const r = asObj(v);
+  const kind = typeof r.kind === "string" ? r.kind : "none";
+  const spelled = typeof r.id === "string" ? r.id.trim().replace(/^#?\/+/, "") : "";
+  if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
+  const label = words3(r.label, C.label) || spelled;
+  const row2 = UUID.exec(spelled)?.[0].toLowerCase();
+  const tries = row2 ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2, label })) : [
+    ...kind === "page" ? [] : [{ kind, id: spelled, label }],
+    // A row's route with an id cut short or misspelled names no row read, and is no page either.
+    ...ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
+  ];
+  const kept = groundCitations(tries, read).kept[0];
+  return kept ? { ...kept, to: citationRoute(kept), door: true } : null;
+}
+function normalizeAnswer(raw, read, fallback) {
+  let json = raw;
+  if (typeof raw === "string") {
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+  const root = asObj(json);
+  const say = asObj(root.say);
+  const headline = words3(say.headline, C.headline);
+  if (!headline) return { ok: false, error: "no headline" };
+  const language = root.language === "en" || root.language === "es" ? root.language : fallback;
+  let dropped = 0;
+  const ground = (v) => {
+    const s = groundRef(v, read);
+    const r = asObj(v);
+    if (!s && typeof r.kind === "string" && r.kind !== "none" && typeof r.id === "string" && r.id.trim()) dropped++;
+    return s;
+  };
+  const show = asObj(root.show);
+  const figures = [];
+  for (const f of asArr(show.figures).map(asObj)) {
+    const value = words3(f.value, C.value);
+    if (!value) continue;
+    figures.push({ value, label: words3(f.label, C.label), note: words3(f.note, C.note), source: ground(f.source) });
+    if (figures.length >= C.figures) break;
+  }
+  const items = [];
+  for (const it of asArr(show.items).map(asObj)) {
+    const title = words3(it.title, C.title);
+    const source = ground(it.source);
+    if (!title || !source) continue;
+    items.push({ title, meta: words3(it.meta, C.meta), line: words3(it.line, C.line), source });
+    if (items.length >= C.items) break;
+  }
+  const b = asObj(show.breakdown);
+  const parts2 = asArr(b.parts).map(asObj).map((p) => ({ label: words3(p.label, C.label), value: num(p.value), warn: p.warn === true }));
+  const total = num(b.total);
+  const whole = words3(b.label, C.label);
+  const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
+  const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
+  const d = asObj(root.do);
+  const o = asObj(d.open);
+  const at2 = ground(o.source);
+  const open = at2 ? {
+    to: at2.to,
+    label: navigateLabel({ to: at2.to, label: words3(o.label, C.label) || at2.label }, language) ?? at2.label,
+    now: o.now === true
+  } : null;
+  const next = asArr(d.next).map((q) => words3(q, C.question)).filter(Boolean).slice(0, C.next);
+  return {
+    ok: true,
+    answer: {
+      v: 2,
+      form: "structured",
+      say: { headline, detail: words3(say.detail, C.detail) },
+      show: { figures, items, breakdown },
+      do: { open, next },
+      language
+    },
+    dropped
+  };
+}
+function answerWords(a) {
+  return [
+    a.say.headline,
+    a.say.detail,
+    ...a.show.figures.flatMap((f) => [f.value, f.label, f.note]),
+    ...a.show.items.flatMap((i) => [i.title, i.meta, i.line]),
+    ...a.show.breakdown ? [
+      a.show.breakdown.label,
+      String(a.show.breakdown.total),
+      ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)])
+    ] : []
+  ].filter(Boolean).join(" ");
+}
+function partialField(s, key) {
+  const k = s.indexOf(`"${key}"`);
+  if (k < 0) return "";
+  const colon = s.indexOf(":", k + key.length + 2);
+  if (colon < 0) return "";
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s[i])) i++;
+  if (s[i] !== '"') return "";
+  i++;
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === void 0) break;
+      if (n === "u") {
+        const hex = s.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 32);
+        i += 6;
+        continue;
+      }
+      out += n === "n" ? "\n" : n === "t" ? "	" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function partialSay(prefix) {
+  const at2 = prefix.indexOf('"say"');
+  if (at2 < 0) return null;
+  const rest = prefix.slice(at2);
+  return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
+}
+var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
+function answerForCards(cards, language) {
+  const es = language === "es";
+  const n = cards.length;
+  const a = structured(
+    n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
+    language
+  );
+  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas." : "Approve, change or dismiss each: nothing happens until you do.";
+  return a;
+}
+function failedAnswer(sentenceText, language) {
+  return structured(sentenceText, language);
+}
+var PROSE_MAX = 1500;
+function proseAnswer(text, language) {
+  return {
+    v: 2,
+    form: "prose",
+    say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
+    show: { figures: [], items: [], breakdown: null },
+    do: { open: null, next: [] },
+    language
+  };
+}
+function v1FromAnswer(a) {
+  const seen = /* @__PURE__ */ new Set();
+  const citations = [];
+  const add = (s) => {
+    if (!s || seen.has(`${s.kind}:${s.id}`)) return;
+    seen.add(`${s.kind}:${s.id}`);
+    citations.push({ kind: s.kind, id: s.id, label: s.label, to: s.to });
+  };
+  for (const i of a.show.items) add(i.source);
+  for (const f of a.show.figures) add(f.source);
+  add(a.show.breakdown ? a.show.breakdown.source : null);
+  return {
+    text: answerText(a),
+    citations: citations.slice(0, ASK_CAPS.citations),
+    navigate: a.do.open ? { to: a.do.open.to, label: a.do.open.label, now: a.do.open.now } : null,
+    followups: a.do.next
+  };
 }
 
 // src/line-failure.ts
@@ -10470,12 +10603,12 @@ function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
     const name = fold(l.name);
     const label = fold(l.label);
     const native = fold(l.native);
-    const words3 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
+    const words4 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
     let score = -1;
     if (code2 === q || code2.split("_")[0] === q) score = 0;
     else if (name.startsWith(q) || label.startsWith(q)) score = 1;
     else if (native.startsWith(q)) score = 2;
-    else if (words3.some((w) => w.startsWith(q))) score = 3;
+    else if (words4.some((w) => w.startsWith(q))) score = 3;
     else if (code2.startsWith(q)) score = 4;
     else if (label.includes(q) || native.includes(q)) score = 5;
     if (score >= 0) scored.push({ l, score, at: at2 });
@@ -11015,8 +11148,8 @@ function templatePreviewValues(t, own = {}) {
     const at2 = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
     const kind = kinds[i];
     const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at2 + 1}`;
-    const words3 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
-    if (words3 !== null) values[at2] = words3;
+    const words4 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
+    if (words4 !== null) values[at2] = words4;
   });
   return values;
 }
@@ -11109,13 +11242,13 @@ function sendableTemplates(list2) {
   if (blocked.length === 0) return { sendable, blocked, why: null };
   const n = blocked.length;
   const reasons = blocked.map((t) => templateBlocked(t));
-  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const words4 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
   const many = COUNT_WORDS2[n] ?? String(n);
   const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,
     blocked,
-    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+    why: `${lead} can't go out from here \u2014 ${words4}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
   };
 }
 var TEMPLATE_TITLE_MAX = 60;
@@ -11124,8 +11257,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
+  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
 }
 function languageWords(code2) {
   return languageName(code2);
@@ -11592,7 +11725,7 @@ function toRunReportVM(d, opts) {
     const answer = r.consent_after ? consentAnswerWords(r.consent_after, r.consent_purpose) : null;
     const pill = r.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : r.replied && out ? { label: "Replied", tone: "ok" } : r.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : r.state === "skipped" ? { label: "Held back", tone: "plain" } : r.state === "failed" ? { label: "Not sent", tone: "danger" } : r.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : r.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : r.message_status === "read" ? { label: "Read", tone: "info" } : r.message_status === "delivered" ? { label: "Delivered", tone: "info" } : { label: "Sent", tone: "plain" };
     const quote = r.replied && r.reply_words ? `\u201C${r.reply_words}\u201D` : null;
-    const words3 = r.state === "skipped" ? r.reason && HELD_REASONS[r.reason] || r.reason || "held back" : r.state === "failed" ? r.reason && HELD_REASONS[r.reason] || HELD_REASONS.send_failed || "WhatsApp refused it" : r.state === "queued" ? cutOff ?? "not sent yet" : r.consent_after === "opted_out" ? quote ? `${quote} \u2014 ${answer}` : answer : quote ? quote : r.consent_after === "opted_in" ? answer : r.message_status === "failed" ? "WhatsApp could not deliver it" : hiThere ? "greeted \u201CHi there\u201D \u2014 no name on file" : receiptWords(r, clock2);
+    const words4 = r.state === "skipped" ? r.reason && HELD_REASONS[r.reason] || r.reason || "held back" : r.state === "failed" ? r.reason && HELD_REASONS[r.reason] || HELD_REASONS.send_failed || "WhatsApp refused it" : r.state === "queued" ? cutOff ?? "not sent yet" : r.consent_after === "opted_out" ? quote ? `${quote} \u2014 ${answer}` : answer : quote ? quote : r.consent_after === "opted_in" ? answer : r.message_status === "failed" ? "WhatsApp could not deliver it" : hiThere ? "greeted \u201CHi there\u201D \u2014 no name on file" : receiptWords(r, clock2);
     const door = r.consent_after === "opted_out" && out ? { label: "See consent", to: `clients/${r.contact_id}` } : hiThere ? { label: "Add a name", to: `clients/${r.contact_id}` } : r.replied && r.conversation_id ? { label: "Open the thread", to: `inbox/th-${r.conversation_id}` } : null;
     const inn = ["all"];
     if (out && r.replied) inn.push("replied");
@@ -11603,7 +11736,7 @@ function toRunReportVM(d, opts) {
       name: r.name,
       initials: initialsOf2(r.name, !!r.first_name),
       pill,
-      words: words3,
+      words: words4,
       door,
       at: out ? clock2(r.replied_at || r.consent_at || r.read_at || r.delivered_at || r.sent_at) : null,
       attn: out && r.consent_after === "opted_out" || hiThere,
@@ -12157,7 +12290,7 @@ function reachLines(reach, p) {
       door: null
     }
   ];
-  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words3, tone, door }) => ({ n, words: `${n} ${words3}`, tone, door }));
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
   return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
 }
 function toApprovalVM(d, opts) {
@@ -13724,8 +13857,8 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
   const ready = blockers.length === 0;
   const activated = activationOf(i, kind);
   const live = ready && !!tested && !!activated;
-  const words3 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
-  return { kind, ready, blockers, tested, activated, live, words: words3 };
+  const words4 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
+  return { kind, ready, blockers, tested, activated, live, words: words4 };
 }
 
 // src/setup.ts
@@ -14536,14 +14669,14 @@ function setupSteps(i, nowMs = Date.now()) {
   const next = nextRow && nextRow.verb ? { label: nextRow.verb.label, to: nextRow.verb.to, row: nextRow.id, title: nextRow.title } : null;
   const done = rows.filter((r) => r.state === "ready").length;
   const seriousConflict = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
-  const sentence = seriousConflict ? (
+  const sentence2 = seriousConflict ? (
     // "Answering" and "answering correctly" are different claims, and the top
     // line of Setup is where an owner reads the second one.
     seriousConflict.sentence
   ) : waReady && voiceReady ? `Your receptionist answers calls on ${voiceNum} and WhatsApp on ${waNum}. ${texting.sentence}` : voiceReady ? `Your receptionist answers calls on ${voiceNum}. WhatsApp is not connected. ${texting.sentence}` : waReady ? `Your receptionist answers WhatsApp on ${waNum}. No phone line yet.` : "Your receptionist is not answering yet.";
   return {
     rows,
-    readiness: { answering, sentence },
+    readiness: { answering, sentence: sentence2 },
     next,
     done,
     total: rows.length,
@@ -14889,8 +15022,8 @@ function isTypingTarget(tagName, contentEditable) {
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
 }
 function pageTitle(crumbs, needs) {
-  const words3 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
-  const where = [...words3, "Chanlytics"].join(" \xB7 ");
+  const words4 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
+  const where = [...words4, "Chanlytics"].join(" \xB7 ");
   const n = Math.floor(Number(needs));
   return n > 0 ? `(${n}) ${where}` : where;
 }
@@ -15065,9 +15198,9 @@ function googleAudienceWords(a) {
   return null;
 }
 function smsStateRow(line, nowMs) {
-  const num2 = line ? formatPhoneDisplay(line.e164) : null;
+  const num3 = line ? formatPhoneDisplay(line.e164) : null;
   const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
-  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
+  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num3, verb: null };
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
     return {
@@ -15088,7 +15221,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "connected",
         stateWords: "On",
-        sentence: line?.reg_sole_prop ? `Customers text ${num2 ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num2 ?? "this number"}; the receptionist answers inside your hours.`
+        sentence: line?.reg_sole_prop ? `Customers text ${num3 ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num3 ?? "this number"}; the receptionist answers inside your hours.`
       };
     case "approved":
       return {
@@ -15585,12 +15718,12 @@ function sentenceFor(r, verdict, nowMs) {
       if (!THEIRS_TO_FIX.includes(r.sms_state ?? "") && mode === "stripe") {
         return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
       }
-      const words3 = textingWords({
+      const words4 = textingWords({
         sms_state: r.sms_state ?? "none",
         reg_mock: r.reg_mock ?? false,
         reg_sole_prop: r.reg_sole_prop ?? false
       }).sentence;
-      return r.line_error ? `${words3} \u2014 ${r.line_error}` : words3;
+      return r.line_error ? `${words4} \u2014 ${r.line_error}` : words4;
     }
     case "quiet":
       return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
@@ -15747,8 +15880,8 @@ function platformQueue(q, nowMs = Date.now()) {
   }));
   const total = q.total ?? rows.length;
   const oldest = q.waiting[0];
-  const sentence = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
-  return { rows, sentence, unreadable: false, note };
+  const sentence2 = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
+  return { rows, sentence: sentence2, unreadable: false, note };
 }
 
 // src/consent-page.ts
@@ -15829,10 +15962,10 @@ function consentPageVM(f) {
   const conversation = waysFor(f, CONVERSATION_PHRASE);
   const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
-  const words3 = askWords(name);
+  const words4 = askWords(name);
   const asks = empty ? [] : [
-    ...conversation.length ? [{ purpose: "conversational", ...words3.conversational, ways: conversation }] : [],
-    ...offers.length ? [{ purpose: "marketing", ...words3.marketing, ways: offers }] : []
+    ...conversation.length ? [{ purpose: "conversational", ...words4.conversational, ways: conversation }] : [],
+    ...offers.length ? [{ purpose: "marketing", ...words4.marketing, ways: offers }] : []
   ];
   return {
     title: `Text messages from ${name}`,
@@ -15846,18 +15979,18 @@ function consentPageVM(f) {
 }
 function consentFormVM(f) {
   const name = f.businessName.trim() || "This business";
-  const words3 = askWords(name);
+  const words4 = askWords(name);
   const sections = [
     {
       purpose: "conversational",
-      ...words3.conversational,
+      ...words4.conversational,
       box: `Yes, text me about my appointments with ${name}.`,
       sign: "Signature for this box"
     },
     ...f.whatsappE164 ? [
       {
         purpose: "marketing",
-        ...words3.marketing,
+        ...words4.marketing,
         box: `Yes, send me offers and news from ${name} on WhatsApp.`,
         sign: "Signature for this box"
       }
@@ -16009,7 +16142,7 @@ function humanize(kind) {
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
 }
 var str = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
-var num = (o, k) => typeof o[k] === "number" ? o[k] : null;
+var num2 = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
@@ -16038,7 +16171,7 @@ function activityWords(kind, payload) {
     case "export": {
       const what = str(p, "what");
       if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = num(p, "rows");
+      const rows = num2(p, "rows");
       if (rows !== null) bits2.push(`${rows} rows`);
       break;
     }
@@ -16046,21 +16179,21 @@ function activityWords(kind, payload) {
     case "resume_agent": {
       const mode = str(p, "receptionist_mode");
       if (mode) bits2.push(mode === "inherit" ? "follows the workspace" : mode);
-      const batch = num(p, "batch");
+      const batch = num2(p, "batch");
       if (batch) bits2.push(`one of ${batch}`);
       break;
     }
     case "send_broadcast": {
       const name = str(p, "name");
       if (name) bits2.push(name);
-      const n = num(p, "recipients");
+      const n = num2(p, "recipients");
       if (n !== null) bits2.push(`${n} people`);
       if (p.approved === true) bits2.push("approved by hand");
       break;
     }
     case "broadcast.sent": {
-      const sent = num(p, "sent");
-      const held = num(p, "held");
+      const sent = num2(p, "sent");
+      const held = num2(p, "held");
       if (sent !== null) bits2.push(`${sent} got it`);
       if (held) bits2.push(`${held} held`);
       break;
@@ -16091,7 +16224,7 @@ function activityWords(kind, payload) {
     case "playbook.run": {
       const outcome = str(p, "outcome");
       if (outcome) bits2.push(outcome);
-      const n = num(p, "recipients") ?? num(p, "count");
+      const n = num2(p, "recipients") ?? num2(p, "count");
       if (n !== null) bits2.push(`${n} people`);
       break;
     }
@@ -16101,7 +16234,7 @@ function activityWords(kind, payload) {
         bits2.push("finished");
         const ending = str(p, "ending");
         if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
-        const counted2 = num(p, "counted");
+        const counted2 = num2(p, "counted");
         if (counted2 !== null) bits2.push(`${counted2} found`);
       } else if (state) {
         bits2.push(
@@ -16808,8 +16941,8 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
+  const [share, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
 }
 function promptCostWords(chars, total) {
   const share = blockShareWords(chars, total);
@@ -16882,18 +17015,18 @@ function bookingRulesWords(rules) {
 }
 function bookingRuleRefusal(key) {
   const shape = BookingRulesSchema.shape;
-  const words3 = {
+  const words4 = {
     lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural9(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural9(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
     buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural9(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural9(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const say = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
+  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
   const bound = say ? shape[key]?.unwrap?.() : null;
   if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
     throw new TypeError(
-      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   return say(bound.minValue, bound.maxValue);
@@ -17186,7 +17319,7 @@ function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const lines = (max, one, many) => `At most ${plural9(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const words3 = {
+  const words4 = {
     tone: () => chars(L2.tone),
     services: () => `At most ${plural9(L2.services, "service", "services")}.`,
     serviceName: () => chars(L2.serviceName),
@@ -17209,10 +17342,10 @@ function profileRefusal(key, seen, of) {
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
-  const say = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
+  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
   if (!say) {
     throw new TypeError(
-      `profileRefusal knows the tab's own caps (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
+      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   return say();
@@ -17904,10 +18037,10 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
   const sent = sentOf(p, deal);
-  const words3 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
-  if (!sent && send.reach) return act("send", words3(proposalMessage(url)));
+  const words4 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
+  if (!sent && send.reach) return act("send", words4(proposalMessage(url)));
   if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
-    return act("follow-up", words3(proposalFollowUp(url)));
+    return act("follow-up", words4(proposalFollowUp(url)));
   return act("won");
 }
 function dealMenuActs(deal) {
@@ -17950,9 +18083,9 @@ function consultationWas(atMs, tz, nowMs) {
   return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
 }
 function namesService(title, service) {
-  const words3 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const said = words3(title);
-  const named = words3(service);
+  const words4 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const said = words4(title);
+  const named = words4(service);
   return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
 }
 function consultedDealOf(p, open) {
@@ -18269,7 +18402,7 @@ function dealSheetMerge(draft, opened, fresh) {
 }
 function dealSheetBody(mode, draft, deal, opts) {
   const P = DEAL_SHEET_WORDS.problems;
-  const problem = (field, words3) => ({ problem: { field, words: words3 } });
+  const problem = (field, words4) => ({ problem: { field, words: words4 } });
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
   const body = { stage: STAGE_OF[mode] };
@@ -18340,9 +18473,9 @@ var REFUSAL_FIELD = {
   bad_reason: "reason"
 };
 function dealSheetRefusal(message) {
-  const words3 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
-  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words3);
-  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words3 };
+  const words4 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
+  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words4);
+  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words4 };
 }
 
 // src/pipeline.ts
@@ -18795,9 +18928,9 @@ export {
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   ASK_ANSWER_CAPS,
+  ASK_ANSWER_FORMAT,
   ASK_CAPS,
   ASK_CITATION_KINDS,
-  ASK_FINISH_JSON_SCHEMA,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
@@ -18812,7 +18945,6 @@ export {
   ASK_UNDO_MS,
   AUDIENCE_KINDS,
   AppError,
-  AskFinishSchema,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
   BILLING_MODES,
@@ -19258,8 +19390,10 @@ export {
   allVisitsIn,
   amountTotalsWords,
   amountWords,
+  answerForCards,
   answerFromV1,
   answerText,
+  answerWords,
   applyReadState,
   applySettingsChange,
   asListRule,
@@ -19316,7 +19450,6 @@ export {
   checkedWords,
   chipsMoreWords,
   citationRoute,
-  citationsToShow,
   classify,
   cleanAnswer,
   cleanDisplayName,
@@ -19419,6 +19552,7 @@ export {
   exampleParams,
   extractContacts,
   factConflicts,
+  failedAnswer,
   fallbackMessages,
   fallbacksWords,
   feedBodyProblem,
@@ -19435,7 +19569,6 @@ export {
   fmtDay,
   fmtSeconds,
   foldName,
-  followupsToShow,
   footerOf,
   formatPhoneDisplay,
   formatWaited,
@@ -19601,10 +19734,10 @@ export {
   nextThemePref,
   noNumberWords,
   noProposalSince,
+  normalizeAnswer,
   normalizeEmail,
   normalizeLink,
   normalizeLocalPart,
-  normalizeNavigate,
   normalizePhone,
   notFoundPageMetadata,
   noteSuggestSystemPrompt,
@@ -19630,7 +19763,6 @@ export {
   pageTitle,
   paramLabel,
   parseAmount,
-  parseAskFinish,
   parseBrainOutput,
   parseIcs,
   parseJudgeAnswer,
@@ -19639,7 +19771,7 @@ export {
   parseParamSpecs,
   parseTenantConfig,
   parseTenantConfigResult,
-  partialAnswer,
+  partialSay,
   passwordProblem,
   pausedVoiceFacts,
   pendingWorkspaceOf,
@@ -19704,6 +19836,7 @@ export {
   proposalLinkOf,
   proposalMessage,
   proposalsWaiting,
+  proseAnswer,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
@@ -19717,7 +19850,6 @@ export {
   receiptWords,
   recencyCells,
   receptionistOn,
-  recoverCitations,
   refusalOf,
   registrationPathOf,
   registrationPreflight,
@@ -19751,7 +19883,6 @@ export {
   runDueNow,
   runningTotal,
   runsWords,
-  safeNavigate,
   saidYesTo,
   saidYesWords,
   sameAddress,
@@ -19893,6 +20024,7 @@ export {
   unreadCount,
   usPhone,
   usableDeviceTimezone,
+  v1FromAnswer,
   validateTemplateDraft,
   verbForRoute,
   verbalOptInScript,

@@ -46,6 +46,25 @@ test("a question, end to end", () => {
   assert.equal(s.text, "Nora has waited longest.");
 });
 
+test("Say replaces the words as it is written, where a v1 turn's words add up; an older turn's Say changes nothing", () => {
+  let s = asked(initialTurn(), "who's waited longest?");
+  const seq = s.seq;
+  s = R(s, { t: "trace", text: "Reading the inbox…", seq });
+  s = R(s, { t: "say", headline: "Nora has", detail: "", seq });
+  assert.deepEqual([s.phase, s.text, s.trace], ["answering", "Nora has", null]);
+  s = R(s, { t: "say", headline: "Nora has waited longest.", detail: "Since Monday.", seq });
+  assert.equal(s.text, "Nora has waited longest. Since Monday.", "the preview is replaced, never appended to");
+  s = R(s, { t: "say", headline: "Someone else.", detail: "", seq: seq - 1 });
+  assert.equal(s.text, "Nora has waited longest. Since Monday.");
+  s = R(s, { t: "say", headline: "", detail: "", seq });
+  assert.deepEqual([s.phase, s.text], ["reading", ""], "an empty Say takes back an answer the server set aside");
+  s = R(s, { t: "trace", text: "Reading the thread…", seq });
+  assert.equal(s.trace, "Reading the thread…", "and the reads show again");
+  s = R(s, { t: "say", headline: "Nora has waited longest.", detail: "Since Monday.", seq });
+  s = R(s, { t: "final", message: msg({ text: "Nora has waited longest. Since Monday." }), seq });
+  assert.deepEqual([s.phase, s.text], ["settled", "Nora has waited longest. Since Monday."]);
+});
+
 // A quick answer as the Line draws it (contracts ask-answer.ts): the band draws the same parts.
 const quick = (headline) => ({
   v: 2,

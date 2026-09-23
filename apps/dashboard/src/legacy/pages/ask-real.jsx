@@ -119,7 +119,7 @@ const AskReal = ({ open, onClose }) => {
   const moodState = talk.listening
     ? "listening"
     : live
-      ? live.text ? "speaking" : "thinking"
+      ? live.say || live.text ? "speaking" : "thinking"
       : quick && quick.pending
         ? "thinking"
         : speech.speakingId ? "speaking" : "idle";
@@ -321,14 +321,25 @@ const AskReal = ({ open, onClose }) => {
     const thread = base ? { ...base, messages: [...base.messages, userMsg] } : { id: null, title: q, messages: [userMsg], scope };
     setActive(thread);
     const mine = ++turnSeq.current;
-    setLive({ q, text: "", traces: [] });
+    setLive({ q, text: "", say: null, traces: [] });
     let threadId = thread.id;
     let final = null;
     let spoke = false;
+    let said = 0;
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
       if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
+      else if (ev.t === "say") {
+        // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one
+        // takes back an answer the server set aside, and the reads show again.
+        const back = !ev.headline && !ev.detail;
+        setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail } } : prev));
+        if (!back) spoke = true;
+        const len = ev.headline.length + ev.detail.length;
+        if (M && len > said) M.mood.beat(Math.min(1, (len - said) / 6));
+        said = len;
+      }
       else if (ev.t === "delta") {
         setLive((prev) => (prev ? { ...prev, text: prev.text + ev.text } : prev));
         spoke = true;
@@ -490,8 +501,8 @@ const AskReal = ({ open, onClose }) => {
         empty={view === "earlier" && !threads.length ? t.noEarlier : null}
       />
     );
-  else if (live && live.text)
-    body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
+  else if (live && (live.say || live.text))
+    body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} say={live.say} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
   else if (live || (quick && quick.pending)) {
     const lines = live && live.traces.length ? live.traces : [t.thinking];
     body = (

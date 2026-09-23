@@ -1,13 +1,13 @@
 /**
  * Ask: the workspace assistant, as a contract.
  *
- * What lives here is everything about Ask that is pure and shared: the shape
- * of a turn's final answer and how it is parsed, the rule that keeps a
- * citation honest, the palette's jump index and suggestions, the three
- * questions that are answered without a model, and the small partial-JSON
- * reader that lets the answer stream while the rest of the turn is still
- * being written. The route that runs the model lives in the dashboard; the
- * palette that shows the answer lives in the mockup; both read from here.
+ * What lives here is everything about Ask that is pure and shared: its limits
+ * and model, the rule that keeps a citation honest and where a row opens, the
+ * cards and their undo, the Line's jump index and suggestions, and the three
+ * questions answered without a model. The answer itself -- its shape, the
+ * format the model writes it in and how it is read back -- is ask-answer.ts's.
+ * The route that runs the model lives in the dashboard; the Line that shows
+ * the answer lives in the legacy pages; both read from here.
  */
 import type { SchemaSet } from "./schema-sets";
 import { z } from "zod";
@@ -80,56 +80,6 @@ export const ASK_LANGUAGES = ["en", "es", "other"] as const;
 export type AskLanguage = (typeof ASK_LANGUAGES)[number];
 
 /**
- * The shape the model must answer in, as the `finish` tool's input. Every
- * property is required and nothing else is allowed, so the API can decode it
- * under constraint; "no navigation" is an empty route, never a missing key.
- */
-export const ASK_FINISH_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description:
-        "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly.",
-    },
-    citations: {
-      type: "array",
-      description:
-        "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four — the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
-          id: { type: "string" },
-          label: { type: "string" },
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false,
-      },
-    },
-    followups: {
-      type: "array",
-      description:
-        "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" },
-    },
-    navigate: {
-      type: "object",
-      description:
-        "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false,
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] },
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false,
-} as const;
-
-const clip = (n: number) => (s: string) => s.trim().slice(0, n);
-
-/**
  * Tag-shaped junk out of an answer.
  *
  * Once in thirty turns the model wrote the finish call's next field inside
@@ -146,117 +96,6 @@ export function cleanAnswer(raw: string): string {
     .replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "")
     .replace(/\s+$/g, "")
     .trim();
-}
-
-/** Citations the model wrote into the wrong field, when the answer carried them as JSON. */
-export function recoverCitations(raw: string): AskCitation[] {
-  const at = raw.search(/name=["']citations["']/i);
-  if (at < 0) return [];
-  const start = raw.indexOf("[", at);
-  if (start < 0) return [];
-  let depth = 0;
-  let end = -1;
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === "[") depth++;
-    else if (raw[i] === "]") {
-      depth--;
-      if (depth === 0) {
-        end = i;
-        break;
-      }
-    }
-  }
-  if (end < 0) return [];
-  try {
-    const arr = JSON.parse(raw.slice(start, end + 1)) as unknown;
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .filter(
-        (c): c is AskCitation =>
-          !!c &&
-          typeof c === "object" &&
-          typeof (c as AskCitation).id === "string" &&
-          typeof (c as AskCitation).label === "string",
-      )
-      .map((c) => ({
-        kind: (ASK_CITATION_KINDS as readonly string[]).includes(String(c.kind)) ? (c.kind as AskCitationKind) : "page",
-        id: c.id.slice(0, 200),
-        label: c.label.slice(0, 80),
-      }))
-      .slice(0, ASK_CAPS.citations);
-  } catch {
-    return [];
-  }
-}
-
-export const AskFinishSchema = z.object({
-  answer: z
-    .string()
-    .catch("")
-    .transform((s) => clip(1500)(cleanAnswer(s))),
-  citations: z
-    .array(
-      z.object({
-        kind: z.enum(ASK_CITATION_KINDS).catch("page"),
-        id: z.string().catch("").transform(clip(200)),
-        label: z.string().catch("").transform(clip(80)),
-      }),
-    )
-    .catch([])
-    .transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z
-    .array(z.string())
-    .catch([])
-    .transform((a) =>
-      a
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, ASK_CAPS.followups)
-        .map((s) => s.slice(0, 90)),
-    ),
-  navigate: z
-    .object({ to: z.string().catch(""), label: z.string().catch(""), now: z.boolean().catch(false) })
-    .catch({ to: "", label: "", now: false })
-    .transform((n) =>
-      n.to.trim()
-        ? {
-            to: n.to
-              .trim()
-              .replace(/^#?\/+/, "")
-              .slice(0, 200),
-            label: n.label.trim().slice(0, 60) || "Open",
-            now: n.now === true,
-          }
-        : null,
-    ),
-  language: z.enum(ASK_LANGUAGES).catch("other"),
-});
-export type AskFinish = z.infer<typeof AskFinishSchema>;
-
-export function parseAskFinish(raw: unknown): { ok: true; value: AskFinish } | { ok: false; error: string } {
-  let json: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      json = JSON.parse(raw);
-    } catch (e) {
-      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
-    }
-  }
-  const r = AskFinishSchema.safeParse(json);
-  if (!r.success)
-    return { ok: false, error: r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  if (!r.data.answer) return { ok: false, error: "empty answer" };
-  // Citations that leaked into the answer field are still citations.
-  if (
-    !r.data.citations.length &&
-    json &&
-    typeof json === "object" &&
-    typeof (json as { answer?: unknown }).answer === "string"
-  ) {
-    const leaked = recoverCitations((json as { answer: string }).answer);
-    if (leaked.length) return { ok: true, value: { ...r.data, citations: leaked } };
-  }
-  return { ok: true, value: r.data };
 }
 
 /* --------------------------------------------------------------- grounding */
@@ -335,56 +174,6 @@ export function citationRoute(c: AskCitation): string {
   }
 }
 
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-
-/**
- * The route the app knows for what the model meant.
- *
- * The model writes routes as it understands them: "conversations/cv-<id>"
- * when a tool said so, but also "calls/<id>", "people/<id>", "inbox/<id>",
- * or a bare id. Any spelling that names a row the tools returned this turn
- * becomes that row's canonical route; a page route passes as is; anything
- * else is nothing. Dropping a real row over its spelling left "Opening the
- * call…" opening nothing.
- */
-export function normalizeNavigate(to: string, read: AskReadSet): string | null {
-  const s = (to ?? "").trim().replace(/^#?\/+/, "");
-  if (!s) return null;
-  const id = (UUID_RE.exec(s) ?? [])[0]?.toLowerCase();
-  if (id) {
-    const head = s.toLowerCase();
-    const isCall = /call|cv-|live/.test(head);
-    const isPerson = /client|people|person|contact|profile/.test(head);
-    const isThread = /inbox|thread|th-|conversation/.test(head);
-    if (isCall && read.call.has(id)) return `conversations/cv-${id}`;
-    if (isPerson && read.person.has(id)) return `clients/${id}`;
-    if (isThread && (read.thread.has(id) || read.conversation.has(id))) return `inbox/th-${id}`;
-    // No kind in the spelling: whichever set holds the id.
-    if (read.call.has(id)) return `conversations/cv-${id}`;
-    if (read.thread.has(id) || read.conversation.has(id)) return `inbox/th-${id}`;
-    if (read.person.has(id)) return `clients/${id}`;
-    return null;
-  }
-  return PAGE_PREFIX.test(s) ? s : null;
-}
-
-/** A navigate target is safe when it is a page or a row route the tools could have produced. */
-export function safeNavigate(to: string, read: AskReadSet): boolean {
-  if (!to) return false;
-  if (PAGE_PREFIX.test(to)) {
-    const m = /^inbox\/th-(.+)$/.exec(to);
-    if (m) return read.thread.has(m[1]) || read.conversation.has(m[1]);
-    const cv = /^conversations\/cv-(.+)$/.exec(to);
-    if (cv) return read.call.has(cv[1]);
-    const conv = /^conversations\/([0-9a-f-]{36})$/.exec(to);
-    if (conv) return read.conversation.has(conv[1]);
-    const person = /^clients\/([0-9a-f-]{36})$/.exec(to);
-    if (person) return read.person.has(person[1]);
-    return true;
-  }
-  return false;
-}
-
 /**
  * An answer that states a figure without having read anything is not from
  * the workspace. Times, counts and money all carry digits; a turn with no
@@ -392,52 +181,6 @@ export function safeNavigate(to: string, read: AskReadSet): boolean {
  */
 export function isUngrounded(answer: string, reads: number): boolean {
   return reads === 0 && /\d/.test(answer);
-}
-
-/* --------------------------------------------------------- partial answers */
-
-/**
- * The `answer` string out of a JSON prefix that is still arriving.
- *
- * The finish tool's input streams as partial JSON; the palette wants the
- * words as they come. This reads `"answer": "` and then the string up to the
- * first unescaped quote, decoding the escapes it has seen so far. Anything
- * before the key, or a key that has not arrived, is an empty string.
- */
-export function partialAnswer(prefix: string): string {
-  const key = prefix.indexOf('"answer"');
-  if (key < 0) return "";
-  const raw = partialString(prefix, key);
-  const cut = raw.search(TAG_CUT);
-  return (cut >= 0 ? raw.slice(0, cut) : raw).replace(/^\s*<answer>\s*/i, "");
-}
-
-function partialString(prefix: string, key: number): string {
-  let i = prefix.indexOf('"', prefix.indexOf(":", key) + 1);
-  if (i < 0) return "";
-  i++;
-  let out = "";
-  while (i < prefix.length) {
-    const c = prefix[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = prefix[i + 1];
-      if (n === undefined) break;
-      if (n === "n") out += "\n";
-      else if (n === "t") out += "\t";
-      else if (n === "u") {
-        const hex = prefix.slice(i + 2, i + 6);
-        if (hex.length < 4) break;
-        out += String.fromCharCode(parseInt(hex, 16) || 0x20);
-        i += 4;
-      } else out += n;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
 }
 
 /* ------------------------------------------------------------ the message */
@@ -1087,35 +830,9 @@ export function navigateLabel(nav: { to: string; label: string } | null, languag
   return nav.label || (es ? "Abrir" : "Open");
 }
 
-/** The source chips, minus the one the Open button already is, minus repeats of a place. */
-export function citationsToShow<C extends { to: string }>(citations: C[], nav: { to: string } | null): C[] {
-  const seen = new Set<string>(nav && nav.to ? [nav.to] : []);
-  return citations.filter((c) => {
-    if (!c || !c.to || seen.has(c.to)) return false;
-    seen.add(c.to);
-    return true;
-  });
-}
-
 /** A next question that points at a place already offered: its words, and the route it echoes. */
 export const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
   [/profile|perfil/i, /^clients\//],
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/],
 ];
-
-/**
- * Follow-ups worth a chip: not one that echoes a place the answer already
- * offers to open. "Show this caller's profile" beside an Open the profile
- * button is the same thing twice.
- */
-export function followupsToShow(
-  followups: string[],
-  citations: Array<{ to: string }>,
-  nav: { to: string } | null,
-): string[] {
-  const places = [...citations.map((c) => c.to), ...(nav && nav.to ? [nav.to] : [])];
-  return followups
-    .filter((f) => !FOLLOWUP_ECHO.some(([words, route]) => words.test(f) && places.some((p) => route.test(p))))
-    .slice(0, ASK_CAPS.followups);
-}

@@ -2026,86 +2026,8 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var ASK_CAPS = {
-  threads: 20,
-  messages: 30,
-  messagesMore: 80,
-  calls: 20,
-  transcript: 40,
-  people: 12,
-  citations: 6,
-  followups: 3,
-  needsRows: 10
-};
 var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip = (n) => (s) => s.trim().slice(0, n);
-var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
-function cleanAnswer(raw) {
-  let s = raw.replace(/^\s*<answer>\s*/i, "");
-  const cut = s.search(TAG_CUT);
-  if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-var AskFinishSchema = z6.object({
-  answer: z6.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
-  citations: z6.array(
-    z6.object({
-      kind: z6.enum(ASK_CITATION_KINDS).catch("page"),
-      id: z6.string().catch("").transform(clip(200)),
-      label: z6.string().catch("").transform(clip(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z6.array(z6.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z6.enum(ASK_LANGUAGES).catch("other")
-});
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z6.object({
   state: z6.enum(["done", "dismissed", "failed", "undone"]),
@@ -2133,6 +2055,155 @@ var AskSettingsChangeSchema = z6.discriminatedUnion("op", [
     duration_min: z6.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_ANSWER_CAPS = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
+};
+var C = ASK_ANSWER_CAPS;
+var SOURCE = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
+};
+var ASK_ANSWER_FORMAT = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
+              },
+              source: SOURCE
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
+              source: SOURCE
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE,
+            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
+};
 var L = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,
@@ -4963,86 +5034,8 @@ var NOTE_SUGGEST_SCHEMA2 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var ASK_CAPS2 = {
-  threads: 20,
-  messages: 30,
-  messagesMore: 80,
-  calls: 20,
-  transcript: 40,
-  people: 12,
-  citations: 6,
-  followups: 3,
-  needsRows: 10
-};
 var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES2 = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA2 = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS2] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES2] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip2 = (n) => (s) => s.trim().slice(0, n);
-var TAG_CUT2 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
-function cleanAnswer2(raw) {
-  let s = raw.replace(/^\s*<answer>\s*/i, "");
-  const cut = s.search(TAG_CUT2);
-  if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-var AskFinishSchema2 = z62.object({
-  answer: z62.string().catch("").transform((s) => clip2(1500)(cleanAnswer2(s))),
-  citations: z62.array(
-    z62.object({
-      kind: z62.enum(ASK_CITATION_KINDS2).catch("page"),
-      id: z62.string().catch("").transform(clip2(200)),
-      label: z62.string().catch("").transform(clip2(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS2.citations)),
-  followups: z62.array(z62.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z62.object({ to: z62.string().catch(""), label: z62.string().catch(""), now: z62.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z62.enum(ASK_LANGUAGES2).catch("other")
-});
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z62.object({
   state: z62.enum(["done", "dismissed", "failed", "undone"]),
@@ -5070,6 +5063,155 @@ var AskSettingsChangeSchema2 = z62.discriminatedUnion("op", [
     duration_min: z62.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_ANSWER_CAPS2 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
+};
+var C2 = ASK_ANSWER_CAPS2;
+var SOURCE2 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C2.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
+};
+var ASK_ANSWER_FORMAT2 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C2.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C2.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C2.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C2.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C2.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C2.note} characters.`
+              },
+              source: SOURCE2
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C2.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C2.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C2.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C2.line} characters.` },
+              source: SOURCE2
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C2.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C2.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C2.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE2
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE2,
+            label: { type: "string", description: `The button's words, at most ${C2.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C2.next} short questions they might ask next, at most ${C2.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES2] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
+};
 var L2 = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,
@@ -5471,8 +5613,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words32 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words32 ? words32[0].toUpperCase() + words32.slice(1) : String(name ?? "");
+  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
 }
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
@@ -7209,86 +7351,8 @@ var NOTE_SUGGEST_SCHEMA3 = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
-var ASK_CAPS3 = {
-  threads: 20,
-  messages: 30,
-  messagesMore: 80,
-  calls: 20,
-  transcript: 40,
-  people: 12,
-  citations: 6,
-  followups: 3,
-  needsRows: 10
-};
 var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES3 = ["en", "es", "other"];
-var ASK_FINISH_JSON_SCHEMA3 = {
-  type: "object",
-  properties: {
-    answer: {
-      type: "string",
-      description: "The answer, in the person's language: two or three short sentences, under sixty words, unless they asked for detail (a transcript, a list). Plain text only: no markdown, no headings, and never a tag such as <answer> or <parameter> inside this string. More than two items go one per line, separated by newlines. Say what you found; if a read returned nothing, say so plainly."
-    },
-    citations: {
-      type: "array",
-      description: "The rows the answer rests on, taken ONLY from what the tools returned this turn, at most four \u2014 the ones the answer names. Each needs the kind, the exact id the tool gave you, and a short label (a name, a day, a call time).",
-      items: {
-        type: "object",
-        properties: {
-          kind: { type: "string", enum: [...ASK_CITATION_KINDS3] },
-          id: { type: "string" },
-          label: { type: "string" }
-        },
-        required: ["kind", "id", "label"],
-        additionalProperties: false
-      }
-    },
-    followups: {
-      type: "array",
-      description: "Up to two short questions the person might ask next, in their language. Empty when nothing natural follows.",
-      items: { type: "string" }
-    },
-    navigate: {
-      type: "object",
-      description: "When the best answer is a page, the route to open and a label. to: the exact `route` field a tool returned for a row (a call, a thread, a person), or a page route (today, inbox, clients, conversations, live, reports, admin/workspace). Empty strings when there is nothing to open. now: true when the person asked to open, show or see that thing; the app goes there as soon as the answer is read, so keep the answer to one line.",
-      properties: { to: { type: "string" }, label: { type: "string" }, now: { type: "boolean" } },
-      required: ["to", "label", "now"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES3] }
-  },
-  required: ["answer", "citations", "followups", "navigate", "language"],
-  additionalProperties: false
-};
-var clip3 = (n) => (s) => s.trim().slice(0, n);
-var TAG_CUT3 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
-function cleanAnswer3(raw) {
-  let s = raw.replace(/^\s*<answer>\s*/i, "");
-  const cut = s.search(TAG_CUT3);
-  if (cut >= 0) s = s.slice(0, cut);
-  return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
-}
-var AskFinishSchema3 = z63.object({
-  answer: z63.string().catch("").transform((s) => clip3(1500)(cleanAnswer3(s))),
-  citations: z63.array(
-    z63.object({
-      kind: z63.enum(ASK_CITATION_KINDS3).catch("page"),
-      id: z63.string().catch("").transform(clip3(200)),
-      label: z63.string().catch("").transform(clip3(80))
-    })
-  ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS3.citations)),
-  followups: z63.array(z63.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))
-  ),
-  navigate: z63.object({ to: z63.string().catch(""), label: z63.string().catch(""), now: z63.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
-    } : null
-  ),
-  language: z63.enum(ASK_LANGUAGES3).catch("other")
-});
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z63.object({
   state: z63.enum(["done", "dismissed", "failed", "undone"]),
@@ -7316,6 +7380,155 @@ var AskSettingsChangeSchema3 = z63.discriminatedUnion("op", [
     duration_min: z63.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_ANSWER_CAPS3 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
+};
+var C3 = ASK_ANSWER_CAPS3;
+var SOURCE3 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C3.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
+};
+var ASK_ANSWER_FORMAT3 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C3.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C3.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C3.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C3.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C3.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C3.note} characters.`
+              },
+              source: SOURCE3
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C3.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C3.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C3.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C3.line} characters.` },
+              source: SOURCE3
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C3.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C3.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C3.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE3
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE3,
+            label: { type: "string", description: `The button's words, at most ${C3.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C3.next} short questions they might ask next, at most ${C3.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES3] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
+};
 var L3 = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,

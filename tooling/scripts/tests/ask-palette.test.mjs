@@ -21,7 +21,7 @@ import {
   askJump,
   cardOpenRoute,
   groundCitations,
-  safeNavigate,
+  normalizeAnswer,
 } from "@chanlytics/contracts";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -649,6 +649,116 @@ test("open, show or see: the Line goes there as the answer lands, and the place 
   await closes();
 });
 
+test("a turn since the Line: Say is drawn as it is written, the headline then the detail, Show and Do wait for the final message, and its answer's Open is followed though one door draws the call as its item", async () => {
+  const calls = ask([]);
+  const went = [];
+  const chanly = globalThis.window.CHANLY;
+  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const CV = "bbbbbbbb-bbbb-4bbb-8bbb-000000000002";
+  const call = { kind: "call", id: CV, label: "Nora", to: `conversations/cv-${CV}`, door: true };
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Nora has waited longest.", detail: "She called at 3:34 AM." },
+    show: {
+      figures: [],
+      items: [{ title: "Nora", meta: "Phone", line: "Asked for a call back.", source: call }],
+      breakdown: null,
+    },
+    do: { open: { to: call.to, label: "Open the call", now: true }, next: [] },
+    language: "en",
+  };
+  let land = () => {};
+  const landed = new Promise((r) => (land = r));
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(7).id, title: input.text });
+    on({ t: "say", headline: "Nora has waited", detail: "" });
+    on({ t: "say", headline: "Nora has waited longest.", detail: "She called" });
+    await landed;
+    on({ t: "final", message: { ...said("m-v2", "Nora has waited longest. She called at 3:34 AM."), answer } });
+  };
+  let closed = 0;
+  const props = { open: true, onClose: () => (closed += 1) };
+  try {
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    typed(tree, "who has waited longest?");
+    tree = await later(Palette, props);
+    keyed(tree, "Enter");
+    tree = await later(Palette, props);
+    const say = byTestId(tree, "ask-say");
+    assert.deepEqual(
+      [textOf(byClass(say, "ask-headline")[0]), textOf(byClass(say, "ask-detail")[0])],
+      ["Nora has waited longest.", "She called"],
+      "the Say written so far replaces what was drawn",
+    );
+    assert.equal(byClass(say, "ask-cursor").length, 1, "one cursor, after the last word written");
+    assert.equal(byTestId(tree, "ask-item"), null, "Show waits for the final message");
+    land();
+    tree = await later(Palette, props);
+    assert.deepEqual(
+      [textOf(byClass(tree, "ask-headline")[0]), textOf(byClass(tree, "ask-detail")[0])],
+      ["Nora has waited longest.", "She called at 3:34 AM."],
+    );
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-item").length, 1, "the call is its own door");
+    assert.equal(byTestId(tree, "ask-open"), null, "so its Open is not drawn beside it");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(went, [`conversations/cv-${CV}`], "yet the Open they asked for is followed as the answer lands");
+    assert.equal(closed, 1);
+  } finally {
+    globalThis.window.CHANLY = chanly;
+  }
+  await closes();
+});
+
+test("the Line takes back a Say the server set aside and shows the reads again; a later row to a place an earlier one opens is drawn as a row, never a second door", async () => {
+  const calls = ask([]);
+  let land = () => {};
+  const landed = new Promise((r) => (land = r));
+  const day = (title) => ({
+    title,
+    meta: "",
+    line: "",
+    source: { kind: "page", id: "calendar", label: "Calendar", to: "calendar", door: true },
+  });
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Two visits tomorrow.", detail: "" },
+    show: { figures: [], items: [day("10:00 visit"), day("2:00 visit")], breakdown: null },
+    do: { open: null, next: [] },
+    language: "en",
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(8).id, title: input.text });
+    on({ t: "say", headline: "Nothing is booked tomorrow.", detail: "" });
+    on({ t: "say", headline: "", detail: "" });
+    on({ t: "trace", text: "Reading the calendar…" });
+    await landed;
+    on({ t: "final", message: { ...said("m-day", "Two visits tomorrow."), answer } });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "what does tomorrow look like?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.equal(byClass(tree, "ask-headline").length, 0, "the Say taken back is not drawn");
+  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the calendar…"), "the read is shown again");
+  land();
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => [n.type, textOf(n)]),
+    [
+      ["button", "10:00 visit"],
+      ["div", "2:00 visit"],
+    ],
+  );
+  await closes();
+});
+
 test("Space held on an empty line talks; a tap does nothing; after words, Space is a space", async () => {
   const started = [];
   const talk = { start: () => started.push("start"), stop: () => started.push("stop") };
@@ -879,6 +989,20 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   );
 
   const read = { person: new Set(), thread: new Set(), conversation: new Set(), call: new Set() };
+  const none = { kind: "none", id: "", label: "" };
+  const opens = (to) => {
+    const r = normalizeAnswer(
+      {
+        say: { headline: "It's there.", detail: "" },
+        show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+        do: { open: { source: { kind: "page", id: to, label: to }, label: "", now: false }, next: [] },
+        language: "en",
+      },
+      read,
+      "en",
+    );
+    return r.ok && r.answer.do.open ? r.answer.do.open.to : null;
+  };
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
@@ -895,7 +1019,7 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
       `"${words}" jumps to ${to}`,
     );
     assert.ok(ASK_PAGE_ROUTES.includes(to), `${to} is a page an answer may name`);
-    assert.equal(safeNavigate(to, read), true, `and an answer may open ${to}`);
+    assert.equal(opens(to), to, `and an answer may open ${to}`);
   }
   assert.deepEqual(
     groundCitations([{ kind: "page", id: "calendar", label: "Calendar" }], read).kept.map((c) => c.id),

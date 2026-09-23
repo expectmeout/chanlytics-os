@@ -8,13 +8,17 @@
  * what the receptionist's harness checks, translated to an assistant: the
  * tools it chose (never a write — there are none, and the text must not
  * claim one), the language, the citations (only rows it read; a person who
- * does not exist gets none), and the phrases an answer must or must not
- * carry.
+ * does not exist gets none), the phrases an answer must or must not carry,
+ * and, on an answer made since the Line, what the page draws: a headline of
+ * one sentence, no place offered twice after one door, a count shown as a
+ * figure or a breakdown, and a breakdown that adds up (the spec's 10.2).
+ * Each run times the first words (a `say` or a v1 `delta`) and the final.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -91,23 +95,33 @@ async function ask(cookie, text) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let carry = "";
+  // When the person first sees words: the first `delta` (a v1 turn) or `say` (a v2 turn), from the request's start.
+  let firstMs = null;
+  const take = (l) => {
+    const e = JSON.parse(l);
+    if (firstMs === null && (e.t === "delta" || e.t === "say")) firstMs = Date.now() - t0;
+    events.push(e);
+  };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
     carry += dec.decode(value, { stream: true });
     const lines = carry.split("\n");
     carry = lines.pop() ?? "";
-    for (const l of lines) if (l.trim()) events.push(JSON.parse(l));
+    for (const l of lines) if (l.trim()) take(l);
   }
-  if (carry.trim()) events.push(JSON.parse(carry));
+  if (carry.trim()) take(carry);
   const final = events.find((e) => e.t === "final");
   const thread = events.find((e) => e.t === "thread");
+  const ms = Date.now() - t0;
   return {
     events,
     final: final?.message ?? null,
     threadId: thread?.id ?? null,
-    ms: Date.now() - t0,
-    deltas: events.filter((e) => e.t === "delta").length,
+    ms,
+    // A turn with no words streamed (a card, a failure) shows its words when the final lands.
+    firstMs: firstMs ?? ms,
+    deltas: events.filter((e) => e.t === "delta" || e.t === "say").length,
   };
 }
 
@@ -143,10 +157,13 @@ export function judge(c, r) {
   const kinds = (m.proposals ?? []).map((p) => p.kind);
   if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k)))
     fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
+  // Since the Line, the pointer may be the door itself: a row or an Open that opens a thread.
+  const doors = m.answer ? [...m.answer.show.items.map((i) => i.source.to), m.answer.do.open?.to] : [];
   if (
     e.proposals_any_or_says &&
     !e.proposals_any_or_says.some((k) => kinds.includes(k)) &&
-    !/card|propos|approve|Inbox|thread/i.test(text)
+    !/card|propos|approve|Inbox|thread/i.test(text) &&
+    !doors.some((to) => to && /^inbox(\/|$)/.test(to))
   )
     fails.push("neither a card nor a pointer to where to do it");
   if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
@@ -159,6 +176,31 @@ export function judge(c, r) {
   )
     fails.push("no citation and no statement that there was nothing");
   if (m.ungrounded) fails.push("the answer was marked ungrounded (a figure with no read behind it)");
+  // The answer as the Line draws it, on every turn made since the Line.
+  const a = m.answer;
+  if (a && !m.failed) {
+    // A message the headline quotes ("Yes! Pick a time here") is not a sentence of its own.
+    const own = a.say.headline.replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…");
+    if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(own))
+      fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
+    const cards = m.proposals ?? [];
+    const { answer: drawn, cardOpen } = oneDoor(a, cards);
+    const offered = [
+      ...drawn.show.items.filter((i) => i.source.door).map((i) => i.source.to),
+      ...(drawn.do.open ? [drawn.do.open.to] : []),
+      ...cards.filter((p) => cardOpen[p.id]).map((p) => cardOpenRoute(p)),
+      ...[...drawn.show.figures.map((f) => f.source), drawn.show.breakdown?.source]
+        .filter((s) => s && s.door)
+        .map((s) => s.to),
+    ];
+    const twice = offered.filter((to, i) => offered.indexOf(to) !== i);
+    if (twice.length) fails.push(`a place offered twice: ${[...new Set(twice)].join(", ")}`);
+    if (e.counts && !a.show.figures.length && !a.show.breakdown)
+      fails.push("a count shown by no figure and no breakdown");
+    const b = a.show.breakdown;
+    if (b && b.parts.reduce((s, p) => s + p.value, 0) !== b.total)
+      fails.push(`a breakdown whose parts do not add up to ${b.total}`);
+  }
   return { pass: fails.length === 0, fails };
 }
 
@@ -171,19 +213,30 @@ for (const c of cases) {
   try {
     r = await ask(cookie, c.text);
   } catch (e) {
-    r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, deltas: 0 };
+    r = { final: null, error: e instanceof Error ? e.message : String(e), ms: 0, firstMs: 0, deltas: 0 };
   }
   const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"] };
   results.push({
     id: c.id,
     text: c.text,
     answer: r.final?.text ?? null,
+    form: r.final?.answer?.form ?? null,
+    shown: r.final?.answer
+      ? {
+          figures: r.final.answer.show.figures.length,
+          items: r.final.answer.show.items.length,
+          breakdown: !!r.final.answer.show.breakdown,
+          open: r.final.answer.do.open?.to ?? null,
+        }
+      : null,
     rounds: r.final?.rounds ?? null,
     tools: r.final?.tools ?? [],
     proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
     citations: r.final?.citations ?? [],
     language: r.final?.language ?? null,
     latency_ms: r.final?.latencyMs ?? r.ms,
+    first_ms: r.firstMs,
+    final_ms: r.ms,
     deltas: r.deltas,
     threadId: r.threadId ?? null,
     ...j,
@@ -193,14 +246,22 @@ for (const c of cases) {
   );
 }
 const passed = results.filter((r) => r.pass).length;
-const lat = results
-  .map((r) => r.latency_ms)
-  .filter((n) => typeof n === "number" && n > 0)
-  .sort((a, b) => a - b);
-const median = lat.length ? lat[Math.floor(lat.length / 2)] : 0;
+/** The middle and the slowest tenth of a timing, over the cases that answered. */
+const spread = (key) => {
+  const xs = results
+    .map((r) => r[key])
+    .filter((n) => typeof n === "number" && n > 0)
+    .sort((a, b) => a - b);
+  if (!xs.length) return { median: 0, p90: 0 };
+  return { median: xs[Math.floor(xs.length / 2)], p90: xs[Math.min(xs.length - 1, Math.ceil(xs.length * 0.9) - 1)] };
+};
+const first = spread("first_ms");
+const whole = spread("final_ms");
+const median = spread("latency_ms").median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
 console.log(
-  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}`,
+  `\nAsk evals: ${passed}/${results.length} passed · median ${median} ms · one-round ${oneRound}/${results.length}` +
+    ` · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms`,
 );
 for (const r of results)
   console.log(`- ${r.pass ? "ok  " : "FAIL"} ${r.id}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}`);

@@ -1,20 +1,28 @@
-import { AppError, ASK_MAX_CHARS, detectLanguage, type AskMessageVM, type AskScope } from "@chanlytics/contracts";
+import {
+  AppError,
+  ASK_MAX_CHARS,
+  detectLanguage,
+  v1FromAnswer,
+  type AskMessageVM,
+  type AskScope,
+} from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { tenantFacts } from "@/server/tenant";
 import { runAskTurn, ASK_MODEL, type TurnEvent } from "@/server/ask/loop";
 import { listPolicies } from "@chanlytics/db";
-import { workspaceFacts, resultTitle, titleFromQuestion } from "@/server/ask/prompt";
-import { appendMessage, createThread, readThread, retitleThread, touchThread } from "@/server/ask/store";
+import { workspaceFacts, titleFromQuestion } from "@/server/ask/prompt";
+import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
  * Body: { text, thread_id?, scope?, surface?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
- * runs, {t:"delta", text} as the answer's words arrive, and {t:"final",
- * message} last. Everything runs as the signed-in person: the reads see
- * exactly what their pages see, and the thread is theirs alone (RLS).
+ * runs, {t:"say", headline, detail} as the answer's Say is written (a
+ * preview), and {t:"final", message} last, with the answer as the Line draws
+ * it. Everything runs as the signed-in person: the reads see exactly what
+ * their pages see, and the thread is theirs alone (RLS).
  *
  * Every member may ask (the viewer role is the floor), counted as questions;
  * the workspace must be named, since a thread lands in one. The body is the
@@ -121,13 +129,15 @@ export const POST = write({
           text,
           emit: (ev) => send(line(ev)),
         });
+        // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
+        // read `text`, and the erase hook finds a person by the ids the sources carry.
+        const v1 = v1FromAnswer(result.answer);
         const content = {
-          text: result.answer,
-          citations: result.citations,
-          followups: result.followups,
-          navigate: result.navigate,
+          v: 2,
+          answer: result.answer,
+          ...v1,
           proposals: result.proposals,
-          language: result.language,
+          language: result.answer.language,
           ungrounded: result.ungrounded,
           tools: result.tools,
           latency_ms: result.latencyMs,
@@ -139,29 +149,28 @@ export const POST = write({
         let saved: { id: string; created_at: string } | null = null;
         try {
           saved = await appendMessage(ctx, thread.id, tenantId, "assistant", content);
-          // A new thread is titled by what its first answer did.
-          if (!threadId && !result.failed)
-            await retitleThread(ctx, thread.id, resultTitle(text, result.proposals, result.navigate));
-          else await touchThread(ctx, thread.id);
+          // A thread keeps its first question as its title (D9); an answer only moves it up the list.
+          await touchThread(ctx, thread.id);
         } catch (e) {
           console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
         }
         const message: AskMessageVM = {
           id: saved?.id ?? `unsaved-${Date.now()}`,
           role: "assistant",
-          text: result.answer,
+          text: v1.text,
           at: saved?.created_at ?? new Date().toISOString(),
           atMs: saved ? Date.parse(saved.created_at) : Date.now(),
-          citations: result.citations,
-          followups: result.followups,
-          navigate: result.navigate,
+          citations: v1.citations,
+          followups: v1.followups,
+          navigate: v1.navigate,
           proposals: result.proposals,
-          language: result.language,
+          language: result.answer.language,
           ungrounded: result.ungrounded,
           tools: result.tools,
           latencyMs: result.latencyMs,
           rounds: result.rounds,
           failed: result.failed,
+          answer: result.answer,
         };
         console.log(
           JSON.stringify({
@@ -175,8 +184,9 @@ export const POST = write({
             failed: result.failed,
             failure: result.failure,
             ungrounded: result.ungrounded,
-            citations: result.citations.length,
-            language: result.language,
+            citations: v1.citations.length,
+            form: result.answer.form,
+            language: result.answer.language,
           }),
         );
         send(line({ t: "final", message }));

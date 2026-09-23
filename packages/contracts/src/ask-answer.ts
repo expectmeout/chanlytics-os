@@ -1,18 +1,25 @@
 /**
  * Ask's answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): Say, the
  * finding; Show, what it rests on; Do, the next step. One shape for every surface that answers -- the palette, Today's
- * band and the answers that need no model -- and one rule for the doors it offers. Pure: the bridge feeds it and the
- * pages draw it. What the model writes, and its parser, arrive with the structured answer (plan 3).
+ * band, the answers that need no model, and the model's own, which it writes as structured output (ASK_ANSWER_FORMAT)
+ * and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
 import {
+  ASK_CAPS,
+  ASK_CITATION_KINDS,
+  ASK_LANGUAGES,
   FOLLOWUP_ECHO,
   citationRoute,
+  cleanAnswer,
+  groundCitations,
   navigateLabel,
   sameQuestion,
   type AskCitation,
+  type AskCitationKind,
   type AskLanguage,
   type AskMessageVM,
   type AskProposal,
+  type AskReadSet,
   type FastCall,
 } from "./ask";
 
@@ -80,7 +87,14 @@ export const ASK_ANSWER_CAPS = {
   question: 90,
 } as const;
 
-const clip = (s: string | null | undefined, n: number) => (s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+/** One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. */
+const clip = (s: string | null | undefined, n: number) => {
+  const t = (s ?? "").replace(/\s+/g, " ").trim();
+  if (t.length <= n) return t;
+  const cut = t.slice(0, n - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+};
 
 const structured = (headline: string, language: AskLanguage): AskAnswer => ({
   v: 2,
@@ -139,17 +153,22 @@ function nextQuestions(next: string[], places: string[]): string[] {
 }
 
 /**
- * A place appears once per answer (the Line, D4, section 5.5). An item keeps its door; Do's Open goes when an item has
- * its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its words and draws its door
- * only when nothing else offers that route; a next question that points at an offered place goes. Returns the answer
- * as drawn and, per card, whether its Open is drawn.
+ * A place appears once per answer (the Line, D4, section 5.5). An item is the door for its row, and the first item to
+ * a place keeps it: a later one to the same place (two appointments cited to the Calendar) is drawn without one; Do's
+ * Open goes when an item has its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its
+ * words and draws its door only when nothing else offers that route; a next question that points at an offered place
+ * goes. Returns the answer as drawn and, per card, whether its Open is drawn.
  */
 export function oneDoor(
   a: AskAnswer,
   cards: ReadonlyArray<Pick<AskProposal, "id" | "kind" | "payload">> = [],
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
-  const items = a.show.items.map((it) => ({ ...it, source: { ...it.source, door: true } }));
-  const offered = new Set(items.map((it) => it.source.to));
+  const offered = new Set<string>();
+  const items = a.show.items.map((it) => {
+    const door = !offered.has(it.source.to);
+    offered.add(it.source.to);
+    return { ...it, source: { ...it.source, door } };
+  });
   const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
   if (open) offered.add(open.to);
   const cardOpen: Record<string, boolean> = {};
@@ -401,4 +420,424 @@ export function openingsAnswer(o: AskOpeningsView, language: AskLanguage, day: s
   }));
   a.do.open = { to: "calendar", label: es ? "Abrir el Calendario" : "Open the Calendar", now: false };
   return a;
+}
+
+/* ------------------------------------------------------ what the model writes */
+
+/** What the model names: a row or a page it read this turn, or none. It never writes a route (D5). */
+export interface AskSourceRef {
+  kind: AskCitationKind | "none";
+  id: string;
+  label: string;
+}
+
+const C = ASK_ANSWER_CAPS;
+
+const SOURCE = {
+  type: "object",
+  description:
+    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` },
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false,
+} as const;
+
+/**
+ * The answer's shape as the model writes it, passed as `output_config.format` (spec 5.3). Every property is required
+ * and nothing else is allowed, so "nothing" is an empty string, an empty array or kind none. Structured outputs take
+ * no length limits, so each limit is said in its description, from ASK_ANSWER_CAPS and nowhere else the model reads
+ * (D6). `say` comes first, so it streams first. Changing it resets the prompt cache for every conversation.
+ */
+export const ASK_ANSWER_FORMAT = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`,
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`,
+        },
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false,
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`,
+              },
+              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`,
+              },
+              source: SOURCE,
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false,
+          },
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C.meta} characters.`,
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
+              source: SOURCE,
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false,
+          },
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C.label} characters.`,
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." },
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false,
+              },
+            },
+            source: SOURCE,
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false,
+        },
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false,
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE,
+            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands.",
+            },
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false,
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" },
+        },
+      },
+      required: ["open", "next"],
+      additionalProperties: false,
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] },
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false,
+} as const;
+
+/* ------------------------------------------------------ what the server reads */
+
+const asObj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+/** A string as the Line may draw it: no tags (cleanAnswer), one line of words, at most its cap. */
+const words = (v: unknown, n: number) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const ROW_KINDS = ["call", "thread", "conversation", "person"] as const;
+/** A route that names a row -- a thread, a call, a person -- whatever id it carries: never a page. */
+const ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
+
+/**
+ * A source grounded in this turn's reads, with the route the app gives it; null for kind none or a row not read.
+ * The model names a row by the id a tool gave, but also by its route ("inbox/th-<id>", "conversations/cv-<id>") and
+ * now and then under another kind, and dropping a real row over its spelling left "Opening the call…" opening nothing:
+ * any spelling of a row read this turn is that row, as the kind written if that kind read it, else the kind that did.
+ * A page is a route that names no row: an id inside one is a row, and must have been read.
+ */
+function groundRef(v: unknown, read: AskReadSet): AskSource | null {
+  const r = asObj(v);
+  const kind = typeof r.kind === "string" ? r.kind : "none";
+  const spelled = typeof r.id === "string" ? r.id.trim().replace(/^#?\/+/, "") : "";
+  if (!spelled || !(ASK_CITATION_KINDS as readonly string[]).includes(kind)) return null;
+  const label = words(r.label, C.label) || spelled;
+  const row = UUID.exec(spelled)?.[0].toLowerCase();
+  const tries: AskCitation[] = row
+    ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k as AskCitationKind, id: row, label }))
+    : [
+        ...(kind === "page" ? [] : [{ kind: kind as AskCitationKind, id: spelled, label }]),
+        // A row's route with an id cut short or misspelled names no row read, and is no page either.
+        ...(ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }]),
+      ];
+  const kept = groundCitations(tries, read).kept[0];
+  return kept ? { ...kept, to: citationRoute(kept), door: true } : null;
+}
+
+export type AskAnswerRead = { ok: true; answer: AskAnswer; dropped: number } | { ok: false; error: string };
+
+/**
+ * The model's answer, as the Line may draw it (spec 5.4): every string cleaned and cut to its cap, every array cut to
+ * its cap, and every source grounded in this turn's reads with its route derived (a route the model writes is never
+ * taken). An item is its row, so an item whose row was not read goes; a figure or a breakdown keeps its words and loses
+ * its receipt. A breakdown draws only when it says what the whole is and two to four parts add up exactly to its
+ * total. Kind none, or a place not read, is no Open. With no headline it is no answer. `dropped` counts the sources that named a row not read.
+ * One door (oneDoor) runs after, with the turn's cards.
+ */
+export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLanguage): AskAnswerRead {
+  let json: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+  const root = asObj(json);
+  const say = asObj(root.say);
+  const headline = words(say.headline, C.headline);
+  if (!headline) return { ok: false, error: "no headline" };
+  // English or Spanish as the model says; anything else is the turn's own (detectLanguage), as it was before the Line.
+  const language: AskLanguage = root.language === "en" || root.language === "es" ? root.language : fallback;
+  let dropped = 0;
+  const ground = (v: unknown): AskSource | null => {
+    const s = groundRef(v, read);
+    const r = asObj(v);
+    if (!s && typeof r.kind === "string" && r.kind !== "none" && typeof r.id === "string" && r.id.trim()) dropped++;
+    return s;
+  };
+  const show = asObj(root.show);
+  const figures: AskFigure[] = [];
+  for (const f of asArr(show.figures).map(asObj)) {
+    const value = words(f.value, C.value);
+    if (!value) continue;
+    figures.push({ value, label: words(f.label, C.label), note: words(f.note, C.note), source: ground(f.source) });
+    if (figures.length >= C.figures) break;
+  }
+  const items: AskItem[] = [];
+  for (const it of asArr(show.items).map(asObj)) {
+    const title = words(it.title, C.title);
+    const source = ground(it.source);
+    if (!title || !source) continue;
+    items.push({ title, meta: words(it.meta, C.meta), line: words(it.line, C.line), source });
+    if (items.length >= C.items) break;
+  }
+  const b = asObj(show.breakdown);
+  const parts = asArr(b.parts)
+    .map(asObj)
+    .map((p) => ({ label: words(p.label, C.label), value: num(p.value), warn: p.warn === true }));
+  const total = num(b.total);
+  const whole = words(b.label, C.label);
+  const adds =
+    !!whole &&
+    parts.length >= 2 &&
+    parts.length <= C.parts &&
+    parts.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) &&
+    Number.isFinite(total) &&
+    Math.abs(parts.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
+  const breakdown: AskBreakdown | null = adds ? { label: whole, total, parts, source: ground(b.source) } : null;
+  const d = asObj(root.do);
+  const o = asObj(d.open);
+  const at = ground(o.source);
+  const open: AskOpen | null = at
+    ? {
+        to: at.to,
+        label: navigateLabel({ to: at.to, label: words(o.label, C.label) || at.label }, language) ?? at.label,
+        now: o.now === true,
+      }
+    : null;
+  const next = asArr(d.next)
+    .map((q) => words(q, C.question))
+    .filter(Boolean)
+    .slice(0, C.next);
+  return {
+    ok: true,
+    answer: {
+      v: 2,
+      form: "structured",
+      say: { headline, detail: words(say.detail, C.detail) },
+      show: { figures, items, breakdown },
+      do: { open, next },
+      language,
+    },
+    dropped,
+  };
+}
+
+/** Every word an answer says, for the "not from your data" check (isUngrounded): Say, and Show's strings. */
+export function answerWords(a: AskAnswer): string {
+  return [
+    a.say.headline,
+    a.say.detail,
+    ...a.show.figures.flatMap((f) => [f.value, f.label, f.note]),
+    ...a.show.items.flatMap((i) => [i.title, i.meta, i.line]),
+    ...(a.show.breakdown
+      ? [
+          a.show.breakdown.label,
+          String(a.show.breakdown.total),
+          ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)]),
+        ]
+      : []),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The string value of `"key": "…"` in a JSON prefix, decoded as far as it has arrived: up to the first unescaped
+ * quote, or the end of what is there.
+ */
+function partialField(s: string, key: string): string {
+  const k = s.indexOf(`"${key}"`);
+  if (k < 0) return "";
+  const colon = s.indexOf(":", k + key.length + 2);
+  if (colon < 0) return "";
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s[i])) i++;
+  if (s[i] !== '"') return "";
+  i++;
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === undefined) break;
+      if (n === "u") {
+        const hex = s.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 0x20);
+        i += 6;
+        continue;
+      }
+      out += n === "n" ? "\n" : n === "t" ? "\t" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Say while the answer's JSON is still arriving (spec 7.4): the headline and the detail so far, from wherever `say`
+ * appears; null before it does. A preview only: the final message is the truth.
+ */
+export function partialSay(prefix: string): { headline: string; detail: string } | null {
+  const at = prefix.indexOf('"say"');
+  if (at < 0) return null;
+  const rest = prefix.slice(at);
+  return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
+}
+
+const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
+
+/** The answer when a round proposed and nothing else, every card made: the cards are the Do, with no second round. */
+export function answerForCards(cards: ReadonlyArray<Pick<AskProposal, "title">>, language: AskLanguage): AskAnswer {
+  const es = language === "es";
+  const n = cards.length;
+  const a = structured(
+    n === 1
+      ? es
+        ? sentence(`Una tarjeta para revisar: ${cards[0].title}`)
+        : sentence(`One card to review: ${cards[0].title}`)
+      : es
+        ? `${n} tarjetas para revisar.`
+        : `${n} cards to review.`,
+    language,
+  );
+  a.say.detail =
+    n === 1
+      ? es
+        ? "Apruébala, cámbiala o descártala: nada pasa hasta que lo hagas."
+        : "Approve it, change it or dismiss it: nothing happens until you do."
+      : es
+        ? "Aprueba, cambia o descarta cada una: nada pasa hasta que lo hagas."
+        : "Approve, change or dismiss each: nothing happens until you do.";
+  return a;
+}
+
+/** A turn that could not be answered: its sentence as the headline (spec 5.4, step 6). The message is marked failed. */
+export function failedAnswer(sentenceText: string, language: AskLanguage): AskAnswer {
+  return structured(sentenceText, language);
+}
+
+/** The most a prose answer says: what the old answer field held. */
+const PROSE_MAX = 1500;
+
+/** Words with no shape: a turn whose format the API refused (D15). */
+export function proseAnswer(text: string, language: AskLanguage): AskAnswer {
+  return {
+    v: 2,
+    form: "prose",
+    say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
+    show: { figures: [], items: [], breakdown: null },
+    do: { open: null, next: [] },
+    language,
+  };
+}
+
+/**
+ * The v1 fields a v2 answer is stored beside (spec 5.8): its words for the history, copy and search; the sources it
+ * rests on as citations, with their routes (the erase route finds a person by them); Open as navigate; next as the
+ * follow-ups. Read back by every reader of v1 and by answerFromV1. Not an identity round trip.
+ */
+export function v1FromAnswer(a: AskAnswer): Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups"> {
+  const seen = new Set<string>();
+  const citations: AskMessageVM["citations"] = [];
+  const add = (s: AskSource | null) => {
+    if (!s || seen.has(`${s.kind}:${s.id}`)) return;
+    seen.add(`${s.kind}:${s.id}`);
+    citations.push({ kind: s.kind, id: s.id, label: s.label, to: s.to });
+  };
+  for (const i of a.show.items) add(i.source);
+  for (const f of a.show.figures) add(f.source);
+  add(a.show.breakdown ? a.show.breakdown.source : null);
+  return {
+    text: answerText(a),
+    citations: citations.slice(0, ASK_CAPS.citations),
+    navigate: a.do.open ? { to: a.do.open.to, label: a.do.open.label, now: a.do.open.now } : null,
+    followups: a.do.next,
+  };
 }
