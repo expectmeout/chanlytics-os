@@ -105,6 +105,7 @@ export async function proxy(request: NextRequest) {
   // (src/csp.ts says what was tried), so the policy names inline by name.
   const csp = contentSecurityPolicy({
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    leadMapBase: process.env.NEXT_PUBLIC_LEAD_MAP_BASE,
     dev: process.env.NODE_ENV !== "production",
     reportOnly: CSP_HEADER === "content-security-policy-report-only",
   });
