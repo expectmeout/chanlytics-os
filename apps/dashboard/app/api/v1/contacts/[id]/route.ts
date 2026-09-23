@@ -22,6 +22,7 @@ import type {
 import { personLike, personVisits } from "@/server/calendar";
 import { personRuns } from "@/server/broadcasts";
 import { leadOfPerson } from "@/server/leads";
+import { personNotesRead } from "@/server/person-notes";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -449,6 +450,8 @@ export const GET = read({
 
     // Their appointments on the owner's calendar, when one is connected.
     // Never fatal: a feed that cannot be read costs this line, not the profile.
+    // Their notes and the team a note can be for (0007), read beside the calendar; never fatal either.
+    const notesRead = personNotesRead(ctx, tenantId, id);
     const visits = await personVisits(ctx, tenantId, personLike(row)).catch((e: unknown) => {
       console.error(
         "person_visits_failed",
@@ -468,6 +471,10 @@ export const GET = read({
       workspace_reply_mode: wsPol.data?.mode ?? null,
       visits: visits ?? undefined,
       notes: own.data?.notes ?? null,
+      ...(await notesRead.then((r) => ({
+        ...(r.notes ? { person_notes: r.notes } : {}),
+        ...(r.team ? { note_team: r.team } : {}),
+      }))),
       proposal_url: own.data?.proposal_url ?? null,
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
       consent_history: (history.data ?? []).map(consentChangeOf),

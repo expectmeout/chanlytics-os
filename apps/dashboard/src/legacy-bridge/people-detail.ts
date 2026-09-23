@@ -4,6 +4,8 @@ import {
   DEAL_PERS,
   DEAL_PER_WORDS,
   DEAL_STAGE_WORDS,
+  NOTE_MAX,
+  NOTE_WORDS,
   TIMELINE_FILTERS,
   dealMoves,
   filterTimeline,
@@ -14,6 +16,7 @@ import {
   type DealDto,
   type DealPer,
   type DealStage,
+  type PersonNoteDto,
   type PersonVM,
   type SendPurpose,
 } from "@chanlytics/contracts";
@@ -273,8 +276,44 @@ export async function recordDeal(
   return api()("POST contacts/[id]/deal", { params: { id }, body });
 }
 
+/**
+ * A person's notes (0007): `window.__personNotes.write(id, body)` adds one (no `note_id`) or changes its author's own
+ * (with `note_id` and the version the page saw); `remove` takes one away; `decide` keeps or dismisses the
+ * receptionist's suggestion. The page re-reads the person after each; nothing else shows a note.
+ */
+export interface NoteBody {
+  body: string;
+  for_user_id?: string | null;
+  team_only?: boolean;
+  note_id?: string;
+  version?: number;
+}
+
+export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
+  return api()("POST contacts/[id]/notes", { params: { id }, body });
+}
+
+export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
+  return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId } });
+}
+
+export async function decidePersonNote(
+  id: string,
+  body: { note_id: string; keep: boolean; body?: string; team_only?: boolean },
+): Promise<ApiResult<{ note?: PersonNoteDto; removed?: string }>> {
+  return api()("POST contacts/[id]/notes/decide", { params: { id }, body });
+}
+
 declare global {
   interface Window {
+    /** A person's notes (0007): the three writes, and the card's words and limit from contracts. */
+    __personNotes?: {
+      write: typeof writePersonNote;
+      remove: typeof removePersonNote;
+      decide: typeof decidePersonNote;
+      words: typeof NOTE_WORDS;
+      max: number;
+    };
     __personDetail?: (id: string) => Promise<PersonVM | null>;
     /** The person this tab already read: what the page paints before its own read lands. */
     __peekPerson?: (id: string) => PersonVM | null;
@@ -343,6 +382,13 @@ export function installPeopleCourier(): void {
   window.__warmPerson = warmPerson;
   window.__setPersonConsentMany = setPersonConsentMany;
   window.__setPersonDetails = setPersonDetails;
+  window.__personNotes = {
+    write: writePersonNote,
+    remove: removePersonNote,
+    decide: decidePersonNote,
+    words: NOTE_WORDS,
+    max: NOTE_MAX,
+  };
   window.__deletePerson = deletePerson;
   window.__setPersonReceptionist = setPersonReceptionist;
   window.__setPersonConsent = setPersonConsent;
