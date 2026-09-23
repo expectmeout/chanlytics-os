@@ -24,6 +24,7 @@ const views = await import(at("apps/dashboard/app/api/v1/views/route.ts"));
 const viewSet = await import(at("apps/dashboard/app/api/v1/views/[page]/route.ts"));
 const person = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 const details = await import(at("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts"));
+const deal = await import(at("apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts"));
 const receptionist = await import(at("apps/dashboard/app/api/v1/contacts/[id]/receptionist/route.ts"));
 const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
@@ -35,6 +36,8 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const P1 = "11111111-1111-4111-8111-111111111111";
 const P2 = "22222222-2222-4222-8222-222222222222";
 const P3 = "33333333-3333-4333-8333-333333333333";
+const D1 = "dddddddd-1111-4111-8111-dddddddddddd";
+const M1 = "eeeeeeee-1111-4111-8111-eeeeeeeeeeee";
 const S1 = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
 const S2 = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
 const USER = "u1";
@@ -986,4 +989,121 @@ test("REGRESSION: a change to a list past a thousand people answers with every o
   const out = await list.PUT.run(send("PUT", { add: [P3] }), ctx);
   assert.equal(out.ids.length, 1501, "REGRESSION: 1000 of 1501");
   assert.ok(out.ids.includes(P3), "the one just added among them");
+});
+
+test("deal: a proposal is recorded through the door, its decision holds the move, and a viewer or an erased person is refused before the door opens", async () => {
+  const doors = [];
+  const rpcs = {
+    deal_record: (a) => {
+      doors.push(a);
+      return {
+        deal: {
+          id: D1,
+          contact_id: P2,
+          service: a.p_service ?? null,
+          stage: a.p_stage,
+          proposed_at: "2026-09-23T12:00:00Z",
+          decided_at: null,
+          ended_at: null,
+          amount_cents: null,
+          per: null,
+          currency: "USD",
+          note: null,
+          version: 1,
+          created_at: "2026-09-23T12:00:00Z",
+        },
+        from: null,
+      };
+    },
+  };
+  const tables = {
+    memberships: both("viewer", "operator"),
+    contacts: [contact(P1, A), contact(P2, B), contact(P3, B, { erased_at: "2026-09-01T00:00:00Z" })],
+    decisions: [],
+  };
+  await refused(deal.POST.run(send("POST", { stage: "proposed" }), ctxFor(tables, { id: P1 }, rpcs)), "forbidden", 403);
+  await refused(
+    deal.POST.run(send("POST", { stage: "proposed" }), ctxFor(tables, { id: P3 }, rpcs)),
+    "not_found",
+    404,
+    "erased",
+  );
+  assert.equal(doors.length, 0, "no door was opened for a refusal");
+  await assert.rejects(
+    deal.POST.run(send("POST", { stage: "banana" }), ctxFor(tables, { id: P2 }, rpcs)),
+    (e) => (assert.equal(e.code, "validation"), true),
+  );
+  const out = await deal.POST.run(
+    send("POST", { stage: "proposed", service: "SEO", when: "2026-09-20T15:00:00.000Z" }),
+    ctxFor(tables, { id: P2 }, rpcs),
+  );
+  assert.equal(out.deal.id, D1);
+  assert.equal(out.from, null);
+  assert.ok(out.decision_id);
+  assert.deepEqual(doors, [
+    { p_contact_id: P2, p_stage: "proposed", p_service: "SEO", p_when: "2026-09-20T15:00:00.000Z" },
+  ]);
+  const d = tables.decisions.at(-1);
+  assert.equal(d.verb, "record_deal");
+  assert.equal(d.subject_type, "deal");
+  assert.equal(d.subject_id, D1);
+  assert.deepEqual(d.payload, { contact_id: P2, stage: "proposed", from: null, service: "SEO" });
+});
+
+test("deal: the door's refusal is a sentence in the owner's words, and no decision is recorded; evidence takes the consent's shape", async () => {
+  const doors = [];
+  const rpcs = { deal_record: (a) => (doors.push(a), { error: "already_open" }) };
+  const tables = {
+    memberships: both("viewer", "operator"),
+    contacts: [contact(P1, A), contact(P2, B), contact(P3, B, { erased_at: "2026-09-01T00:00:00Z" })],
+    decisions: [],
+  };
+  const before = tables.decisions.length;
+  await assert.rejects(deal.POST.run(send("POST", { stage: "proposed" }), ctxFor(tables, { id: P2 }, rpcs)), (e) => {
+    assert.equal(e.code, "validation");
+    assert.match(e.message, /already have a proposal out/);
+    return true;
+  });
+  assert.equal(tables.decisions.length, before);
+  const won = {
+    deal_record: (a) => (
+      doors.push(a),
+      {
+        deal: {
+          id: D1,
+          contact_id: P2,
+          service: null,
+          stage: "won",
+          proposed_at: "2026-09-01T12:00:00Z",
+          decided_at: "2026-09-23T12:00:00Z",
+          ended_at: null,
+          amount_cents: 250000,
+          per: "month",
+          currency: "USD",
+          note: null,
+          version: 2,
+          created_at: "2026-09-01T12:00:00Z",
+        },
+        from: "proposed",
+      }
+    ),
+  };
+  await deal.POST.run(
+    send("POST", { stage: "won", deal_id: D1, version: 1, amount_cents: 250000, per: "month", message_id: M1 }),
+    ctxFor(tables, { id: P2 }, won),
+  );
+  assert.deepEqual(doors.at(-1), {
+    p_contact_id: P2,
+    p_stage: "won",
+    p_deal_id: D1,
+    p_version: 1,
+    p_amount_cents: 250000,
+    p_per: "month",
+    p_evidence: { message_id: M1 },
+  });
+  await deal.POST.run(
+    send("POST", { stage: "won", deal_id: D1, version: 2, form_note: "DocuSign, Sep 20" }),
+    ctxFor(tables, { id: P2 }, won),
+  );
+  assert.deepEqual(doors.at(-1).p_evidence, { form: "DocuSign, Sep 20" });
 });
