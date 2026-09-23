@@ -689,12 +689,10 @@ export interface DealReportVM {
   present: boolean;
   /** "5 proposals went out in the last 30 days." */
   headline: string;
-  /** "3 became clients · 1 passed · 1 still waiting"; "" when none went out. The counts `outcomes` draws as bars, in
-   *  words: a page says them one way, never both. */
-  parts: string;
   /** "4 clients now · $7,500 a month." */
   stock: string;
-  /** What became of the period's proposals, as bars out of the cohort's size; null when none went out. */
+  /** What became of the period's proposals, as bars out of the cohort's size: each outcome's count and its share,
+   *  said there and nowhere else. Null when none went out. */
   outcomes: { title: string; max: number; rows: DealOutcomeVM[] } | null;
   /** Up to four sentences, each only when it has something to say: how long a yes took, where the new clients came
    *  from, why people passed, and what is still open. */
@@ -803,19 +801,11 @@ function openLine(open: DealReportDto["open"]): string | null {
 }
 
 export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM {
-  if (!dto || !dto.any) return { present: false, headline: "", parts: "", stock: "", outcomes: null, lines: [] };
+  if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
   const headline =
     dto.sent === 0
       ? `No proposals went out in the last ${rangeLabel}.`
       : `${plural(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
-  const parts =
-    dto.sent === 0
-      ? ""
-      : [
-          `${plural(dto.won, "became a client", "became clients")}`,
-          `${dto.lost} passed`,
-          `${dto.waiting} still waiting`,
-        ].join(" · ");
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
   const stock =
     dto.clients === 0
@@ -842,5 +832,5 @@ export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel
     ["open", openLine(dto.open)],
   ];
   const lines = said.flatMap(([id, text]) => (text ? [{ id, text }] : []));
-  return { present: true, headline, parts, stock, outcomes, lines };
+  return { present: true, headline, stock, outcomes, lines };
 }

@@ -6522,13 +6522,8 @@ function openLine(open) {
   return open.count === 1 ? `${worth} still open in 1 proposal.` : `${worth} still open across ${open.count} proposals.`;
 }
 function toDealReportVM(dto, rangeLabel) {
-  if (!dto || !dto.any) return { present: false, headline: "", parts: "", stock: "", outcomes: null, lines: [] };
+  if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
   const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural2(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
-  const parts2 = dto.sent === 0 ? "" : [
-    `${plural2(dto.won, "became a client", "became clients")}`,
-    `${dto.lost} passed`,
-    `${dto.waiting} still waiting`
-  ].join(" \xB7 ");
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
   const stock = dto.clients === 0 ? "No clients right now." : `${plural2(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
   const outcomes = dto.sent === 0 ? null : {
@@ -6548,7 +6543,7 @@ function toDealReportVM(dto, rangeLabel) {
     ["open", openLine(dto.open)]
   ];
   const lines = said.flatMap(([id, text]) => text ? [{ id, text }] : []);
-  return { present: true, headline, parts: parts2, stock, outcomes, lines };
+  return { present: true, headline, stock, outcomes, lines };
 }
 
 // src/people.ts

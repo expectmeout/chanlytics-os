@@ -589,7 +589,7 @@ const linesOf = (over) => toDealReportVM(report(over), "30 days").lines.map((l) 
 const usd = (amount_cents, per) => ({ amount_cents, per, currency: "USD" });
 
 test("the report counts one cohort and the stock, and is absent where no deal was ever recorded", () => {
-  const absent = { present: false, headline: "", parts: "", stock: "", outcomes: null, lines: [] };
+  const absent = { present: false, headline: "", stock: "", outcomes: null, lines: [] };
   assert.deepEqual(toDealReportVM(null, "30 days"), absent);
   assert.deepEqual(toDealReportVM(report({ any: false }), "30 days"), absent);
   const vm = toDealReportVM(
@@ -598,15 +598,20 @@ test("the report counts one cohort and the stock, and is absent where no deal wa
   );
   assert.equal(vm.present, true);
   assert.equal(vm.headline, "5 proposals went out in the last 30 days.");
-  assert.equal(vm.parts, "3 became clients · 1 passed · 1 still waiting");
   assert.equal(vm.stock, "4 clients now · $7,500 a month.");
   const quiet = toDealReportVM(report({ clients: 1 }), "7 days");
   assert.equal(quiet.headline, "No proposals went out in the last 7 days.");
-  assert.equal(quiet.parts, "");
   assert.equal(quiet.stock, "1 client now.");
   const one = toDealReportVM(report({ sent: 1, won: 1, clients: 1 }), "7 days");
   assert.equal(one.headline, "1 proposal went out in the last 7 days.");
-  assert.equal(one.parts, "1 became a client · 0 passed · 0 still waiting");
+  assert.deepEqual(
+    one.outcomes.rows.map((r) => [r.label, r.display]),
+    [
+      ["Became clients", "1  100%"],
+      ["Still waiting", "0  0%"],
+      ["Passed", "0  0%"],
+    ],
+  );
 });
 
 test("what became of the period's proposals, as bars out of the cohort's size: each outcome's count and share, a zero said, no bars where none went out", () => {

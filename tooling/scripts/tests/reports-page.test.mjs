@@ -930,8 +930,26 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
     ],
   );
   assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
-  // Each count once: the bars are the cohort's parts, so the sentence that says them is not drawn beside them.
-  assert.ok(!textOf(section).includes(DEALS.parts), "the parts are drawn as bars, never as a sentence too");
+  // Each fact once and nothing more: the section is its title, the headline, the card, the lines and the stock.
+  assert.equal(
+    textOf(section),
+    [
+      "Deals",
+      "5 proposals went out in the last 7 days.",
+      "What became of the proposals",
+      "Became clients",
+      "3  60%",
+      "Still waiting",
+      "1  20%",
+      "Passed",
+      "1  20%",
+      "Median 9 days to a yes.",
+      "2 of 3 new clients came from Leads.",
+      "Price was the reason given for passing.",
+      "$4,250 still open across 3 proposals.",
+      "4 clients now · $7,500 a month.",
+    ].join(""),
+  );
   // Inside the Deals section only: the five tiles stay five, and none of the copy the e2e holds Reports to appears.
   assert.equal(all(byTestId(tree, "reports-tiles"), (n) => classes(n).includes("rpt-tile")).length, 5);
   for (const s of ["Revenue", "Lead sources", "Where bookings come from"]) assert.ok(!textOf(tree).includes(s), s);

@@ -215,12 +215,12 @@ const ReportsSections = ({ R, pick }) => {
   const sentPct = (n) => (cm && cm.totals.sent ? Math.round((n / cm.totals.sent) * 100) : 0);
   // Deals (0004, 0008): one cohort, the proposals of the period, and beside it the stock. The headline says how many
   // went out; the card draws what became of them in the kit's bars, each outcome's count and its share of the cohort,
-  // which are the cohort's parts said once (no sentence repeats them); the lines beside it say what the bars cannot --
-  // how long a yes took, where the new clients came from, why people passed, what is still open -- each only when it
-  // has something; the clients now close the section under the one hairline. Every word is contracts' DealReportVM.
-  // Drawn wherever deals are on and a deal was ever recorded, whatever came in this period: an engagement is agreed
-  // in a call or a meeting as often as in a message, so a quiet month for the receptionist is not a month without
-  // clients.
+  // said there and nowhere else (a sentence of the same counts would say each twice); the lines beside it say what the
+  // bars cannot -- how long a yes took, where the new clients came from, why people passed, what is still open -- each
+  // only when it has something; the clients now close the section under the one hairline. Every word is contracts'
+  // DealReportVM. Drawn wherever deals are on and a deal was ever recorded, whatever came in this period: an engagement
+  // is agreed in a call or a meeting as often as in a message, so a quiet month for the receptionist is not a month
+  // without clients.
   const dl = R.deals && R.deals.present ? R.deals : null;
   const dealLines = dl && dl.lines.length ? (
     <ul className={`rpt-deals-lines${dl.outcomes ? " rpt-span-7" : ""}`} data-testid="rpt-deals-lines">

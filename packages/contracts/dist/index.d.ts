@@ -4432,12 +4432,10 @@ interface DealReportVM {
     present: boolean;
     /** "5 proposals went out in the last 30 days." */
     headline: string;
-    /** "3 became clients · 1 passed · 1 still waiting"; "" when none went out. The counts `outcomes` draws as bars, in
-     *  words: a page says them one way, never both. */
-    parts: string;
     /** "4 clients now · $7,500 a month." */
     stock: string;
-    /** What became of the period's proposals, as bars out of the cohort's size; null when none went out. */
+    /** What became of the period's proposals, as bars out of the cohort's size: each outcome's count and its share,
+     *  said there and nowhere else. Null when none went out. */
     outcomes: {
         title: string;
         max: number;
