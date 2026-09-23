@@ -6708,7 +6708,8 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
-    deal: dealOf(r, tz, nowMs)
+    deal: dealOf(r, tz, nowMs),
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation)
   };
 }
 var PEOPLE_LIST_GROUPS = [

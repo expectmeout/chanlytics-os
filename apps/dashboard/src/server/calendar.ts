@@ -13,6 +13,7 @@ import {
   guessName,
   indexFeed,
   isDayKey,
+  isConsultationTitle,
   matchPerson,
   mondayOf,
   parseIcs,
@@ -33,6 +34,7 @@ import {
   type PersonRowDto,
   type PersonVisitsDto,
   type TenantConfig,
+  type ConsultRules,
   type VisitDto,
   allVisitsIn,
   type BookingReportDto,
@@ -129,6 +131,9 @@ function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | nul
   return { cfg: null, lostCalendar };
 }
 
+/** The business's profile as the settings hold it, as far as the people reads need it. */
+type BusinessProfile = NonNullable<NonNullable<TenantConfig["brain"]>["profile"]>;
+
 /**
  * The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the
  * booking link, which a row may offer. `lostCalendar` is true when the settings would not parse AND they name
@@ -144,6 +149,8 @@ async function calendarOf(
   source: string;
   bookingLink: string | null;
   own: OwnAddresses;
+  /** The business's profile: its services, and the rules that say which need a consultation first. Null without one. */
+  profile: BusinessProfile | null;
 }> {
   const [{ timezone }, { data: row, error }] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
@@ -156,7 +163,15 @@ async function calendarOf(
   // Server-side only: the address feeds the reads in this module and is never part of a response.
   // The business's own addresses (contracts ownAddressesOf): where it is alerted,
   // and whose calendar this is. Never a customer's, so never anybody's visit.
-  return { url, lostCalendar, timezone, source: feedSourceLabel(url), bookingLink, own: ownAddressesOf(cfg) };
+  return {
+    url,
+    lostCalendar,
+    timezone,
+    source: feedSourceLabel(url),
+    bookingLink,
+    own: ownAddressesOf(cfg),
+    profile: cfg?.brain?.profile ?? null,
+  };
 }
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
@@ -549,6 +564,9 @@ export interface PeopleVisits {
   /** By contact id; absent without a readable calendar. */
   visits: Map<string, PersonVisitsDto>;
   bookingLink: string | null;
+  /** The profile's services and its consult-first rule: which of a person's visits is a consultation (0004). */
+  services: { name: string }[];
+  rules: ConsultRules | null;
 }
 
 /**
@@ -562,10 +580,18 @@ export async function peopleVisits(
   rows: PersonRowDto[],
   now = new Date(),
 ): Promise<PeopleVisits> {
-  const { url, lostCalendar, timezone, source, bookingLink, own } = await calendarOf(ctx, tenantId);
+  const { url, lostCalendar, timezone, source, bookingLink, own, profile } = await calendarOf(ctx, tenantId);
+  const services = profile?.services ?? [];
+  const rules = profile?.booking_rules ?? null;
   const visits = new Map<string, PersonVisitsDto>();
   if (!url)
-    return { calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone }, visits, bookingLink };
+    return {
+      calendar: { state: lostCalendar ? "unavailable" : "none", source, timezone },
+      visits,
+      bookingLink,
+      services,
+      rules,
+    };
   let feed: ParsedRead;
   try {
     feed = await parsedFeedFor(tenantId, url, timezone, now);
@@ -576,14 +602,15 @@ export async function peopleVisits(
     );
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
-  if (!feed.parsed) return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink };
+  if (!feed.parsed)
+    return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
   const index = indexFeed(feed.parsed.items, own);
   const nowMs = now.getTime();
   for (const r of rows) {
     const v = visitsIn(index, personLike(r), nowMs);
     visits.set(r.id, { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
   }
-  return { calendar: { state: "ok", source, timezone }, visits, bookingLink };
+  return { calendar: { state: "ok", source, timezone }, visits, bookingLink, services, rules };
 }
 
 /** The rows with their appointments attached, the way the People list and the assistant read them. */
@@ -592,7 +619,13 @@ export async function withVisits(
   tenantId: string,
   rows: PersonRowDto[],
   now = new Date(),
-): Promise<{ people: PersonRowDto[]; calendar: PeopleVisits["calendar"]; booking_link: string | null }> {
+): Promise<{
+  people: PersonRowDto[];
+  calendar: PeopleVisits["calendar"];
+  booking_link: string | null;
+  /** The profile lists a consult-first service (0004): the "Consultation booked" list exists only then. */
+  consult_first: boolean;
+}> {
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
     console.error(
       "people_visits_failed",
@@ -605,13 +638,19 @@ export async function withVisits(
       people: rows.map((r) => ({ ...r, visits: null })),
       calendar: { state: "none", source: "your calendar", timezone: "UTC" },
       booking_link: null,
+      consult_first: false,
     };
+  // Each visit says whether it is a consultation (0004): its title says so, or names a consult-first service.
+  const mark = (v: VisitDto | null): VisitDto | null =>
+    v ? { ...v, consultation: isConsultationTitle(v.title, pv.services, pv.rules) } : null;
+  const marked = (x: PersonVisitsDto | undefined): PersonVisitsDto | null =>
+    x ? { ...x, next: mark(x.next), last: mark(x.last) } : null;
   return {
     people: rows.map((r) => ({
       ...r,
       visits:
         pv.calendar.state === "ok"
-          ? (pv.visits.get(r.id) ?? null)
+          ? marked(pv.visits.get(r.id))
           : pv.calendar.state === "unavailable"
             ? {
                 timezone: pv.calendar.timezone,
@@ -624,6 +663,7 @@ export async function withVisits(
     })),
     calendar: pv.calendar,
     booking_link: pv.bookingLink,
+    consult_first: (pv.rules?.consult_first ?? []).length > 0,
   };
 }
 

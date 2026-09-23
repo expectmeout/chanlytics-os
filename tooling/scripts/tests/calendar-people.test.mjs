@@ -965,7 +965,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
-    sd.includes('lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok")') &&
+    sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
+      sd.includes("(!l.needsDeals || dealsOn),") &&
       sd.includes("booking: toBookingReportVM(data.booking),"),
   );
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");

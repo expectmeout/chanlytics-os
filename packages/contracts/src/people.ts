@@ -987,6 +987,8 @@ export interface PersonRowVM {
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
   deal: DealVM | null;
+  /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
+  consultationVisit: boolean;
 }
 
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
@@ -1088,6 +1090,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
     deal: dealOf(r, tz, nowMs),
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
   };
 }
 
@@ -1113,6 +1116,10 @@ export const PEOPLE_LISTS: readonly {
   label: string;
   group: PeopleListGroup;
   needsCalendar?: boolean;
+  /** Only where the profile lists a consult-first service. */
+  needsConsultFirst?: boolean;
+  /** Only where deals are a thing here: a consult-first service listed, or a deal ever recorded. */
+  needsDeals?: boolean;
   /**
    * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
    * say the two answers -- so their Lists section names only the lists it alone can.

@@ -492,6 +492,8 @@ export interface VisitDto {
   title: string;
   all_day: boolean;
   via: MatchVia;
+  /** The visit is a consultation: its title says so, or names a consult-first service (contracts isConsultationTitle, set by the server). Absent on an older read. */
+  consultation?: boolean;
 }
 
 /** A person's appointments as their profile reads them. */

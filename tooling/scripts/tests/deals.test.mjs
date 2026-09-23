@@ -410,3 +410,26 @@ test("a person's page lists their deals, says the current one among its facts, a
   assert.deepEqual(none.deals, []);
   assert.ok(!none.facts.some((f) => f.label === "Deal"));
 });
+
+test("a row knows when its next or last visit was a consultation", () => {
+  const { toPersonRowVM } = contracts;
+  const v = (title, consultation) => ({
+    id: "v",
+    start: daysAgo(-2),
+    end: daysAgo(-2),
+    title,
+    all_day: false,
+    via: "phone",
+    consultation,
+  });
+  const visits = (next, last) => ({ timezone: TZ, source: "your calendar", state: "ok", next, last });
+  assert.equal(
+    toPersonRowVM(personRow({ visits: visits(v("Discovery call", true), null) }), TZ, new Date(NOW)).consultationVisit,
+    true,
+  );
+  assert.equal(
+    toPersonRowVM(personRow({ visits: visits(null, v("Haircut", false)) }), TZ, new Date(NOW)).consultationVisit,
+    false,
+  );
+  assert.equal(toPersonRowVM(personRow({ visits: null }), TZ, new Date(NOW)).consultationVisit, false);
+});
