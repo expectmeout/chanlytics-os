@@ -43766,7 +43766,7 @@ async function answerInbound(input, ports) {
         try {
           const e164 = from.startsWith("+") ? from : `+${from}`;
           const lead = await ports.leads.read(db, tenantId, e164, 1);
-          leadNote = ports.leads.describe(lead);
+          leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
           const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
           if (visits) leadNote = `${leadNote}
 ${visits}`;

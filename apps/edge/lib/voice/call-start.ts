@@ -206,7 +206,7 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
           fail(leadR.reason);
         } else if (leadR.value) {
           const lead = leadR.value;
-          const parts = [describeLead(lead, now)];
+          const parts = [describeLead(lead, now, rt?.timezone ?? "UTC")];
           // The caller's appointments ride with who they are, so "when am I
           // booked?" is answered from the calendar, not guessed.
           const visits = rt ? await calendar.visits(rt, { phone, name: lead.name }, now) : null;

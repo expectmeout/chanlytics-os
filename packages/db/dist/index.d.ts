@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PurposeBearing, EventKind, SchemaSet, PersonRowDto } from '@chanlytics/contracts';
+import { PurposeBearing, EventKind, SchemaSet, DealFacts, PersonRowDto } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -5524,6 +5524,8 @@ interface LeadContext {
     notes?: string | null;
     /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
     proposalUrl?: string | null;
+    /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
+    deal?: DealFacts | null;
 }
 /**
  * Everything both agents know about one lead, from the one place that knows it.
@@ -5542,6 +5544,11 @@ interface LeadContext {
  */
 declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
+ * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ */
+declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
+/**
  * The lead, described for a model in a few plain lines.
  *
  * Shared so both agents introduce the same person the same way. Facts only —
@@ -5549,7 +5556,7 @@ declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, 
  * nothing said at all when we know nothing, because "New caller" is itself a
  * useful and honest thing to tell an agent.
  */
-declare function describeLead(lead: LeadContext, now?: Date): string;
+declare function describeLead(lead: LeadContext, now?: Date, tz?: string): string;
 
 /**
  * Who is speaking on a thread right now.
@@ -5927,4 +5934,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };

@@ -194,6 +194,29 @@ test("suggestions come from the data, in the person's language, and never offer 
   assert.equal(new Set(busy.map((s) => s.q)).size, busy.length, "no duplicates");
 });
 
+test("the question about proposals is offered only where deals are a thing (0004): People's surface says so, in the person's language", () => {
+  const quiet = { needsYou: 0, heldDrafts: 0, missedToday: 0, liveNow: 0, hasCalendar: false };
+  const EN = "Who has a proposal out?";
+  const ES = "¿Quién tiene una propuesta pendiente?";
+  const on = buildAskSuggestions({ ...quiet, surface: "people", language: "en", dealsOn: true });
+  assert.ok(
+    on.some((s) => s.q === EN && s.kind === "ask"),
+    "People, deals on: the question is offered",
+  );
+  assert.ok(buildAskSuggestions({ ...quiet, surface: "other", language: "es", dealsOn: true }).some((s) => s.q === ES));
+  assert.ok(
+    !buildAskSuggestions({ ...quiet, surface: "people", language: "en" }).some((s) => s.q === EN),
+    "no deals here: no question about proposals",
+  );
+  assert.ok(
+    !buildAskSuggestions({ ...quiet, surface: "people", language: "es", dealsOn: false }).some((s) => s.q === ES),
+  );
+  assert.ok(
+    !buildAskSuggestions({ ...quiet, surface: "inbox", language: "en", dealsOn: true }).some((s) => s.q === EN),
+    "the Inbox is not where people are looked at",
+  );
+});
+
 test("the three fast paths: who needs me, did anyone call, what is open; everything else is the model's", () => {
   const feed = [
     {
@@ -372,6 +395,12 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     true,
     "a calendar is connected",
   );
+  const proposals = (lang) =>
+    api.suggestions("people", null, lang).some((s) => /proposal out|propuesta pendiente/.test(s.q));
+  assert.equal(proposals("en"), false, "People's surface has not said deals are a thing here");
+  win.__PEOPLE.dealsOn = true;
+  assert.equal(proposals("en"), true, "it has: the question about proposals is offered, read from the surface");
+  assert.equal(proposals("es"), true);
   assert.equal(api.timezone(), "America/New_York");
   assert.equal(api.surfaceFor("clients"), "people");
   const seen = [];
@@ -630,6 +659,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     broadcast: "approve",
     playbook: "approve",
     lead_search: "find",
+    deal: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",

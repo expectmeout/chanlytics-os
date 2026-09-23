@@ -6068,9 +6068,12 @@ interface ServiceOffer<S extends ServiceLike = ServiceLike> {
  * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
  * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
  * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
- * its own length while the prompt said a consultation comes first (C5b).
+ * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
+ * offered the service itself (0004).
  */
-declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown): ServiceOffer<S> | null;
+declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
+    client?: boolean;
+}): ServiceOffer<S> | null;
 /**
  * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
  * consultation first and what is offered instead.
@@ -8174,7 +8177,7 @@ type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal";
     /** The lowest role that may commit it; the route re-checks on Approve. */
     needs: "operator" | "owner";
     title: string;
@@ -8312,6 +8315,8 @@ interface SuggestionInput {
     scope?: AskScope | null;
     /** Operators and owners may act; a viewer is never offered a card. */
     canAct?: boolean;
+    /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
+    dealsOn?: boolean;
 }
 /**
  * Questions the workspace can answer today, for where the person is. Built

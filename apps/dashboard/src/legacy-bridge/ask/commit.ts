@@ -21,12 +21,13 @@
  */
 import {
   ASK_THREAD_VERBS,
+  DEAL_STAGE_WORDS,
   PERSON_MODE_WORDS,
   applySettingsChange,
   type AskProposal,
   type AskProposalOutcome,
 } from "@chanlytics/contracts";
-import type { Api } from "../../client/api";
+import type { Api, Input } from "../../client/api";
 import { apiFor } from "../api";
 import { viaAsk } from "./api";
 
@@ -143,6 +144,22 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
         ok: true,
         receipt: `Receptionist for ${s(pl.who)}: ${PERSON_MODE_WORDS[s(pl.mode) as keyof typeof PERSON_MODE_WORDS] ?? s(pl.mode)}`,
         undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) },
+      };
+    }
+    case "deal": {
+      // The card's body is the route's body: `who` is the card's own word and the id is the route's param, so both
+      // stay out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page.
+      const { who: _who, contact_id: _id, ...body } = pl;
+      const r = await viaAsk(client, "POST contacts/[id]/deal", {
+        params: { id: s(pl.contact_id) },
+        body: body as Input<"POST contacts/[id]/deal">,
+      });
+      if (!r.ok) return r;
+      win.dispatchEvent(new CustomEvent("surface:clients"));
+      return {
+        ok: true,
+        receipt: `${s(pl.who)} · ${DEAL_STAGE_WORDS[s(pl.stage) as keyof typeof DEAL_STAGE_WORDS] ?? s(pl.stage)}`,
+        undo: null,
       };
     }
     case "policy": {

@@ -540,3 +540,140 @@ test("a workspace that confirms its own bookings is not given times to read out"
     setPg(null);
   }
 });
+
+test("a client is offered the service itself; a stranger the consultation; the answer takes the flag", () => {
+  const services = [
+    { name: "Ad management", duration_min: 60 },
+    { name: "Discovery consult", duration_min: 30 },
+  ];
+  const rules = { consult_first: ["Ad management"] };
+  assert.equal(offerFor(services, rules, "ad management").minMinutes, 30);
+  assert.equal(offerFor(services, rules, "ad management").consultation, true);
+  assert.equal(offerFor(services, rules, "ad management", { client: true }).minMinutes, 60);
+  assert.equal(offerFor(services, rules, "ad management", { client: true }).consultation, false);
+  // The openings exactly as this file's C5b fixture builds them: one Wednesday, the morning busy.
+  const now = new Date(ny(2026, 9, 9, 8));
+  const openings = freeWindows({
+    hours: { wed: { open: "09:00", close: "18:00" } },
+    tz: TZ,
+    busy: [{ start: ny(2026, 9, 9, 9), end: ny(2026, 9, 9, 12) }],
+    rules: { lead_hours: 0, max_days_ahead: 1 },
+    now,
+  });
+  const data = { openings, tz: TZ, daysAhead: 14 };
+  const profile = { services, booking_rules: rules };
+  assert.match(availabilityAnswer(data, profile, { service: "ad management" }).result, /needs a consultation/);
+  assert.doesNotMatch(
+    availabilityAnswer(data, profile, { service: "ad management" }, { client: true }).result,
+    /needs a consultation/,
+  );
+});
+
+test("the door reads the caller's deal: a client on the line is offered a consult-first service itself, a stranger and a withheld number the consultation", async () => {
+  // The same world as the booking-held case, with a calendar and a receptionist, one contact who is a client (0004)
+  // and a stubbed feed with nothing on it: every day is open, so the answer turns on the caller alone.
+  const T = "cccccccc-0000-4000-8000-000000000002";
+  const AGENT = "agent_availability_client";
+  const CLIENT = "+13055550123";
+  const FEED = "https://cal.example/deals.ics";
+  const hours = Object.fromEntries(
+    ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, { open: "09:00", close: "18:00" }]),
+  );
+  const { forgetFeeds } = await import(
+    pathToFileURL(path.join(here, "../../../apps/edge/lib/calendar/availability.ts")).href
+  );
+  forgetFeeds();
+  setPg(
+    fakeDb(
+      {
+        tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
+        tenant_channels: [
+          {
+            id: "voice-2",
+            tenant_id: T,
+            kind: "voice",
+            external_id: AGENT,
+            number_e164: "+13055550100",
+            status: "active",
+            credentials_ref: null,
+            config: {},
+          },
+        ],
+        tenant_config: [
+          {
+            tenant_id: T,
+            config: {
+              calendar: { ical_url: FEED },
+              brain: {
+                business_name: "Harbor Moving",
+                booking_link: "https://book.example/harbor",
+                system_prompt: "Answer as the front desk: brief, warm, and never a price or a booking over text.",
+                fallbacks: { greeting: "g", error: "e", non_text: "n" },
+                profile: {
+                  hours,
+                  services: [
+                    { name: "Ad management", duration_min: 60 },
+                    { name: "Discovery consult", duration_min: 30 },
+                  ],
+                  booking_rules: { consult_first: ["Ad management"] },
+                },
+              },
+            },
+          },
+        ],
+        policies: [],
+        google_listings: [],
+        contacts: [{ id: "contact-client", tenant_id: T, phone_e164: CLIENT }],
+        deals: [
+          {
+            id: "deal-1",
+            tenant_id: T,
+            contact_id: "contact-client",
+            stage: "won",
+            service: "Ad management",
+            proposed_at: "2026-09-01T12:00:00Z",
+            decided_at: "2026-09-20T12:00:00Z",
+            ended_at: null,
+            created_at: "2026-09-20T12:00:00Z",
+          },
+        ],
+      },
+      {},
+      { runtime_stamp: () => "stamp-2" },
+    ),
+  );
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", { status: 200, headers: { "content-type": "text/calendar" } });
+  const ask = async (from_number) => {
+    const res = await door.POST(
+      new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+        body: JSON.stringify({
+          call: { call_id: "call_2", agent_id: AGENT, from_number },
+          args: { service: "ad management" },
+        }),
+      }),
+    );
+    assert.equal(res.status, 200);
+    return (await res.json()).result;
+  };
+  try {
+    const stranger = await ask("+13055550199");
+    assert.match(stranger, /^Ad management needs a consultation before it can be booked/, stranger);
+    const client = await ask(CLIENT);
+    assert.doesNotMatch(client, /needs a consultation/, client);
+    assert.match(
+      client,
+      /^For Ad management \(about 60 minutes\): Open times/,
+      "the service itself, at its own length",
+    );
+    const withheld = await ask(undefined);
+    assert.match(withheld, /needs a consultation/, "no number is the stranger's answer");
+  } finally {
+    globalThis.fetch = realFetch;
+    setPg(null);
+    forgetFeeds();
+  }
+});

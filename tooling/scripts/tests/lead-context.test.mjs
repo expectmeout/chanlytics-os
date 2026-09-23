@@ -16,7 +16,8 @@ import { readCode } from "./_source.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assembleHistory, describeLead } from "@chanlytics/db";
+import { assembleHistory, describeLead, readLeadContext } from "@chanlytics/db";
+import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -252,5 +253,101 @@ test("a proposal on file rides with who the person is: the address to send, the 
   assert.ok(
     !describeLead({ ...lead, proposalUrl: undefined }, NOW).includes("proposal"),
     "a reader without the column says nothing",
+  );
+});
+
+test("the note says the deal's sentence after the owner's note, in the business's zone; the link's rule wins a price question; nothing without a deal", () => {
+  const base = {
+    contactId: "c1",
+    conversationId: null,
+    name: "Maria",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    notes: "Prefers mornings",
+  };
+  const NOW = new Date("2026-09-23T16:00:00Z");
+  assert.doesNotMatch(describeLead(base, NOW), /client|proposal/i);
+  const won = describeLead(
+    {
+      ...base,
+      deal: {
+        stage: "won",
+        service: "Ad management",
+        proposed_at: "2026-09-01T12:00:00Z",
+        decided_at: "2026-09-20T12:00:00Z",
+        ended_at: null,
+      },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(won, /Prefers mornings.*They are a client \(Ad management\), since Sep 20\./s);
+  assert.doesNotMatch(won, /2,500|\$/);
+  const proposedWithLink = describeLead(
+    {
+      ...base,
+      proposalUrl: "https://docs.example.com/p/1",
+      deal: { stage: "proposed", service: null, proposed_at: "2026-09-12T12:00:00Z", decided_at: null, ended_at: null },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(proposedWithLink, /A proposal went out to them on Sep 12/);
+  assert.match(proposedWithLink, /send them the proposal link/);
+  assert.doesNotMatch(proposedWithLink, /will follow up/);
+  assert.ok(
+    proposedWithLink.indexOf("A proposal went out") < proposedWithLink.indexOf("The owner has a proposal ready"),
+    "the deal's sentence comes before the link's, which answers the price question last",
+  );
+});
+
+test("readLeadContext carries the CURRENT deal, which may be the oldest row, and never an amount", async () => {
+  // A running engagement outlives any number of newer proposals for other services (already_open is per service):
+  // a cap on the read would hide it behind them. The rows are read whole and the door's rule picks the current one.
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550123";
+  const c = { id: "contact-1", tenant_id: T, phone_e164: PHONE, display_name: "Maria", wa_profile_name: null };
+  const dealRow = (over) => ({
+    tenant_id: T,
+    contact_id: c.id,
+    service: null,
+    stage: "proposed",
+    proposed_at: "2026-09-01T12:00:00Z",
+    decided_at: null,
+    ended_at: null,
+    amount_cents: 250000,
+    per: "month",
+    ...over,
+  });
+  const wonRow = dealRow({
+    id: "deal-won",
+    stage: "won",
+    service: "Ad management",
+    decided_at: "2026-09-05T12:00:00Z",
+    created_at: "2026-09-01T12:00:00Z",
+  });
+  const newerLostRow = dealRow({
+    id: "deal-lost",
+    stage: "lost",
+    service: "Web design",
+    proposed_at: "2026-09-10T12:00:00Z",
+    decided_at: "2026-09-15T12:00:00Z",
+    created_at: "2026-09-10T12:00:00Z",
+  });
+  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [wonRow, newerLostRow] });
+  const ctx = await readLeadContext(db, T, PHONE);
+  assert.equal(ctx.contactId, c.id);
+  assert.equal(ctx.deal?.stage, "won", "the current one, not the newest");
+  assert.equal(ctx.deal?.service, "Ad management");
+  assert.ok(!("amount_cents" in ctx.deal), "never an amount at the read");
+  assert.ok(!("per" in ctx.deal));
+  const dealsRead = db.seen.filter((q) => q.table === "deals");
+  assert.equal(dealsRead.length, 1);
+  assert.equal(dealsRead[0].limit, null, "the whole list: the current deal may be the oldest");
+  assert.match(
+    describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York"),
+    /They are a client \(Ad management\), since Sep 5\./,
   );
 });

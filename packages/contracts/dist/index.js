@@ -1132,9 +1132,11 @@ function needsConsultation(name, rules) {
   const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
   return !!n && list2.some((c) => foldName(String(c).trim()) === n);
 }
-function offerFor(services, rules, asked) {
+function offerFor(services, rules, asked, opts = {}) {
   const service = matchService(services, asked);
   if (!service) return null;
+  if (opts.client)
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   if (!needsConsultation(service.name, rules))
     return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
@@ -9089,7 +9091,8 @@ var PROPOSAL_GATE = {
   invite: "team",
   broadcast: "approve",
   playbook: "approve",
-  lead_search: "find"
+  lead_search: "find",
+  deal: "approve"
 };
 var ASK_UNDO_MS = 10 * 6e4;
 function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
@@ -9198,6 +9201,7 @@ var T = {
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
     brief: "Brief me on today",
+    proposals: "Who has a proposal out?",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -9231,6 +9235,7 @@ var T = {
     rules: "\xBFQu\xE9 puede hacer la recepcionista sola?",
     hours: "\xBFCu\xE1l es nuestro horario esta semana?",
     brief: "Res\xFAmeme el d\xEDa",
+    proposals: "\xBFQui\xE9n tiene una propuesta pendiente?",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -9294,6 +9299,8 @@ function buildAskSuggestions(input) {
     default:
       break;
   }
+  if (input.dealsOn && (input.surface === "people" || input.surface === "other"))
+    add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");

@@ -1089,6 +1089,49 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   assert.deepEqual(undone, ["playbook"]);
 });
 
+test("a deal card wears the deal word and Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", () => {
+  globalThis.window.__ask = {
+    undoOpen: () => false,
+    undo: async () => ({ ok: true, receipt: "" }),
+    outcome: async () => true,
+    commit: async () => ({ ok: true, receipt: "", undo: null }),
+  };
+  globalThis.window.canDo = () => true;
+  const buttons = (tree) => {
+    const out = [];
+    walk(tree, (n) => {
+      if (n.type === "button") out.push(n);
+    });
+    return out;
+  };
+  const went = [];
+  const p = {
+    id: "p3",
+    kind: "deal",
+    title: "Maria · Client",
+    summary: "Client · SEO · $2,500 a month",
+    payload: { contact_id: "c-21", stage: "won", who: "Maria" },
+    undo: null,
+  };
+  for (const lang of ["en", "es"]) {
+    const t = globalThis.window.askText(lang);
+    cells = [];
+    frames.begin();
+    const tree = globalThis.window.AskCard({ p, messageId: "x", t, onNav: (to) => went.push(to) });
+    let kind = null;
+    walk(tree, (n) => {
+      if (!kind && n.props?.className === "ask-card-kind") kind = n;
+    });
+    assert.ok(kind, `${lang}: the card names its kind`);
+    assert.equal(textOf(kind), t.kDeal, `${lang}: the kind word, not the key`);
+    const open = buttons(tree).find((b) => textOf(b) === t.openIt);
+    assert.ok(open, `${lang}: Open is offered on a deal card`);
+    open.props.onClick();
+  }
+  assert.deepEqual(went, ["clients/c-21", "clients/c-21"], "Open lands on the person's page, where the deal is");
+  assert.notEqual(globalThis.window.askText("es").kDeal, "deal", "the Spanish card says it in Spanish");
+});
+
 /* -------------------- Ask: a failure says what failed -------------------- */
 
 test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", () => {

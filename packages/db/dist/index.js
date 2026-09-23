@@ -214,6 +214,56 @@ var DECISION_VERBS = [
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
+var FORMATS = /* @__PURE__ */ new Map();
+function formatsFor(tz) {
+  const hit = FORMATS.get(tz);
+  if (hit) return hit;
+  let zone = tz || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const made = {
+    zone,
+    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
+    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+  FORMATS.set(tz, made);
+  return made;
+}
+var WALLS = /* @__PURE__ */ new Map();
+var WALLS_MAX = 2048;
+function wall(atMs, tz) {
+  const id = `${tz}|${atMs}`;
+  const hit = WALLS.get(id);
+  if (hit) return hit;
+  const p = {};
+  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
+  const made = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute)
+  };
+  if (WALLS.size >= WALLS_MAX) WALLS.clear();
+  WALLS.set(id, made);
+  return made;
+}
+function clockDate(atMs, tz, nowMs) {
+  const f = formatsFor(tz);
+  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -998,6 +1048,39 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+function isDealStage(s) {
+  return typeof s === "string" && DEAL_STAGES.includes(s);
+}
+function pickCurrentDeal(rows) {
+  const open = (d) => d.stage === "proposed" || d.stage === "won";
+  const sorted = [...rows].sort(
+    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealSinceMs(d) {
+  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at2 ? Date.parse(at2) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
@@ -2077,6 +2160,8 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
     history = assembleHistory(rows ?? [], historyLimit);
   }
+  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
+  const current = pickCurrentDeal(dealRows ?? []);
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
@@ -2090,10 +2175,24 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
-    proposalUrl: contact.proposal_url ?? null
+    proposalUrl: contact.proposal_url ?? null,
+    deal: current ? {
+      stage: current.stage,
+      service: current.service,
+      proposed_at: current.proposed_at,
+      decided_at: current.decided_at,
+      ended_at: current.ended_at
+    } : null
   };
 }
-function describeLead(lead, now = /* @__PURE__ */ new Date()) {
+async function readDealForPhone(db, tenantId, phoneE164) {
+  const { data: c } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (!c) return null;
+  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
+  const d = pickCurrentDeal(data ?? []);
+  return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;
+}
+function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
   bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
@@ -2107,6 +2206,8 @@ function describeLead(lead, now = /* @__PURE__ */ new Date()) {
   if (lead.optedOut) bits.push("They have asked not to receive messages.");
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
+  if (deal) bits.push(deal);
   const proposal = (lead.proposalUrl ?? "").trim();
   if (proposal)
     bits.push(
@@ -2475,6 +2576,7 @@ export {
   personReplyMode,
   putTenantConfig,
   readAllRows,
+  readDealForPhone,
   readLeadContext,
   readThreadState,
   recordCallNote,
