@@ -1,8 +1,9 @@
 # 0002 · An appointments record
 
-**Status:** decided, not built. Written against commit `b729bdf`, and verified
-against the code at it, with the working tree as it stood. Where this note and
-the code disagree, the code wins.
+**Status:** decided, not built. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
+and line below was re-read at that commit, with deals (0004), the proposal link
+and smart lists on main. _What has changed since it was written_ says what moved
+around it. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -10,7 +11,7 @@ the code disagree, the code wins.
 
 The README says it plainly: _"It does not book... there is no appointments
 table here, and nothing in the product can create, move or cancel one."_
-`CalendarConfigSchema` (`packages/contracts/src/config.ts:578-585`) enforces it
+`CalendarConfigSchema` (`packages/contracts/src/config.ts:686-693`) enforces it
 in the schema: the only field is `ical_url`, _"never credentials to write with.
 Nothing is ever booked from here."_
 
@@ -18,20 +19,21 @@ Nothing is ever booked from here."_
 
 One iCal address per workspace, fetched and parsed on demand. The board, a
 profile and the People list read it through
-`apps/dashboard/src/server/calendar.ts` (452 lines); the open windows through
-`freeWindows` (`packages/contracts/src/availability.ts`); who the feed names,
+`apps/dashboard/src/server/calendar.ts` (712 lines); the open windows through
+`freeWindows` (`packages/contracts/src/availability.ts:647`); who the feed names,
 and their next and last visit, through
-`packages/contracts/src/calendar-people.ts` (630 lines); the hourly sweep
-through `apps/edge/api/cron/calendar.ts` (82 lines); the receptionist through
-`openingsFor` and `visitsFor` (`apps/edge/lib/calendar/availability.ts:144`, `:163`).
-`calendar.ts:78` caches the _parse_ while the text is the same and `loadFeed`
-caches the text for a few minutes, but nothing is stored: every page load, run
+`packages/contracts/src/calendar-people.ts` (743 lines); the hourly sweep
+through `apps/edge/api/cron/calendar.ts` (103 lines); the receptionist through
+`openingsFor` and `visitsFor` (`apps/edge/lib/calendar/availability.ts:192`, `:211`).
+`calendar.ts:81` caches the _parse_ while the text is the same and `loadFeed`
+(`apps/dashboard/src/server/ask/openings.ts:83`) caches the text for five
+minutes (`:28`), but nothing is stored: every page load, run
 and message that mentions a time re-derives it from the same file.
 
 The only durable trace is a person: `addPeopleFromCalendar`
 (`apps/edge/lib/calendar/calendar-people.ts:28`) creates a contact from an event that
 carries a phone number and writes one `contact.added` event with
-`{ source: "calendar", title, uid, start }` (`:68-72`). The appointment is
+`{ source: "calendar", title, uid, start }` (`:79-86`). The appointment is
 never kept.
 
 ### Bookings are inferred, and not in SQL
@@ -40,50 +42,65 @@ never kept.
 and `report_series` in `00139_reports_say_where_and_when.sql`; **neither names
 a booking, an appointment or a visit**. A search of every migration for `book`
 finds only the `booking` policy class (`00012_control_plane.sql:44`), the
-`booking_link_v1` template (`00004_inbox.sql:63`), the `booking_link_sent` call
+`booking_link_v1` template (`00004_inbox.sql:63`, a row
+`00133_the_scrap_template_goes.sql:38-43` has since deleted), the `booking_link_sent` call
 outcome (`00061_call_outcomes.sql:21`) and prose. It is computed **in
 TypeScript at read time**: `bookingReport`
-(`apps/dashboard/src/server/calendar.ts:435-452`) calls `peopleVisits`, which
-fetches and parses the feed, then counts each person for whom `bookedAfterAsk`
-holds (`packages/contracts/src/calendar-people.ts:601-605`: an upcoming visit,
-or a past one starting no more than a day before they asked);
-`toBookingReportVM` (`:607-629`) writes the headline. So the one conversion
+(`apps/dashboard/src/server/calendar.ts:673-712`) calls `peopleVisits`
+(`:575-612`), which fetches and parses the feed, then counts each person for
+whom `bookedAfterAsk` holds (`packages/contracts/src/calendar-people.ts:677-681`:
+an upcoming visit, or a past one starting no more than a day before they asked);
+`toBookingReportVM` (`:683-743`) writes the headline. So the one conversion
 line in Reports is a **live parse of an iCal file**, `—` when it cannot be read.
 
 ### Playbooks read the calendar too
 
-Two of the six triggers are visit triggers
-(`packages/contracts/src/playbooks.ts:30-37`): `visit_tomorrow`, class
+Two of the eight triggers are visit triggers
+(`packages/contracts/src/playbooks.ts:58-73`): `visit_tomorrow`, class
 `booking`, eligible when `r.nextVisitDate === localDate(r.calendarTz, now + 1
-day)` (`:123`); and `visited`, class `reengage`, eligible when
-`r.lastVisitDate === localDate(r.calendarTz, now − 1 day) && !r.booked`
-(`:124`). Both are day-keyed by the calendar's own clock, never by hours.
-`runPlaybook` refuses a visit run with no readable calendar — _"A visit
-playbook without a calendar has nothing to read: off, and the run says so"_
-(`packages/core/src/campaigns/run-playbook.ts:62-63`). Its context carries
+day)` (`playbookRunReach`, `:241-242`); and `visited`, class `reengage`,
+eligible when `r.lastVisitDate === localDate(r.calendarTz, now − 1 day) &&
+!r.booked` (`:243-247`). Both are day-keyed by the calendar's own clock, never
+by hours. A third, `lapsed` (`:76-83`), runs on a list that reads the calendar.
+`runPlaybook` refuses all three with no readable calendar — _"A visit
+playbook, or one on a list that reads the calendar (Lapsed), without a calendar
+has nothing to read: off, and the run says so"_
+(`packages/core/src/campaigns/run-playbook.ts:78-81`). Its context carries
 `calendar: "ok" | "unavailable" | "none"` and a `visits` map
-(`packages/core/src/campaigns/ports.ts:77-80`), built from the feed in
-`apps/edge/lib/playbooks.ts:176-191`; `visitFactsFor`
-(`contracts/playbooks.ts:305-310`) then freezes each person's visit time and
+(`packages/core/src/campaigns/ports.ts:95-97`), built from the feed in
+`apps/edge/lib/playbooks.ts:141-168`; `visitFactsFor`
+(`contracts/playbooks.ts:510-526`) then freezes each person's visit time and
 service onto their recipient row _"so the send fills the slots without reading
-the calendar again"_ (`run-playbook.ts:83-85`).
+the calendar again"_ (`run-playbook.ts:120-124`).
 
-### `booking_link` is required, and read in four places
+### `booking_link` is required, and read in many places
 
 `BrainConfigSchema` requires it: `booking_link: z.string().url().max(500)`
-(`packages/contracts/src/config.ts:431`) — no `.optional()`, unlike
+(`packages/contracts/src/config.ts:530`) — no `.optional()`, unlike
 `phone_display` one line above, whose comment explains at length why absence
-became the right answer there (`:415-430`). Its readers: the prompt composer,
-unconditionally (`:1110`, resolved at `:1350`); `fallbackMessages`
-(`:1499-1508`), which fills `{booking link}` into the greeting, the error and
+became the right answer there (`:512-528`). Its readers: the prompt composer,
+unconditionally (`:1255`, resolved at `:1505`); `fallbackMessages`
+(`:1655-1665`), which fills `{booking link}` into the greeting, the error and
 the non-text messages and already drops a sentence naming a detail the
-workspace does not have (`:1495-1497`); the voice tool `send_booking_link`
-(`packages/channels/src/voice-shell.ts:137-158`), whose edge door reads
-`brain.booking_link.replace(...)` **with no guard**
-(`apps/edge/api/retell-fn.ts:270`); and `layerTwo`
-(`apps/edge/lib/whatsapp/steps.ts:103`), which already guards on `!!`. Yet
-Setup **already says what absence means** — _"No booking link — the
-receptionist answers, but cannot send one"_ (`setup.ts:456`).
+workspace does not have (`fillDetails`, `:1623-1639`); the voice tool
+`send_booking_link` (`packages/channels/src/voice-shell.ts:136-159`), whose edge
+door reads `brain.booking_link.replace(...)` **with no guard**
+(`apps/edge/api/retell-fn.ts:303`); and `layerTwo`
+(`packages/core/src/inbound/steps.ts:127`, moved into core by #843), which
+already guards on `!!`. Its neighbour for the number, `urgentLine`
+(`:101-104`), learned the same lesson in #885: it reads `phone_display`
+through `resolveFacts` and says no sentence when there is none, because
+_"call undefined."_ is what a customer was sent.
+
+A refresh at `e3d9dc6c` finds more readers that assume a link:
+`templateFacts` (`apps/dashboard/src/server/core-ports.ts:157-167`),
+`packages/core/src/conversations/reply.ts:309-318`, the jobs handler
+(`packages/jobs/src/handlers.ts:282`), `campaign-ports.ts:46`, `templates.ts:142`
+and `calendar.ts:160` and `:357` (all in `apps/dashboard/src/server/`), and
+`packages/contracts/src/facts.ts:206`. `template-values.ts:61-67` already
+refuses a booking-link slot with no link on file. Yet Setup **already says
+what absence means** — _"No booking link — the receptionist answers, but
+cannot send one"_ (`setup.ts:624`).
 
 ### The uniform floor a new table must meet
 
@@ -103,6 +120,43 @@ pattern: a `BEFORE UPDATE` trigger that raises on a move the machine does not
 permit, a same-state update always allowed _"because refreshing a row's details
 is not a move"_ (`:9-10`).
 
+### What has changed since it was written
+
+Four things landed around this note between `b729bdf` and `e3d9dc6c`. None
+builds an appointment, and each changes what one would compose with.
+
+- **Deals (0004, migration 00156).** A `deals` table keeps a person's
+  engagement: proposed, won, lost, ended. It carries `lead_id` filled from the
+  lead the person came from (`00156_a_deal_is_a_record.sql:31`, `:161-162`), a
+  `source` naming who wrote the stage (`:46`), and no guard trigger, because
+  _"A stage is an owner's assertion, not a fact about time"_ (`:7-9`). The
+  appointment statuses below are the other kind: facts about time, so they
+  keep their guard. 0004 held this note for later, and named what it adds:
+  _"0002's appointments, which give Consultation booked a kept and a missed"_.
+- **"Consultation booked" is read from the feed.** `VisitDto.consultation`
+  (`packages/contracts/src/calendar-people.ts:495-496`) is set by
+  `isConsultationTitle` (`packages/contracts/src/deals.ts:254-266`) in the
+  dashboard's `withVisits` only (`apps/dashboard/src/server/calendar.ts:641-645`).
+  The People list `consultation_booked` reads it
+  (`packages/contracts/src/people.ts:1182-1191`). The edge's
+  `toVisitDto` never sets it (`calendar-people.ts:510-521`), so a playbook run
+  and the dashboard's playbook pools cannot tell a consultation from any other
+  visit.
+- **The proposal link (00154).** `contacts.proposal_url`, cleared on erasure,
+  written through `set_person_proposal`. The receptionist's deal sentence
+  defers to it (`deals.ts:242-245`).
+- **Smart lists (00155).** A saved list may keep a rule (`segments.rule`), and a
+  playbook may run on one (`playbooks.list_id`, the `saved_list` trigger). Four
+  of the rule's fields read the calendar (`last_visit`, `next_visit`, `booked`,
+  `asked_not_booked`, `packages/contracts/src/list-rules.ts:24-27`), and
+  `savedListIds` names nobody when the calendar cannot be read (`:207-217`).
+
+Two smaller moves matter to the steps. The receptionist became a core verb
+(#843), so its reply checks now live in `packages/core/src/inbound/`. The
+decisions ledger's CHECK lists gained `record_deal` and `deal` (00156
+`:270-287`), the lists a `record_appointment` verb would widen. Main ends at
+00156 (00153 is unused), so 00157 was the next free number at `e3d9dc6c`.
+
 ## Decision
 
 An `appointments` table, and a rule about who may write it: **the product never
@@ -116,11 +170,11 @@ through a `route()`-declared write.
 The receptionist is not a source. Its charter is unchanged: it reads the
 calendar, offers the open times, sends the link, never confirms a slot.
 `check_availability` keeps its sentence — _"Never confirm a slot yourself"_
-(`voice-shell.ts:163`) — and no verb writes a row on the model's word.
+(`voice-shell.ts:164`) — and no verb writes a row on the model's word.
 
 **The status set comes from the code's own words.** The feed speaks in `next`
 and `last` visits; the ICS parser drops `STATUS:CANCELLED`
-(`contracts/availability.ts:409-411`); a booking tool says tentative or
+(`contracts/availability.ts:493-495`); a booking tool says tentative or
 confirmed. None of them says whether somebody turned up. So:
 
 | Status      | Who writes it        | Meaning                                                   |
@@ -138,19 +192,31 @@ it, and an invented no-show is what the honesty rule forbids.
 **Reports and playbooks read the table, not the feed.** `bookingReport` counts
 rows instead of parsing on a page load, and `report_series` gains the number so
 Reports can draw it over time. The visit playbooks read the table's day keys
-instead of `PersonRowVM`'s derived ones, which keeps `eligibleForPlaybook`'s
-rule (`contracts/playbooks.ts:123-124`) letter for letter and changes only
-where the dates come from. `run-playbook.ts`'s `calendar !== "ok"` refusal
-stays: a workspace whose feed has not synced has nothing to read.
+instead of `PersonRowVM`'s derived ones, which keeps `playbookRunReach`'s
+visit rules (`contracts/playbooks.ts:241-247`) letter for letter and changes
+only where the dates come from. `lapsed` and the smart lists' calendar fields
+read the same rows. `run-playbook.ts`'s `calendar !== "ok"` refusal stays: a
+workspace whose feed has not synced has nothing to read.
+
+**A consultation is marked once, when the row is written.** The sync calls
+`isConsultationTitle` with the workspace's services, as `withVisits` does on a
+page load today, and stores the answer on the row. The edge then knows a
+consultation from any other visit, and so do playbooks and Ask. With `kept`
+and `missed`, _Consultation booked_ becomes three facts: booked, kept, missed.
+**An appointment never moves a deal.** A kept consultation is a fact about
+time; whether it became a proposal is the owner's assertion, and 0004 keeps
+that with a person.
 
 **`booking_link` becomes optional**, the way `phone_display` already is. When
-it is absent the prompt omits the line (`config.ts:1110` becomes conditional,
-like `phone_display` on `:1109`) and gains one instruction in its place — offer
+it is absent the prompt omits the line (`config.ts:1255` becomes conditional,
+like `phone_display` on `:1254`) and gains one instruction in its place — offer
 a call back, and hand the thread to a person; `fallbackMessages` needs no
 change, because it already drops a sentence naming a detail that is not there;
 `send_booking_link` refuses with an honest sentence a caller can hear rather
-than reading `undefined` (`retell-fn.ts:270` is the unguarded read); and the
-Setup row, which already says it (`setup.ts:456`), gains the alternative.
+than reading `undefined` (`retell-fn.ts:303` is the unguarded read); every
+other reader the refresh found checks for it first, as `urgentLine` does for
+the number; and the Setup row, which already says it (`setup.ts:624`), gains
+the alternative.
 
 That alternative is named, not invented: a **call-back promise**. The
 receptionist may say a person will call, because that is a promise the product
@@ -160,7 +226,7 @@ runs on. A second calendar link is a configuration item, not a capability.
 ## Shape
 
 ```sql
--- <next free number> · An appointment is a record.
+-- <next free number: 00157 at e3d9dc6c; re-read main before pushing> · An appointment is a record.
 create table public.appointments (
   id            uuid primary key default gen_random_uuid(),
   tenant_id     uuid not null references public.tenants (id) on delete cascade,
@@ -176,6 +242,7 @@ create table public.appointments (
   all_day       boolean not null default false,
   title         text,           -- the calendar's own words, as the feed gave them
   service       text,
+  consultation  boolean not null default false,  -- isConsultationTitle at sync (0004)
   timezone      text not null,  -- a playbook's day key is the business's, never UTC
   vanished_at   timestamptz,    -- the feed stopped naming it: NOT a cancellation (Risks)
   created_by    uuid references auth.users (id),
@@ -256,36 +323,43 @@ writer. _Both orders:_ a table neither app has heard of.
 
 **2 · The feed sync fills it.** `apps/edge/api/cron/calendar.ts` already
 fetches and parses every workspace's feed each hour and walks every item
-(`:55-58`). Add `syncFeedAppointments` beside `addPeopleFromCalendar`, over the
-same `FeedItem[]`, matching a contact the way `calendar-people.ts` does. Still
-no reader; _both orders:_ the dashboard does not know the table exists.
+(`feedItemsFor`, `:55-61`; then `peopleFromItems` and `addPeopleFromCalendar`,
+`:66-71`). Add `syncFeedAppointments` beside `addPeopleFromCalendar`, over the
+same `FeedItem[]`, matching a contact the way `calendar-people.ts` does
+(`matchPerson`, `:236-266`) and marking a consultation with
+`isConsultationTitle`. Still no reader; _both orders:_ the dashboard does not
+know the table exists.
 
 **3 · Backfill.** A `tooling/scripts` writer at the house bar — dry run by
 default, a JSONL backup first, idempotent, `--apply` to mean it — running the
 same parse over each workspace's feed and inserting what step 2 would have. A
 feed carries only its own horizon (`max_days_ahead`, default 14,
-`apps/edge/lib/calendar/availability.ts:133`), so the backfill reaches no further back
+`apps/edge/lib/calendar/availability.ts:139`), so the backfill reaches no further back
 than that; Reports must say so rather than showing a short history as a real one.
 
-**4 · Reports read the table.** `bookingReport`
-(`apps/dashboard/src/server/calendar.ts:435`) counts rows instead of parsing;
-`bookedAfterAsk` (`calendar-people.ts:601`) keeps its rule over the stored row;
-`BookingReportDto` (`:569-574`) does not change, so neither the view model nor
-the page does. _Both orders:_ the edge does not read Reports, and an older
-dashboard still parses the feed for the same answer.
+**4 · Reports and People read the table.** `bookingReport`
+(`apps/dashboard/src/server/calendar.ts:673`) counts rows instead of parsing;
+`bookedAfterAsk` (`calendar-people.ts:677`) keeps its rule over the stored row;
+`BookingReportDto` (`:645-650`) does not change, so neither the view model nor
+the page does. `withVisits` (`calendar.ts:615-666`) reads `consultation` from
+the row instead of computing it, and _Consultation booked_ gains its kept and
+missed once step 8 writes them. _Both orders:_ the edge does not read Reports,
+and an older dashboard still parses the feed for the same answer.
 
-**5 · Playbooks read the table.** `apps/edge/lib/playbooks.ts:176-191` builds
-its `visits` map from rows; `eligibleForPlaybook`'s two visit branches
-(`contracts/playbooks.ts:123-124`) are untouched; `ctx.calendar !== "ok"`
+**5 · Playbooks read the table.** `apps/edge/lib/playbooks.ts:141-168` builds
+its `visits` map from rows; `playbookRunReach`'s visit branches
+(`contracts/playbooks.ts:241-247`), `lapsed`, and `savedListIds`' calendar
+fields (`list-rules.ts:207-217`) are untouched; `ctx.calendar !== "ok"`
 becomes "this feed has not synced since its last due time", a fact the sweep
-already stamps (`markCalendarChecked`, `cron/calendar.ts:63`). _Both orders:_
+already stamps (`markCalendarChecked`, `cron/calendar.ts:78`). _Both orders:_
 the dashboard does not run playbooks.
 
-**6 · `booking_link` becomes optional.** Add `.optional()` at `config.ts:431`,
-make `:1110` conditional, guard `retell-fn.ts:270`, add the call-back sentence
-to the prompt and to the Setup row (`setup.ts:456`). _Both orders is the whole
-question here:_ the schema is not `.strict()` at the top level but each
-**section** is (`config.ts:556-571`), so a config omitting `booking_link` is
+**6 · `booking_link` becomes optional.** Add `.optional()` at `config.ts:530`,
+make `:1255` conditional, guard `retell-fn.ts:303` and every other reader the
+Context lists, add the call-back sentence to the prompt and to the Setup row
+(`setup.ts:624`). _Both orders is the whole question here:_ the schema is not
+`.strict()` at the top level (`config.ts:706-711`) but each **section** is
+(`:553`, `:693`, `:703`), so a config omitting `booking_link` is
 rejected by an older edge and the receptionist goes silent on a live line.
 Therefore **the edge deploys first, alone**, and the dashboard's save rules
 stop requiring the field only in a later release; until then every saved config
@@ -293,7 +367,7 @@ still carries one, so both versions parse it.
 
 **7 · A booking-tool webhook.** A signed door under `apps/edge/api`, judged by
 a pure `planBookingEvent` the way `planResendEvent`
-(`apps/edge/lib/email/email-ingress.ts:49`) is, writing through step 2's verb with
+(`apps/edge/lib/email/email-ingress.ts:56`) is, writing through step 2's verb with
 `source: 'booking_tool'`.
 
 **8 · Status beyond the feed.** The `kept` sweep, and the routes that let a
@@ -303,10 +377,12 @@ understands, so either order works.
 
 ## Tests
 
-**Convert.** `tooling/scripts/tests/calendar-people.test.mjs:511` asserts on
-**source text**: it matches `calendar.ts` for two function names. That proves
-they exist, not that the count is right, and it breaks in step 4 for the wrong
-reason. It becomes a behavioural test of `bookingReport`. **Keep** `:488-494`,
+**Convert.** `tooling/scripts/tests/calendar-people.test.mjs:938-958` asserts on
+**source text**: it matches `calendar.ts` for two function names, and since
+0004 also `withVisits` and `anyDealRecorded` in the contacts route and the
+Reports route's return. That proves they exist, not that the count is right,
+and it breaks in step 4 for the wrong reason. It becomes a behavioural test of
+`bookingReport`. **Keep** `:866-884`,
 which pins `bookedAfterAsk`'s four cases directly and stays green over the
 stored row, and the playbook eligibility tests, which stay green through step 5
 unchanged — the proof the day-key rule did not move.
@@ -315,16 +391,18 @@ unchanged — the proof the day-key rule did not move.
 should and allows a same-status update, and another workspace's member reads
 and writes nothing (`tenancy.db.test.mjs`'s fixture covers the second half).
 `sync-feed.test.mjs` — the same feed synced twice adds nothing the second time,
-an event that moves updates in place, and an event that disappears is **not**
-cancelled (see Risks). `booking-link-optional.test.mjs` — with none, the prompt
+an event that moves updates in place, an event that disappears is **not**
+cancelled (see Risks), and a consultation is marked by the same
+`isConsultationTitle` cases `deals.test.mjs` pins. `booking-link-optional.test.mjs` — with none, the prompt
 omits the line and carries the call-back instruction, `send_booking_link`
 refuses in words a caller can hear, and the Setup row says so.
 
 ## Risks
 
 - **A vanished event is not a cancellation.** `parseIcs` drops
-  `STATUS:CANCELLED` outright (`contracts/availability.ts:409-411`), and an
-  unreadable feed returns null (`edge/lib/availability.ts:109-112`) — "gone" and
+  `STATUS:CANCELLED` outright (`contracts/availability.ts:493-495`), and an
+  unreadable feed returns null (`apps/edge/lib/calendar/availability.ts:124-125`,
+  its failure cached at `:104-108`) — "gone" and
   "we could not look" are one observation. The sync never writes `cancelled`
   from an absence: it stamps `vanished_at`. Only a webhook or person cancels.
 - **Two facts, one appointment.** After step 2 the feed and the table describe
@@ -333,6 +411,10 @@ refuses in words a caller can hear, and the Setup row says so.
 - **The optional field.** Step 6 is the one change here that can silence a
   live receptionist if shipped in the wrong order: hence edge-first, with the
   dashboard half a separate release.
+- **Two answers to "was it a consultation?"** Until step 4, a page load
+  computes it from the feed and the row stores what the sweep computed an hour
+  earlier. A service renamed in between makes them differ. Both use one
+  predicate, so they agree again at the next sweep.
 - **A table invites a booking verb.** The charter is a decision, not a
   limitation of the schema; once rows exist, "why can't the receptionist just
   write one?" is an easy question to answer wrongly. Relatedly `lead_id` is
@@ -349,12 +431,13 @@ refuses in words a caller can hear, and the Setup row says so.
    the feed's horizon. Does Reports say "since we started keeping these", or
    does the owner upload one?
 3. **Who may say `kept` or `missed`?** `ROLE_PERMS`
-   (`packages/contracts/src/config.ts:21-34`) has no permission that fits;
+   (`packages/contracts/src/config.ts:21-73`) has no permission that fits;
    `approve` (owner and operator) is the closest. Is marking a no-show an
    operator's job or an owner's?
 4. **Does `missed` reach the customer?** A no-show is the most natural win-back
    trigger and the likeliest to land badly; as a trigger it needs its own class
-   in the Autonomy matrix.
+   in the Autonomy matrix, as the proposal follow-up does
+   ([0006](0006-a-proposal-follow-up.md)).
 5. **May the receptionist create a `proposed` row** — a hold it offered and the
    customer has not confirmed? This note says no. It is the one place where
    "never books" and "useful" pull apart.
