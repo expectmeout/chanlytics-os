@@ -385,11 +385,16 @@ test("the reports: the three presets and no other, the series from the function 
 });
 
 test("the reports' Deals section rides on how the workspace's customers buy (0008): drawn where it says proposal, and not even read where it books or was never asked", async () => {
-  const rpcs = { report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }), people_list: () => [] };
+  const contact = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+  // One page of People, the booking line's: the deals read where each new client came from out of the same rows.
+  const rpcs = {
+    report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }),
+    people_list: () => [{ id: contact, came_from: "lead" }],
+  };
   const won = {
     id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
     tenant_id: A,
-    contact_id: "cccccccc-cccc-4ccc-8ccc-cccccccccc01",
+    contact_id: contact,
     stage: "won",
     proposed_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
     amount_cents: 250_000,
@@ -405,10 +410,16 @@ test("the reports' Deals section rides on how the workspace's customers buy (000
     };
     const ctx = ctxFor(tables, {}, rpcs);
     const out = await reports.GET.run(get(inA), ctx);
-    return { deals: out.deals, read: ctx.supabase.seen.some((q) => q.table === "deals") };
+    return {
+      deals: out.deals,
+      read: ctx.supabase.seen.some((q) => q.table === "deals"),
+      people: ctx.supabase.seen.filter((q) => q.rpc === "people_list").length,
+    };
   };
   const on = await run("proposal");
   assert.deepEqual([on.deals.any, on.deals.clients, on.deals.monthly_cents], [true, 1, 250_000]);
+  assert.deepEqual(on.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
+  assert.equal(on.people, 1, "People read once for the whole report, the booking line's read");
   for (const sellsBy of ["booking", null, undefined]) {
     const off = await run(sellsBy);
     assert.equal(off.deals.any, false, `${sellsBy}: a deal on file switches nothing`);

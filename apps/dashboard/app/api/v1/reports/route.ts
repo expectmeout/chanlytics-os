@@ -38,8 +38,10 @@ export const GET = read({
     // fatal: a feed that cannot be read costs this line, not the report.
     // everyone(), not one 1000-row page: every other number on this page is
     // computed in SQL over the whole tenant, and a conversion rate over a
-    // truncated denominator would disagree with all of them.
-    const booking = await everyone(ctx, tenantId)
+    // truncated denominator would disagree with all of them. Read once: the
+    // deals below say where the new clients came from out of the same rows.
+    const people = everyone(ctx, tenantId);
+    const booking = await people
       .then((rows) => bookingReport(ctx, tenantId, rows, days))
       .catch((e: unknown) => {
         console.error(
@@ -48,10 +50,11 @@ export const GET = read({
         );
         return null;
       });
-    // The deals of the period and the clients now (0004), only where deals are on (0008) and a deal was recorded.
-    // Never fatal either: a table that cannot be read costs the section, not the report.
+    // The deals of the period and the stock (0004), only where deals are on (0008) and a deal was recorded. Never
+    // fatal either: a table that cannot be read costs the section, and People that cannot be read cost only the line
+    // that says where the new clients came from.
     const deals = await sellsByOf(ctx, tenantId)
-      .then((sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy)))
+      .then(async (sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy), await people.catch(() => [])))
       .catch(() => null);
     return { report, booking, deals };
   },
