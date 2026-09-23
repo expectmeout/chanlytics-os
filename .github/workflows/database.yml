@@ -31,10 +31,14 @@ jobs:
     # pull request waiting for a check that never reports.
     name: Migrations replay, SQL rules hold
     runs-on: ubuntu-latest
-    # The checkout, and reading the public images supabase start pulls.
-    permissions:
-      contents: read
-      packages: read
+    # Supabase publishes its images to ghcr.io and to AWS's public registry; the
+    # CLI pulls from ghcr.io unless told otherwise. On 23 September 2026 ghcr.io
+    # refused every pull from this job's runners with "toomanyrequests" for
+    # hours, signed in or not, so the stack comes from public.ecr.aws: the same
+    # images, one environment for every step that starts a container
+    # (supabase start, and the type generation the --check steps run).
+    env:
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: public.ecr.aws
     steps:
       # The whole history, so the diff below has its base to compare with.
       - uses: actions/checkout@v7
@@ -74,15 +78,6 @@ jobs:
           version: 2.116.0
       - if: steps.changed.outputs.db == 'true'
         run: pnpm install --frozen-lockfile
-      # Supabase's images are public on ghcr.io, but an anonymous pull from a
-      # shared runner is refused with "toomanyrequests" while the registry is
-      # busy (23 September 2026: every replay for two hours). A pull signed in
-      # with the job's own read-only token is not in that pool.
-      - if: steps.changed.outputs.db == 'true'
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTOR: ${{ github.actor }}
-        run: printf '%s' "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
       - if: steps.changed.outputs.db == 'true'
         run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
       # Every closed set the migrations declare, regenerated from the database.
