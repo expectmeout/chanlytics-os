@@ -2,7 +2,7 @@
  * Reports' Deals numbers (0004), executed over a database in memory: one
  * cohort -- the proposals sent in the period and what became of them -- and
  * the stock, clients now with their monthly total. Drawn only where deals are
- * on (0007), the answer the route hands in. Null where the table cannot be
+ * on (0008), the answer the route hands in. Null where the table cannot be
  * read, so the section is not drawn and the report stands.
  */
 import { test } from "node:test";

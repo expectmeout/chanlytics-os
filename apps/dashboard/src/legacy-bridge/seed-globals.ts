@@ -150,7 +150,7 @@ if (typeof window !== "undefined") {
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;
   window.__proposalMessage = proposalMessage;
-  // And which link is a person's now (0007): their deal's while it is a proposal out, none for any other deal, their
+  // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
   // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.
   window.__proposalLinkOf = proposalLinkOf;
   window.__whyNotAHandoff = whyNotAHandoff;

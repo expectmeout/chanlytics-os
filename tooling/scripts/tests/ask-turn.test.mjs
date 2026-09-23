@@ -1314,7 +1314,7 @@ test("the deal lists reach Ask only where deals are on -- list_audiences and sea
   assert.match(salon.clients.error, /deals are on/, "and the narrowing says why, instead of nobody");
   assert.match(salon.clients.error, /How customers buy.*Some get a proposal first/, "in the words of the switch");
   assert.deepEqual(salon.clients.people, []);
-  // A deal on file switches nothing (0007): the answer does.
+  // A deal on file switches nothing (0008): the answer does.
   const deal = {
     id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9",
     tenant_id: A,
@@ -1651,7 +1651,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   });
 });
 
-test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0007)", async () => {
+test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0008)", async () => {
   const wrote = iso(NOW.getTime() - 2 * 3600_000);
   const rosaRow = {
     id: P1,
@@ -1689,7 +1689,7 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
     queued_reply_at: null,
   };
   const rpcs = { ...RPCS, people_list: () => [rosaRow] };
-  // The workspace says some customers get a proposal first (0007): a proposal is a deal's, and said only then.
+  // The workspace says some customers get a proposal first (0008): a proposal is a deal's, and said only then.
   const dealsOn = [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }];
   const withLink = tables({
     tenants: dealsOn,
@@ -1710,7 +1710,7 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
   assert.equal(without.isError, false, without.result);
   assert.ok(!JSON.parse(without.result).about.some((a) => a.startsWith("Proposal:")), "none on file: no row");
 
-  // The deal holds the proposal now (0007): its value in the Deal fact, and where its link lives -- the host, never
+  // The deal holds the proposal now (0008): its value in the Deal fact, and where its link lives -- the host, never
   // the address -- even where nothing is left on the person.
   const onDeal = {
     ...rosaRow,
@@ -1921,7 +1921,7 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     "a passed proposal sent again for another service is a new row",
   );
 
-  // A proposal's link, its value and the day it stands until (0007): the card says the value and where the link lives,
+  // A proposal's link, its value and the day it stands until (0008): the card says the value and where the link lives,
   // and carries each into the route's body; a pass says why.
   const linked = await p("propose_deal", {
     contact_id: MARIA,

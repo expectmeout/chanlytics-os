@@ -136,7 +136,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_deal",
     description:
-      "Propose recording a deal on a person (0004, 0007): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). This records what a person told you; it never decides money.",
+      "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). This records what a person told you; it never decides money.",
     input_schema: obj(
       {
         contact_id: { type: "string" },
@@ -527,7 +527,7 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
   if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
   // The proposal's link, judged by the one normalizer the route uses; the day it stands until, a real one; and a reason
-  // only for a pass (0007). Each is refused in words before it becomes a card the route would refuse.
+  // only for a pass (0008). Each is refused in words before it becomes a card the route would refuse.
   const typedLink = str(input.proposal_url, 600);
   const url = typedLink ? normalizeLink(typedLink) : null;
   if (typedLink && !url) return refuse(`proposal_url: ${whyNotALink(typedLink) ?? "that is not a web address"}`);
@@ -586,7 +586,7 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   const service = sameRow ? sameRow.service : (named ?? current?.service ?? null);
   t.read.person.add(id);
   const words = DEAL_STAGE_WORDS[stage as DealStage];
-  // A proposal's value is said as a client's is (0007), and the card says where the link lives and why they passed.
+  // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
   const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   return propose({

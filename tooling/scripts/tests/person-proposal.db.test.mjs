@@ -4,8 +4,8 @@
  * 00154 is a column, a CHECK, a trigger on erasure and a definer door. A
  * constraint, a trigger and a function body are what reading source cannot
  * prove, so these run against Postgres in the database workflow; skipped
- * without a local database. Since 00157 the door writes through to the deal
- * (0007), which holds the proposal now.
+ * without a local database. Since 00159 the door writes through to the deal
+ * (0008), which holds the proposal now.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -163,7 +163,7 @@ test(
 );
 
 test(
-  "the door writes through to the deal (0007): an open proposal takes the link and loses it when it is cleared, a person with no open deal gets a Proposal out, and a client's deal is left alone",
+  "the door writes through to the deal (0008): an open proposal takes the link and loses it when it is cleared, a person with no open deal gets a Proposal out, and a client's deal is left alone",
   { skip },
   async () => {
     const email = `person-proposal-deal-${Date.now()}@example.test`;
@@ -182,7 +182,7 @@ test(
       const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
       const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
       assert.equal(sErr, null, sErr?.message);
-      // Deals are on here: the workspace says some customers get a proposal first (0007).
+      // Deals are on here: the workspace says some customers get a proposal first (0008).
       const { error: onErr } = await db.from("tenants").update({ sells_by: "proposal" }).eq("id", tenantId);
       assert.equal(onErr, null, onErr?.message);
 
@@ -271,7 +271,7 @@ test(
 );
 
 test(
-  "where deals are off the door opens no deal, but an open proposal still takes the link; a person merged into another is not found (0007)",
+  "where deals are off the door opens no deal, but an open proposal still takes the link; a person merged into another is not found (0008)",
   { skip },
   async () => {
     const email = `person-proposal-off-${Date.now()}@example.test`;

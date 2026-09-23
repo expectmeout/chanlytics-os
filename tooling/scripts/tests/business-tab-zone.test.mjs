@@ -58,7 +58,7 @@ const server = (zone) => {
       timezone: state.zone,
     };
     if (path === "workspaces" && method === "PATCH") {
-      // As the route does: only what was sent is written, and only what was written is read back (0007).
+      // As the route does: only what was sent is written, and only what was written is read back (0008).
       const sent = JSON.parse(init.body);
       state.bodies.push(sent);
       if (sent.timezone !== undefined) state.zone = sent.timezone;
@@ -102,7 +102,7 @@ const quiet = async (fn) => {
 const pause = () => new Promise((r) => setTimeout(r, 5));
 
 test("saving a timezone re-reads settings, so the preview's zone and what the hours fold will say follow it", async () => {
-  // Settings first, the surface the preview rides on; then the three that how customers buy switches (0007), which
+  // Settings first, the surface the preview rides on; then the three that how customers buy switches (0008), which
   // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),

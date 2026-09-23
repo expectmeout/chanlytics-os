@@ -770,7 +770,7 @@ test("every message carries its own id on the page, the call's card too, so the 
 
 /* ------------------------------ the proposal, from the header ------------------------------ */
 
-test("a proposal on file (00154, 0007): the header's Actions put its words in the box -- only where deals are on, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
+test("a proposal on file (00154, 0008): the header's Actions put its words in the box -- only where deals are on, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
   const url = "https://www.docs.example.com/p/emily";
   const dealUrl = "https://quotes.example.com/p/emily-deal";
   globalThis.window.__proposalMessage = proposalMessage;
@@ -832,7 +832,7 @@ test("a proposal on file (00154, 0007): the header's Actions put its words in th
       "blank is none",
     );
 
-    // The link is the deal's (0007, proposalLinkOf over People's row): a proposal out sends its own link...
+    // The link is the deal's (0008, proposalLinkOf over People's row): a proposal out sends its own link...
     const itemFor = () => menuOf(draw(vm)).props.items.find((i) => i.label === "Send the proposal");
     people(true, { stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
     assert.equal(itemFor().hint, "quotes.example.com", "the deal's link, not the one left on the person");

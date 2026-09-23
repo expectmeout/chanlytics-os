@@ -377,7 +377,7 @@ export const GET = read({
         // way back to where the finder found them.
         personRuns(ctx, tenantId, id),
         leadOfPerson(ctx, tenantId, id),
-        // Their deals, newest first, each with its link, the day it stands until and why they passed (0007); and how
+        // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and how
         // this workspace's customers buy, which decides whether the page says any of it. Each is safe on an older
         // database: a table or a column that is not there costs the section, never the profile.
         sb

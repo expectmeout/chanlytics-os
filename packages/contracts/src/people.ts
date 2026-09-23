@@ -121,7 +121,7 @@ export interface PersonRowDto {
   deal_ended_at?: string | null;
   deal_amount_cents?: number | null;
   deal_per?: string | null;
-  /** That deal's link, the day it stands until and why they passed (00157). */
+  /** That deal's link, the day it stands until and why they passed (00159). */
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
@@ -177,13 +177,13 @@ export interface PersonDetailDto {
   /** The team, for a note's "For": absent where the team could not be read. */
   note_team?: PersonNoteTeamDto[];
   /**
-   * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only for someone with no
+   * The owner's proposal link on the person (00154). The deal holds it now (0008); this is read only for someone with no
    * deal at all, until the column retires.
    */
   proposal_url?: string | null;
   /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
   deals?: DealDto[];
-  /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0007). */
+  /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0008). */
   deals_on?: boolean;
   /** The profile's service names, for the page's picker when it lists more than one. */
   services?: string[];
@@ -1181,7 +1181,7 @@ export interface PersonRowVM {
   deal: DealVM | null;
   /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
   consultationVisit: boolean;
-  /** When their last visit ended, when it was a consultation (0007): the next step is a proposal. Null otherwise. */
+  /** When their last visit ended, when it was a consultation (0008): the next step is a proposal. Null otherwise. */
   consultedMs: number | null;
 }
 
@@ -1336,7 +1336,7 @@ export const PEOPLE_LISTS: readonly {
   needsCalendar?: boolean;
   /** Only where the profile lists a consult-first service. */
   needsConsultFirst?: boolean;
-  /** Only where deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0007). */
+  /** Only where deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). */
   needsDeals?: boolean;
   /**
    * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
@@ -1377,7 +1377,7 @@ export const PEOPLE_LISTS: readonly {
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
   },
-  // The journey past the booking (0004). Each exists only where deals are on here (0007).
+  // The journey past the booking (0004). Each exists only where deals are on here (0008).
   {
     id: "consultation_booked",
     label: "Consultation booked",
@@ -1896,7 +1896,7 @@ export interface PersonVM extends PersonRowVM {
   /** The workspace's booking link, or null when none is on file. */
   bookingLink: string | null;
   /**
-   * Their proposal (proposalLinkOf, 0007): the link on their deal while it is a proposal out; for any other deal, none;
+   * Their proposal (proposalLinkOf, 0008): the link on their deal while it is a proposal out; for any other deal, none;
    * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
    * is on file.
    */
@@ -1969,7 +1969,7 @@ export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
       group: "send",
       needs: "record",
     });
-  // A proposal is a deal's (0007): a workspace whose customers book is never offered one to send.
+  // A proposal is a deal's (0008): a workspace whose customers book is never offered one to send.
   if (reach && p.dealsOn && p.proposal && p.proposalAction.ready)
     acts.push({
       id: "proposal",
@@ -2081,7 +2081,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, tz, now);
-  // Whether deals are on here (dealsAreOn, 0007): where they are off, nothing on the page says a deal -- no fact, no
+  // Whether deals are on here (dealsAreOn, 0008): where they are off, nothing on the page says a deal -- no fact, no
   // timeline line, no proposal -- whatever the database holds.
   const dealsOn = !!d.deals_on;
   // Their deals as the page lists them (0004): each row through the one view model the People row uses.
@@ -2275,7 +2275,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     }
   }
   // Each move of a deal, on the same line as what was said: what a person recorded, when (0004). The amount is the
-  // proposal's value until they say yes, and then the client's, so it is said on the line it belongs to (0007); a pass
+  // proposal's value until they say yes, and then the client's, so it is said on the line it belongs to (0008); a pass
   // says why.
   for (const x of dealsOn ? (d.deals ?? []) : []) {
     const svc = x.service ? ` · ${x.service}` : "";
@@ -2488,7 +2488,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     ...(current ? [{ label: "Deal", value: current.word, meta: current.line, tone: "" as const }] : []),
   ];
 
-  // Their proposal (proposalLinkOf, 0007): the link on the deal they are deciding on while it is a proposal out, none
+  // Their proposal (proposalLinkOf, 0008): the link on the deal they are deciding on while it is a proposal out, none
   // for any other deal, the person's own only with no deal at all; nothing where deals are off. Its host for the row,
   // and whether it went out.
   const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;

@@ -1646,7 +1646,7 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
 test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer, for someone who said stop, or where customers book", async () => {
   const cls = (n) => String(n.props?.className || "");
   const url = "https://docs.example.com/p/dani";
-  // The send is a deal's (0007): the workspace here says some customers get a proposal first. The last case is one
+  // The send is a deal's (0008): the workspace here says some customers get a proposal first. The last case is one
   // whose customers book.
   const outbound = (at, status) => ({
     id: `m-${status}`,
@@ -1753,7 +1753,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
   assert.ok(byTestId(tree, "person-proposal"));
   assert.ok(!labels(tree).some((l) => /^Send/.test(l)), "nothing is sent to someone who said stop");
 
-  // A workspace whose customers book: the booking link's send, and no proposal's (0007).
+  // A workspace whose customers book: the booking link's send, and no proposal's (0008).
   tree = (
     await profile(
       toPersonVM(
@@ -1775,7 +1775,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
   );
 });
 
-test("the About proposal row is the deal's (0007): the deal's link for a proposal out, and no row for a client, a pass or an end", async () => {
+test("the About proposal row is the deal's (0008): the deal's link for a proposal out, and no row for a client, a pass or an end", async () => {
   const own = "https://docs.example.com/p/own";
   const onDeal = "https://quotes.example.com/p/deal";
   const at = iso(9 * D);
@@ -1847,7 +1847,7 @@ test("the Deal row: drawn only where deals are a thing, says the stage in the ca
     pers: contracts.DEAL_PERS,
     none: contracts.DEAL_LINE_NONE,
     moves: contracts.dealMoves,
-    // The one reading of a typed amount, the page's own copy gone (0007).
+    // The one reading of a typed amount, the page's own copy gone (0008).
     parseAmount: contracts.parseAmount,
   };
   const calls = [];
@@ -1997,7 +1997,7 @@ test("the Deal row: drawn only where deals are a thing, says the stage in the ca
   }
 });
 
-test("the Deal row says a proposal's value, as it says a client's (0007)", async () => {
+test("the Deal row says a proposal's value, as it says a client's (0008)", async () => {
   globalThis.window.__recordFolds.reset();
   globalThis.window.__deal = {
     words: contracts.DEAL_STAGE_WORDS,

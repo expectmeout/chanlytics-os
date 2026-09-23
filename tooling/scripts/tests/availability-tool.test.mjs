@@ -572,7 +572,7 @@ test("a client is offered the service itself; a stranger the consultation; the a
 test("the door reads the caller's deal: a client on the line is offered a consult-first service itself, a stranger and a withheld number the consultation; where deals are off, nobody is a client", async () => {
   // The same world as the booking-held case, with a calendar and a receptionist, one contact who is a client (0004)
   // and a stubbed feed with nothing on it: every day is open, so the answer turns on the caller alone. The workspace
-  // says some customers get a proposal first (0007), so the deal is read; the contact read carries that answer.
+  // says some customers get a proposal first (0008), so the deal is read; the contact read carries that answer.
   const T = "cccccccc-0000-4000-8000-000000000002";
   const AGENT = "agent_availability_client";
   const CLIENT = "+13055550123";
@@ -672,7 +672,7 @@ test("the door reads the caller's deal: a client on the line is offered a consul
     );
     const withheld = await ask(undefined);
     assert.match(withheld, /needs a consultation/, "no number is the stranger's answer");
-    // Where deals are off (0007) the deal on file is not read: the client hears the consultation, as anyone does.
+    // Where deals are off (0008) the deal on file is not read: the client hears the consultation, as anyone does.
     for (const answer of ["booking", null]) {
       setPg(world(answer));
       forgetFeeds();

@@ -384,7 +384,7 @@ test("the reports: the three presets and no other, the series from the function 
   );
 });
 
-test("the reports' Deals section rides on how the workspace's customers buy (0007): drawn where it says proposal, and not even read where it books or was never asked", async () => {
+test("the reports' Deals section rides on how the workspace's customers buy (0008): drawn where it says proposal, and not even read where it books or was never asked", async () => {
   const rpcs = { report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }), people_list: () => [] };
   const won = {
     id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",

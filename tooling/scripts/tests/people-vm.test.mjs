@@ -756,7 +756,7 @@ test("proposalAction: the send-the-proposal button's words by the wire, 'again' 
 
 test("a person's proposal: the address, its host in About, and the newest message that carried it and went out", () => {
   const url = "https://www.docs.example.com/p/dani";
-  // Deals are on (0007): a proposal is a deal's, and where they are off the page says none (below).
+  // Deals are on (0008): a proposal is a deal's, and where they are off the page says none (below).
   const d = detail({ proposal_url: url, deals_on: true });
   d.conversations[0].messages.push(
     msg({
@@ -821,7 +821,7 @@ test("the Replies row says what a reply may be in the owner's words: no 'window'
   );
 });
 
-test("a person's proposal is their deal's (0007): the deal's link while it is out, their own with no open deal, a client's none", () => {
+test("a person's proposal is their deal's (0008): the deal's link while it is out, their own with no open deal, a client's none", () => {
   const own = "https://docs.example.com/p/own";
   const onDeal = "https://docs.example.com/p/deal";
   const dealRow = (stage, link) => ({
@@ -888,7 +888,7 @@ test("a person's proposal is their deal's (0007): the deal's link while it is ou
   );
 });
 
-test("where deals are off the page says nothing of a deal: no fact, no timeline line, no proposal, whatever the database holds (0007)", () => {
+test("where deals are off the page says nothing of a deal: no fact, no timeline line, no proposal, whatever the database holds (0008)", () => {
   const own = "https://docs.example.com/p/own";
   const deal = {
     id: "d1",

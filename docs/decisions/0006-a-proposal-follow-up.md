@@ -79,7 +79,7 @@ parsed at `:237`). The proposal link's own design kept a slot out on purpose,
 _"feasible later: the booking starter already carries its URL in a body slot"_
 (`docs/superpowers/specs/2026-09-22-proposal-link-design.md:100-107`).
 
-_Since [0007](0007-a-proposal-is-part-of-the-deal.md) (00157) the link lives on
+_Since [0008](0008-a-proposal-is-part-of-the-deal.md) (00159) the link lives on
 the deal, and `people_list` returns it as `deal_proposal_url` beside the other
 `deal_*` columns: every row a run is built from already carries the link of the
 proposal it waits on. This note reads the deal's link from here on._
@@ -130,7 +130,7 @@ trigger both call it: _"One predicate per rule"_ (`CLAUDE.md`). A person is
 eligible when:
 
 - **they are waiting on a proposal,** by that rule;
-- **their proposal has a link** (the deal's, `deals.proposal_url`, 00157;
+- **their proposal has a link** (the deal's, `deals.proposal_url`, 00159;
   `deal_proposal_url` on their People row). Without one, the nudge would be a
   bare "just checking in", which is a person's to write. The leak still names
   them;
@@ -149,7 +149,7 @@ only on this trigger. `templateValues` refuses it anywhere else, as it refuses
 a visit slot off a visit trigger (`template-values.ts:50-57`).
 
 **Where it shows.** The trigger is offered only where deals are on
-(`dealsAreOn`, 0007). A salon's Playbooks page, Autonomy pane and Ask never see
+(`dealsAreOn`, 0008). A salon's Playbooks page, Autonomy pane and Ask never see
 it. The Autonomy pane gains one row, _Follow-ups_, beside _Win-back_. Today's
 leak keeps its words, and when the playbook is on, it counts only the people
 the playbook will not reach (no link, or no yes). The leak's _See who_ then
@@ -204,7 +204,7 @@ insert into public.policies (tenant_id, class, mode)
   on conflict do nothing;
 ```
 
-The run reads no link of its own: each row's `deal_proposal_url` (people_list, 00157) is the link of the proposal its deal holds, and `proposals` is those rows'
+The run reads no link of its own: each row's `deal_proposal_url` (people_list, 00159) is the link of the proposal its deal holds, and `proposals` is those rows'
 links, keyed by person. The send resolves `proposalLink` from the recipient's
 facts, and a missing one skips the person as `missing_value`, as a missing visit
 does.

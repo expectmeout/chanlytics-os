@@ -33,7 +33,7 @@ const Body = z
     message_id: z.string().uuid().optional(),
     form_note: z.string().trim().min(1).max(200).optional(),
     /**
-     * The proposal's web address (0007), judged by the one normalizer before the door, which holds the stored shape.
+     * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
      * Blank says nothing, as absent does: an emptied link is `clear`.
      */
     proposal_url: z.string().max(600).optional(),
@@ -55,7 +55,7 @@ const Body = z
  * does. The receptionist never calls it.
  *
  * A proposal's link, its valid-until day, a reason for passing and the fields
- * a person emptied (0007) each reach the door only when the body names them,
+ * a person emptied (0008) each reach the door only when the body names them,
  * so a page from before them calls it exactly as it did.
  */
 export const POST = write({

@@ -4125,7 +4125,7 @@ declare function tidyCallSummary(text: string | null | undefined): string | null
 
 /**
  * A deal is a record (docs/decisions/0004-deals-record.md), and a proposal is
- * part of it (0007).
+ * part of it (0008).
  *
  * One engagement a person is deciding on or has taken: a proposal out, a
  * client, passed, ended. The proposal's link, its value, the day it stands
@@ -4142,12 +4142,12 @@ declare const DEAL_PERS: readonly ["once", "month", "year"];
 type DealPer = SchemaSet<"deals.per">;
 declare const DEAL_SOURCES: readonly ["person", "payment"];
 type DealSource = SchemaSet<"deals.source">;
-/** Why someone passed (00157). The deal's note says the rest in the owner's words. */
+/** Why someone passed (00159). The deal's note says the rest in the owner's words. */
 declare const DEAL_LOST_REASONS: readonly ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
 type DealLostReason = SchemaSet<"deals.lost_reason">;
 declare const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string>;
 /**
- * How a workspace's customers buy (tenants.sells_by, 00157): they book an
+ * How a workspace's customers buy (tenants.sells_by, 00159): they book an
  * appointment, or some get a proposal first. Null is not asked yet. The deal
  * layer is there or absent by this answer and nothing else (dealsAreOn).
  */
@@ -4162,7 +4162,7 @@ declare function isSellsBy(s: unknown): s is SellsBy;
 /** What the workspace route answers for anything but the two answers: the question and both labels (deals.test holds them). */
 declare const SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
 /**
- * Whether deals are on in this workspace (0007): exactly when it says some of
+ * Whether deals are on in this workspace (0008): exactly when it says some of
  * its customers get a proposal first. The one predicate every gate reads --
  * the person's page, People's lists and column, the thread, Today, Reports,
  * Ask. A consult-first service is a booking rule, and a deal on file switches
@@ -4180,7 +4180,7 @@ declare const WAITING_AFTER_DAYS = 7;
 declare const CONSULT_FOLLOW_DAYS = 7;
 declare function isDealStage(s: unknown): s is DealStage;
 declare function isDealLostReason(s: unknown): s is DealLostReason;
-/** What a move may empty (deal_record's p_clear, 00157): the link, the valid-until day, the amount with its per, the note. */
+/** What a move may empty (deal_record's p_clear, 00159): the link, the valid-until day, the amount with its per, the note. */
 declare const DEAL_CLEARABLE: readonly ["proposal_url", "valid_until", "amount", "note"];
 type DealClearable = (typeof DEAL_CLEARABLE)[number];
 /** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
@@ -4193,7 +4193,7 @@ interface DealColumns {
     deal_ended_at: string | null;
     deal_amount_cents: number | null;
     deal_per: string | null;
-    /** Its link, the day it stands until and why they passed (00157); absent on a row read before them. */
+    /** Its link, the day it stands until and why they passed (00159); absent on a row read before them. */
     deal_proposal_url?: string | null;
     deal_valid_until?: string | null;
     deal_lost_reason?: string | null;
@@ -4213,7 +4213,7 @@ interface DealDto {
     note: string | null;
     version: number;
     created_at: string;
-    /** The proposal's web address (00157); absent on a read before the column existed. */
+    /** The proposal's web address (00159); absent on a read before the column existed. */
     proposal_url?: string | null;
     /** The last day the proposal stands, `YYYY-MM-DD` by the business's calendar. */
     valid_until?: string | null;
@@ -4245,7 +4245,7 @@ declare function pickCurrentDeal<T extends {
     created_at: string;
 }>(rows: readonly T[]): T | null;
 /**
- * The proposal link a person has now (0007), one rule for their page, the thread and the receptionist: their current
+ * The proposal link a person has now (0008), one rule for their page, the thread and the receptionist: their current
  * deal's while it is a proposal out, and none while it is anything else -- a client, a pass, an end; the link on the
  * person (00154) only for someone with no deal at all, read until that column retires. `current` is the deal the page
  * shows (pickCurrentDeal's, or people_list's row), as a row carries it (`proposal_url`) or as a view model says it
@@ -4305,7 +4305,7 @@ interface DealVM {
     brief: string | null;
     /** Days since the proposal went, for a proposal out; null otherwise. */
     waitingDays: number | null;
-    /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0007). Null without one. */
+    /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0008). Null without one. */
     amount: string | null;
     /** The proposal's link and the host it lives at; null where the deal carries none. */
     proposal: {
@@ -4330,7 +4330,7 @@ declare function toDealVM(d: DealFacts & {
 }, tz: string, nowMs: number): DealVM | null;
 /** The People row's deal, from its columns; null where none. */
 declare function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, nowMs: number): DealVM | null;
-/** Which of the deal sheet's modes a move opens (0007): a new proposal, one proposed again, a yes, a pass, an end. */
+/** Which of the deal sheet's modes a move opens (0008): a new proposal, one proposed again, a yes, a pass, an end. */
 type DealMoveMode = "propose" | "again" | "won" | "lost" | "ended";
 /** A move the person's page offers: where it goes, its words, and whether it moves the row it was pressed on or starts a new one. */
 interface DealMove {
@@ -4346,7 +4346,7 @@ declare function dealMoves(d: DealVM | null): readonly DealMove[];
  * The sentence the receptionist hears about this person's deal, beside the
  * owner's note (describeLead). One per stage; never an amount; nothing
  * without a deal. Channel-neutral: "hand over" is what both do. Where a
- * proposal link is on file -- the deal's (00157), else the person's while it
+ * proposal link is on file -- the deal's (00159), else the person's while it
  * is still read (00154) -- that link's own rule stands for a price question,
  * so the proposal's sentence points at it instead of promising a follow-up.
  */
@@ -4358,7 +4358,7 @@ declare function isConsultationTitle(title: string | null | undefined, services:
     name: string;
 }[] | undefined, rules: ConsultRules | null | undefined): boolean;
 /**
- * The one rule for a proposal waiting (0006, 0007): out past a week with nothing back since it went. `askedMs` is when
+ * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. `askedMs` is when
  * the person last wrote or called. Today's leak and the Pipeline both ask it, one row at a time.
  */
 declare function waitingOnProposal(r: {
@@ -4371,7 +4371,7 @@ declare function proposalsWaiting<T extends {
     askedMs: number | null;
 }>(rows: readonly T[], nowMs: number): T[];
 /**
- * The next step nobody has taken (0007): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
  * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
  * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
  */
@@ -4383,7 +4383,7 @@ declare function consultationsWithoutProposal<T extends {
 declare const DEAL_REFUSALS: Record<string, string>;
 /** Reports: one cohort (the proposals sent in the period) and the stock (clients now). Computed by the reports route from the table. */
 interface DealReportDto {
-    /** Whether the section is drawn: deals are on here (dealsAreOn, 0007) and a deal was ever recorded. */
+    /** Whether the section is drawn: deals are on here (dealsAreOn, 0008) and a deal was ever recorded. */
     any: boolean;
     sent: number;
     won: number;
@@ -6582,7 +6582,7 @@ interface PersonRowDto {
     deal_ended_at?: string | null;
     deal_amount_cents?: number | null;
     deal_per?: string | null;
-    /** That deal's link, the day it stands until and why they passed (00157). */
+    /** That deal's link, the day it stands until and why they passed (00159). */
     deal_proposal_url?: string | null;
     deal_valid_until?: string | null;
     deal_lost_reason?: string | null;
@@ -6638,13 +6638,13 @@ interface PersonDetailDto {
     /** The team, for a note's "For": absent where the team could not be read. */
     note_team?: PersonNoteTeamDto[];
     /**
-     * The owner's proposal link on the person (00154). The deal holds it now (0007); this is read only for someone with no
+     * The owner's proposal link on the person (00154). The deal holds it now (0008); this is read only for someone with no
      * deal at all, until the column retires.
      */
     proposal_url?: string | null;
     /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
     deals?: DealDto[];
-    /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0007). */
+    /** Whether deals are on in this workspace: it says some customers get a proposal first (dealsAreOn, 0008). */
     deals_on?: boolean;
     /** The profile's service names, for the page's picker when it lists more than one. */
     services?: string[];
@@ -7119,7 +7119,7 @@ interface PersonRowVM {
     deal: DealVM | null;
     /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
     consultationVisit: boolean;
-    /** When their last visit ended, when it was a consultation (0007): the next step is a proposal. Null otherwise. */
+    /** When their last visit ended, when it was a consultation (0008): the next step is a proposal. Null otherwise. */
     consultedMs: number | null;
 }
 /**
@@ -7148,7 +7148,7 @@ declare const PEOPLE_LISTS: readonly {
     needsCalendar?: boolean;
     /** Only where the profile lists a consult-first service. */
     needsConsultFirst?: boolean;
-    /** Only where deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0007). */
+    /** Only where deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). */
     needsDeals?: boolean;
     /**
      * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
@@ -7366,7 +7366,7 @@ interface PersonVM extends PersonRowVM {
     /** The workspace's booking link, or null when none is on file. */
     bookingLink: string | null;
     /**
-     * Their proposal (proposalLinkOf, 0007): the link on their deal while it is a proposal out; for any other deal, none;
+     * Their proposal (proposalLinkOf, 0008): the link on their deal while it is a proposal out; for any other deal, none;
      * with no deal at all, the one on the person (00154) while it is still read. Null where deals are off, and when none
      * is on file.
      */
@@ -8103,7 +8103,7 @@ interface PeopleListsLike {
      * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
      */
     rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
-    /** Whether deals are on here (dealsAreOn, 0007): the proposals waiting are a row only then. */
+    /** Whether deals are on here (dealsAreOn, 0008): the proposals waiting are a row only then. */
     dealsOn?: boolean;
 }
 /** At most this many; the rest is not an insight, it is a list. */

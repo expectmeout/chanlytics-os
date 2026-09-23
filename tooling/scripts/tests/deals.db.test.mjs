@@ -10,7 +10,7 @@
  * people read carries the newest open or current deal; and an erased person's
  * deals keep no words.
  *
- * And a proposal is part of the deal (0007, 00157): the door takes its link,
+ * And a proposal is part of the deal (0008, 00159): the door takes its link,
  * its value and the day it stands, keeps what a move is not told and empties
  * what it is told to, refuses a bad link, reason or field in its own codes,
  * and sets a reason only on a pass; the people read carries the three; an
@@ -399,7 +399,7 @@ test("the people read carries the newest open or current deal; an erasure blanks
   assert.equal(rows[0].deal_id, open.deal.id, "the open one, not the newest lost one");
   assert.equal(rows[0].deal_stage, "proposed");
   assert.equal(rows[0].deal_service, "New");
-  // Its link and its day ride with it (0007), and a passed deal says why.
+  // Its link and its day ride with it (0008), and a passed deal says why.
   assert.deepEqual(
     [rows[0].deal_proposal_url, rows[0].deal_valid_until, rows[0].deal_lost_reason],
     ["https://docs.example.com/p/new", "2026-12-01", null],
@@ -433,7 +433,7 @@ test("the people read carries the newest open or current deal; an erasure blanks
   );
   assert.equal(after_.note, null);
   assert.equal(after_.evidence, null);
-  assert.equal(after_.proposal_url, null, "an address can name a person: it goes with the words (0007)");
+  assert.equal(after_.proposal_url, null, "an address can name a person: it goes with the words (0008)");
   assert.equal(after_.stage, "proposed", "the stage stays");
   assert.equal(after_.valid_until, "2026-12-01", "and the day, the business's own fact");
   assert.equal(after_.version, 2);

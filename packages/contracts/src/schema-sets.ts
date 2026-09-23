@@ -158,7 +158,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DEAL_STAGES>, SchemaSet<"deals.stage">>>,
   Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
   Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
-  // A proposal is part of the deal (00157): why they passed, and how the workspace's customers buy.
+  // A proposal is part of the deal (00159): why they passed, and how the workspace's customers buy.
   Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
   Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
 ];

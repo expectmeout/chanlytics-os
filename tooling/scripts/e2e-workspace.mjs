@@ -606,7 +606,7 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
     (await tenantRows("calls", "id, retell_call_id")).filter((c) => c.retell_call_id !== CALL_ID).map((c) => c.id),
     "clearing calls",
   );
-  // A deal a spec recorded (0004, 0007), and the one a proposal link opens where deals are on: every run starts from none.
+  // A deal a spec recorded (0004, 0008), and the one a proposal link opens where deals are on: every run starts from none.
   for (const table of ["escalations", "jobs", "broadcasts", "segments", "ask_threads", "deals"]) {
     await deleteWhere(
       db,

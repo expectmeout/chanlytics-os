@@ -172,7 +172,7 @@ test.describe("Consent for one person", () => {
    * The proposal link, for real, the same way (00154; e2e-workspace.mjs resets `proposal_url` and the deals each run):
    * what is wrong with a typed address is said under the field and sends nothing; a good one goes through PUT details
    * to set_person_proposal with its scheme supplied, the row shows where it lives, and an empty one clears it. The row
-   * is a deal's (0007): a workspace whose customers book has none, and the nightly's answers booking until it is seeded.
+   * is a deal's (0008): a workspace whose customers book has none, and the nightly's answers booking until it is seeded.
    */
   test("a person's proposal link is added, refused when it is not one, stored with its scheme, and cleared — through the real door", async ({
     page,

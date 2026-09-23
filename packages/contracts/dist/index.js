@@ -6947,7 +6947,7 @@ var PEOPLE_LISTS = [
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45
   },
-  // The journey past the booking (0004). Each exists only where deals are on here (0007).
+  // The journey past the booking (0004). Each exists only where deals are on here (0008).
   {
     id: "consultation_booked",
     label: "Consultation booked",

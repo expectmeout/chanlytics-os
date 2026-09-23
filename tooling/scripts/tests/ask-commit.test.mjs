@@ -339,7 +339,7 @@ test("a deal: the card's body to the person's deal route without the card's own 
   );
   assert.equal(t.sent.length, 1, "an undo the card does not have reaches no route");
 
-  // A proposal's link, the day it stands and a reason for passing (0007) travel in the card's body like the rest.
+  // A proposal's link, the day it stands and a reason for passing (0008) travel in the card's body like the rest.
   const p = tab();
   await commitProposal(
     p.win,

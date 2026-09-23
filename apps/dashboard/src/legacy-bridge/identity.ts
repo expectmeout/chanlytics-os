@@ -2,7 +2,7 @@
  * Identity and workspace on the classic pages: the words for who is signed in
  * and for a member (contracts/identity.ts), the one write a person may make
  * about themselves — their name — and the ones their workspace owns, its
- * timezone and how its customers buy (0007). The workspace surface publishes
+ * timezone and how its customers buy (0008). The workspace surface publishes
  * __ME and __WORKSPACES at boot, each workspace with its `sells_by`; this keeps
  * both current after a change and tells the chrome.
  */
@@ -38,7 +38,7 @@ export interface TzApi {
   device: typeof usableDeviceTimezone;
 }
 
-/** What the active workspace's owner may change about it: its zone, how its customers buy (0007). At least one. */
+/** What the active workspace's owner may change about it: its zone, how its customers buy (0008). At least one. */
 export interface WorkspacePatch {
   timezone?: string;
   sells_by?: string;

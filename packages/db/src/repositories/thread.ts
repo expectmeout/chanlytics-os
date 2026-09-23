@@ -17,7 +17,14 @@
  * miss.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type DealFacts, clockDate, dealSentence, dealsAreOn, pickCurrentDeal, proposalLinkOf } from "@chanlytics/contracts";
+import {
+  type DealFacts,
+  clockDate,
+  dealSentence,
+  dealsAreOn,
+  pickCurrentDeal,
+  proposalLinkOf,
+} from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -197,13 +204,13 @@ export interface LeadContext {
   noteList?: { body: string; at: string }[] | null;
   /**
    * Their proposal, as a web address: the current deal's while it is a proposal out, none for any other deal, the
-   * person's own only with no deal at all (proposalLinkOf, 0007); none where deals are off. Sent when they ask about
+   * person's own only with no deal at all (proposalLinkOf, 0008); none where deals are off. Sent when they ask about
    * price, its figures never stated.
    */
   proposalUrl?: string | null;
   /**
    * Their deal (0004), the newest open or current one: the sentence the receptionist hears; none where deals are off
-   * (dealsAreOn, 0007). Optional so every fake still compiles.
+   * (dealsAreOn, 0008). Optional so every fake still compiles.
    */
   deal?: DealFacts | null;
 }
@@ -215,7 +222,7 @@ function sellsByOf(embedded: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
-/** A read that names tenants.sells_by on a database 00157 has not reached answers "column does not exist". */
+/** A read that names tenants.sells_by on a database 00159 has not reached answers "column does not exist". */
 const noSellsBy = (message: string): boolean =>
   /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 
@@ -250,8 +257,8 @@ export async function readLeadContext(
   phoneE164: string,
   historyLimit = 16,
 ): Promise<LeadContext> {
-  // Who they are, and in the same round trip how their workspace's customers buy (0007): a deal and a proposal link are
-  // the receptionist's to say only where deals are on. A database 00157 has not reached answers "column does not exist"
+  // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
+  // the receptionist's to say only where deals are on. A database 00159 has not reached answers "column does not exist"
   // for the answer: read again without it, and deals are off there, as they would be.
   const withAnswer = await db
     .from("contacts")
@@ -308,7 +315,7 @@ export async function readLeadContext(
 
   // Their deal, read beside the note (0004), only where deals are on: a context lookup must never cost the reply, so an
   // error is no deal. The whole list, because the current one may be the oldest: a running engagement outlives any
-  // number of newer proposals for other services, and a cap would hide it behind them. With its link (0007): the
+  // number of newer proposals for other services, and a cap would hide it behind them. With its link (0008): the
   // proposal the receptionist sends.
   const { data: dealRows } = dealsOn
     ? await db
@@ -361,7 +368,7 @@ export async function readLeadContext(
 
 /**
  * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
- * None where deals are off (dealsAreOn, 0007): the workspace's answer rides on the contact read, and a database that
+ * None where deals are off (dealsAreOn, 0008): the workspace's answer rides on the contact read, and a database that
  * cannot say it has deals off. Every deal of theirs is read, because the current one may be the oldest (see
  * readLeadContext).
  */
@@ -450,7 +457,7 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  // The owner's priced answer for this person is a link (00154), the deal's now (0007):
+  // The owner's priced answer for this person is a link (00154), the deal's now (0008):
   // the receptionist hands it over and prices nothing itself. No link, nothing said.
   const proposal = (lead.proposalUrl ?? "").trim();
   if (proposal)

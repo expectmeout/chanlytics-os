@@ -1597,7 +1597,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const aboutFacts = p.about.filter((a) => !said.has(a.k));
   if (canRecord && !aboutFacts.some((a) => a.k === "Email")) aboutFacts.unshift({ k: "Email", v: "" });
   // The proposal is the other About fact changed here (PersonProposal): under the address, and its send is the More
-  // menu's. It is the deal's (0007), so it is drawn only where deals are on, for someone with no deal or a proposal out:
+  // menu's. It is the deal's (0008), so it is drawn only where deals are on, for someone with no deal or a proposal out:
   // a client, a pass or an end has no proposal to change here, and a workspace whose customers book has none at all.
   const proposalRow = !!p.dealsOn && (!p.deal || p.deal.stage === "proposed");
   if (!proposalRow) {

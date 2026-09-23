@@ -1,5 +1,5 @@
 /**
- * A deal is a record (0004), and a proposal is part of it (0007): the words,
+ * A deal is a record (0004), and a proposal is part of it (0008): the words,
  * the moves, the line each page says, the proposal's link, value, day and
  * reason, the switch the whole layer hangs on, the sentence the receptionist
  * hears, the leak's rule, the report's cohort. Executed, never read from source.
@@ -106,7 +106,7 @@ test("the four stages, their words, and the moves each offers", () => {
     DEAL_MOVES.none.map((m) => [m.to, m.label, m.sameRow]),
     [["proposed", "Proposal sent", false]],
   );
-  // Each move names the deal sheet's mode it opens (0007), beside the stage it goes to, so today's page keeps working.
+  // Each move names the deal sheet's mode it opens (0008), beside the stage it goes to, so today's page keeps working.
   assert.deepEqual(Object.fromEntries(Object.entries(DEAL_MOVES).map(([from, ms]) => [from, ms.map((m) => m.mode)])), {
     none: ["propose"],
     proposed: ["won", "lost"],
@@ -174,8 +174,8 @@ test("every stage says its amount: a proposal's value and a client's agreed amou
   assert.equal(lost.brief, null, "the chip falls back to the visit");
   const ended = dealOf(cols({ deal_stage: "ended", deal_ended_at: daysAgo(0) }), TZ, NOW);
   assert.equal(ended.said, "Ended · since Sep 23");
-  // Flipped on purpose (0007): a proposal carries a value, the door stored it since 00156, and the page now says it at
-  // every stage. "An amount is a client's fact" was 0004's rule, and 0007 amends it.
+  // Flipped on purpose (0008): a proposal carries a value, the door stored it since 00156, and the page now says it at
+  // every stage. "An amount is a client's fact" was 0004's rule, and 0008 amends it.
   const proposedWithAmount = dealOf(cols({ deal_amount_cents: 120_000, deal_per: "once" }), TZ, NOW);
   assert.equal(proposedWithAmount.amount, "$1,200", "a proposal's value is said");
   assert.equal(proposedWithAmount.said, "Proposal out · since Sep 12 · $1,200");
@@ -264,7 +264,7 @@ test("the link a person has now: the deal's while it is a proposal out, none for
   assert.equal(proposalLinkOf({ stage: "proposed", proposal_url: null }, own), null, "a proposal without one has none");
   assert.equal(proposalLinkOf({ stage: "won", proposal_url: deal }, own), null, "a client is not sent a proposal");
   // Changed on purpose in review: a pass or an end is a deal too, so the person's own link no longer stands in for it.
-  // Their link, if it was that deal's, is kept on it as history (00157's backfill); a new one opens a new proposal.
+  // Their link, if it was that deal's, is kept on it as history (00159's backfill); a new one opens a new proposal.
   assert.equal(proposalLinkOf({ stage: "lost", proposal_url: deal }, own), null, "they passed: none");
   assert.equal(proposalLinkOf({ stage: "ended", proposal_url: null }, `  ${own} `), null, "it ended: none");
   assert.equal(proposalLinkOf(null, own), own, "no deal at all: the person's own");
@@ -672,7 +672,7 @@ test("a row knows when its next or last visit was a consultation", () => {
     false,
   );
   assert.equal(toPersonRowVM(personRow({ visits: null }), TZ, new Date(NOW)).consultationVisit, false);
-  // When the last visit ended, when it was a consultation (0007): what "no proposal after it" is measured from.
+  // When the last visit ended, when it was a consultation (0008): what "no proposal after it" is measured from.
   const held = (consultation) => ({
     id: "v",
     start: daysAgo(2),

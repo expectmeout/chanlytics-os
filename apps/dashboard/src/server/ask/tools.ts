@@ -605,7 +605,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   const vmOf = new Map(pool.rows.map((v) => [v.id, v]));
   if (list?.needsCalendar && calendar.state !== "ok")
     return { error: "that list needs the calendar connected under Settings › Business", people: [] };
-  // The deal lists exist only where deals are on here (dealsAreOn, 0007), as on the page and in list_audiences. The
+  // The deal lists exist only where deals are on here (dealsAreOn, 0008), as on the page and in list_audiences. The
   // refusal names the condition that failed: Consultation booked needs the consult-first service itself as well.
   if (list?.needsConsultFirst && !pool.consult_first)
     return {
@@ -685,7 +685,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     // The owner's proposal link (00154): people_list does not carry it, and About should say "Proposal: <host>"
     // so a card can carry the address into a reply.
     sb.from("contacts").select("proposal_url").eq("id", id).maybeSingle(),
-    // How the workspace's customers buy (0007): the deal and its proposal are said only where deals are on.
+    // How the workspace's customers buy (0008): the deal and its proposal are said only where deals are on.
     sellsByOf(t.ctx, t.tenantId),
   ]);
   if (convs.error) throw new Error(convs.error.message);
@@ -749,7 +749,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     name: vm.name,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
-    // The deal's fact says its value at every stage (0007), and where its proposal lives: the host, never the address.
+    // The deal's fact says its value at every stage (0008), and where its proposal lives: the host, never the address.
     facts: vm.facts.map((f) => {
       const meta =
         f.label === "Deal" && vm.deal?.proposal
@@ -999,7 +999,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
     // The page's lists: a calendar's lists only when there is a calendar to read them from; the deal lists only
-    // where deals are on here (dealsAreOn, 0007).
+    // where deals are on here (dealsAreOn, 0008).
     ...PEOPLE_LISTS.filter(
       (l) =>
         l.id !== "opted_in" &&

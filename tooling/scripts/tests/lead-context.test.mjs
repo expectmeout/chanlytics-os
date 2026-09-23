@@ -225,7 +225,7 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
-  // Changed on purpose (0007): the workspace's answer rides on the same read, one round trip on the live path.
+  // Changed on purpose (0008): the workspace's answer rides on the same read, one round trip on the live path.
   assert.ok(
     src.includes(
       '.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)")',
@@ -311,7 +311,7 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   // a cap on the read would hide it behind them. The rows are read whole and the door's rule picks the current one.
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550123";
-  // The workspace says some customers get a proposal first (0007): the deal is said. The embed rides on the contact read.
+  // The workspace says some customers get a proposal first (0008): the deal is said. The embed rides on the contact read.
   const c = {
     id: "contact-1",
     tenant_id: T,
@@ -433,7 +433,7 @@ test("the notes are said within a budget: the newest always, older ones while th
   assert.ok(unread.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Old field"));
 });
 
-test("the link the receptionist sends is the deal's while it is a proposal out, none for any other deal, and the person's own only with no deal (0007)", async () => {
+test("the link the receptionist sends is the deal's while it is a proposal out, none for any other deal, and the person's own only with no deal (0008)", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550124";
   const own = "https://docs.example.com/p/own";
@@ -489,7 +489,7 @@ test("the link the receptionist sends is the deal's while it is a proposal out, 
   );
 });
 
-test("where deals are off the receptionist hears no deal and no proposal link, and the deals are not read (0007)", async () => {
+test("where deals are off the receptionist hears no deal and no proposal link, and the deals are not read (0008)", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550125";
   const link = "https://docs.example.com/p/own";
@@ -525,7 +525,7 @@ test("where deals are off the receptionist hears no deal and no proposal link, a
   assert.equal(on.ctx.proposalUrl, link);
 });
 
-test("a database 00157 has not reached: who they are is read again without the workspace's answer, and deals are off", async () => {
+test("a database 00159 has not reached: who they are is read again without the workspace's answer, and deals are off", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550126";
   const c = { id: "contact-4", tenant_id: T, phone_e164: PHONE, display_name: "Lu", proposal_url: null };

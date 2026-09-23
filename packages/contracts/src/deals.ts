@@ -1,6 +1,6 @@
 /**
  * A deal is a record (docs/decisions/0004-deals-record.md), and a proposal is
- * part of it (0007).
+ * part of it (0008).
  *
  * One engagement a person is deciding on or has taken: a proposal out, a
  * client, passed, ended. The proposal's link, its value, the day it stands
@@ -22,7 +22,7 @@ export const DEAL_PERS = ["once", "month", "year"] as const;
 export type DealPer = SchemaSet<"deals.per">;
 export const DEAL_SOURCES = ["person", "payment"] as const;
 export type DealSource = SchemaSet<"deals.source">;
-/** Why someone passed (00157). The deal's note says the rest in the owner's words. */
+/** Why someone passed (00159). The deal's note says the rest in the owner's words. */
 export const DEAL_LOST_REASONS = ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"] as const;
 export type DealLostReason = SchemaSet<"deals.lost_reason">;
 export const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string> = {
@@ -35,7 +35,7 @@ export const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string> = {
 };
 
 /**
- * How a workspace's customers buy (tenants.sells_by, 00157): they book an
+ * How a workspace's customers buy (tenants.sells_by, 00159): they book an
  * appointment, or some get a proposal first. Null is not asked yet. The deal
  * layer is there or absent by this answer and nothing else (dealsAreOn).
  */
@@ -58,7 +58,7 @@ export function isSellsBy(s: unknown): s is SellsBy {
 export const SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
 
 /**
- * Whether deals are on in this workspace (0007): exactly when it says some of
+ * Whether deals are on in this workspace (0008): exactly when it says some of
  * its customers get a proposal first. The one predicate every gate reads --
  * the person's page, People's lists and column, the thread, Today, Reports,
  * Ask. A consult-first service is a booking rule, and a deal on file switches
@@ -93,7 +93,7 @@ export function isDealLostReason(s: unknown): s is DealLostReason {
   return typeof s === "string" && (DEAL_LOST_REASONS as readonly string[]).includes(s);
 }
 
-/** What a move may empty (deal_record's p_clear, 00157): the link, the valid-until day, the amount with its per, the note. */
+/** What a move may empty (deal_record's p_clear, 00159): the link, the valid-until day, the amount with its per, the note. */
 export const DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"] as const;
 export type DealClearable = (typeof DEAL_CLEARABLE)[number];
 
@@ -107,7 +107,7 @@ export interface DealColumns {
   deal_ended_at: string | null;
   deal_amount_cents: number | null;
   deal_per: string | null;
-  /** Its link, the day it stands until and why they passed (00157); absent on a row read before them. */
+  /** Its link, the day it stands until and why they passed (00159); absent on a row read before them. */
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
@@ -128,7 +128,7 @@ export interface DealDto {
   note: string | null;
   version: number;
   created_at: string;
-  /** The proposal's web address (00157); absent on a read before the column existed. */
+  /** The proposal's web address (00159); absent on a read before the column existed. */
   proposal_url?: string | null;
   /** The last day the proposal stands, `YYYY-MM-DD` by the business's calendar. */
   valid_until?: string | null;
@@ -181,7 +181,7 @@ export function pickCurrentDeal<T extends { stage: string; created_at: string }>
 }
 
 /**
- * The proposal link a person has now (0007), one rule for their page, the thread and the receptionist: their current
+ * The proposal link a person has now (0008), one rule for their page, the thread and the receptionist: their current
  * deal's while it is a proposal out, and none while it is anything else -- a client, a pass, an end; the link on the
  * person (00154) only for someone with no deal at all, read until that column retires. `current` is the deal the page
  * shows (pickCurrentDeal's, or people_list's row), as a row carries it (`proposal_url`) or as a view model says it
@@ -289,7 +289,7 @@ export interface DealVM {
   brief: string | null;
   /** Days since the proposal went, for a proposal out; null otherwise. */
   waitingDays: number | null;
-  /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0007). Null without one. */
+  /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0008). Null without one. */
   amount: string | null;
   /** The proposal's link and the host it lives at; null where the deal carries none. */
   proposal: { url: string; host: string } | null;
@@ -318,7 +318,7 @@ export function toDealVM(
   const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
   const waitingDays =
     d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS)) : null;
-  // A proposal carries a value as a client does (0007): the page says it at every stage.
+  // A proposal carries a value as a client does (0008): the page says it at every stage.
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
   const word = DEAL_STAGE_WORDS[d.stage];
@@ -360,7 +360,7 @@ export function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, n
   return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
 }
 
-/** Which of the deal sheet's modes a move opens (0007): a new proposal, one proposed again, a yes, a pass, an end. */
+/** Which of the deal sheet's modes a move opens (0008): a new proposal, one proposed again, a yes, a pass, an end. */
 export type DealMoveMode = "propose" | "again" | "won" | "lost" | "ended";
 
 /** A move the person's page offers: where it goes, its words, and whether it moves the row it was pressed on or starts a new one. */
@@ -391,7 +391,7 @@ export function dealMoves(d: DealVM | null): readonly DealMove[] {
  * The sentence the receptionist hears about this person's deal, beside the
  * owner's note (describeLead). One per stage; never an amount; nothing
  * without a deal. Channel-neutral: "hand over" is what both do. Where a
- * proposal link is on file -- the deal's (00157), else the person's while it
+ * proposal link is on file -- the deal's (00159), else the person's while it
  * is still read (00154) -- that link's own rule stands for a price question,
  * so the proposal's sentence points at it instead of promising a follow-up.
  */
@@ -436,7 +436,7 @@ export function isConsultationTitle(
 }
 
 /**
- * The one rule for a proposal waiting (0006, 0007): out past a week with nothing back since it went. `askedMs` is when
+ * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. `askedMs` is when
  * the person last wrote or called. Today's leak and the Pipeline both ask it, one row at a time.
  */
 export function waitingOnProposal(
@@ -458,7 +458,7 @@ export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: numbe
 }
 
 /**
- * The next step nobody has taken (0007): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
  * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
  * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
  */
@@ -494,7 +494,7 @@ export const DEAL_REFUSALS: Record<string, string> = {
 
 /** Reports: one cohort (the proposals sent in the period) and the stock (clients now). Computed by the reports route from the table. */
 export interface DealReportDto {
-  /** Whether the section is drawn: deals are on here (dealsAreOn, 0007) and a deal was ever recorded. */
+  /** Whether the section is drawn: deals are on here (dealsAreOn, 0008) and a deal was ever recorded. */
   any: boolean;
   sent: number;
   won: number;

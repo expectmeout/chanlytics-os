@@ -433,7 +433,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   // where the conversation stands, this says who they are, which was a page away.
   const person = thread.clientId && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((p) => p.id === thread.clientId) : null;
   const deal = person && person.deal && person.deal.brief ? person.deal : null;
-  // Their proposal's link (0007): contracts' proposalLinkOf over People's row -- the deal's while it is a proposal out,
+  // Their proposal's link (0008): contracts' proposalLinkOf over People's row -- the deal's while it is a proposal out,
   // none for a client or someone who passed, the thread's own (the person's) only with no deal, or no row to read.
   // Nothing where deals are off, or before People says whether they are.
   const proposalUrl = window.__PEOPLE && window.__PEOPLE.dealsOn && window.__proposalLinkOf
@@ -535,7 +535,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           ],
           [
-            // Their proposal (above: the deal's link, 0007), into the box in the words the contract keeps
+            // Their proposal (above: the deal's link, 0008), into the box in the words the contract keeps
             // (window.__proposalMessage): the thread is where a pricing question is answered, and the page was a
             // detour. Only where deals are on and free text can go, never to someone who said stop, only on a real
             // thread; the hint says where the link lives (contracts linkHost).
@@ -553,7 +553,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
             ...(!window.__DEMO_MODE && thread.clientId ? [{ label: "Receptionist settings", icon: "shield", onClick: () => onOpenClient(thread.clientId) }] : []),
             // A deal is recorded on the person's page (0004), so this is a door there, offered only where deals are
-            // on (People's dealsOn, 0007): a salon never sees it.
+            // on (People's dealsOn, 0008): a salon never sees it.
             ...(!window.__DEMO_MODE && thread.clientId && window.__PEOPLE && window.__PEOPLE.dealsOn ? [{ label: "Record a deal…", icon: "deal", onClick: () => onOpenClient(thread.clientId) }] : []),
           ],
           [

@@ -930,7 +930,7 @@ test("the runs' words read a real broadcast view model: a round trip through toB
 test("proposals waiting: out past a week with nothing back, said once, with the door to the list, and only where deals are on", () => {
   // A proposal out past a week with nothing back since it went (0004; contracts' proposalsWaiting over People's
   // rows). One is enough: an agency sends a few a month. The count is the rows'; the list's count is the arithmetic.
-  // People says whether deals are on (0007); the fixture says they are, and the last case says what happens where not.
+  // People says whether deals are on (0008); the fixture says they are, and the last case says what happens where not.
   const rowsWith = (n, waiting) =>
     Array.from({ length: n }, () => ({
       consent: { state: "opted_in" },
@@ -997,7 +997,7 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     NOW.getTime(),
   ).rows.map((r) => r.id);
   assert.deepEqual(order, ["unanswered", "proposals-waiting", "quiet"]);
-  // A workspace whose customers book never hears about a proposal, whatever deals it holds (0007).
+  // A workspace whose customers book never hears about a proposal, whatever deals it holds (0008).
   for (const dealsOn of [false, undefined])
     assert.equal(
       todayLeaksV2(

@@ -1233,7 +1233,7 @@ test("a note on a person (0007): one route writes or changes it, one takes it aw
   );
 });
 
-test("deal: a proposal's link, its day, a reason for passing and what a person emptied each reach the door only when named, and are judged before it opens (0007)", async () => {
+test("deal: a proposal's link, its day, a reason for passing and what a person emptied each reach the door only when named, and are judged before it opens (0008)", async () => {
   const doors = [];
   const rpcs = {
     deal_record: (a) => (
@@ -1336,7 +1336,7 @@ test("deal: a proposal's link, its day, a reason for passing and what a person e
   assert.equal(tables.decisions.length, decided);
 });
 
-test("deals are on in People exactly where the workspace says some customers get a proposal first; a deal on file switches nothing (0007)", async () => {
+test("deals are on in People exactly where the workspace says some customers get a proposal first; a deal on file switches nothing (0008)", async () => {
   const won = {
     id: D1,
     tenant_id: A,

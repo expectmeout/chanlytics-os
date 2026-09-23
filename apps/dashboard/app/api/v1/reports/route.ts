@@ -48,7 +48,7 @@ export const GET = read({
         );
         return null;
       });
-    // The deals of the period and the clients now (0004), only where deals are on (0007) and a deal was recorded.
+    // The deals of the period and the clients now (0004), only where deals are on (0008) and a deal was recorded.
     // Never fatal either: a table that cannot be read costs the section, not the report.
     const deals = await sellsByOf(ctx, tenantId)
       .then((sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy)))

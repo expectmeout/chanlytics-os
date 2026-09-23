@@ -2094,7 +2094,7 @@ test("a Deal column waits in the Columns menu only where deals are a thing here,
   assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-deal")).trim(), "", "nothing where no deal was recorded");
 });
 
-test("where deals are off, People's rows carry no deal, whatever the database holds: the lists, the row's line and Today's count read none (0007)", async () => {
+test("where deals are off, People's rows carry no deal, whatever the database holds: the lists, the row's line and Today's count read none (0008)", async () => {
   const proposed = person(1, {
     deal_id: "d1",
     deal_stage: "proposed",

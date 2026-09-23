@@ -211,7 +211,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
         canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
-        // People's surface says whether deals are on here (0007); until it does, the question is not offered.
+        // People's surface says whether deals are on here (0008); until it does, the question is not offered.
         dealsOn: !!w.__PEOPLE?.dealsOn,
       });
     },

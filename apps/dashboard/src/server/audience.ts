@@ -22,7 +22,7 @@ export interface AudiencePool {
   calendar: PeopleVisits["calendar"];
   /** The profile lists a consult-first service (0004): the "Consultation booked" list exists only then. */
   consult_first: boolean;
-  /** Deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0007). The deal lists exist only then. */
+  /** Deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). The deal lists exist only then. */
   deals_on: boolean;
 }
 

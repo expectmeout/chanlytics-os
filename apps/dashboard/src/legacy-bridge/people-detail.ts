@@ -263,7 +263,7 @@ export async function setPersonMarketingConsentMany(ids: string[], body: Consent
  * saw, a move. The door decides; the route records the decision. The list is
  * re-read afterwards (refresh-map) because the row's deal columns and the
  * Journey lists read from it. A proposal's link, its valid-until day, a reason
- * for passing and what a person emptied (0007) go only when named.
+ * for passing and what a person emptied (0008) go only when named.
  */
 export interface DealBody {
   stage: DealStage;
@@ -340,7 +340,7 @@ declare global {
     __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     __recordDeal?: typeof recordDeal;
     /**
-     * The deal's words for the page (0004, 0007): the stage words, the per words, the pers, the empty line, the moves
+     * The deal's words for the page (0004, 0008): the stage words, the per words, the pers, the empty line, the moves
      * from a stage, the reasons for passing and theirs, the one reading of a typed amount, and how customers buy.
      */
     __deal?: {

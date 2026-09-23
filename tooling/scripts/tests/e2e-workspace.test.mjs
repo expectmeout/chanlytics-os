@@ -333,7 +333,7 @@ test("what the specs leave behind is put back", async () => {
   });
   w.t.tenants.push({ id: "probe", slug: "e2e-probe-1", name: "E2E probe 1757840000000" });
   w.t.memberships.push({ id: "pm", tenant_id: "probe", user_id: owner.id, role: "owner" });
-  // A deal a spec recorded on a seeded person, and the one a proposal link opened on the stray (0004, 0007).
+  // A deal a spec recorded on a seeded person, and the one a proposal link opened on the stray (0004, 0008).
   const robin = of(w.t, "contacts", T).find((c) => c.display_name === PEOPLE[0].name);
   (w.t.deals ??= []).push(
     {

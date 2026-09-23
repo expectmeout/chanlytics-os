@@ -1,6 +1,6 @@
--- 00157 · A proposal is part of the deal.
+-- 00159 · A proposal is part of the deal.
 --
--- docs/decisions/0007-a-proposal-is-part-of-the-deal.md. The proposal link
+-- docs/decisions/0008-a-proposal-is-part-of-the-deal.md. The proposal link
 -- (00154) lived on the person and the deal (00156) knew nothing of it. The
 -- deal now holds it: the link, a "valid until" day, and a reason when someone
 -- passes, all through the one door. The person's link is attached to their
@@ -59,7 +59,7 @@ alter table public.tenants
 grant update (sells_by) on public.tenants to authenticated;
 
 comment on column public.tenants.sells_by is
-  'How this workspace''s customers buy (0007): booking (they book an appointment) or proposal (some get a proposal first). Deals are on exactly when it is proposal; null is not asked yet. Owner-settable through PATCH workspaces, like the timezone (00084).';
+  'How this workspace''s customers buy (0008): booking (they book an appointment) or proposal (some get a proposal first). Deals are on exactly when it is proposal; null is not asked yet. Owner-settable through PATCH workspaces, like the timezone (00084).';
 
 /* ------------------------------------------------------------------ 3. the door -- */
 
@@ -252,7 +252,7 @@ end $$;
 revoke execute on function public.deal_record(uuid, text, uuid, integer, text, timestamptz, integer, text, text, jsonb, text, date, text, text[]) from public, anon;
 grant execute on function public.deal_record(uuid, text, uuid, integer, text, timestamptz, integer, text, text, jsonb, text, date, text, text[]) to authenticated;
 comment on function public.deal_record(uuid, text, uuid, integer, text, timestamptz, integer, text, text, jsonb, text, date, text, text[]) is
-  'Record a deal on a person''s word (0004, 0007). No id: a new engagement, which starts proposed, with its link, value and valid-until day; one open engagement per person per service. An id and the version the page saw: a move (any stage to any, except out of ended, which is re-signed as a new row) that keeps what it is not told; p_clear names what a person emptied (proposal_url, valid_until, amount, note). Passing sets the reason, any other stage clears it. A stale version answers {error: moved}. Owner or operator. Writes the stage''s event; the route records the decision. Answers {deal, from} or {error}: bad_link, bad_reason and bad_clear beside 00156''s.';
+  'Record a deal on a person''s word (0004, 0008). No id: a new engagement, which starts proposed, with its link, value and valid-until day; one open engagement per person per service. An id and the version the page saw: a move (any stage to any, except out of ended, which is re-signed as a new row) that keeps what it is not told; p_clear names what a person emptied (proposal_url, valid_until, amount, note). Passing sets the reason, any other stage clears it. A stale version answers {error: moved}. Owner or operator. Writes the stage''s event; the route records the decision. Answers {deal, from} or {error}: bad_link, bad_reason and bad_clear beside 00156''s.';
 
 /* ------------------------------------------------ 4. an erasure takes the link -- */
 
@@ -271,7 +271,7 @@ begin
 end $$;
 revoke execute on function public.deals_erase_on_contact() from public, anon, authenticated;
 comment on function public.deals_erase_on_contact() is
-  'When a person is erased, their deals keep no words: the note, the evidence and the proposal link are blanked; stage, dates and amount stay (0004, 0007).';
+  'When a person is erased, their deals keep no words: the note, the evidence and the proposal link are blanked; stage, dates and amount stay (0004, 0008).';
 
 /* -------------------------------------------- 5. the person's door writes through -- */
 
@@ -343,7 +343,7 @@ end $$;
 revoke execute on function public.set_person_proposal(uuid, text) from public, anon;
 grant execute on function public.set_person_proposal(uuid, text) to authenticated;
 comment on function public.set_person_proposal(uuid, text) is
-  'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0007): the person''s open proposal takes the link; with no open deal, a Proposal out is opened with it where deals are on (sells_by proposal); a client''s deal is left alone.';
+  'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0008): the person''s open proposal takes the link; with no open deal, a Proposal out is opened with it where deals are on (sells_by proposal); a client''s deal is left alone.';
 
 /* ------------------------------------------- 6. every link on file joins its deal -- */
 
@@ -501,7 +501,7 @@ returns table (
   deal_ended_at           timestamptz,
   deal_amount_cents       integer,
   deal_per                text,
-  -- Its link, the last day it stands, and why they passed (0007).
+  -- Its link, the last day it stands, and why they passed (0008).
   deal_proposal_url       text,
   deal_valid_until        date,
   deal_lost_reason        text
@@ -693,4 +693,4 @@ revoke execute on function public.people_list(uuid, uuid, text, integer, integer
 grant execute on function public.people_list(uuid, uuid, text, integer, integer) to authenticated, service_role;
 
 comment on function public.people_list(uuid, uuid, text, integer, integer) is
-  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_limit (at most 1000) and p_offset page under one whole order: latest contact first, then the newest added, then the id. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0007).';
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_limit (at most 1000) and p_offset page under one whole order: latest contact first, then the newest added, then the id. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008).';

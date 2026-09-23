@@ -219,7 +219,7 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
   );
 });
 
-test("how customers buy: the owner's, one of the two answers, only what was sent written and read back, and a change that landed on no row is a refusal (0007)", async () => {
+test("how customers buy: the owner's, one of the two answers, only what was sent written and read back, and a change that landed on no row is a refusal (0008)", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
   const ctx = () => ctxFor(tables);
   await refused(
@@ -290,7 +290,7 @@ test("how customers buy: the owner's, one of the two answers, only what was sent
   );
 });
 
-test("where you are says how each workspace's customers buy, and a database that has not reached 00157 still answers (0007)", async () => {
+test("where you are says how each workspace's customers buy, and a database that has not reached 00159 still answers (0008)", async () => {
   const tables = {
     memberships: both("viewer", "owner"),
     tenants: [

@@ -174,7 +174,7 @@ test.describe("People on a real workspace", () => {
     // The deal is the last line of the card's settings; its moves open under Change.
     const row = page.getByTestId("rec-row-person-deal");
     if ((await row.count()) === 0) {
-      // Deals are off here (0007: the workspace answers that its customers book, or was never asked): no row is drawn.
+      // Deals are off here (0008: the workspace answers that its customers book, or was never asked): no row is drawn.
       test.skip(true, "deals are off on this workspace (it answers that its customers book)");
       return;
     }
