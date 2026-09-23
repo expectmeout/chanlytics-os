@@ -1399,6 +1399,21 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     "newest first, ahead reads as booked",
   );
   assert.equal(visits[1].sub, "10:00 AM – 12:00 PM · from Google Calendar");
+  // What has not ended is Coming up too, above History: marked on the timeline, and said in the leaf's words.
+  assert.deepEqual(
+    visits.map((i) => !!i.ahead),
+    [true, false],
+    "the booked visit is ahead; the visit that happened is not",
+  );
+  assert.equal(vm.comingUp.length, 1);
+  const up = vm.comingUp[0];
+  assert.equal(up.title, "Balayage");
+  assert.equal(up.id, visits[0].id, "the same visit the timeline holds");
+  assert.equal(up.to, visits[0].link.to, "a door to its day, as its timeline row is");
+  assert.ok(visits[0].sub.startsWith(up.time), `the time the row says: ${up.time}`);
+  assert.match(up.month, /^[A-Z][a-z]{2}$/);
+  assert.match(up.date, /^\d{1,2}$/);
+  assert.ok(["Today", "Tomorrow"].includes(up.day) || /^[A-Z][a-z]{2}$/.test(up.day), up.day);
   assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
   assert.equal(vm.bookingLink, "https://booksy.com/melanys");
   assert.equal(vm.replyWindow, null, "no chat, no window");
@@ -1416,7 +1431,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(
-    page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'),
+    page.includes('id: "text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'),
     "the button carries the link into the thread",
   );
   // The words are the contract's now (people bookingLinkAction), not the page's:

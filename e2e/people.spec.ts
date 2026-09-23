@@ -122,8 +122,14 @@ test.describe("People on a real workspace", () => {
     // two newest messages the timeline opens on, and a six-cell strip said the rail's facts again.
     await expect(page.getByText("Last exchange")).toHaveCount(0);
     await expect(page.locator(".cl-prof-money")).toHaveCount(0);
-    await expect(page.getByText("Right now")).toBeVisible();
-    await expect(page.locator(".cl-prof-section-title", { hasText: "Timeline" })).toBeVisible();
+    // Where they stand is one line under the name now, the standing's word and its sentence; History is what happened.
+    await expect(page.getByTestId("person-now")).toBeVisible();
+    await expect(page.locator(".cl-prof-section-title", { hasText: "History" })).toBeVisible();
+
+    // The page fills the pane and is one scroll: the profile was as wide as its content, 304px short at 1667.
+    const pane = (await page.locator(".cl-profile").boundingBox())!;
+    const main = (await page.locator(".main").boundingBox())!;
+    expect(Math.round(pane.width), "the profile is as wide as the pane it sits in").toBe(Math.round(main.width));
 
     // The strip's counts are About's History row; the line under the name holds the number and since when.
     const keys = (await page.locator(".cl-prof-attr-key").allInnerTexts()).map((k) => k.trim());
@@ -358,10 +364,17 @@ test.describe("People on a real workspace", () => {
     test.skip(!detail.booking_link, "no booking link on file");
     await page.goto(`/#/clients/${withChat!.id}`);
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    const btn = page.getByTestId("text-booking-link");
-    await expect(btn).toBeVisible();
-    await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
-    await btn.click();
+    // One send is a button; with the proposal too, the two are one Send menu beside the thread.
+    const menu = page.getByTestId("person-send");
+    if ((await menu.count()) > 0) {
+      await menu.click();
+      await page.getByRole("menuitem", { name: /booking link|booking-link/ }).click();
+    } else {
+      const btn = page.getByTestId("text-booking-link");
+      await expect(btn).toBeVisible();
+      await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
+      await btn.click();
+    }
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
   });
 

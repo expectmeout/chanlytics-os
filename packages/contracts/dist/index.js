@@ -7177,13 +7177,31 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       ...w.sub ? { sub: w.sub } : {}
     });
   }
+  const comingUp = [];
   if (d.visits?.all?.length) {
     const tz2 = d.visits.timezone;
     for (const v of d.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;
+      if (ahead) {
+        const on = visitDay(t, tz2, nowMs);
+        comingUp.push({
+          t,
+          vm: {
+            id: `v-${v.id}`,
+            month: new Intl.DateTimeFormat("en-US", { timeZone: tz2, month: "short" }).format(new Date(t)),
+            date: new Intl.DateTimeFormat("en-US", { timeZone: tz2, day: "numeric" }).format(new Date(t)),
+            day: on === "Today" || on === "Tomorrow" ? on : new Intl.DateTimeFormat("en-US", { timeZone: tz2, weekday: "short" }).format(new Date(t)),
+            title: v.title,
+            time: visitTime(v, tz2),
+            byName: v.via === "name",
+            to: `calendar/${visitDateKey(v.start, tz2)}`
+          }
+        });
+      }
       items.push({
+        ...ahead ? { ahead: true } : {},
         id: `v-${v.id}`,
         ts: t,
         ...stamp(t),
@@ -7412,6 +7430,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     facts,
     rightNow,
     timeline: items,
+    comingUp: comingUp.sort((a, b) => a.t - b.t).map((c) => c.vm),
     about,
     notes: d.notes?.trim() || null,
     bookingLink: d.booking_link?.trim() || null,

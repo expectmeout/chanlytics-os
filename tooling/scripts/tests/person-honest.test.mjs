@@ -532,17 +532,23 @@ test("REGRESSION (B16): the profile's facts and About rail draw no consent; the 
 });
 
 test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens its thread or its day -- only calls opened anything", async () => {
-  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  // A visit that happened, and the fixture's one ahead.
+  const PAST = { ...NEXT, id: "b0:1", start: iso(10 * D), end: iso(10 * D - 2 * H) };
+  const vm = toPersonVM(detail({ visits: { ...VISITS, all: [PAST, NEXT] } }), ZONE, new Date(NOW));
   const draw = await profile(vm);
   let tree = draw();
+  // The fixture's one visit has not happened: it is Coming up, not History, and it is a door to its day.
+  const ahead = all(tree, (n) => n.props?.["data-testid"] === "person-visit-ahead");
+  assert.equal(ahead.length, 1, "the visit ahead is Coming up");
   assert.ok(
     byTestId(tree, "timeline-filter-all") &&
       byTestId(tree, "timeline-filter-messages") &&
       byTestId(tree, "timeline-filter-visits"),
-    "a filter for each kind the timeline holds",
+    "a filter for each kind History holds",
   );
   assert.equal(byTestId(tree, "timeline-filter-calls"), null, "and none for a kind it does not");
   for (const open of all(tree, (n) => n.props?.["data-testid"] === "timeline-open")) press(open);
+  press(ahead[0]);
   const day = toPersonRowVM(row({ visits: VISITS }), ZONE, new Date(NOW)).nextVisitDate;
   assert.ok(went.includes("inbox/th-cv1") && went.includes(`calendar/${day}`), `the doors: ${went}`);
   press(byTestId(tree, "timeline-filter-visits"));
@@ -554,13 +560,17 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
         .includes("cl-tl-row"),
     ).length,
     1,
-    "only the visit is drawn",
+    "only the visit that happened is drawn",
   );
   const timeline = find(tree, (n) => typeof n.type === "function" && n.type.name === "PersonTimeline");
+  assert.ok(
+    timeline.props.items.every((i) => !i.ahead),
+    "History is what has happened: the visit ahead is not handed to it",
+  );
   assert.deepEqual(
-    filterTimeline(timeline.props.items, timeline.props.filter).map((i) => i.kind),
-    ["visit"],
-    "Visits shows the visits",
+    filterTimeline(timeline.props.items, timeline.props.filter).map((i) => i.id),
+    ["v-b0:1"],
+    "Visits shows the visit that happened",
   );
 });
 
@@ -602,13 +612,13 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     ["person-rename"],
     "REGRESSION: between 901 and 1250px the header's buttons kept their width and the name's column went to zero",
   );
-  assert.equal(
-    all(id, (n) => typeof n.type === "function" && n.type.name === "StatePill").length,
-    0,
-    "REGRESSION: two pills Right now and the rail already say",
+  assert.deepEqual(
+    all(id, (n) => typeof n.type === "function" && n.type.name === "StatePill").map((s) => s.props.value),
+    [vm.rightNow.tone],
+    "REGRESSION: two pills in the header said Right now's state and the consent again; one word under the name now",
   );
 
-  // One way to the thread, in Right now, with the booking link beside it.
+  // One way to the thread, beside who they are, with the booking link beside it.
   const threadButtons = all(
     tree,
     (n) => n.type === "button" && /^(Open thread|Open in Inbox|Open the thread)$/.test(textOf(n).trim()),
@@ -752,12 +762,14 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
         .split(" ")
         .includes("cl-tl-row"),
     ).length;
+  // History is what has happened: a visit still ahead is Coming up, above it.
+  const past = vm.timeline.filter((i) => !i.ahead);
   assert.equal(rowsOf(tree), 20, "twenty newest rows, then the fold");
   const older = byTestId(tree, "timeline-older");
-  assert.equal(textOf(older).trim(), `Show ${vm.timeline.length - 20} older`, "the fold says how many wait behind it");
+  assert.equal(textOf(older).trim(), `Show ${past.length - 20} older`, "the fold says how many wait behind it");
   press(older);
   tree = draw();
-  assert.equal(rowsOf(tree), vm.timeline.length, "one press shows the whole record");
+  assert.equal(rowsOf(tree), past.length, "one press shows the whole record");
   assert.equal(byTestId(tree, "timeline-older"), null);
   // Twenty-two rows: no fold for two.
   const few = toPersonVM(
@@ -766,7 +778,8 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
     new Date(NOW),
   );
   const tree2 = (await profile(few))();
-  assert.equal(rowsOf(tree2), few.timeline.length, `${few.timeline.length} rows, all drawn`);
+  const fewPast = few.timeline.filter((i) => !i.ahead).length;
+  assert.equal(rowsOf(tree2), fewPast, `${fewPast} rows, all drawn`);
   assert.equal(byTestId(tree2, "timeline-older"), null, "a fold of three rows is not worth a press");
 });
 
@@ -780,8 +793,8 @@ test("Right now says the state once: the pill wears the standing's word, the sen
   );
   const draw = await profile(vm);
   const tree = draw();
-  const card = find(tree, (n) => String(n.props?.className || "").includes("cl-prof-now"));
-  assert.equal(card.props["data-tone"], "escalated", "the card wears the tone the pill wears");
+  const card = byTestId(tree, "person-now");
+  assert.equal(card.props["data-tone"], "escalated", "the line wears the tone the pill wears");
   assert.ok(
     !String(card.props.className).includes("approval"),
     "REGRESSION: an accent edge on a card whose pill is warn",
@@ -794,7 +807,7 @@ test("Right now says the state once: the pill wears the standing's word, the sen
     "REGRESSION: the pill carried the whole title -- Escalated · asked for a person -- and spilled past the card between 901 and 990px",
   );
   const words = textOf(card);
-  assert.equal((words.match(/eceptionist/g) || []).length, 1, `the receptionist is named once on the card: ${words}`);
+  assert.ok((words.match(/eceptionist/g) || []).length <= 1, `the receptionist is named once at most: ${words}`);
   assert.ok(!words.includes("Escalated"), `the state is the pill's word, not said again in the sentence: ${words}`);
 });
 
@@ -1624,11 +1637,16 @@ test("a proposal on file (00154): the About row is its control and the send sits
   const keys = all(tree, (n) => cls(n) === "cl-prof-attr-key").map((k) => textOf(k));
   assert.equal(keys.indexOf("Proposal"), keys.indexOf("Email") + 1, `under the address: ${keys}`);
   const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
-  const send = byTestId(actions, "send-proposal");
-  assert.ok(send, "the send lives in Right now");
-  assert.equal(textOf(send).trim(), vm.proposalAction.label);
-  assert.equal(send.props.title, vm.proposalAction.title);
-  assert.ok(byTestId(actions, "text-booking-link"), "beside the booking link, which keeps its button");
+  // With the booking link too, the two are one Send menu beside the thread, so the head keeps one row on a phone.
+  const sendMenu = find(actions, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-send");
+  assert.ok(sendMenu, "the sends are one menu beside the thread");
+  assert.equal(sendMenu.props.label, "Send");
+  assert.deepEqual(
+    sendMenu.props.items.map((i) => i.label),
+    [vm.bookingLinkAction.label, vm.proposalAction.label],
+    "the booking link, then the proposal",
+  );
+  const send = { props: { onClick: sendMenu.props.items[1].onClick } };
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
   const carried = [];

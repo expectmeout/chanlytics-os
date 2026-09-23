@@ -1143,35 +1143,73 @@
    PROFILE PAGE
    ==================================================================== */
 
+/* A person's page is one scroll: a column at the page's measure, the head, then what is coming and what has happened
+   beside what is known about them. It fills the shell's row as People and the Inbox do: a flex item with no width was
+   as wide as its content, 1,115px in a 1,419px pane at 1667, and it was two panes that scrolled apart, each with its
+   own bar. */
 .cl-profile {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
-  background: var(--bg);
-  overflow: hidden;
-}
-/* Loading, missing, a failed read: nothing to put on a rail, so no rail column and no hairline beside "Loading…". */
-.cl-profile--solo { grid-template-columns: minmax(0, 1fr); }
-.cl-profile--solo .cl-prof-main { border-right: 0; }
-
-.cl-prof-main {
   overflow-y: auto;
-  border-right: 1px solid var(--line);
+  background: var(--bg);
+  container: person / inline-size;
+}
+.cl-prof-page {
+  box-sizing: border-box;
+  max-width: var(--measure-page);
+  margin: 0 auto;
+  padding: 20px var(--gutter-page) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+/* What is coming and what has happened, and beside them the card of what is known. The card is not a pane of its own
+   any more: it is as tall as what it holds, and the page scrolls. */
+.cl-prof-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas: "up rail" "hist rail";
+  grid-template-rows: auto 1fr;
+  gap: 24px 40px;
+  align-items: start;
+}
+.cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "hist rail"; grid-template-rows: auto; }
+.cl-prof-body > .cl-prof-up { grid-area: up; }
+.cl-prof-body > .cl-prof-history { grid-area: hist; }
+.cl-prof-body > .cl-prof-rail { grid-area: rail; }
+/* Narrower than a column and a card side by side: one column, and on it what is coming, then what is known, then what
+   has happened. The phone's page had About, the next visit and both answers 1,720px down, under the whole timeline. */
+@container person (max-width: 880px) {
+  .cl-prof-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "up" "rail" "hist"; grid-template-rows: auto; }
+  .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "rail" "hist"; }
 }
 
 .cl-prof-rail {
-  background: var(--bg-sunken);
-  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* Hero */
+/* Hero: the way back, then who they are with the page's acts beside them (under them on a phone, mobile.css), then a
+   delete being asked. */
 .cl-prof-hero {
-  padding: 24px 32px 20px;
-  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "back back" "id acts" "danger danger";
+  gap: 12px 16px;
+  align-items: start;
   container-type: inline-size;
 }
+.cl-prof-hero > .cl-prof-back { grid-area: back; }
+.cl-prof-hero > .cl-prof-id { grid-area: id; min-width: 0; }
+.cl-prof-hero > .cl-prof-queue-actions { grid-area: acts; }
+.cl-prof-hero > .cl-prof-danger { grid-area: danger; }
+/* Nothing to name the person with yet (loading, missing, a failed read): what is said takes the row. */
+.cl-profile--solo .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: none; }
 .cl-prof-back {
   display: inline-flex;
   align-items: center;
@@ -1185,18 +1223,18 @@
   padding: 0;
 }
 .cl-prof-back:hover { color: var(--ink); }
+.cl-prof-hero > .cl-prof-back { align-self: flex-start; margin: 0; }
 
 .cl-prof-id {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
-  margin-bottom: 14px;
 }
-/* The reading column keeps a prose measure on a wide window: a sentence in Right now ran 1,100px at 1440. */
-.cl-prof-id, .cl-prof-queue, .cl-tl-filters, .cl-prof-timeline { max-width: var(--measure-prose); }
+/* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. */
+.cl-tl-filters, .cl-prof-timeline { max-width: var(--measure-prose); }
 .cl-prof-avatar {
   flex: none;
-  width: 56px; height: 56px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   background: var(--bg-sunken);
   border: 1px solid var(--line);
@@ -1208,7 +1246,7 @@
 .cl-prof-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .cl-prof-name {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -1306,7 +1344,7 @@
 
 /* Section */
 .cl-prof-section {
-  padding: 22px 32px 8px;
+  padding: 0;
 }
 .cl-prof-section-head {
   display: flex;
@@ -1342,10 +1380,35 @@
   border-color: var(--accent);
   background: var(--bg-raised);
 }
-/* Right now wears the standing's tone (tone.ts) on its edge, the colour of the pill inside it: the accent edge
-   said "yours to approve" on a card whose pill said "Needs you" in warn. */
-.cl-prof-now[data-tone="escalated"] { border-color: var(--warn); }
-.cl-prof-now[data-tone="queued"] { border-color: var(--info); }
+/* Where they stand, under their name: the standing's own word (the one their People row wears) and the sentence of
+   what happens next. It was a card of its own, 188px tall on a phone for a word and a sentence. The pill is a word here,
+   not a control, so it takes back the 36px touch floor legacy.css puts on every pill. */
+.cl-prof-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-top: 1px; padding-bottom: 1px; }
+.cl-prof-now-words { min-width: 0; }
+/* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
+   its button ends in an ellipsis rather than pushing the row off the page. */
+.cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
+.cl-prof-hero > .cl-prof-queue-actions > .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-danger { max-width: var(--measure-prose); }
+
+/* Coming up: their visits that have not ended, each a door to its day. */
+.cl-prof-up { display: flex; flex-direction: column; gap: 10px; }
+.cl-prof-up-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.cl-prof-up-visit {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.cl-prof-up-visit:hover { border-color: var(--line-strong); }
+.cl-prof-up-visit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cl-prof-up-leaf { flex: none; width: 34px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.cl-prof-up-month { font-size: 10px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+.cl-prof-up-date { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cl-prof-up-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cl-prof-up-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-up-when { font-size: 12px; color: var(--ink-dim); }
+.cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
   display: flex;
