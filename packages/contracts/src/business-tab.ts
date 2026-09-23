@@ -547,6 +547,52 @@ export function blockShareWords(chars: number, total: number): string | null {
 }
 
 /**
+ * What one block of the prompt costs, whole: "1,190 characters — a quarter of everything it reads." The prompt sheet
+ * draws a block's cost as its share and nothing else (the owner's rule, 22 Sep: a count is technical data), and this
+ * sentence is where the exact count still lives: the accessible description, and the tip, of the entry that draws the
+ * share. One sentence for both, so the count and the share cannot disagree.
+ */
+export function promptCostWords(chars: number, total: number): string {
+  const share = blockShareWords(chars, total);
+  return `${count(chars)} characters${share ? ` — ${share}` : ""}.`;
+}
+
+/** The whole prompt's length, for the prompt sheet's contents to be described by: "4,345 characters in all." */
+export function promptTotalWords(total: number): string {
+  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
+}
+
+/**
+ * Who reads the composed prompt, and how often, one phrase per channel: the told section at rest and the prompt
+ * sheet's head. It was typed in the page (settings.jsx's PROMPT_READERS), and a test kept a hand copy of it.
+ *
+ * A plain literal of strings: nothing in it runs, so the four dists that never draw the tab leave it out.
+ */
+export const PROMPT_READERS = {
+  whatsapp: "every WhatsApp message, word for word",
+  voice: "every phone call, composed when the call starts",
+} as const;
+
+/**
+ * What is sent beside the prompt: the clock, the closures that land today and the calendar's openings, rebuilt for
+ * every message and at the start of every call (server/prompt-preview.ts `now`, the edge's `describeNow`). `why` is the
+ * sentence PromptPreview kept beside it, word for word, since it is the reason the two are drawn apart -- per channel
+ * in its last word only, because a call's clock is composed once, when the call starts, not for every message.
+ */
+export const PROMPT_NOW = {
+  label: {
+    whatsapp: "Sent alongside it, rebuilt for every message",
+    voice: "Sent alongside it, rebuilt for every call",
+  },
+  why: {
+    whatsapp:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.",
+  },
+} as const;
+
+/**
  * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
  * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
  * prompt's length. With none it says what that costs, in the standing line's own words for it (CANNOT_SAY_SERVICES).

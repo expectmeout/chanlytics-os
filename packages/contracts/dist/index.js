@@ -15449,6 +15449,27 @@ function blockShareWords(chars, total) {
   const [share, words2] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
   return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words2} of everything it reads`;
 }
+function promptCostWords(chars, total) {
+  const share = blockShareWords(chars, total);
+  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
+}
+function promptTotalWords(total) {
+  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
+}
+var PROMPT_READERS = {
+  whatsapp: "every WhatsApp message, word for word",
+  voice: "every phone call, composed when the call starts"
+};
+var PROMPT_NOW = {
+  label: {
+    whatsapp: "Sent alongside it, rebuilt for every message",
+    voice: "Sent alongside it, rebuilt for every call"
+  },
+  why: {
+    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
+  }
+};
 function servicesToldWords(i) {
   const n = i.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
@@ -15933,13 +15954,13 @@ function promptBlocks(text, channel, from) {
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
   const found = [];
-  const seen = /* @__PURE__ */ new Set();
+  let passed = -1;
   lines.forEach((line, n) => {
-    if (insideOwn(n)) return;
-    const mark = marks.find((m) => line.trim().startsWith(m.startsWith));
-    if (!mark || seen.has(mark.startsWith)) return;
-    seen.add(mark.startsWith);
-    found.push({ at: n, mark });
+    if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
+    const at2 = marks.findIndex((m) => line.trim().startsWith(m.startsWith));
+    if (at2 <= passed) return;
+    passed = at2;
+    found.push({ at: n, mark: marks[at2] });
   });
   let starts;
   let head;
@@ -15987,7 +16008,12 @@ function promptBlocks(text, channel, from) {
   return out.map(({ from: a, to: b, ...block }) => {
     const n = (times.get(block.row) ?? 0) + 1;
     times.set(block.row, n);
-    return { id: n === 1 ? block.row : `${block.row}-${n}`, ...block, text: lines.slice(a, b).join("\n").trim() };
+    return {
+      id: n === 1 ? block.row : `${block.row}-${n}`,
+      ...block,
+      share: block.chars / text.length,
+      text: lines.slice(a, b).join("\n").trim()
+    };
   });
 }
 
@@ -17040,7 +17066,9 @@ export {
   POLICY_MODE_WORDS,
   PROFILE_CROSSING_WORDS,
   PROFILE_LIMITS,
+  PROMPT_NOW,
   PROMPT_OPENINGS,
+  PROMPT_READERS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
@@ -17540,6 +17568,8 @@ export {
   priorOf,
   profileRefusal,
   promptBlocks,
+  promptCostWords,
+  promptTotalWords,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,

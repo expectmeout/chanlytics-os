@@ -86,7 +86,7 @@ test("contracts really does resolve to dist — if that ever changes, so must th
  * is for reading src. The remedy when this fails is never to widen the list —
  * it is to mark the new initializer pure.
  */
-const TAB_ONLY = ["GUARDRAIL_KEYS", "STRENGTHS", "RULES_WITHOUT_FIELDS_WORDS"];
+const TAB_ONLY = ["GUARDRAIL_KEYS", "STRENGTHS", "RULES_WITHOUT_FIELDS_WORDS", "PROMPT_READERS", "PROMPT_NOW"];
 
 test("the Business tab's sentence tables stay out of the four bundles that never draw it", () => {
   const carried = [];

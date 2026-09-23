@@ -8,8 +8,8 @@
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
 // pages/business-tab-gestures.jsx; each card is a file of its own (business-tab-who.jsx, business-tab-open.jsx,
 // business-tab-offer.jsx, business-tab-answers.jsx, business-can.jsx), loaded before this one and read from window as the page draws, and
-// the services sheet (business-tab-services.jsx) is drawn here, after every card. PaneWorkspace (settings.jsx) keeps
-// drawing the old card until Task 3.7 swaps this page in.
+// the two sheets, the services list (business-tab-services.jsx) and what the receptionist is told
+// (business-tab-prompt.jsx), are drawn here through ONE slot, after every card (BtSheetSlot says why).
 //
 // The page composes and never derives. Every sentence with a number or a judgement in it is contracts', through
 // window.__businessTab (legacy-bridge/business-tab.ts); every fact is the settings read's (window.__SETTINGS,
@@ -102,6 +102,26 @@ const btOpenRow = (id) => {
 };
 
 /**
+ * The page's one sheet slot, drawn LAST of everything on the page that holds a hook, and drawing at most one sheet.
+ *
+ * The kit's RecordSheet holds hooks and is drawn only while it is open, and the tests' stub React keeps every hook on
+ * the page as a cell in one order (this file's header): a sheet drawn before a card shifted that card's cells whenever
+ * it opened (Task 3.4's note 3). Two sheets cannot both be last, so both go through here (the plan's Phase 5 note), and
+ * the fold registry opens one editor or sheet at a time, so the slot draws one of them or neither:
+ *   - the services sheet's editor is held on every draw, since it binds its unsaved test to the registry and counts
+ *     itself on the page (BtSheet), and it draws the kit's sheet only while the registry has "services" open;
+ *   - the prompt sheet holds nothing here: the page holds its state before every card (useBtPromptSheet), and the sheet
+ *     is drawn only while the registry has "prompt" open, after the services sheet's editor and never beside its sheet.
+ * Whatever sheet comes next goes through this slot too; a page test holds the slot last (business-tab-prompt.test.mjs).
+ */
+const BtSheetSlot = ({ prompt, brain, canEdit, flash, saver }) => (
+  <>
+    {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+    {prompt && prompt.open && window.BtPromptSheet ? <window.BtPromptSheet prompt={prompt} brain={brain} canEdit={canEdit} /> : null}
+  </>
+);
+
+/**
  * Settings › Business, drawn from the settings read. A workspace with no brain -- none set up, or a config the parser
  * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
@@ -126,6 +146,10 @@ const BusinessTab = ({ flash = () => {} }) => {
       window.removeEventListener("surface:settings", bump);
     };
   }, [saver, zone]);
+  // What the receptionist is told: the prompt sheet's hold on the registry and the channel it shows (business-tab-prompt.jsx),
+  // held here, on every draw and before every card, so the told section at rest says the channel last chosen and the
+  // sheet itself is the one thing that comes and goes, in the slot (BtSheetSlot).
+  const prompt = window.useBtPromptSheet ? window.useBtPromptSheet() : null;
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) return null;
@@ -150,14 +174,13 @@ const BusinessTab = ({ flash = () => {} }) => {
       {window.BtOfferCard ? <window.BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtAnswersCard ? <window.BtAnswersCard brain={brain} base={base} config={settings.config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {window.BtCanCard ? <window.BtCanCard brain={brain} config={settings.config} canEdit={canEdit} /> : null}
-      {/* The services sheet, LAST, after every card: the kit's sheet holds hooks and is drawn only while it is open, and
-          the tests' stub React keeps every hook on the page as a cell in one order, so drawn before a card it shifted
-          that card's cells whenever it opened (BtSheet, business-tab-gestures.jsx; the sheet is business-tab-services.jsx).
-          Whatever card comes next goes above this line; a page test holds the sheet last (business-tab-offer.test.mjs),
-          and a second sheet goes through this one slot, not a second last line (the plan's Phase 5 note). */}
-      {window.BtServicesSheet ? <window.BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} /> : null}
+      {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
+      {window.BtPromptTold ? <window.BtPromptTold prompt={prompt} /> : null}
+      {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
+          this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}
+      <BtSheetSlot prompt={prompt} brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
     </>
   );
 };
 
-Object.assign(window, { BusinessTab });
+Object.assign(window, { BusinessTab, BtSheetSlot });

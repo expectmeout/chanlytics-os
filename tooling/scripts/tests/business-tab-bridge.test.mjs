@@ -41,6 +41,10 @@ import {
   servicesFoundWords,
   bookingRuleRefusal,
   TONE_PRESETS,
+  PROMPT_READERS,
+  PROMPT_NOW,
+  promptCostWords,
+  promptTotalWords,
   handoffWords,
   fallbacksWords,
   guardrailsInForce,
@@ -139,6 +143,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "GUARDRAIL_KEYS",
     "POLICY_MODES",
     "PROFILE_LIMITS",
+    "PROMPT_NOW",
+    "PROMPT_READERS",
     "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
     "VISION_STRENGTH",
@@ -168,6 +174,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "profileCrossing",
     "profileRefusal",
     "promptBlocks",
+    "promptCostWords",
+    "promptTotalWords",
     "ruleStrength",
     "rulesKept",
     "saveIssues",
@@ -191,6 +199,11 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     assert.equal(tab.hasProfile(p), hasProfile(p), JSON.stringify(p));
   }
   assert.deepEqual(tab.TONE_PRESETS, TONE_PRESETS);
+  // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
+  assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
+  assert.deepEqual(tab.PROMPT_NOW, PROMPT_NOW);
+  assert.equal(tab.promptCostWords(1190, 4345), promptCostWords(1190, 4345));
+  assert.equal(tab.promptTotalWords(4345), promptTotalWords(4345));
   for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true }])
     assert.deepEqual(tab.guardrailsInForce(g), guardrailsInForce(g), JSON.stringify(g));
   // Which rules the row at rest may name is contracts' too, over the same reading of the stored ones.

@@ -781,16 +781,14 @@ const PaneWorkspace = ({ flash }) => {
    * docs/superpowers/specs/2026-09-20-business-tab-design.md). What stood here was two surfaces that disagreed about
    * what exists -- a card showing nine facts, and a form editing about twenty-five behind one Save -- and one of them
    * had to be opened before the other could be corrected. The page draws the head, who last changed it, the standing
-   * line, every row and its editor, and says why once to a role that may not change it.
-   *
-   * What the receptionist is told stays below it until Phase 5 replaces it with the prompt sheet (PromptPreview), and
-   * the owner's copy of everything below that.
+   * line, every row and its editor, and says why once to a role that may not change it. What the receptionist is told
+   * is the page's own since Phase 5 (pages/business-tab-prompt.jsx: a told section at rest and the sheet it opens,
+   * where PromptPreview's <pre> stood), and the owner's copy of everything is below it.
    */
   if (real) {
     return (
       <>
         {window.BusinessTab ? <window.BusinessTab flash={flash} /> : null}
-        <PromptPreview />
         <WorkspaceData />
       </>
     );
@@ -822,92 +820,6 @@ const PaneWorkspace = ({ flash }) => {
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Phone line</span><span className="cl-prof-attr-val">+1 (415) 555-0100</span></div>
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Staff</span><span className="cl-prof-attr-val">Lena Park · Jay Rivera</span></div>
       </div>
-    </section>
-  );
-};
-
-/**
- * What the receptionist is actually told.
- *
- * Every other card here shows what an owner TYPED. This one shows what their
- * customers' receptionist receives, which had been true of nothing in the
- * product: the fields are composed, the workspace's older instructions are
- * carried in beneath them, guardrails are appended, and the result was visible
- * only by reading the source.
- *
- * That gap cost a live salon. Filling in the hours silently swapped a
- * 5,000-character prompt for a 700-character one; the composed hours then
- * disagreed with the prose right below them about Sunday. Both would have been
- * obvious at a glance. Neither was glanceable.
- *
- * Not a mock-up of the prompt — window.__composedPrompt reads what the settings
- * read composed with the SAME function the edge runs, from the same saved
- * config and the same inputs (the autonomy rows, the platform's facts, the
- * closures, the calendar's openings).
- */
-// Who reads this text, and how often -- one spelling for each channel, said in the head while the section is closed
-// and beside the count once it is open. It was written out twice, so the head said WhatsApp's words whatever channel
-// was chosen, and an opened section carried the same sentence in two places at once.
-const PROMPT_READERS = {
-  whatsapp: "every WhatsApp message, word for word",
-  voice: "every phone call, composed when the call starts",
-};
-
-const PromptPreview = () => {
-  const [open, setOpen] = useSetState(false);
-  const [channel, setChannel] = useSetState("whatsapp");
-  const composed = window.__composedPrompt ? window.__composedPrompt(channel) : null;
-  if (!composed) return null;
-  const CHANNELS = [["whatsapp", "WhatsApp"], ["voice", "Phone"]];
-  return (
-    <section className="fl-card set-card">
-      <div className="fl-card-head">
-        <h2 className="fl-card-title">What your receptionist is told</h2>
-        <button className="btn btn-ghost btn-sm" onClick={() => setOpen(!open)}>
-          <Icon name={open ? "chevron-up" : "chevron-down"} size={11} /> {open ? "Hide" : "Show"}
-        </button>
-      </div>
-      {/* Closed, one phrase: who reads the text behind this door, and how often. The character count went with it --
-          4,345 is a number nobody can act on from outside a closed section, and it was the first thing under the
-          heading. It waits inside, where a prompt that has halved is a prompt that lost something and the number says
-          so beside the text it counts. Open, this line is the one below, and drawing both put the sentence on screen
-          twice. */}
-      {open ? null : (
-        <div className="set-prompt-meta">
-          <span>{PROMPT_READERS[channel]}</span>
-        </div>
-      )}
-      {open && (
-        <>
-          <div className="set-prompt-tabs" role="tablist">
-            {CHANNELS.map(([id, label]) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={channel === id}
-                className={`set-prompt-tab ${channel === id ? "on" : ""}`}
-                onClick={() => setChannel(id)}
-              >{label}</button>
-            ))}
-          </div>
-          <div className="set-prompt-meta set-prompt-meta-open">
-            <span className="set-prompt-count">{composed.text.length.toLocaleString()} characters</span>
-            <span className="set-prompt-sep">·</span>
-            <span>{PROMPT_READERS[channel]}</span>
-          </div>
-          <pre className="set-prompt-body">{composed.text}</pre>
-          <div className="set-prompt-now">
-            <div className="set-prompt-now-label">
-              Sent alongside it, rebuilt for every message
-              {composed.tz ? <> · {composed.tz}</> : null}
-            </div>
-            {/* Shown separately because it IS sent separately — folding a value
-                that changes every minute into the block above would throw away
-                the prompt cache on every message. */}
-            <pre className="set-prompt-body set-prompt-body-sm">{composed.now}</pre>
-          </div>
-        </>
-      )}
     </section>
   );
 };

@@ -92,6 +92,8 @@ await import(`${L}/pages/business-tab-offer.jsx`);
 await import(`${L}/pages/business-tab-answers.jsx`);
 await import(`${L}/pages/business-can.jsx`);
 await import(`${L}/pages/business-tab-services.jsx`);
+// The prompt sheet: the told section's door and the sheet it opens, which the page draws through its one sheet slot.
+await import(`${L}/pages/business-tab-prompt.jsx`);
 // The card a workspace with no receptionist is shown, which PaneWorkspace draws in the page's place
 // (business-tab-create.test.mjs draws it); in both load lists here, after the cards and before the page.
 await import(`${L}/pages/business-tab-create.jsx`);
@@ -100,6 +102,10 @@ const W = globalThis.window;
 // The tab's helpers, from the module the app installs: the standing line, and what each row will tell the receptionist.
 const { installBusinessTab } = await import("../../../apps/dashboard/src/legacy-bridge/business-tab.ts");
 installBusinessTab();
+// What the receptionist is told, read off the settings read as the app reads it (inbox-verbs.ts composedPrompt, the
+// function itself): the prompt sheet cuts it, and draws nothing where it answers nothing.
+const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+W.__composedPrompt = composedPrompt;
 // The settings read's own preview, built as the server builds it: a row's draft is resolved with its inputs (Task 3.1).
 const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
 

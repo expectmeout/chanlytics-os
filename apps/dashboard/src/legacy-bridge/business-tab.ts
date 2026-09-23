@@ -33,6 +33,10 @@ import {
   servicesToldWords,
   servicesSaveWords,
   blockShareWords,
+  promptCostWords,
+  promptTotalWords,
+  PROMPT_READERS,
+  PROMPT_NOW,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   needsConsultation,
@@ -259,8 +263,11 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them, and
 // hoursZoneWords is the line over the week while it is edited, which names the zone the way that card names it; the
 // services row's and sheet's (servicesWords, servicesToldWords, servicesSaveWords, blockShareWords) and the booking
-// rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. needsConsultation and foldName are the rules the
-// services sheet marks a consult-first service by and searches by: the Calendar's and the phone tool's own, not copies.
+// rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. The prompt sheet's are promptBlocks (above) with
+// the share it draws a block's cost by, promptCostWords (the exact count, for its description only), promptTotalWords,
+// PROMPT_READERS (who reads it, per channel) and PROMPT_NOW (what is sent beside it, and why it is apart).
+// needsConsultation and foldName are the rules the services sheet marks a consult-first service by and searches by: the
+// Calendar's and the phone tool's own, not copies.
 // bookingRuleRefusal is a booking rule's sentence for a number outside its range (business-tab-folds.jsx problemsOf),
 // and PROFILE_LIMITS with profileRefusal are the SAME pair for every other cap a fold holds: the most of each thing
 // the save would take, read off the schema, and the sentence written from that one number. The page held both, so
@@ -304,6 +311,10 @@ export const BUSINESS_TAB = {
   servicesToldWords,
   servicesSaveWords,
   blockShareWords,
+  promptCostWords,
+  promptTotalWords,
+  PROMPT_READERS,
+  PROMPT_NOW,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   needsConsultation,

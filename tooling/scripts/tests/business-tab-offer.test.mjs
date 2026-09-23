@@ -1390,23 +1390,30 @@ test("Ctrl or Cmd with Enter saves the sheet, as it saves a fold", () => {
   assert.equal(sheetOf(redrawTab()), null, "taken, and closed");
 });
 
-test("the services sheet is the page's last drawn child, with the sheet closed and open", () => {
+test("the services sheet is drawn by the page's last child, its one sheet slot, with the sheet closed and open", () => {
   // The rule the page's comment stated and nothing held: the kit's sheet holds hooks and is drawn only while open, so
   // a card drawn after it reads shifted hook cells whenever it opens (business-tab-gestures.jsx BtSheet). A card
-  // composed below the sheet's line is the first thing this catches, before any of its rows misbehave.
-  const lastDrawn = (tree) =>
-    []
-      .concat(tree.rendered.props.children)
-      .filter((c) => c != null && c !== false)
-      .at(-1);
+  // composed below the sheet's line is the first thing this catches, before any of its rows misbehave. Since Phase 5
+  // the last child is the slot both sheets go through (business-tab.jsx BtSheetSlot; the prompt sheet's half of this is
+  // business-tab-prompt.test.mjs).
+  const drawnIn = (node) => [].concat(node.rendered.props.children).filter((c) => c != null && c !== false);
   let tree = drawTab({ profile: many });
-  assert.equal(lastDrawn(tree).type, W.BtServicesSheet, "closed");
+  assert.equal(drawnIn(tree).at(-1).type, W.BtSheetSlot, "closed");
+  assert.deepEqual(
+    drawnIn(drawnIn(tree).at(-1)).map((c) => c.type),
+    [W.BtServicesSheet],
+    "the services sheet in it",
+  );
   tree = openSheet(tree);
   assert.ok(sheetOf(tree));
-  assert.equal(lastDrawn(tree).type, W.BtServicesSheet, "and open");
-  // And the kit's sheet is the last thing the services sheet draws, so the last hook-holding thing on the page.
-  const sheet = lastDrawn(tree);
-  assert.deepEqual([sheet.rendered.type, sheet.rendered.rendered.type], [W.BtSheet, W.RecordSheet]);
+  const slot = drawnIn(tree).at(-1);
+  assert.equal(slot.type, W.BtSheetSlot, "and open");
+  // And the kit's sheet is the last thing the slot draws, so the last hook-holding thing on the page.
+  const sheet = drawnIn(slot).at(-1);
+  assert.deepEqual(
+    [sheet.type, sheet.rendered.type, sheet.rendered.rendered.type],
+    [W.BtServicesSheet, W.BtSheet, W.RecordSheet],
+  );
 });
 
 test("each Undo left in a row's place has its own name and id, from what it puts back, two in one gap included", () => {

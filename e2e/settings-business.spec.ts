@@ -220,6 +220,77 @@ async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
   }
 }
 
+/**
+ * The prompt sheet, quiet, by what the browser paints inside it (the plan's Phase 5, under Task 4.0's rule): no bordered
+ * pill, no gradient, one typeface, no colour but the house's neutrals and its accent, and no count on the glass -- a
+ * block's cost is its share, and "1,190 characters" is the entry's description, visually hidden.
+ */
+async function expectPromptSheetQuiet(page: Page, where: string): Promise<void> {
+  const loud = await page.evaluate(() => {
+    const sheet = document.querySelector('[data-testid="rec-sheet-prompt"]');
+    if (!sheet) return null;
+    const root = getComputedStyle(document.documentElement);
+    // Each token as the browser resolves it, so a colour is compared with what the stylesheet may paint.
+    const probe = document.createElement("span");
+    sheet.appendChild(probe);
+    const tokens = new Set(["rgba(0, 0, 0, 0)"]);
+    for (const t of [
+      "--ink",
+      "--ink-muted",
+      "--ink-dim",
+      "--ink-faint",
+      "--bg",
+      "--bg-raised",
+      "--bg-sunken",
+      "--bg-hover",
+      "--bg-active",
+      "--line",
+      "--line-strong",
+      "--accent",
+    ]) {
+      probe.style.color = root.getPropertyValue(t).trim();
+      tokens.add(getComputedStyle(probe).color);
+    }
+    probe.remove();
+    const gradients: string[] = [];
+    const pills: string[] = [];
+    const colours: string[] = [];
+    const faces = new Set<string>();
+    for (const el of [sheet, ...sheet.querySelectorAll("*")]) {
+      const cs = getComputedStyle(el);
+      const name = `${el.tagName.toLowerCase()}.${String(el.className || "").split(" ")[0]}`;
+      if (cs.display === "none") continue;
+      if (cs.backgroundImage.includes("gradient")) gradients.push(name);
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= r.height / 2)
+        pills.push(name);
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? "").trim())) faces.add(cs.fontFamily);
+      for (const c of [cs.color, cs.backgroundColor]) if (!tokens.has(c)) colours.push(`${name}: ${c}`);
+    }
+    // What is on the glass: text outside a visually hidden span, in something laid out.
+    const seen: string[] = [];
+    const walker = document.createTreeWalker(sheet, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement;
+      if (!el || el.closest(".rec-sr") || el.getClientRects().length === 0) continue;
+      seen.push(n.textContent ?? "");
+    }
+    return {
+      gradients,
+      pills,
+      colours,
+      faces: [...faces],
+      counts: seen.join(" ").match(/\d[\d,]*\s*characters?/g) ?? [],
+    };
+  });
+  expect(loud, `${where}: the prompt sheet is open`).not.toBeNull();
+  expect(loud!.gradients, `${where}: a gradient in the sheet`).toEqual([]);
+  expect(loud!.pills, `${where}: a bordered pill in the sheet`).toEqual([]);
+  expect(loud!.faces, `${where}: one typeface`).toHaveLength(1);
+  expect(loud!.colours, `${where}: a colour outside the tokens`).toEqual([]);
+  expect(loud!.counts, `${where}: a character count on the glass`).toEqual([]);
+}
+
 test.describe("Settings › Business on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -554,6 +625,129 @@ test.describe("Settings › Business on a real workspace", () => {
       "the foot moved when the rows scrolled",
     ).toBe(footBefore.y);
     await discard(page, "services", "sheet");
+    await expectRecordUnchanged(page, before);
+  });
+
+  test("what the receptionist is told opens as a sheet from its door, walks to a block, opens a row, and closes back to the door", async ({
+    page,
+  }) => {
+    const before = await readConfig(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openRecord(page);
+    const door = page.getByTestId("rec-prompt-open");
+    const sheet = page.getByTestId("rec-sheet-prompt");
+    const blocks = sheet.locator('[data-testid^="rec-prompt-block-"]');
+
+    // The told section's door opens the sheet, and focus is on the sheet, so a screen reader names the dialog.
+    await door.click();
+    await expect(sheet).toBeFocused();
+    await expect(page.getByTestId("rec-prompt-contents")).toBeVisible();
+
+    // An entry takes the reader to its block: the last one, which starts below the fold of a long prompt.
+    const entries = sheet.locator(".bt-prompt-entry");
+    expect(await entries.count(), "one entry per block").toBe(await blocks.count());
+    const last = entries.last();
+    const id = (await last.getAttribute("data-testid"))!.slice("rec-prompt-entry-".length);
+    await last.click();
+    const block = page.getByTestId(`rec-prompt-block-${id}`);
+    await expect(block).toBeInViewport();
+    await expect(block, "the block it walked to takes focus, so a keyboard reads on from it").toBeFocused();
+    // A block's door is latent until the block is approached (spec §11): walked to and focused, its door is drawn.
+    const settled = () =>
+      page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+    const opacity = (l: Locator) => l.evaluate((el) => getComputedStyle(el).opacity);
+    if (await block.locator(".bt-prompt-door").count()) {
+      await settled();
+      expect(await opacity(block.locator(".bt-prompt-door")), "the focused block's door is drawn").toBe("1");
+    }
+
+    // Escape closes the sheet, and focus goes back to the door that opened it.
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(door).toBeFocused();
+
+    // A block's door lands in the row's editor: the sheet goes, and focus is inside the fold or the inline editor it
+    // opened. Escape then closes that editor, since nothing was typed. The seeded workspace's prompt is the product's
+    // own opening lines, which no row of the page writes, so every block it has is the platform's and offers no door:
+    // that is asserted instead, and the door is walked on the salon's record.
+    await door.click();
+    await expect(sheet).toBeFocused();
+    const rowDoors = sheet.locator('[data-testid^="rec-prompt-door-"]:not([data-testid="rec-prompt-door-services"])');
+    if ((await rowDoors.count()) === 0) {
+      expect(
+        await sheet.locator('[data-testid^="rec-prompt-block-platform"]').count(),
+        "a block a row wrote offers its door",
+      ).toBe(await blocks.count());
+      await sheet.getByRole("button", { name: "Close" }).first().click();
+      await expect(sheet).toHaveCount(0);
+      await expect(door).toBeFocused();
+    } else {
+      // At rest, with the pointer away from every block, no door is drawn; the pointer on a block draws its door.
+      await page.mouse.move(0, 0);
+      await settled();
+      expect(
+        await sheet.locator(".bt-prompt-door").evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity)),
+        "a door drawn at rest on a desktop",
+      ).toEqual(Array(await sheet.locator(".bt-prompt-door").count()).fill("0"));
+      await rowDoors.first().locator("xpath=ancestor::section[1]").hover();
+      await settled();
+      expect(await opacity(rowDoors.first()), "the door of the block under the pointer is drawn").toBe("1");
+      await rowDoors.first().click();
+      await expect(sheet).toHaveCount(0);
+      await expectFocusInside(
+        page,
+        ".rec-fold:not([hidden]), .rec-inline:not([hidden])",
+        "a block's door left focus outside the row it opened",
+      );
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".rec-fold:not([hidden]), .rec-inline:not([hidden])")).toHaveCount(0);
+    }
+
+    // On a phone: no contents beside the blocks, each block's head carries its share, the head holds still over the
+    // blocks, the foot is Close, nothing scrolls sideways, and nothing in it is loud.
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const channel of ["WhatsApp", "Phone"]) {
+      await door.click();
+      await expect(sheet).toBeVisible();
+      if (channel === "Phone") await sheet.getByRole("radio", { name: "Phone" }).click();
+      // The switch's own colour transition is measured once it has landed, not half-way between two tokens.
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))));
+      await expect(page.getByTestId("rec-prompt-contents")).toBeHidden();
+      const n = await blocks.count();
+      expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
+      // Each head carries the rail's bar, drawn, and its share in words kept for a screen reader, off the glass.
+      for (let i = 0; i < n; i++) {
+        await expect(blocks.nth(i).locator(".bt-prompt-block-bar")).toBeVisible();
+        const words = await blocks
+          .nth(i)
+          .locator(".bt-prompt-block-share")
+          .evaluate((el) => ({
+            w: Math.round(el.getBoundingClientRect().width),
+            clipped: getComputedStyle(el).clipPath !== "none",
+          }));
+        expect(words, `${channel}: a block's share in words is on the glass`).toEqual({ w: 1, clipped: true });
+      }
+      // Nothing hovers here, so every door is drawn.
+      expect(
+        await sheet
+          .locator(".bt-prompt-door")
+          .evaluateAll((els) => els.filter((el) => getComputedStyle(el).opacity !== "1").length),
+        `${channel}: a door hidden on a phone`,
+      ).toBe(0);
+      await expectNoSidewaysScroll(page, `the prompt sheet on a phone, ${channel}`, [PANE, ".rec-sheet-body"]);
+      await expectPromptSheetQuiet(page, `the prompt sheet on a phone, ${channel}`);
+      const body = page.locator(".rec-sheet-body");
+      const head = await boxOf(sheet.locator(".rec-sheet-head"), "the sheet's head");
+      await body.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      expect((await boxOf(sheet.locator(".rec-sheet-head"), "the sheet's head")).y, "the head moved").toBe(head.y);
+      const close = sheet.locator(".rec-sheet-foot").getByRole("button", { name: "Close" });
+      await expect(close).toBeInViewport({ ratio: 1 });
+      await close.click();
+      await expect(sheet).toHaveCount(0);
+      await expect(door).toBeFocused();
+    }
     await expectRecordUnchanged(page, before);
   });
 
