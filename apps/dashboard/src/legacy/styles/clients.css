@@ -2440,6 +2440,9 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
      load leaves the initials (plRowCard). */
   .pl-card-face { position: relative; overflow: hidden; }
   .pl-card-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+  /* A logo is contained on its light plate (--mark-plate), never cropped to the circle: 16% keeps a square logo's
+     corners inside it. */
+  .pl-card-mark { object-fit: contain; padding: 16%; box-sizing: border-box; background: var(--mark-plate); box-shadow: inset 0 0 0 1px var(--line); }
   /* A lead's facts: whether a phone and a mailbox reach it (the reach shapes, leads.css's tones), then its rating. */
   .pl-card-reach { flex: none; display: inline-flex; align-items: center; gap: 4px; }
   .pl-card-reach .ld-slot-shape svg { width: 12px; height: 12px; }

@@ -1285,11 +1285,11 @@ test("the peek's folds: the week behind one line in its short hours, and no seco
   assert.equal(byTestId(bare, "peek-week"), null, "no hours, no fold");
 });
 
-// D6: who the company IS comes before which shop this is, so the mark covers the photograph here exactly as it does
-// on the row's tile -- the photograph is what Expand is for. The two are stacked rather than chosen: the layers are
-// both in the band, in paint order, and a mark that fails to load hides its own layer and uncovers the photo. No
-// state decides which one is showing, which is why there is an order to assert at all.
-test("the peek's band: the mark covers the photo, the photo stands alone without one, and the initials wait under both", () => {
+// D6: each surface leads with what it draws best. A row's small square is the logo's size, so the mark is the row's
+// face; the band is a storefront's size, so the photograph is the band and the mark rides it as a chip in its free
+// corner (leads.css). With no photograph the chip sits in the middle of the tint. The layers are stacked rather than
+// chosen: both are in the band, in paint order, and a mark that fails to load takes only its own chip away.
+test("the peek's band: the photograph is the band, the mark rides it as a chip, and alone the chip sits in the tint", () => {
   // The copy we keep, on our own storage (00161): the site's own address never reaches the band.
   const MARK =
     "https://project.supabase.co/storage/v1/object/public/lead-marks/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png";
@@ -1306,8 +1306,16 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
   assert.deepEqual(
     layers({ image_url: PHOTO, mark_url: MARK }),
     ["peek-photo", "peek-mark"],
-    "the mark is painted last, so it covers the photograph",
+    "the mark is painted last, so its chip sits on the photograph",
   );
+  const markOf = (over) => byTestId(band(over), "peek-mark");
+  assert.match(markOf({ image_url: PHOTO, mark_url: MARK }).props.className, /\bon-photo\b/, "a chip in the corner");
+  assert.doesNotMatch(
+    markOf({ mark_url: MARK }).props.className,
+    /\bon-photo\b/,
+    "with no photograph, the chip in the middle of the tint",
+  );
+  assert.equal(markOf({ mark_url: MARK }).props.loading, undefined, "asked for as the peek opens, as the photo is");
   assert.deepEqual(
     layers({ mark_url: MARK }),
     ["peek-mark"],

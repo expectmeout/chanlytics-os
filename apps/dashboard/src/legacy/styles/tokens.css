@@ -166,6 +166,7 @@
   --bg:        oklch(0.985 0.003 80);   /* warm paper */
   --bg-sunken: oklch(0.97 0.004 80);    /* slightly darker, for rails */
   --bg-raised: oklch(1 0 0);            /* cards, popovers */
+  --mark-plate: oklch(1 0 0);           /* a business's logo sits on this (leads.css, clients.css) */
   --bg-hover:  oklch(0.96 0.005 80);
   --bg-active: oklch(0.94 0.006 80);
 
@@ -205,6 +206,9 @@
   --bg:        oklch(0.16 0.005 260);   /* base */
   --bg-sunken: oklch(0.13 0.005 260);
   --bg-raised: oklch(0.2 0.006 260);
+  /* A logo is drawn for a light ground: a dark wordmark on a dark plate is not there. Light in both themes, a step
+     down from white so it does not glare out of a dark list. */
+  --mark-plate: oklch(0.94 0.004 260);
   --bg-hover:  oklch(0.23 0.007 260);
   --bg-active: oklch(0.26 0.008 260);
 

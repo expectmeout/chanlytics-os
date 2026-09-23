@@ -70,11 +70,12 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
             new name until its own arrived, and a photo that failed hid the band's for every lead after it. One that
             fails now hides itself, and what is under it shows. */}
         {vm.tile.image ? <img key={vm.tile.image} className="pk-band-thumb" src={vm.tile.image} alt="" aria-hidden="true" decoding="async" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
-        {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
-            the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
-            that fails to load hides its own layer and uncovers the photo, and no state decides anything (D6). */}
+        {/* The photograph is the band and the mark rides it as a chip in the top-left corner; with no photograph the
+            chip sits in the middle of the tint (leads.css). The row does the opposite, where a small square is the
+            logo's size and not a storefront's. The two are stacked rather than chosen, so a mark that fails to load
+            takes only its own chip away (D6). Eager, as the photo is: it is a few kilobytes from our own storage. */}
         {vm.tile.band ? <img key={vm.tile.band} className="pk-band-photo" src={vm.tile.band} alt="" loading="eager" fetchPriority="high" decoding="async" data-testid="peek-photo" onLoad={(e) => { const t = e && e.currentTarget; if (t && t.classList) t.classList.add("in"); }} onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
-        {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
+        {vm.tile.logo ? <img key={vm.tile.logo} className={`pk-band-mark${vm.tile.band ? " on-photo" : ""}`} src={vm.tile.logo} alt="" decoding="async" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         {/* On a phone Expand is its mark alone (leads.css): the words are its name for a screen reader. */}
         <button type="button" className="pk-band-expand" aria-label={W.expand} data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} /><span className="pk-band-expand-words">{W.expand}</span></button>
         <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>

@@ -2682,6 +2682,14 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
       ROWS[0].tile.initials,
       "the face: its initials, under the listing's photo when there is one",
     );
+    // D6: the mark is the face on a phone too, on its own plate over the photo -- never the photo's circle crop.
+    const faceImgs = (id) =>
+      all(
+        find(cardOf(id), (n) => /\bpl-card-face\b/.test(String(n.props?.className || ""))),
+        (n) => n.type === "img",
+      ).map((n) => [n.props.className, n.props.src]);
+    assert.deepEqual(faceImgs("l1"), [["pl-card-photo pl-card-mark", MARK_KEPT]], "the mark, contained on its plate");
+    assert.deepEqual(faceImgs("l2"), [], "and a lead with neither keeps its initials");
     assert.equal(textOf(find(card, (n) => n.props?.className === "pl-card-name")), "Zilker Strength Lab");
     assert.equal(textOf(byTestId(card, "lead-state")), "Ready", "its state, as a person's row says theirs");
     assert.equal(textOf(byTestId(card, "lead-sub")), ROWS[0].sub, "where it is");
