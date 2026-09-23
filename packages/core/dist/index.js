@@ -140,6 +140,7 @@ import { z as z4 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
 import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -2242,7 +2243,84 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS7 = 864e5;
+var LIST_RULE_FIELDS = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days = z7.object({
+  op: z7.enum(["more_than", "within"]),
+  days: z7.number().int().min(1).max(3650)
+});
+var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
+var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
+var ListConditionSchema = z7.discriminatedUnion("field", [
+  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
+  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
+  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
+  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
+  z7.object({ field: z7.literal("calls"), ...Count.shape }),
+  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
+  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
+]);
+var ListRuleSchema = z7.object({
+  all: z7.array(ListConditionSchema).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS] },
+          from: { type: "string", enum: [...CAME_FROM] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(ListConditionSchema).max(8)
+});
+var DAY_MS8 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -2251,7 +2329,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -2287,9 +2365,9 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2303,17 +2381,17 @@ var SignupSchema = z7.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z7.string().max(200).optional(),
+  password: z8.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z7.string().trim().min(1).max(64).optional(),
+  timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z7.string().trim().max(80).optional()
+  code: z8.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2395,15 +2473,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z8.object({
-  places: z8.array(
-    z8.object({
-      ref: z8.number().int(),
-      criteria: z8.array(
-        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z8.number().int().nullable(),
-      reason: z8.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -2621,7 +2699,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z52 } from "zod";
@@ -2629,7 +2707,8 @@ import { z as z42 } from "zod";
 import { z as z62 } from "zod";
 import { z as z72 } from "zod";
 import { z as z82 } from "zod";
-z9.config({ jitless: true });
+import { z as z92 } from "zod";
+z10.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -5283,9 +5362,11 @@ var STARTER_TEMPLATES = [
 function starterByName(name) {
   return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
 }
+var STARTER_OF = { lapsed: "quiet_30" };
 function starterForTrigger(trigger) {
   if (!trigger) return null;
-  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
+  const own = STARTER_OF[trigger] ?? trigger;
+  return STARTER_TEMPLATES.find((s) => s.trigger === own) ?? null;
 }
 function starterText(s, language) {
   return s.texts[language] ?? s.texts.en_US;
@@ -5399,7 +5480,84 @@ function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
-var DAY_MS72 = 864e5;
+var LIST_RULE_FIELDS2 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS2 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM2 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days2 = z72.object({
+  op: z72.enum(["more_than", "within"]),
+  days: z72.number().int().min(1).max(3650)
+});
+var Count2 = z72.object({ op: z72.enum(["at_least", "at_most"]), n: z72.number().int().min(0).max(1e4) });
+var YesNo2 = z72.object({ op: z72.literal("is"), yes: z72.boolean() });
+var ListConditionSchema2 = z72.discriminatedUnion("field", [
+  z72.object({ field: z72.literal("last_visit"), ...Days2.shape }),
+  z72.object({ field: z72.literal("next_visit"), ...Days2.shape }),
+  z72.object({ field: z72.literal("booked"), ...YesNo2.shape }),
+  z72.object({ field: z72.literal("asked_not_booked"), ...YesNo2.shape }),
+  z72.object({ field: z72.literal("last_heard"), ...Days2.shape }),
+  z72.object({ field: z72.literal("first_contact"), ...Days2.shape }),
+  z72.object({ field: z72.literal("channel"), op: z72.enum(["is", "is_not"]), channel: z72.enum(CHANNELS2) }),
+  z72.object({ field: z72.literal("came_from"), op: z72.enum(["is", "is_not"]), from: z72.enum(CAME_FROM2) }),
+  z72.object({ field: z72.literal("calls"), ...Count2.shape }),
+  z72.object({ field: z72.literal("conversations"), ...Count2.shape }),
+  z72.object({ field: z72.literal("offers_yes"), ...YesNo2.shape })
+]);
+var ListRuleSchema2 = z72.object({
+  all: z72.array(ListConditionSchema2).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA2 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS2.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS2] },
+          from: { type: "string", enum: [...CAME_FROM2] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema2 = z72.object({
+  name: z72.string().trim().min(1).max(60),
+  cannot: z72.string().trim().max(200),
+  all: z72.array(ListConditionSchema2).max(8)
+});
+var DAY_MS82 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -5441,6 +5599,25 @@ var PLAYBOOK_TRIGGERS = [
     cls: "reengage",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  {
+    id: "saved_list",
+    label: "One of your lists",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list you keep"
   }
 ];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
@@ -5452,13 +5629,13 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS82;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
-function playbookRunReach(rows, p, touches, nowMs) {
+function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
   const reach = {
     pool: 0,
     will: 0,
@@ -5478,10 +5655,10 @@ function playbookRunReach(rows, p, touches, nowMs) {
     rows.filter((r) => {
       if (!r.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS72));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS72)) && !r.booked;
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS82));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS82)) && !r.booked;
     })
-  ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed = [];
@@ -5499,7 +5676,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
     reach.will = allowed.length;
     return { eligible: allowed, reach, saidYes };
   }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS72;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS82;
   const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) {
@@ -5577,7 +5754,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS72);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS82);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -5616,9 +5793,9 @@ var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var SignupSchema2 = z72.object({
-  name: z72.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z72.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema2 = z82.object({
+  name: z82.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z82.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -5632,17 +5809,17 @@ var SignupSchema2 = z72.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z72.string().max(200).optional(),
+  password: z82.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z72.string().trim().min(1).max(64).optional(),
+  timezone: z82.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z72.string().trim().max(80).optional()
+  code: z82.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema2 = z72.object({
-  name: z72.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z82.object({
+  name: z82.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z72.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z82.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -5728,15 +5905,15 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z82.object({
-  places: z82.array(
-    z82.object({
-      ref: z82.number().int(),
-      criteria: z82.array(
-        z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })
+var AnswerSchema2 = z92.object({
+  places: z92.array(
+    z92.object({
+      ref: z92.number().int(),
+      criteria: z92.array(
+        z92.object({ key: z92.string(), answer: z92.enum(["pass", "fail", "unknown"]), facts: z92.array(z92.string()) })
       ),
-      email_index: z82.number().int().nullable(),
-      reason: z82.string()
+      email_index: z92.number().int().nullable(),
+      reason: z92.string()
     })
   )
 });
@@ -5867,7 +6044,7 @@ function judgeOpId(runId, fromOffset, batch) {
 }
 
 // ../db/dist/index.js
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z53 } from "zod";
@@ -5875,7 +6052,8 @@ import { z as z43 } from "zod";
 import { z as z63 } from "zod";
 import { z as z73 } from "zod";
 import { z as z83 } from "zod";
-z10.config({ jitless: true });
+import { z as z93 } from "zod";
+z11.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -7154,7 +7332,84 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS73 = 864e5;
+var LIST_RULE_FIELDS3 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS3 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM3 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days3 = z73.object({
+  op: z73.enum(["more_than", "within"]),
+  days: z73.number().int().min(1).max(3650)
+});
+var Count3 = z73.object({ op: z73.enum(["at_least", "at_most"]), n: z73.number().int().min(0).max(1e4) });
+var YesNo3 = z73.object({ op: z73.literal("is"), yes: z73.boolean() });
+var ListConditionSchema3 = z73.discriminatedUnion("field", [
+  z73.object({ field: z73.literal("last_visit"), ...Days3.shape }),
+  z73.object({ field: z73.literal("next_visit"), ...Days3.shape }),
+  z73.object({ field: z73.literal("booked"), ...YesNo3.shape }),
+  z73.object({ field: z73.literal("asked_not_booked"), ...YesNo3.shape }),
+  z73.object({ field: z73.literal("last_heard"), ...Days3.shape }),
+  z73.object({ field: z73.literal("first_contact"), ...Days3.shape }),
+  z73.object({ field: z73.literal("channel"), op: z73.enum(["is", "is_not"]), channel: z73.enum(CHANNELS3) }),
+  z73.object({ field: z73.literal("came_from"), op: z73.enum(["is", "is_not"]), from: z73.enum(CAME_FROM3) }),
+  z73.object({ field: z73.literal("calls"), ...Count3.shape }),
+  z73.object({ field: z73.literal("conversations"), ...Count3.shape }),
+  z73.object({ field: z73.literal("offers_yes"), ...YesNo3.shape })
+]);
+var ListRuleSchema3 = z73.object({
+  all: z73.array(ListConditionSchema3).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA3 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS3.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS3] },
+          from: { type: "string", enum: [...CAME_FROM3] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema3 = z73.object({
+  name: z73.string().trim().min(1).max(60),
+  cannot: z73.string().trim().max(200),
+  all: z73.array(ListConditionSchema3).max(8)
+});
+var DAY_MS83 = 864e5;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -7163,7 +7418,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS83;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
@@ -7199,9 +7454,9 @@ var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var SignupSchema3 = z73.object({
-  name: z73.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z73.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema3 = z83.object({
+  name: z83.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z83.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -7215,17 +7470,17 @@ var SignupSchema3 = z73.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z73.string().max(200).optional(),
+  password: z83.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z73.string().trim().min(1).max(64).optional(),
+  timezone: z83.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z73.string().trim().max(80).optional()
+  code: z83.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema3 = z73.object({
-  name: z73.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z83.object({
+  name: z83.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z73.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z83.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -7307,15 +7562,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z83.object({
-  places: z83.array(
-    z83.object({
-      ref: z83.number().int(),
-      criteria: z83.array(
-        z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })
+var AnswerSchema3 = z93.object({
+  places: z93.array(
+    z93.object({
+      ref: z93.number().int(),
+      criteria: z93.array(
+        z93.object({ key: z93.string(), answer: z93.enum(["pass", "fail", "unknown"]), facts: z93.array(z93.string()) })
       ),
-      email_index: z83.number().int().nullable(),
-      reason: z83.string()
+      email_index: z93.number().int().nullable(),
+      reason: z93.string()
     })
   )
 });
@@ -8267,7 +8522,10 @@ async function runPlaybook(ports, cmd) {
   if (!tpl || tpl.meta_status !== "approved") return off("template_not_approved");
   if (!ctx.health.canSend) return off("number_flagged");
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
-  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
+  const trig = triggerOf(p.trigger);
+  if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
+  const listIds = trig?.kind === "saved" ? p.list_id ? ctx.lists.get(p.list_id) ?? null : null : null;
+  if (trig?.kind === "saved" && !listIds) return off("no_list");
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -8277,7 +8535,8 @@ async function runPlaybook(ports, cmd) {
       cadence_days: p.cadence_days
     },
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
-    now.getTime()
+    now.getTime(),
+    listIds
   );
   let eligible = drawn.eligible;
   const reach = { ...drawn.reach };
@@ -8594,14 +8853,22 @@ function int(v, fallback, min, max, what) {
     throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
 }
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function checkPlaybook(ports, body) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
   if (!trig)
     throw new AppError(
       "validation",
-      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday."
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists."
     );
+  let listName = null;
+  const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
+  if (trig.kind === "saved") {
+    if (!listId || !UUID3.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
+    listName = await ports.listName(listId);
+    if (!listName) throw new AppError("not_found", "List not found.", 404);
+  }
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
@@ -8609,9 +8876,11 @@ async function checkPlaybook(ports, body) {
     visits: trig.kind === "visit"
   });
   return {
-    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
-    name: name || playbookName(trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
+    // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
+    // list's own name for a playbook on a list.
+    name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
+    list_id: listId,
     template_id: tpl.id,
     template_name: tpl.name,
     template_language: tpl.language,
@@ -41783,14 +42052,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z11 = zip.trim();
+  const z12 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z11) return { lat: row[1], lng: row[2] };
-    if (row[0] < z11) lo = mid + 1;
+    if (row[0] === z12) return { lat: row[1], lng: row[2] };
+    if (row[0] < z12) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;

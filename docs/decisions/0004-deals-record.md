@@ -128,10 +128,10 @@ CHECKs widened by drop-and-add with the full list
 recreated whole when a returned column is added, _"the signature the same, so
 every caller keeps calling it"_
 (`00138_a_person_says_where_they_came_from.sql:34-39`, the columns at `:39-80`).
-The next free migration number is 00155: 00153 is the held smart-lists PR
-(`design/lists-that-keep-themselves`) and 00154 is the proposal link on a
+The next free migration number is 00156: 00154 is the proposal link on a
 person (PR #888, `feat/a-person-may-have-a-proposal`), a sibling fact this
-note composes with below.
+note composes with below, and 00155 the lists that keep themselves current
+(PR #874).
 
 ## Decision
 
@@ -245,7 +245,7 @@ window rules, until an Autonomy class for it is decided.
 ## Shape
 
 ```sql
--- 00155 · A deal is a record.
+-- 00156 · A deal is a record.
 create table public.deals (
   id             uuid primary key default gen_random_uuid(),
   tenant_id      uuid not null references public.tenants (id) on delete cascade,
@@ -349,7 +349,7 @@ export function dealsAreAThing(rows: readonly PersonRowVM[], consultFirst: reado
 The README rule governs every step: the two apps deploy independently, and the
 database is pushed by hand, so each must be correct whichever goes first.
 
-**1 · The table, its door, and the words, read by nothing.** Migration 00155:
+**1 · The table, its door, and the words, read by nothing.** Migration 00156:
 the table, the unique index, the erasure trigger, the door, the ledger CHECKs,
 the people read's columns; `EVENT_KINDS`, `DECISION_VERBS` and
 `DECISION_SUBJECTS` in contracts; `schema-sets.generated.ts` and the database
@@ -426,9 +426,9 @@ the fifth joins them. `standing` is untouched: a deal is not a standing.
 - **Two PRs on one page.** Steps 2 and 3 both touch the person page and
   People; each is green alone. Re-test on a moved main before merging the
   second.
-- **The number.** 00153 is held for the smart lists and 00154 is the proposal
-  link (#888); this note takes 00155. If either lands renumbered, re-check
-  before pushing.
+- **The number.** 00154 is the proposal link (#888) and 00155 the smart lists
+  (#874), both on main and in production; this note takes 00156. If a later
+  number lands first, re-check before pushing.
 - **The kinds lint.** The four kinds must arrive with their SQL emitter in
   the same change, or the lint fails them as dead.
 - **The hook order.** A new section on the person page holds hooks; the page

@@ -37,7 +37,7 @@ export function isDealStage(s: unknown): s is DealStage {
   return typeof s === "string" && (DEAL_STAGES as readonly string[]).includes(s);
 }
 
-/** The columns the people read carries for a person (people_list, 00155): the newest open or current deal, else the newest of any. */
+/** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
 export interface DealColumns {
   deal_id: string | null;
   deal_stage: string | null;

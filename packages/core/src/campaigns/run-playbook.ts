@@ -75,8 +75,13 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   if (!ctx.health.canSend) return off("number_flagged");
   // One run per local day: a second ask says so and records nothing twice.
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
-  // A visit playbook without a calendar has nothing to read: off, and the run says so.
-  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
+  // A visit playbook, or one on a list that reads the calendar (Lapsed), without a calendar has nothing to read: off,
+  // and the run says so.
+  const trig = triggerOf(p.trigger);
+  if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
+  // A playbook on one of the workspace's lists: who is on it now. A list deleted under it runs nobody, and says so.
+  const listIds = trig?.kind === "saved" ? (p.list_id ? (ctx.lists.get(p.list_id) ?? null) : null) : null;
+  if (trig?.kind === "saved" && !listIds) return off("no_list");
 
   // Who the run reaches, with the number's daily limit as a ceiling -- and who
   // it leaves out, and why, counted as it goes (playbookRunReach): the run
@@ -92,6 +97,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     },
     { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
     now.getTime(),
+    listIds,
   );
   let eligible = drawn.eligible;
   const reach: RunReach = { ...drawn.reach };

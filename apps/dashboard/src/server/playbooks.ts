@@ -3,6 +3,7 @@ import {
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_TRIGGERS,
+  savedListIds,
   playbookRunReach,
   toPersonRowVM,
   type PersonRowDto,
@@ -11,7 +12,7 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
-import { touchesSince } from "@chanlytics/db";
+import { listRow, savedListsFor, touchesSince } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
@@ -28,7 +29,7 @@ import { everyone } from "@/server/people";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
+  "id, name, trigger, list_id, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at";
 
 /** One run on a card's history: the day it ran for, and what it earned. */
 export interface RunSummary {
@@ -112,7 +113,12 @@ export async function triggerPools(
   touched: Record<string, string>,
   tz: string,
   now: Date,
-): Promise<{ pools: Record<string, TriggerPool | null>; calendar: "ok" | "unavailable" | "none" }> {
+): Promise<{
+  pools: Record<string, TriggerPool | null>;
+  calendar: "ok" | "unavailable" | "none";
+  /** The lists a playbook may run on, each counted under "list:<id>"; null when they could not be read. */
+  lists: { id: string; name: string; smart: boolean }[] | null;
+}> {
   // The pools are a reading, never the page: a read that fails leaves the
   // playbooks themselves untouched. A moment it could not count is null, never
   // a zero: the page drew empty pools as "0 of 0" and "nobody to send to", and
@@ -125,7 +131,7 @@ export async function triggerPools(
       "playbook_pools_people_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
-    return { pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])), calendar: "none" };
+    return { pools: Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null])), calendar: "none", lists: null };
   }
   const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
     console.error(
@@ -146,18 +152,15 @@ export async function triggerPools(
   // week's breath, and who it names and leaves out whatever the week. A moment
   // the calendar names is not counted when the calendar could not be read.
   const pools: Record<string, TriggerPool | null> = {};
-  for (const t of PLAYBOOK_TRIGGERS) {
-    if (t.kind === "visit" && !pv) {
-      pools[t.id] = null;
-      continue;
-    }
+  const count = (trigger: PlaybookDto["trigger"], listIds: ReadonlySet<string> | null): TriggerPool => {
     const { reach, saidYes } = playbookRunReach(
       vms,
-      { trigger: t.id as PlaybookDto["trigger"], cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 },
+      { trigger, cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 },
       breath,
       now.getTime(),
+      listIds,
     );
-    pools[t.id] = {
+    return {
       candidates: reach.will,
       held: reach.heardAny,
       pool: reach.pool,
@@ -166,17 +169,49 @@ export async function triggerPools(
       noNumber: reach.noNumber,
       saidYes,
     };
+  };
+  for (const t of PLAYBOOK_TRIGGERS) {
+    // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;
+    // one of the workspace's lists is counted per list, below.
+    if (t.kind === "saved" || ((t.kind === "visit" || t.id === "lapsed") && !pv)) {
+      pools[t.id] = null;
+      continue;
+    }
+    pools[t.id] = count(t.id as PlaybookDto["trigger"], null);
   }
-  return { pools, calendar };
+  // Each list the workspace keeps, counted as a playbook on it would count it: who is on it (savedListIds), then the
+  // runner's own rules.
+  let lists: { id: string; name: string; smart: boolean }[] | null = null;
+  try {
+    const kept = await savedListsFor(ctx.supabase, tenantId);
+    lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null }));
+    for (const l of kept)
+      pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, now.getTime(), calendar === "ok"));
+  } catch (e) {
+    console.error(
+      "playbook_pools_lists_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
+  }
+  return { pools, calendar, lists };
 }
 
 export type PlaybookListRow = PlaybookDto & { totals: PlaybookTotals };
 
 export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promise<PlaybookListRow[]> {
-  const [{ data: rows, error }, runs] = await Promise.all([
-    ctx.supabase.from("playbooks").select(COLUMNS).eq("tenant_id", tenantId).order("created_at", { ascending: false }),
-    listRuns(ctx, tenantId),
-  ]);
+  const read = (columns: string) =>
+    ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  const [first, runs] = await Promise.all([read(COLUMNS), listRuns(ctx, tenantId)]);
+  // A database 00155 has not reached has no list_id: read again without it, and no playbook runs on a list.
+  let { data: rows, error } = first as unknown as {
+    data: Record<string, unknown>[] | null;
+    error: { message: string } | null;
+  };
+  if (error && /list_id/.test(error.message) && /does not exist|could not find/i.test(error.message))
+    ({ data: rows, error } = (await read(COLUMNS.replace("list_id, ", ""))) as unknown as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    });
   if (error) throw new Error(error.message);
   const totals = new Map<string, PlaybookTotals>();
   for (const b of runs) {
@@ -216,11 +251,12 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
   }
   return (rows ?? []).map((r) => ({
     ...(r as unknown as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state">),
+    list_id: (r.list_id as string | null | undefined) ?? null,
     trigger: r.trigger as PlaybookTrigger,
     policy_class: r.policy_class as PlaybookPolicyClass,
     state: r.state as PlaybookDto["state"],
     params: parseParamSpecs(r.params),
-    totals: totals.get(r.id) ?? {
+    totals: totals.get(r.id as string) ?? {
       runs: 0,
       sent: 0,
       delivered: 0,
@@ -241,5 +277,15 @@ export async function checkPlaybookInput(
   tenantId: string,
   body: Record<string, unknown> | null,
 ): Promise<PlaybookInput> {
-  return checkPlaybook(templateValuePorts(ctx, tenantId), body);
+  return checkPlaybook(
+    {
+      ...templateValuePorts(ctx, tenantId),
+      // A list of this workspace, read under row security: another workspace's list is no list.
+      listName: async (id) => {
+        const list = await listRow(ctx.supabase, id);
+        return list && list.tenant_id === tenantId ? list.name : null;
+      },
+    },
+    body,
+  );
 }

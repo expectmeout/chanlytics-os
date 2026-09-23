@@ -7,6 +7,7 @@ import { z as z4 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
 import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -1316,7 +1317,84 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS7 = 864e5;
+var LIST_RULE_FIELDS = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days = z7.object({
+  op: z7.enum(["more_than", "within"]),
+  days: z7.number().int().min(1).max(3650)
+});
+var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
+var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
+var ListConditionSchema = z7.discriminatedUnion("field", [
+  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
+  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
+  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
+  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
+  z7.object({ field: z7.literal("calls"), ...Count.shape }),
+  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
+  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
+]);
+var ListRuleSchema = z7.object({
+  all: z7.array(ListConditionSchema).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS] },
+          from: { type: "string", enum: [...CAME_FROM] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(ListConditionSchema).max(8)
+});
+var DAY_MS8 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1325,7 +1403,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -1377,9 +1455,9 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -1393,17 +1471,17 @@ var SignupSchema = z7.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z7.string().max(200).optional(),
+  password: z8.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z7.string().trim().min(1).max(64).optional(),
+  timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z7.string().trim().max(80).optional()
+  code: z8.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -1594,15 +1672,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z8.object({
-  places: z8.array(
-    z8.object({
-      ref: z8.number().int(),
-      criteria: z8.array(
-        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z8.number().int().nullable(),
-      reason: z8.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -3252,8 +3330,14 @@ function replySubject(parentSubject) {
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
+var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
+  const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
+  const href = m.slice(0, m.length - trail.length);
+  return `<a href="${href}">${href}</a>${trail}`;
+});
 function emailHtml(text) {
-  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("\n");
+  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
 }
 function messageIdHeader(id) {
   const s = oneLine(id ?? "");

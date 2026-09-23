@@ -1471,3 +1471,60 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     no_health_advice: true,
   });
 });
+
+test("get_person says where the proposal lives (00154), so a card can carry the address into a reply; and nothing when there is none", async () => {
+  const wrote = iso(NOW.getTime() - 2 * 3600_000);
+  const rosaRow = {
+    id: P1,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+13055550100",
+    consent: "opted_in",
+    consent_source: null,
+    consent_updated_at: null,
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: C1,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: wrote,
+    last_message_at: wrote,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "How much would the move be?",
+    last_inbound_at: wrote,
+    last_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: wrote,
+    earliest_row_at: wrote,
+    has_backfill: false,
+    has_chat: true,
+    queued_reply_at: null,
+  };
+  const rpcs = { ...RPCS, people_list: () => [rosaRow] };
+  const withLink = tables({
+    contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
+  });
+  const r = await runTool(newToolContext(ctxFor(withLink, rpcs), A, "operator", TZ, NOW), {
+    name: "get_person",
+    input: { contact_id: P1 },
+  });
+  assert.equal(r.isError, false, r.result);
+  const person = JSON.parse(r.result);
+  assert.ok(person.about.includes("Proposal: docs.example.com"), `About: ${person.about}`);
+
+  const without = await runTool(newToolContext(ctxFor(tables(), rpcs), A, "operator", TZ, NOW), {
+    name: "get_person",
+    input: { contact_id: P1 },
+  });
+  assert.equal(without.isError, false, without.result);
+  assert.ok(!JSON.parse(without.result).about.some((a) => a.startsWith("Proposal:")), "none on file: no row");
+});

@@ -1,4 +1,4 @@
--- 00155 · A deal is a record.
+-- 00156 · A deal is a record.
 --
 -- docs/decisions/0004-deals-record.md. One row per engagement a person is
 -- deciding on or has taken: a proposal out, a client, passed, ended. Written

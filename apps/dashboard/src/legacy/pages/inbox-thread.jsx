@@ -504,6 +504,19 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           ],
           [
+            // The owner's proposal for this person (00154), into the box in the words the contract keeps
+            // (window.__proposalMessage): the thread is where a pricing question is answered, and the page was a
+            // detour. Only where free text can go, never to someone who said stop, only on a real thread; the hint
+            // says where the link lives (contracts linkHost).
+            ...(thread.real && thread.proposalUrl && thread.windowOpen && !thread.optedOut && window.__proposalMessage
+              ? [{
+                  label: "Send the proposal",
+                  hint: window.__linkHost ? window.__linkHost(thread.proposalUrl) : "",
+                  icon: "external",
+                  onClick: () => window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: window.__proposalMessage(thread.proposalUrl), link: thread.proposalUrl } })),
+                  gate: window.gate("approve", "put the proposal link in the reply"),
+                }]
+              : []),
             // clientId is the contact behind the thread, so these only render
             // when there is actually somewhere to go (a phone-only caller has none).
             ...(thread.clientId ? [{ label: "Open profile", icon: "users", onClick: () => onOpenClient(thread.clientId) }] : []),
@@ -1456,10 +1469,24 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     // A reply that waited on a yes (an email going to a different address than it came from) is sent from the
     // toast, after this box was told to keep its words: it lets go of them when that send is accepted.
     const onSent = (e) => { if (e && e.detail && e.detail.threadId === thread.id) write(""); };
+    // The header's "Send the proposal" arrives with the words (00154): an empty box takes the sentence, a box with
+    // words in it takes the address on its own line under them, and the cursor lands in the box either way.
+    const onCompose = (e) => {
+      const d = (e && e.detail) || {};
+      if (typeof d.text !== "string") return;
+      write(text && text.trim() ? `${text.trimEnd()}\n${d.link || d.text}` : d.text);
+      if (taRef.current) taRef.current.focus();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("inbox:focus-composer", onFocus);
     window.addEventListener("inbox:reply-sent", onSent);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); window.removeEventListener("inbox:reply-sent", onSent); };
+    window.addEventListener("inbox:compose", onCompose);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("inbox:focus-composer", onFocus);
+      window.removeEventListener("inbox:reply-sent", onSent);
+      window.removeEventListener("inbox:compose", onCompose);
+    };
   }, [text, thread.id]);
 
   // The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in.

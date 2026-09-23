@@ -78,6 +78,8 @@ export interface PlaybookRow {
   cadence_days: number;
   created_by: string | null;
   last_run_for: string | null;
+  /** The list a saved_list playbook runs on (00155); null otherwise, and when its list was deleted. */
+  list_id?: string | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -93,6 +95,8 @@ export interface RunContext {
   calendar: "ok" | "unavailable" | "none";
   /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
   visits: Map<string, PersonVisitsDto>;
+  /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
+  lists: Map<string, ReadonlySet<string>>;
 }
 
 /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
@@ -114,7 +118,7 @@ export type RunOutcome =
   | {
       outcome: "off";
       mode: string;
-      skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar";
+      skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list";
     }
   | { outcome: "failed"; error: string };
 
@@ -175,6 +179,7 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
   /** Everyone, with their visits as of now, the way the People page counts them. */
   people(now: Date): Promise<PersonRowVM[]>;
   /** A list kept by hand: its name and who is on it; null when there is no such list here. */
+  /** A saved list and who is on it: the ids kept on it, or everyone a smart list's rule holds for today. */
   savedList(id: string): Promise<{ name: string; memberIds: string[] } | null>;
   /** The active WhatsApp number's health as Meta rated it; null when none is connected. */
   number(): Promise<NumberHealth | null>;

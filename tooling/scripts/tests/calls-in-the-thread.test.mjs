@@ -18,6 +18,8 @@ import {
   stateOf,
   memberWords,
   frameWhisper,
+  linkHost,
+  proposalMessage,
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
 
@@ -761,4 +763,66 @@ test("every message carries its own id on the page, the call's card too, so the 
     ["m1", "m2"],
   );
   assert.equal(cardOf(tree).props["data-mid"], "e1");
+});
+
+/* ------------------------------ the proposal, from the header ------------------------------ */
+
+test("a proposal on file (00154): the header's Actions put its words in the box -- only on a real thread with an open window, never for someone who said stop", () => {
+  const url = "https://www.docs.example.com/p/emily";
+  globalThis.window.__proposalMessage = proposalMessage;
+  globalThis.window.__linkHost = linkHost;
+  const events = [];
+  const dispatched = globalThis.window.dispatchEvent;
+  globalThis.window.dispatchEvent = (e) => {
+    events.push(e);
+    return true;
+  };
+  try {
+    const withLink = (contactOver = {}, convOver = {}) =>
+      toInboxThreadVM(
+        conv([m("m1", 60)], {
+          last_wa_inbound_at: at(60),
+          contact: { ...conv([]).contact, proposal_url: url, ...contactOver },
+          ...convOver,
+        }),
+        null,
+        ZONE,
+        NOW,
+      );
+    const vm = withLink();
+    assert.equal(vm.proposalUrl, url, "the view model carries it");
+    assert.equal(vm.windowOpen, true);
+    const menuOf = (tree) => find(tree, (n) => n.props?.label === "Actions" && Array.isArray(n.props?.items));
+    const menu = menuOf(draw(vm));
+    assert.ok(menu, "the header's Actions menu");
+    const item = menu.props.items.find((i) => i.label === "Send the proposal");
+    assert.ok(item, `the item is there: ${menu.props.items.map((i) => i.label)}`);
+    assert.equal(item.hint, "docs.example.com", "the hint says where the link lives");
+    item.onClick();
+    assert.equal(events.length, 1, "one event");
+    assert.equal(events[0].type, "inbox:compose");
+    assert.deepEqual(events[0].detail, { text: proposalMessage(url), link: url });
+
+    const labels = (vm2) => menuOf(draw(vm2)).props.items.map((i) => i.label);
+    assert.ok(
+      !labels(toInboxThreadVM(conv([m("m1", 60)], { last_wa_inbound_at: at(60) }), null, ZONE, NOW)).includes(
+        "Send the proposal",
+      ),
+      "none on file: no item",
+    );
+    assert.ok(!labels(withLink({ consent: "opted_out" })).includes("Send the proposal"), "said stop: no item");
+    const shut = withLink({}, { last_wa_inbound_at: at(1500) });
+    assert.equal(shut.windowOpen, false, "a day and an hour since they wrote");
+    assert.ok(!labels(shut).includes("Send the proposal"), "a shut window: no item, the box offers the template");
+    assert.equal(
+      toInboxThreadVM(conv([m("m1", 60)], { contact: { ...conv([]).contact, proposal_url: "  " } }), null, ZONE, NOW)
+        .proposalUrl,
+      null,
+      "blank is none",
+    );
+  } finally {
+    globalThis.window.dispatchEvent = dispatched;
+    delete globalThis.window.__proposalMessage;
+    delete globalThis.window.__linkHost;
+  }
 });

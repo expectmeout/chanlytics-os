@@ -154,7 +154,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LEAD_SUPPRESSION_KINDS>, SchemaSet<"lead_suppressions.kind">>>,
   Holds<Exactly<Of<typeof LEAD_SUPPRESSION_WHATS>, SchemaSet<"lead_suppressions.what">>>,
 
-  // A deal is a record (00155): its stage, how an amount recurs, and who wrote it.
+  // A deal is a record (00156): its stage, how an amount recurs, and who wrote it.
   Holds<Exactly<Of<typeof DEAL_STAGES>, SchemaSet<"deals.stage">>>,
   Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
   Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,

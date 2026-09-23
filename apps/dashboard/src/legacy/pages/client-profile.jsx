@@ -637,6 +637,85 @@ const PersonEmail = ({ p, canEdit, flash }) => {
   );
 };
 
+// The owner's proposal for this person -- a link, never a file (00154) -- in the About list under the address: said
+// once, changed where it is said. Someone who may change it sees where the link lives (its host, the whole address on
+// hover, opening in a new tab) with a quiet pencil, or "Add a proposal link" when there is none; someone who may not
+// sees the host, or no row at all. What is wrong with a typed address is said under the field before a round trip
+// (whyNotALink). The send is not here: it lives in Right now, beside the booking link, where the page's acts are.
+const PersonProposal = ({ p, canEdit, flash }) => {
+  const [editing, setEditing] = useStateP(false);
+  const [value, setValue] = useStateP("");
+  const [busy, setBusy] = useStateP(false);
+  const [problem, setProblem] = useStateP(null);
+  const url = p.proposal ? p.proposal.url : null;
+  useEffectP(() => { setEditing(false); setProblem(null); }, [p.id, url]);
+  const open = () => { setValue(url || ""); setProblem(null); setEditing(true); };
+  const save = async () => {
+    if (!window.__setPersonDetails || busy) return;
+    const next = value.trim();
+    if (next === (url || "")) { setEditing(false); return; }
+    const why = next && window.__whyNotALink ? window.__whyNotALink(next) : null;
+    if (why) { setProblem(why); return; }
+    setBusy(true);
+    const r = await window.__setPersonDetails(p.id, { proposal: next });
+    setBusy(false);
+    if (!r.ok) { setProblem(r.message || "Could not save the link."); return; }
+    setEditing(false);
+    flash({ msg: next ? <>Proposal link saved — the receptionist sends it when they ask</> : <>Proposal link removed</> });
+  };
+  if (!editing) {
+    return (
+      <span className="cl-prof-email" data-testid="person-proposal">
+        {url && (
+          <a className="cl-prof-email-val" href={url} target="_blank" rel="noopener noreferrer" title={url} data-testid="person-proposal-link">
+            {p.proposal.host}
+          </a>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            className={`cl-prof-rename ${url ? "" : "is-plain"}`}
+            title={url ? "Change the proposal link" : "Add a proposal link"}
+            aria-label={url ? "Change the proposal link" : "Add a proposal link"}
+            onClick={open}
+            data-testid="person-proposal-edit"
+          >
+            <Icon name="edit" size={11} />
+            {!url && <span className="cl-prof-rename-word">Add a proposal link</span>}
+          </button>
+        )}
+      </span>
+    );
+  }
+  return (
+    <span className="cl-prof-email editing" data-testid="person-proposal">
+      <input
+        className="cl-prof-email-input"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        autoFocus
+        value={value}
+        placeholder="https://…"
+        maxLength={500}
+        disabled={busy}
+        aria-label="Their proposal link"
+        aria-invalid={problem ? "true" : undefined}
+        data-testid="person-proposal-input"
+        onChange={(e) => { setValue(e.target.value); setProblem(null); }}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      {problem && <span className="cl-prof-email-problem" role="alert" data-testid="person-proposal-problem">{problem}</span>}
+      <span className="cl-prof-name-acts">
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-proposal-save">{busy ? "Saving…" : "Save"}</button>
+      </span>
+    </span>
+  );
+};
+
 // The owner's notes: facts the receptionist uses when this person writes or
 // calls — who they see, what they like, what not to bring up. Never sent, never
 // read aloud. The section's label says who reads them; the foot says only the count
@@ -697,7 +776,8 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   const [busy, setBusy] = useStateP(false);
   const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
   const on = saved.filter((s) => s.ids.includes(personId));
-  const off = saved.filter((s) => !s.ids.includes(personId));
+  // A smart list's rule says who is on it: it is shown when it holds for them, and never offered to put them on.
+  const off = saved.filter((s) => !s.rule && !s.ids.includes(personId));
   const who = first === "them" ? "This person" : first;
   const change = async (fn, msg) => {
     if (!window.__lists || busy) return;
@@ -738,7 +818,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
         {on.map((s) => (
           <span key={s.id} className="seg-chip" data-testid="person-list-chip">
             <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
-            {canEdit && (
+            {canEdit && !s.rule && (
               <button
                 type="button"
                 className="cl-seg-filter-x"
@@ -1179,6 +1259,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // not gets it only when there is one.
   const aboutFacts = p.about.filter((a) => !said.has(a.k));
   if (canRecord && !aboutFacts.some((a) => a.k === "Email")) aboutFacts.unshift({ k: "Email", v: "" });
+  // The proposal is the other About fact changed here (PersonProposal): under the address, and its send is Right now's.
+  if (canRecord && !aboutFacts.some((a) => a.k === "Proposal")) {
+    aboutFacts.splice(aboutFacts.findIndex((a) => a.k === "Email") + 1, 0, { k: "Proposal", v: "" });
+  }
   const aboutRows = [history, ...aboutFacts];
   // The role, said once for the rail: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
@@ -1252,6 +1336,24 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                     <Icon name="calendar" size={12} /> {p.bookingLinkAction.label}
                   </button>
                 )}
+                {/* The owner's priced answer for this person, sent the way the booking link is: the composer opens with
+                    the words the contract keeps (proposalMessage); nothing is sent from here. Only where free text can
+                    go (proposalAction.ready): a closed WhatsApp window has no proposal template to fall back on, and
+                    the rail's Reply window row already says so. Never for someone who said stop. */}
+                {p.openThread && p.proposal && p.proposalAction && p.proposalAction.ready && canRecord && p.consent.state !== "opted_out" && !p.consent.dnc && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    data-testid="send-proposal"
+                    title={p.proposalAction.title}
+                    onClick={() => {
+                      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: window.__proposalMessage(p.proposal.url) })); } catch { /* nothing to carry */ }
+                      window.CHANLY.nav(p.openThread);
+                    }}
+                  >
+                    <Icon name="external" size={12} /> {p.proposalAction.label}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1274,7 +1376,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               <div className="cl-prof-attr" key={a.k}>
                 <span className="cl-prof-attr-key">{a.k}</span>
                 <span className="cl-prof-attr-val">
-                  {a.k === "Email" ? <PersonEmail p={p} canEdit={canRecord} flash={ppFlash} /> : a.v}
+                  {a.k === "Email" ? <PersonEmail p={p} canEdit={canRecord} flash={ppFlash} /> : a.k === "Proposal" ? <PersonProposal p={p} canEdit={canRecord} flash={ppFlash} /> : a.v}
                   {/* The next visit opens its day on the Calendar; the row opened nothing. */}
                   {a.k === "Next visit" && p.nextVisitDate && (
                     <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>

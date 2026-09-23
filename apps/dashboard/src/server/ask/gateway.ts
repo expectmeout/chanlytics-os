@@ -26,7 +26,7 @@ export interface GatewayCall {
    * omits it and gets "ask"; the two lead purposes name themselves, and only
    * they may carry a format -- the edge strips one from an Ask turn.
    */
-  purpose?: "ask" | "lead_draft" | "lead_suggest";
+  purpose?: "ask" | "lead_draft" | "lead_suggest" | "list_draft";
   request: {
     model?: string;
     max_tokens: number;

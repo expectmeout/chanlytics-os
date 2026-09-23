@@ -24,8 +24,10 @@ const DAY_MS = 86_400_000;
  * What starts a playbook. A list trigger sends to a list that keeps itself
  * current; the cadence trigger to everyone, on a rhythm; a visit trigger to
  * the people the calendar names for one day — the day before an appointment,
- * the day after a visit. The reminder runs under the Booking row of the
- * Autonomy pane: the setting that governs bookings governs their reminders.
+ * the day after a visit; a saved trigger to one of the workspace's own lists,
+ * named on the playbook (list_id, 00155). The reminder runs under the Booking
+ * row of the Autonomy pane: the setting that governs bookings governs their
+ * reminders.
  */
 export const PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -69,6 +71,25 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next",
   },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked",
+  },
+  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  {
+    id: "saved_list",
+    label: "One of your lists",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list you keep",
+  },
 ] as const;
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
@@ -101,6 +122,8 @@ export interface PlaybookDto {
   id: string;
   name: string;
   trigger: PlaybookTrigger;
+  /** The list a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
+  list_id: string | null;
   template_id: string;
   template_name: string;
   template_language: string;
@@ -143,8 +166,9 @@ export function eligibleForPlaybook(
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
+  listIds: ReadonlySet<string> | null = null,
 ): PersonRowVM[] {
-  return playbookRunReach(rows, p, touches, nowMs).eligible;
+  return playbookRunReach(rows, p, touches, nowMs, listIds).eligible;
 }
 
 /**
@@ -191,6 +215,8 @@ export function playbookRunReach(
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
+  /** Who is on the list a saved_list playbook runs on (list-rules.ts savedListIds); none when it names no list. */
+  listIds: ReadonlySet<string> | null = null,
 ): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number } {
   const reach: RunReach = {
     pool: 0,
@@ -220,7 +246,9 @@ export function playbookRunReach(
             !r.booked
           );
         })
-      : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+      : t.kind === "saved"
+        ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
+        : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed: PersonRowVM[] = [];
@@ -571,7 +599,7 @@ export function poolWords(trigger: string): string {
   const t = triggerOf(trigger);
   if (!t) return "";
   if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
-  return t.list ? "on the list" : "in People";
+  return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
 
 /**

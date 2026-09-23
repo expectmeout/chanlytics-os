@@ -95,8 +95,8 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   for (const k of ["POST segments", "PUT segments/[id]", "DELETE segments/[id]"])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      ["people"],
-      `${k}: the chips are the server's`,
+      ["people", "broadcasts", "playbooks"],
+      `${k}: the chips are the server's, and a list is an audience and a playbook's moment too`,
     );
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installLists();"));
 });

@@ -3290,6 +3290,7 @@ export type Database = {
           id: string
           last_run_at: string | null
           last_run_for: string | null
+          list_id: string | null
           name: string
           params: Json
           policy_class: string
@@ -3311,6 +3312,7 @@ export type Database = {
           id?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          list_id?: string | null
           name: string
           params?: Json
           policy_class: string
@@ -3332,6 +3334,7 @@ export type Database = {
           id?: string
           last_run_at?: string | null
           last_run_for?: string | null
+          list_id?: string | null
           name?: string
           params?: Json
           policy_class?: string
@@ -3345,6 +3348,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "playbooks_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "playbooks_template_id_fkey"
             columns: ["template_id"]
@@ -3490,6 +3500,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          rule: Json | null
           tenant_id: string
           updated_at: string
         }
@@ -3498,6 +3509,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
+          rule?: Json | null
           tenant_id: string
           updated_at?: string
         }
@@ -3506,6 +3518,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+          rule?: Json | null
           tenant_id?: string
           updated_at?: string
         }

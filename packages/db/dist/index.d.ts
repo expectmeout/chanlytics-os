@@ -3288,6 +3288,7 @@ type Database = {
                     id: string;
                     last_run_at: string | null;
                     last_run_for: string | null;
+                    list_id: string | null;
                     name: string;
                     params: Json;
                     policy_class: string;
@@ -3309,6 +3310,7 @@ type Database = {
                     id?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    list_id?: string | null;
                     name: string;
                     params?: Json;
                     policy_class: string;
@@ -3330,6 +3332,7 @@ type Database = {
                     id?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
+                    list_id?: string | null;
                     name?: string;
                     params?: Json;
                     policy_class?: string;
@@ -3343,6 +3346,13 @@ type Database = {
                     updated_at?: string;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "playbooks_list_id_fkey";
+                        columns: ["list_id"];
+                        isOneToOne: false;
+                        referencedRelation: "segments";
+                        referencedColumns: ["id"];
+                    },
                     {
                         foreignKeyName: "playbooks_template_id_fkey";
                         columns: ["template_id"];
@@ -3488,6 +3498,7 @@ type Database = {
                     created_by: string | null;
                     id: string;
                     name: string;
+                    rule: Json | null;
                     tenant_id: string;
                     updated_at: string;
                 };
@@ -3496,6 +3507,7 @@ type Database = {
                     created_by?: string | null;
                     id?: string;
                     name: string;
+                    rule?: Json | null;
                     tenant_id: string;
                     updated_at?: string;
                 };
@@ -3504,6 +3516,7 @@ type Database = {
                     created_by?: string | null;
                     id?: string;
                     name?: string;
+                    rule?: Json | null;
                     tenant_id?: string;
                     updated_at?: string;
                 };
@@ -5509,6 +5522,8 @@ interface LeadContext {
     optedOut: boolean;
     /** The owner's notes on them — facts for the receptionist, never read aloud. */
     notes?: string | null;
+    /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+    proposalUrl?: string | null;
 }
 /**
  * Everything both agents know about one lead, from the one place that knows it.
@@ -5742,17 +5757,23 @@ declare function everyoneIn(db: Db$2, tenantId: string): Promise<PersonRowDto[]>
  */
 
 type Db$1 = SupabaseClient<Database>;
-/** A list with every id on it. */
+/**
+ * A list with every id on it, and its rule when it is a smart list (00155): who is on a smart list is judged on every
+ * read (contracts savedListIds), and `ids` is empty for one.
+ */
 interface SavedListRow {
     id: string;
     name: string;
     ids: string[];
+    rule: unknown;
 }
 /** A list as a verb acts on it: the workspace it belongs to is the one its role is judged in. */
 interface ListRow {
     id: string;
     tenant_id: string;
     name: string;
+    /** A smart list's rule, or null for a list kept by hand: nobody is put on or taken off a rule by hand. */
+    rule: unknown;
 }
 interface WriteError {
     code?: string;
@@ -5766,16 +5787,23 @@ declare function listMemberIds(db: Db$1, listId: string): Promise<string[]>;
 declare function savedListFor(db: Db$1, tenantId: string, id: string): Promise<SavedListRow | null>;
 /** The list a verb acts on, read under row security alone: one the caller cannot see is no list. */
 declare function listRow(db: Db$1, id: string): Promise<ListRow | null>;
-/** A new, empty list in the maker's name. A name the workspace already has is the database's 23505. */
-declare function createList(db: Db$1, tenantId: string, name: string, userId: string): Promise<{
+/**
+ * A new list in the maker's name: empty and kept by hand, or smart with its rule. A name the workspace already has is
+ * the database's 23505.
+ */
+declare function createList(db: Db$1, tenantId: string, name: string, userId: string, rule?: Json | null): Promise<{
     list: {
         id: string;
         name: string;
     } | null;
     error: WriteError | null;
 }>;
-/** A list's new name: the one column a member may change (00044's column grant). */
+/** A list's new name: one of the two columns a member may change (00155's column grant). */
 declare function renameList(db: Db$1, id: string, name: string): Promise<{
+    error: WriteError | null;
+}>;
+/** A smart list's new rule: the other column a member may change. */
+declare function setListRule(db: Db$1, id: string, rule: Json): Promise<{
     error: WriteError | null;
 }>;
 /**
@@ -5899,4 +5927,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };

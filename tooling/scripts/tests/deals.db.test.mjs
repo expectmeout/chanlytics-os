@@ -2,7 +2,7 @@
  * A deal is a record (docs/decisions/0004-deals-record.md), proved where the
  * rule lives: on the database.
  *
- * deal_record is the one door (00155). A member who may act -- an owner or an
+ * deal_record is the one door (00156). A member who may act -- an owner or an
  * operator -- starts a proposal and moves it; a viewer and a member of another
  * workspace are told the person does not exist; every move is an event that
  * carries no words; one engagement is open per person per service; a stale
@@ -215,7 +215,7 @@ test("the people read carries the newest open or current deal; an erasure blanks
   assert.equal(rows[0].deal_stage, "proposed");
   assert.equal(rows[0].deal_service, "New");
   // The erasure as the right-to-be-forgotten path completes it: erased_at is
-  // written, and 00155's trigger on that column takes the words with it.
+  // written, and 00156's trigger on that column takes the words with it.
   ok(await w.admin.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", w.contact));
   const after_ = ok(
     await w.admin.from("deals").select("note, evidence, stage, version").eq("id", open.deal.id).single(),

@@ -11,6 +11,7 @@ import {
   emitEvent,
   everyoneIn,
   listPolicies,
+  savedListsFor,
   touchIndex,
   touchesSince,
   type Database,
@@ -31,6 +32,7 @@ import {
   ownAddressesOf,
   numberHealth,
   parseTenantConfig,
+  savedListIds,
   toPersonRowVM,
   toVisitDto,
   visitsIn,
@@ -79,7 +81,7 @@ export async function loadTenantRunContext(
   tenantId: string,
   now: Date,
 ): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, touched, { data: cfgRow }] =
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, touched, { data: cfgRow }, kept] =
     await Promise.all([
       db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
       allPeople(db, tenantId),
@@ -105,9 +107,16 @@ export async function loadTenantRunContext(
         (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
       ),
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
+      // error, never a list of nobody.
+      savedListsFor(db, tenantId).then(
+        (data) => ({ data, error: null as string | null }),
+        (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
+      ),
     ]);
   if (pErr) return { error: pErr.message };
   if (touched.error) return { error: touched.error };
+  if (kept.error) return { error: `lists: ${kept.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
   if (tenant?.status === "paused") return { error: "paused" };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<
@@ -157,14 +166,17 @@ export async function loadTenantRunContext(
       calendar = "unavailable";
     }
   }
+  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now));
   return {
     db,
     tenantId,
     tz,
     now,
-    people: rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now)),
+    people: vms,
     calendar,
     visits,
+    // Who is on each list, the way the People rail and the send count it (contracts savedListIds).
+    lists: new Map((kept.data ?? []).map((l) => [l.id, savedListIds(l, vms, now.getTime(), calendar === "ok")])),
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
     touches: { byThis, byAny },

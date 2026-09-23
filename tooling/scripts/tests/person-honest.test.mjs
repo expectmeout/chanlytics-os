@@ -1489,6 +1489,97 @@ test("clients/new-list opens People with the New list box open from the first dr
   }
 });
 
+/* ------------------------------ lists that keep themselves current (00155) ------------------------------ */
+
+const SMART = {
+  id: "s2",
+  name: "WhatsApp people",
+  ids: [],
+  rule: { all: [{ field: "channel", op: "is", channel: "whatsapp" }] },
+};
+
+test("a smart list rides the rail with who its rule holds for, and says its rule; a profile shows it and never offers to put someone on it or take them off", async () => {
+  const draw = await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: [] }, SMART]);
+  const tree = draw();
+  const smartRow = byTestId(tree, "saved-smart");
+  assert.ok(smartRow, "the smart list is on the rail, marked");
+  assert.ok(textOf(smartRow).includes("WhatsApp people") && textOf(smartRow).includes("1"), textOf(smartRow));
+  assert.equal(smartRow.props["data-tip"], "Keeps itself current: Reaches you by WhatsApp");
+  const saved = globalThis.window.__PEOPLE.saved.find((s) => s.id === "s2");
+  assert.deepEqual(
+    [saved.ids, saved.rule],
+    [["p1"], ["Reaches you by WhatsApp"]],
+    "who its rule holds for, and its rule as chips",
+  );
+
+  cells = [];
+  frames.begin();
+  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const chips = all(lists, (n) => n.props?.["data-testid"] === "person-list-chip");
+  assert.deepEqual(chips.map(textOf), ["WhatsApp people"], "on the smart list today");
+  assert.equal(
+    find(chips[0], (n) => String(n.props?.className ?? "").includes("cl-seg-filter-x")),
+    null,
+    "no cross on a rule",
+  );
+  const menu = find(lists, (n) => n.type === globalThis.MoreMenu);
+  assert.deepEqual(
+    menu.props.items.filter((i) => i.label).map((i) => i.label),
+    ["Regulars"],
+    "Add to offers only the lists kept by hand",
+  );
+});
+
+test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
+  const made = [];
+  const drafted = [];
+  const was = globalThis.window.__lists;
+  globalThis.window.__lists = {
+    ...(was || {}),
+    draft: async (words) => {
+      drafted.push(words);
+      return {
+        ok: true,
+        data: {
+          name: "Drifting",
+          rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+          cannot: "who their stylist is",
+        },
+      };
+    },
+    parts: (r) => contracts.listRuleParts(r),
+    count: () => 3,
+  };
+  try {
+    cells = [];
+    const onCreate = async (name, rule) => {
+      made.push([name, rule]);
+      return { ok: true };
+    };
+    const draw = () => {
+      frames.begin();
+      return globalThis.window.NewListRow({ onCreate });
+    };
+    press(byTestId(draw(), "new-list"));
+    press(byTestId(draw(), "new-list-smart"));
+    byTestId(draw(), "new-list-words").props.onChange({ target: { value: "regulars who stopped coming" } });
+    await press(byTestId(draw(), "new-list-build"));
+    await new Promise((r) => setTimeout(r, 0));
+    const tree = draw();
+    assert.deepEqual(drafted, ["regulars who stopped coming"]);
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "new-list-rule").map(textOf), [
+      "Last visit more than 60 days ago",
+    ]);
+    assert.equal(textOf(byTestId(tree, "new-list-holds")), "3 people on it today, and it keeps itself current.");
+    assert.equal(textOf(byTestId(tree, "new-list-cannot")), "Left out: who their stylist is");
+    assert.equal(byTestId(tree, "new-list-name").props.value, "Drifting", "the draft's name, to change or keep");
+    await press(byTestId(tree, "new-list-add"));
+    assert.deepEqual(made, [["Drifting", { all: [{ field: "last_visit", op: "more_than", days: 60 }] }]]);
+  } finally {
+    globalThis.window.__lists = was;
+  }
+});
+
 test("REGRESSION: a reply counting down to send waits on you on People as in the Inbox -- the rule lived in inbox.jsx, and People counted that person as waiting on nobody", () => {
   const { replyWaitsOnYou } = contracts;
   assert.equal(replyWaitsOnYou({ endsAtMs: NOW + 20_000 }, NOW), true, "the Inbox: counting down");
@@ -1505,4 +1596,95 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
     false,
     "nothing queued, nothing waiting",
   );
+});
+
+test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer or for someone who said stop", async () => {
+  const cls = (n) => String(n.props?.className || "");
+  const url = "https://docs.example.com/p/dani";
+  const outbound = (at, status) => ({
+    id: `m-${status}`,
+    conversation_id: "cv1",
+    direction: "outbound",
+    sender: "human",
+    type: "text",
+    body: contracts.proposalMessage(url),
+    media: null,
+    meta: null,
+    status,
+    channel: "whatsapp",
+    created_at: at,
+  });
+  const vm = toPersonVM(detail({ proposal_url: url, booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
+  let tree = (await profile(vm))();
+  const rowEl = byTestId(tree, "person-proposal");
+  assert.ok(rowEl, "the About row");
+  const link = byTestId(rowEl, "person-proposal-link");
+  assert.equal(link.props.href, url);
+  assert.equal(textOf(link), "docs.example.com", "the host, not the whole address");
+  assert.equal(byTestId(rowEl, "person-proposal-edit").props["aria-label"], "Change the proposal link");
+  const keys = all(tree, (n) => cls(n) === "cl-prof-attr-key").map((k) => textOf(k));
+  assert.equal(keys.indexOf("Proposal"), keys.indexOf("Email") + 1, `under the address: ${keys}`);
+  const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
+  const send = byTestId(actions, "send-proposal");
+  assert.ok(send, "the send lives in Right now");
+  assert.equal(textOf(send).trim(), vm.proposalAction.label);
+  assert.equal(send.props.title, vm.proposalAction.title);
+  assert.ok(byTestId(actions, "text-booking-link"), "beside the booking link, which keeps its button");
+
+  // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
+  const carried = [];
+  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  globalThis.window.__proposalMessage = contracts.proposalMessage;
+  try {
+    went.length = 0;
+    press(send);
+    assert.deepEqual(went, [vm.openThread], "it opens the thread");
+    assert.equal(carried.length, 1);
+    assert.equal(carried[0][0], "chanlytics-compose");
+    assert.deepEqual(JSON.parse(carried[0][1]), {
+      threadId: vm.openThread.replace(/^inbox\//, ""),
+      text: contracts.proposalMessage(url),
+    });
+  } finally {
+    delete globalThis.sessionStorage;
+    delete globalThis.window.__proposalMessage;
+  }
+
+  // Once the address went out the label says so; a message still in its cancel window does not count.
+  const d = detail({ proposal_url: url });
+  d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
+  tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
+  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal");
+  d.conversations[0].messages.push(outbound(iso(H), "sent"));
+  tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
+  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal again");
+
+  // None on file: the row invites, the send is absent.
+  tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+  assert.equal(byTestId(tree, "person-proposal-edit").props["aria-label"], "Add a proposal link");
+  assert.equal(byTestId(tree, "person-proposal-link"), null);
+  assert.equal(byTestId(tree, "send-proposal"), null);
+
+  // A viewer sees where it lives and changes nothing; no row at all when there is none.
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    tree = (await profile(vm))();
+    assert.ok(byTestId(tree, "person-proposal-link"));
+    assert.equal(byTestId(tree, "person-proposal-edit"), null);
+    assert.equal(byTestId(tree, "send-proposal"), null);
+    tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+    assert.equal(byTestId(tree, "person-proposal"), null);
+  } finally {
+    globalThis.window.__ME = { role: "owner" };
+  }
+
+  // Someone who said stop: the row, never the send.
+  const quiet = toPersonVM(
+    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url }),
+    ZONE,
+    new Date(NOW),
+  );
+  tree = (await profile(quiet))();
+  assert.ok(byTestId(tree, "person-proposal"));
+  assert.equal(byTestId(tree, "send-proposal"), null);
 });
