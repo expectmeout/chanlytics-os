@@ -1,8 +1,10 @@
 /**
  * A stub React that renders the legacy tree's classic scripts on node, for the chart kit's and the Reports page's
  * tests. It is the stub reports-honest.test.mjs grew, shared, with layout effects added: function components render
- * when created (children first, as JSX evaluates), hooks are cells in call order, an effect runs when its inputs
- * change after its last cleanup, and a tree is plain objects to walk.
+ * when created (children first, as JSX evaluates), a hook keeps its state where its component sits, as React keeps it
+ * (_hook-frames.mjs: under its parent, by its type and its key or its turn), an effect runs when its inputs change
+ * after its last cleanup, and a tree is plain objects to walk. A component drawn only some of the time -- a sheet, a
+ * slot -- moves nobody else's state.
  *
  * An effect runs inside the hook call, before any ref is attached, so a chart's useChartWidth never measures here:
  * every chart draws at its 600px start, which is what the tests read.
@@ -14,6 +16,7 @@
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import { csvCell } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const listeners = {};
 const storage = () => {
@@ -26,7 +29,9 @@ const storage = () => {
 };
 // `wanted` is whether a setter has changed a value since the last quiet(): what React would take as a reason to draw
 // again. A test that proves a page redraws on an event reads it, since this stub draws only when a test asks.
-const cells = { list: [], seq: 0, ids: 0, wanted: false };
+// `list` is each hook's cell by the key its frame gives it (_hook-frames.mjs).
+const frames = hookFrames();
+const cells = { list: {}, ids: 0, wanted: false };
 const moved = (was, now) => {
   if (!Object.is(was, now)) cells.wanted = true;
 };
@@ -76,7 +81,7 @@ export function installLegacyReact(extra = {}) {
     }),
   };
   const effect = (fn, deps) => {
-    const k = cells.seq++;
+    const k = frames.key();
     const prev = cells.list[k];
     if (
       prev &&
@@ -95,11 +100,11 @@ export function installLegacyReact(extra = {}) {
     createElement: (type, p, ...kids) => {
       const props = { ...(p || {}), children: kids.flat(Infinity) };
       const node = { type, props };
-      if (typeof type === "function") node.rendered = type(props);
+      if (typeof type === "function") node.rendered = frames.render(type, props);
       return node;
     },
     useState: (init) => {
-      const k = cells.seq++;
+      const k = frames.key();
       if (!(k in cells.list)) cells.list[k] = typeof init === "function" ? init() : init;
       return [
         cells.list[k],
@@ -111,7 +116,7 @@ export function installLegacyReact(extra = {}) {
       ];
     },
     useReducer: (red, init) => {
-      const k = cells.seq++;
+      const k = frames.key();
       if (!(k in cells.list)) cells.list[k] = init;
       return [
         cells.list[k],
@@ -123,7 +128,7 @@ export function installLegacyReact(extra = {}) {
       ];
     },
     useRef: (init) => {
-      const k = cells.seq++;
+      const k = frames.key();
       if (!(k in cells.list)) cells.list[k] = { current: init };
       return cells.list[k];
     },
@@ -131,7 +136,7 @@ export function installLegacyReact(extra = {}) {
     useCallback: (fn) => fn,
     // React 18 and 19 both have it: an id that stays with its component across draws and is no other's.
     useId: () => {
-      const k = cells.seq++;
+      const k = frames.key();
       if (!(k in cells.list)) cells.list[k] = `:r${(cells.ids++).toString(36)}:`;
       return cells.list[k];
     },
@@ -143,15 +148,15 @@ export function installLegacyReact(extra = {}) {
 
 /** A new tree: every hook cell and every listener forgotten. */
 export function fresh() {
-  cells.list = [];
-  cells.seq = 0;
+  cells.list = {};
+  frames.reset();
   cells.wanted = false;
   for (const k of Object.keys(listeners)) delete listeners[k];
 }
 
 /** Draw again over the same cells, as React would after a state change. */
 export function again(draw) {
-  cells.seq = 0;
+  frames.begin();
   return draw();
 }
 
@@ -160,9 +165,9 @@ export function again(draw) {
  * listeners are left to the cleanups that added them, as in a browser: one a registry keeps for itself stays.
  */
 export function unmount() {
-  for (const c of cells.list) if (c && c.effect && typeof c.cleanup === "function") c.cleanup();
-  cells.list = [];
-  cells.seq = 0;
+  for (const c of Object.values(cells.list)) if (c && c.effect && typeof c.cleanup === "function") c.cleanup();
+  cells.list = {};
+  frames.reset();
   cells.wanted = false;
 }
 
@@ -181,7 +186,7 @@ export const quiet = () => {
  * over the same cells (refs and state survive it). Draws the tree again.
  */
 export function remount(draw) {
-  for (const c of cells.list) {
+  for (const c of Object.values(cells.list)) {
     if (!c || !c.effect) continue;
     if (typeof c.cleanup === "function") c.cleanup();
     c.cleanup = undefined;

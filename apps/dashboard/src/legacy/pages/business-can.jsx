@@ -17,8 +17,7 @@
 // a phone. What holds the whole card back is said ONCE, above the rows: the Autonomy tab's Replies row is one cause
 // with one fix on another tab, and six rows repeating it is the page shouting (Task 4.1b's decision).
 //
-// The card holds NO hook, as the four cards before it do not: the tests' stub React keeps every hook on the page as a
-// cell in one order (business-tab.jsx's header), and the services sheet stays the page's last hook-holding child.
+// The card holds NO hook, as the four cards before it do not: its state is the page's and its folds'.
 // Its top-level names are btc-prefixed, and no pattern in it holds an object rest, for the reasons
 // business-tab-save.jsx gives. Loaded after business-tab-answers.jsx and before business-tab-services.jsx in both
 // load lists, and read by the page as window.BtCanCard.

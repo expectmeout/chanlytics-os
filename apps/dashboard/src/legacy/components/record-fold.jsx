@@ -617,7 +617,8 @@ const RecordFold = ({
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
   // Every hook here is called on every draw, whichever frame is drawn: the frame is a value, never a hook of its own,
-  // because the tests' stub React keeps every hook on a page in one call order (_legacy-react.mjs).
+  // so the fold holds the same hooks open or closed, as a sheet or under its row (the tests' stub throws as React does
+  // when a component's hooks change in number, _hook-frames.mjs).
   const phone = useRecPhone();
   const sheet = open && phone;
   const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", sheet ? ".rec-sheet-close" : ".rec-fold-close", focusOn, sheet);

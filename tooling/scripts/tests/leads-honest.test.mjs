@@ -3071,7 +3071,7 @@ test("with no recogniser there is no mic, and a page drawn without Ask's hooks k
     assert.equal(
       frames.called(),
       withHooks,
-      "the stand-in declares the same hooks, so the page's one call order does not move",
+      "the stand-in declares the same hooks, so LeadsReal calls as many either way",
     );
     assert.ok(byTestId(tree, "leads-standing"), "and the page still draws");
   } finally {
