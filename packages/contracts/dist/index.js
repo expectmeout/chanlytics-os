@@ -6047,6 +6047,7 @@ function toLeadRowVM(r, tz, now, search = null) {
     reviewsTitle: r.reviews_dist ? `5\u2605 ${r.reviews_dist.five} \xB7 4\u2605 ${r.reviews_dist.four} \xB7 3\u2605 ${r.reviews_dist.three} \xB7 2\u2605 ${r.reviews_dist.two} \xB7 1\u2605 ${r.reviews_dist.one}` : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
+    contactId: r.contact_id ?? null,
     foundLabel: agoShort(foundMs, nowMs),
     foundLine: Number.isFinite(foundMs) ? `Found ${agoWords(foundMs, nowMs, { date: (at2) => clockDate(at2, tz, nowMs) })}` : "",
     foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
