@@ -167,4 +167,61 @@ test.describe("Consent for one person", () => {
     await expect(page.getByTestId("person-email-edit")).toHaveAttribute("aria-label", "Add an email address");
     await expect(page.getByTestId("person-email")).not.toContainText("@");
   });
+
+  /**
+   * The proposal link, for real, the same way (00154; e2e-workspace.mjs resets `proposal_url` each run): what is
+   * wrong with a typed address is said under the field and sends nothing; a good one goes through PUT details to
+   * set_person_proposal with its scheme supplied, the row shows where it lives, and an empty one clears it.
+   */
+  test("a person's proposal link is added, refused when it is not one, stored with its scheme, and cleared — through the real door", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const robin = page.locator(".cl-table tbody tr", { hasText: "Robin Example" });
+    test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
+    await robin.first().click();
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+
+    const row = page.getByTestId("person-proposal");
+    await expect(row).toBeVisible();
+    // A run that died half way leaves a link behind until the next seed: start from none.
+    if ((await page.getByTestId("person-proposal-edit").getAttribute("aria-label")) === "Change the proposal link") {
+      await page.getByTestId("person-proposal-edit").click();
+      await page.getByTestId("person-proposal-input").fill("");
+      await page.getByTestId("person-proposal-save").click();
+      await expect(page.getByTestId("person-proposal-edit")).toHaveAttribute("aria-label", "Add a proposal link");
+    }
+
+    const puts: string[] = [];
+    page.on("request", (r) => {
+      if (r.method() === "PUT" && /\/api\/v1\/contacts\/[^/]+\/details/.test(r.url())) puts.push(r.postData() ?? "");
+    });
+
+    await page.getByTestId("person-proposal-edit").click();
+    const input = page.getByTestId("person-proposal-input");
+    await input.fill("docs");
+    await page.getByTestId("person-proposal-save").click();
+    await expect(page.getByTestId("person-proposal-problem")).toContainText("full web address");
+    expect(puts, "a refusal under the field sends nothing").toHaveLength(0);
+
+    await input.fill(" docs.example.com/p/robin-e2e ");
+    await input.press("Enter");
+    await expect(page.getByTestId("person-proposal-link")).toHaveText("docs.example.com");
+    await expect(page.getByTestId("person-proposal-link")).toHaveAttribute(
+      "href",
+      "https://docs.example.com/p/robin-e2e",
+    );
+    expect(JSON.parse(puts[0])).toEqual({ proposal: "docs.example.com/p/robin-e2e" });
+
+    // Still there on a cold load: it was stored, not drawn.
+    await page.reload();
+    await expect(page.getByTestId("person-proposal-link")).toHaveText("docs.example.com");
+
+    await page.getByTestId("person-proposal-edit").click();
+    await page.getByTestId("person-proposal-input").fill("");
+    await page.getByTestId("person-proposal-save").click();
+    await expect(page.getByTestId("person-proposal-edit")).toHaveAttribute("aria-label", "Add a proposal link");
+    await expect(page.getByTestId("person-proposal-link")).toHaveCount(0);
+  });
 });
