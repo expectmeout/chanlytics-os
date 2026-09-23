@@ -256,6 +256,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘1", "⌘9"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
+  // Ask draws no key of its own (the Line, D17): this sheet is where they are listed.
+  { group: "Ask", keys: ["↑", "↓"], does: "Walk what is under the line" },
+  { group: "Ask", keys: ["↵"], does: "Ask, or open the row" },
+  { group: "Ask", keys: ["⌘J"], does: "Earlier conversations" },
+  { group: "Ask", keys: ["Space"], does: "Hold on an empty line to talk" },
+  { group: "Ask", keys: ["Esc"], does: "Stop an answer, then close" },
   { group: "People", keys: ["/"], does: "Search People" },
   { group: "People", keys: ["J", "K", "↓", "↑"], does: "Next and previous person" },
   { group: "People", keys: ["X", "Space"], does: "Select the person" },

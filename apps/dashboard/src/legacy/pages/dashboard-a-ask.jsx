@@ -1,7 +1,7 @@
 /* global React, Icon */
 // AskBar — the conversational AI surface invoked by ⌘K.
-// v2: persistent threads. Every conversation is saved and resumable — the
-// sidebar's "New Chat" starts a fresh one, ⌘K resumes where you left off.
+// v2: persistent threads. Every conversation is saved and resumable, and
+// ⌘K resumes where you left off. The demo's; a workspace has the Line.
 // Answers are grounded in the seed world and link out to real surfaces.
 
 const ASK_SEED_THREADS = [
@@ -457,7 +457,6 @@ const AskBarSeed = ({ open, onClose }) => {
 
   React.useEffect(() => {
     const handler = (e) => { if (e.key === "Escape" && open) onClose(); };
-    const onNew = () => { setActiveId(null); setQuery(""); };
     const onSeed = (e) => {
       const d = (e && e.detail) || {};
       if (d.mode === "compose") { setActiveId(null); setQuery(d.prompt || ""); return; }
@@ -486,9 +485,8 @@ const AskBarSeed = ({ open, onClose }) => {
       setQuery("");
     };
     window.addEventListener("keydown", handler);
-    window.addEventListener("ask:new", onNew);
     window.addEventListener("ask:seed", onSeed);
-    return () => { window.removeEventListener("keydown", handler); window.removeEventListener("ask:new", onNew); window.removeEventListener("ask:seed", onSeed); };
+    return () => { window.removeEventListener("keydown", handler); window.removeEventListener("ask:seed", onSeed); };
   }, [open, onClose]);
 
   React.useEffect(() => {

@@ -160,7 +160,7 @@ test.describe("Today on a real workspace", () => {
     await page.getByTestId("tb-ask").click();
     const pal = page.getByTestId("ask-real");
     await expect(pal).toBeVisible();
-    await expect(pal.getByTestId("ask-stage")).toBeVisible();
+    await expect(pal.getByTestId("ask-line-face")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(pal).toBeHidden();
   });
@@ -224,7 +224,7 @@ test.describe("Today on a phone", () => {
     await expect(band.getByTestId("today-face-input")).toBeFocused();
     // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
     test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
-    // The palette's own quick question (contracts fastPath, kind "needs"): no model turn, no cost.
+    // The Line's own quick question (contracts askIntent, kind "needs"): no model turn, no cost.
     await band.getByTestId("today-face-input").fill("who needs me?");
     await band.getByTestId("today-face-input").press("Enter");
     await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });

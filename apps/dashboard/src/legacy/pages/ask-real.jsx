@@ -1,17 +1,17 @@
 /* global React, Icon, Confirm */
-// AskReal — the palette on a real workspace (⌘K, the topbar button, New
-// chat, the phone's ✦). This file is the shell: the state of one open
-// palette (what is typed, which thread is open, the turn in flight, the
-// scope, the language), the keyboard, the composer, the rail, and the turn
-// runner. What the rows are (ask-home.jsx), what a turn shows (ask-turn.jsx),
-// the words (ask-text.jsx) and the hooks (ask-hooks.jsx) live beside it, and
-// everything that talks to the workspace goes through window.__ask.
+// AskReal: Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6). One line over the
+// page with the three standing in it; under it the rows (home, typing, Earlier), the trace while Ask reads, or the
+// answer, Say · Show · Do (ask-turn.jsx); a conversation folds above it. Reopening resumes the conversation until Clear.
+// This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
+// words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
+// No key symbol is drawn (D17): the Keyboard shortcuts sheet in the user menu lists the keys (contracts SHORTCUTS).
 
 const useArState = React.useState;
 const useArEffect = React.useEffect;
 const useArRef = React.useRef;
 
-const AR_RAIL_CAP = 10;
+/** Folded turns shown above the line before "+N earlier in this conversation". */
+const AR_FOLDED = 3;
 
 const arRoute = () => {
   const h = (window.location.hash || "").replace(/^#\/?/, "");
@@ -36,61 +36,63 @@ const arScopeIcon = (s) => (s.kind === "call" ? "phone" : s.kind === "person" ? 
 
 const arFailed = (id, text) => ({ id, role: "assistant", text, failed: true, citations: [], followups: [], proposals: [], atMs: Date.now() });
 
-// The threads rail beside a desktop conversation: New chat, the recent
-// threads by result (ten, then "earlier"), the open one highlighted, delete
-// on hover.
-const AskRail = ({ threads, active, more, t, onNew, onOpen, onDelete, onMore }) => {
-  const shown = more ? threads.slice(0, 40) : threads.slice(0, AR_RAIL_CAP);
-  return (
-    <aside className="ask-rail" data-testid="ask-rail">
-      <button className="ask-new-btn" onClick={onNew}><Icon name="plus" size={12} /> {t.newChat}</button>
-      <div className="ask-rail-label"><span>{t.threads}</span></div>
-      <div className="ask-rail-list">
-        {shown.map((th) => (
-          <div key={th.id} className={`ask-thread ${active && active.id === th.id ? "active" : ""}`} role="button" tabIndex={0} onClick={() => onOpen(th)} onKeyDown={(e) => { if (e.key === "Enter") onOpen(th); }}>
-            <span className="ask-thread-title">{th.title}</span>
-            <span className="ask-thread-at">{window.AskHome.ahAgo(th.lastAtMs)}</span>
-            <button className="ask-thread-x" aria-label={t.deleteThread} title={t.deleteThread} onClick={(e) => { e.stopPropagation(); onDelete(th); }}><Icon name="x" size={10} /></button>
-          </div>
-        ))}
-        {!more && threads.length > AR_RAIL_CAP && (
-          <button className="ask-thread ask-thread-more" onClick={onMore}><span className="ask-thread-at">{t.earlier}</span></button>
-        )}
-      </div>
-    </aside>
-  );
+/** A conversation as its questions and the turns that answered them, in order. */
+const arTurns = (messages) => {
+  const out = [];
+  for (const m of messages) {
+    if (m.role === "user") out.push({ q: m, a: null });
+    else if (out.length && !out[out.length - 1].a) out[out.length - 1].a = m;
+    else out.push({ q: null, a: m });
+  }
+  return out;
+};
+
+const arPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+const arStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+// Where the three come from as the Line opens: the top bar's button, where it is drawn. On a phone the ✦ is gone
+// before the sheet rises (app-shell.jsx draws it only while Ask is closed), so the sheet's own rise is the motion.
+const arFaceFrom = () => {
+  if (typeof document === "undefined" || !document.querySelector) return null;
+  const el = document.querySelector('[data-testid="tb-ask-face"]');
+  return el && el.getBoundingClientRect().width ? el : null;
 };
 
 const AskReal = ({ open, onClose }) => {
   const A = window.__ask;
   const H = window.AskHooks;
-  const { buildAskSections, AskFast, AskRows, flatRows } = window.AskHome;
-  const AskTurn = window.AskTurn;
-  // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts) and the stage it stands on here.
+  const { buildLineRows, AskRows, flatRows } = window.AskHome;
+  const { AskTurn, answerMoves } = window.AskAnswerKit;
+  // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
   const M = window.__mascot || null;
   const AskFace = window.AskFace || null;
 
   const [query, setQuery] = useArState("");
   const [threads, setThreads] = useArState([]);
   const [active, setActive] = useArState(null); // { id, title, messages, scope }
-  const [live, setLive] = useArState(null); // the turn in flight: { text, trace }
-  const [fast, setFast] = useArState(null); // a quick answer, no model
+  const [live, setLive] = useArState(null); // the turn in flight: { q, text, traces }
+  const [quick, setQuick] = useArState(null); // a quick answer, no model: { q, answer } or { q, pending: true }
   const [scope, setScope] = useArState(null);
-  const [sel, setSel] = useArState(0);
+  const [sel, setSel] = useArState(0); // the row the keys stand on
+  const [move, setMove] = useArState(-1); // the answer's move they stand on, none at first
   const [lang, setLang] = useArState(() => (A ? A.language() : "en"));
   const [tick, setTick] = useArState(0);
-  const [railMore, setRailMore] = useArState(false);
+  const [view, setView] = useArState("rows"); // "rows", or "earlier": every conversation
+  const [unfolded, setUnfolded] = useArState(-1);
+  const [foldAll, setFoldAll] = useArState(false);
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
   const [doomed, setDoomed] = useArState(null);
-  const wide = H.useAskWide();
   const speech = H.useAskSpeech(A);
   const [toastNode, flash] = window.usePPToast();
   const inputRef = useArRef(null);
+  const faceRef = useArRef(null);
   const bodyRef = useArRef(null);
-  const scrollRef = useArRef(null);
-  // The thread list as it is being fetched on open: a question typed before
-  // it lands still finds its twin.
+  // The thread list as it is being fetched on open: a question typed before it lands still finds its twin.
   const threadsReady = useArRef(null);
+  // The current turn: a turn left behind (stopped, cleared, another opened, a later question) writes nothing.
+  const turnSeq = useArRef(0);
+  // What the shell asked for as it opened the Line, kept until the Line is open (the wiring audit's N3).
+  const asked = useArRef(null);
   const t = window.askText(lang);
   const route = arRoute();
   const surface = A ? A.surfaceFor(route.page) : "other";
@@ -106,99 +108,169 @@ const AskReal = ({ open, onClose }) => {
       else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
     },
   });
+  // A Space held on an empty line talks (6.6); where the browser cannot listen, it says so.
+  const hold = H.useHoldSpace({
+    empty: () => !query && !live,
+    talk: { start: () => (talk.canTalk ? talk.start() : flash({ msg: <>{t.noVoice}</> })), stop: talk.stop },
+  });
 
-  // Ask's mood, said once for every face (the top bar's button, the stage above the conversation): listening while
-  // held, reading until the first words, answering while they stream or are read aloud, at rest otherwise. Said
-  // while the palette is closed too, so a turn left running still shows on the button.
+  // Ask's mood, said once for every face: listening while held, reading until the first words, answering while they
+  // stream or are read aloud, at rest otherwise. Said while the Line is closed too, so a turn left running still shows.
   const moodState = talk.listening
     ? "listening"
     : live
       ? live.text ? "speaking" : "thinking"
-      : fast && fast.pending
+      : quick && quick.pending
         ? "thinking"
         : speech.speakingId ? "speaking" : "idle";
   useArEffect(() => { if (M) M.mood.set(moodState); }, [moodState]);
 
-  // Open: take the route's scope, load the threads, follow the surfaces.
+  // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useArEffect(() => {
     if (!open || !A) return;
     const r = arRoute();
     setScope(A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param)));
     threadsReady.current = A.threads().then((list) => { setThreads(list); return list; });
     const bump = () => setTick((n) => n + 1);
-    const evs = ["surface:inbox", "surface:live", "surface:clients", "surface:settings"];
+    const evs = ["surface:inbox", "surface:live", "surface:clients", "surface:settings", "surface:today", "surface:broadcasts"];
     evs.forEach((e) => window.addEventListener(e, bump));
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open]);
 
-  // Closed: nothing typed survives, nothing keeps reading; an open
-  // conversation resumes next time.
-  useArEffect(() => { if (!open) { setQuery(""); setFast(null); setDoomed(null); speech.stop(); } }, [open]);
-
-  H.useAskFocus(inputRef, open && !live && !doomed, [open, live, active, doomed]);
-
-  // What the shell sends: New chat, or a question to ask or to finish. The shell opens the palette and sends in the
-  // same moment, so the palette listens while closed too and keeps the last request until it is open (the wiring
-  // audit's N3: a listener added on open missed both, and New chat reopened the last conversation).
-  const asked = useArRef(null);
+  // Open: the three move from the button into the line (a FLIP), and the button's own face hides while they stand here
+  // (ask.css, body.ask-open), so there is one character. With reduced motion they are simply here.
   useArEffect(() => {
-    const onNew = () => { asked.current = { fresh: true }; setTick((n) => n + 1); };
+    if (!open || typeof document === "undefined") return;
+    const body = document.body;
+    if (body && body.classList) body.classList.add("ask-open");
+    const from = arFaceFrom();
+    const to = faceRef.current;
+    if (from && to && to.animate && !arStill()) {
+      const a = from.getBoundingClientRect();
+      const b = to.getBoundingClientRect();
+      // Centre to centre, since a box scales about its centre.
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2);
+      const dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      if (b.width)
+        to.animate(
+          [{ translate: `${dx}px ${dy}px`, scale: `${a.width / b.width}` }, { translate: "0 0", scale: "1" }],
+          { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        );
+    }
+    return () => { if (body && body.classList) body.classList.remove("ask-open"); };
+  }, [open]);
+
+  // On a phone the line rides the keyboard: what the keyboard covers is said as --ask-kb (ask.css).
+  useArEffect(() => {
+    const vv = open && typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv || !vv.addEventListener || typeof document === "undefined") return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty("--ask-kb", `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px`);
+    set();
+    vv.addEventListener("resize", set);
+    vv.addEventListener("scroll", set);
+    return () => {
+      vv.removeEventListener("resize", set);
+      vv.removeEventListener("scroll", set);
+      root.style.removeProperty("--ask-kb");
+    };
+  }, [open]);
+
+  // Closed: nothing typed survives and nothing keeps reading; an open conversation comes back until Clear (D14).
+  useArEffect(() => {
+    if (!open) { setQuery(""); setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
+  }, [open]);
+
+  H.useAskFocus(inputRef, open && !doomed, [open, live, active, doomed, view, quick]);
+
+  // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (Today's band). The
+  // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
+  useArEffect(() => {
     const onSeed = (e) => { asked.current = (e && e.detail) || {}; setTick((n) => n + 1); };
-    window.addEventListener("ask:new", onNew);
     window.addEventListener("ask:seed", onSeed);
-    return () => { window.removeEventListener("ask:new", onNew); window.removeEventListener("ask:seed", onSeed); };
+    return () => window.removeEventListener("ask:seed", onSeed);
   }, []);
 
   useArEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
+    if (!open || !A) return;
+    // Anywhere in the Line, not only on the line: ⌘J (or Ctrl J) opens Earlier, before the browser's Downloads can;
+    // Esc stops a turn in flight, else closes (the line takes Esc first when it has focus, onKey).
+    const onKeys = (e) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "j" || e.key === "J")) {
+        e.preventDefault();
+        setView((v) => (v === "earlier" ? "rows" : "earlier"));
+        return;
+      }
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (live) stop();
+      else onClose();
+    };
+    window.addEventListener("keydown", onKeys);
     // Taken once open, after the route's own scope, so a request's scope wins.
     const d = asked.current;
     if (d) {
       asked.current = null;
-      if (d.fresh) newChat();
-      else {
-        if (d.about) setScope(typeof d.about === "object" ? d.about : null);
-        // Today's band hands its thread over: the same conversation, continued here.
-        if (d.thread) openThread({ id: d.thread });
-        else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
-        else submit(d.prompt);
-      }
+      if (d.about) setScope(typeof d.about === "object" ? d.about : null);
+      if (d.thread) openThread({ id: d.thread });
+      else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuick(null); setQuery(d.prompt || ""); }
+      else submit(d.prompt);
     }
-    return () => window.removeEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKeys);
   });
 
-  useArEffect(() => { setSel(0); }, [query, active, open]);
-  useArEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [active, live]);
+  // A new place to stand whenever what is under the line changes; not on every piece of a streaming answer.
+  useArEffect(() => { setSel(0); setMove(-1); }, [query, active, open, view, quick, !!live]);
+  // A new answer starts at its top; the row or move the keys stand on stays in sight.
+  useArEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [active && active.messages.length, quick, view]);
   useArEffect(() => {
-    const b = bodyRef.current; if (!b) return;
-    const el = b.querySelector(".cmd-row.sel"); if (!el) return;
-    const top = el.offsetTop, h = el.offsetHeight, st = b.scrollTop, ch = b.clientHeight;
-    if (top < st) b.scrollTop = Math.max(0, top - 8);
-    else if (top + h > st + ch) b.scrollTop = top + h - ch + 8;
-  }, [sel]);
+    const b = bodyRef.current;
+    if (!b || !b.querySelector) return;
+    const el = b.querySelector(".ask-row.sel, .ask-item.sel, .ask-move.sel");
+    if (!el) return;
+    const top = el.offsetTop, h = el.offsetHeight;
+    if (top < b.scrollTop) b.scrollTop = Math.max(0, top - 8);
+    else if (top + h > b.scrollTop + b.clientHeight) b.scrollTop = top + h - b.clientHeight + 8;
+  }, [sel, move]);
 
   if (!open || !A) return null;
 
-  // Going somewhere closes the palette; ⌘K brings the conversation back.
+  // Going somewhere closes the Line; ⌘K brings the conversation back.
   const nav = (to) => { onClose(); window.CHANLY.nav(to); };
-  const newChat = () => { setActive(null); setQuery(""); setFast(null); setRailMore(false); };
+  // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
+  // the answer). Every turn checks it is still the current one (turnSeq) before it writes.
+  const moveOn = () => {
+    turnSeq.current += 1;
+    if (live) { setLive(null); if (M) M.mood.set("idle"); }
+  };
+  // Clear: the conversation ends and the Line is home again; the thread stays in Earlier.
+  const clearLine = () => {
+    moveOn();
+    setActive(null); setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
+    speech.stop();
+  };
+  // What became of a card, kept on the conversation the Line holds, so the card drawn again (a fold, the answer back
+  // under the line) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
+  const noteOutcome = (messageId, pid, o) =>
+    setActive((prev) =>
+      prev
+        ? { ...prev, messages: prev.messages.map((m) => (m.id === messageId ? { ...m, proposals: (m.proposals || []).map((p) => (p.id === pid ? { ...p, outcome: o } : p)) } : m)) }
+        : prev,
+    );
 
   const openThread = async (th) => {
+    moveOn();
     const full = await A.thread(th.id);
-    // A read that failed keeps the thread on the list and says so; only a thread
-    // that is gone is dropped as deleted.
+    // A read that failed keeps the thread on the list and says so; only a thread that is gone is dropped as deleted.
     if (!full) { flash({ tone: "danger", msg: <>{t.threadUnreadable}</> }); return null; }
     if (full.missing) { flash({ msg: <>{t.deleted}</> }); setThreads((prev) => prev.filter((x) => x.id !== th.id)); return null; }
     const opened = { id: full.thread.id, title: full.thread.title, messages: full.messages, scope: full.thread.scope };
     setActive(opened);
     if (full.thread.scope) setScope(full.thread.scope);
-    setQuery("");
+    setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
     return opened;
   };
 
-  // Deleting asks first, wherever it is pressed: a row's ×, the rail's × or the Delete key (N5).
+  // Deleting asks first, wherever it is pressed: a row's × or the Delete key (N5).
   const askDelete = (th) => setDoomed(th);
   const removeThread = async (th) => {
     setDoomed(null);
@@ -209,33 +281,36 @@ const AskReal = ({ open, onClose }) => {
     flash({ msg: <>{t.deleted}</> });
   };
 
-  // A quick answer: no model, no thread. Openings ask the calendar route.
-  const answerFast = async (q, fp) => {
-    if (fp.kind !== "openings") { setFast({ q, text: fp.answer, links: fp.links || [] }); if (M) M.mood.react("nod"); return; }
-    setFast({ q, text: t.thinking, links: [], pending: true });
-    try {
-      const o = await A.openings(fp.day, fp.service);
-      const text = o.state === "no_calendar" ? t.noCalendar : o.state === "unavailable" ? t.unavailable : o.text;
-      setFast({ q, text, days: o.state === "ok" ? o.days : [], links: o.state === "ok" ? [] : [{ label: t.openings, to: "admin/integrations" }] });
-      if (M) { M.mood.set("idle"); M.mood.react("nod"); }
-    } catch {
-      setFast({ q, text: t.unavailable, links: [] });
-    }
+  // Stop: the Line stops waiting for the turn in flight and says so; what the stream sends after changes nothing.
+  const stop = () => {
+    if (!live) return;
+    moveOn();
+    setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, arFailed("s-" + Date.now(), t.stopped)] } : prev));
   };
 
-  // One turn: the question goes in, the words stream back, the answer lands.
-  // A question that repeats a thread's first question resumes that thread
-  // rather than opening a twin beside it.
+  // One turn: the question goes in, the words stream back, the answer lands. A quick question needs no model and no
+  // thread. A question that repeats a thread's first question resumes that thread rather than opening a twin.
   const submit = async (qArg) => {
     const q = (typeof qArg === "string" ? qArg : query).trim();
     if (!q || live) return;
     setQuery("");
+    setView("rows");
+    setUnfolded(-1);
     setLang(A.language(q));
     if (!active) {
-      const fp = A.fast(q);
-      if (fp) { answerFast(q, fp); return; }
+      const pending = A.quick(q);
+      if (pending) {
+        const mine = ++turnSeq.current;
+        setQuick({ q, pending: true });
+        const answer = await pending;
+        // A later question, a conversation opened or Clear took the line meanwhile: this answer is not drawn.
+        if (mine !== turnSeq.current) return;
+        setQuick({ q, answer });
+        if (M) { M.mood.set("idle"); M.mood.react("nod"); }
+        return;
+      }
     }
-    setFast(null);
+    setQuick(null);
     let base = active;
     if (!base) {
       const list = await (threadsReady.current || Promise.resolve(threads));
@@ -245,21 +320,24 @@ const AskReal = ({ open, onClose }) => {
     const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
     const thread = base ? { ...base, messages: [...base.messages, userMsg] } : { id: null, title: q, messages: [userMsg], scope };
     setActive(thread);
-    setLive({ text: "", trace: null });
+    const mine = ++turnSeq.current;
+    setLive({ q, text: "", traces: [] });
     let threadId = thread.id;
     let final = null;
     let spoke = false;
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
+      if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
-      else if (ev.t === "trace") setLive((prev) => ({ ...(prev || { text: "" }), trace: ev.text }));
+      else if (ev.t === "trace") setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
       else if (ev.t === "delta") {
-        setLive((prev) => ({ text: ((prev && prev.text) || "") + ev.text, trace: null }));
+        setLive((prev) => (prev ? { ...prev, text: prev.text + ev.text } : prev));
         spoke = true;
         if (M) M.mood.beat(Math.min(1, ev.text.length / 6));
       }
       else if (ev.t === "final") final = ev.message;
       else if (ev.t === "error") final = arFailed("e-" + Date.now(), ev.text);
     });
+    if (mine !== turnSeq.current) return;
     if (!final) final = arFailed("e-" + Date.now(), t.cutOff);
     setLive(null);
     // Done: a failure shakes; an answer that streamed nods on its own as the row settles, one that did not nods here.
@@ -271,129 +349,263 @@ const AskReal = ({ open, onClose }) => {
     setActive((prev) => (prev ? { ...prev, id: threadId || prev.id, messages: [...prev.messages, final] } : prev));
     if (threadId) A.threads().then((list) => {
       setThreads(list);
-      const mine = list.find((x) => x.id === threadId);
-      if (mine) setActive((prev) => (prev && prev.id === threadId ? { ...prev, title: mine.title } : prev));
+      const now = list.find((x) => x.id === threadId);
+      if (now) setActive((prev) => (prev && prev.id === threadId ? { ...prev, title: now.title } : prev));
     });
-    // "Open the 3:34 AM call": the app goes there as the answer lands.
-    if (final.navigate && final.navigate.now && final.navigate.to && !final.failed) setTimeout(() => nav(final.navigate.to), 250);
+    // "Open the 3:34 AM call": the app goes there as the answer lands (the answer's `now`, section 5.1).
+    const o = final.failed ? null : final.answer ? final.answer.do.open : final.navigate && final.navigate.to ? final.navigate : null;
+    if (o && o.now) setTimeout(() => nav(o.to), 250);
   };
 
-  // ---- rows and keys ----
-  const sections = active ? [] : buildAskSections({ A, t, lang, query, surface, scope, threads });
-  const flat = flatRows(sections);
+  // ---- what is under the line, and the keys that walk it ----
+  const turns = active ? arTurns(active.messages) : [];
+  const latest = turns.length ? turns[turns.length - 1] : null;
+  const folded = turns.slice(0, -1).filter((tn) => tn.q && tn.a);
+  const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
+  const answerMsg = latest && latest.a ? latest.a : null;
+  const showRows = !talk.listening && (view === "earlier" || !!query || (!live && !quick && !answerMsg));
+  const sections = showRows ? buildLineRows({ A, t, lang, query, surface, scope, threads, view }) : [];
+  const rows = flatRows(sections);
+  const drawn = showRows || talk.listening || live
+    ? null
+    : quick
+      ? quick.answer ? { answer: quick.answer, cardOpen: {} } : null
+      : answerMsg ? A.answer(answerMsg) : null;
+  const moves = drawn ? answerMoves(drawn.answer) : [];
+  const words = drawn ? A.answerText(drawn.answer) : "";
+
   const activate = (it) => {
     if (!it) return;
     if (it.type === "thread") { openThread(it.th); return; }
-    if (it.type === "jump" || it.type === "now") { nav(it.to); return; }
+    if (it.type === "all") { setView("earlier"); return; }
+    if (it.type === "jump" || it.type === "item" || it.type === "open") { nav(it.to); return; }
     if (it.compose) { setQuery(it.q); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); return; }
     submit(it.q);
   };
+
   const onKey = (e) => {
-    if (active) {
-      if (e.key === "Escape") { e.stopPropagation(); newChat(); }
-      else if (e.key === "Enter") { e.preventDefault(); submit(); }
-      else if (e.key === "ArrowUp" && !query) { const last = [...active.messages].reverse().find((m) => m.role === "user"); if (last) { e.preventDefault(); setQuery(last.text); } }
+    if (hold.onKeyDown(e)) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (live) stop();
+      else onClose();
       return;
     }
-    const q = query.trim();
-    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(flat.length - 1, s + 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
-    else if (e.key === "Delete" && flat[sel] && flat[sel].type === "thread") { e.preventDefault(); askDelete(flat[sel].th); }
-    else if (e.key === "Enter") { e.preventDefault(); if (flat[sel] && (q === "" || flat[sel].type !== "ask" || flat[sel].q !== q)) activate(flat[sel]); else if (q) submit(); }
+    if (e.key === "ArrowDown") {
+      if (showRows && rows.length) { e.preventDefault(); setSel((s) => Math.min(rows.length - 1, s + 1)); }
+      else if (moves.length) { e.preventDefault(); setMove((m) => Math.min(moves.length - 1, m + 1)); }
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      if (showRows && sel > 0) { e.preventDefault(); setSel((s) => s - 1); return; }
+      if (!showRows && move >= 0) { e.preventDefault(); setMove((m) => m - 1); return; }
+      // Nothing to walk back to: an empty line in a conversation takes the last question again.
+      if (active && !query) {
+        const last = [...active.messages].reverse().find((m) => m.role === "user");
+        if (last) { e.preventDefault(); setQuery(last.text); }
+      }
+      return;
+    }
+    // Delete asks to delete the conversation the keys stand on, from an empty line; with words it edits them.
+    if (e.key === "Delete" && !query && showRows && rows[sel] && rows[sel].type === "thread") { e.preventDefault(); askDelete(rows[sel].th); return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const q = query.trim();
+      // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
+      if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
+      else if (q) submit(q);
+      else if (moves[move]) activate(moves[move]);
+    }
   };
 
-  const railOn = wide && !!active;
-  const lastAssistant = active ? [...active.messages].reverse().find((m) => m.role === "assistant") : null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(words);
+      flash({ msg: <>{t.copied}</> });
+    } catch {
+      flash({ tone: "danger", msg: <>{t.copyFailed}</> });
+    }
+  };
+
+  const talkButton = talk.canTalk ? (
+    <button
+      type="button"
+      className={`ask-line-btn ask-talk${talk.listening ? " on" : ""}`}
+      data-testid="ask-talk"
+      aria-pressed={talk.listening}
+      aria-label={t.talk}
+      title={t.talk}
+      onPointerDown={talk.start}
+      onPointerUp={talk.stop}
+      onPointerLeave={talk.stop}
+      onPointerCancel={talk.stop}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <Icon name="wave" size={14} />
+    </button>
+  ) : (
+    <button type="button" className="ask-line-btn ask-talk off" data-testid="ask-talk-off" aria-label={t.noVoice} title={t.noVoice} onClick={() => flash({ msg: <>{t.noVoice}</> })}>
+      <Icon name="wave" size={14} />
+    </button>
+  );
+  const reading = speech.speakingId === "line";
+  const right = live ? (
+    <button type="button" className="ask-line-btn" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
+      <Icon name="stop" size={14} />
+    </button>
+  ) : drawn ? (
+    <>
+      <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
+        <Icon name="content" size={14} />
+      </button>
+      {speech.canSpeak ? (
+        <button
+          type="button"
+          className={`ask-line-btn quiet${reading ? " on" : ""}`}
+          onClick={() => { if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> }); }}
+          aria-label={reading ? t.stop : t.read}
+          aria-pressed={reading}
+          title={reading ? t.stop : t.read}
+          data-testid="ask-read"
+        >
+          <Icon name={reading ? "pause" : "headphones"} size={14} />
+        </button>
+      ) : null}
+      <button type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
+        <Icon name="x" size={14} />
+      </button>
+    </>
+  ) : talkButton;
+
+  let body = null;
+  if (showRows)
+    body = (
+      <AskRows
+        sections={sections}
+        sel={sel}
+        setSel={setSel}
+        onActivate={activate}
+        onDelete={askDelete}
+        t={t}
+        empty={view === "earlier" && !threads.length ? t.noEarlier : null}
+      />
+    );
+  else if (live && live.text)
+    body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
+  else if (live || (quick && quick.pending)) {
+    const lines = live && live.traces.length ? live.traces : [t.thinking];
+    body = (
+      <div className="ask-trace" data-testid="ask-trace" aria-live="polite">
+        <p className="ask-turn-q">{live ? live.q : quick.q}</p>
+        {lines.map((line, k) => (
+          <div key={k} className={`ask-trace-row${k < lines.length - 1 ? " done" : ""}`}>
+            {k < lines.length - 1 ? <Icon name="check" size={12} className="ask-trace-check" /> : <span className="ask-trace-dot" />}
+            <span>{line}</span>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} />;
+  else if (answerMsg)
+    body = (
+      <AskTurn
+        m={answerMsg}
+        q={latest.q ? latest.q.text : ""}
+        latest
+        walk
+        sel={move}
+        t={t}
+        lang={lang}
+        onNav={nav}
+        onFollow={submit}
+        onOutcome={noteOutcome}
+        onRetry={answerMsg.failed && latest.q ? () => submit(latest.q.text) : undefined}
+      />
+    );
+
+  const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
+  // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
+  const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
 
   return (
-    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is a sheet from the bottom
-    // (ask.css), a thumb pulls it down (touchSwipe).
-    <div className="ask-overlay" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
-      <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real" {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches) }) : {})}>
-        {railOn && <AskRail threads={threads} active={active} more={railMore} t={t} onNew={newChat} onOpen={openThread} onDelete={askDelete} onMore={() => setRailMore(true)} />}
-        <div className={railOn ? "ask-main" : "ask-single"}>
-          {/* The three, Ask's face (components/ask-face.jsx): they grow from the button's size as the palette
-              opens, and act out the turn: huddle while held, leapfrog while reading, the row while answering. */}
-          {AskFace && (
-            <div className="ask-stage" data-testid="ask-stage">
-              <AskFace className="ask-stage-face" grow />
-            </div>
-          )}
-          <div className={`cmd-input-bar ${talk.listening ? "listening" : ""}`}>
-            {active
-              ? <button className="cmd-back" onClick={newChat} aria-label="Back to the palette"><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /></button>
-              : AskFace ? null : <Icon name="sparkle" size={15} style={{ color: "var(--accent)", flexShrink: 0 }} />}
-            {scope && (
-              <span className="cmd-ctx ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
-                <Icon name={arScopeIcon(scope)} size={10} /> {scope.label}
-                <button onClick={() => setScope(null)} aria-label="Clear the scope"><Icon name="x" size={9} /></button>
-              </span>
-            )}
-            <input
-              ref={inputRef}
-              className="cmd-input"
-              placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={onKey}
-              aria-label="Ask Chanlytics"
-              data-testid="ask-input"
-              maxLength={1000}
-            />
-            {talk.canTalk ? (
-              <button
-                type="button"
-                className={`ask-talk ${talk.listening ? "on" : ""}`}
-                data-testid="ask-talk"
-                aria-pressed={talk.listening}
-                aria-label={t.talk}
-                title={t.talk}
-                disabled={!!live}
-                onPointerDown={talk.start}
-                onPointerUp={talk.stop}
-                onPointerLeave={talk.stop}
-                onPointerCancel={talk.stop}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                <Icon name="wave" size={14} />
-              </button>
-            ) : (
-              <button type="button" className="ask-talk off" data-testid="ask-talk-off" aria-label={t.noVoice} title={t.noVoice} onClick={() => flash({ msg: <>{t.noVoice}</> })}>
-                <Icon name="wave" size={14} />
-              </button>
-            )}
-            <span className="kbd">↵</span>
-          </div>
-
-          {doomed && (
-            <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
-          )}
-          <div className="cmd-body" ref={bodyRef}>
-            {active ? (
-              <div className="ask-msgs" ref={scrollRef}>
-                {active.messages.map((m, i) => m.role === "user"
-                  ? <div key={m.id || i} className="ask-msg user"><p className="ask-msg-text">{m.text}</p></div>
-                  : <AskTurn key={m.id || i} m={m} latest={!live && m === lastAssistant} t={t} lang={lang} onFollow={submit} onNav={nav} speech={speech} flash={flash} onRetry={m.failed ? () => { const asked = active.messages.slice(0, i).reverse().find((x) => x.role === "user"); if (asked) submit(asked.text); } : undefined} />)}
-                {live && (
-                  live.text
-                    ? <AskTurn m={{ id: "live", text: live.text, citations: [], followups: [], proposals: [] }} streaming t={t} lang={lang} onFollow={submit} onNav={nav} speech={speech} flash={flash} />
-                    : <div className="ask-trace" data-testid="ask-trace"><span className="ask-trace-dot" />{live.trace || t.thinking}</div>
-                )}
-              </div>
-            ) : (
-              <>
-                <AskFast fast={fast} t={t} onNav={nav} speech={speech} lang={lang} />
-                <AskRows sections={sections} sel={sel} setSel={setSel} onActivate={activate} onDelete={askDelete} t={t} />
-              </>
-            )}
-          </div>
-
-          <footer className="cmd-foot">
-            {active
-              ? <><span><span className="kbd">↵</span> send</span><span><span className="kbd">↑</span> recall</span><span><span className="kbd">esc</span> back</span><span className="cmd-foot-note">{t.footNote}</span></>
-              : <><span><span className="kbd">↑↓</span> move</span><span><span className="kbd">↵</span> select</span>{flat[sel] && flat[sel].type === "thread" && <span><span className="kbd">del</span> delete</span>}<span><span className="kbd">esc</span> close</span><span className="cmd-foot-note">{t.footNote}</span></>}
-          </footer>
+    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is a sheet at the bottom
+    // (ask.css), a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
+    <div className="ask-overlay ask-line-scrim" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
+      <div
+        className="ask-modal ask-real ask-line"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Ask Chanlytics"
+        data-testid="ask-real"
+        {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
+      >
+        <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
+        {/* A phone's sheet head: the grabber, Earlier, and a close within the thumb's reach. A desktop draws none. */}
+        <div className="ask-line-head">
+          <span className="ask-grabber" aria-hidden="true" />
+          <button type="button" className="ask-line-head-btn" aria-pressed={view === "earlier"} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
+            {t.earlier}
+          </button>
+          <button type="button" className="ask-line-btn quiet" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
+            <Icon name="x" size={14} />
+          </button>
         </div>
+        {view === "rows" && folded.length ? (
+          <div className="ask-folds" data-testid="ask-folds">
+            {folded.length > shownFolds.length ? (
+              <button type="button" className="ask-fold-more" onClick={() => setFoldAll(true)}>{t.earlierFolded(folded.length - shownFolds.length)}</button>
+            ) : null}
+            {shownFolds.map((tn) => {
+              const k = folded.indexOf(tn);
+              const isOpen = unfolded === k;
+              return (
+                <div key={tn.q.id || k} className={`ask-fold${isOpen ? " open" : ""}`}>
+                  <button type="button" className="ask-fold-row" aria-expanded={isOpen} onClick={() => setUnfolded(isOpen ? -1 : k)} data-testid="ask-fold">
+                    <span className="ask-mark m1" aria-hidden="true" />
+                    <span className="ask-fold-q">{tn.q.text}</span>
+                    <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
+                    <Icon name="chevron" size={12} className="ask-fold-chev" />
+                  </button>
+                  {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} /> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <div className={`ask-line-bar${talk.listening ? " listening" : ""}`} data-testid="ask-line">
+          <span className="ask-line-face" ref={faceRef}>
+            {AskFace ? <AskFace className="ask-line-face-canvas" testId="ask-line-face" /> : null}
+          </span>
+          {scope ? (
+            <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
+              <Icon name={arScopeIcon(scope)} size={10} />
+              <span>{scope.label}</span>
+              <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+            </span>
+          ) : null}
+          <input
+            ref={inputRef}
+            className="ask-line-input"
+            placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKey}
+            onKeyUp={(e) => hold.onKeyUp(e)}
+            role="combobox"
+            aria-expanded={showRows && rows.length > 0}
+            aria-controls={showRows ? "ask-rows" : undefined}
+            aria-activedescendant={activeId}
+            aria-autocomplete="list"
+            aria-label="Ask Chanlytics"
+            data-testid="ask-input"
+            maxLength={1000}
+          />
+          <span className="ask-line-right">{right}</span>
+        </div>
+        {doomed ? (
+          <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
+        ) : null}
+        {body ? <div className="ask-line-body" ref={bodyRef}>{body}</div> : null}
       </div>
       {toastNode}
     </div>

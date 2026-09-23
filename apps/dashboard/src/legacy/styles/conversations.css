@@ -197,14 +197,6 @@
     flex: none;
     margin-left: auto;
   }
-  /* A pill on a row is words, not a control: the touch floor (legacy-bridge/legacy.css) gives every .pill
-     min-height 36px on a coarse pointer, which is what made this row taller than a person's. People's row
-     undoes it the same way. */
-  html.legacy-on .cv-row .pill {
-    min-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-  }
   .cv-row-snippet {
     font-size: var(--text-sm);
     line-height: var(--row-said-line);

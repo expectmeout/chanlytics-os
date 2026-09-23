@@ -1,82 +1,40 @@
 /* global React, Icon */
-// One assistant turn as the palette draws it: the words, a quiet toolbar
-// (copy, read aloud), the cards it proposed, where it opens and what it
-// read, and — on the latest turn only — what to ask next. What an answer
-// shows is decided by the contract (window.__ask.shape), not here: this
-// file only draws. Published as window.AskTurn and window.AskCard.
+// One answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): Say, Show and
+// Do, each beside one of the three's own squares, lightest to darkest; a figure's receipt; the rows it names as their
+// own doors; the next step once; and the cards, which approve, edit, wait or undo through the verbs' own routes. What
+// an answer shows is decided by the contract (window.__ask.answer: the answer and one door per place); this file only
+// draws. Published as window.AskAnswerKit, and AskTurn, AskAnswer and AskCard on window.
 
 const useAtState = React.useState;
 
-const atIconFor = (kind) => (kind === "call" ? "phone" : kind === "person" ? "users" : kind === "page" ? "arrow-right" : "chat");
+/** An answer no client can shape (the mockup, a test): its words, as prose. */
+const atProse = (m, lang) => ({
+  v: 2,
+  form: "prose",
+  say: { headline: "", detail: (m && m.text) || "" },
+  show: { figures: [], items: [], breakdown: null },
+  do: { open: null, next: [] },
+  language: lang || "en",
+});
 
-// The quiet toolbar: shown on hover or focus on a desktop, always on touch.
-const AskTools = ({ m, t, speech, flash }) => {
-  const [copied, setCopied] = useAtState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(m.text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      flash({ tone: "danger", msg: <>{t.copyFailed}</> });
-    }
-  };
-  const speaking = speech.speakingId === m.id;
-  return (
-    <div className="ask-tools" role="toolbar" aria-label="Answer">
-      <button type="button" className="ask-tool" onClick={copy} title={copied ? t.copied : t.copy} aria-label={t.copy} data-testid="ask-copy">
-        <Icon name={copied ? "check" : "content"} size={12} />
-      </button>
-      {speech.canSpeak && (
-        <button type="button" className={`ask-tool ${speaking ? "on" : ""}`} onClick={() => { if (!speech.toggle(m.id, m.text, m.language)) flash({ msg: <>{t.noSpeech}</> }); }} title={speaking ? t.stop : t.read} aria-label={speaking ? t.stop : t.read} aria-pressed={speaking} data-testid="ask-read">
-          <Icon name={speaking ? "pause" : "headphones"} size={12} />
-        </button>
-      )}
-    </div>
-  );
-};
-
-// Where the answer opens, and what it read. The Open button comes first and
-// is never repeated as a chip; a chip names its kind.
-const AskLinks = ({ shape, t, onNav }) => {
-  if (!shape.open && !shape.citations.length) return null;
-  return (
-    <div className="ask-msg-links">
-      {shape.open && (
-        <button className="ask-action-chip" onClick={() => onNav(shape.open.to)} data-testid="ask-open">
-          <Icon name="arrow-right" size={11} /> {shape.open.label}
-        </button>
-      )}
-      {shape.citations.length ? <span className="ask-from">{t.from}</span> : null}
-      {shape.citations.map((c, i) => (
-        <button key={i} className="ask-link-chip" onClick={() => onNav(c.to)} title={c.kind}>
-          <Icon name={atIconFor(c.kind)} size={10} /> {c.label}
-        </button>
-      ))}
-    </div>
-  );
-};
-
-// What to ask next: on the latest answer only, never an echo of a place the
-// answer already opens.
-const AskFollowups = ({ followups, t, onFollow }) => {
-  if (!followups.length) return null;
-  return (
-    <div className="ask-follow" data-testid="ask-followups">
-      <span className="ask-follow-label">{t.next}</span>
-      {followups.map((f, i) => (
-        <button key={i} className="ask-follow-chip" onClick={() => onFollow(f)}>{f}</button>
-      ))}
-    </div>
-  );
-};
+/** The rows the keys walk under an answer, in the order they are drawn: the items, then Open, then the next questions. */
+const answerMoves = (a) => [
+  ...a.show.items.map((it) => ({ type: "item", to: it.source.to })),
+  ...(a.do.open ? [{ type: "open", to: a.do.open.to }] : []),
+  ...a.do.next.map((q) => ({ type: "next", q })),
+];
 
 // A proposal the assistant made, as a card: the exact change, the door it
 // goes through, Approve (or Edit in the composer), Not now, and the undo the
 // verb has. The commit runs through the verb's own route, which checks the
 // role and the state again; what happened is kept on the turn, so a thread
-// reads back with "Sent" rather than a fresh Approve.
-const AskCard = ({ p, messageId, t, onNav }) => {
+// reads back with "Sent" rather than a fresh Approve. The Line draws a card
+// again whenever its answer comes back under the line or opens in a fold, so
+// what happened is also written into the conversation it holds (`onOutcome`):
+// a card drawn again from a stale outcome offered Send a second time. Its
+// Open is the contract's (cardOpenRoute), hidden where the answer already
+// offers the place (`hideOpen`, oneDoor).
+const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
   const A = window.__ask;
   const [state, setState] = useAtState(p.outcome ? p.outcome.state : "idle");
   const [receipt, setReceipt] = useAtState(p.outcome ? p.outcome.receipt : "");
@@ -95,7 +53,10 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
   const gated = window.canDo ? !window.canDo(gateKey) : false;
   const pl = p.payload || {};
-  const record = (o) => { if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o); };
+  const record = (o) => {
+    if (onOutcome && messageId) onOutcome(messageId, p.id, o);
+    if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o);
+  };
   const approveWith = async (proposal) => {
     if (busy || !A) return;
     setBusy(true); setErr("");
@@ -127,7 +88,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   const undoOpen = state === "done" && !!undoData && !!p.undo && !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), settingsVersion));
   const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal };
   const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", lead_search: "search", deal: "users" };
-  const openRoute = p.kind === "settings" ? "admin/workspace" : p.kind === "policy" ? "admin/autonomy" : (p.kind === "person_mode" || p.kind === "deal") ? `clients/${pl.contact_id}` : p.kind === "broadcast" ? "broadcasts" : p.kind === "playbook" ? "outbound" : p.kind === "lead_search" ? "clients/leads" : `inbox/th-${pl.conversation_id}`;
+  const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
       <div className="ask-card-head"><Icon name={ICON[p.kind] || "inbox"} size={12} />{p.title}<span className="ask-card-kind">{KIND[p.kind] || p.kind}</span></div>
@@ -154,9 +115,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
             {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
           </button>
           {p.kind === "reply" && pl.conversation_id && <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button>}
-          {p.kind !== "reply" && p.kind !== "steer" && p.kind !== "whisper" && p.kind !== "invite" && (
-            <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{t.openIt}</button>
-          )}
+          {openRoute && !hideOpen && <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{t.openIt}</button>}
           <button className="btn btn-ghost btn-sm" onClick={dismiss} disabled={busy}>{t.notNow}</button>
           {gated && <span className="ask-card-note">{window.gateTitle(gateKey)}</span>}
         </div>
@@ -175,32 +134,180 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   );
 };
 
-// The turn: text (with a cursor while it streams), the unverified mark, the
-// cards, the links, the toolbar, and — when it is the latest — what next.
-const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash, onRetry }) => {
-  const A = window.__ask;
-  const shape = streaming || !A ? { open: null, citations: [], followups: [] } : A.shape(m, lang);
-  const at = m.atMs ? window.__clock.stamp(m.atMs) : "";
-  return (
-    <div className={`ask-msg ai ${m.failed ? "failed" : ""} ${latest ? "latest" : ""}`} data-testid="ask-turn">
-      <span className="ask-msg-avatar" title={at}><Icon name="sparkle" size={11} /></span>
-      <div className="ask-msg-body">
-        <p className="ask-msg-text" aria-live="polite">{m.text}{streaming ? <span className="ask-cursor" /> : null}</p>
-        {/* A failed answer can be asked again, from the latest turn only: an older failure is history. */}
-        {!streaming && m.failed && latest && onRetry && (
-          <div className="ask-msg-links">
-            <button type="button" className="ask-action-chip" onClick={onRetry} data-testid="ask-retry"><Icon name="refresh" size={11} /> {t.tryAgain}</button>
-          </div>
-        )}
-        {!streaming && m.ungrounded && <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div>}
-        {!streaming && m.proposals && m.proposals.length ? m.proposals.map((p) => <AskCard key={p.id} p={p} messageId={m.id} t={t} onNav={onNav} />) : null}
-        {!streaming && <AskLinks shape={shape} t={t} onNav={onNav} />}
-        {!streaming && m.text && !m.failed && <AskTools m={m} t={t} speech={speech} flash={flash} />}
-        {!streaming && latest && <AskFollowups followups={shape.followups} t={t} onFollow={onFollow} />}
+// A figure: the value, what it counts, how it moved; a press on the value shows where it comes from (its receipt),
+// with a door to that place only where oneDoor left it one.
+const AskFigure = ({ f, open, onToggle, t, onNav }) => (
+  <div className="ask-figure">
+    {f.source ? (
+      <button type="button" className="ask-figure-value" aria-expanded={open} onClick={onToggle} data-testid="ask-figure">
+        {f.value}
+      </button>
+    ) : (
+      <span className="ask-figure-value plain">{f.value}</span>
+    )}
+    <span className="ask-figure-label">{f.label}</span>
+    {f.note ? <span className="ask-figure-note">{f.note}</span> : null}
+    {open && f.source ? (
+      <div className="ask-receipt" role="note" data-testid="ask-receipt">
+        <span className="ask-receipt-from">{t.from} {f.source.label}</span>
+        {f.source.door ? (
+          <button type="button" className="ask-receipt-door" onClick={() => onNav(f.source.to)}>{t.open}</button>
+        ) : null}
       </div>
+    ) : null}
+  </div>
+);
+
+// One whole in its parts, on the chart kit's bar (chart-core.jsx SegmentBar), coloured as Reports colours who answered:
+// the parts in the kit's blues in order, the one marked for attention in the warn status with its icon.
+const AT_PART_COLORS = ["var(--chart-1)", "var(--chart-1-soft)", "var(--chart-ramp-2)", "var(--chart-ramp-1)"];
+const AskBreakdown = ({ b, t, onNav }) => {
+  const SegmentBar = window.SegmentBar;
+  const config = {};
+  let n = 0;
+  const rows = b.parts.map((p, k) => {
+    const key = `p${k}`;
+    config[key] = p.warn
+      ? { label: p.label, color: "var(--warn)", icon: "alert" }
+      : { label: p.label, color: AT_PART_COLORS[n++] || "var(--chart-1)" };
+    return { key, value: p.value };
+  });
+  const title = `${b.total} ${b.label}`;
+  return (
+    <div className="ask-breakdown" data-testid="ask-breakdown">
+      {SegmentBar ? <SegmentBar title={title} rows={rows} config={config} small /> : <span className="ask-breakdown-title">{title}</span>}
+      {b.source ? (
+        <span className="ask-breakdown-from">
+          {t.from} {b.source.label}
+          {b.source.door ? (
+            <button type="button" className="ask-receipt-door" onClick={() => onNav(b.source.to)}>{t.open}</button>
+          ) : null}
+        </span>
+      ) : null}
     </div>
   );
 };
 
-window.AskTurn = AskTurn;
-window.AskCard = AskCard;
+// The answer: Say (the headline, or a prose answer's words), Show (the whole in its parts, the figures, the rows it
+// names), Do (the cards, Try again, Open, the next questions). `walk`: this is the answer the keys walk, whose moves
+// carry the ids the line points at (answerMoves' order) and `sel` is the one they stand on; a folded answer has none.
+const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome, compact = false }) => {
+  const [receipt, setReceipt] = useAtState(-1);
+  const a = answer;
+  const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
+  const hasDo = !!a.do.open || a.do.next.length > 0 || (cards && cards.length > 0) || !!retry;
+  // Each move's place in answerMoves' order: the items, then Open, then the next questions.
+  const openAt = a.show.items.length;
+  const nextAt = openAt + (a.do.open ? 1 : 0);
+  const moveProps = (me, cls) =>
+    walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
+  return (
+    <div className={`ask-answer${compact ? " compact" : ""}`} data-testid="ask-answer">
+      <div className="ask-part say" data-testid="ask-say">
+        <span className="ask-mark m1" aria-hidden="true" />
+        <div className="ask-say">
+          {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
+          {a.say.detail ? <p className={a.say.headline ? "ask-detail" : "ask-prose"}>{a.say.detail}</p> : null}
+        </div>
+      </div>
+      {hasShow ? (
+        <div className="ask-part show" data-testid="ask-show">
+          <span className="ask-mark m2" aria-hidden="true" />
+          <div className="ask-show">
+            {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
+            {a.show.figures.length ? (
+              <div className="ask-figures">
+                {a.show.figures.map((f, k) => (
+                  <AskFigure key={k} f={f} open={receipt === k} onToggle={() => setReceipt(receipt === k ? -1 : k)} t={t} onNav={onNav} />
+                ))}
+              </div>
+            ) : null}
+            {a.show.items.length ? (
+              <div className="ask-items">
+                {a.show.items.map((it, me) => (
+                  <button key={me} type="button" {...moveProps(me, "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
+                    <span className="ask-item-top">
+                      <span className="ask-item-title">{it.title}</span>
+                      {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
+                    </span>
+                    {it.line ? <span className="ask-item-line">{it.line}</span> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {hasDo ? (
+        <div className="ask-part do" data-testid="ask-do">
+          <span className="ask-mark m3" aria-hidden="true" />
+          <div className="ask-do">
+            {(cards || []).map((p) => (
+              <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} onOutcome={onOutcome} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
+            ))}
+            {retry ? (
+              <button type="button" className="ask-move" onClick={retry} data-testid="ask-retry">{t.tryAgain}</button>
+            ) : null}
+            {a.do.open ? (
+              <button type="button" {...moveProps(openAt, "ask-move open")} onClick={() => onNav(a.do.open.to)} data-testid="ask-open">
+                {a.do.open.label}
+              </button>
+            ) : null}
+            {a.do.next.map((q, k) => (
+              <button key={q} type="button" {...moveProps(nextAt + k, "ask-move next")} onClick={() => onFollow(q)} data-testid="ask-next">
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// A turn: the question over it, then the answer. While it streams, its words with a cursor (the Line says the answer
+// once it is whole, not every piece: spec 6.10); a failed turn says why and, on the latest only, offers Try again
+// (N20). A quick answer (no model) is drawn the same way, from `quick`.
+const AskTurn = ({ m, q, quick, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, compact = false }) => {
+  const A = window.__ask;
+  if (streaming) {
+    return (
+      <div className="ask-turn streaming" data-testid="ask-turn">
+        {q ? <p className="ask-turn-q">{q}</p> : null}
+        <div className="ask-part say" data-testid="ask-say">
+          <span className="ask-mark m1" aria-hidden="true" />
+          <p className="ask-prose">{m.text}<span className="ask-cursor" /></p>
+        </div>
+      </div>
+    );
+  }
+  const drawn = quick
+    ? { answer: quick, cardOpen: {} }
+    : A && A.answer
+      ? A.answer(m)
+      : { answer: atProse(m, lang), cardOpen: {} };
+  const failed = !!(m && m.failed);
+  return (
+    <div className={`ask-turn${failed ? " failed" : ""}${latest ? " latest" : ""}`} data-testid="ask-turn">
+      {q ? <p className="ask-turn-q">{q}</p> : null}
+      <AskAnswer
+        answer={drawn.answer}
+        cardOpen={drawn.cardOpen}
+        cards={m && !failed ? m.proposals || [] : []}
+        messageId={m ? m.id : null}
+        retry={failed && latest && onRetry ? onRetry : null}
+        walk={walk}
+        sel={sel}
+        t={t}
+        onNav={onNav}
+        onFollow={onFollow}
+        onOutcome={onOutcome}
+        compact={compact}
+      />
+      {m && m.ungrounded ? <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div> : null}
+    </div>
+  );
+};
+
+window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, answerMoves };
+Object.assign(window, { AskTurn, AskAnswer, AskCard });

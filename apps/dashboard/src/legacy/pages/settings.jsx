@@ -369,8 +369,8 @@ const PaneProfile = ({ flash }) => {
   );
 };
 
-// A teammate's role as the one pill draws it: the tone and the words are contracts'.
-const RolePill = ({ role }) => <StatePill kind="role" value={role} />;
+// A teammate's role is a name, not a state (tone.ts `role` is plain): the one chip, in the words contracts keeps for it.
+const RolePill = ({ role }) => <span className="chip" data-role={role}>{window.__chrome && window.__chrome.state ? window.__chrome.state("role", role).label : role}</span>;
 
 // Team & roles — real session state (ST_STORE); owner can preview lower roles,
 // which gates this section's own controls (the app-wide gate is the next step).
@@ -613,7 +613,7 @@ const TeamSection = ({ flash }) => {
           <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
             <span className="avatar set-team-face" aria-hidden="true" style={{ "--who-h": stHue(m.email || m.name) }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
-              <span className="set-team-name">{m.name}{isMe && <> <span className="set-team-you">You</span></>}</span>
+              <span className="set-team-name">{m.name}{isMe && <> <span className="chip set-team-you">You</span></>}</span>
               <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
               {armRemove === m.id && (
                 <Confirm
@@ -903,7 +903,7 @@ const PaneAutonomy = ({ flash }) => {
           return (
             <SetRow key={g.segId} label={g.label} hint={g.hint}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <button className="seg-chip" title={`Open “${s.label}” in Segments`} onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(g.segId))}>
+                <button className="chip" title={`Open “${s.label}” in Segments`} onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(g.segId))}>
                   <Icon name="sparkle" size={10} /> {s.label} · {s.count}
                 </button>
                 <SetSeg value={g.value} options={g.options} onChange={(v) => setGuard(g, v)} />
@@ -1413,7 +1413,7 @@ const PaneNotificationsReal = ({ flash }) => {
             <div className="set-row-info">
               <span className="set-row-label">
                 {k.title}
-                {k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}
+                {k.platform && <span className="chip set-notif-platform">to Chanlytics</span>}
                 <button
                   type="button"
                   className="set-mark"

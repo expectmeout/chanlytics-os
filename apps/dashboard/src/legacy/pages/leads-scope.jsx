@@ -230,6 +230,9 @@ const LeadRatedCard = ({ l }) => {
 // The row's classes on its tr (leads.css): a lead's row, its state, and its class. One function, so a memoised
 // row sees the same one each draw. The stylesheet reads them rather than asking every tr :has(td.ld-biz-cell).
 const ldRowClass = (l) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
+// Whether the Stage column says exactly what the name's state tag would: Talking, or a lead out of the running that is
+// not left out (the column draws nothing for a left-out lead, and Needs review and Contacted say more than it does).
+const ldStageSaysIt = (l) => l.state === "talking" || (l.state === "out" && l.cls !== "excluded");
 // A converted lead whose person became a client (0004): the row reads People's row for them, and a deal won says
 // Client in the deal pill's own tone, in place of the lead's own tag. Nothing stored on the lead; a proposal still
 // out, or no deal, keeps the lead's word. People not read yet reads as no deal. The rows come through the cell
@@ -249,7 +252,10 @@ const ldBusinessCell = (l, x) => (
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
           {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
-          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
+          {/* Said once: while the Stage column is drawn, the name's tag gives way where the column says the same thing
+              (Talking; a lead that said no or is not a fit). It stays where it says more: Needs review, Left out (the
+              column is empty for a left-out lead), and Contacted with how long ago. */}
+          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag && !(x.stageShown && ldStageSaysIt(l)) ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />

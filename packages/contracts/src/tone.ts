@@ -138,7 +138,8 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
-  role: { owner: "info", operator: "plain", viewer: "plain" },
+  // A role is a name, not a state: Team draws it as a chip. Blue on the owner said "in progress".
+  role: { owner: "plain", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   // Two sources are a claim somebody else stands behind; the rest are neutral, and a

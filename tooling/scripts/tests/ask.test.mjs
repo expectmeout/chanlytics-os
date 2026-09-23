@@ -3,7 +3,7 @@
  *
  * The mockup's Ask answered from a seed world through regexes; on a real
  * workspace every entry point was a "Soon" tag. Now the palette reads the
- * workspace: jumps from the cache, the bell's rows as "Right now",
+ * workspace: jumps from the cache, Today's queue as "Right now",
  * suggestions from the data, three questions answered without a model, and
  * a model turn that reads through capped view-model tools as the signed-in
  * person, answers in a strict shape, and may cite only what it read.
@@ -32,7 +32,7 @@ import {
   describeSettingsChange,
   detectLanguage,
   emptyReadSet,
-  fastPath,
+  askIntent,
   groundCitations,
   isUngrounded,
   normalizeNavigate,
@@ -217,74 +217,21 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("the three fast paths: who needs me, did anyone call, what is open; everything else is the model's", () => {
-  const feed = [
-    {
-      key: "needs:t1",
-      kind: "needs_you",
-      at: NOW,
-      title: "Dani needs you",
-      message: "",
-      to: "inbox/t1",
-      icon: "inbox",
-      tone: "warn",
-      action: "",
-    },
-    {
-      key: "draft:m2",
-      kind: "held_draft",
-      at: NOW,
-      title: "Rosa is waiting for you",
-      message: "",
-      to: "inbox/t2",
-      icon: "clock",
-      tone: "",
-      action: "",
-    },
-    {
-      key: "invite:i1",
-      kind: "invite",
-      at: NOW,
-      title: "Invitation pending",
-      message: "",
-      to: "admin/workspace",
-      icon: "mail",
-      tone: "",
-      action: "",
-    },
-  ];
-  const calls = [
-    { callId: "k1", who: "+1 917 555 0100", missed: true, live: false, startedAtMs: NOW - 3_600_000 },
-    { callId: "k2", who: "Old", missed: true, live: false, startedAtMs: NOW - 3 * 86_400_000 },
-    { callId: "k3", who: "Live", missed: false, live: true, startedAtMs: NOW },
-  ];
-  const ctx = { feed, calls, now: NOW, language: "en", timezone: "America/New_York" };
-  const needs = fastPath("who needs me right now?", ctx);
-  assert.equal(needs.kind, "needs");
-  assert.equal(needs.answer, "2 people need you: Dani, Rosa.");
-  assert.deepEqual(
-    needs.links.map((l) => l.to),
-    ["inbox/t1", "inbox/t2"],
-  );
-  const es = fastPath("¿quién me necesita?", { ...ctx, language: "es" });
-  assert.equal(es.answer, "2 personas te esperan: Dani, Rosa.");
-  const nobody = fastPath("what's waiting on me", { ...ctx, feed: [] });
-  assert.equal(nobody.answer, "Nobody is waiting on you right now. The receptionist is answering on its own.");
-  const c = fastPath("did anyone call while I was busy?", ctx);
-  assert.equal(c.kind, "calls");
-  assert.equal(c.answer, "One missed call today: +1 917 555 0100.", "only today's, in the business's zone");
-  assert.deepEqual(
-    c.links.map((l) => l.to),
-    ["conversations/cv-k1"],
-  );
-  const quiet = fastPath("missed calls?", { ...ctx, calls: [calls[1], calls[2]] });
-  assert.equal(quiet.answer, "No missed calls today. One call is on the line now.");
-  const open = fastPath("what's open saturday for a balayage", ctx);
-  assert.deepEqual(open, { kind: "openings", day: "sat", service: "what's open saturday for a balayage" });
-  assert.equal(fastPath("qué hay libre mañana", { ...ctx, language: "es" }).day, "2026-09-06");
-  assert.equal(dayFromQuestion("any slots today", NOW, "America/New_York"), "2026-09-05");
-  assert.equal(fastPath("what did the receptionist tell Dani?", ctx), null, "the long tail is the model's");
-  assert.equal(fastPath("tell rosa we are running late", ctx), null);
+test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
+  const TZ = "America/New_York";
+  assert.deepEqual(askIntent("who needs me right now?", NOW, TZ), { kind: "needs" });
+  assert.deepEqual(askIntent("what's waiting on me", NOW, TZ), { kind: "needs" });
+  assert.deepEqual(askIntent("did anyone call while I was busy?", NOW, TZ), { kind: "calls" });
+  assert.deepEqual(askIntent("missed calls?", NOW, TZ), { kind: "calls" });
+  assert.deepEqual(askIntent("what's open saturday for a balayage", NOW, TZ), {
+    kind: "openings",
+    day: "sat",
+    service: "what's open saturday for a balayage",
+  });
+  assert.equal(askIntent("qué hay libre mañana", NOW, TZ).day, "2026-09-06");
+  assert.equal(dayFromQuestion("any slots today", NOW, TZ), "2026-09-05");
+  assert.equal(askIntent("what did the receptionist tell Dani?", NOW, TZ), null, "the long tail is the model's");
+  assert.equal(askIntent("tell rosa we are running late", NOW, TZ), null);
 });
 
 test("language, scope and settings changes", () => {
@@ -375,9 +322,60 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
     __PEOPLE: { rows: [{ id: ID, name: "Rosa Pérez" }] },
     __SETTINGS: { config: { calendar: { ical_url: "https://x" } } },
-    __WORKSPACES: [{ id: "w1", slug: "m", name: "Melany's", status: "active", timezone: "America/New_York" }],
+    __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
     __ACTIVE_WORKSPACE: "w1",
     __TEAM_INVITES: [],
+    // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
+    TODAY_DATA: {
+      queue: {
+        rows: [
+          {
+            id: "q1",
+            kind: "handoff",
+            conversationId: "c1",
+            callId: null,
+            who: "Nora",
+            channel: "WhatsApp",
+            when: "waited 2h",
+            sentence: "Can I come at 3?",
+            quoted: true,
+            cta: { label: "Reply", to: "inbox/th-c1" },
+          },
+          {
+            id: "q2",
+            kind: "call",
+            conversationId: null,
+            callId: "k9",
+            who: "Lee",
+            channel: "Phone",
+            when: "2:14 PM · 1:35",
+            sentence: "Asked about a gift card.",
+            quoted: false,
+            cta: { label: "Listen", to: "conversations/cv-k9" },
+          },
+        ],
+      },
+    },
+    __BROADCASTS: {
+      rows: [
+        {
+          id: "r1",
+          state: "pending_approval",
+          recipient_count: 1,
+          when: "now",
+          counts: { sent: 0, replied: 0 },
+          audience: { label: "Win-back · quiet 30 days" },
+        },
+        {
+          id: "r2",
+          state: "sent",
+          recipient_count: 4,
+          when: "Sep 20",
+          counts: { sent: 4, replied: 1 },
+          audience: { label: "Welcome" },
+        },
+      ],
+    },
   };
   const api = mod.installAsk(win, storage);
   assert.equal(win.__ask, api, "published for the palette");
@@ -386,10 +384,44 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(!idx.some((j) => /Aisha/.test(j.label)), "a seeded thread never reaches the jump list");
   assert.ok(idx.some((j) => j.to === `clients/${ID}`));
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
-  assert.equal(api.rightNow().length, 2, "the thread that needs you and today's missed call; never the seeded thread");
-  assert.ok(api.rightNow().some((r) => r.title === "Dani needs you"));
-  assert.equal(api.fast("who needs me?").answer, "One person needs you: Dani.");
-  assert.equal(api.fast("did anyone call?").kind, "calls");
+  assert.equal(
+    api.rightNow("en"),
+    "Nora is waiting on you; one playbook run is waiting for your approval.",
+    "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
+  );
+  assert.deepEqual(api.waiting().people, [
+    {
+      id: "c1",
+      kind: "thread",
+      who: "Nora",
+      channel: "WhatsApp",
+      when: "waited 2h",
+      line: "“Can I come at 3?”",
+      to: "inbox/th-c1",
+    },
+  ]);
+  assert.deepEqual(
+    api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
+    [["r1", "Win-back · quiet 30 days", 1, "broadcasts/run:r1"]],
+  );
+  win.TODAY_DATA.queue.waiting = 9;
+  assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (queue.waiting)");
+  delete win.TODAY_DATA.queue.waiting;
+  assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
+  const needs = await api.quick("who needs me?");
+  assert.deepEqual(
+    needs.show.items.map((i) => i.source.to),
+    ["inbox/th-c1", "broadcasts/run:r1"],
+  );
+  const called = await api.quick("did anyone call?");
+  assert.deepEqual(
+    [called.say.headline, called.show.items.map((i) => i.source.to)],
+    ["One missed call today.", ["conversations/cv-k1"]],
+  );
+  assert.equal(api.quick("what did the receptionist tell Dani?"), null, "the long tail is the model's");
+  const drawn = api.answer({ text: "Hi", citations: [], navigate: null, followups: [], proposals: [], language: "en" });
+  assert.equal(drawn.answer.form, "prose", "an answer made before the Line reads back as prose");
+  assert.equal(api.answerText(drawn.answer), "Hi");
   assert.equal(
     api.suggestions("today", null, "en").some((s) => /open tomorrow/i.test(s.q)),
     true,
@@ -640,8 +672,6 @@ test("the migration: own rows, column-scoped update, a ninety-day purge on the c
 test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, the seed palette is the demo's", () => {
   const tb = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
-  const sb = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
-  assert.ok(!sb.includes("Soon") && sb.includes("onClick={onNewChat}"));
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes("window.appAsk = openAsk;"));
   assert.ok(!shell.includes("Ask stubbed outside demo"));
@@ -654,11 +684,7 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   assert.ok(!ask.includes("if (!window.__DEMO_MODE) return; // Ask is stubbed"));
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('data-testid="ask-fast"'));
-  assert.ok(
-    real.includes("const fp = A.fast(q);") && real.includes("if (fp) { answerFast(q, fp); return; }"),
-    "a quick answer never spends a model turn",
-  );
+  // A quick answer never spends a model turn: executed in ask-palette.test.mjs ("the Line at rest").
   assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   for (const part of ["ask-text", "ask-hooks", "ask-turn", "ask-home", "ask-real"])
@@ -796,10 +822,6 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'),
     "the recogniser listens in the palette's language",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("speech.toggle(m.id, m.text, m.language)"),
-    "read aloud is a toggle on the answer's toolbar",
-  );
   const cfg = readCode("apps/dashboard/next.config.ts");
   assert.ok(cfg.includes("microphone=(self)"), "the page may ask for the microphone");
   assert.ok(
@@ -882,16 +904,10 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate.to to that row"));
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
-  assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/ask.css").includes(
-      ".ask-real .ask-msg-text { white-space: pre-wrap; word-break: break-word; }",
-    ),
-  );
+  // Its sources are drawn as the answer's items (contracts answerFromV1): executed in ask-answer.test.mjs.
 });
 
-test("the composer is the way on: focus comes back, the mic is always visible, 'open' goes there, lists go one per line", () => {
+test("the answer's shape for the line: 'open' is a navigate with now, the mic says when it cannot listen, lists go one per line", () => {
   assert.deepEqual(ASK_FINISH_JSON_SCHEMA.properties.navigate.required, ["to", "label", "now"]);
   const go = parseAskFinish({
     answer: "Opening the 3:34 AM call.",
@@ -911,32 +927,11 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(
-    ui.includes("H.useAskFocus(inputRef, open && !live && !doomed, [open, live, active, doomed]);") &&
-      readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes("ref.current.focus(); }, 30);"),
-    "focus returns after every turn and chip",
-  );
-  assert.ok(
-    !ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('),
-    "the input is never disabled while a turn runs",
-  );
-  assert.ok(
-    !/disabled=\{!!live\}\s*\n\s*aria-label="Ask Chanlytics"/.test(ui),
-    "the input stays enabled during a turn",
-  );
-  assert.ok(
     ui.includes('data-testid="ask-talk-off"'),
     "where the browser cannot listen, the mic says so instead of vanishing",
   );
-  assert.ok(
-    ui.includes(
-      "if (final.navigate && final.navigate.now && final.navigate.to && !final.failed) setTimeout(() => nav(final.navigate.to), 250);",
-    ),
-    "open/show/see goes there as the answer lands",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("A.shape(m, lang)"),
-    "what an answer shows is the contract's decision, not the palette's",
-  );
+  // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
+  // ask-palette.test.mjs ("open, show or see").
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(
     prompt.includes("with now: true, and answer in one line") &&
@@ -1069,7 +1064,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
 });
 
-test("the rail, result titles and the Act group: a desktop conversation has the mockup's rail, a thread is titled by what it did, and an operator is offered cards to finish", () => {
+test("result titles and the cards to finish: a thread is titled by what it did, and an operator is offered cards to finish", () => {
   const withActs = buildAskSuggestions({
     surface: "settings",
     language: "en",
@@ -1121,23 +1116,6 @@ test("the rail, result titles and the Act group: a desktop conversation has the 
     "a new thread is titled by its first answer's result",
   );
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    ui.includes('data-testid="ask-rail"') &&
-      ui.includes('className="ask-new-btn"') &&
-      ui.includes("const AR_RAIL_CAP = 10;"),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes('window.matchMedia("(min-width: 721px)")'),
-    "the rail is a desktop's; the phone keeps its sheet",
-  );
-  assert.ok(
-    ui.includes("const railOn = wide && !!active;"),
-    "the rail appears beside a conversation, not on the palette at rest",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('sections.push({ key: "act", label: t.act,'),
-    "Ask and Act are two groups",
-  );
   assert.ok(
     ui.includes("if (it.compose) { setQuery(it.q);"),
     "a compose row lands in the input for the person to finish",
@@ -1210,19 +1188,7 @@ test("what an answer shows is decided once: the Open button never repeats as a c
       shell.includes("const twin = list.find((th) => A.sameQuestion(th.title, q));"),
     "a repeated question resumes its thread instead of opening a twin, even before the list has landed",
   );
-  const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(
-    turn.includes('data-testid="ask-copy"') && turn.includes('data-testid="ask-read"'),
-    "a quiet toolbar: copy and read aloud",
-  );
-  assert.ok(turn.includes("{!streaming && latest && <AskFollowups"), "follow-ups on the latest answer only");
-  assert.ok(!turn.includes("Read it") && !shell.includes("Read it"), "no button printed under every answer");
-  const css = readRaw("apps/dashboard/src/legacy/styles/ask.css");
-  assert.ok(
-    css.includes(".ask-msg:hover .ask-tools, .ask-msg:focus-within .ask-tools") &&
-      css.includes("@media (hover: none) { .ask-tools { opacity: 1; } }"),
-    "the toolbar shows on hover on a desktop and always on touch",
-  );
+  // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
   // The bridge is four modules composed into one object; the shell reaches nothing else.
   for (const f of ["api", "commit", "speech", "palette"])
     assert.ok(readCode(`apps/dashboard/src/legacy-bridge/ask/${f}.ts`).length > 200, f);

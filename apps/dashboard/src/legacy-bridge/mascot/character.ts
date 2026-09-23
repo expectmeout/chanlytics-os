@@ -79,7 +79,7 @@ export const UNITS = 3.8;
 /**
  * The box the three need so that nothing they do is ever clipped, in squares about the centre: every state, move and
  * fidget, measured on 23 Sep at 4.05 high and 4.93 wide (the leap's apex is the top, the row's ends the sides). A
- * canvas that sizes its squares from its own box (a button's icon, the palette's stage) uses fitSide; UNITS alone
+ * canvas that sizes its squares from its own box (a button's icon, the Line's face) uses fitSide; UNITS alone
  * clipped the leap's apex there.
  */
 export const FIT = { w: 5, h: 4.1 } as const;

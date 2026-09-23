@@ -228,7 +228,8 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
         >
           <span className="phone-tab-icon">
             <Icon name={t.icon} size={18} />
-            {badge(t) && <span className="phone-tab-badge tabular">{badge(t)}</span>}
+            {/* Only the Inbox tab has a count, and it counts people who need you: amber, as the sidebar's is. */}
+            {badge(t) && <span className="phone-tab-badge tally tally-icon tally-warn">{badge(t)}</span>}
           </span>
           <span className="phone-tab-label">{t.label}</span>
         </button>
@@ -812,7 +813,6 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}
           onNavigate={(id) => { setNavOpen(false); navigate(NAV_ROUTE[id] || (id.includes("/") ? id : `soon/${id}`)); }}
-          onNewChat={() => { setNavOpen(false); window.dispatchEvent(new CustomEvent("ask:new")); openAsk(); }}
           onClose={() => setNavOpen(false)}
           collapsed={sidebar === "rail"}
           onToggleCollapse={() => onSidebar(sidebar === "rail" ? "open" : "rail")}

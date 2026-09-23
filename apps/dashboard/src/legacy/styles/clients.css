@@ -112,16 +112,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.cl-rail-row.smart::before {
-  content: "";
-  position: absolute;
-  left: -1px; top: 8px; bottom: 8px;
-  width: 2px;
-  background: var(--accent);
-  border-radius: 2px;
-  opacity: 0.4;
-}
-.cl-rail-row.smart.active::before { opacity: 1; }
 .cl-rail-row .glyph { color: var(--ink-faint); flex-shrink: 0; }
 .cl-rail-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A count is read, so it takes the dim ink: --ink-faint is 2.1 to 2.7:1 in both themes (Leads' counts were dim,
@@ -132,7 +122,8 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.cl-rail-row.smart .count { color: var(--accent); font-weight: 500; }
+/* A list of people who need you counts in amber; every other count is a total, in the dim ink. */
+.cl-rail-row.asks .count { color: var(--warn-ink); font-weight: 500; }
 .cl-rail-row.active .count { color: var(--ink); }
 
 /* A row with acts of its own (RailRow `menu`: a search's …) is its pick and its acts side by side. The pick fills the
@@ -1392,8 +1383,10 @@
 .cl-prof-now { display: inline-flex; }
 /* The standing beside the name is a dot and its word in the standing's own ink, not a filled pill: a word, not a
    control, so it also takes back the 36px touch floor legacy.css puts on every pill. */
-html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 0; border: 0; background: transparent; gap: 6px; font-size: var(--text-sm); font-weight: 400; }
+.cl-prof-now .pill { padding: 0; background: transparent; gap: 6px; font-size: var(--text-sm); font-weight: 400; }
 .cl-prof-now .pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+/* The head says every standing as a dot and a word in its own ink (the Quiet record, #915); a green one stays green. */
+.cl-prof-now .pill-ok { color: var(--ok-ink); }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
 .cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
@@ -1632,7 +1625,6 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 .cl-prof-run-title { display: block; }
 .cl-prof-run-out { display: block; color: var(--ink-dim); }
-.cl-prof-run-out[data-tone="ok"] { color: var(--ok-ink); }
 .cl-prof-run-out[data-tone="warn"] { color: var(--warn-ink); }
 /* The line under a person's name breaks between its parts, never inside one, and no line starts with a dot: every
    part carries its separator in a 14px lead, and the run sits 14px left inside a clip, so the part that starts a
@@ -1918,7 +1910,8 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .cl-rail-group-label { padding: 2px 10px 4px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 .cl-list-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
 .cl-list-action-text { font-size: 12.5px; color: var(--ink-dim); }
-.cl-row-next { color: var(--ok); font-weight: 500; }
+/* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
+.cl-row-next { color: var(--ink-muted); font-weight: 500; }
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
 /* The receptionist's word beside the state is said once. While its column shows (is-in-column), a desktop leaves the word
    to that column. A card draws the column's cell whatever the member chose, and Visits takes its place, so a card leaves
@@ -1957,8 +1950,8 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .cl-row-name-them:hover { color: var(--accent); }
 .cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
 .cl-row-offers { font-size: 11.5px; }
-.cl-row-offers.yes { color: var(--ok); font-weight: 500; }
-.cl-row-offers.no { color: var(--danger); }
+.cl-row-offers.yes { color: var(--ink-muted); font-weight: 500; }
+.cl-row-offers.no { color: var(--ink-muted); }
 .cl-row-offers.unasked { color: var(--ink-faint); }
 .cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; padding-left: 0; }
 .cl-table th.cl-actions-head { width: 1%; }
@@ -2116,7 +2109,7 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .pl-standing-dot { color: var(--ink-faint); }
 /* Both sides, for the reason .cm-standing-tap gives: -6px on the left alone left
    12px of ink between "need a person" and the dot after it, against 6 before. */
-.pl-standing-needs { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
+.pl-standing-needs { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--warn-ink); cursor: pointer; font-variant-numeric: tabular-nums; }
 .pl-standing-needs:hover { background: var(--bg-hover); }
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
@@ -2199,11 +2192,10 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
    person is needed, blue for in progress, green for healthy, the accent for right
    now, and red for the back office's workspace whose line failed or whose card
    stopped working -- not the same kind of amber as one waiting on a person. */
-.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn); }
-.cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info); }
-.cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ok); }
-.cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent); }
-.cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger); }
+.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn-ink); }
+.cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
+.cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
+.cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .cl-attn-cta {
   align-self: center;
   font-size: 11px; font-weight: 500;
@@ -2244,8 +2236,6 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
-.seg-chip-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-.seg-chip-open:hover { text-decoration: underline; }
 /* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
 .cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
 
@@ -2373,12 +2363,10 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pl-card-tick { display: none; }
   .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
-  /* A pill is words, not a control: the touch floor (legacy.css) made it 36px tall. */
-  html.legacy-on .pl-card > .pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
   .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-card-lead::first-letter { text-transform: uppercase; }
   .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
-  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ok-ink); font-weight: var(--weight-medium); }
+  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* A lead's face is its mark or its listing's photo over its initials, round as a person's is; a photo that will not
      load leaves the initials (plRowCard). */

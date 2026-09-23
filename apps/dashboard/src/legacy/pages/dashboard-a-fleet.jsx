@@ -69,7 +69,7 @@ const AgentFleet = () => {
                 onClick={() => { setFilter(c.id); setShowAll(false); }}
               >
                 {c.label}
-                <span className="fleet-filter-count tabular">{c.count}</span>
+                <span className="fleet-filter-count tally">{c.count}</span>
               </button>
             ))}
           </div>

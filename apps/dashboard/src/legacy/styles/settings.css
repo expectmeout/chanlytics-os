@@ -161,7 +161,6 @@
 }
 .settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); }
 .settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.settings .pill { height: 22px; padding: 0 9px; font-size: 11.5px; }
 .settings .cl-tab { font-variant-numeric: tabular-nums; }
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
@@ -209,13 +208,6 @@
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .setup-rows .cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
 .settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
-/* A state is a word, not something to press: on a phone the touch floor
-   (legacy-bridge/legacy.css) grew every pill to 36px, so "On" and "Paid" were
-   ovals taller than the text beside them. A pill that IS pressed is a button
-   and keeps the floor. */
-@media (pointer: coarse) {
-  html.legacy-on .settings span.pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
-}
 
 /* Facts in two columns (the Business pane, the activity ledger): the name of a
    fact, then the fact. The list is the person's page's, where the key is a word
@@ -279,22 +271,10 @@
   color: var(--ink-dim);
 }
 .act-list > .act-day:first-child { padding-top: 10px; }
-/* How much of the log belongs to this day: it is worked down, not read. */
-.act-day-n {
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-  background: var(--bg-sunken);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
 .act-row {
   position: relative;
   display: grid;
-  grid-template-columns: 22px 62px minmax(0, 1fr) auto;
+  grid-template-columns: 24px 62px minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 10px;
   /* The hover reaches the card's edge rather than stopping at the text. */
@@ -313,7 +293,7 @@
 .act-row::before {
   content: "";
   position: absolute;
-  left: calc(var(--set-row-y) * 0.5 + 11px);
+  left: calc(var(--set-row-y) * 0.5 + 12px);
   top: 0; bottom: 0;
   width: 1px;
   background: var(--line);
@@ -324,25 +304,13 @@
 .act-row:last-child::before { bottom: 50%; }
 /* ---- The kind, and what it means ---------------------------------------
    Every line the same grey is a log you read rather than scan, and the line
-   an owner opens it to find is the one that went wrong. The disc takes the
-   kind's tone (contracts activityTone), which says a tone only where the
-   product knows one -- most rows stay quiet, and the failures do not. */
-.act-glyph {
-  align-self: center;
-  position: relative;
-  display: grid; place-items: center;
-  width: 22px; height: 22px;
-  border-radius: var(--radius-full);
-  background: var(--bg-sunken);
-  color: var(--ink-dim);
-  flex: none;
-}
-.act-glyph[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
-.act-glyph[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
-.act-glyph[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
-.act-glyph[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
-.act-glyph[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
-.act-glyph { z-index: 1; }
+   an owner opens it to find is the one that went wrong. The node on the spine
+   is the one mark (.mark), round and neutral; the kind's tone (contracts
+   activityTone) is said by the row's words where it is a warning or a failure,
+   so most rows stay quiet and the failures do not. */
+.act-glyph { align-self: center; position: relative; z-index: 1; border-radius: var(--radius-full); }
+.act-row[data-tone="warn"] .act-what { color: var(--warn-ink); }
+.act-row[data-tone="danger"] .act-what { color: var(--danger-ink); }
 .act-when { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .act-what { font-size: var(--set-label); color: var(--ink); line-height: 1.5; text-wrap: pretty; }
 .settings .act-row .act-open { justify-self: end; height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
@@ -351,7 +319,7 @@
      door share one line and the sentence takes the next. Every cell is placed:
      left to itself, the sentence spanned to the end and pushed the door onto a
      line of its own, outside the card. */
-  .act-row { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 3px; }
+  .act-row { grid-template-columns: 24px minmax(0, 1fr) auto; row-gap: 3px; }
   .act-glyph { grid-row: 1; grid-column: 1; }
   .act-when { grid-row: 1; grid-column: 2; }
   .settings .act-row .act-open { grid-row: 1; grid-column: 3; }
@@ -653,7 +621,8 @@
   border: 1px dashed var(--line-strong);
 }
 .set-team-row.pending .set-team-name { color: var(--ink-muted); }
-.set-team-you { font-size: 10px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-ink); background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: var(--radius-full); padding: 1px 7px; margin-left: 8px; vertical-align: 1px; }
+/* You, beside your own name: a chip (a label, not a live state, so never the accent). */
+.set-team-you { margin-left: 8px; vertical-align: 1px; }
 .set-team-spacer { width: 30px; flex: none; }
 
 /* "View as" is a row of the card, not a box inside it. */
@@ -667,7 +636,7 @@
 /* What each role may do: a word and its sentence, in two columns. */
 .set-roles-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
 .set-role-def { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: baseline; }
-.set-role-def .pill { justify-self: start; }
+.set-role-def .chip { justify-self: start; }
 .set-role-can { font-size: var(--set-hint); color: var(--ink-dim); line-height: 1.5; }
 
 .set-team-gated { display: flex; align-items: center; gap: 8px; font-size: var(--set-hint); color: var(--ink-dim); margin-bottom: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -855,7 +824,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    the notification rows that go to the platform say so beside their title. */
 .set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
 .set-broken-issues li { margin: 2px 0; }
-.set-notif-platform { margin-left: 8px; font-size: 10px; vertical-align: middle; }
+.set-notif-platform { margin-left: 8px; vertical-align: middle; }
 
 /* Setup: one page until the receptionist answers. The rows are the attention
    row People and Today share (attention-bits.jsx); the head carries the

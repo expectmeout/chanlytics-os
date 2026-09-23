@@ -213,7 +213,7 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
           <div className="fl-head-name">
             {agent.name}
             <span className={`pill ${status === "active" ? "pill-accent" : isPaused ? "pill-warn" : ""}`}>
-              {status === "active" && <span className="dot" />}
+              {status === "active" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
               {statusLabel}
             </span>
           </div>
@@ -383,7 +383,7 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
                       {s ? (
                         <>
                           when someone {pb.trigger || "enters"}{" "}
-                          <button className="fl-pb-seg" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(pb.segId))}>
+                          <button className="chip fl-pb-seg" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(pb.segId))}>
                             <Icon name="sparkle" size={9} />{s.label} · {s.count}
                           </button>
                           {pb.stop && <> → stops when {pb.stop}</>}

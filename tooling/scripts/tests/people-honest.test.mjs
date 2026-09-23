@@ -3154,3 +3154,24 @@ test("past everyone loaded, the line under the table says the server is being se
   );
   assert.equal(byTestId(tree, "people-table-scroll").props["aria-busy"], undefined);
 });
+
+test("a person's lists are chips: a list is a name, at the pill's size and in no state's colour", async () => {
+  await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  cells = [];
+  frames.begin();
+  const tree = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Person", flash: () => {} });
+  const chip = byTestId(tree, "person-list-chip");
+  const cls = String(chip.props.className || "").split(" ");
+  assert.ok(cls.includes("chip"), "the one chip");
+  assert.ok(!cls.includes("seg-chip"), "not the blue 10px chip People kept for itself");
+  const x = find(
+    chip,
+    (n) =>
+      n.type === "button" &&
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("chip-x"),
+  );
+  assert.ok(x, "the chip's × takes them off");
+  assert.equal(x.props["aria-label"], "Take Person off Regulars");
+});

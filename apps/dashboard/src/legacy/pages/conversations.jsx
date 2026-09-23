@@ -102,7 +102,6 @@ const CvRow = ({ c, active, onSelect }) => {
       <span className="cv-row-snippet">{c.snippet}</span>
       <span className="cv-row-foot">
         <span className="cv-row-agent">
-          <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{c.agent.glyph}</span>
           {c.agent.name}
         </span>
         {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
@@ -278,7 +277,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
                 onClick={() => window.CHANLY.nav(cvAddress(ch.id, null))}
               >
                 {ch.label}
-                <span className="fleet-filter-count tabular">{counts[ch.id]}</span>
+                <span className="fleet-filter-count tally">{counts[ch.id]}</span>
               </button>
             ))}
           </div>

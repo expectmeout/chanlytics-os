@@ -1,6 +1,6 @@
 /* global React, Icon */
 // Chanlytics — Sidebar v3
-// Workspace menu (top) → New Chat → nav → (demo agents) → the shell's one
+// Workspace menu (top) → nav → (demo agents) → the shell's one
 // status line → account menu (foot). Two popovers and a rail. Every word
 // about a person comes from contracts/identity.ts through the bridge, and
 // everything the menus can do — switch, sign out, theme — goes through the
@@ -103,7 +103,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
       {badge ? (collapsed
         ? <span className={`nav-dot ${item.urgent ? "urgent" : ""}`} aria-label={`${badge} ${item.label}`} />
-        : <span className={`nav-badge ${item.urgent ? "urgent" : ""} tabular`} data-tip={tip || undefined}>{badge}</span>) : null}
+        : <span className={`nav-badge tally${item.urgent ? " urgent tally-warn" : ""}`} data-tip={tip || undefined}>{badge}</span>) : null}
       {!collapsed && item.expandable && (
         <Icon name="chevron" size={11} style={{
           marginLeft: badge ? 4 : "auto",
@@ -121,7 +121,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
         onClick={() => onNavigate(c.id)}
       >
         <span>{c.label}</span>
-        {c.badge && <span className="nav-badge tabular">{c.badge}</span>}
+        {c.badge && <span className="nav-badge tally">{c.badge}</span>}
       </div>
     ))}
   </>
@@ -275,7 +275,7 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
           <div className="name">{who.name}</div>
           <div className="email">{who.email}</div>
         </div>
-        {who.role && <span className="pill sb-role" data-testid="sb-me-role">{who.role}</span>}
+        {who.role && <span className="chip sb-role" data-testid="sb-me-role">{who.role}</span>}
       </div>
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/profile"); }} data-testid="sb-me-name">
@@ -312,7 +312,6 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
 const Sidebar = ({
   active = "home",
   onNavigate = () => {},
-  onNewChat = () => {},
   onClose = null,
   agents = ACTIVE_AGENTS_DEFAULT,
   badges = {},
@@ -433,23 +432,7 @@ const Sidebar = ({
         <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />
       </SbMenu>
 
-      {/* New Chat — primary CTA. Opens Ask, gated the same way the topbar is. */}
-      <div className="sb-newchat">
-        <button
-          className="btn btn-primary"
-          style={{ width: "100%", height: 32, justifyContent: "center" }}
-          onClick={onNewChat}
-          title="Start a new Ask thread"
-          data-tip={collapsed ? "New Chat" : undefined}
-          data-tip-side="right"
-          data-testid="sb-newchat"
-        >
-          <Icon name="plus" size={13} />
-          {!collapsed && "New Chat"}
-        </button>
-      </div>
-
-      {/* Scrollable nav region — grows/shrinks with the agents block */}
+      {/* Scrollable nav region — grows/shrinks with the agents block. Ask has one door, the top bar's (the Line, D8). */}
       <div className="sb-nav-scroll">
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}

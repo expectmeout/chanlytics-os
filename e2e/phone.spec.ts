@@ -64,6 +64,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(pal).toBeVisible();
     await expect(fab).toBeHidden();
     await expect(page.getByTestId("ask-input")).toBeVisible();
+    // The line is at the thumb: docked at the foot of the sheet, what it answers rising above it (the Line, 6.7).
+    const line = (await page.getByTestId("ask-line").boundingBox())!;
+    expect(line.y + line.height, "the line sits at the foot").toBeGreaterThan(page.viewportSize()!.height - 120);
     await page.screenshot({ path: "test-results/phone-ask.png" });
     await page.keyboard.press("Escape");
     await expect(pal).toBeHidden();

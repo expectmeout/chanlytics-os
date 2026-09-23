@@ -47,14 +47,31 @@ html.legacy-on #root {
   html.legacy-on [role="button"] {
     min-height: 44px;
   }
-  /* Inline text-buttons (chips, links-as-buttons) grow by padding instead of
+  /* Inline text-buttons (links-as-buttons) grow by padding instead of
      box height so they don't blow up line layout. */
   html.legacy-on .brief-chip,
-  html.legacy-on .td-link,
-  html.legacy-on .pill {
+  html.legacy-on .td-link {
     min-height: 36px;
     padding-top: 8px;
     padding-bottom: 8px;
+  }
+  /* A pill is words and a tally is a number: neither is pressed, so neither
+     takes a floor (every list row used to undo one on .pill). A chip that is
+     pressed keeps its 20px look and grows its target: an invisible margin
+     around each of its buttons. */
+  html.legacy-on .chip,
+  html.legacy-on .chip > button {
+    min-height: 0;
+  }
+  html.legacy-on button.chip,
+  html.legacy-on .chip > button {
+    position: relative;
+  }
+  html.legacy-on button.chip::after,
+  html.legacy-on .chip > button::after {
+    content: "";
+    position: absolute;
+    inset: -8px -3px;
   }
 }
 

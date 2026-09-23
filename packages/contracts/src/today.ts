@@ -273,8 +273,12 @@ export interface TodayVM {
   calls: { line: string; rows: TodayCallRowVM[] } | null;
   /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
   callsRead: boolean;
-  /** Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what the rows hold in words. */
-  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM };
+  /**
+   * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, what the
+   * rows hold in words, and how many people are waiting on you across the whole queue (a handoff, a call-back or a
+   * closing window; a call worth a listen is nobody waiting), which Ask's Right now says.
+   */
+  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM; waiting: number };
   quiet: {
     headline: string;
     sub: string;
@@ -1017,7 +1021,7 @@ export function toTodayVM(
       noReply,
       calls: null,
       callsRead,
-      queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
+      queue: { rows: [], more: 0, parts: [], empty: queueEmpty, waiting: 0 },
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -1346,6 +1350,7 @@ export function toTodayVM(
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts,
     empty: queueEmpty,
+    waiting: needN + winN,
   };
 
   return {
@@ -1758,7 +1763,8 @@ export type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | 
 
 export interface TodayLeakVM {
   id: TodayLeakId;
-  tone: "danger" | "warn" | "info";
+  /** A look, never a failure: amber where a person should look, blue for what waits on someone else. */
+  tone: "warn" | "info";
   /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
   tag: string;
   /** The tone's icon (the legacy Icon set). */
@@ -1843,7 +1849,7 @@ export function todayLeaks(
     const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
-      tone: "danger",
+      tone: "warn",
       tag: "Booking gap",
       icon: "calendar",
       text,
@@ -1865,7 +1871,7 @@ export function todayLeaks(
     const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
     found.set("unanswered", {
       id: "unanswered",
-      tone: "danger",
+      tone: "warn",
       tag: "No reply",
       icon: "alert",
       text,

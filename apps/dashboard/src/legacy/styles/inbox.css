@@ -64,8 +64,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.ix-bucket.accent .icon { color: var(--accent); }
-.ix-bucket.active.accent { background: var(--accent-soft); }
 
 .ix-bucket-label { flex: 1; }
 /* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
@@ -82,7 +80,8 @@
   min-width: 22px;
   text-align: right;
 }
-.ix-bucket.accent .ix-bucket-count { color: var(--accent); font-weight: 500; }
+/* The Needs you bucket counts people who need you: its number is amber, and the tab itself selects as every tab does. */
+.ix-bucket.accent .ix-bucket-count { color: var(--warn-ink); font-weight: 500; }
 
 /* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
 .ix-search-row {
@@ -330,10 +329,11 @@
   display: inline-block;
   min-width: 0;
   max-width: 45%;
-  line-height: 18px;
+  line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ix-thread-meta > .ix-name-pill::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
 /* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
 .ix-sending { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
@@ -1641,27 +1641,9 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
 }
 .ix-stake-oldest.warn { color: var(--warn); background: var(--warn-soft); }
 
-/* Waiting chip on list rows */
-/* How long it has waited, and when a snoozed thread wakes: the same chip as the state beside it (components.css
-   .pill), so a row carries one size of badge and not two. It was 9.5px on its own ground next to a 16px pill next
-   to nothing at all. Amber takes the tone's INK on the tone's ground, as .pill-warn does -- the raw --warn on
-   --warn-soft is 2.1:1, which is what that rule was written to stop. */
-.ix-wait {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  border-radius: 999px;
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  white-space: nowrap;
-}
-.ix-wait.warn { color: var(--warn-ink); background: var(--warn-soft); border-color: transparent; }
+/* How long it has waited, and when a snoozed thread wakes: the pill itself (components.css .pill), amber once it
+   waits on you (.pill-warn), so a row carries one size of badge and not two. The class stays as the row's hook. */
+.ix-wait { flex: none; }
 
 /* Resolution line on done rows */
 .ix-thread-resolution {
@@ -1857,10 +1839,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 /* Sending-soon strip */
 .ix-sending-strip b{color:var(--ink);font-variant-numeric:tabular-nums}
 
-button.ix-policy{cursor:pointer}
-button.ix-policy:not(.pill-warn){background:var(--bg-sunken);color:var(--ink-dim);border:1px solid var(--line)}
-button.ix-policy:hover{border-color:var(--accent);color:var(--accent)}
-button.ix-policy.pill-warn{border:1px solid transparent}
 
 .ix-sending-strip{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;background:var(--bg-raised);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--line));border-radius:var(--radius-full);padding:7px 9px 7px 14px;box-shadow:0 8px 24px rgba(0,0,0,.14);font-size:12.5px;color:var(--ink-muted);top:64px;bottom:auto}
 
@@ -1997,8 +1975,10 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 }
 .ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 /* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
-.ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 18px; }
-.ix-th-standing .pill::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; vertical-align: 1px; border-radius: 50%; background: currentColor; }
+.ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 20px; }
+/* Inline-block so the words clip: the quiet state's dot is laid inline, and a filled pill draws none (a dot inside a
+   filled pill means live). */
+.ix-th-standing .pill::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 /* A quiet thread's sentence, with a dot in the tone of what it says (the view model's lastWord). A block, so its
    words clip with an ellipsis (a flex box's never do); the dot sits in its left padding. */
 .ix-th-standing-words { position: relative; display: block; min-width: 0; padding-left: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
@@ -2025,7 +2005,7 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 .ix-th-visit::before { content: "·"; color: var(--ink-faint); }
 .ix-th-visit .icon { flex: none; }
 .ix-th-visit-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ix-th-visit.ahead { color: var(--ok-ink); font-weight: 500; }
+.ix-th-visit.ahead { color: var(--ink-muted); font-weight: 500; }
 /* What they asked, as words under the reason: it was a boxed quote with a side stripe inside the banner. */
 .ix-th-status .ix-take-ask { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: none; }
 .ix-th-status .ix-take-ask-label { font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
@@ -2148,13 +2128,5 @@ button.ix-policy.pill-warn{border:1px solid transparent}
   }
   .ix-thread-foot {
     gap: var(--row-gap);
-  }
-  /* A pill on a row is words, not a control: the touch floor (legacy-bridge/legacy.css) gives every .pill
-     min-height 36px on a coarse pointer, which is what made this row taller than a person's. People's row
-     undoes it the same way. */
-  html.legacy-on .ix-thread .pill {
-    min-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
   }
 }

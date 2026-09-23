@@ -5,13 +5,9 @@
  * Every event from a stream carries the `seq` of the question that started it, so an answer to an older question,
  * or one that arrives after the page was left, changes nothing.
  */
-import type { AskLanguage, AskMessageVM } from "@chanlytics/contracts";
+import type { AskAnswer, AskLanguage, AskMessageVM } from "@chanlytics/contracts";
 
 export type TurnPhase = "rest" | "listening" | "reading" | "answering" | "settled" | "failed";
-export interface TurnLink {
-  label: string;
-  to: string;
-}
 export interface Turn {
   phase: TurnPhase;
   /** the question as sent */
@@ -23,8 +19,8 @@ export interface Turn {
   /** the answer so far, or the failure's sentence */
   text: string;
   message: AskMessageVM | null;
-  /** a quick answer's doors */
-  links: TurnLink[];
+  /** a quick answer, drawn as the Line draws it (contracts ask-answer.ts) */
+  answer: AskAnswer | null;
   threadId: string | null;
   language: AskLanguage;
   /** the question in flight; every stream event names the one it belongs to */
@@ -42,7 +38,7 @@ export type TurnEvent =
   | { t: "trace"; text: string; seq: number }
   | { t: "delta"; text: string; seq: number }
   | { t: "final"; message: AskMessageVM; seq: number }
-  | { t: "fast"; text: string; links?: TurnLink[]; seq: number }
+  | { t: "fast"; text: string; answer: AskAnswer; seq: number }
   | { t: "error"; text: string; seq: number }
   | { t: "cut-off"; text: string; seq: number }
   | { t: "cleared" }
@@ -55,7 +51,7 @@ export const initialTurn = (): Turn => ({
   trace: null,
   text: "",
   message: null,
-  links: [],
+  answer: null,
   threadId: null,
   language: "en",
   seq: 0,
@@ -84,7 +80,7 @@ export function turnReducer(turn: Turn, ev: TurnEvent): Turn {
         trace: null,
         text: "",
         message: null,
-        links: [],
+        answer: null,
         language: ev.language,
         seq: ev.seq,
       };
@@ -109,7 +105,7 @@ export function turnReducer(turn: Turn, ev: TurnEvent): Turn {
         ? { ...turn, phase: "failed", trace: null, text: ev.message.text, message: ev.message }
         : { ...turn, phase: "settled", trace: null, text: ev.message.text, message: ev.message };
     case "fast":
-      return { ...turn, phase: "settled", trace: null, text: ev.text, message: null, links: ev.links ?? [] };
+      return { ...turn, phase: "settled", trace: null, text: ev.text, message: null, answer: ev.answer };
     case "error":
     case "cut-off":
       return { ...turn, phase: "failed", trace: null, text: ev.text, message: null };
