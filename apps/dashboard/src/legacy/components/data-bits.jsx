@@ -310,54 +310,248 @@ const trapTab = (e, box) => {
 };
 Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
-// ---- A swipe under a thumb ---------------------------------------------------------------------
-// One reader of a touch's travel, for what a thumb walks or lets go of: a lead's peek walks its pile across and is
-// pulled down to close; a sheet on a phone is pulled down to close. touchSwipe({ onLeft, onRight, onDown, min, when })
-// gives the handlers for the element the swipe is on. The touch's start is kept on that element (nothing between
-// draws), and at its end ONE way is called: `min` of travel (80px), along the axis it went further on, so a scroll is
-// never a move and a move never a scroll. `onDown` is a pull down from the top: it is called only when the scroller
-// under the finger (the first ancestor that scrolls, up to the element) was at its top as the touch began, so a
-// scroll back up through a list never closes it, and only where `when` says (a phone's width): a sheet from the
-// bottom is pulled down, the same sheet beside a desktop page is not. Across, `when` is the caller's: a peek has a
-// pile only on a phone.
+// ---- A thumb's gestures ------------------------------------------------------------------------
+// One reader of a touch, for what a thumb walks or lets go of: a lead's peek walks its pile across; a sheet on a phone,
+// the peek and an open thread are let go of. touchSwipe({ onLeft, onRight, onDown, onBack, min, when, onGrab }) gives the
+// handlers for the element the gesture is on. Nothing is kept between draws: a touch's state is held against the
+// element the browser hands back.
+//
+// A let-go FOLLOWS the finger. `onDown` is a pull down from the top: once the touch has gone 8px, mostly down, from a
+// scroller at its top (the first ancestor under the finger that scrolls, so a scroll back up through a list is never a
+// pull), and where `when` says (a phone's width), the element moves with the finger and the wash behind it (its
+// previous sibling, when that is a backdrop) fades as it goes. `onBack` is the same, across to the right: an open
+// thread on a phone goes back to its list, and `onGrab(el, on)` lets the page show what is under it while it moves.
+// Let go past a third of the element (160px at most) or with a flick, it leaves the way it was pulled and then the
+// close is called; short of that, or when the page kept it open (it asks first about what was typed), it settles back.
+// Under reduced motion it still follows the finger, which is the person's own motion, and the rest happens at once.
+//
+// A swipe across, with nothing following, is `onLeft`/`onRight`: `min` of travel (80px) along the axis it went
+// further on, so a scroll is never a move and a move never a scroll. A touch the browser reports only at its ends is
+// read the same way, down included.
+// The element itself counts: a short sheet is its own scroller.
 const swipeScrollerAtTop = (from, upTo) => {
-  for (let n = from; n && n !== upTo; n = n.parentElement) {
-    if (!(n.scrollHeight > n.clientHeight + 1)) continue;
-    const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "auto";
-    if (over === "auto" || over === "scroll") return n.scrollTop <= 0;
+  for (let n = from; n; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1) {
+      const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "auto";
+      if (over === "auto" || over === "scroll") return n.scrollTop <= 0;
+    }
+    if (n === upTo) break;
   }
   return true;
 };
-const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, min = 80, when = null }) => ({
+// A touch that began in something that takes a drag of its own -- a field (moving the caret, choosing words), or a
+// row that scrolls across -- is that thing's, never a let-go.
+const swipeOwnDrag = (from, upTo) => {
+  for (let n = from; n; n = n.parentElement) {
+    if (n.matches && n.matches("input, textarea, select, [contenteditable='true']")) return true;
+    if (n.scrollWidth > n.clientWidth + 1) {
+      const over = window.getComputedStyle ? window.getComputedStyle(n).overflowX : "visible";
+      if (over === "auto" || over === "scroll") return true;
+    }
+    if (n === upTo) break;
+  }
+  return false;
+};
+const motionReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+const touches = new WeakMap();
+const washBehind = (el) => {
+  const prev = el && el.previousElementSibling;
+  return prev && /backdrop/.test(String(prev.className || "")) ? prev : null;
+};
+const GRAB_AT = 8;
+const LEAVE_MS = 180;
+const SETTLE_MS = 240;
+// Long enough for React to have taken it away after the close: judged sooner, a sheet on its way out read as kept,
+// and settled back into view for a frame before it went.
+const KEPT_AFTER_MS = 60;
+// Back where it was, on the settle's own curve; its inline styles go when it is there, so the page's own rules
+// (an entrance, a sheet's frame) own it again.
+const swipeSettle = (g) => {
+  const { el, wash } = g;
+  if (g.onGrab) g.onGrab(el, false);
+  if (!el.style) return;
+  const now = motionReduced();
+  el.style.transition = now ? "none" : `transform ${SETTLE_MS}ms var(--ease-out)`;
+  el.style.transform = "translate3d(0, 0, 0)";
+  if (wash && wash.style) {
+    wash.style.transition = now ? "none" : `opacity ${SETTLE_MS}ms var(--ease-out)`;
+    wash.style.opacity = "";
+  }
+  setTimeout(() => {
+    el.style.transition = "";
+    el.style.transform = "";
+    if (wash && wash.style) wash.style.transition = "";
+  }, now ? 0 : SETTLE_MS + 20);
+};
+// Away the way it was pulled, then the close; still on screen after it (the page asked first), it settles back.
+const swipeLeave = (g, close) => {
+  const { el, wash, way } = g;
+  const done = () => {
+    close();
+    setTimeout(() => {
+      const shown = el.isConnected !== false && (!el.getClientRects || el.getClientRects().length > 0);
+      if (shown) { swipeSettle(g); return; }
+      if (g.onGrab) g.onGrab(el, false);
+      if (!el.style) return;
+      el.style.transition = "";
+      el.style.transform = "";
+      if (wash && wash.style) { wash.style.transition = ""; wash.style.opacity = ""; }
+    }, KEPT_AFTER_MS);
+  };
+  if (!el.style || motionReduced()) { done(); return; }
+  el.style.transition = `transform ${LEAVE_MS}ms var(--ease-in)`;
+  el.style.transform = way === "down" ? "translate3d(0, 100%, 0)" : "translate3d(100%, 0, 0)";
+  if (wash && wash.style) {
+    wash.style.transition = `opacity ${LEAVE_MS}ms var(--ease-in)`;
+    wash.style.opacity = "0";
+  }
+  setTimeout(done, LEAVE_MS);
+};
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = null, min = 80, when = null, onGrab = null }) => ({
   onTouchStart: (e) => {
     const t = e && e.touches && e.touches[0];
     const el = e && e.currentTarget;
-    if (!t || !el || !el.dataset) return;
-    el.dataset.sx = String(t.clientX);
-    el.dataset.sy = String(t.clientY);
-    el.dataset.stop = swipeScrollerAtTop(e.target, el) ? "1" : "0";
+    if (!t || !el) return;
+    if (swipeOwnDrag(e.target, el)) {
+      touches.delete(el);
+      return;
+    }
+    touches.set(el, { el, x: t.clientX, y: t.clientY, at: Date.now(), top: swipeScrollerAtTop(e.target, el), way: null, onGrab, wash: null });
+  },
+  onTouchMove: (e) => {
+    const t = e && e.touches && e.touches[0];
+    const el = e && e.currentTarget;
+    const g = el && touches.get(el);
+    if (!t || !g) return;
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
+    if (g.way === null) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < GRAB_AT) return;
+      const allowed = !when || when();
+      if (Math.abs(dy) > Math.abs(dx)) g.way = dy > 0 && g.top && onDown && allowed ? "down" : "none";
+      else g.way = dx > 0 && onBack && allowed && g.x > 24 ? "back" : "none";
+      if (g.way === "none") return;
+      g.wash = washBehind(el);
+      if (el.style) el.style.transition = "none";
+      if (g.wash && g.wash.style) g.wash.style.transition = "none";
+      if (onGrab) onGrab(el, true);
+    }
+    if (!el.style) return;
+    if (g.way === "down") {
+      const d = Math.max(0, dy);
+      el.style.transform = `translate3d(0, ${d}px, 0)`;
+      if (g.wash && g.wash.style) g.wash.style.opacity = String(Math.max(0, 1 - d / (el.offsetHeight || 600)));
+    } else if (g.way === "back") {
+      el.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+    }
   },
   onTouchEnd: (e) => {
     const t = e && e.changedTouches && e.changedTouches[0];
     const el = e && e.currentTarget;
-    if (!t || !el || !el.dataset) return;
-    const sx = Number(el.dataset.sx);
-    const sy = Number(el.dataset.sy);
-    if (Number.isNaN(sx) || Number.isNaN(sy)) return;
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
+    const g = el && touches.get(el);
+    if (!t || !g) return;
+    touches.delete(el);
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
+    if (g.way === "down" || g.way === "back") {
+      const d = g.way === "down" ? dy : dx;
+      const size = (g.way === "down" ? el.offsetHeight : el.offsetWidth) || 600;
+      const flick = d > 24 && d / Math.max(1, Date.now() - g.at) > 0.5;
+      if (d > Math.min(size / 3, 160) || flick) swipeLeave(g, g.way === "down" ? onDown : onBack);
+      else swipeSettle(g);
+      return;
+    }
+    // Nothing followed: read at its ends, along the axis it went further on, `min` of travel.
     if (Math.abs(dx) >= Math.abs(dy)) {
       if (Math.abs(dx) < min) return;
-      const way = dx < 0 ? onLeft : onRight;
+      const back = dx > 0 && onBack && (!when || when()) && g.x > 24;
+      const way = dx < 0 ? onLeft : back ? onBack : onRight;
       if (way) way();
       return;
     }
-    if (dy < min || el.dataset.stop !== "1" || !onDown) return;
+    if (dy < min || !g.top || !onDown) return;
     if (when && !when()) return;
     onDown();
   },
+  onTouchCancel: (e) => {
+    const el = e && e.currentTarget;
+    const g = el && touches.get(el);
+    if (!g) return;
+    touches.delete(el);
+    if (g.way === "down" || g.way === "back") swipeSettle(g);
+  },
 });
-Object.assign(window, { touchSwipe });
+
+// ---- Leaving: an overlay goes the way it came ------------------------------------------------------------
+// A dialog, a sheet or a palette is React's to take away, and it went at once: a hard cut, where it had come in. As
+// React lets go of it, a still copy -- no id, no test id, no role, inert, hidden from a screen reader -- is put where it
+// was, with the wash that was behind it, and `[data-leaving]` in components.css plays it out (the way it came, faster)
+// before it is removed. `leaving(key)` is the callback ref that does it, one per key and the same one on every draw,
+// so a draw is never a leaving; put it on the sheet (or the palette), and its wash is found as the sibling before it
+// as it opens. React takes the wash away before the sheet, so the wash's copy is made from the one it held. Nothing
+// leaves under reduced motion, nor from a frame React mounted and let go of at once (StrictMode's check in
+// development, a draw that never showed). The fold's sheet has its own (record-fold.jsx recSheetLeaves).
+const stillCopy = (node) => {
+  const copy = node.cloneNode(true);
+  const all = [copy].concat(copy.querySelectorAll ? Array.from(copy.querySelectorAll("*")) : []);
+  for (const n of all) {
+    n.removeAttribute("id");
+    n.removeAttribute("data-testid");
+  }
+  for (const k of ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"]) copy.removeAttribute(k);
+  copy.setAttribute("aria-hidden", "true");
+  copy.setAttribute("inert", "");
+  copy.setAttribute("data-leaving", "true");
+  return copy;
+};
+const LEAVE_FALLBACK_MS = 420;
+const playOut = (copy) => {
+  let gone = false;
+  const go = () => {
+    if (gone) return;
+    gone = true;
+    copy.remove();
+  };
+  copy.addEventListener("animationend", (e) => { if (e.target === copy) go(); });
+  setTimeout(go, LEAVE_FALLBACK_MS);
+};
+/** Play a node and its wash out from where the node still stands: called as React lets go of the node. */
+const leaveOverlay = (node, wash = null) => {
+  const parent = node && node.parentNode;
+  if (!parent || !node.cloneNode || motionReduced()) return;
+  if (wash && wash.cloneNode) {
+    const w = stillCopy(wash);
+    parent.insertBefore(w, node);
+    playOut(w);
+  }
+  const copy = stillCopy(node);
+  parent.insertBefore(copy, node.nextSibling);
+  playOut(copy);
+};
+const leavingRefs = new Map();
+const leaving = (key) => {
+  const had = leavingRefs.get(key);
+  if (had) return had;
+  let held = null;
+  let wash = null;
+  let since = 0;
+  const ref = (el) => {
+    if (el) {
+      held = el;
+      wash = washBehind(el);
+      since = Date.now();
+      return;
+    }
+    const was = held;
+    const w = wash;
+    held = null;
+    wash = null;
+    if (was && Date.now() - since > 60) leaveOverlay(was, w);
+  };
+  leavingRefs.set(key, ref);
+  return ref;
+};
+Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its

@@ -1093,7 +1093,8 @@ const PeopleListsSheet = ({ onClose, children }) => {
   return (
     <>
       <div className="sb-sheet-backdrop" onClick={onClose} />
-      <div className="sb-sheet pl-sheet" role="dialog" aria-label="Lists" data-testid="people-lists-sheet">
+      {/* It goes the way it came as it closes, and a thumb pulls it down (data-bits leaving, touchSwipe). */}
+      <div className="sb-sheet pl-sheet" role="dialog" aria-label="Lists" data-testid="people-lists-sheet" ref={window.leaving ? window.leaving("people-lists") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
         <div className="sb-sheet-head">
           <span className="sb-sheet-title">Lists</span>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} data-testid="people-lists-close">Done</button>
@@ -1956,7 +1957,8 @@ const AddPersonButton = ({ onAdded, flash }) => {
 const PhoneSheet = ({ title, onClose, closeLabel = "Cancel", onBack = null, testid, children }) => (
   <>
     <div className="sb-sheet-backdrop" onClick={onClose} />
-    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid}>
+    {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving). */}
+    <div className="sb-sheet pl-sheet pp-sheet" role="dialog" aria-modal="true" aria-label={title} data-testid={testid} ref={window.leaving ? window.leaving("people-sheet") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
       <div className="pp-sheet-handle" aria-hidden="true" />
       <div className="pp-sheet-head">
         {onBack && <button type="button" className="pp-sheet-back" onClick={onBack} aria-label="Back" data-testid={`${testid}-back`}><Icon name="chevron" size={18} /></button>}

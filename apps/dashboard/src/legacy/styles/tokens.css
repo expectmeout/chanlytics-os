@@ -120,6 +120,8 @@
   /* ---------- Motion ---------- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* What leaves speeds up as it goes: a sheet let go of, an overlay closing (components.css, data-bits touchSwipe). */
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 360ms;

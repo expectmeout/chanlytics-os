@@ -38,6 +38,17 @@ const ixOpensAt = (thread, focusMessageId = null) => {
   return thread && thread.real && i >= 0 && tl[i].channel === "phone" && tl[i].messageId ? tl[i].messageId : null;
 };
 
+// The phone's width, where a thread is the screen and Back is its list (mobile.css, 720px).
+const ixPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+// While a thumb carries a thread away, its list is drawn under it (components.css, data-going on the page's grid).
+const ixGoing = (el, on) => {
+  const host = el && el.parentElement;
+  if (host && host.toggleAttribute) host.toggleAttribute("data-going", !!on);
+};
+// A thread on a phone goes back to its list under the thumb, as Back does: swiped right, it follows the finger and the
+// list shows under it (data-bits touchSwipe). Nothing without a Back, and nothing wider than a phone.
+const ixSwipeBack = (onBack) => (onBack && window.touchSwipe ? window.touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing }) : {});
+
 const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, onArchive = null, planParam = 0, onPlanParam = () => {}, notice = null, focusMessageId = null }) => {
   // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
   const [askArchive, setAskArchive] = useCvtState(false);
@@ -46,6 +57,9 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   // return, so the hooks keep their order.
   const scrollRef = React.useRef(null);
   const stuckRef = React.useRef(true);
+  // How many entries the thread opened with: one that arrives while it is open rises into place (tl-arrived), and the
+  // ones it opened with are simply there.
+  const seenRef = React.useRef({ id: null, n: 0 });
   // Opened at a message -- a call, from Conversations -- or at the start of a call that is the newest thing said, it
   // opens there instead (ixOpensAt), once the pane has a size to scroll. The thread is read when the effect runs, which
   // is when it first arrives, not when the pane first drew.
@@ -86,9 +100,12 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   const decided = !!thread.resolution;
   const newestSaid = ixNewestSaid(thread.timeline);
   const statusProps = { thread, decided, stale, onReconcile, onDismissStale, onWake, onTakeOver, onDecide, onHandBack, veto, vetoPaused, onVetoAct };
+  if (seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
+  const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);
 
   return (
-    <div className="ix-thread-pane">
+    // On a phone the thread is the screen, and a thumb carries it back to its list (ixSwipeBack).
+    <div className="ix-thread-pane" {...ixSwipeBack(onBack)}>
       <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} onArchive={thread.real && onArchive ? () => setAskArchive(true) : null} />
       {thread.real && <ThreadBar thread={thread} />}
       {askArchive && thread.real && onArchive && (
@@ -125,7 +142,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
             // "by WhatsApp Receptionist · Read" under it, 79–127px apiece on a phone.
             const run = (a, b) => !!a && !!b && a.type === "msg" && b.type === "msg" && a.from === b.from && a.at === b.at && a.channel === b.channel && (a.agentName || "") === (b.agentName || "") && !!a.byYou === !!b.byYou;
             const lines = thread.real && entry.type === "msg" ? { meta: !run(thread.timeline[i - 1], entry), by: !run(entry, thread.timeline[i + 1]) } : null;
-            return <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} focus={!!focusMessageId && entry.messageId === focusMessageId} newest={i === newestSaid} />;
+            return <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} focus={!!focusMessageId && entry.messageId === focusMessageId} newest={i === newestSaid} arrived={!!thread.real && i >= seenAt} />;
           })}
         </div>
       </div>
@@ -848,7 +865,7 @@ const TlWhyPanel = ({ why }) => {
   );
 };
 
-const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = false, newest = false }) => {
+const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = false, newest = false, arrived = false }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
 
   if (entry.type === "agent-thinking" || entry.type === "agent-decision") {
@@ -880,12 +897,12 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null, focus = fal
     );
   }
 
-  return <TlMsgEntry entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} channelIcon={channelIcon} focus={focus} newest={newest} />;
+  return <TlMsgEntry entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} channelIcon={channelIcon} focus={focus} newest={newest} arrived={arrived} />;
 };
 
 // The message branch, with the hooks its two disclosures need. It is its own component so those
 // hooks are not behind the event and agent-thinking returns above.
-const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = false, newest = false }) => {
+const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = false, newest = false, arrived = false }) => {
   const [whyOpen, setWhyOpen] = React.useState(false);
   // A call is part of the conversation, where it happened: its note was a dashed bubble of words nobody said. Its lines
   // are shown when it is the newest thing said, or the call Conversations opened the thread at.
@@ -901,7 +918,7 @@ const TlMsgEntry = ({ entry, thread, channelLabels, lines, channelIcon, focus = 
   // bubble. A call is drawn as a call, so it is not a second wire for the words.
   const named = !thread.real || (thread.channels || []).filter((c) => c !== "phone").length > 1;
   return (
-    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}${undelivered ? " undelivered" : ""}`} data-mid={entry.messageId}>
+    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}${undelivered ? " undelivered" : ""}${arrived ? " tl-arrived" : ""}`} data-mid={entry.messageId}>
       <div className="tl-msg-bubble">
         {(!lines || lines.meta) && (
           <div className="tl-msg-meta">
@@ -1633,6 +1650,8 @@ const InboxEmpty = () => (
 );
 
 window.InboxThread = InboxThread;
+// Conversations' call pane goes back the way the thread does.
+window.ixSwipeBack = ixSwipeBack;
 // Conversations draws a call no thread holds as the thread draws one; where a thread opens is published for its test.
 window.ThreadCall = ThreadCall;
 window.ixOpensAt = ixOpensAt;

@@ -3167,3 +3167,23 @@ test("a row of chips caps itself, and says how many it cut in the words it was g
   const given = draw(W.RecordChips, { chips: [{ label: "Balayage" }], more: "+31 more" });
   assert.deepEqual(all(given, (n) => classes(n).includes("rec-chip")).map(textOf), ["Balayage", "+31 more"]);
 });
+
+test("a sheet React lets go of leaves the way it came, with the wash that stood behind it", async () => {
+  const kept = W.leaveOverlay;
+  const left = [];
+  W.leaveOverlay = (n, w) => left.push([n, w]);
+  try {
+    const sheet = find(draw(W.RecordSheet, offer()), (n) => classes(n).includes("rec-sheet"));
+    const wash = { className: "rec-sheet-backdrop" };
+    const el = { previousElementSibling: wash, focus() {} };
+    sheet.props.ref(el);
+    sheet.props.ref(null);
+    assert.deepEqual(left, [], "not from a frame mounted and let go of at once (StrictMode's check)");
+    sheet.props.ref(el);
+    await new Promise((r) => setTimeout(r, 70));
+    sheet.props.ref(null);
+    assert.deepEqual(left, [[el, wash]], "React takes the wash first, so the one held as it opened goes with it");
+  } finally {
+    W.leaveOverlay = kept;
+  }
+});

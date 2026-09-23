@@ -965,7 +965,8 @@ const LeadsPhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, l
 const LeadFinderSheet = ({ onClose, children }) => (
   <>
     <div className="sb-sheet-backdrop" onClick={onClose} />
-    <div className="sb-sheet pl-finder" role="dialog" aria-label="Find leads" data-testid="leads-finder-sheet">
+    {/* A phone's alone: its handle says a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving). */}
+    <div className="sb-sheet pl-finder" role="dialog" aria-label="Find leads" data-testid="leads-finder-sheet" ref={window.leaving ? window.leaving("leads-finder") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose }) : {})}>
       <div className="ld-sheet-handle" />
       {children}
     </div>
