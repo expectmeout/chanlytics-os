@@ -10,7 +10,9 @@
 // (or Enter on it) wakes it: the field slides in under the three and takes focus. A press held on it listens
 // straight away. Escape, a tap outside, or Clear folds the field away; a question in flight goes on in the three,
 // and waking them again shows where it got to.
-// Spec: docs/superpowers/specs/2026-09-23-the-three-on-today-design.md (4.7).
+// The band says Ask's one mood (legacy-bridge/mascot mood.ts) and its three follow it like every other face, so the
+// phone's ✦ moves with them while the band asks.
+// Spec: docs/superpowers/specs/2026-09-23-the-three-on-today-design.md (4.7, 4.8).
 const useTfState = React.useState;
 const useTfReducer = React.useReducer;
 const useTfRef = React.useRef;
@@ -62,6 +64,7 @@ const TodayFace = () => {
   const mounted = useTfRef(null);
   const turnRef = useTfRef(turn);
   const phaseRef = useTfRef("rest");
+  const saidRef = useTfRef("idle");
   const heardLen = useTfRef(0);
   const alive = useTfRef(true);
   const wantFocus = useTfRef(false);
@@ -70,16 +73,21 @@ const TodayFace = () => {
   const t = window.askText(turn.language);
   const busy = turn.phase === "reading" || turn.phase === "answering";
 
-  // The character on its canvas, for the band's life. On the tests' stub React the ref is never attached (an
-  // effect runs before any ref is), so the driver is tested on its own.
+  // The character on its canvas, for the band's life, following Ask's mood. On the tests' stub React the ref is never
+  // attached (an effect runs before any ref is), so the driver is tested on its own. A band left mid-question says
+  // Ask is at rest again, or every other face would go on reading for it.
   useTfEffect(() => {
     alive.current = true;
     const canvas = canvasRef.current;
+    let stopFollowing = null;
     if (M && canvas) mounted.current = M.mount(canvas, { side: TF_SIDE });
+    if (M && mounted.current) stopFollowing = M.follow(mounted.current, M.mood);
     return () => {
       alive.current = false;
+      if (stopFollowing) stopFollowing();
       if (mounted.current) mounted.current.destroy();
       mounted.current = null;
+      if (M && saidRef.current !== "idle") M.mood.set("idle");
     };
   }, [M]);
 
@@ -108,16 +116,19 @@ const TodayFace = () => {
     };
   }, [open]);
 
-  // The phase drives the character: read aloud counts as answering; a quick answer nods (a streamed one nods on
-  // its own as the row settles); a failure shakes.
+  // The phase says Ask's mood: read aloud counts as answering; a quick answer nods (a streamed one nods on its own as
+  // the row settles); a failure shakes. Only a change is said, so a band drawn while the palette reads leaves it be.
   useTfEffect(() => {
-    const m = mounted.current;
     const was = phaseRef.current;
     phaseRef.current = turn.phase;
-    if (!m) return;
-    m.set(speech.speakingId === "face" ? "speaking" : TF_STATE[turn.phase]);
-    if (turn.phase === "settled" && was !== "answering") m.react("nod");
-    if (turn.phase === "failed") m.react("shake");
+    if (!M) return;
+    const state = speech.speakingId === "face" ? "speaking" : TF_STATE[turn.phase];
+    if (state !== saidRef.current) {
+      saidRef.current = state;
+      M.mood.set(state);
+    }
+    if (turn.phase === "settled" && was !== "answering" && was !== "settled") M.mood.react("nod");
+    if (turn.phase === "failed" && was !== "failed") M.mood.react("shake");
   }, [turn.phase, turn.seq, speech.speakingId]);
 
   const ask = async (raw) => {
@@ -159,7 +170,7 @@ const TodayFace = () => {
         else if (ev.t === "trace") dispatch({ t: "trace", text: ev.text, seq });
         else if (ev.t === "delta") {
           dispatch({ t: "delta", text: ev.text, seq });
-          if (mounted.current) mounted.current.beat(Math.min(1, ev.text.length / 6));
+          if (M) M.mood.beat(Math.min(1, ev.text.length / 6));
         } else if (ev.t === "final") {
           ended = true;
           dispatch({ t: "final", message: ev.message, seq });
@@ -181,7 +192,7 @@ const TodayFace = () => {
     disabled: busy,
     onWords: (words) => {
       dispatch({ t: "heard", words });
-      if (words.length > heardLen.current && mounted.current) mounted.current.hear(0.8);
+      if (words.length > heardLen.current && M) M.mood.hear(0.8);
       heardLen.current = words.length;
     },
     onHeard: (heard, error) => {

@@ -30,6 +30,7 @@ The face is the mark itself: the three rounded squares that step down a diagonal
 | D14 | Wider than a phone (721px and up) the band is not drawn. The three are the top bar's Ask button's icon, on every page, and stand on a stage above the palette's conversation. Supersedes D2 and D11–D12 there. | Ruben, 23 Sep, on main: the desktop placement was not a nice place; bring the queue up. The one element on a desktop that is for asking is the Ask button, so the face goes there: one AI, one face, one door. Section 4.7. |
 | D15 | Ask has one mood, said by whoever runs a turn (the palette) and followed by every face (`mascot/mood.ts`). | Two faces showing one AI must never disagree: a turn left running in the palette still moves the button. |
 | D16 | On a phone the band is always the full face, and the field comes in only when it is woken. Supersedes the compact rest of D11 there. | Ruben, 23 Sep: "on mobile I prefer it expanded always but without the chat type-in bar unless it is activated". |
+| D17 | The phone's ✦ is the three too, on its coral, in the button's own foreground; the band on Today says Ask's one mood and follows it like every face. | Ruben, 23 Sep: continue with the ✦. One face everywhere; the ✦ and the band on one screen must never disagree. Section 4.8. |
 
 ## 3. Principles the band holds
 
@@ -137,6 +138,23 @@ element for asking was elsewhere. So the face goes where asking already lives:
   outside or Clear folds the field away (4.6's waking and folding, without the compact size). The click opens it,
   not the pointer's release: after a tap a phone sends its mouse events, and their mousedown would take the focus
   back to the stage from a field focused on the release. A hold's release swallows the click that follows it.
+
+### 4.8 The ✦ is the three (23 Sep, D17)
+
+- **The door on a phone.** The floating ✦ (`app-shell.jsx`, `phone-ask`, 44px, coral, in the tab bar's row) keeps its
+  place, size and coral, and draws the three in place of the sparkle (`AskFace tone="accent"`, a 30 by 24px canvas,
+  squares about 6px). On a coral button the colour cannot say the state, so the three are the button's own
+  foreground (`--accent-fg`: near white in light, near black in dark), fading toward the coral step by step as the
+  mark fades and a little brighter at work (`colour.ts` `Tone`, `palette(theme, tokens, "accent")`); the state shows
+  as motion: the huddle, the leapfrog, the row, the nod, the shake.
+- **One mood on a phone.** The band no longer drives its own character: its phase says the mood (a state only when it
+  changes, so a band drawn at rest never interrupts the palette; a nod or a shake as its turn ends; a beat per word;
+  a word heard), and its three follow the mood like the ✦ and the palette's stage. A band left mid-question says Ask
+  is at rest again. The palette says a word heard too, so its stage leans in while the talk button is held.
+- **The page's own tokens, at last.** The app's build writes every `oklch()` token as `lab()`, and the browser reads
+  them back that way; the parser read only hex, rgb and oklch, so since #896 the three drew from `colour.ts`'s copies
+  of the tokens (right only while the copies match). `parseColor` now reads CSS `lab()` (CIE Lab, D50, to OKLab per
+  CSS Color 4), proved on the six strings the running app returned.
 
 ## 5. The character
 
