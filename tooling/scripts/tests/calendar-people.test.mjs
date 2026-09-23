@@ -953,7 +953,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
   assert.ok(
     rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") &&
-      rep.includes("return { report, booking };"),
+      rep.includes("return { report, booking, deals };"),
     "never fatal to the report",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");

@@ -214,6 +214,8 @@ import {
   zoneDayKey,
   toBookingReportVM,
   type BookingReportVM,
+  toDealReportVM,
+  type DealReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
 import {
@@ -1543,6 +1545,8 @@ export interface ReportsSurface {
   campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
+  /** Deals: one cohort and the stock; present only where a deal was ever recorded (0004). */
+  deals: DealReportVM;
   /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
   facts: ReportFactVM[];
   days: number;
@@ -1587,10 +1591,13 @@ export const reportsOverride: SurfaceOverride = {
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
     if (days !== reportDays) return;
+    const vm = toReportVM(data.report);
     const surface: Omit<ReportsSurface, "facts"> = {
-      vm: toReportVM(data.report),
+      vm,
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
+      // The period's name is the report's, so the two sentences never disagree about the range.
+      deals: toDealReportVM(data.deals, vm.rangeLabel),
       days,
       fetchedAt: Date.now(),
     };
