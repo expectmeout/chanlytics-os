@@ -1,6 +1,6 @@
 # 0007 · A note is a record
 
-**Status:** decided, phase 1 built (00157). Written against commit `18c79973`
+**Status:** decided; phase 1 built (00157), phase 3 built (00158). Written against commit `18c79973`
 (PR #918, 23 September 2026). Where this note and the code disagree, the code
 wins.
 
@@ -64,8 +64,16 @@ call, thread, with `source_id` for a call or a conversation).
    closes, the edge asks for what is worth remembering about the person (a
    lasting fact, never a summary of the call, which History already shows) and
    suggests it through `person_note_suggest`.
-3. **The bell**: a notification addressed to one member (0003), sent when a
-   note is left for them.
+3. **The bell** (00158, built): a notification may be addressed to one member
+   (`notifications.recipient_user_id`; null is the whole workspace, as every
+   row before it). Only its recipient reads an addressed row: the select
+   policy says so, so the route and the realtime feed follow, and
+   `notification_mark` refuses anyone else. The note doors write
+   `note_for_you` when a note is for someone other than its writer -- on a new
+   note, and on a change that addresses it to someone new, never again for
+   the same reader. Its title names the writer and the person ("Maria left you
+   a note on Tom Baker"), never the note's words, and it opens their page. An
+   erasure takes these rows, since their titles name the person.
 
 Either deploy order works for phase 1: the migration lands first; a page or an
 edge from before it keeps reading and writing the old field, which the old

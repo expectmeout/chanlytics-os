@@ -219,6 +219,8 @@ export const SERVER_NOTIFICATION_KINDS = [
   "broadcast_stopped",
   "leads_ready",
   "leads_question",
+  /** A note left for one member (0007, 00158): addressed to them alone. */
+  "note_for_you",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -312,6 +314,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
   billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
+  /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
+  note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
 };
 
@@ -330,6 +334,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   // The route is still `messages`; the page is Templates (#658), and the door says the page's name.
   [/^messages/, "Open Templates"],
   [/^calendar/, "Open Calendar"],
+  // One person's page, by their id: the row is about them, so its door says so.
+  [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
   [/^today/, "Open Today"],

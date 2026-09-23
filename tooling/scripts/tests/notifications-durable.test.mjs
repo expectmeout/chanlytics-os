@@ -147,3 +147,29 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "the change decides its kind and its door (describeWabaChange); the sender never re-derives them",
   );
 });
+
+test("a note left for you (0007, 00158) is a row of its own kind: it names who wrote it and whom it is about, and opens their page", async () => {
+  const { verbForRoute } = await import("@chanlytics/contracts");
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("note_for_you"));
+  const id = "76386d57-a03f-44dc-b677-ebc30451c571";
+  const [r] = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      {
+        id: "n1",
+        kind: "note_for_you",
+        title: "Maria left you a note on Tom Baker",
+        body: "It is on their page.",
+        route: `clients/${id}`,
+        subject_type: "contact",
+        subject_id: id,
+        created_at: "2026-09-23T14:00:00Z",
+        read: false,
+        dismissed: false,
+      },
+    ],
+  });
+  assert.deepEqual([r.icon, r.action, r.to, r.unread], ["edit", "Open their page", `clients/${id}`, true]);
+  assert.equal(verbForRoute("clients"), "Open People", "People itself keeps its door");
+  assert.equal(verbForRoute("clients/leads"), "Open People", "and so does a scope of it");
+});

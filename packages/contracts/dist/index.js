@@ -7734,7 +7734,9 @@ var SERVER_NOTIFICATION_KINDS = [
   "broadcast_sent",
   "broadcast_stopped",
   "leads_ready",
-  "leads_question"
+  "leads_question",
+  /** A note left for one member (0007, 00158): addressed to them alone. */
+  "note_for_you"
 ];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -7772,6 +7774,8 @@ var SERVER_LOOK = {
   review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
   /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
   billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
+  /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
+  note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -7788,6 +7792,8 @@ var ROUTE_VERBS = [
   // The route is still `messages`; the page is Templates (#658), and the door says the page's name.
   [/^messages/, "Open Templates"],
   [/^calendar/, "Open Calendar"],
+  // One person's page, by their id: the row is about them, so its door says so.
+  [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
   [/^today/, "Open Today"]
@@ -8904,7 +8910,8 @@ var AWAY_NOUN = {
   // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
   // the same thing about the same fact.
   broadcast_sent: ["broadcast finished", "broadcasts finished"],
-  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"]
+  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
+  note_for_you: ["note left for you", "notes left for you"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -16989,7 +16996,8 @@ var SCHEMA_SETS = {
     "broadcast_sent",
     "broadcast_stopped",
     "leads_ready",
-    "leads_question"
+    "leads_question",
+    "note_for_you"
   ],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
