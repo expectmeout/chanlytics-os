@@ -9528,8 +9528,12 @@ function nextQuestions(next, places) {
   return out;
 }
 function oneDoor(a, cards = []) {
-  const items = a.show.items.map((it) => ({ ...it, source: { ...it.source, door: true } }));
-  const offered = new Set(items.map((it) => it.source.to));
+  const offered = /* @__PURE__ */ new Set();
+  const items = a.show.items.map((it) => {
+    const door = !offered.has(it.source.to);
+    offered.add(it.source.to);
+    return { ...it, source: { ...it.source, door } };
+  });
   const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
   if (open) offered.add(open.to);
   const cardOpen = {};
@@ -9692,7 +9696,7 @@ function openingsAnswer(o, language, day = null) {
 var C = ASK_ANSWER_CAPS;
 var SOURCE = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -9829,6 +9833,7 @@ var words2 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 var ROW_KINDS = ["call", "thread", "conversation", "person"];
+var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
 function groundRef(v, read) {
   const r = asObj(v);
   const kind = typeof r.kind === "string" ? r.kind : "none";
@@ -9837,8 +9842,9 @@ function groundRef(v, read) {
   const label = words2(r.label, C.label) || spelled;
   const row2 = UUID.exec(spelled)?.[0].toLowerCase();
   const tries = row2 ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2, label })) : [
-    { kind, id: spelled, label },
-    { kind: "page", id: spelled, label }
+    ...kind === "page" ? [] : [{ kind, id: spelled, label }],
+    // A row's route with an id cut short or misspelled names no row read, and is no page either.
+    ...ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
   ];
   const kept = groundCitations(tries, read).kept[0];
   return kept ? { ...kept, to: citationRoute(kept), door: true } : null;

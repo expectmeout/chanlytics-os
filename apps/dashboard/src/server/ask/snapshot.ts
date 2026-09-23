@@ -343,7 +343,7 @@ export function snapshotBlock(s: Snapshot): string {
   return [
     "The workspace right now:",
     JSON.stringify(s),
-    "Answer from this when it is enough. get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return these same rows: do not call them for what is here. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings, threads and calls older than these. A thread's `route`, a call's `route` and a person's `person_route` are what navigate.to takes; to show or open a person's profile, navigate to their `person_route` without reading it.",
+    "Answer from this when it is enough. get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return these same rows: do not call them for what is here. Read only for what is not here: a whole conversation or transcript, a person's profile, a report, openings, settings, threads and calls older than these. A thread's `conversation_id`, a call's `call_id` and the person in a `person_route` are the ids a source takes (kinds thread, call and person); to show or open a person's profile, open that person without reading it.",
   ].join("\n");
 }
 

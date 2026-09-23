@@ -17,9 +17,12 @@ const atProse = (m, lang) => ({
   language: lang || "en",
 });
 
-/** The rows the keys walk under an answer, in the order they are drawn: the items, then Open, then the next questions. */
+/**
+ * The rows the keys walk under an answer, in the order they are drawn: the items that are doors (one door drew a later
+ * item to the same place without one), then Open, then the next questions.
+ */
 const answerMoves = (a) => [
-  ...a.show.items.map((it) => ({ type: "item", to: it.source.to })),
+  ...a.show.items.filter((it) => it.source.door !== false).map((it) => ({ type: "item", to: it.source.to })),
   ...(a.do.open ? [{ type: "open", to: a.do.open.to }] : []),
   ...a.do.next.map((q) => ({ type: "next", q })),
 ];
@@ -196,9 +199,20 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const a = answer;
   const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
   const hasDo = !!a.do.open || a.do.next.length > 0 || (cards && cards.length > 0) || !!retry;
-  // Each move's place in answerMoves' order: the items, then Open, then the next questions.
-  const openAt = a.show.items.length;
+  // Each move's place in answerMoves' order: the items that are doors, then Open, then the next questions.
+  let doors = 0;
+  const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
+  const openAt = doors;
   const nextAt = openAt + (a.do.open ? 1 : 0);
+  const itemBody = (it) => (
+    <>
+      <span className="ask-item-top">
+        <span className="ask-item-title">{it.title}</span>
+        {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
+      </span>
+      {it.line ? <span className="ask-item-line">{it.line}</span> : null}
+    </>
+  );
   const moveProps = (me, cls) =>
     walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
   return (
@@ -224,15 +238,17 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
             ) : null}
             {a.show.items.length ? (
               <div className="ask-items">
-                {a.show.items.map((it, me) => (
-                  <button key={me} type="button" {...moveProps(me, "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
-                    <span className="ask-item-top">
-                      <span className="ask-item-title">{it.title}</span>
-                      {it.meta ? <span className="ask-item-meta">{it.meta}</span> : null}
-                    </span>
-                    {it.line ? <span className="ask-item-line">{it.line}</span> : null}
-                  </button>
-                ))}
+                {a.show.items.map((it, k) =>
+                  itemMove[k] >= 0 ? (
+                    <button key={k} type="button" {...moveProps(itemMove[k], "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
+                      {itemBody(it)}
+                    </button>
+                  ) : (
+                    <div key={k} className="ask-item plain" data-testid="ask-item">
+                      {itemBody(it)}
+                    </div>
+                  ),
+                )}
               </div>
             ) : null}
           </div>

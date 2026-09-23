@@ -1204,7 +1204,7 @@ var ASK_ANSWER_CAPS = {
 var C = ASK_ANSWER_CAPS;
 var SOURCE = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },

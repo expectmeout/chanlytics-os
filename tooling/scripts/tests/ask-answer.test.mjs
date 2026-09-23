@@ -119,6 +119,31 @@ test("one door: an item keeps its door, Open goes when an item has its route, a 
   assert.equal(new Set(routes).size, routes.length, `no route offered twice: ${routes.join(", ")}`);
 });
 
+test("one door among the items too: a later item to a place an earlier one opens is said without a door", () => {
+  const cal = (title) => ({
+    title,
+    meta: "",
+    line: "",
+    source: { kind: "page", id: "calendar", label: "Calendar", to: "calendar", door: true },
+  });
+  const { answer } = oneDoor({
+    v: 2,
+    form: "structured",
+    say: { headline: "Two walk-ins tomorrow.", detail: "" },
+    show: { figures: [], items: [cal("10:00 walk-in"), cal("2:00 walk-in")], breakdown: null },
+    do: { open: { to: "calendar", label: "Open the Calendar", now: false }, next: [] },
+    language: "en",
+  });
+  assert.deepEqual(
+    answer.show.items.map((i) => [i.title, i.source.door]),
+    [
+      ["10:00 walk-in", true],
+      ["2:00 walk-in", false],
+    ],
+  );
+  assert.equal(answer.do.open, null, "and the Calendar is not offered again as Open");
+});
+
 test("a card's Open is the contract's: its page, the person's, or none, never a route with a hole in it", () => {
   assert.equal(cardOpenRoute({ kind: "settings", payload: {} }), "admin/workspace");
   assert.equal(cardOpenRoute({ kind: "policy", payload: {} }), "admin/autonomy");
@@ -472,6 +497,10 @@ test("a source is a row read this turn however the model spelled it, or a page o
   });
   assert.equal(open({ kind: "thread", id: "reports", label: "Reports" }).to, "reports", "a page under a row's kind");
   assert.equal(open({ kind: "page", id: "https://example.com/x", label: "Elsewhere" }), null, "only the app's pages");
+  assert.equal(open({ kind: "page", id: "inbox/th-3f2a9c1e", label: "Someone" }), null, "a row's route cut short");
+  assert.equal(open({ kind: "person", id: "clients/12ab", label: "Someone" }), null, "is no row read, and no page");
+  assert.equal(open({ kind: "page", id: "clients/leads", label: "Leads" }).to, "clients/leads", "a list is a page");
+  assert.equal(open({ kind: "page", id: "clients/seg:new_week", label: "New" }).to, "clients/seg:new_week");
   assert.equal(open({ kind: "none", id: CALL, label: "Sam" }), null, "kind none, whatever the id");
 
   const item = read1(

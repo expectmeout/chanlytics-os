@@ -1072,8 +1072,8 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
   // minute over the table -- runs in llm-door.test.mjs.
 });
 
-test("the speed pass, two: no definitions tool, a refused proposal keeps the round, the snapshot kept twenty seconds", () => {
-  // Cards alone are the answer, with no second round: executed in ask-turn.test.mjs.
+test("the speed pass, two: no definitions tool, the snapshot kept twenty seconds", () => {
+  // Cards alone are the answer with no second round, and a refused one keeps the round: executed in ask-turn.test.mjs.
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     !tools.includes("explain_metric") && !tools.includes("ASK_DEFINITIONS"),
@@ -1083,10 +1083,6 @@ test("the speed pass, two: no definitions tool, a refused proposal keeps the rou
     readCode("apps/dashboard/src/server/ask/prompt.ts").includes("a word the pages use is defined above, never read"),
   );
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
-  assert.ok(
-    /outcomes\.every\(\(\{ out \}\) => !out\.isError\) &&\s*proposals\.length > before/.test(l),
-    "a refused proposal keeps the round",
-  );
   assert.ok(l.includes("ports.snapshot(tc, input.timezone, input.scope).catch("));
   const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
   assert.ok(

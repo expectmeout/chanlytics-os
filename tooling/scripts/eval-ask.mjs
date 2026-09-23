@@ -157,10 +157,13 @@ export function judge(c, r) {
   const kinds = (m.proposals ?? []).map((p) => p.kind);
   if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k)))
     fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
+  // Since the Line, the pointer may be the door itself: a row or an Open that opens a thread.
+  const doors = m.answer ? [...m.answer.show.items.map((i) => i.source.to), m.answer.do.open?.to] : [];
   if (
     e.proposals_any_or_says &&
     !e.proposals_any_or_says.some((k) => kinds.includes(k)) &&
-    !/card|propos|approve|Inbox|thread/i.test(text)
+    !/card|propos|approve|Inbox|thread/i.test(text) &&
+    !doors.some((to) => to && /^inbox(\/|$)/.test(to))
   )
     fails.push("neither a card nor a pointer to where to do it");
   if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
@@ -181,7 +184,7 @@ export function judge(c, r) {
     const cards = m.proposals ?? [];
     const { answer: drawn, cardOpen } = oneDoor(a, cards);
     const offered = [
-      ...drawn.show.items.map((i) => i.source.to),
+      ...drawn.show.items.filter((i) => i.source.door).map((i) => i.source.to),
       ...(drawn.do.open ? [drawn.do.open.to] : []),
       ...cards.filter((p) => cardOpen[p.id]).map((p) => cardOpenRoute(p)),
       ...[...drawn.show.figures.map((f) => f.source), drawn.show.breakdown?.source]

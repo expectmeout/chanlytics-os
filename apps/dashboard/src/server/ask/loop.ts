@@ -253,8 +253,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   ];
   const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
-  // Every tool is strict and the answer has its format, until the API refuses
-  // one: then that one is dropped and the same round is asked again.
+  // The act tools are strict and the answer has its format, until the API
+  // refuses one: then that one is dropped and the same round is asked again.
   let strict = true;
   let format = true;
   const controller = new AbortController();
@@ -294,14 +294,17 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const fail = (sentence: string, failure: string, rounds: number) =>
     done({ answer: failedAnswer(sentence, input.language), failed: true, failure, rounds });
 
-  // Say while the answer is written (spec 7.4): read from the JSON so far,
-  // sent only when it changed and at most every SAY_EVERY_MS. A preview: the
-  // final message is the truth. With the format refused, the words so far.
+  // Say while the answer is written (spec 7.4): read from the JSON so far --
+  // the model may write it with the format refused too -- sent only when it
+  // changed and at most every SAY_EVERY_MS. A preview: the final message is
+  // the truth. With the format refused, words are said as they come; with it,
+  // words before a call are the model thinking aloud, and are not said.
   let said = "";
   let saidAt = 0;
   let firstKey: string | null = null;
   const onText = (soFar: string) => {
-    if (format && firstKey === null) {
+    const json = soFar.trimStart().startsWith("{");
+    if (json && firstKey === null) {
       const k = /^\s*\{\s*"([^"]*)"/.exec(soFar);
       if (k) {
         firstKey = k[1];
@@ -309,7 +312,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           console.warn("ask_say_not_first", JSON.stringify({ first: firstKey.slice(0, 40), tenant: input.tenantId }));
       }
     }
-    const part = format ? partialSay(soFar) : { headline: "", detail: soFar };
+    const part = json ? partialSay(soFar) : format ? null : { headline: "", detail: soFar };
     if (!part) return;
     // Nothing past a tag, even in a preview: the leak seen on production (cleanAnswer).
     const say = { headline: cleanAnswer(part.headline), detail: cleanAnswer(part.detail) };
@@ -320,6 +323,13 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     said = key;
     saidAt = at;
     input.emit({ t: "say", headline: say.headline, detail: say.detail });
+  };
+  /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
+  const unsay = () => {
+    if (!said) return;
+    said = "";
+    saidAt = 0;
+    input.emit({ t: "say", headline: "", detail: "" });
   };
 
   /**
@@ -357,7 +367,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
 
   const propose = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
-    input.emit({ t: "trace", text: proposalLabel(b.name) });
     const args = argsOf(b);
     if (!args) return cutOff(b);
     const p = await ports.propose(tc, b.name, args);
@@ -382,11 +391,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         max_tokens: ASK_MAX_TOKENS,
         system,
         messages,
+        // The API takes at most twenty strict tools a request ("Too many strict
+        // tools (26)", 23 Sep), so the act tools are strict -- their arguments
+        // are the card -- and a read's filter or id is checked by the read.
         tools: baseTools.map((d) => ({
           name: d.name,
           description: d.description,
           input_schema: d.input_schema,
-          ...(strict ? { strict: true } : {}),
+          ...(strict && ACT_TOOL_NAMES.has(d.name) ? { strict: true } : {}),
         })),
         // The last round may call no tool: all that is left is the answer.
         tool_choice: last ? { type: "none" } : { type: "auto" },
@@ -475,33 +487,76 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
 
       const calls = blocks.filter((b) => b.type === "tool_use");
       const acts = calls.filter((b) => ACT_TOOL_NAMES.has(b.name));
-      let written = blocks
+      const text = blocks
         .filter((b) => b.type === "text")
         .map((b) => b.text)
         .join("")
         .trim();
+      // The answer, if this round wrote one: its JSON -- written even with the
+      // format refused, since the rules ask for it -- or words where no call
+      // stands beside them or the format was refused. Words beside a call,
+      // where the format asks for JSON, are the model thinking aloud.
+      let written = text && (text.startsWith("{") || !format || !calls.length) ? text : "";
 
       // An answer beside a read was written before its rows: it is set aside,
-      // and the model answers next round with them. Beside acts only, it
-      // stands: an act only checks and proposes, and runs first.
+      // and the model answers next round with them.
       if (written && calls.length > acts.length) {
         console.warn(
           "ask_answer_beside_read",
           JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }),
         );
         written = "";
+        unsay();
+      }
+
+      if (!written && !calls.length) {
+        return fail(
+          es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question.",
+          stopReason === "max_tokens" ? "cap" : "no_tool_no_text",
+          round,
+        );
+      }
+
+      // Reads and proposals, in parallel; every result goes back at once.
+      for (const b of calls)
+        input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      const before = proposals.length;
+      const outcomes = await Promise.all(
+        calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
+      );
+      const refused = outcomes.some(({ out }) => out.isError);
+
+      // Beside acts, the answer stands when every card was made: an act only
+      // checks and proposes. A card refused or cut off would leave an answer
+      // claiming a card that is not there, so the answer goes back with the
+      // round, and the model answers again knowing why.
+      if (written && refused) {
+        console.warn(
+          "ask_answer_beside_refused_card",
+          JSON.stringify({ tools: acts.map((b) => b.name), tenant: input.tenantId }),
+        );
+        written = "";
+        unsay();
       }
 
       if (written) {
-        for (const b of acts) await propose(b);
         let answer: AskAnswer;
-        if (format && written.startsWith("{")) {
+        if (written.startsWith("{")) {
           const shaped = normalizeAnswer(written, tc.read, input.language);
           if (!shaped.ok) {
             console.error(
               "ask_answer_unparsed",
               JSON.stringify({ error: shaped.error.slice(0, 200), stop: stopReason, tenant: input.tenantId }),
             );
+            // An answer cut off by a broken stream says so: the connection dropped, not the shape.
+            if (streamError)
+              return fail(
+                es
+                  ? "Se cortó la conexión con el modelo. Inténtalo de nuevo."
+                  : "The connection to the model dropped. Try again.",
+                streamError,
+                round,
+              );
             return fail(
               es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again.",
               `answer: ${shaped.error}`,
@@ -526,25 +581,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         });
       }
 
-      if (!calls.length) {
-        return fail(
-          es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question.",
-          stopReason === "max_tokens" ? "cap" : "no_tool_no_text",
-          round,
-        );
-      }
-
-      // Reads and proposals, in parallel; every result goes back at once.
-      for (const b of calls)
-        input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
-      const before = proposals.length;
-      const outcomes = await Promise.all(
-        calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
-      );
       // Cards alone, every one of them made: they are the Do, said in a
       // sentence, with no second round. A refused or failed proposal keeps the
       // round -- the model must say why and what the person can do instead.
-      if (acts.length === calls.length && outcomes.every(({ out }) => !out.isError) && proposals.length > before) {
+      if (acts.length === calls.length && !refused && proposals.length > before) {
         const answer = answerForCards(proposals.slice(before), input.language);
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round });

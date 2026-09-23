@@ -1274,7 +1274,7 @@ var ASK_ANSWER_CAPS = {
 var C = ASK_ANSWER_CAPS;
 var SOURCE = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -7908,7 +7908,7 @@ var ASK_ANSWER_CAPS2 = {
 var C2 = ASK_ANSWER_CAPS2;
 var SOURCE2 = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
     id: { type: "string" },
@@ -10638,7 +10638,7 @@ var ASK_ANSWER_CAPS3 = {
 var C3 = ASK_ANSWER_CAPS3;
 var SOURCE3 = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
     id: { type: "string" },
@@ -12397,7 +12397,7 @@ var ASK_ANSWER_CAPS22 = {
 var C22 = ASK_ANSWER_CAPS22;
 var SOURCE22 = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
     id: { type: "string" },
@@ -14122,7 +14122,7 @@ var ASK_ANSWER_CAPS32 = {
 var C32 = ASK_ANSWER_CAPS32;
 var SOURCE32 = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
     id: { type: "string" },
@@ -16366,7 +16366,7 @@ var ASK_ANSWER_CAPS4 = {
 var C4 = ASK_ANSWER_CAPS4;
 var SOURCE4 = {
   type: "object",
-  description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
     id: { type: "string" },

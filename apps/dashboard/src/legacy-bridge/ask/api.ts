@@ -12,8 +12,9 @@ import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
 /**
- * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces; `delta` is a
- * v1 turn's words, from a server before the Line (spec 7.5). The Line reads both.
+ * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces (an empty one takes
+ * back an answer the server set aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The
+ * Line reads both.
  */
 export type SendEvent =
   | { t: "thread"; id: string; title: string }

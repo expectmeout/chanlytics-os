@@ -8186,10 +8186,11 @@ declare function answerText(a: AskAnswer): string;
 /** Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite). */
 declare function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload">): string | null;
 /**
- * A place appears once per answer (the Line, D4, section 5.5). An item keeps its door; Do's Open goes when an item has
- * its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its words and draws its door
- * only when nothing else offers that route; a next question that points at an offered place goes. Returns the answer
- * as drawn and, per card, whether its Open is drawn.
+ * A place appears once per answer (the Line, D4, section 5.5). An item is the door for its row, and the first item to
+ * a place keeps it: a later one to the same place (two appointments cited to the Calendar) is drawn without one; Do's
+ * Open goes when an item has its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its
+ * words and draws its door only when nothing else offers that route; a next question that points at an offered place
+ * goes. Returns the answer as drawn and, per card, whether its Open is drawn.
  */
 declare function oneDoor(a: AskAnswer, cards?: ReadonlyArray<Pick<AskProposal, "id" | "kind" | "payload">>): {
     answer: AskAnswer;
@@ -8303,7 +8304,7 @@ declare const ASK_ANSWER_FORMAT: {
                             };
                             readonly source: {
                                 readonly type: "object";
-                                readonly description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.";
+                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
                                 readonly properties: {
                                     readonly kind: {
                                         readonly type: "string";
@@ -8345,7 +8346,7 @@ declare const ASK_ANSWER_FORMAT: {
                             };
                             readonly source: {
                                 readonly type: "object";
-                                readonly description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.";
+                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
                                 readonly properties: {
                                     readonly kind: {
                                         readonly type: "string";
@@ -8401,7 +8402,7 @@ declare const ASK_ANSWER_FORMAT: {
                         };
                         readonly source: {
                             readonly type: "object";
-                            readonly description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.";
+                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
                             readonly properties: {
                                 readonly kind: {
                                     readonly type: "string";
@@ -8435,7 +8436,7 @@ declare const ASK_ANSWER_FORMAT: {
                     readonly properties: {
                         readonly source: {
                             readonly type: "object";
-                            readonly description: "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.";
+                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
                             readonly properties: {
                                 readonly kind: {
                                     readonly type: "string";

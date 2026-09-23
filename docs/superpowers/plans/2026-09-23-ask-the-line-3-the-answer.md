@@ -48,10 +48,12 @@
 |---|---|
 | Tool calls only | Runs the reads and the acts in parallel and asks again |
 | The answer (JSON text) only | `normalizeAnswer`; the turn is answered. One door runs where the answer is drawn (the Line, the band), so an Open they asked for keeps its `now` beside the same row's item |
-| Act calls and the answer | Runs the acts; the answer stands |
+| Act calls and the answer | Runs the acts; the answer stands when every card was made. A card refused or cut off sets the answer aside (`ask_answer_beside_refused_card`), and the round goes back to the model |
 | Read calls and the answer | Sets the answer aside (`ask_answer_beside_read`), runs the reads, asks again |
+| Words beside a call, with the format on | The model thinking aloud: never the answer; the calls run as if alone |
+| An answer set aside after its Say was sent | An empty `say` takes it back; the Line shows the reads again |
 | Only cards, all made | `answerForCards`, no second round |
-| A 400 naming `output_config`/`format` | Retries the round without the format (`ask_format_rejected`); the words that come back are a `prose` answer |
+| A 400 naming `output_config`/`format` | Retries the round without the format (`ask_format_rejected`); words that come back are a `prose` answer, and JSON (the rules still ask for it) is read as JSON |
 | Any other 400 naming `strict` or a schema | Retries without strict (`ask_strict_rejected`), as today; a second one, without the format too |
 | JSON that does not normalise (the cap mid-answer, no headline) | `failedAnswer("I could not shape the answer. Ask again.")`; `ask_answer_unparsed` |
 | Nothing, a refusal, a timeout, a broken stream, rounds exhausted | Today's sentences, as `failedAnswer` |

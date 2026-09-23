@@ -712,6 +712,53 @@ test("a turn since the Line: Say is drawn as it is written, the headline then th
   await closes();
 });
 
+test("the Line takes back a Say the server set aside and shows the reads again; a later row to a place an earlier one opens is drawn as a row, never a second door", async () => {
+  const calls = ask([]);
+  let land = () => {};
+  const landed = new Promise((r) => (land = r));
+  const day = (title) => ({
+    title,
+    meta: "",
+    line: "",
+    source: { kind: "page", id: "calendar", label: "Calendar", to: "calendar", door: true },
+  });
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Two visits tomorrow.", detail: "" },
+    show: { figures: [], items: [day("10:00 visit"), day("2:00 visit")], breakdown: null },
+    do: { open: null, next: [] },
+    language: "en",
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(8).id, title: input.text });
+    on({ t: "say", headline: "Nothing is booked tomorrow.", detail: "" });
+    on({ t: "say", headline: "", detail: "" });
+    on({ t: "trace", text: "Reading the calendar…" });
+    await landed;
+    on({ t: "final", message: { ...said("m-day", "Two visits tomorrow."), answer } });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "what does tomorrow look like?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.equal(byClass(tree, "ask-headline").length, 0, "the Say taken back is not drawn");
+  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the calendar…"), "the read is shown again");
+  land();
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => [n.type, textOf(n)]),
+    [
+      ["button", "10:00 visit"],
+      ["div", "2:00 visit"],
+    ],
+  );
+  await closes();
+});
+
 test("Space held on an empty line talks; a tap does nothing; after words, Space is a space", async () => {
   const started = [];
   const talk = { start: () => started.push("start"), stop: () => started.push("stop") };

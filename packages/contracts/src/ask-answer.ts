@@ -153,17 +153,22 @@ function nextQuestions(next: string[], places: string[]): string[] {
 }
 
 /**
- * A place appears once per answer (the Line, D4, section 5.5). An item keeps its door; Do's Open goes when an item has
- * its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its words and draws its door
- * only when nothing else offers that route; a next question that points at an offered place goes. Returns the answer
- * as drawn and, per card, whether its Open is drawn.
+ * A place appears once per answer (the Line, D4, section 5.5). An item is the door for its row, and the first item to
+ * a place keeps it: a later one to the same place (two appointments cited to the Calendar) is drawn without one; Do's
+ * Open goes when an item has its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its
+ * words and draws its door only when nothing else offers that route; a next question that points at an offered place
+ * goes. Returns the answer as drawn and, per card, whether its Open is drawn.
  */
 export function oneDoor(
   a: AskAnswer,
   cards: ReadonlyArray<Pick<AskProposal, "id" | "kind" | "payload">> = [],
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
-  const items = a.show.items.map((it) => ({ ...it, source: { ...it.source, door: true } }));
-  const offered = new Set(items.map((it) => it.source.to));
+  const offered = new Set<string>();
+  const items = a.show.items.map((it) => {
+    const door = !offered.has(it.source.to);
+    offered.add(it.source.to);
+    return { ...it, source: { ...it.source, door } };
+  });
   const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
   if (open) offered.add(open.to);
   const cardOpen: Record<string, boolean> = {};
@@ -431,7 +436,7 @@ const C = ASK_ANSWER_CAPS;
 const SOURCE = {
   type: "object",
   description:
-    "A row or a page a tool returned this turn, with the kind and the exact id it gave (a page's id is its route); kind none when it rests on nothing read.",
+    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -581,6 +586,8 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : N
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const ROW_KINDS = ["call", "thread", "conversation", "person"] as const;
+/** A route that names a row -- a thread, a call, a person -- whatever id it carries: never a page. */
+const ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
 
 /**
  * A source grounded in this turn's reads, with the route the app gives it; null for kind none or a row not read.
@@ -599,8 +606,9 @@ function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   const tries: AskCitation[] = row
     ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k as AskCitationKind, id: row, label }))
     : [
-        { kind: kind as AskCitationKind, id: spelled, label },
-        { kind: "page", id: spelled, label },
+        ...(kind === "page" ? [] : [{ kind: kind as AskCitationKind, id: spelled, label }]),
+        // A row's route with an id cut short or misspelled names no row read, and is no page either.
+        ...(ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }]),
       ];
   const kept = groundCitations(tries, read).kept[0];
   return kept ? { ...kept, to: citationRoute(kept), door: true } : null;

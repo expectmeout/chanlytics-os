@@ -331,9 +331,11 @@ const AskReal = ({ open, onClose }) => {
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
       else if (ev.t === "say") {
-        // The answer's Say as written so far: it replaces what was drawn; the final message is the answer.
-        setLive((prev) => (prev ? { ...prev, say: { headline: ev.headline, detail: ev.detail } } : prev));
-        spoke = true;
+        // The answer's Say as written so far: it replaces what was drawn; the final message is the answer. An empty one
+        // takes back an answer the server set aside, and the reads show again.
+        const back = !ev.headline && !ev.detail;
+        setLive((prev) => (prev ? { ...prev, say: back ? null : { headline: ev.headline, detail: ev.detail } } : prev));
+        if (!back) spoke = true;
         const len = ev.headline.length + ev.detail.length;
         if (M && len > said) M.mood.beat(Math.min(1, (len - said) / 6));
         said = len;

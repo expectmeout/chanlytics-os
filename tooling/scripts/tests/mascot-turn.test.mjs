@@ -56,6 +56,11 @@ test("Say replaces the words as it is written, where a v1 turn's words add up; a
   assert.equal(s.text, "Nora has waited longest. Since Monday.", "the preview is replaced, never appended to");
   s = R(s, { t: "say", headline: "Someone else.", detail: "", seq: seq - 1 });
   assert.equal(s.text, "Nora has waited longest. Since Monday.");
+  s = R(s, { t: "say", headline: "", detail: "", seq });
+  assert.deepEqual([s.phase, s.text], ["reading", ""], "an empty Say takes back an answer the server set aside");
+  s = R(s, { t: "trace", text: "Reading the thread…", seq });
+  assert.equal(s.trace, "Reading the thread…", "and the reads show again");
+  s = R(s, { t: "say", headline: "Nora has waited longest.", detail: "Since Monday.", seq });
   s = R(s, { t: "final", message: msg({ text: "Nora has waited longest. Since Monday." }), seq });
   assert.deepEqual([s.phase, s.text], ["settled", "Nora has waited longest. Since Monday."]);
 });
