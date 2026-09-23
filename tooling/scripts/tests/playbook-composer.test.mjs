@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -168,7 +169,8 @@ const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-br
 installPlaybooks();
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 const toasts = [];
 const said = [];
@@ -178,11 +180,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -192,7 +194,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -202,14 +204,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -289,14 +291,14 @@ const textOf = (n) => {
 const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   went.length = 0;
   said.length = 0;
   toasts.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
 };
 const page = () => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.OutboundPage({});
 };
 /** The page, then the composer opened the way a person opens it: a moment's Set it up, or New playbook. */

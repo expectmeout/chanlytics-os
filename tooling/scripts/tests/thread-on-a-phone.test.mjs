@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -108,18 +109,19 @@ globalThis.document = {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -129,7 +131,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -139,13 +141,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -200,7 +202,7 @@ const textOf = (n) => {
 };
 const draw = (dto, escalation = null) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxThread({
     thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
     channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },
@@ -208,7 +210,7 @@ const draw = (dto, escalation = null) => {
 };
 // Draw again with the cells kept, so a disclosure that was toggled is drawn open.
 const redraw = (dto, escalation = null) => {
-  seq = 0;
+  frames.begin();
   return InboxThread({
     thread: toInboxThreadVM(dto, escalation, ZONE, NOW),
     channelLabels: { whatsapp: "WhatsApp", phone: "Phone", email: "Email" },

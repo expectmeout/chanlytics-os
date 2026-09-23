@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const { toCampaignReportVM, stateOf } = contracts;
 const TID = "t-studio";
@@ -171,7 +172,8 @@ const { installTemplates } = await import("../../../apps/dashboard/src/legacy-br
 installTemplates();
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 globalThis.Icon = "Icon";
 globalThis.React = {
@@ -179,11 +181,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -193,7 +195,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -203,7 +205,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -211,7 +213,7 @@ globalThis.React = {
   useCallback: (fn) => fn,
   // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -285,7 +287,7 @@ const textOf = (n) => {
 const classes = (n) => String(n?.props?.className || "").split(" ");
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   went.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
 };
@@ -344,7 +346,7 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
 
   // Pressing the third opens the composer ON that moment, not on whichever trigger is first.
   find(slots[2], (n) => n.props?.["data-testid"] === "pb-slot-start").props.onClick();
-  seq = 0;
+  frames.begin();
   tree = globalThis.window.OutboundPage({});
   assert.ok(byTestId(tree, "pb-composer"), "the composer opens");
   const moment = textOf(byTestId(tree, "pb-moment"));
@@ -468,7 +470,7 @@ test("A playbook is a card of the moment it does: its message and languages, who
   assert.ok(textOf(byTestId(offer, "pb-tile-approve")).includes("Approve it and it goes at 10:00"));
   assert.equal(byTestId(tree, "pb-approve"), null, "a closed card carries no verbs");
   byTestId(offer, "pb-tile-approve").props.onClick();
-  seq = 0;
+  frames.begin();
   tree = globalThis.window.OutboundPage({});
   const opened = all(tree, (n) => n.props?.["data-testid"] === "pb-card").find((c) => c.props.id === "pb-pb-3");
   assert.ok(classes(opened).includes("is-open"), "it opens in place, across the grid");

@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // New exports are read at run time, so a missing one fails its own test and not the file.
 const contracts = await import("@chanlytics/contracts");
@@ -261,18 +262,19 @@ const quiet = async (fn) => {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -282,7 +284,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -292,17 +294,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -364,7 +366,7 @@ const textOf = (n) => {
 const buttonsOf = (tree) => findAll(tree, (n) => n.type === "button").map((n) => textOf(n).trim());
 const composerOf = (thread) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxComposer({ thread, reply: "", onSend() {} });
 };
 
@@ -410,7 +412,7 @@ test("the template send offers what can go to this person, by title and language
   // Why the rest are not offered is one tap away, never a sentence sitting under the reply box.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined, "not until it is asked for");
   find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-  seq = 0;
+  frames.begin();
   tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
   assert.equal(
     textOf(find(tree, byTestId("ix-tpl-hidden"))),
@@ -436,7 +438,7 @@ test("the template send offers what can go to this person, by title and language
     "eight words, with the counts behind them",
   );
   find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
-  seq = 0;
+  frames.begin();
   tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
   assert.equal(
     textOf(find(tree, byTestId("ix-tpl-hidden"))),
@@ -456,7 +458,7 @@ test("the search asks for what it searches, and a teammate's email keeps its own
   try {
     const theirs = toInboxThreadVM(conv({ assignee_user_id: "u-b", assignee_is_me: false }), asked(), ZONE, NOW);
     cells = [];
-    seq = 0;
+    frames.begin();
     const tree = InboxList({
       threads: [theirs],
       allThreads: [theirs],

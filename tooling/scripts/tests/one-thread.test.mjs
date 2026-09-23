@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, memberWords, toInboxThreadVM, toConversationVM, toCallVM } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 
@@ -67,18 +68,19 @@ const fire = (name) => {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -88,7 +90,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -98,13 +100,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -190,7 +192,7 @@ const releasePane = () => {
   globalThis.InboxThread = RealInboxThread;
 };
 const pane = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return ThreadPane({ threadId: "th-rosa", ...props });
 };
 const fresh = () => {
@@ -483,7 +485,7 @@ test("Export is in the thread's menu, from the conversation's own route -- in wh
     return a;
   };
   try {
-    seq = 0;
+    frames.begin();
     const tree = ThreadPane({ threadId: vm.id });
     const menu = find(tree, (n) => n.type === globalThis.MoreMenu);
     assert.ok(menu, "the thread has its menu");
@@ -519,7 +521,7 @@ const listed = (rows, threads = []) => {
   globalThis.window.INBOX_DATA = { THREADS: threads, CHANNEL_LABELS: { whatsapp: "WhatsApp" } };
 };
 const conversations = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return ConversationsPage({ channel: "all", initialId: null, ...props });
 };
 // A call as the calls route returns it: a call record, with no recording stored yet.

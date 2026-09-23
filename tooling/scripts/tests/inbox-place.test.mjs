@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -131,18 +132,19 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -152,7 +154,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -162,17 +164,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -307,7 +309,7 @@ test("REGRESSION: a re-read that moves the open thread out of its bucket keeps i
     };
   };
   const render = (initialThreadId = null) => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.Inbox({ initialThreadId, showAgentRail: false });
   };
   // A teammate handed Rosa back: the next read has her in Handled.
@@ -393,7 +395,7 @@ test("REGRESSION: a thread picked from a search in another bucket opens that thr
     THREADS: [emily, marcus],
   };
   const render = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.Inbox({ showAgentRail: false });
   };
   render();
@@ -452,7 +454,7 @@ test("your own act moves the open thread without a notice about it: its toast ha
     THREADS: [other, open],
   };
   const render = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.Inbox({ initialThreadId: "th-rosa", showAgentRail: false });
   };
   render();
@@ -530,7 +532,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
     };
   };
   const render = (initialThreadId = null) => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.Inbox({ initialThreadId, showAgentRail: false });
   };
   try {
@@ -576,7 +578,7 @@ test("the words in the Inbox's search come back after a refresh, in this tab onl
   const t = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   const draw = () => {
     cells = [];
-    seq = 0;
+    frames.begin();
     return RealList({
       threads: [t],
       allThreads: [t],
@@ -628,7 +630,7 @@ test("a reply half-written is kept for its thread in this tab: another thread, o
     // A new mount each time, as a thread switch (the pane is keyed by thread) and a refresh both make.
     const draw = (thread, props = {}) => {
       cells = [];
-      seq = 0;
+      frames.begin();
       return InboxComposer({ thread, reply: "", onSend() {}, ...props });
     };
     const box = (tree) => find(tree, (n) => n.type === "textarea");
@@ -681,7 +683,7 @@ test("REGRESSION (A15): the template send says when the list could not be read, 
   };
   const draw = () => {
     cells = [];
-    seq = 0;
+    frames.begin();
     return InboxComposer({ thread: closed, reply: "" });
   };
   globalThis.window.__TEMPLATES = undefined;
@@ -703,7 +705,7 @@ test("REGRESSION (A11): an archived thread says it was archived, not that nobody
   const vm = toInboxThreadVM(conv({ state: "archived" }), null, ZONE, NOW);
   assert.deepEqual([vm.state, vm.archived], ["done", true]);
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
   assert.equal(
     textOf(find(tree, byTestId("ix-th-standing"))),
@@ -727,16 +729,16 @@ test("REGRESSION (A11): Archive is in the open thread's menu, asks first, and sa
     },
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   let tree = InboxThread(props);
   const trigger = find(tree, (n) => n.type === "button" && n.props?.["aria-haspopup"] === "menu");
   trigger.props.onClick(click);
-  seq = 0;
+  frames.begin();
   tree = InboxThread(props);
   const item = find(tree, (n) => n.props?.role === "menuitem" && textOf(n).includes("Archive"));
   assert.ok(item, "REGRESSION: Archive lived only in the bulk bar");
   item.props.onClick(click);
-  seq = 0;
+  frames.begin();
   tree = InboxThread(props);
   const ask = find(tree, byTestId("ix-archive-confirm"));
   assert.ok(ask, "it asks first: archiving closes the request");

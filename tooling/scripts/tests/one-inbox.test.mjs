@@ -13,22 +13,24 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { hookFrames } from "./_hook-frames.mjs";
 
 /* -------------------------------- a browser -------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -38,7 +40,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -48,17 +50,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -120,7 +122,7 @@ const hasClass = (n, cls) => typeof n.props?.className === "string" && n.props.c
 /** The real sidebar, drawn with `active` as the shell reports it. */
 const nav = (active) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = win.Sidebar({ active, onNavigate() {} });
   return findAll(tree, (n) => hasClass(n, "nav-item")).map((n) => ({
     label: textOf(n.props.children.find((c) => c && c.type === "span")),
@@ -131,7 +133,7 @@ const nav = (active) => {
 /** The tab strip at a route, as the shell renders it above the pane. */
 const strip = (page, param = null) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = win.SurfaceTabs({ page, param, onNavigate() {} });
   if (!tree) return null;
   return tree.props.children.map((b) => ({

@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -157,18 +158,19 @@ const heard = {};
 const landsARead = () => [...(heard["surface:inbox"] || [])].forEach((fn) => fn());
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -178,7 +180,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -188,17 +190,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -293,7 +295,7 @@ const page = (threads) => {
   for (const k of Object.keys(heard)) delete heard[k];
   cells = [];
   const render = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.Inbox({ showAgentRail: false });
   };
   render();
@@ -482,7 +484,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
   try {
     cells = [];
     const draw = (over = {}) => {
-      seq = 0;
+      frames.begin();
       return RealInboxList(listProps(over));
     };
     let tree = draw();
@@ -615,7 +617,7 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
 test("the row says the seconds, where the time it last moved would be", () => {
   const jess = sendingThread();
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = RealInboxList(
     listProps({
       threads: [jess, rosa],
