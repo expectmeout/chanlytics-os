@@ -1423,3 +1423,26 @@ export async function exportLeads(
   await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "leads", rows: rows.length });
   return attachment(`leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`, leadsCsv(rows), "text/csv");
 }
+
+/**
+ * The lead a person was found as, the newest when two places held their number; null when they were never one. A
+ * converted lead's page links to its person; this is the way back.
+ */
+export async function leadOfPerson(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  contactId: string,
+): Promise<{ id: string; business_name: string; found_at: string } | null> {
+  const { data, error } = await ctx.supabase
+    .from("leads")
+    .select("id, business_name, found_at")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .is("erased_at", null)
+    .is("blanked_at", null)
+    .order("found_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { id: data.id, business_name: data.business_name, found_at: data.found_at } : null;
+}

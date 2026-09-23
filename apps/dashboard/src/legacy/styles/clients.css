@@ -1540,6 +1540,16 @@
 .cl-prof-attr-key { color: var(--ink-dim); }
 .cl-prof-attr-val { color: var(--ink); font-variant-numeric: tabular-nums; }
 .cl-prof-attr-door { margin-left: 8px; }
+/* A run on a person's page: the row is its door to the run's report, drawn as an About row, the outcome under the
+   run's name in the page's quiet ink, green once they replied and amber when it was held or never sent. */
+.cl-prof-run { width: 100%; margin: 0; background: none; border: 0; border-bottom: 1px dashed var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cl-prof-run:last-child { border-bottom: none; }
+.cl-prof-run:hover .cl-prof-run-title { text-decoration: underline; }
+.cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.cl-prof-run-title { display: block; }
+.cl-prof-run-out { display: block; color: var(--ink-dim); }
+.cl-prof-run-out[data-tone="ok"] { color: var(--ok-ink); }
+.cl-prof-run-out[data-tone="warn"] { color: var(--warn-ink); }
 /* The line under a person's name breaks between its parts, never inside one, and no line starts with a dot: every
    part carries its separator in a 14px lead, and the run sits 14px left inside a clip, so the part that starts a
    line has its dot cut off. */

@@ -789,13 +789,7 @@ export function toInboxThreadVM(
       ...(m.sender === "human" ? { byYou: true } : {}),
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
-      ...(m.meta?.source === "broadcast"
-        ? {
-            via: m.meta.playbook_name
-              ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
-              : { kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") },
-          }
-        : {}),
+      ...(messageVia(m) ? { via: messageVia(m)! } : {}),
       ...(m.sender !== "customer" && m.status
         ? {
             status: m.status,
@@ -935,6 +929,18 @@ export interface MessageAuthor {
 }
 
 /**
+ * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
+ * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
+ * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
+ */
+export function messageVia(m: Pick<MessageDto, "meta">): { kind: "broadcast" | "playbook"; name: string } | null {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name
+    ? { kind: "playbook", name: String(m.meta.playbook_name) }
+    : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+
+/**
  * Who sent one of our messages, in the words the Inbox and Conversations both use.
  *
  * A person's reply is the team's: the row does not record which member sent
@@ -944,13 +950,12 @@ export interface MessageAuthor {
  */
 export function messageAuthor(m: MessageDto): MessageAuthor | null {
   if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  if (m.meta?.source === "broadcast") {
-    return m.meta.playbook_name
-      ? { kind: "playbook", words: `the ${String(m.meta.playbook_name)} playbook` }
-      : {
-          kind: "broadcast",
-          words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast",
-        };
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook"
+      ? // A playbook named "The month's offer" is not "the The month's offer playbook".
+        { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+      : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
   }
   return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
 }

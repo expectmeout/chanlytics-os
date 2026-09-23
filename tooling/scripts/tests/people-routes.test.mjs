@@ -811,3 +811,121 @@ test("REGRESSION: a list past a thousand people is read to its last member -- it
   assert.equal(read[0].ids.length, 1500, "REGRESSION: 1000 of 1500");
   assert.deepEqual(new Set(read[0].ids), new Set(ids), "each of them once");
 });
+
+test("a person carries the runs that named them, newest first, and the lead they were found as -- their page could say neither", async () => {
+  const run = (id, over) => ({
+    id,
+    tenant_id: A,
+    name: `Run ${id}`,
+    playbook_id: null,
+    audience: { kind: "everyone", id: null, label: "Everyone" },
+    scheduled_for: null,
+    created_at: "2026-08-01T00:00:00Z",
+    ...over,
+  });
+  const tables = {
+    memberships: both("owner", "owner"),
+    contact_identities: [],
+    conversations: [],
+    calls: [],
+    policies: [],
+    events: [],
+    contacts: [{ id: P1, tenant_id: A, notes: null }],
+    tenant_config: [],
+    tenants: [],
+    broadcasts: [
+      run("b-old", { created_at: "2026-08-01T00:00:00Z" }),
+      run("b-pb", {
+        playbook_id: "pb-1",
+        audience: { kind: "playbook", id: "quiet_30", label: "Win-back" },
+        created_at: "2026-09-01T00:00:00Z",
+      }),
+      run("b-held", { scheduled_for: "2026-08-20T00:00:00Z", created_at: "2026-08-19T00:00:00Z" }),
+      run("b-theirs", { tenant_id: B }),
+    ],
+    broadcast_recipients: [
+      {
+        broadcast_id: "b-old",
+        contact_id: P1,
+        tenant_id: A,
+        state: "sent",
+        reason: null,
+        sent_at: "2026-08-01T15:00:00Z",
+        message_id: "m-old",
+      },
+      {
+        broadcast_id: "b-pb",
+        contact_id: P1,
+        tenant_id: A,
+        state: "sent",
+        reason: null,
+        sent_at: "2026-09-01T15:00:00Z",
+        message_id: "m-pb",
+      },
+      {
+        broadcast_id: "b-held",
+        contact_id: P1,
+        tenant_id: A,
+        state: "skipped",
+        reason: "no_marketing_consent",
+        sent_at: null,
+        message_id: null,
+      },
+      // Somebody else on a run, and this person on another workspace's: neither is theirs here.
+      {
+        broadcast_id: "b-old",
+        contact_id: P2,
+        tenant_id: A,
+        state: "sent",
+        reason: null,
+        sent_at: "2026-08-01T15:00:00Z",
+        message_id: "m-x",
+      },
+      {
+        broadcast_id: "b-theirs",
+        contact_id: P1,
+        tenant_id: B,
+        state: "sent",
+        reason: null,
+        sent_at: "2026-09-10T00:00:00Z",
+        message_id: "m-y",
+      },
+    ],
+    leads: [
+      {
+        id: "l-1",
+        tenant_id: A,
+        contact_id: P1,
+        business_name: "Glow Studio",
+        found_at: "2026-07-01T00:00:00Z",
+        erased_at: null,
+        blanked_at: null,
+      },
+      {
+        id: "l-gone",
+        tenant_id: A,
+        contact_id: P1,
+        business_name: "Erased",
+        found_at: "2026-07-05T00:00:00Z",
+        erased_at: "2026-07-06T00:00:00Z",
+        blanked_at: null,
+      },
+    ],
+  };
+  const rpcs = { people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []) };
+  const { person: p } = await person.GET.run(get(inA), ctxFor(tables, { id: P1 }, rpcs));
+  assert.deepEqual(
+    p.campaigns.map((c) => [c.broadcast_id, c.state, c.reason, c.playbook_id, c.playbook_name, c.message_id]),
+    [
+      ["b-pb", "sent", null, "pb-1", "Win-back", "m-pb"],
+      ["b-held", "skipped", "no_marketing_consent", null, null, null],
+      ["b-old", "sent", null, null, null, "m-old"],
+    ],
+    "newest first by when each went or was due; a playbook's run named for its playbook",
+  );
+  assert.deepEqual(
+    p.lead,
+    { id: "l-1", business_name: "Glow Studio", found_at: "2026-07-01T00:00:00Z" },
+    "never an erased lead",
+  );
+});
