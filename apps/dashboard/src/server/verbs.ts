@@ -377,6 +377,8 @@ export interface VerbList {
   id: string;
   tenant_id: string;
   name: string;
+  /** A smart list's rule, or null for a list kept by hand. */
+  rule: unknown;
 }
 
 /** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
@@ -421,7 +423,7 @@ export async function loadPlaybook(ctx: RouteContext, id: string) {
   const playbookId = requireUuid(id, "playbook");
   const { data, error } = await ctx.supabase
     .from("playbooks")
-    .select("id, tenant_id, name, state")
+    .select("id, tenant_id, name, state, trigger")
     .eq("id", playbookId)
     .maybeSingle();
   if (error) throw new Error(error.message);

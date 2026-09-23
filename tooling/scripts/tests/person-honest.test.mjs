@@ -1489,6 +1489,97 @@ test("clients/new-list opens People with the New list box open from the first dr
   }
 });
 
+/* ------------------------------ lists that keep themselves current (00155) ------------------------------ */
+
+const SMART = {
+  id: "s2",
+  name: "WhatsApp people",
+  ids: [],
+  rule: { all: [{ field: "channel", op: "is", channel: "whatsapp" }] },
+};
+
+test("a smart list rides the rail with who its rule holds for, and says its rule; a profile shows it and never offers to put someone on it or take them off", async () => {
+  const draw = await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: [] }, SMART]);
+  const tree = draw();
+  const smartRow = byTestId(tree, "saved-smart");
+  assert.ok(smartRow, "the smart list is on the rail, marked");
+  assert.ok(textOf(smartRow).includes("WhatsApp people") && textOf(smartRow).includes("1"), textOf(smartRow));
+  assert.equal(smartRow.props["data-tip"], "Keeps itself current: Reaches you by WhatsApp");
+  const saved = globalThis.window.__PEOPLE.saved.find((s) => s.id === "s2");
+  assert.deepEqual(
+    [saved.ids, saved.rule],
+    [["p1"], ["Reaches you by WhatsApp"]],
+    "who its rule holds for, and its rule as chips",
+  );
+
+  cells = [];
+  frames.begin();
+  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const chips = all(lists, (n) => n.props?.["data-testid"] === "person-list-chip");
+  assert.deepEqual(chips.map(textOf), ["WhatsApp people"], "on the smart list today");
+  assert.equal(
+    find(chips[0], (n) => String(n.props?.className ?? "").includes("cl-seg-filter-x")),
+    null,
+    "no cross on a rule",
+  );
+  const menu = find(lists, (n) => n.type === globalThis.MoreMenu);
+  assert.deepEqual(
+    menu.props.items.filter((i) => i.label).map((i) => i.label),
+    ["Regulars"],
+    "Add to offers only the lists kept by hand",
+  );
+});
+
+test("a new list may be described: the assistant drafts a rule, the box shows its chips, who it holds for and what it left out, and Save makes the smart list", async () => {
+  const made = [];
+  const drafted = [];
+  const was = globalThis.window.__lists;
+  globalThis.window.__lists = {
+    ...(was || {}),
+    draft: async (words) => {
+      drafted.push(words);
+      return {
+        ok: true,
+        data: {
+          name: "Drifting",
+          rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+          cannot: "who their stylist is",
+        },
+      };
+    },
+    parts: (r) => contracts.listRuleParts(r),
+    count: () => 3,
+  };
+  try {
+    cells = [];
+    const onCreate = async (name, rule) => {
+      made.push([name, rule]);
+      return { ok: true };
+    };
+    const draw = () => {
+      frames.begin();
+      return globalThis.window.NewListRow({ onCreate });
+    };
+    press(byTestId(draw(), "new-list"));
+    press(byTestId(draw(), "new-list-smart"));
+    byTestId(draw(), "new-list-words").props.onChange({ target: { value: "regulars who stopped coming" } });
+    await press(byTestId(draw(), "new-list-build"));
+    await new Promise((r) => setTimeout(r, 0));
+    const tree = draw();
+    assert.deepEqual(drafted, ["regulars who stopped coming"]);
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "new-list-rule").map(textOf), [
+      "Last visit more than 60 days ago",
+    ]);
+    assert.equal(textOf(byTestId(tree, "new-list-holds")), "3 people on it today, and it keeps itself current.");
+    assert.equal(textOf(byTestId(tree, "new-list-cannot")), "Left out: who their stylist is");
+    assert.equal(byTestId(tree, "new-list-name").props.value, "Drifting", "the draft's name, to change or keep");
+    await press(byTestId(tree, "new-list-add"));
+    assert.deepEqual(made, [["Drifting", { all: [{ field: "last_visit", op: "more_than", days: 60 }] }]]);
+  } finally {
+    globalThis.window.__lists = was;
+  }
+});
+
 test("REGRESSION: a reply counting down to send waits on you on People as in the Inbox -- the rule lived in inbox.jsx, and People counted that person as waiting on nobody", () => {
   const { replyWaitsOnYou } = contracts;
   assert.equal(replyWaitsOnYou({ endsAtMs: NOW + 20_000 }, NOW), true, "the Inbox: counting down");

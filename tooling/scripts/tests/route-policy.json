@@ -898,6 +898,13 @@
       "rate": "lists",
       "spend": false
     },
+    "POST segments/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
     "GET settings": {
       "kind": "read",
       "scope": "workspace",

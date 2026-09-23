@@ -6,7 +6,7 @@
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
 import { savedListFor, type Json } from "@chanlytics/db";
-import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
+import { numberHealth, parseTenantConfig, savedListIds } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -18,7 +18,7 @@ import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
-import { audiencePool } from "./audience";
+import { audiencePool, type AudiencePool } from "./audience";
 import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
@@ -93,16 +93,23 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
   // The workspace's facts, read once: the zone its people's rows are said in is the zone the send is timed by.
   let facts: ReturnType<typeof tenantFacts> | null = null;
   const zone = async () => (await (facts ??= tenantFacts(ctx.supabase, tenantId))).timezone;
+  // The pool, read once: a send to a smart list judges its rule over the same people it enrols from.
+  let pool: Promise<AudiencePool> | null = null;
+  const poolAt = async (now: Date) => (pool ??= audiencePool(ctx, tenantId, await zone(), now));
   return {
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
     timezone: zone,
     // Everyone, not one page of them, with their appointments: the pool the page and the assistant count from.
-    people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,
-    // Every member, not the first thousand (lists.ts savedList).
+    people: async (now) => (await poolAt(now)).rows,
+    // Every member, not the first thousand (packages/db savedListFor); a smart list's, by its rule (savedListIds).
     savedList: async (id) => {
       const seg = await savedListFor(ctx.supabase, tenantId, id);
-      return seg ? { name: seg.name, memberIds: seg.ids } : null;
+      if (!seg) return null;
+      if (seg.rule == null) return { name: seg.name, memberIds: seg.ids };
+      const now = new Date();
+      const p = await poolAt(now);
+      return { name: seg.name, memberIds: [...savedListIds(seg, p.rows, now.getTime(), p.calendar.state === "ok")] };
     },
     number: async () => {
       const { data: ch, error: chErr } = await ctx.supabase

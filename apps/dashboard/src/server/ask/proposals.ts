@@ -5,6 +5,7 @@ import {
   AskSettingsChangeSchema,
   EVERYONE_LABEL,
   PEOPLE_LISTS,
+  savedListIds,
   PERSON_MODES,
   audienceMembers,
   broadcastName,
@@ -649,13 +650,14 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
 
   // The audience, counted the way the route will count it.
   // The pool and the list the route will read, so the count here is the count it enrols.
-  const { rows } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  const { rows, calendar } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {
     const seg = await savedListFor(t.ctx.supabase, t.tenantId, audienceId!);
     if (!seg) return refuse("no such list; list_audiences names them");
-    savedIds = new Set(seg.ids);
+    // A smart list's people by its rule, the way the send finds them (savedListIds).
+    savedIds = savedListIds(seg, rows, t.now.getTime(), calendar.state === "ok");
     label = seg.name;
   } else if (kind === "list") {
     label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;

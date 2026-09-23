@@ -164,6 +164,7 @@ import { z as z4 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
 import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -1449,7 +1450,84 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS6 = 864e5;
+var LIST_RULE_FIELDS = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days = z7.object({
+  op: z7.enum(["more_than", "within"]),
+  days: z7.number().int().min(1).max(3650)
+});
+var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
+var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
+var ListConditionSchema = z7.discriminatedUnion("field", [
+  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
+  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
+  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
+  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
+  z7.object({ field: z7.literal("calls"), ...Count.shape }),
+  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
+  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
+]);
+var ListRuleSchema = z7.object({
+  all: z7.array(ListConditionSchema).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS] },
+          from: { type: "string", enum: [...CAME_FROM] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(ListConditionSchema).max(8)
+});
+var DAY_MS7 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -1458,7 +1536,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -1494,9 +1572,9 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -1510,17 +1588,17 @@ var SignupSchema = z7.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z7.string().max(200).optional(),
+  password: z8.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z7.string().trim().min(1).max(64).optional(),
+  timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z7.string().trim().max(80).optional()
+  code: z8.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -1602,15 +1680,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z8.object({
-  places: z8.array(
-    z8.object({
-      ref: z8.number().int(),
-      criteria: z8.array(
-        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z8.number().int().nullable(),
-      reason: z8.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -1682,7 +1760,7 @@ var K = new Uint32Array([
 ]);
 
 // ../channels/dist/index.js
-import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z52 } from "zod";
@@ -1690,6 +1768,7 @@ import { z as z42 } from "zod";
 import { z as z62 } from "zod";
 import { z as z72 } from "zod";
 import { z as z82 } from "zod";
+import { z as z92 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -6630,7 +6709,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z9.config({ jitless: true });
+z10.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -7911,7 +7990,84 @@ var LIMIT_TIERS2 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS62 = 864e5;
+var LIST_RULE_FIELDS2 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS2 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM2 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days2 = z72.object({
+  op: z72.enum(["more_than", "within"]),
+  days: z72.number().int().min(1).max(3650)
+});
+var Count2 = z72.object({ op: z72.enum(["at_least", "at_most"]), n: z72.number().int().min(0).max(1e4) });
+var YesNo2 = z72.object({ op: z72.literal("is"), yes: z72.boolean() });
+var ListConditionSchema2 = z72.discriminatedUnion("field", [
+  z72.object({ field: z72.literal("last_visit"), ...Days2.shape }),
+  z72.object({ field: z72.literal("next_visit"), ...Days2.shape }),
+  z72.object({ field: z72.literal("booked"), ...YesNo2.shape }),
+  z72.object({ field: z72.literal("asked_not_booked"), ...YesNo2.shape }),
+  z72.object({ field: z72.literal("last_heard"), ...Days2.shape }),
+  z72.object({ field: z72.literal("first_contact"), ...Days2.shape }),
+  z72.object({ field: z72.literal("channel"), op: z72.enum(["is", "is_not"]), channel: z72.enum(CHANNELS2) }),
+  z72.object({ field: z72.literal("came_from"), op: z72.enum(["is", "is_not"]), from: z72.enum(CAME_FROM2) }),
+  z72.object({ field: z72.literal("calls"), ...Count2.shape }),
+  z72.object({ field: z72.literal("conversations"), ...Count2.shape }),
+  z72.object({ field: z72.literal("offers_yes"), ...YesNo2.shape })
+]);
+var ListRuleSchema2 = z72.object({
+  all: z72.array(ListConditionSchema2).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA2 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS2.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS2] },
+          from: { type: "string", enum: [...CAME_FROM2] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema2 = z72.object({
+  name: z72.string().trim().min(1).max(60),
+  cannot: z72.string().trim().max(200),
+  all: z72.array(ListConditionSchema2).max(8)
+});
+var DAY_MS72 = 864e5;
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS2 = {
   min: PLAYBOOK_HOURS2.min,
@@ -7920,7 +8076,7 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS62;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
@@ -7956,9 +8112,9 @@ var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var SignupSchema2 = z72.object({
-  name: z72.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z72.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema2 = z82.object({
+  name: z82.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z82.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -7972,17 +8128,17 @@ var SignupSchema2 = z72.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z72.string().max(200).optional(),
+  password: z82.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z72.string().trim().min(1).max(64).optional(),
+  timezone: z82.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z72.string().trim().max(80).optional()
+  code: z82.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema2 = z72.object({
-  name: z72.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z82.object({
+  name: z82.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z72.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z82.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -8064,15 +8220,15 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z82.object({
-  places: z82.array(
-    z82.object({
-      ref: z82.number().int(),
-      criteria: z82.array(
-        z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })
+var AnswerSchema2 = z92.object({
+  places: z92.array(
+    z92.object({
+      ref: z92.number().int(),
+      criteria: z92.array(
+        z92.object({ key: z92.string(), answer: z92.enum(["pass", "fail", "unknown"]), facts: z92.array(z92.string()) })
       ),
-      email_index: z82.number().int().nullable(),
-      reason: z82.string()
+      email_index: z92.number().int().nullable(),
+      reason: z92.string()
     })
   )
 });
@@ -8243,7 +8399,7 @@ var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../core/dist/index.js
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z53 } from "zod";
@@ -8251,7 +8407,8 @@ import { z as z43 } from "zod";
 import { z as z63 } from "zod";
 import { z as z73 } from "zod";
 import { z as z83 } from "zod";
-import { z as z92 } from "zod";
+import { z as z93 } from "zod";
+import { z as z102 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z522 } from "zod";
@@ -8259,7 +8416,8 @@ import { z as z422 } from "zod";
 import { z as z622 } from "zod";
 import { z as z722 } from "zod";
 import { z as z822 } from "zod";
-import { z as z102 } from "zod";
+import { z as z922 } from "zod";
+import { z as z112 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z532 } from "zod";
@@ -8267,6 +8425,7 @@ import { z as z432 } from "zod";
 import { z as z632 } from "zod";
 import { z as z732 } from "zod";
 import { z as z832 } from "zod";
+import { z as z932 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -9186,7 +9345,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z10.config({ jitless: true });
+z11.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -9368,8 +9527,8 @@ var DECISION_VERBS3 = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call"
 ];
-var DAY_MS7 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS7;
+var DAY_MS6 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS6;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -10467,7 +10626,84 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS63 = 864e5;
+var LIST_RULE_FIELDS3 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS3 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM3 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days3 = z73.object({
+  op: z73.enum(["more_than", "within"]),
+  days: z73.number().int().min(1).max(3650)
+});
+var Count3 = z73.object({ op: z73.enum(["at_least", "at_most"]), n: z73.number().int().min(0).max(1e4) });
+var YesNo3 = z73.object({ op: z73.literal("is"), yes: z73.boolean() });
+var ListConditionSchema3 = z73.discriminatedUnion("field", [
+  z73.object({ field: z73.literal("last_visit"), ...Days3.shape }),
+  z73.object({ field: z73.literal("next_visit"), ...Days3.shape }),
+  z73.object({ field: z73.literal("booked"), ...YesNo3.shape }),
+  z73.object({ field: z73.literal("asked_not_booked"), ...YesNo3.shape }),
+  z73.object({ field: z73.literal("last_heard"), ...Days3.shape }),
+  z73.object({ field: z73.literal("first_contact"), ...Days3.shape }),
+  z73.object({ field: z73.literal("channel"), op: z73.enum(["is", "is_not"]), channel: z73.enum(CHANNELS3) }),
+  z73.object({ field: z73.literal("came_from"), op: z73.enum(["is", "is_not"]), from: z73.enum(CAME_FROM3) }),
+  z73.object({ field: z73.literal("calls"), ...Count3.shape }),
+  z73.object({ field: z73.literal("conversations"), ...Count3.shape }),
+  z73.object({ field: z73.literal("offers_yes"), ...YesNo3.shape })
+]);
+var ListRuleSchema3 = z73.object({
+  all: z73.array(ListConditionSchema3).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA3 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS3.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS3] },
+          from: { type: "string", enum: [...CAME_FROM3] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema3 = z73.object({
+  name: z73.string().trim().min(1).max(60),
+  cannot: z73.string().trim().max(200),
+  all: z73.array(ListConditionSchema3).max(8)
+});
+var DAY_MS73 = 864e5;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -10476,7 +10712,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS63;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
@@ -10512,9 +10748,9 @@ var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var SignupSchema3 = z73.object({
-  name: z73.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z73.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema3 = z83.object({
+  name: z83.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z83.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -10528,17 +10764,17 @@ var SignupSchema3 = z73.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z73.string().max(200).optional(),
+  password: z83.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z73.string().trim().min(1).max(64).optional(),
+  timezone: z83.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z73.string().trim().max(80).optional()
+  code: z83.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema3 = z73.object({
-  name: z73.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z83.object({
+  name: z83.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z73.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z83.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -10620,15 +10856,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z83.object({
-  places: z83.array(
-    z83.object({
-      ref: z83.number().int(),
-      criteria: z83.array(
-        z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })
+var AnswerSchema3 = z93.object({
+  places: z93.array(
+    z93.object({
+      ref: z93.number().int(),
+      criteria: z93.array(
+        z93.object({ key: z93.string(), answer: z93.enum(["pass", "fail", "unknown"]), facts: z93.array(z93.string()) })
       ),
-      email_index: z83.number().int().nullable(),
-      reason: z83.string()
+      email_index: z93.number().int().nullable(),
+      reason: z93.string()
     })
   )
 });
@@ -10758,7 +10994,7 @@ var FRESH_SLACK_MS2 = 2 * 864e5;
 var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
-z92.config({ jitless: true });
+z102.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -12105,7 +12341,84 @@ var LIMIT_TIERS22 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS622 = 864e5;
+var LIST_RULE_FIELDS22 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS22 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM22 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days22 = z722.object({
+  op: z722.enum(["more_than", "within"]),
+  days: z722.number().int().min(1).max(3650)
+});
+var Count22 = z722.object({ op: z722.enum(["at_least", "at_most"]), n: z722.number().int().min(0).max(1e4) });
+var YesNo22 = z722.object({ op: z722.literal("is"), yes: z722.boolean() });
+var ListConditionSchema22 = z722.discriminatedUnion("field", [
+  z722.object({ field: z722.literal("last_visit"), ...Days22.shape }),
+  z722.object({ field: z722.literal("next_visit"), ...Days22.shape }),
+  z722.object({ field: z722.literal("booked"), ...YesNo22.shape }),
+  z722.object({ field: z722.literal("asked_not_booked"), ...YesNo22.shape }),
+  z722.object({ field: z722.literal("last_heard"), ...Days22.shape }),
+  z722.object({ field: z722.literal("first_contact"), ...Days22.shape }),
+  z722.object({ field: z722.literal("channel"), op: z722.enum(["is", "is_not"]), channel: z722.enum(CHANNELS22) }),
+  z722.object({ field: z722.literal("came_from"), op: z722.enum(["is", "is_not"]), from: z722.enum(CAME_FROM22) }),
+  z722.object({ field: z722.literal("calls"), ...Count22.shape }),
+  z722.object({ field: z722.literal("conversations"), ...Count22.shape }),
+  z722.object({ field: z722.literal("offers_yes"), ...YesNo22.shape })
+]);
+var ListRuleSchema22 = z722.object({
+  all: z722.array(ListConditionSchema22).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA22 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS22.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS22] },
+          from: { type: "string", enum: [...CAME_FROM22] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema22 = z722.object({
+  name: z722.string().trim().min(1).max(60),
+  cannot: z722.string().trim().max(200),
+  all: z722.array(ListConditionSchema22).max(8)
+});
+var DAY_MS722 = 864e5;
 var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS22 = {
   min: PLAYBOOK_HOURS22.min,
@@ -12114,7 +12427,7 @@ var SENDING_HOURS_WORDS22 = {
   range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
   between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
 };
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS622;
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS722;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
@@ -12150,9 +12463,9 @@ var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: on
 var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
-var SignupSchema22 = z722.object({
-  name: z722.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
-  email: z722.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema22 = z822.object({
+  name: z822.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
+  email: z822.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -12166,17 +12479,17 @@ var SignupSchema22 = z722.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z722.string().max(200).optional(),
+  password: z822.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z722.string().trim().min(1).max(64).optional(),
+  timezone: z822.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z722.string().trim().max(80).optional()
+  code: z822.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema22 = z722.object({
-  name: z722.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
+var PendingWorkspaceSchema22 = z822.object({
+  name: z822.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z722.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
+  timezone: z822.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
 });
 function isTimezone22(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -12258,15 +12571,15 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema22 = z822.object({
-  places: z822.array(
-    z822.object({
-      ref: z822.number().int(),
-      criteria: z822.array(
-        z822.object({ key: z822.string(), answer: z822.enum(["pass", "fail", "unknown"]), facts: z822.array(z822.string()) })
+var AnswerSchema22 = z922.object({
+  places: z922.array(
+    z922.object({
+      ref: z922.number().int(),
+      criteria: z922.array(
+        z922.object({ key: z922.string(), answer: z922.enum(["pass", "fail", "unknown"]), facts: z922.array(z922.string()) })
       ),
-      email_index: z822.number().int().nullable(),
-      reason: z822.string()
+      email_index: z922.number().int().nullable(),
+      reason: z922.string()
     })
   )
 });
@@ -12336,7 +12649,7 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-z102.config({ jitless: true });
+z112.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -12518,8 +12831,8 @@ var DECISION_VERBS32 = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call"
 ];
-var DAY_MS72 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS72;
+var DAY_MS62 = 864e5;
+var WEEK_MS52 = 7 * DAY_MS62;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -13609,7 +13922,84 @@ var LIMIT_TIERS32 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS632 = 864e5;
+var LIST_RULE_FIELDS32 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS32 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM32 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days32 = z732.object({
+  op: z732.enum(["more_than", "within"]),
+  days: z732.number().int().min(1).max(3650)
+});
+var Count32 = z732.object({ op: z732.enum(["at_least", "at_most"]), n: z732.number().int().min(0).max(1e4) });
+var YesNo32 = z732.object({ op: z732.literal("is"), yes: z732.boolean() });
+var ListConditionSchema32 = z732.discriminatedUnion("field", [
+  z732.object({ field: z732.literal("last_visit"), ...Days32.shape }),
+  z732.object({ field: z732.literal("next_visit"), ...Days32.shape }),
+  z732.object({ field: z732.literal("booked"), ...YesNo32.shape }),
+  z732.object({ field: z732.literal("asked_not_booked"), ...YesNo32.shape }),
+  z732.object({ field: z732.literal("last_heard"), ...Days32.shape }),
+  z732.object({ field: z732.literal("first_contact"), ...Days32.shape }),
+  z732.object({ field: z732.literal("channel"), op: z732.enum(["is", "is_not"]), channel: z732.enum(CHANNELS32) }),
+  z732.object({ field: z732.literal("came_from"), op: z732.enum(["is", "is_not"]), from: z732.enum(CAME_FROM32) }),
+  z732.object({ field: z732.literal("calls"), ...Count32.shape }),
+  z732.object({ field: z732.literal("conversations"), ...Count32.shape }),
+  z732.object({ field: z732.literal("offers_yes"), ...YesNo32.shape })
+]);
+var ListRuleSchema32 = z732.object({
+  all: z732.array(ListConditionSchema32).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA32 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS32.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS32] },
+          from: { type: "string", enum: [...CAME_FROM32] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema32 = z732.object({
+  name: z732.string().trim().min(1).max(60),
+  cannot: z732.string().trim().max(200),
+  all: z732.array(ListConditionSchema32).max(8)
+});
+var DAY_MS732 = 864e5;
 var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS32 = {
   min: PLAYBOOK_HOURS32.min,
@@ -13618,7 +14008,7 @@ var SENDING_HOURS_WORDS32 = {
   range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
   between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
 };
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS632;
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS732;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
@@ -13654,9 +14044,9 @@ var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: on
 var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
-var SignupSchema32 = z732.object({
-  name: z732.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
-  email: z732.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema32 = z832.object({
+  name: z832.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
+  email: z832.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -13670,17 +14060,17 @@ var SignupSchema32 = z732.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z732.string().max(200).optional(),
+  password: z832.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z732.string().trim().min(1).max(64).optional(),
+  timezone: z832.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z732.string().trim().max(80).optional()
+  code: z832.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema32 = z732.object({
-  name: z732.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
+var PendingWorkspaceSchema32 = z832.object({
+  name: z832.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z732.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
+  timezone: z832.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
 });
 function isTimezone32(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -13762,15 +14152,15 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema32 = z832.object({
-  places: z832.array(
-    z832.object({
-      ref: z832.number().int(),
-      criteria: z832.array(
-        z832.object({ key: z832.string(), answer: z832.enum(["pass", "fail", "unknown"]), facts: z832.array(z832.string()) })
+var AnswerSchema32 = z932.object({
+  places: z932.array(
+    z932.object({
+      ref: z932.number().int(),
+      criteria: z932.array(
+        z932.object({ key: z932.string(), answer: z932.enum(["pass", "fail", "unknown"]), facts: z932.array(z932.string()) })
       ),
-      email_index: z832.number().int().nullable(),
-      reason: z832.string()
+      email_index: z932.number().int().nullable(),
+      reason: z932.string()
     })
   )
 });
@@ -14392,7 +14782,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z54 } from "zod";
@@ -14400,7 +14790,8 @@ import { z as z44 } from "zod";
 import { z as z64 } from "zod";
 import { z as z74 } from "zod";
 import { z as z84 } from "zod";
-z11.config({ jitless: true });
+import { z as z94 } from "zod";
+z12.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -15681,7 +16072,84 @@ var LIMIT_TIERS4 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS64 = 864e5;
+var LIST_RULE_FIELDS4 = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS4 = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM4 = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days4 = z74.object({
+  op: z74.enum(["more_than", "within"]),
+  days: z74.number().int().min(1).max(3650)
+});
+var Count4 = z74.object({ op: z74.enum(["at_least", "at_most"]), n: z74.number().int().min(0).max(1e4) });
+var YesNo4 = z74.object({ op: z74.literal("is"), yes: z74.boolean() });
+var ListConditionSchema4 = z74.discriminatedUnion("field", [
+  z74.object({ field: z74.literal("last_visit"), ...Days4.shape }),
+  z74.object({ field: z74.literal("next_visit"), ...Days4.shape }),
+  z74.object({ field: z74.literal("booked"), ...YesNo4.shape }),
+  z74.object({ field: z74.literal("asked_not_booked"), ...YesNo4.shape }),
+  z74.object({ field: z74.literal("last_heard"), ...Days4.shape }),
+  z74.object({ field: z74.literal("first_contact"), ...Days4.shape }),
+  z74.object({ field: z74.literal("channel"), op: z74.enum(["is", "is_not"]), channel: z74.enum(CHANNELS4) }),
+  z74.object({ field: z74.literal("came_from"), op: z74.enum(["is", "is_not"]), from: z74.enum(CAME_FROM4) }),
+  z74.object({ field: z74.literal("calls"), ...Count4.shape }),
+  z74.object({ field: z74.literal("conversations"), ...Count4.shape }),
+  z74.object({ field: z74.literal("offers_yes"), ...YesNo4.shape })
+]);
+var ListRuleSchema4 = z74.object({
+  all: z74.array(ListConditionSchema4).min(1).max(8)
+});
+var LIST_DRAFT_JSON_SCHEMA4 = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS4.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS4] },
+          from: { type: "string", enum: [...CAME_FROM4] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema4 = z74.object({
+  name: z74.string().trim().min(1).max(60),
+  cannot: z74.string().trim().max(200),
+  all: z74.array(ListConditionSchema4).max(8)
+});
+var DAY_MS74 = 864e5;
 var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS4 = {
   min: PLAYBOOK_HOURS4.min,
@@ -15690,7 +16158,7 @@ var SENDING_HOURS_WORDS4 = {
   range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
   between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
 };
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS64;
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS74;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
@@ -15726,9 +16194,9 @@ var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
-var SignupSchema4 = z74.object({
-  name: z74.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
-  email: z74.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema4 = z84.object({
+  name: z84.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
+  email: z84.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -15742,17 +16210,17 @@ var SignupSchema4 = z74.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z74.string().max(200).optional(),
+  password: z84.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z74.string().trim().min(1).max(64).optional(),
+  timezone: z84.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z74.string().trim().max(80).optional()
+  code: z84.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema4 = z74.object({
-  name: z74.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
+var PendingWorkspaceSchema4 = z84.object({
+  name: z84.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z74.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
+  timezone: z84.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
 });
 function isTimezone4(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -15834,15 +16302,15 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema4 = z84.object({
-  places: z84.array(
-    z84.object({
-      ref: z84.number().int(),
-      criteria: z84.array(
-        z84.object({ key: z84.string(), answer: z84.enum(["pass", "fail", "unknown"]), facts: z84.array(z84.string()) })
+var AnswerSchema4 = z94.object({
+  places: z94.array(
+    z94.object({
+      ref: z94.number().int(),
+      criteria: z94.array(
+        z94.object({ key: z94.string(), answer: z94.enum(["pass", "fail", "unknown"]), facts: z94.array(z94.string()) })
       ),
-      email_index: z84.number().int().nullable(),
-      reason: z84.string()
+      email_index: z94.number().int().nullable(),
+      reason: z94.string()
     })
   )
 });

@@ -735,8 +735,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z9] = m;
-  if (z9) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z10] = m;
+  if (z10) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -3550,12 +3550,12 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
   const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "\u2014";
-  const ago3 = readAgoLabel(dto.feed.read_at, now);
+  const ago4 = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
-  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
+  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago4 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago4 ? `last read ${ago4}` : ""].filter(Boolean).join(" \xB7 ") : "";
   const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
-  const feedRead = dto.feed.state === "ok" ? `read ${ago3 ?? "just now"}` : dto.feed.state === "unavailable" && ago3 ? `last read ${ago3}` : "";
+  const feedRead = dto.feed.state === "ok" ? `read ${ago4 ?? "just now"}` : dto.feed.state === "unavailable" && ago4 ? `last read ${ago4}` : "";
   const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
@@ -6634,7 +6634,9 @@ var LIST_STEPS = {
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
-  lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
+  // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
+  // own, named Lapsed.
+  lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
@@ -7568,8 +7570,8 @@ function tzSince(iso, tz, now) {
   if (days <= 0) return t;
   if (days === 1) return `yesterday ${t}`;
   try {
-    const within = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
-    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    const within2 = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const day = new Intl.DateTimeFormat("en-US", within2).format(new Date(iso));
     return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
   } catch {
     return t;
@@ -9889,9 +9891,11 @@ function starterByName(name) {
 function starterByKey(key) {
   return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
 }
+var STARTER_OF = { lapsed: "quiet_30" };
 function starterForTrigger(trigger) {
   if (!trigger) return null;
-  return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
+  const own = STARTER_OF[trigger] ?? trigger;
+  return STARTER_TEMPLATES.find((s) => s.trigger === own) ?? null;
 }
 function starterText(s, language) {
   return s.texts[language] ?? s.texts.en_US;
@@ -10613,8 +10617,159 @@ function toRunReportVM(d, opts) {
   };
 }
 
-// src/playbooks.ts
+// src/list-rules.ts
+import { z as z7 } from "zod";
 var DAY_MS6 = 864e5;
+var LIST_RULE_FIELDS = [
+  { id: "last_visit", label: "Last visit", kind: "days", needsCalendar: true },
+  { id: "next_visit", label: "Next visit", kind: "days", needsCalendar: true },
+  { id: "booked", label: "A visit booked", kind: "yesno", needsCalendar: true },
+  { id: "asked_not_booked", label: "Asked, never booked", kind: "yesno", needsCalendar: true },
+  { id: "last_heard", label: "Last heard from", kind: "days", needsCalendar: false },
+  { id: "first_contact", label: "First contact", kind: "days", needsCalendar: false },
+  { id: "channel", label: "Reaches you by", kind: "channel", needsCalendar: false },
+  { id: "came_from", label: "Came from", kind: "came_from", needsCalendar: false },
+  { id: "calls", label: "Calls", kind: "count", needsCalendar: false },
+  { id: "conversations", label: "Conversations", kind: "count", needsCalendar: false },
+  { id: "offers_yes", label: "Said yes to offers", kind: "yesno", needsCalendar: false }
+];
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var Days = z7.object({
+  op: z7.enum(["more_than", "within"]),
+  days: z7.number().int().min(1).max(3650)
+});
+var Count = z7.object({ op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) });
+var YesNo = z7.object({ op: z7.literal("is"), yes: z7.boolean() });
+var ListConditionSchema = z7.discriminatedUnion("field", [
+  z7.object({ field: z7.literal("last_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("next_visit"), ...Days.shape }),
+  z7.object({ field: z7.literal("booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("asked_not_booked"), ...YesNo.shape }),
+  z7.object({ field: z7.literal("last_heard"), ...Days.shape }),
+  z7.object({ field: z7.literal("first_contact"), ...Days.shape }),
+  z7.object({ field: z7.literal("channel"), op: z7.enum(["is", "is_not"]), channel: z7.enum(CHANNELS) }),
+  z7.object({ field: z7.literal("came_from"), op: z7.enum(["is", "is_not"]), from: z7.enum(CAME_FROM) }),
+  z7.object({ field: z7.literal("calls"), ...Count.shape }),
+  z7.object({ field: z7.literal("conversations"), ...Count.shape }),
+  z7.object({ field: z7.literal("offers_yes"), ...YesNo.shape })
+]);
+var ListRuleSchema = z7.object({
+  all: z7.array(ListConditionSchema).min(1).max(8)
+});
+function asListRule(raw) {
+  const r = ListRuleSchema.safeParse(raw);
+  return r.success ? r.data : null;
+}
+function ruleNeedsCalendar(rule) {
+  return rule.all.some((c) => LIST_RULE_FIELDS.find((f) => f.id === c.field)?.needsCalendar);
+}
+var within = (days, c) => days !== null && (c.op === "within" ? days <= c.days : days > c.days);
+var ago3 = (ts2, nowMs) => ts2 === null ? null : Math.floor((nowMs - ts2) / DAY_MS6);
+function holds(c, v, nowMs) {
+  switch (c.field) {
+    case "last_visit":
+      return within(v.lastVisitDays, c);
+    case "next_visit":
+      return within(v.nextVisitDays, c);
+    case "booked":
+      return v.booked === c.yes;
+    case "asked_not_booked":
+      return v.askedNotBooked === c.yes;
+    case "last_heard":
+      return within(ago3(v.lastContact.ts, nowMs), c);
+    case "first_contact":
+      return within(ago3(v.firstContact.ts, nowMs), c);
+    case "channel":
+      return v.channels.includes(c.channel) === (c.op === "is");
+    case "came_from":
+      return v.cameFrom?.key === c.from === (c.op === "is");
+    case "calls":
+      return c.op === "at_least" ? v.calls >= c.n : v.calls <= c.n;
+    case "conversations":
+      return c.op === "at_least" ? v.threads >= c.n : v.threads <= c.n;
+    case "offers_yes":
+      return v.consent.marketing === "opted_in" === c.yes;
+  }
+}
+function listRuleMatches(rule, v, nowMs) {
+  return rule.all.every((c) => holds(c, v, nowMs));
+}
+var plural4 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
+function listConditionWords(c) {
+  const label = LIST_RULE_FIELDS.find((f) => f.id === c.field).label;
+  switch (c.field) {
+    case "last_visit":
+    case "last_heard":
+    case "first_contact":
+      return c.op === "more_than" ? `${label} more than ${plural4(c.days, "day")} ago` : `${label} in the last ${plural4(c.days, "day")}`;
+    case "next_visit":
+      return c.op === "within" ? `${label} in the next ${plural4(c.days, "day")}` : `${label} more than ${plural4(c.days, "day")} away`;
+    case "booked":
+    case "asked_not_booked":
+    case "offers_yes":
+      return c.yes ? label : `Not: ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+    case "channel":
+      return `${c.op === "is" ? label : "Never reaches you by"} ${PERSON_CHANNEL_WORDS[c.channel]}`;
+    case "came_from":
+      return `${c.op === "is" ? label : "Did not come from"}: ${PERSON_CAME_FROM_WORDS[c.from]}`;
+    case "calls":
+    case "conversations":
+      return `${c.op === "at_least" ? "At least" : "At most"} ${plural4(c.n, c.field === "calls" ? "call" : "conversation")}`;
+  }
+}
+function listRuleParts(rule) {
+  return rule.all.map(listConditionWords);
+}
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["field", "op"],
+        properties: {
+          field: { type: "string", enum: LIST_RULE_FIELDS.map((f) => f.id) },
+          op: { type: "string", enum: ["more_than", "within", "at_least", "at_most", "is", "is_not"] },
+          days: { type: "integer" },
+          n: { type: "integer" },
+          yes: { type: "boolean" },
+          channel: { type: "string", enum: [...CHANNELS] },
+          from: { type: "string", enum: [...CAME_FROM] }
+        }
+      }
+    }
+  }
+};
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(ListConditionSchema).max(8)
+});
+function savedListIds(list2, rows, nowMs, calendarOk) {
+  if (list2.rule == null) return new Set(list2.ids);
+  const rule = asListRule(list2.rule);
+  if (!rule || ruleNeedsCalendar(rule) && !calendarOk) return /* @__PURE__ */ new Set();
+  return new Set(rows.filter((r) => listRuleMatches(rule, r, nowMs)).map((r) => r.id));
+}
+
+// src/playbooks.ts
+var DAY_MS7 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -10656,6 +10811,25 @@ var PLAYBOOK_TRIGGERS = [
     cls: "reengage",
     kind: "visit",
     hint: "The day after a visit, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence: the win-back a salon means, which had no playbook of its own
+  // (00155). Named for its list, so it is never a second "Win-back" beside the one for the quiet.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No visit in 45 days, and nothing booked"
+  },
+  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  {
+    id: "saved_list",
+    label: "One of your lists",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list you keep"
   }
 ];
 var PLAYBOOK_STATES = ["running", "paused"];
@@ -10668,16 +10842,16 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
-function eligibleForPlaybook(rows, p, touches, nowMs) {
-  return playbookRunReach(rows, p, touches, nowMs).eligible;
+function eligibleForPlaybook(rows, p, touches, nowMs, listIds = null) {
+  return playbookRunReach(rows, p, touches, nowMs, listIds).eligible;
 }
-function playbookRunReach(rows, p, touches, nowMs) {
+function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
   const reach = {
     pool: 0,
     will: 0,
@@ -10697,10 +10871,10 @@ function playbookRunReach(rows, p, touches, nowMs) {
     rows.filter((r) => {
       if (!r.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS7));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS7)) && !r.booked;
     })
-  ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+  ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed = [];
@@ -10718,7 +10892,7 @@ function playbookRunReach(rows, p, touches, nowMs) {
     reach.will = allowed.length;
     return { eligible: allowed, reach, saidYes };
   }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS7;
   const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) {
@@ -10850,7 +11024,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS6);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS7);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -10864,14 +11038,14 @@ function poolWords(trigger) {
   const t = triggerOf(trigger);
   if (!t) return "";
   if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
-  return t.list ? "on the list" : "in People";
+  return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
 function reachLines(reach, p) {
   if (!reach || !Number.isFinite(reach.pool)) return null;
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural8) => n === 1 ? singular : plural8;
+  const one = (n, singular, plural9) => n === 1 ? singular : plural9;
   const reasons = [
     {
       n: reach.noYes,
@@ -11638,7 +11812,7 @@ function toCampaignReportVM(dto) {
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/report-facts.ts
-var plural4 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural5 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 function reportFacts(vm, campaigns) {
   const out = [];
@@ -11648,7 +11822,7 @@ function reportFacts(vm, campaigns) {
       id: "unanswered",
       tone: "warn",
       icon: "alert",
-      text: `${plural4(none, "message")} ${none === 1 ? "has" : "have"} no reply yet`,
+      text: `${plural5(none, "message")} ${none === 1 ? "has" : "have"} no reply yet`,
       sub: "",
       door: { label: "Open the Inbox", to: "inbox" }
     });
@@ -11662,7 +11836,7 @@ function reportFacts(vm, campaigns) {
       tone: "",
       icon: "users",
       text: `${several ? "Top reason it handed over" : "Why it handed over"}: ${lowerFirst2(top.label)}`,
-      sub: several ? plural4(top.value, "time") : "every time",
+      sub: several ? plural5(top.value, "time") : "every time",
       door: { label: "See them", to: "inbox" }
     });
   }
@@ -11880,7 +12054,7 @@ var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var plural5 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural6 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
@@ -11889,7 +12063,7 @@ function starsOf(rating) {
   return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
 }
 function reviewsWords(count2) {
-  return typeof count2 === "number" ? plural5(count2, "review") : "reviews not counted yet";
+  return typeof count2 === "number" ? plural6(count2, "review") : "reviews not counted yet";
 }
 function listingLine(l) {
   if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
@@ -12578,7 +12752,7 @@ function textingWords(l) {
   }
 }
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
-var plural6 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural7 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function activationWords(cap2, nowMs) {
   if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
   if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
@@ -12710,7 +12884,7 @@ function setupSteps(i, nowMs = Date.now()) {
         state: "waiting_you",
         required: true,
         sentence: serious.sentence,
-        details: [`${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`],
+        details: [`${b.name} \xB7 hours set \xB7 ${plural7(b.services, "service")} on record`],
         verb: { label: "Fix it in Business", to: serious.to }
       });
     } else if (missing.length === 0) {
@@ -12720,7 +12894,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "Business facts",
         state: "ready",
         required: true,
-        sentence: `${b.name} \xB7 hours set \xB7 ${plural6(b.services, "service")} on record`,
+        sentence: `${b.name} \xB7 hours set \xB7 ${plural7(b.services, "service")} on record`,
         details: [
           b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one",
           b.address ? "Address on record" : "No address yet"
@@ -13076,7 +13250,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const cap2 = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
-      t.approved ? `${plural6(t.approved, "approved message")}` : t.pending ? `${plural6(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.approved ? `${plural7(t.approved, "approved message")}` : t.pending ? `${plural7(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
@@ -13181,8 +13355,8 @@ function setupSteps(i, nowMs = Date.now()) {
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
-    const who = `${plural6(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural6(t.invitesOpen, "invite")} open` : ""}`;
-    const alerts = t.alertEmails ? `alerts go to ${plural6(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+    const who = `${plural7(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural7(t.invitesOpen, "invite")} open` : ""}`;
+    const alerts = t.alertEmails ? `alerts go to ${plural7(t.alertEmails, "address", "addresses")}` : "no alert address yet";
     row2({
       id: "team",
       icon: "users",
@@ -13198,7 +13372,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const offers = i.consent.offers;
     const said = i.consent.offersSaidYes;
     const talk = i.consent.yes;
-    const alsoTalk = talk > said ? [`${plural6(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    const alsoTalk = talk > said ? [`${plural7(talk, "person", "people")} said yes to messages about their own visit`] : [];
     row2(
       offers > 0 ? {
         id: "yes",
@@ -13206,7 +13380,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "The first yes",
         state: "ready",
         required: false,
-        sentence: `${plural6(offers, "person", "people")} said yes to offers.`,
+        sentence: `${plural7(offers, "person", "people")} said yes to offers.`,
         details: alsoTalk,
         verb: { label: "Open Broadcasts", to: "broadcasts" }
       } : said > 0 ? {
@@ -13215,7 +13389,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "The first yes",
         state: "waiting_you",
         required: false,
-        sentence: `${plural6(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
+        sentence: `${plural7(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
         details: alsoTalk,
         verb: { label: "Open People", to: "clients" }
       } : {
@@ -13373,12 +13547,12 @@ function inviteState(expiresAt, nowMs) {
 }
 
 // src/signup.ts
-import { z as z7 } from "zod";
+import { z as z8 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z7.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -13392,11 +13566,11 @@ var SignupSchema = z7.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z7.string().max(200).optional(),
+  password: z8.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z7.string().trim().min(1).max(64).optional(),
+  timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z7.string().trim().max(80).optional()
+  code: z8.string().trim().max(80).optional()
 }).strict();
 var SIGNUP_WAITLIST = "waitlist";
 function signupPosture(code2) {
@@ -13404,11 +13578,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z7.object({
-  name: z7.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z8.object({
+  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z7.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -15588,7 +15762,7 @@ function servicesSaveWords(n) {
   return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
 }
 var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
-var plural7 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+var plural8 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
 function bookingRulesWords(rules) {
   const r = rules ?? {};
   const parts2 = [];
@@ -15599,10 +15773,10 @@ function bookingRulesWords(rules) {
   if (isNumber(r.slot_min)) parts2.push(`${count(r.slot_min)}-minute slots`);
   if (isNumber(r.buffer_min))
     parts2.push(
-      r.buffer_min === 0 ? "no gap between appointments" : `${plural7(r.buffer_min, "minute", "minutes")} between appointments`
+      r.buffer_min === 0 ? "no gap between appointments" : `${plural8(r.buffer_min, "minute", "minutes")} between appointments`
     );
-  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural7(r.max_days_ahead, "day", "days")} ahead`);
-  if (isNumber(r.party_max)) parts2.push(`up to ${plural7(r.party_max, "person", "people")}`);
+  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural8(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts2.push(`up to ${plural8(r.party_max, "person", "people")}`);
   const joined = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
@@ -15612,16 +15786,16 @@ function bookingRulesWords(rules) {
   return {
     line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own \u2014 at least ${plural7(d.lead_hours, "hour's", "hours'")} notice, up to ${plural7(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
+    none: `The calendar's own \u2014 at least ${plural8(d.lead_hours, "hour's", "hours'")} notice, up to ${plural8(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
   };
 }
 function bookingRuleRefusal(key) {
   const shape = BookingRulesSchema.shape;
   const words2 = {
-    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural7(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural7(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
-    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural7(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
-    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural7(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural8(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural8(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural8(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural8(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
   const say = Object.prototype.hasOwnProperty.call(words2, key) ? words2[key] : null;
@@ -15634,7 +15808,7 @@ function bookingRuleRefusal(key) {
   return say(bound.minValue, bound.maxValue);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${plural7(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  lead_hours: `Empty uses ${plural8(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
   slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
   buffer_min: null,
   max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
@@ -15684,7 +15858,7 @@ function handoffWords(reasons, transfer) {
   const n = list2.length;
   const number = typeof transfer === "string" ? transfer.trim() : "";
   return {
-    chat: n ? `on ${plural7(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    chat: n ? `on ${plural8(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
     phone: number ? `transfers to ${number}` : "takes a message"
   };
 }
@@ -15920,14 +16094,14 @@ var PROFILE_LIMITS = /* @__PURE__ */ (() => {
 function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const lines = (max, one, many) => `At most ${plural7(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${plural8(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const words2 = {
     tone: () => chars(L2.tone),
-    services: () => `At most ${plural7(L2.services, "service", "services")}.`,
+    services: () => `At most ${plural8(L2.services, "service", "services")}.`,
     serviceName: () => chars(L2.serviceName),
     serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
     servicePrice: () => chars(L2.servicePrice),
-    languages: () => `At most ${plural7(L2.languages, "language", "languages")}.`,
+    languages: () => `At most ${plural8(L2.languages, "language", "languages")}.`,
     language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
     reasons: () => lines(L2.reasons, "reason", "reasons"),
     reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
@@ -15935,12 +16109,12 @@ function profileRefusal(key, seen, of) {
     consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
     ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
     ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
-    notes: () => `At most ${plural7(L2.notes, "note", "notes")}.`,
+    notes: () => `At most ${plural8(L2.notes, "note", "notes")}.`,
     noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
     noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    closures: () => `At most ${plural7(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closures: () => `At most ${plural8(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
     closureNote: () => chars(L2.closureNote),
-    shifts: () => `At most ${plural7(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    shifts: () => `At most ${plural8(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
@@ -16378,7 +16552,9 @@ var SCHEMA_SETS = {
     "phoned_only",
     "everyone_monthly",
     "visit_tomorrow",
-    "visited"
+    "visited",
+    "lapsed",
+    "saved_list"
   ],
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],
@@ -16562,7 +16738,7 @@ function leadSuppressionHash(tenantId, value) {
 }
 
 // src/lead-judge.ts
-import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -16658,15 +16834,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z8.object({
-  places: z8.array(
-    z8.object({
-      ref: z8.number().int(),
-      criteria: z8.array(
-        z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z8.number().int().nullable(),
-      reason: z8.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -17084,6 +17260,8 @@ export {
   LIMIT_TIERS,
   LINE_CREDENTIALS_SENTENCE,
   LINE_STEP_WORDS,
+  LIST_DRAFT_JSON_SCHEMA,
+  LIST_RULE_FIELDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
   LeadDraftAnswerSchema,
@@ -17096,6 +17274,9 @@ export {
   LeadsCheckAgainSchema,
   LeadsQuerySchema,
   LeadsViewSchema,
+  ListConditionSchema,
+  ListDraftAnswerSchema,
+  ListRuleSchema,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_RESERVED,
@@ -17283,6 +17464,7 @@ export {
   allVisitsIn,
   applyReadState,
   applySettingsChange,
+  asListRule,
   asPersonMode,
   askJump,
   askUndoOpen,
@@ -17548,6 +17730,9 @@ export {
   lineRetryRefusal,
   lineStuckProvisioning,
   linkHost,
+  listConditionWords,
+  listRuleMatches,
+  listRuleParts,
   listingLine,
   liveBar,
   liveStillUp,
@@ -17709,6 +17894,7 @@ export {
   reviewSnippet,
   reviewsWords,
   roleGate,
+  ruleNeedsCalendar,
   ruleParts,
   ruleStrength,
   rulesKept,
@@ -17724,6 +17910,7 @@ export {
   samePhone,
   sameQuestion,
   savedListAction,
+  savedListIds,
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,

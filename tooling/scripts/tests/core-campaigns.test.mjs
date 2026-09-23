@@ -761,7 +761,7 @@ test("the playbook's check: the trigger first, then the template through the one
     checkPlaybook(fakes().ports, {}),
     "validation",
     400,
-    "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.",
+    "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists.",
   );
   await refused(
     checkPlaybook(fakes().ports, { trigger: "quiet_30", template_id: "nope" }),
@@ -822,6 +822,7 @@ test("the playbook's check: the trigger first, then the template through the one
     {
       name: "Win-back",
       trigger: "quiet_30",
+      list_id: null,
       template_id: T1,
       template_name: starter,
       template_language: "en_US",

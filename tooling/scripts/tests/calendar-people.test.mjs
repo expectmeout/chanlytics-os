@@ -1114,7 +1114,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const talkOnly = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "unknown" } };
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
     text: "1 of 2 on this list said yes to offers — a broadcast reaches them.",
-    cta: "Win them back",
+    cta: "Bring them back",
     to: "broadcasts/lapsed",
     enabled: true,
   });
@@ -1235,7 +1235,8 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   const ports = readCode("apps/dashboard/src/server/campaign-ports.ts");
   assert.ok(
     // The pool (audience.ts) is everyone with their appointments; ask-turn.test.mjs counts past a thousand through it.
-    ports.includes("people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,"),
+    ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
+      ports.includes("(pool ??= audiencePool(ctx, tenantId, await zone(), now))"),
     "the enrol path counts what the page counted, every page of it",
   );
 });

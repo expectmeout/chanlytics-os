@@ -3238,3 +3238,72 @@ test("the send screen says how many of an audience heard from a playbook or a br
     "nobody heard, nothing said",
   );
 });
+
+test("a playbook may run on one of the workspace's lists: the composer picks the list with its own count, and the save names it", async () => {
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  const named = { pool: 5, noYes: 2, stopped: 0, noNumber: 0, saidYes: 3 };
+  const surface = playbooksSurface({
+    rows: [],
+    templates: [offer],
+    triggers: [
+      {
+        id: "saved_list",
+        label: "One of your lists",
+        hint: "Everyone on a list you keep",
+        cls: "campaign",
+        list: null,
+        kind: "saved",
+        candidates: null,
+        held: null,
+      },
+    ],
+    lists: [
+      { id: "l1", name: "Regulars", smart: false, candidates: 3, held: 0, named },
+      {
+        id: "l2",
+        name: "Texters",
+        smart: true,
+        candidates: 1,
+        held: 0,
+        named: { ...named, pool: 1, saidYes: 1, noYes: 0 },
+      },
+    ],
+  });
+  const bodies = [];
+  const was = globalThis.window.__playbooks;
+  globalThis.window.__playbooks = {
+    ...(was || {}),
+    create: async (body) => {
+      bodies.push(body);
+      return { ok: true, data: { id: "p9", name: "Regulars · Fall offer", state: "running" } };
+    },
+  };
+  try {
+    let tree = composerOf(surface);
+    const picker = (t, id) => find(t, (n) => n.type === globalThis.window.CmPicker && n.props.testid === id);
+    const lists = picker(tree, "pb-list");
+    assert.ok(lists, "a list to pick, under the moment");
+    assert.deepEqual(
+      lists.props.choices.map((c) => [c.id, c.label, c.sub, c.hint]),
+      [
+        ["l1", "Regulars", "Kept by hand", "3 today"],
+        ["l2", "Texters", "Keeps itself current", "1 today"],
+      ],
+    );
+    assert.equal(lists.props.value, "l1", "the first list kept, until another is picked");
+    lists.props.onPick("l2");
+    seq = 0;
+    tree = globalThis.window.OutboundPage({});
+    picker(tree, "pb-template").props.onPick("fall_offer");
+    seq = 0;
+    tree = globalThis.window.OutboundPage({});
+    await press(byTestId(tree, "pb-save"));
+    assert.equal(bodies.length, 1, "saved");
+    assert.equal(bodies[0].trigger, "saved_list");
+    assert.equal(bodies[0].list_id, "l2", "the list picked, named on the playbook");
+  } finally {
+    globalThis.window.__playbooks = was;
+  }
+  const none = composerOf(playbooksSurface({ ...surface, lists: [] }));
+  assert.ok(byTestId(none, "pb-no-lists"), "no list kept yet: where to make one");
+});

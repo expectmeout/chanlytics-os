@@ -161,7 +161,7 @@ export interface GatewayRequest {
 const EFFORTS = new Set(["low", "medium", "high"]);
 
 /** What the gateway spends the key on. Every purpose counts in Ask's own daily budget (ASK_USAGE_KIND). */
-export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest"] as const;
+export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest", "list_draft"] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 const FORMAT_MAX = 8_000;
 

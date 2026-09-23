@@ -65,9 +65,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/notes": people,
   "PUT contacts/[id]/details": people,
   "POST contacts": people,
-  "POST segments": people,
-  "PUT segments/[id]": people,
-  "DELETE segments/[id]": people,
+  // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
+  "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
+  "PUT segments/[id]": () => [peopleOverride, broadcastsOverride, playbooksOverride],
+  "DELETE segments/[id]": () => [peopleOverride, broadcastsOverride, playbooksOverride],
   // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
   // the pages, the selection and the cursor the owner already has (leads.ts).
   // `POST leads/[id]/stage` names People too: an Interested call makes a
