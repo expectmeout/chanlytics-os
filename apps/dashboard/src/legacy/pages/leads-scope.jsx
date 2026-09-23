@@ -575,10 +575,86 @@ const ldPinTone = (l, by) => {
 const ldPinOut = (l) => (l.state === "out" ? " is-out" : "");
 const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
 
+// Streets under the pins, when the product hosts a basemap (legacy-bridge lead-map.ts publishes `__LEAD_MAP`). The
+// page asks once what ground the archive covers and draws streets only where it does; everywhere else, and wherever
+// there is no archive at all (a test, a laptop without the bundle), the square stands as it always did. The pins on
+// the streets are the same elements with the same tones, placed by the bridge from the points the door returned.
+const { useRef: useLmRef, useEffect: useLmEffect, useState: useLmState } = React;
+const useLeadMapCoverage = () => {
+  const [cover, setCover] = useLmState(null);
+  useLmEffect(() => {
+    const M = window.__LEAD_MAP;
+    if (!M) return undefined;
+    let on = true;
+    M.ready().then((c) => { if (on) setCover(() => c); }, () => {});
+    return () => { on = false; };
+  }, []);
+  return cover;
+};
+const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
+  const box = useLmRef(null);
+  const handle = useLmRef(null);
+  const latest = useLmRef({ onPick, x });
+  latest.current = { onPick, x };
+  useLmEffect(() => {
+    const M = window.__LEAD_MAP;
+    if (!M || !box.current) return undefined;
+    const h = M.mount(box.current, { onPick: (id) => latest.current.onPick(id), onOpen: (id) => latest.current.x.onOpen(id) });
+    handle.current = h;
+    return () => { h.destroy(); handle.current = null; };
+  }, []);
+  const ids = plot.pins.map((p) => p.id).join(",");
+  const center = plot.center;
+  useLmEffect(() => {
+    const h = handle.current;
+    if (!h) return;
+    const byId = new Map(rows.map((l) => [l.id, l]));
+    h.setPins(
+      plot.pins
+        .map((p) => byId.get(p.id))
+        .filter((l) => l && l.point)
+        .map((l) => ({ id: l.id, lat: l.point.lat, lng: l.point.lng, tone: ldPinTone(l, by), out: l.state === "out", label: `${l.name} — ${l.sub}` })),
+      picked,
+    );
+  }, [rows, ids, by, picked]);
+  // The area the search asked for: contracts anchored the square on its centre, so the ring's radius in metres is
+  // its share of the span, and its centre is the plot's.
+  const ringM = plot.ring && center ? Math.round(plot.ring.r * plot.spanM) : 0;
+  useLmEffect(() => {
+    const h = handle.current;
+    if (!h) return;
+    h.setRing(ringM && center ? { lat: center.lat, lng: center.lng, radiusM: ringM } : null);
+  }, [ringM, center && center.lat, center && center.lng]);
+  useLmEffect(() => {
+    const h = handle.current;
+    if (h && center) h.fit(center, plot.spanM);
+  }, [ids, center && center.lat, center && center.lng, plot.spanM]);
+  return (
+    <div className="ld-map-streets" data-testid="lead-map-streets">
+      <div className="ld-map-canvas" ref={box} />
+      {children}
+    </div>
+  );
+};
+
 const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind, oneSearch }) => {
   const V = window.__LEAD_VM || {};
   const byId = new Map(rows.map((l) => [l.id, l]));
   const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
+  const cover = useLeadMapCoverage();
+  const streets = !!(cover && plot.center && !plot.tooWide && cover.covers(plot.center));
+  const card = picked && byId.get(picked) ? (
+    <div className="ld-map-card" data-testid="lead-map-card">
+      <LeadTile l={byId.get(picked)} size={34} />
+      <div className="b">
+        <div className="n">{byId.get(picked).name}</div>
+        <div className="s">{byId.get(picked).sub}</div>
+      </div>
+      {byId.get(picked).slots.phone.value ? (
+        <LeadCallMenu {...ldCallProps(byId.get(picked), x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
+      ) : null}
+    </div>
+  ) : null;
   return (
     <div className="ld-map" data-testid="lead-map">
       <div className="ld-map-side">
@@ -614,6 +690,10 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           <div className="ld-map-plot ld-map-wide" data-testid="lead-map-toowide">
             <span className="ld-map-wide-line">{V.leadMapNote ? V.leadMapNote(plot, !!oneSearch) : ""}</span>
           </div>
+        ) : streets ? (
+          <LeadStreets rows={rows} plot={plot} by={by} picked={picked} onPick={onPick} x={x}>
+            {card}
+          </LeadStreets>
         ) : (
         <div className="ld-map-plot" data-testid="lead-map-plot">
           {plot.ring ? (
@@ -640,18 +720,7 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
               />
             );
           })}
-          {picked && byId.get(picked) ? (
-            <div className="ld-map-card" data-testid="lead-map-card">
-              <LeadTile l={byId.get(picked)} size={34} />
-              <div className="b">
-                <div className="n">{byId.get(picked).name}</div>
-                <div className="s">{byId.get(picked).sub}</div>
-              </div>
-              {byId.get(picked).slots.phone.value ? (
-                <LeadCallMenu {...ldCallProps(byId.get(picked), x)} btnClass="btn btn-sm btn-primary" label="Call" testid="map-card-call" />
-              ) : null}
-            </div>
-          ) : null}
+          {card}
           <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
         </div>
         )}
@@ -669,7 +738,6 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
     </div>
   );
 };
-
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,

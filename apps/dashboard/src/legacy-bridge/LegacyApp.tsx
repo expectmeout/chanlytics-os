@@ -60,6 +60,7 @@ import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
 import { installLeadsCourier, leadsOverride } from "./leads";
+import { installLeadMap } from "./lead-map";
 import { installTabMemory } from "./tab-memory";
 import { installLists } from "./people-lists";
 import { installPolicyStore } from "./policy-store";
@@ -95,6 +96,8 @@ installPeopleCourier();
 // already loaded, and its courier carries the acts, one named function per
 // door (leads.ts).
 installLeadsCourier();
+// The streets under the lead map, when the product hosts a basemap (lead-map.ts); unset, the page keeps its square.
+installLeadMap(process.env.NEXT_PUBLIC_LEAD_MAP_BASE);
 installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
