@@ -6284,6 +6284,8 @@ interface VisitDto {
     title: string;
     all_day: boolean;
     via: MatchVia;
+    /** The visit is a consultation: its title says so, or names a consult-first service (contracts isConsultationTitle, set by the server). Absent on an older read. */
+    consultation?: boolean;
 }
 /** A person's appointments as their profile reads them. */
 interface PersonVisitsDto {
@@ -6878,6 +6880,8 @@ interface PersonRowVM {
     calendarTz: string | null;
     /** Their deal, as the page says it (0004); null where none was recorded. */
     deal: DealVM | null;
+    /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
+    consultationVisit: boolean;
 }
 declare function toPersonRowVM(r: PersonRowDto, tz: string, now?: Date): PersonRowVM;
 type PeopleListGroup = "attention" | "journey" | "reach";
@@ -6897,9 +6901,13 @@ declare const PEOPLE_LISTS: readonly {
     label: string;
     group: PeopleListGroup;
     needsCalendar?: boolean;
+    /** Only where the profile lists a consult-first service. */
+    needsConsultFirst?: boolean;
+    /** Only where deals are a thing here: a consult-first service listed, or a deal ever recorded. */
+    needsDeals?: boolean;
     /**
      * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-     * say the two answers -- so their Lists section names only the lists it alone can.
+     * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
      */
     onProfile?: false;
     test: (vm: PersonRowVM) => boolean;
@@ -7747,7 +7755,7 @@ interface JourneyListLike {
  * is counted twice, and nothing here is a trend -- a period over a period is
  * noise at these counts (reports.ts dropped tile deltas for exactly that).
  */
-type TodayLeakId = "never-booked" | "unanswered" | "unreachable" | "quiet";
+type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | "unreachable" | "quiet";
 interface TodayLeakVM {
     id: TodayLeakId;
     tone: "danger" | "warn" | "info";
@@ -7794,14 +7802,17 @@ interface PeopleListsLike {
     aggregates?: {
         total: number;
     };
-    /** Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not. */
-    rows: ReadonlyArray<Pick<PersonRowVM, "consent">>;
+    /**
+     * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; and
+     * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
+     */
+    rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
 }
 /** At most this many; the rest is not an insight, it is a list. */
 declare const TODAY_LEAK_MAX = 2;
 declare function todayLeaks(reports: ReportsLike | null, people: PeopleListsLike | null, 
 /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
-noReply?: readonly TodayNoReplyVM[], max?: number): TodayLeaksVM;
+noReply?: readonly TodayNoReplyVM[], max?: number, nowMs?: number): TodayLeaksVM;
 /** A bell row as the bell publishes it, as far as this reads it. */
 interface AwayRowLike {
     id?: string;
@@ -13895,6 +13906,8 @@ interface LeadRowVM {
     reviewsTitle: string;
     stage: LeadStage;
     stageLabel: string;
+    /** The person this lead converted into (leads.contact_id), so a page can read People's row for them; null until then. */
+    contactId: string | null;
     foundLabel: string;
     /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
      *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */

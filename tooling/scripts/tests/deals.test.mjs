@@ -410,3 +410,86 @@ test("a person's page lists their deals, says the current one among its facts, a
   assert.deepEqual(none.deals, []);
   assert.ok(!none.facts.some((f) => f.label === "Deal"));
 });
+
+test("a row knows when its next or last visit was a consultation", () => {
+  const { toPersonRowVM } = contracts;
+  const v = (title, consultation) => ({
+    id: "v",
+    start: daysAgo(-2),
+    end: daysAgo(-2),
+    title,
+    all_day: false,
+    via: "phone",
+    consultation,
+  });
+  const visits = (next, last) => ({ timezone: TZ, source: "your calendar", state: "ok", next, last });
+  assert.equal(
+    toPersonRowVM(personRow({ visits: visits(v("Discovery call", true), null) }), TZ, new Date(NOW)).consultationVisit,
+    true,
+  );
+  assert.equal(
+    toPersonRowVM(personRow({ visits: visits(null, v("Haircut", false)) }), TZ, new Date(NOW)).consultationVisit,
+    false,
+  );
+  assert.equal(toPersonRowVM(personRow({ visits: null }), TZ, new Date(NOW)).consultationVisit, false);
+});
+
+test("the Journey continues past the booking: four lists, each gated on deals being a thing", () => {
+  const { PEOPLE_LISTS, peopleListAction, toPersonRowVM } = contracts;
+  const byId = Object.fromEntries(PEOPLE_LISTS.map((l) => [l.id, l]));
+  for (const id of ["consultation_booked", "proposal_out", "clients", "deal_ended"]) {
+    assert.ok(byId[id], id);
+    assert.equal(byId[id].group, "journey");
+    assert.equal(byId[id].needsDeals, true);
+    assert.equal(byId[id].onProfile, false, "the Deal section says the stage; the Lists section does not say it again");
+  }
+  assert.equal(byId.consultation_booked.needsCalendar, true);
+  assert.equal(byId.consultation_booked.needsConsultFirst, true);
+  const vmOf = (over) => toPersonRowVM(personRow(over), TZ, new Date(NOW));
+  const proposed = vmOf(cols());
+  const client = vmOf(cols({ deal_stage: "won", deal_decided_at: daysAgo(1) }));
+  const ended = vmOf(cols({ deal_stage: "ended", deal_ended_at: daysAgo(1) }));
+  assert.equal(byId.proposal_out.test(proposed), true);
+  assert.equal(byId.proposal_out.test(client), false);
+  assert.equal(byId.clients.test(client), true);
+  assert.equal(byId.deal_ended.test(ended), true);
+  const consult = { ...vmOf({}), consultationVisit: true };
+  assert.equal(byId.consultation_booked.test(consult), true);
+  assert.equal(
+    byId.consultation_booked.test({ ...consult, deal: proposed.deal }),
+    false,
+    "past the consultation once a proposal is out",
+  );
+  assert.equal(peopleListAction("clients", [client]), null, "a client list has no step to push");
+  assert.equal(peopleListAction("proposal_out", [proposed]).cta, "Open the Inbox");
+});
+
+test("a row's second line says a waiting proposal after their words and before the visit; a client keeps the visit", () => {
+  const { attentionRow, toPersonRowVM } = contracts;
+  const vmOf = (over) => toPersonRowVM(personRow(over), TZ, new Date(NOW));
+  const visits = {
+    timezone: TZ,
+    source: "your calendar",
+    state: "ok",
+    next: { id: "v", start: daysAgo(-2), end: daysAgo(-2), title: "Call", all_day: false, via: "phone" },
+    last: null,
+  };
+  assert.equal(
+    attentionRow(vmOf({ ...cols(), last_inbound_text: null, visits }), TZ, NOW).sentence,
+    "Proposal out · 11 d",
+  );
+  assert.match(
+    attentionRow(vmOf({ ...cols(), last_inbound_text: "Sounds good", visits }), TZ, NOW).sentence,
+    /^Sounds good/,
+    "their words first",
+  );
+  assert.match(
+    attentionRow(
+      vmOf({ ...cols({ deal_stage: "won", deal_decided_at: daysAgo(1) }), last_inbound_text: null, visits }),
+      TZ,
+      NOW,
+    ).sentence,
+    /^Booked/,
+    "a client's row keeps the visit",
+  );
+});

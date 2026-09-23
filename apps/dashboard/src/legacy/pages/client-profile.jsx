@@ -992,8 +992,10 @@ const dayToIso = (ymd) => {
   const at = y && m && d ? new Date(y, m - 1, d, 12, 0, 0) : new Date();
   return at.toISOString();
 };
+// Null for anything that is not a number: letters alone strip to "", and Number("") is 0, which made "abc" a $0 client.
 const centsOf = (text) => {
-  const n = Number(String(text || "").replace(/[^0-9.]/g, ""));
+  const digits = String(text || "").replace(/[^0-9.-]/g, "");
+  const n = digits ? Number(digits) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 };
 const DEAL_EMPTY = { busy: false, error: null, move: null, when: "", amount: "", per: "month", service: "", way: null, note: "" };
@@ -1014,7 +1016,11 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
     const body = { stage: m.to, when: dayToIso(st.when) };
     if (m.sameRow && d && d.id) { body.deal_id = d.id; if (d.version != null) body.version = d.version; }
     if (!m.sameRow && st.service) body.service = st.service;
-    if (m.to === "won" && st.amount.trim()) { const c = centsOf(st.amount); if (c !== null) { body.amount_cents = c; body.per = st.per; } }
+    if (m.to === "won" && st.amount.trim()) {
+      const c = centsOf(st.amount);
+      if (c === null) { setSt((x) => ({ ...x, error: "An amount is a number, like 2,500." })); return; }
+      body.amount_cents = c; body.per = st.per;
+    }
     if (evidence) Object.assign(body, evidence);
     setSt((c) => ({ ...c, busy: true, error: null }));
     const r = await onRecord(body);
@@ -1027,7 +1033,7 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
       <div className="cl-prof-rail-label">Deal</div>
       <div className="cl-prof-attr-list">
         <div className="cl-prof-attr">
-          <span className="cl-prof-attr-key">{d && d.service ? d.service : "Deal"}</span>
+          <span className="cl-prof-attr-key">{d ? d.service || "Deal" : ""}</span>
           <span className="cl-prof-attr-val" data-testid="person-deal-line">{d ? d.said : kit.none}</span>
         </div>
       </div>

@@ -946,14 +946,14 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
   assert.ok(
     readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes(
-      "const out = await withVisits(ctx, tenantId, rows);",
+      "const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);",
     ),
     "the list carries visits and the calendar's state, a page at a time",
   );
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
   assert.ok(
     rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") &&
-      rep.includes("return { report, booking };"),
+      rep.includes("return { report, booking, deals };"),
     "never fatal to the report",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
@@ -965,7 +965,8 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
-    sd.includes('lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok")') &&
+    sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
+      sd.includes("(!l.needsDeals || dealsOn),") &&
       sd.includes("booking: toBookingReportVM(data.booking),"),
   );
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -1094,7 +1095,18 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "journey").map((l) => l.id),
-    ["new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
+    // The journey continues past the booking (0004): the four deal lists, each drawn only where deals are a thing.
+    [
+      "new_week",
+      "booked_week",
+      "booked",
+      "asked_never_booked",
+      "lapsed",
+      "consultation_booked",
+      "proposal_out",
+      "clients",
+      "deal_ended",
+    ],
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id),

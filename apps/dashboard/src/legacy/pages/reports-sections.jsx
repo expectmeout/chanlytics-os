@@ -50,8 +50,8 @@ const rptPeriods = (vm, key, before) => ({
 const rptSpread = (buckets) => Object.fromEntries(buckets.map((b, i) => [b.id, { label: b.label, color: `var(--chart-ramp-${5 - i})` }]));
 const rptMood = (rows) => Object.fromEntries(rows.map((r) => [r.id, { label: r.label, color: r.tone === "ok" ? "var(--ok)" : r.tone === "danger" ? "var(--danger)" : "var(--chart-prior)" }]));
 
-const RptSection = ({ title, meta = null, children }) => (
-  <section className="rpt-section" aria-label={title}>
+const RptSection = ({ title, meta = null, testid = null, children }) => (
+  <section className="rpt-section" aria-label={title} data-testid={testid || undefined}>
     <header className="rpt-section-head">
       <h2 className="rpt-section-title">{title}</h2>
       {meta && <span className="rpt-section-meta">{meta}</span>}
@@ -284,6 +284,21 @@ const ReportsSections = ({ R, pick }) => {
               </ChartCard>
             </div>
           </RptSection>
+
+          {/* Deals (0004): the proposals of the period and what became of them, then the clients now. Three sentences
+              from contracts' DealReportVM, each said once, in the booked card's own shape: the cohort's two lines,
+              and the stock under the one hairline, as the booked card sets its other side. No chart, since a few
+              proposals a month are a sentence, not a series. Drawn only where a deal was ever recorded, so a salon's
+              Reports never grows a section of zeros. */}
+          {R.deals && R.deals.present && (
+            <RptSection title="Deals" testid="rpt-deals">
+              <div className="rpt-booked">
+                <p className="rpt-booked-copy" data-testid="rpt-deals-headline">{R.deals.headline}</p>
+                {R.deals.parts && <p className="rpt-booked-copy" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
+                <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{R.deals.stock}</p>
+              </div>
+            </RptSection>
+          )}
 
           <RptSection title="Your customers">
             <div className="rpt-grid">

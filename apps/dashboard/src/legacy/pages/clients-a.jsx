@@ -668,6 +668,11 @@ const PL_LIST_TIP = {
   booked_week: "An appointment in the next seven days",
   asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
   lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
+  // The journey past the booking (0004): drawn only where deals are a thing here.
+  consultation_booked: "A consultation ahead or behind them, and no proposal yet",
+  proposal_out: "A proposal went out and is waiting on their answer",
+  clients: "Said yes, or paid — the engagement is running",
+  deal_ended: "An engagement that ended — the win-back list for clients",
 };
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
@@ -702,18 +707,21 @@ const ldFinderSave = (f) => {
 const ldValuesPref = () => { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
 // page's latest closures through `acts`, so the object itself is kept across draws (in `kept`) and a memoised row
-// handed it is left alone.
-const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind) => {
+// handed it is left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004):
+// publishPeople builds a fresh array each time People lands, so the context is new then and the rows redraw -- on a
+// cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
+// sort or a search drew it again.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows) => {
   const k = kept.current;
-  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind) return k.ctx;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows) return k.ctx;
   const door = (name) => (id) => acts.current[name](id);
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
-    values, mixedFits, hasCenter, canFind,
+    values, mixedFits, hasCenter, canFind, peopleRows,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
-  kept.current = { values, mixedFits, hasCenter, canFind, ctx };
+  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, ctx };
   return ctx;
 };
 // Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
@@ -1488,6 +1496,9 @@ const PL_COLUMNS = [
   ) },
   { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
+  // The deal's stage as the one pill (0004), off until asked for, and offered only where deals are a thing here: a
+  // salon never sees "Deal" in the menu. The row's second line already says a proposal waiting.
+  { key: "deal", label: "Deal", sortable: false, on: false, needs: (x) => !!x.dealsOn, cell: (p) => <td key="deal" className="shrink cl-deal-cell" data-testid="row-deal">{p.deal ? <StatePill kind="deal" value={p.deal.stage} /> : ""}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
 // A person on a phone, in one cell (900px and under): the Inbox's row. Their face, their name and their state on the
@@ -2398,6 +2409,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const lists = people.lists;
   const agg = people.aggregates;
   const withCalendar = !!(people.calendar && people.calendar.state === "ok");
+  // Whether deals are a thing here (the surface's dealsOn, 0004): the Deal column is offered only then.
+  const dealsOn = !!people.dealsOn;
   const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
   const [listId, setListId] = useState(listFor(initialSegment));
   React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2406,7 +2419,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar }, people, sortFirst: { by: "last", dir: "desc" } });
+  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
   const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, canExport, toastNode, plFlash, sel, setSel, toggleSel, clearSelection, sortBy, sortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
   // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
@@ -3268,7 +3281,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
   // changes, and a memoised row is left alone otherwise.
   leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
-  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind);
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows);
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
   const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });

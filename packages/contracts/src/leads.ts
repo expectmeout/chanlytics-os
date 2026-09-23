@@ -2091,6 +2091,8 @@ export interface LeadRowVM {
   reviewsTitle: string;
   stage: LeadStage;
   stageLabel: string;
+  /** The person this lead converted into (leads.contact_id), so a page can read People's row for them; null until then. */
+  contactId: string | null;
   foundLabel: string;
   /** "Found 2d ago", "Found just now", "Found Aug 29": when it was found, as a phone's row says it (People's row says when
    *  they last wrote the same way). A desktop's Found column says `foundLabel` under its heading. */
@@ -2278,6 +2280,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
+    contactId: r.contact_id ?? null,
     foundLabel: agoShort(foundMs, nowMs),
     foundLine: Number.isFinite(foundMs)
       ? `Found ${agoWords(foundMs, nowMs, { date: (at) => clockDate(at, tz, nowMs) })}`

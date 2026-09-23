@@ -401,6 +401,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     reviewsTitle: "",
     stage: "ready",
     stageLabel: "Ready",
+    contactId: null,
     foundLabel: "6m",
     foundLine: "Found 6m ago",
     foundAt: "Sep 18, 2026 · 2:14 PM",

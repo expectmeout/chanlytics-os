@@ -214,6 +214,8 @@ import {
   zoneDayKey,
   toBookingReportVM,
   type BookingReportVM,
+  toDealReportVM,
+  type DealReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
 import {
@@ -762,6 +764,8 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
+  /** Deals are a thing here (0004): the Journey's deal lists, the thread's menu item, the column. */
+  dealsOn: boolean;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
@@ -779,6 +783,9 @@ let peopleLoaded: {
   saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
+  /** Deals are a thing here, and the profile lists a consult-first service (0004): which Journey lists exist. */
+  dealsOn: boolean;
+  consultFirst: boolean;
   views: Record<string, unknown>;
 } | null = null;
 
@@ -789,10 +796,16 @@ function publishPeople(): void {
   const now = new Date();
   const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
   const calendar = peopleLoaded.calendar;
+  const { dealsOn, consultFirst } = peopleLoaded;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
-    // The outcome lists only when there is a calendar to read them from.
-    lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === "ok").map((l) => {
+    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are a thing.
+    lists: PEOPLE_LISTS.filter(
+      (l) =>
+        (!l.needsCalendar || calendar.state === "ok") &&
+        (!l.needsConsultFirst || consultFirst) &&
+        (!l.needsDeals || dealsOn),
+    ).map((l) => {
       const members = rows.filter(l.test);
       return {
         id: l.id,
@@ -806,6 +819,7 @@ function publishPeople(): void {
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
+    dealsOn,
     saved: (peopleLoaded.saved ?? []).map((l) => {
       // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (savedListIds), over the rows
       // on the page, so an erased person never counts.
@@ -958,6 +972,8 @@ export const peopleOverride: SurfaceOverride = {
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
+      dealsOn: !!data.deals_on,
+      consultFirst: !!data.consult_first,
       views:
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
@@ -1124,7 +1140,9 @@ export const broadcastsOverride: SurfaceOverride = {
           l.id !== "opted_in" &&
           l.id !== "offers_ok" &&
           l.id !== "opted_out" &&
-          (!l.needsCalendar || people.calendar?.state === "ok"),
+          (!l.needsCalendar || people.calendar?.state === "ok") &&
+          (!l.needsConsultFirst || !!people.consult_first) &&
+          (!l.needsDeals || !!people.deals_on),
       ).map((l) => ({
         kind: "list" as const,
         id: l.id,
@@ -1527,6 +1545,8 @@ export interface ReportsSurface {
   campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
+  /** Deals: one cohort and the stock; present only where a deal was ever recorded (0004). */
+  deals: DealReportVM;
   /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
   facts: ReportFactVM[];
   days: number;
@@ -1571,10 +1591,13 @@ export const reportsOverride: SurfaceOverride = {
     // A pick of another period while this read was out: its answer is for a period left, and never lands on the new
     // one. A held period answers a pick at once and is read again behind it, so two reads can be out together.
     if (days !== reportDays) return;
+    const vm = toReportVM(data.report);
     const surface: Omit<ReportsSurface, "facts"> = {
-      vm: toReportVM(data.report),
+      vm,
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
+      // The period's name is the report's, so the two sentences never disagree about the range.
+      deals: toDealReportVM(data.deals, vm.rangeLabel),
       days,
       fetchedAt: Date.now(),
     };
