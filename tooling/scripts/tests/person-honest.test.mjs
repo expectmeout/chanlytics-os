@@ -346,7 +346,10 @@ globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   AttnRow: () => null,
-  CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` } },
+  CHANLY: {
+    nav: (to) => went.push(to),
+    R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}`, clientSeg: (id) => `clients/seg:${id}` },
+  },
   __chrome: { state: stateOf },
   __ME: { role: "owner" },
   __consentSources: CONSENT_SOURCES,
@@ -898,7 +901,7 @@ test("a person known by number is invited to name them; an empty Lists section i
     );
     assert.ok(String(rename.props.className).includes("is-plain"));
     const lists = byTestId(tree, "person-lists");
-    assert.match(textOf(lists), /No lists yet\./);
+    assert.match(textOf(lists), /No lists kept by hand yet\./);
     went.length = 0;
     press(byTestId(lists, "person-lists-make"));
     assert.deepEqual(
@@ -1270,4 +1273,200 @@ test("the spoken ways still record at once, with the source and nothing else", a
   } finally {
     restore();
   }
+});
+
+/* --------------------------- the person is the hub: runs, lists, the lead --------------------------- */
+
+const LEAD = "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f";
+/** One of ours, as a run or a person sent it: the meta the send job writes (core messages/broadcast.ts). */
+const ours = (id, at, meta, sender = "human") => ({
+  id,
+  conversation_id: "cv1",
+  direction: "outbound",
+  sender,
+  type: "text",
+  body: `words of ${id}`,
+  media: null,
+  meta,
+  status: "delivered",
+  created_at: at,
+});
+const theirs = (id, at) => ({
+  id,
+  conversation_id: "cv1",
+  direction: "inbound",
+  sender: "customer",
+  type: "text",
+  body: `reply ${id}`,
+  media: null,
+  meta: null,
+  status: "received",
+  created_at: at,
+});
+const run = (over) => ({
+  broadcast_id: over.broadcast_id,
+  name: "Run",
+  playbook_id: null,
+  playbook_name: null,
+  state: "sent",
+  reason: null,
+  sent_at: null,
+  scheduled_for: null,
+  message_id: null,
+  ...over,
+});
+/** Five runs, newest first, as the route hands them: one answered, one not, one held, one refused, one on its way. */
+const withRuns = () => {
+  const d = detail();
+  d.conversations[0].messages = [
+    ours("mb-win", iso(10 * D), {
+      source: "broadcast",
+      broadcast_id: "b-win",
+      broadcast_name: "Win-back · Sep 1",
+      playbook_id: "pb1",
+      playbook_name: "Win-back",
+    }),
+    theirs("mr-win", iso(10 * D - 5 * H)),
+    ours("mb-spring", iso(20 * D), { source: "broadcast", broadcast_id: "b-spring", broadcast_name: "Spring offer" }),
+    // Four days after the offer: past the reply window, so the offer was not what they answered.
+    theirs("mr-late", iso(16 * D)),
+    ours("m-team", iso(30 * D), null),
+    ...d.conversations[0].messages,
+  ];
+  d.campaigns = [
+    run({ broadcast_id: "b-queued", name: "Autumn offer", state: "queued", scheduled_for: ahead(D) }),
+    run({
+      broadcast_id: "b-win",
+      name: "Win-back · Sep 1",
+      playbook_id: "pb1",
+      playbook_name: "Win-back",
+      sent_at: iso(10 * D),
+      message_id: "mb-win",
+    }),
+    run({ broadcast_id: "b-spring", name: "Spring offer", sent_at: iso(20 * D), message_id: "mb-spring" }),
+    run({
+      broadcast_id: "b-held",
+      name: "Summer offer",
+      state: "skipped",
+      reason: "no_marketing_consent",
+      scheduled_for: iso(40 * D),
+    }),
+    run({
+      broadcast_id: "b-refused",
+      name: "May offer",
+      state: "failed",
+      reason: "send_failed",
+      scheduled_for: iso(50 * D),
+    }),
+  ];
+  return d;
+};
+
+test("a person's page names the runs that reached them and what came of each -- it said nothing of what a playbook or a broadcast had sent them", () => {
+  const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
+  assert.deepEqual(
+    vm.campaigns.map((c) => [c.id, c.title, c.line, c.tone, c.to]),
+    [
+      ["b-queued", "Autumn offer", "Broadcast · Waiting to send", "plain", "broadcasts/run:b-queued"],
+      ["b-win", "Win-back", "Playbook · Replied", "ok", "broadcasts/run:b-win"],
+      ["b-spring", "Spring offer", "Broadcast · Sent", "plain", "broadcasts/run:b-spring"],
+      ["b-held", "Summer offer", "Broadcast · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
+      ["b-refused", "May offer", "Broadcast · Didn't send — WhatsApp refused", "warn", "broadcasts/run:b-refused"],
+    ],
+    "newest first; a reply inside the window is a reply, one four days later is not",
+  );
+  assert.ok(
+    vm.campaigns.every((c) => c.when && c.when !== "—"),
+    "each is dated",
+  );
+});
+
+test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -- every one read 'You', a playbook's run among them", () => {
+  const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
+  const who = (id) => vm.timeline.find((i) => i.id === `m-${id}`)?.who;
+  assert.equal(who("mb-win"), "The Win-back playbook");
+  assert.equal(who("mb-spring"), "A broadcast (Spring offer)");
+  assert.equal(who("m-team"), "Your team", "the row does not say which member sent it");
+  assert.equal(who("m1"), "Daniela", "their own words are theirs");
+  // A run's message that kept no meta is still the run's: its recipient row names it.
+  const bare = withRuns();
+  bare.conversations[0].messages = bare.conversations[0].messages.map((m) =>
+    m.id === "mb-win" ? { ...m, meta: null } : m,
+  );
+  const again = toPersonVM(bare, ZONE, new Date(NOW));
+  assert.equal(again.timeline.find((i) => i.id === "m-mb-win")?.who, "The Win-back playbook");
+  // A playbook whose name has its own article keeps one, here and in the Inbox (messageAuthor).
+  const offer = ours("mb-offer", iso(D), {
+    source: "broadcast",
+    broadcast_name: "x",
+    playbook_name: "The month's offer",
+  });
+  assert.equal(
+    contracts.messageAuthor(offer).words,
+    "The month's offer playbook",
+    "REGRESSION: the The month's offer playbook",
+  );
+});
+
+test("a person's page names the lists that keep themselves current and have them on, by the rail's own tests -- and not the ones it already says", () => {
+  const booked = toPersonVM(detail(), ZONE, new Date(NOW));
+  assert.deepEqual(
+    booked.smartLists.map((l) => l.id),
+    ["booked_week", "booked"],
+    "booked this week and booked; not Needs you, which Right now says, nor their yes, which the consent rows say",
+  );
+  const noCalendar = toPersonVM(detail({ row: row(), visits: undefined }), ZONE, new Date(NOW));
+  assert.deepEqual(noCalendar.smartLists, [], "a calendar's lists only with a calendar");
+});
+
+test("a person found as a lead says so, with the way back to the lead -- About said they were added by hand", async () => {
+  const d = detail({
+    lead: { id: LEAD, business_name: "Glow Studio", found_at: iso(9 * D) },
+    added: { at: iso(8 * D), source: "lead", title: null },
+  });
+  const vm = toPersonVM(d, ZONE, new Date(NOW));
+  const added = vm.about.find((a) => a.k === "Added");
+  assert.ok(added && added.v.endsWith("from a lead you found"), `REGRESSION: ${added && added.v}`);
+  assert.deepEqual(vm.lead && [vm.lead.name, vm.lead.to], ["Glow Studio", `clients/leads:p-${LEAD}`]);
+  const noEvent = toPersonVM(
+    detail({ lead: { id: LEAD, business_name: "Glow Studio", found_at: iso(9 * D) } }),
+    ZONE,
+    new Date(NOW),
+  );
+  assert.ok(
+    noEvent.about.some((a) => a.k === "Added" && a.v.endsWith("from a lead you found")),
+    "found as a lead, with no row saying when they were added: the lead's day says it",
+  );
+  const draw = await profile(vm);
+  const door = byTestId(draw(), "fact-lead");
+  assert.ok(door, "the Added row is a door to the lead");
+  press(door);
+  assert.deepEqual(went, [`clients/leads:p-${LEAD}`]);
+});
+
+test("the profile's Campaigns rows open each run's report, and its Lists name the lists that keep themselves current, each opening on People", async () => {
+  const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
+  const draw = await profile(vm);
+  const rows = all(draw(), (n) => n.props?.["data-testid"] === "person-campaign");
+  assert.equal(rows.length, 5);
+  assert.ok(textOf(rows[1]).includes("Win-back") && textOf(rows[1]).includes("Playbook · Replied"), textOf(rows[1]));
+  press(rows[1]);
+  assert.deepEqual(went, ["broadcasts/run:b-win"]);
+  const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
+  assert.equal(byTestId(quiet(), "person-campaigns"), null, "no runs, no section");
+
+  await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
+  cells = [];
+  seq = 0;
+  const lists = globalThis.window.PersonLists({
+    personId: "p1",
+    canEdit: true,
+    first: "Daniela",
+    flash: () => {},
+    smart: [{ id: "booked", label: "Booked" }],
+  });
+  const chip = byTestId(lists, "person-smart-chip");
+  assert.ok(chip && textOf(chip).includes("Booked"));
+  press(find(chip, (n) => n.type === "button"));
+  assert.deepEqual(went, ["clients/seg:booked"]);
 });

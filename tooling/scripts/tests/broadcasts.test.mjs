@@ -533,8 +533,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
   const vm = readCode("packages/contracts/src/viewmodels.ts");
   assert.ok(
-    vm.includes('{ kind: "broadcast" as const, name: String(m.meta.broadcast_name ?? "broadcast") }') &&
-      vm.includes('{ kind: "playbook" as const, name: String(m.meta.playbook_name) }'),
+    vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
+      vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
   );
   assert.ok(
     readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`a broadcast (${entry.via.name})`") &&

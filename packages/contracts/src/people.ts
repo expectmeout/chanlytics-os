@@ -25,6 +25,7 @@ import {
   isIdentifierName,
   writtenChannelOf,
   messageAt,
+  messageAuthor,
   messageText,
   messageWords,
   shortTime,
@@ -32,6 +33,9 @@ import {
   type ConversationDto,
   type MessageDto,
 } from "./viewmodels";
+import { HELD_REASONS, isReplyTo } from "./run-words";
+import { leadsRoute } from "./leads";
+import type { RecipientState } from "./broadcasts";
 
 /* --------------------------------- DTOs ---------------------------------- */
 
@@ -148,6 +152,52 @@ export interface PersonDetailDto {
   booking_link?: string | null;
   /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
   consent_history?: ConsentChange[];
+  /** The runs that named this person, newest first: a playbook's, or a broadcast someone sent (broadcast_recipients). */
+  campaigns?: PersonCampaignDto[];
+  /** The lead this person was found as, when they were one (leads.contact_id). */
+  lead?: PersonLeadDto | null;
+}
+
+/** One run that named a person: what went, when, and what became of it at the wire. */
+export interface PersonCampaignDto {
+  broadcast_id: string;
+  /** The run's own name, as its sender gave it or the sweep named it. */
+  name: string;
+  /** The playbook whose run it was, and the playbook's name then; both null for a broadcast someone sent. */
+  playbook_id: string | null;
+  playbook_name: string | null;
+  state: RecipientState;
+  /** Why they were held back or not reached, as the send job recorded it (HELD_REASONS). */
+  reason: string | null;
+  sent_at: string | null;
+  /** When the run was due: what a row that never went out is dated by. */
+  scheduled_for: string | null;
+  /** The message it sent them, which names the thread a reply is looked for in. */
+  message_id: string | null;
+}
+
+/** The lead a person was found as: the place the finder found, before they wrote or were called. */
+export interface PersonLeadDto {
+  id: string;
+  business_name: string;
+  found_at: string;
+}
+
+/** One run on a person's page: what it was, when, and what became of it. */
+export interface PersonCampaignVM {
+  id: string;
+  kind: "playbook" | "broadcast";
+  /** The playbook's name for its run, or the broadcast's own. */
+  title: string;
+  /** "Sep 3", by the business's clock. */
+  when: string;
+  /** What became of it: "Replied", "Sent", "Held — no yes to offers", "Didn't send", "Waiting to send". */
+  outcome: string;
+  /** The line under the title, in Broadcasts' history words: "Playbook · Replied", "Broadcast · Sent". */
+  line: string;
+  tone: "ok" | "plain" | "warn";
+  /** The run's own report. */
+  to: string;
 }
 
 /** What an owner may set for one person: answer, ask first, or stay out. */
@@ -962,10 +1012,21 @@ export const PEOPLE_LISTS: readonly {
   label: string;
   group: PeopleListGroup;
   needsCalendar?: boolean;
+  /**
+   * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
+   * say the two answers -- so their Lists section names only the lists it alone can.
+   */
+  onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
 }[] = [
-  { id: "needs_you", label: "Needs you", group: "attention", test: (v) => v.state === "needs_you" },
-  { id: "waiting_on_you", label: "Waiting on you", group: "attention", test: (v) => v.state === "waiting_on_you" },
+  { id: "needs_you", label: "Needs you", group: "attention", onProfile: false, test: (v) => v.state === "needs_you" },
+  {
+    id: "waiting_on_you",
+    label: "Waiting on you",
+    group: "attention",
+    onProfile: false,
+    test: (v) => v.state === "waiting_on_you",
+  },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {
     id: "booked_week",
@@ -1000,14 +1061,32 @@ export const PEOPLE_LISTS: readonly {
   // their promotional audience showed everybody who had ever texted START. The id
   // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
   // renaming it would repoint filings that have already gone out.
-  { id: "opted_in", label: "Said yes to messages", group: "reach", test: (v) => v.consent.state === "opted_in" },
+  {
+    id: "opted_in",
+    label: "Said yes to messages",
+    group: "reach",
+    onProfile: false,
+    test: (v) => v.consent.state === "opted_in",
+  },
   // The promotional audience, on its own column. The only people a MARKETING
   // broadcast may reach.
   // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
   // not the bare answer, which was the difference between this list and what the
   // route would actually enrol.
-  { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
-  { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" },
+  {
+    id: "offers_ok",
+    label: "Can receive offers",
+    group: "reach",
+    onProfile: false,
+    test: (v) => mayReceive(v, "marketing"),
+  },
+  {
+    id: "opted_out",
+    label: "Opted out",
+    group: "reach",
+    onProfile: false,
+    test: (v) => v.consent.state === "opted_out",
+  },
 ];
 
 export interface PeopleListAction {
@@ -1427,6 +1506,15 @@ export interface PersonVM extends PersonRowVM {
   receptionistMode: { person: PersonMode | null; workspace: PersonMode | null };
   /** What they have written to you, newest first: the messages an answer "in their own message" may name (00137). */
   ownMessages: OwnMessageVM[];
+  /**
+   * The People lists that keep themselves current and have them on today, by the rail's own tests (PEOPLE_LISTS): the
+   * ones this page does not already say another way, and a calendar's only with a calendar.
+   */
+  smartLists: { id: string; label: string }[];
+  /** The runs that named them, newest first, each with what became of it. */
+  campaigns: PersonCampaignVM[];
+  /** The lead they were found as, with the door to it on Leads; null when they were never one. */
+  lead: { id: string; name: string; found: string; to: string } | null;
 }
 
 /** One message a person wrote to the business, as the desk chooses it for an answer given in it. */
@@ -1529,6 +1617,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   const stamp = (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items: PersonTimelineItemVM[] = [];
   const convIds = new Set(d.conversations.map((c) => c.id));
+  const runOf = new Map((d.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
 
   for (const c of d.conversations) {
     for (const m of c.messages) {
@@ -1544,8 +1633,35 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
             : m.sender === "ai"
               ? "receptionist"
               : "system";
+      // Who sent it, in the words the Inbox uses (messageAuthor): a person's reply is the team's, since the row does
+      // not say which member sent it, and a run's message is its playbook's or its broadcast's. Every one of ours read
+      // "You", a playbook's run among them.
+      // A message a run sent is the run's, by its meta or by the recipient row that names it (broadcast_recipients
+      // message_id): a run's row is the ledger of what it sent, whatever the message kept.
+      const run = runOf.get(m.id);
+      const author = messageAuthor(
+        run && m.meta?.source !== "broadcast"
+          ? {
+              ...m,
+              meta: {
+                ...m.meta,
+                source: "broadcast",
+                broadcast_name: run.name,
+                ...(run.playbook_id ? { playbook_name: run.playbook_name || run.name } : {}),
+              },
+            }
+          : m,
+      );
       const who =
-        kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
+        kind === "customer"
+          ? first
+          : !author
+            ? "System"
+            : author.kind === "receptionist"
+              ? "Receptionist"
+              : author.kind === "team"
+                ? "Your team"
+                : capitalize(author.words);
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
       items.push({
         id: `m-${m.id}`,
@@ -1921,8 +2037,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const at = ts(d.added.at);
     about.push({
       k: "Added",
-      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}`,
+      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : d.added.source === "lead" ? "from a lead you found" : "by hand"}`,
     });
+  } else if (d.lead) {
+    // Found as a lead, with no row saying when they were added: the lead's own day says it.
+    const found = ts(d.lead.found_at);
+    about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "—"} · from a lead you found` });
   }
 
   return {
@@ -1962,5 +2082,63 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode),
     },
     ownMessages: ownMessagesOf(d, stamp),
+    smartLists: PEOPLE_LISTS.filter(
+      (l) => l.onProfile !== false && (!l.needsCalendar || d.visits?.state === "ok") && l.test(base),
+    ).map((l) => ({ id: l.id, label: l.label })),
+    campaigns: campaignsOf(d, tz, nowMs),
+    lead: d.lead
+      ? {
+          id: d.lead.id,
+          name: d.lead.business_name || base.name,
+          found: ts(d.lead.found_at) !== null ? clockDate(ts(d.lead.found_at)!, tz, nowMs) : "—",
+          to: leadsRoute({ peek: d.lead.id }),
+        }
+      : null,
   };
+}
+
+/**
+ * The runs that named a person, newest first, each with what became of it: sent, and answered by the run report's own
+ * rule (isReplyTo) in the thread the message went to; held back, in the owner's words for why (HELD_REASONS); or not
+ * sent. A person's page said nothing about what a playbook or a broadcast had sent them.
+ */
+function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampaignVM[] {
+  const threadOf = new Map<string, string>();
+  const repliesIn = new Map<string, string[]>();
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      threadOf.set(m.id, c.id);
+      if (m.direction === "inbound") repliesIn.set(c.id, [...(repliesIn.get(c.id) ?? []), m.created_at]);
+    }
+  }
+  return (d.campaigns ?? []).map((c) => {
+    const at = ts(c.sent_at ?? c.scheduled_for);
+    const thread = c.message_id ? threadOf.get(c.message_id) : undefined;
+    const sentAt = c.sent_at;
+    const replied =
+      c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
+    const why = c.reason ? HELD_REASONS[c.reason] : undefined;
+    const outcome =
+      c.state === "sent"
+        ? replied
+          ? "Replied"
+          : "Sent"
+        : c.state === "skipped"
+          ? `Held — ${why ?? "held back"}`
+          : c.state === "failed"
+            ? why
+              ? `Didn't send — ${why}`
+              : "Didn't send"
+            : "Waiting to send";
+    return {
+      id: c.broadcast_id,
+      kind: c.playbook_id ? "playbook" : "broadcast",
+      title: c.playbook_id ? c.playbook_name || c.name : c.name,
+      when: at !== null ? clockDate(at, tz, nowMs) : "—",
+      outcome,
+      line: `${c.playbook_id ? "Playbook" : "Broadcast"} · ${outcome}`,
+      tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
+      to: `broadcasts/run:${c.broadcast_id}`,
+    };
+  });
 }

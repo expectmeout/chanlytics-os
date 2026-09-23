@@ -688,7 +688,7 @@ const PersonNotes = ({ p, canEdit, flash }) => {
 // The person's saved lists, read from the People surface; a change goes
 // through window.__lists and the surface is re-fetched, so the chips are the
 // server's. Owner or operator may change them.
-const PersonLists = ({ personId, canEdit, first, flash }) => {
+const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   useEffectP(() => {
     window.addEventListener("surface:clients", bump);
@@ -711,19 +711,30 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
   if (window.__PEOPLE && window.__PEOPLE.savedRead === false) {
     return <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />;
   }
+  // The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People.
+  // No cross: nobody is taken off a list that is a rule.
+  const smartChips = smart.map((l) => (
+    <span key={l.id} className="seg-chip" data-testid="person-smart-chip">
+      <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
+    </span>
+  ));
   if (saved.length === 0) {
     // "The People rail" is not on a phone; the Lists page is, from here.
     // The lists live on People: the door lands there with the New list box open (segments:new, once the page is up).
     return (
-      <div className="cl-prof-aut-hint">
-        No lists yet.{" "}
-        <button type="button" className="cl-bucket-link" onClick={() => { window.CHANLY.nav("clients"); setTimeout(() => window.dispatchEvent(new CustomEvent("segments:new")), 450); }} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
+      <div className="cl-prof-lists">
+        {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
+        <div className="cl-prof-aut-hint">
+          No lists kept by hand yet.{" "}
+          <button type="button" className="cl-bucket-link" onClick={() => { window.CHANLY.nav("clients"); setTimeout(() => window.dispatchEvent(new CustomEvent("segments:new")), 450); }} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
+        </div>
       </div>
     );
   }
   return (
     <div className="cl-prof-lists">
       <div className="cl-tag-stack cl-prof-list-chips">
+        {smartChips}
         {on.map((s) => (
           <span key={s.id} className="seg-chip" data-testid="person-list-chip">
             <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
@@ -741,7 +752,7 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
             )}
           </span>
         ))}
-        {on.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
+        {on.length === 0 && smartChips.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
       </div>
       {/* Left-aligned: the button sits at the rail's left edge, and a menu anchored to its right edge opened 96px off a phone's screen and under the rail's clip on a desktop. */}
       {canEdit && off.length > 0 && (
@@ -1268,6 +1279,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   {a.k === "Next visit" && p.nextVisitDate && (
                     <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
                   )}
+                  {/* The way back to where the finder found them: the lead, open over Leads. */}
+                  {a.k === "Added" && p.lead && (
+                    <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(p.lead.to)} title={p.lead.name} data-testid="fact-lead">Open the lead <Icon name="arrow-right" size={10} /></button>
+                  )}
                 </span>
               </div>
             ))}
@@ -1361,8 +1376,25 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         />
         <div className="cl-prof-rail-section" data-testid="person-lists">
           <div className="cl-prof-rail-label">Lists</div>
-          <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={ppFlash} />
+          <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={ppFlash} smart={p.smartLists || []} />
         </div>
+        {/* What a playbook or a broadcast sent them, and what came of it: each row opens the run's own report. */}
+        {p.campaigns && p.campaigns.length > 0 && (
+          <div className="cl-prof-rail-section" data-testid="person-campaigns">
+            <div className="cl-prof-rail-label">Campaigns</div>
+            <div className="cl-prof-attr-list">
+              {p.campaigns.map((c) => (
+                <button key={c.id} type="button" className="cl-prof-attr cl-prof-run" onClick={() => window.CHANLY.nav(c.to)} data-testid="person-campaign">
+                  <span className="cl-prof-attr-key">{c.when}</span>
+                  <span className="cl-prof-attr-val">
+                    <span className="cl-prof-run-title">{c.title}</span>
+                    <span className="cl-prof-run-out" data-tone={c.tone}>{c.line}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {isOwner && (
           <div className="cl-prof-rail-section">
             <div className="cl-prof-rail-label">Danger</div>
