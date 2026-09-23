@@ -27,7 +27,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { ASK_TOKENS_DAY, ASK_MODEL } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
 // Each test file is its own process: this is the whole environment. No
@@ -76,9 +76,14 @@ const silent = (why = "this case must not reach the model") =>
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
-const { GATEWAY_MAX_BODY, GATEWAY_MAX_TOKENS, GATEWAY_MAX_TOOLS, GATEWAY_MAX_MESSAGES, ASK_USAGE_KIND } = await import(
-  at("apps/edge/lib/ask-gateway.ts")
-);
+const {
+  GATEWAY_MAX_BODY,
+  GATEWAY_MAX_TOKENS,
+  GATEWAY_MAX_TOOLS,
+  GATEWAY_MAX_MESSAGES,
+  ASK_USAGE_KIND,
+  validateGatewayRequest,
+} = await import(at("apps/edge/lib/ask-gateway.ts"));
 const door = await import(at("apps/edge/api/admin/llm.ts"));
 after(() => setPg(null));
 
@@ -467,8 +472,8 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
   );
   assert.deepEqual(
     net.calls[1].body,
-    { model: ASK_MODEL, max_tokens: GATEWAY_MAX_TOKENS, messages: REQUEST.messages, temperature: 1, stream: true },
-    "no model named is the one the loop sends; max_tokens is clamped to the cap, temperature to one; nothing the dashboard did not send is added",
+    { model: ASK_MODEL, max_tokens: ASK_MAX_TOKENS, messages: REQUEST.messages, temperature: 1, stream: true },
+    "no model named is the one the loop sends; max_tokens is clamped to Ask's ceiling, temperature to one; nothing the dashboard did not send is added",
   );
 });
 
@@ -567,5 +572,57 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
   assert.deepEqual(
     tables.events.map((e) => [e.tenant_id, e.kind, e.data.input_tokens, e.data.output_tokens]),
     [[ws, ASK_USAGE_KIND, 1200, 42]],
+  );
+});
+
+test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, Ask's turn may carry its answer format under 8,000 characters, and Ask is clamped to ASK_MAX_TOKENS while the lead purposes keep their ceiling", async () => {
+  const ask = (over) => validateGatewayRequest({ ...REQUEST, ...over }, "ask");
+  assert.equal(ask({ model: "claude-opus-5-5" }).ok, true, "Opus 5.5, which the model gate may choose");
+  assert.deepEqual(
+    ask({ model: "claude-opus-5-9" }),
+    { ok: false, error: "unknown model" },
+    "and still only the models listed",
+  );
+  const schema = {
+    type: "object",
+    properties: { say: { type: "string" } },
+    required: ["say"],
+    additionalProperties: false,
+  };
+  const formatted = ask({ output_config: { effort: "low", format: { type: "json_schema", schema } } });
+  assert.deepEqual(
+    formatted.ok && formatted.request.output_config,
+    { effort: "low", format: { type: "json_schema", schema } },
+    "Ask's own turn keeps its format now: the answer is structured output (the Line, D3)",
+  );
+  const refused = { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
+  const huge = { type: "object", properties: { say: { type: "string", description: "x".repeat(8_001) } } };
+  assert.deepEqual(ask({ output_config: { format: { type: "json_schema", schema: huge } } }), refused);
+  assert.deepEqual(ask({ output_config: { format: { type: "text" } } }), refused);
+  const ceiling = (purpose) => {
+    const v = validateGatewayRequest({ ...REQUEST, max_tokens: 9_000 }, purpose);
+    return v.ok ? v.request.max_tokens : v.error;
+  };
+  assert.equal(ceiling("ask"), ASK_MAX_TOKENS, "Ask's ceiling is the number its loop asks for");
+  assert.equal(ceiling("lead_draft"), GATEWAY_MAX_TOKENS, "the lead purposes keep theirs");
+
+  // Through the door: the model named and the format reach the model's wire as the dashboard sent them.
+  use({ events: [] });
+  const net = model();
+  const res = await knock(
+    T(40),
+    turn({
+      request: {
+        ...REQUEST,
+        model: "claude-opus-5-5",
+        output_config: { effort: "low", format: { type: "json_schema", schema } },
+      },
+    }),
+  );
+  assert.equal(res.status, 200);
+  await res.text();
+  assert.deepEqual(
+    [net.calls[0].body.model, net.calls[0].body.output_config],
+    ["claude-opus-5-5", { effort: "low", format: { type: "json_schema", schema } }],
   );
 });
