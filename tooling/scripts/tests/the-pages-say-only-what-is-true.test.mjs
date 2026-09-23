@@ -1116,7 +1116,7 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
   for (const lang of ["en", "es"]) {
     const t = globalThis.window.askText(lang);
     cells = [];
-    seq = 0;
+    frames.begin();
     const tree = globalThis.window.AskCard({ p, messageId: "x", t, onNav: (to) => went.push(to) });
     let kind = null;
     walk(tree, (n) => {
