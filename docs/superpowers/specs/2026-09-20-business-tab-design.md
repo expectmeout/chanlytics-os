@@ -234,6 +234,8 @@ Four additions to the grammar `components.css` already documents (rise-in + 30ms
 
 Four refusals: nothing pulses (the accent means a live call); no skeleton shimmer (a read in flight dims the last value); no number counts up; every new selector joins the `prefers-reduced-motion` block.
 
+> **Amended 22 Sep, in execution (Task 6.1).** Two items are narrower than written. Item 2 is a 120ms fade-in of the editor's body (and of a fold's hint) as it appears, while the value it replaces leaves at once: the row is taken off the page as its editor opens, so there is nothing left to fade out, and the label holding its place is what keeps the line steady. The focus ring is inside what fades, so it is first seen on the second frame. Item 4's toast rises 6px, not 8: it is the house's shared toast (`components.css` `pp-toast-in`), which this work edited only in its reduced-motion list. Item 1's closing is built in both frames: an inline fold folds away on `--ease-in-out`, held on screen by the stylesheet for its duration, and a phone's sheet goes down the way it came as a still copy, with its row drawn behind it so the card never moves.
+
 ## 10. The words
 
 | Retired | Kept |
