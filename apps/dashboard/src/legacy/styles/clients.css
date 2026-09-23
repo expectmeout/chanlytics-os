@@ -2237,8 +2237,6 @@
 .cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
-.seg-chip-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-.seg-chip-open:hover { text-decoration: underline; }
 /* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
 .cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
 

@@ -1923,11 +1923,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tb-pres-dot{width:7px;height:7px;border-radius:var(--radius-full);background:var(--ok);display:inline-block}
 .tb-pres-dot.off{background:var(--ink-faint)}
 
-/* PolicyChip — shared policy-class chip */
-button.pol-chip{cursor:pointer}
-button.pol-chip:not(.pill-warn){background:var(--bg-sunken);color:var(--ink-dim);border:1px solid var(--line)}
-button.pol-chip:hover{border-color:var(--accent);color:var(--accent)}
-button.pol-chip.pill-warn{border:1px solid transparent}
 
 .tb-pres-dot.away{background:var(--warn)}
 
@@ -2669,11 +2664,7 @@ button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2
 .bc-person-name { width: 148px; flex: none; margin: -12px 0; padding: 12px 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .bc-person-name:hover { text-decoration: underline; text-underline-offset: 2px; }
 .bc-person.is-held .bc-person-name { color: var(--ink-dim); }
-.bc-person-pill { flex: none; padding: 2px 8px; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-muted); font-size: var(--text-xs); white-space: nowrap; }
-.bc-person-pill[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
-.bc-person-pill[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
-.bc-person-pill[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
-.bc-person-pill[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
+.bc-person-pill { flex: none; }
 .bc-person-words { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-person-door { flex: none; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); white-space: nowrap; cursor: pointer; }
 .bc-person-door:hover { text-decoration: underline; text-underline-offset: 2px; }
@@ -2842,10 +2833,7 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 .msg-row-title { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-row.is-dim .msg-row-title { color: var(--ink-dim); }
 .msg-row-name { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
-.msg-tag { flex: none; font-size: var(--text-xs); line-height: 1.45; padding: 1px 7px; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-dim); white-space: nowrap; }
-.msg-tag[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
-.msg-tag[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
-.msg-tag[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
+.msg-tag { flex: none; }
 .msg-row-words { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The language chip's glyph sits under the column's heading, its padding outside the column. */
 .msg-row-langs { display: flex; align-items: center; min-width: 0; margin-left: -8px; }

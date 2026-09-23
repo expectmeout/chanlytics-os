@@ -275,7 +275,7 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
           <div className="name">{who.name}</div>
           <div className="email">{who.email}</div>
         </div>
-        {who.role && <span className="pill sb-role" data-testid="sb-me-role">{who.role}</span>}
+        {who.role && <span className="chip sb-role" data-testid="sb-me-role">{who.role}</span>}
       </div>
       <div className="more-divider" />
       <button className="more-item" role="menuitem" onClick={() => { close(); onNavigate("admin/profile"); }} data-testid="sb-me-name">

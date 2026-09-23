@@ -633,7 +633,8 @@
   border: 1px dashed var(--line-strong);
 }
 .set-team-row.pending .set-team-name { color: var(--ink-muted); }
-.set-team-you { font-size: 10px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-ink); background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: var(--radius-full); padding: 1px 7px; margin-left: 8px; vertical-align: 1px; }
+/* You, beside your own name: a chip (a label, not a live state, so never the accent). */
+.set-team-you { margin-left: 8px; vertical-align: 1px; }
 .set-team-spacer { width: 30px; flex: none; }
 
 /* "View as" is a row of the card, not a box inside it. */
@@ -647,7 +648,7 @@
 /* What each role may do: a word and its sentence, in two columns. */
 .set-roles-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
 .set-role-def { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: baseline; }
-.set-role-def .pill { justify-self: start; }
+.set-role-def .chip { justify-self: start; }
 .set-role-can { font-size: var(--set-hint); color: var(--ink-dim); line-height: 1.5; }
 
 .set-team-gated { display: flex; align-items: center; gap: 8px; font-size: var(--set-hint); color: var(--ink-dim); margin-bottom: 10px; padding-top: 12px; border-top: 1px solid var(--line); }

@@ -225,7 +225,10 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
             <span className="msg-row-titles">
               <span className="msg-row-title">{g.title}</span>
               {gName && <span className="msg-row-name mono">{gName}</span>}
-              {tag && <span className="msg-tag" data-tone={tag.tone} data-testid={tag.state ? "template-status" : "template-origin"}>{tag.words}</span>}
+              {/* A template's state is a pill in its tone; where it came from is a name, a chip. */}
+              {tag && (tag.state
+                ? <span className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`} data-tone={tag.tone} data-testid="template-status">{tag.words}</span>
+                : <span className="chip msg-tag" data-testid="template-origin">{tag.words}</span>)}
             </span>
             <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>
           </span>

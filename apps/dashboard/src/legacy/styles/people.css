@@ -278,24 +278,9 @@
 }
 .sg-notify-note button:hover { color: var(--ink); }
 
-/* Segment chip — ONE pattern everywhere (see CLAUDE.md). Tints: info = client
-   segment, warn = lead list. Old per-page classes kept as aliases. */
-.seg-chip, .cl-tag-seg, .fl-pb-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--info);
-  background: var(--info-soft);
-  border-radius: var(--radius-full);
-  padding: 1px 8px;
-  cursor: pointer;
-  transition: opacity 100ms;
-}
-.seg-chip:hover, .cl-tag-seg:hover, .fl-pb-seg:hover { opacity: 0.8; }
-.seg-chip--warn { color: var(--warn); background: var(--warn-soft); }
-.fl-pb-seg { font-size: 10.5px; margin: 0 2px; transform: translateY(-1px); }
+/* A list or a segment is a name, not a state: the one chip (components.css .chip). It was blue here, the colour every
+   other badge spends on "in progress", and amber for a lead list, which means a person is needed. */
+.fl-pb-seg { margin: 0 2px; }
 
 /* The shared toast (usePPToast) lives in components.css: it is the shell's
    one flash, not People's. */
@@ -314,8 +299,6 @@
 .cl-next:hover { color: var(--info); }
 .cl-next-none { font-size: 11px; color: var(--ink-faint); font-style: italic; }
 
-/* Segment chip in tags column */
-/* .cl-tag-seg folded into .seg-chip block above */
 
 /* Preview-only segment filter note */
 .cl-seg-filter-note { font-size: 9.5px; color: var(--ink-dim); font-style: italic; }
@@ -410,7 +393,6 @@
 .fl-pb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .fl-pb-name { font-size: 12.5px; font-weight: 500; color: var(--ink); }
 .fl-pb-trigger { font-size: 11.5px; color: var(--ink-muted); line-height: 1.5; }
-/* .fl-pb-seg folded into .seg-chip block above */
 .fl-pb-note { font-size: 10.5px; color: var(--ink-dim); }
 .fl-pb .pill { flex-shrink: 0; margin-top: 2px; }
 .fl-agent-mgmt { color: var(--ink-faint); }

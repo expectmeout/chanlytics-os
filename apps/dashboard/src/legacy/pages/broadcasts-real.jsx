@@ -78,7 +78,7 @@ const bcPersonRow = (p) => (
   <div key={p.contact_id} className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`} data-testid="bc-person">
     <span className="bc-person-mark" aria-hidden="true">{p.initials}</span>
     <button type="button" className="bc-person-name" onClick={() => window.CHANLY.nav(`clients/${p.contact_id}`)}>{p.name}</button>
-    <span className="bc-person-pill" data-tone={p.pill.tone}>{p.pill.label}</span>
+    <span className={`pill${p.pill.tone && p.pill.tone !== "plain" ? ` pill-${p.pill.tone}` : ""} bc-person-pill`} data-tone={p.pill.tone}>{p.pill.label}</span>
     <span className="bc-person-words">{p.words}</span>
     {p.door && <button type="button" className="bc-person-door" onClick={() => window.CHANLY.nav(p.door.to)}>{p.door.label}</button>}
     <span className="bc-person-at mono">{p.at || "—"}</span>

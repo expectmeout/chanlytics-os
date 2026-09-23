@@ -654,7 +654,14 @@ test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, 
   page(props);
   await settle();
   let tree = again(props);
-  const pillOf = (t) => textOf(find(byTestId(t, "bc-person"), (n) => n.props?.className === "bc-person-pill"));
+  const pillOf = (t) =>
+    textOf(
+      find(byTestId(t, "bc-person"), (n) =>
+        String(n.props?.className || "")
+          .split(" ")
+          .includes("bc-person-pill"),
+      ),
+    );
   const sentFigure = (t) =>
     textOf(find(byTestId(t, "bc-fig-sent"), (n) => String(n.props?.className).includes("bc-fig-v")));
   assert.deepEqual([pillOf(tree), sentFigure(tree)], ["Waiting", "0"], "one on its way");

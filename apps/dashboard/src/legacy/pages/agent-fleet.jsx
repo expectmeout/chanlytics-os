@@ -383,7 +383,7 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
                       {s ? (
                         <>
                           when someone {pb.trigger || "enters"}{" "}
-                          <button className="fl-pb-seg" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(pb.segId))}>
+                          <button className="chip fl-pb-seg" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(pb.segId))}>
                             <Icon name="sparkle" size={9} />{s.label} · {s.count}
                           </button>
                           {pb.stop && <> → stops when {pb.stop}</>}

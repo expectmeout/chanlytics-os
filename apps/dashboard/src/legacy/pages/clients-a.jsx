@@ -940,7 +940,7 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
     <div className="cl-rail-foot">
       {draft && (
         <div className="cl-rail-draft" data-testid="new-list-draft">
-          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="seg-chip" data-testid="new-list-rule">{part}</span>)}</div>
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="chip" data-testid="new-list-rule">{part}</span>)}</div>
           {holds !== null && <div className="cl-rail-hint" data-testid="new-list-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today, and it keeps itself current.</div>}
           {draft.cannot && <div className="cl-rail-hint" data-testid="new-list-cannot">Left out: {draft.cannot}</div>}
         </div>

@@ -175,12 +175,12 @@ const RecordChips = ({ chips = [], more = null, max = null, testid = null }) => 
   return (
     <span className="rec-chips" data-testid={testid || undefined}>
       {capped.map((c, i) => (
-        <span key={i} className="rec-chip">
+        <span key={i} className="chip rec-chip">
           {c.label}
           {c.meta ? <span className="rec-chip-meta">{c.meta}</span> : null}
         </span>
       ))}
-      {said ? <span className="rec-chip" data-more="true">{said}</span> : null}
+      {said ? <span className="chip rec-chip" data-more="true">{said}</span> : null}
     </span>
   );
 };

@@ -184,7 +184,7 @@ const PaneActivity = () => {
         <datalist id="act-kinds">{st.kinds.map((k) => <option key={k} value={k} />)}</datalist>
         <input className="set-input" type="date" aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} data-testid="act-day" />
         {person
-          ? <span className="cl-seg-filter" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="cl-seg-filter-x" aria-label={`Everyone, not only ${person.name}`} onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
+          ? <span className="chip" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="chip-x" aria-label={`Everyone, not only ${person.name}`} onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
           : (
             <span className="set-filter-person">
               <input className="set-input" placeholder="A person, by name or number" aria-label="A person, by name or number" value={personQ} onChange={(e) => setPersonQ(e.target.value)} data-testid="act-person-q" />
