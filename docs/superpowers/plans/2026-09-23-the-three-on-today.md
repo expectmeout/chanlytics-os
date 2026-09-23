@@ -2625,3 +2625,49 @@ EOF
 )
 ```
 Then the CI monitor; on green, squash-merge and delete the branch; then read the live Today in Ruben's signed-in pane at 390px and 1280px and note what was seen.
+
+---
+
+## Part 2: compact at rest, opens on activation (23 Sep, after #896 on main)
+
+Ruben, on main: "too much dead space left and right due to the left column being so wide", "the type in chat looks
+ugly, I'd rather like it open or appear or slide appear when users click to activate the agent", and the microphone
+block "should prompt the browser to allow". Spec D11–D13 and section 4.6. One PR from `cm-face`, branch
+`design/the-three-compact` off main `e3dc2aa2`. Executed inline; the code is the commits'.
+
+### Task 13: The driver follows a new size
+
+**Files:** `legacy-bridge/mascot/driver.ts`, `tooling/scripts/tests/mascot-driver.test.mjs`.
+
+- [x] `Mounted.setSide(px)` / `side()`: a target the drawn size eases toward (τ 0.1 s) in `frame()`; under reduced
+  motion it jumps and draws once. The gaze uses the eased size as its unit. Tests: followed over frames, not jumped;
+  reduced motion draws at once.
+
+### Task 14: The microphone block is named
+
+**Files:** `pages/ask-hooks.jsx`, `pages/ask-text.jsx` (`micBlocked`, en/es), `pages/ask-real.jsx`, the band.
+
+- [x] `useAskTalk.start` is async: `ahMicBlocked()` asks `navigator.permissions.query({ name: "microphone" })`
+  (false where the API is missing or throws); `denied` → `onHeard(null, "blocked")` and no recogniser. A press
+  released before the answer starts nothing (`wantRef`). Both callers show `t.micBlocked` for "blocked".
+
+### Task 15: The band, compact and open
+
+**Files:** `pages/today-face.jsx`, `styles/dashboard-a-v2.css`, `tooling/scripts/tests/today-face.test.mjs`,
+`e2e/today.spec.ts`, `Chanlytics.html` (ask-hooks v2, ask-text v4, ask-real v3, today-face v3, dashboard-a-v2.css v34).
+
+- [x] `open` state, `data-open` on the section. Closed: the stage alone (84×64, squares of 18px, `margin-left` 4px,
+  left of the column). Open: `min(100%, 620px)` centred, 232px, squares of 52.6px (the driver eases them), the
+  exchange and the field under it with a 220ms entrance; the queue moves as the stage's height transitions.
+- [x] The stage's pointer sequence: a press shorter than 320ms is a click (open + focus the field in a layout
+  effect, inside the click's task, so a phone shows its keyboard); a press held 320ms opens and starts listening;
+  release stops. `onClick` takes only the keyboard (`detail === 0`). Escape (not the palette's) and a pointerdown
+  outside the band close it; Clear clears and closes.
+- [x] Tests: compact by default with no field; a click opens with the field; Escape closes and the answer is kept
+  for the next opening; Clear closes; a hold flashes `noVoice` where the browser has no recogniser; the earlier
+  flows open the band first. E2E: click the stage, then the quick question; Clear folds it; phone: compact at rest.
+
+### Task 16: Docs, gates, PR
+
+- [x] Spec 4.6 + D11–D13; CLAUDE.md Today paragraph; `pnpm test`, typecheck, lint, format:check; PR; merge on green;
+  a look at production.

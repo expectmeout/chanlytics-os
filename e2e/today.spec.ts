@@ -155,7 +155,19 @@ test.describe("Today on a real workspace", () => {
     // Two columns wide (over 1180px): the day starts beside the band, not under it.
     if (dayBox && dayBox.y < queueBox!.y) expect(dayBox.x).toBeGreaterThan(bandBox!.x + bandBox!.width - 1);
     await expect(band).toHaveAttribute("data-phase", "rest");
+    // At rest it is the mark alone: closed, small, no field. A click opens it with the field focused.
+    await expect(band).toHaveAttribute("data-open", "false");
+    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
+    expect(bandBox!.height, "the mark at rest is small").toBeLessThan(90);
+    await band.getByTestId("today-face-stage").click();
+    await expect(band).toHaveAttribute("data-open", "true");
+    await expect(band.getByTestId("today-face-input")).toBeFocused();
     expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
+    // Escape folds it; a click opens it again.
+    await page.keyboard.press("Escape");
+    await expect(band).toHaveAttribute("data-open", "false");
+    await band.getByTestId("today-face-stage").click();
+    await expect(band).toHaveAttribute("data-open", "true");
     // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
     test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
     // The palette's own quick question (contracts fastPath, kind "needs"): no model turn, no cost.
@@ -164,9 +176,10 @@ test.describe("Today on a real workspace", () => {
     await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });
     await expect(band.getByTestId("today-face-exchange")).toContainText(/need|waiting/i);
     await expect(band.getByTestId("today-face-continue")).toHaveCount(0);
+    // Clear forgets the turn and folds the band.
     await band.getByTestId("today-face-clear").click();
     await expect(band).toHaveAttribute("data-phase", "rest");
-    expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
+    await expect(band).toHaveAttribute("data-open", "false");
   });
 
   test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({
@@ -191,8 +204,11 @@ test.describe("Today on a phone", () => {
     await page.waitForLoadState("networkidle");
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
-    // The three stand above the queue and never widen the page.
-    await expect(page.getByTestId("today-face")).toBeVisible();
+    // The three stand above the queue, closed and small at rest, and never widen the page.
+    const band = page.getByTestId("today-face");
+    await expect(band).toBeVisible();
+    await expect(band).toHaveAttribute("data-open", "false");
+    expect((await band.boundingBox())!.height, "the mark at rest is small").toBeLessThan(90);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const box = await queue.boundingBox();
     expect(box!.y, "the queue's head is on the first screen").toBeLessThan(844 - 120);
