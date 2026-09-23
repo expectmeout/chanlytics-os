@@ -14,7 +14,7 @@ test.describe("sidebar on a real workspace", () => {
     await signIn(page);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("today-standing")).toBeVisible();
+    await expect(page.getByTestId("today-queue")).toBeVisible();
     const prefsBefore = await page.evaluate(() => localStorage.getItem("chanlytics-os-prefs"));
     try {
       await expect(page.locator(".bridge-pill")).toHaveCount(0);

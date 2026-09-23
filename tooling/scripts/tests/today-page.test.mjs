@@ -1,5 +1,5 @@
 /**
- * Today, EXECUTED on the stub React over the view models the bridge publishes: the standing line, the day's card
+ * Today, EXECUTED on the stub React over the view models the bridge publishes: a line only while a line is down, the day's card
  * (four figures, each with its receipt on hover, focus or a tap; the lines that are not numbers; the period in one
  * line with one door), the queue with one primary verb, the day with its cap, Worth a look with a word for its tone
  * and an Ask door, While you were away over all four queue kinds, a borrowed read that failed saying so, and the
@@ -60,7 +60,7 @@ await import(`${L}/pages/dashboard-a-brief.jsx`);
 await import(`${L}/pages/dashboard-a-command.jsx`);
 await import(`${L}/pages/dashboard-a-day.jsx`);
 await import(`${L}/pages/dashboard-a-week.jsx`);
-// The band between the standing line and the queue reads the palette's words and hooks.
+// The band above the queue reads the palette's words and hooks.
 await import(`${L}/pages/ask-text.jsx`);
 await import(`${L}/pages/ask-hooks.jsx`);
 await import(`${L}/pages/today-face.jsx`);
@@ -446,28 +446,15 @@ const draw = (Comp, props = {}) => {
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const texts = (tree, cls) => all(tree, (n) => classes(n).includes(cls)).map(textOf);
 
-/* ------------------------------------ the standing line ------------------------------------ */
+/* ------------------------------------ above the work ------------------------------------ */
 
-test("the standing line: the day, the time, the lines counted, its own dot; no greeting, no headline, no live-dot", () => {
+test("above the work, nothing while every line is up; a line that is down is one red line with its own dot", () => {
   clear();
   set({ TODAY_DATA: busy() });
   const tree = draw(W.HeroBrief);
-  const line = byTestId(tree, "today-standing");
-  assert.ok(line);
-  assert.match(textOf(line), /Melany's Beauty Salon/);
-  assert.match(textOf(line), /2 of 2 lines connected/);
-  assert.ok(!/Good (morning|afternoon|evening)/.test(textOf(line)));
-  assert.ok(
-    !textOf(line).includes(busy().standing.headline),
-    "Ask reads the headline; the page draws the work instead",
-  );
-  const dot = find(line, (n) => classes(n).includes("today-standing-dot"));
-  assert.ok(dot && !classes(dot).includes("down"));
-  assert.equal(
-    find(tree, (n) => classes(n).includes("live-dot")),
-    null,
-    "the coral live-dot is the agent's live state, never a status light",
-  );
+  assert.equal(byTestId(tree, "today-standing"), null, "the standing line went: no date, no clock, no count");
+  assert.equal(byTestId(tree, "today-alert"), null, "and nothing stands in its place while the lines are up");
+  assert.equal(textOf(tree), "");
   const down = toTodayVM(
     metrics({ channels: [{ kind: "whatsapp", status: "disconnected", number: "+1 305" }] }),
     [],
@@ -477,8 +464,17 @@ test("the standing line: the day, the time, the lines counted, its own dot; no g
   );
   set({ TODAY_DATA: down });
   const dark = draw(W.HeroBrief);
-  assert.ok(classes(find(dark, (n) => classes(n).includes("today-standing-dot"))).includes("down"));
-  assert.ok(textOf(dark).includes(down.standing.alert));
+  const alert = byTestId(dark, "today-alert");
+  assert.ok(alert, "a line that is down is the one thing that cannot wait");
+  assert.equal(alert.props.role, "alert");
+  assert.equal(textOf(alert), down.standing.alert);
+  assert.ok(find(alert, (n) => classes(n).includes("today-alert-dot")));
+  assert.equal(
+    find(dark, (n) => classes(n).includes("live-dot")),
+    null,
+    "the coral live-dot is the agent's live state, never a status light",
+  );
+  assert.ok(!/Good (morning|afternoon|evening)/.test(textOf(dark)));
   set({ TODAY_DATA: undefined });
   assert.equal(
     draw(W.HeroBrief).rendered,
@@ -1226,7 +1222,6 @@ test("the mockup: the borrowed surfaces come from the sample's one global in a d
   W.__DEMO_MODE = true;
   const demo = draw(W.DashboardA);
   for (const id of [
-    "today-standing",
     "today-queue",
     "today-day",
     "today-card",
@@ -1267,9 +1262,7 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   });
   W.__DEMO_MODE = true;
   const tree = draw(W.DashboardA);
-  const order = ["today-standing", "today-queue", "today-day", "today-card", "today-leaks", "today-away"].map((id) =>
-    byTestId(tree, id),
-  );
+  const order = ["today-queue", "today-day", "today-card", "today-leaks", "today-away"].map((id) => byTestId(tree, id));
   assert.ok(order.every(Boolean), "every band");
   const names = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
   for (const seeded of [

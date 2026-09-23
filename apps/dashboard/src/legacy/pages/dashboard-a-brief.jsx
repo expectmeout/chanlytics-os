@@ -83,28 +83,25 @@ const ReviewLine = ({ nav }) => {
   );
 };
 
-// The standing line: the day and the time the business keeps, and whether its lines are up. One line, above the work.
-const TodayStanding = ({ vm }) => {
-  const { standing } = vm;
+// Above the work, only while a line is down or the workspace is paused (contracts `standing.alert`): the one thing on
+// Today that cannot wait for the card under the work. With every line up nothing stands here. The standing line that
+// said the date, the time, the workspace and "3 of 3 lines connected" went (Ruben, 23 Sep): the queue says its own
+// good news, and the clock is the device's.
+const TodayAlert = ({ vm }) => {
+  const { alert } = vm.standing;
+  if (!alert) return null;
   return (
-    <header className="today-standing" data-testid="today-standing">
-      <span>{standing.eyebrow}</span>
-      {/* Counted in contracts: this page counted its own chips, and the chips are the routing rows, so an email line
-          was never in the total. The dot is this line's own: quiet when every line is up, red with a ring when one is
-          down; the coral live-dot is the agent's live state, never a status light. */}
-      <span className="today-standing-lines">
-        <span className={`today-standing-dot${standing.lines.down ? " down" : ""}`} aria-hidden="true" />
-        {standing.lines.text}
-      </span>
-      {/* A line that is down is the one thing here that cannot wait for the card under the work. */}
-      {standing.alert && <span className="today-standing-alert">{standing.alert}</span>}
-    </header>
+    <div className="today-alert" role="alert" data-testid="today-alert">
+      {/* Its own dot, red with a ring: never the coral live-dot, which is the agent's live state (components.css). */}
+      <span className="today-alert-dot" aria-hidden="true" />
+      <span>{alert}</span>
+    </div>
   );
 };
 
 const HeroBrief = () => {
   useTcTick("surface:today");
-  return window.TODAY_DATA ? <TodayStanding vm={window.TODAY_DATA} /> : null;
+  return window.TODAY_DATA ? <TodayAlert vm={window.TODAY_DATA} /> : null;
 };
 
 // One figure: the number, its word and the clause under it. With a receipt it is a button: hover opens the receipt,

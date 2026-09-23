@@ -298,7 +298,7 @@ test("REGRESSION: Today's first screen is the work -- above it stood a greeting,
   const vm = toTodayVM(metrics(), [conversation("cv1", "Rosa Díaz", [msg({})])], [], [], NOW);
   const standing = mountHero(vm);
   const said = textOf(standing);
-  assert.match(said, /lines connected/, "the standing line says the day, the time and whether the lines are up");
+  assert.equal(said, "", "nothing stands above the work while every line is up (the standing line went, 23 Sep)");
   assert.ok(!/Good (morning|afternoon|evening)/.test(said), "REGRESSION: a greeting above the work");
   assert.ok(!/need you/.test(said), "REGRESSION: a chip saying the queue's own count, over the queue");
   assert.equal(
@@ -452,7 +452,11 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
       { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" },
     ]);
     const said = textOf(mountHero(vm)) + textOf(mountQueue(vm));
-    assert.match(said, /1 of 1 line connected/, "REGRESSION: the page counted the routing rows, and email is not one");
+    assert.equal(
+      vm.standing.lines.text,
+      "1 of 1 line connected",
+      "REGRESSION: the page counted the routing rows, and email is not one (the count is contracts', for Ask)",
+    );
     assert.ok(!said.includes("nothing can come in"), "email comes in");
     assert.ok(!said.includes("answering on its own"), "the receptionist does not answer email");
     assert.ok(!said.includes("nothing needs you"), `the heading does not reassure over a line nobody answers: ${said}`);
