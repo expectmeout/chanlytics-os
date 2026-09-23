@@ -10,7 +10,7 @@
  * people read carries the newest open or current deal; and an erased person's
  * deals keep no words.
  *
- * And a proposal is part of the deal (0008, 00159): the door takes its link,
+ * And a proposal is part of the deal (0008, 00160): the door takes its link,
  * its value and the day it stands, keeps what a move is not told and empties
  * what it is told to, refuses a bad link, reason or field in its own codes,
  * and sets a reason only on a pass; the people read carries the three; an

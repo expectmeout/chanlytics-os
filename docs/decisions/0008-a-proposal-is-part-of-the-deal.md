@@ -177,7 +177,7 @@ whose customers book.
 ## Shape
 
 ```sql
--- 00159 · A proposal is part of the deal.
+-- 00160 · A proposal is part of the deal.
 alter table public.deals
   add column if not exists proposal_url text
     check (proposal_url is null or (proposal_url = btrim(proposal_url)
@@ -223,9 +223,9 @@ Pages and components: `legacy/components/deal-sheet.jsx`,
 
 The README rule governs every step: the two apps deploy independently, and the
 database is pushed by hand, so each must be correct whichever goes first. Every
-step below that reads a new column needs 00159 pushed first.
+step below that reads a new column needs 00160 pushed first.
 
-1. **The record.** 00159, contracts, the deal route's new fields, `PATCH
+1. **The record.** 00160, contracts, the deal route's new fields, `PATCH
 workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
    and Ask reading the deal's link (the person's only with no deal), and
    nothing of a deal where deals are off. _Both orders:_ an older page calls
@@ -239,7 +239,7 @@ workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
 4. **The Pipeline.** `PeopleTable` sections, the tab, the route.
 5. **Today and the Calendar.**
 6. **Reports.**
-7. **The person's link retires.** 00160 drops `set_person_proposal`, the
+7. **The person's link retires.** 00161 drops `set_person_proposal`, the
    trigger and the column once every reader is on the deal and both apps have
    deployed; the readers lose their fallback in the same change.
 
@@ -248,7 +248,7 @@ workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
 - **Database:** `deals.db.test.mjs` gains the door's new fields, clears and
   refusals, and `people_list`'s new columns; `person-proposal.db.test.mjs`
   proves the write-through; the backfill is proved once on an isolated stack
-  replayed to 00158 (the migration before it), seeded, then taken to 00159.
+  replayed to 00158 (the migration before it), seeded, then taken to 00160.
 - **Contracts:** the value at every stage (`deals.test.mjs:154-155` flips on
   purpose), `dealsAreOn`, `parseAmount`, the sheet's words per mode,
   `pipelineOf`'s groups and summary, `waitingOnProposal` shared by Today and

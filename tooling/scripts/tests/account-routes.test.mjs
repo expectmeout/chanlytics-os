@@ -290,7 +290,7 @@ test("how customers buy: the owner's, one of the two answers, only what was sent
   );
 });
 
-test("where you are says how each workspace's customers buy, and a database that has not reached 00159 still answers (0008)", async () => {
+test("where you are says how each workspace's customers buy, and a database that has not reached 00160 still answers (0008)", async () => {
   const tables = {
     memberships: both("viewer", "owner"),
     tenants: [

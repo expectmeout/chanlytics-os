@@ -264,7 +264,7 @@ test("the link a person has now: the deal's while it is a proposal out, none for
   assert.equal(proposalLinkOf({ stage: "proposed", proposal_url: null }, own), null, "a proposal without one has none");
   assert.equal(proposalLinkOf({ stage: "won", proposal_url: deal }, own), null, "a client is not sent a proposal");
   // Changed on purpose in review: a pass or an end is a deal too, so the person's own link no longer stands in for it.
-  // Their link, if it was that deal's, is kept on it as history (00159's backfill); a new one opens a new proposal.
+  // Their link, if it was that deal's, is kept on it as history (00160's backfill); a new one opens a new proposal.
   assert.equal(proposalLinkOf({ stage: "lost", proposal_url: deal }, own), null, "they passed: none");
   assert.equal(proposalLinkOf({ stage: "ended", proposal_url: null }, `  ${own} `), null, "it ended: none");
   assert.equal(proposalLinkOf(null, own), own, "no deal at all: the person's own");

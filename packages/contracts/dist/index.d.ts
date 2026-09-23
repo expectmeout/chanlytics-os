@@ -4142,12 +4142,12 @@ declare const DEAL_PERS: readonly ["once", "month", "year"];
 type DealPer = SchemaSet<"deals.per">;
 declare const DEAL_SOURCES: readonly ["person", "payment"];
 type DealSource = SchemaSet<"deals.source">;
-/** Why someone passed (00159). The deal's note says the rest in the owner's words. */
+/** Why someone passed (00160). The deal's note says the rest in the owner's words. */
 declare const DEAL_LOST_REASONS: readonly ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
 type DealLostReason = SchemaSet<"deals.lost_reason">;
 declare const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string>;
 /**
- * How a workspace's customers buy (tenants.sells_by, 00159): they book an
+ * How a workspace's customers buy (tenants.sells_by, 00160): they book an
  * appointment, or some get a proposal first. Null is not asked yet. The deal
  * layer is there or absent by this answer and nothing else (dealsAreOn).
  */
@@ -4180,7 +4180,7 @@ declare const WAITING_AFTER_DAYS = 7;
 declare const CONSULT_FOLLOW_DAYS = 7;
 declare function isDealStage(s: unknown): s is DealStage;
 declare function isDealLostReason(s: unknown): s is DealLostReason;
-/** What a move may empty (deal_record's p_clear, 00159): the link, the valid-until day, the amount with its per, the note. */
+/** What a move may empty (deal_record's p_clear, 00160): the link, the valid-until day, the amount with its per, the note. */
 declare const DEAL_CLEARABLE: readonly ["proposal_url", "valid_until", "amount", "note"];
 type DealClearable = (typeof DEAL_CLEARABLE)[number];
 /** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
@@ -4193,7 +4193,7 @@ interface DealColumns {
     deal_ended_at: string | null;
     deal_amount_cents: number | null;
     deal_per: string | null;
-    /** Its link, the day it stands until and why they passed (00159); absent on a row read before them. */
+    /** Its link, the day it stands until and why they passed (00160); absent on a row read before them. */
     deal_proposal_url?: string | null;
     deal_valid_until?: string | null;
     deal_lost_reason?: string | null;
@@ -4213,7 +4213,7 @@ interface DealDto {
     note: string | null;
     version: number;
     created_at: string;
-    /** The proposal's web address (00159); absent on a read before the column existed. */
+    /** The proposal's web address (00160); absent on a read before the column existed. */
     proposal_url?: string | null;
     /** The last day the proposal stands, `YYYY-MM-DD` by the business's calendar. */
     valid_until?: string | null;
@@ -4346,7 +4346,7 @@ declare function dealMoves(d: DealVM | null): readonly DealMove[];
  * The sentence the receptionist hears about this person's deal, beside the
  * owner's note (describeLead). One per stage; never an amount; nothing
  * without a deal. Channel-neutral: "hand over" is what both do. Where a
- * proposal link is on file -- the deal's (00159), else the person's while it
+ * proposal link is on file -- the deal's (00160), else the person's while it
  * is still read (00154) -- that link's own rule stands for a price question,
  * so the proposal's sentence points at it instead of promising a follow-up.
  */
@@ -6582,7 +6582,7 @@ interface PersonRowDto {
     deal_ended_at?: string | null;
     deal_amount_cents?: number | null;
     deal_per?: string | null;
-    /** That deal's link, the day it stands until and why they passed (00159). */
+    /** That deal's link, the day it stands until and why they passed (00160). */
     deal_proposal_url?: string | null;
     deal_valid_until?: string | null;
     deal_lost_reason?: string | null;

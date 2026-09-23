@@ -4,7 +4,7 @@ import { isSellsBy, type DealReportDto, type SellsBy } from "@chanlytics/contrac
 
 /**
  * How this workspace's customers buy (tenants.sells_by, 0008): the answer every deal gate reads through contracts'
- * dealsAreOn. Null when it was never given, and on a database 00159 has not reached: a column that is not there reads
+ * dealsAreOn. Null when it was never given, and on a database 00160 has not reached: a column that is not there reads
  * as not asked, which costs the deal layer, never the page. The one read the People routes, Reports and the
  * assistant's pool share.
  */

@@ -4,7 +4,7 @@
  * 00154 is a column, a CHECK, a trigger on erasure and a definer door. A
  * constraint, a trigger and a function body are what reading source cannot
  * prove, so these run against Postgres in the database workflow; skipped
- * without a local database. Since 00159 the door writes through to the deal
+ * without a local database. Since 00160 the door writes through to the deal
  * (0008), which holds the proposal now.
  */
 import { test, before, after } from "node:test";

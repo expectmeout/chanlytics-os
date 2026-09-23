@@ -4,7 +4,7 @@
 
 **Goal:** Make the proposal part of the deal (link, value, valid until, reason for passing), switch the whole deal layer on by one workspace answer, record-and-send through one shared sheet, and show the deal where the work happens: the person page, the thread, a Pipeline in People, Today, the Calendar and Reports.
 
-**Architecture:** The design is `docs/decisions/0008-a-proposal-is-part-of-the-deal.md`; read it first. One migration (00159) moves the link onto `deals` and adds `tenants.sells_by`. Contracts own every word and rule (`deals.ts`, a new `deal-sheet.ts`, a new `pipeline.ts`). The legacy shell gets one shared `DealSheet` (on the record kit's `RecordSheet`), a deal card on the person page, a Pipeline scope that reuses `PeopleTable`, and small additions to Today, the Calendar peek and Reports. Sends go through the Inbox's existing reply courier.
+**Architecture:** The design is `docs/decisions/0008-a-proposal-is-part-of-the-deal.md`; read it first. One migration (00160) moves the link onto `deals` and adds `tenants.sells_by`. Contracts own every word and rule (`deals.ts`, a new `deal-sheet.ts`, a new `pipeline.ts`). The legacy shell gets one shared `DealSheet` (on the record kit's `RecordSheet`), a deal card on the person page, a Pipeline scope that reuses `PeopleTable`, and small additions to Today, the Calendar peek and Reports. Sends go through the Inbox's existing reply courier.
 
 **Tech stack:** Supabase Postgres (SQL doors, RLS, forward-only migrations), pnpm/turbo monorepo with committed `packages/*/dist`, Next.js dashboard with the legacy JSX shell (in-browser globals via `window`), Node's test runner with a stub React (`tooling/scripts/tests/_hook-frames.mjs`), Playwright e2e.
 
@@ -18,7 +18,7 @@
 - **Words:** every sentence a page shows comes from `packages/contracts`. Tests execute the code; never add a source-text assertion (`readCode`/`readRaw`).
 - **Commits:** end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. PR bodies say what changes for a customer, what to set or apply before merging, and the deploy order, and end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - **Database locally:** use an isolated stack so other sessions' stacks are untouched. Copy `supabase/{config.toml,migrations,seed.sql,templates}` to a scratch dir, set `project_id = "cm-proposals-test"`, shift every port (54321→55421, 54322→55422, 54320→55420, 54329→55429, 54323→55423, 54324→55424, 54327→55427, inspector 8083→8093), then with `SB=~/AppData/Local/npm-cache/_npx/b96a6bd565c470ce/node_modules/@supabase/cli-windows-x64/bin/supabase.exe` (2.116.0, the CI pin): `"$SB" start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector --workdir <dir>`. Export `SUPABASE_WORKDIR=<dir>`, `SUPABASE_CLI="$SB"`, `SUPABASE_URL=http://127.0.0.1:55421` and the demo keys from `"$SB" status -o env --workdir <dir>`. After adding a migration: copy it into `<dir>/supabase/migrations/`, `"$SB" db reset --local --workdir <dir>`, then `corepack pnpm gen:schema-sets` and `node tooling/scripts/check-db-types.mjs` (writes) then `--check`, and `corepack pnpm test:db`. Stop with `"$SB" stop --workdir <dir> --no-backup`.
-- **Production push** (Claude's to run): the PR is green; from the PR's worktree with `supabase/.temp/.` copied in from the main checkout, `"$SB" db push --linked --dry-run` lists ONLY 00159, then `db push --linked --yes`, then read back with `db query --linked` (aggregate so the answer fits). Push BEFORE merging, because the new code reads the new columns.
+- **Production push** (Claude's to run): the PR is green; from the PR's worktree with `supabase/.temp/.` copied in from the main checkout, `"$SB" db push --linked --dry-run` lists ONLY 00160, then `db push --linked --yes`, then read back with `db query --linked` (aggregate so the answer fits). Push BEFORE merging, because the new code reads the new columns.
 
 ---
 
@@ -26,9 +26,9 @@
 
 Branch `design/a-proposal-is-part-of-the-deal` (worktree `cm-proposals`, already created). Nothing a customer sees changes except: a booking workspace's More menu no longer offers "Send the proposal", and a proposal's value shows wherever the deal's facts do.
 
-### Task 1.1 · Migration 00159
+### Task 1.1 · Migration 00160
 
-**Files:** Create `supabase/migrations/00159_a_proposal_is_part_of_the_deal.sql`.
+**Files:** Create `supabase/migrations/00160_a_proposal_is_part_of_the_deal.sql`.
 
 - [ ] **Header**, a few lines: the proposal moves onto the deal (0008), and the workspace says how its customers buy.
 - [ ] **Deal columns** exactly as in 0008's Shape: `proposal_url` (00154's CHECK word for word), `valid_until date`, `lost_reason` (CHECK in `price, timing, elsewhere, no_reply, not_a_fit, other`). `comment on column` for each.
@@ -109,7 +109,7 @@ Branch `design/a-proposal-is-part-of-the-deal` (worktree `cm-proposals`, already
 
 - [ ] `deals.db.test.mjs`: the new fields on a new proposal; an edit keeps what it is not told and clears what `p_clear` names; `bad_link`, `bad_reason`, `bad_clear`; passing sets the reason and proposing again clears it; `people_list` returns the three new columns; erasure blanks the link.
 - [ ] `person-proposal.db.test.mjs`: the door writes through to an open proposal, opens one where none, and leaves a client's deal alone.
-- [ ] The backfill, proved once by hand: an isolated stack replayed to 00158 (the migration before it), seeded with a contact holding a link and no deal, a contact holding a link and a proposed deal, and a tenant with `consult_first`; then 00159; then read back. Paste the before/after rows into the PR body.
+- [ ] The backfill, proved once by hand: an isolated stack replayed to 00158 (the migration before it), seeded with a contact holding a link and no deal, a contact holding a link and a proposed deal, and a tenant with `consult_first`; then 00160; then read back. Paste the before/after rows into the PR body.
 
 ### Task 1.10 · Docs
 
@@ -120,7 +120,7 @@ Branch `design/a-proposal-is-part-of-the-deal` (worktree `cm-proposals`, already
 
 ### Task 1.11 · Ship
 
-- [ ] The gate; the PR; the production push (dry run lists only 00159, push, read back the three deal columns, `sells_by` per tenant, and the salon's and RJ Capital's deals); merge on green; check on production that the salon still shows its deals and that Priya Nair's link now lives on a deal.
+- [ ] The gate; the PR; the production push (dry run lists only 00160, push, read back the three deal columns, `sells_by` per tenant, and the salon's and RJ Capital's deals); merge on green; check on production that the salon still shows its deals and that Priya Nair's link now lives on a deal.
 
 ---
 
@@ -253,15 +253,15 @@ Branch `design/reports-says-how-deals-go`.
 
 ## PR 7 · The person's link retires
 
-Only after PRs 1–6 are deployed and read back. **Code first, then the database:** the readers stop reading the column, then 00160 drops it.
+Only after PRs 1–6 are deployed and read back. **Code first, then the database:** the readers stop reading the column, then 00161 drops it.
 
 - [ ] Code: remove the fallbacks (`thread.ts`, `dto.ts`'s contacts embed, `PersonDetailDto.proposal_url`, `InboxThreadVM.proposalUrl` in favour of the People row's deal), the details route's `proposal` field and its words, the e2e seed's `proposal_url: null`, and the tests of the old door.
-- [ ] 00160 (pushed after the code deploys): repeat the backfill for any link set since 00159, then drop `set_person_proposal`, `contacts_erase_clears_proposal` and `contacts.proposal_url`. `contact.proposal_set` stays in `EVENT_KINDS`: event names never change.
+- [ ] 00161 (pushed after the code deploys): repeat the backfill for any link set since 00160, then drop `set_person_proposal`, `contacts_erase_clears_proposal` and `contacts.proposal_url`. `contact.proposal_set` stays in `EVENT_KINDS`: event names never change.
 
 ---
 
 ## Self-review
 
 - **Coverage:** every decision in 0008 has a task: the record (1.1–1.9), the switch (1.6, 1.7, PR 3), the sheet (2.1–2.2), the card (2.3–2.4), the thread (2.5), the Pipeline (PR 4), Today and the Calendar (PR 5), Reports (PR 6), the retirement (PR 7).
-- **Either order:** 00159 is pushed before PR 1 merges; every later PR reads only what 00159 made; PR 7 is code first, database second.
+- **Either order:** 00160 is pushed before PR 1 merges; every later PR reads only what 00160 made; PR 7 is code first, database second.
 - **Names:** `dealsAreOn`, `sells_by`/`SELLS_BY`, `proposal_url`, `valid_until`, `lost_reason`, `openDealSheet`, `deal:sheet`, `deal:recorded`, `PersonDealCard`, `PipelineScope`, `pipelineOf`, `dealSheetFor`, `dealSheetBody`, `dealNextAct` are used the same way throughout.

@@ -26,12 +26,12 @@ interface WorkspaceRow {
 const COLUMNS = "id, slug, name, status, timezone, sells_by";
 const OLDER_COLUMNS = "id, slug, name, status, timezone";
 
-/** The error a read that names sells_by gets from a database 00159 has not reached. */
+/** The error a read that names sells_by gets from a database 00160 has not reached. */
 const noSellsBy = (message: string): boolean =>
   /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 
 /**
- * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database 00159 has not reached
+ * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database 00160 has not reached
  * -- which answers "column does not exist" for sells_by -- it reads again without it, and every workspace is not asked
  * yet: deals off, never a blank app. Either deploy order works.
  */
@@ -185,9 +185,9 @@ export const GET = read({
  * zone its day is measured in, and how its customers buy (0008), which decides
  * whether deals exist here at all. Name, slug and status stay concierge
  * operations -- a slug is a URL and a status is a billing state -- and the
- * column grant (00084, 00159) enforces that regardless of what this route asks
+ * column grant (00084, 00160) enforces that regardless of what this route asks
  * for. Only what was sent is written, and only what was written is read back,
- * so a zone saved on a database 00159 has not reached still saves.
+ * so a zone saved on a database 00160 has not reached still saves.
  */
 export const PATCH = write({
   scope: workspace,

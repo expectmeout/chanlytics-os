@@ -222,7 +222,7 @@ function sellsByOf(embedded: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
-/** A read that names tenants.sells_by on a database 00159 has not reached answers "column does not exist". */
+/** A read that names tenants.sells_by on a database 00160 has not reached answers "column does not exist". */
 const noSellsBy = (message: string): boolean =>
   /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 
@@ -258,7 +258,7 @@ export async function readLeadContext(
   historyLimit = 16,
 ): Promise<LeadContext> {
   // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
-  // the receptionist's to say only where deals are on. A database 00159 has not reached answers "column does not exist"
+  // the receptionist's to say only where deals are on. A database 00160 has not reached answers "column does not exist"
   // for the answer: read again without it, and deals are off there, as they would be.
   const withAnswer = await db
     .from("contacts")

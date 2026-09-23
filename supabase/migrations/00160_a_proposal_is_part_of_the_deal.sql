@@ -1,4 +1,4 @@
--- 00159 · A proposal is part of the deal.
+-- 00160 · A proposal is part of the deal.
 --
 -- docs/decisions/0008-a-proposal-is-part-of-the-deal.md. The proposal link
 -- (00154) lived on the person and the deal (00156) knew nothing of it. The

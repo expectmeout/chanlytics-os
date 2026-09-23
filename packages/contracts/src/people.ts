@@ -121,7 +121,7 @@ export interface PersonRowDto {
   deal_ended_at?: string | null;
   deal_amount_cents?: number | null;
   deal_per?: string | null;
-  /** That deal's link, the day it stands until and why they passed (00159). */
+  /** That deal's link, the day it stands until and why they passed (00160). */
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
