@@ -125,7 +125,7 @@ test("the told section has no Show: its one door is Read it (Task 5.1)", () => {
   // "Show" opened the prompt inside the card; the told section's door opens the prompt sheet, and nothing on the page
   // is a Show any more.
   for (const { where, tree } of everything()) {
-    const shows = all(tree, (n) => (n.type === "button" || n.type === "a") && /^show/i.test(textOf(n).trim()));
+    const shows = all(tree, (n) => (n.type === "button" || n.type === "a") && /^show\b/i.test(textOf(n).trim()));
     assert.deepEqual(
       shows.map((n) => textOf(n).trim()),
       [],

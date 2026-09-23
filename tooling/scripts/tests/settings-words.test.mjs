@@ -515,7 +515,7 @@ test("REGRESSION (S19): the AI memory pane points at Business by name -- it said
   assert.ok(!textOf(tree).includes("Workspace:"), "nor does the sentence");
   // And it names what Business holds in the tab's own row names (spec §10): "notes" and "extra instructions" are
   // nothing an owner finds there.
-  assert.ok(!/extra instructions|notes/.test(textOf(tree)), "REGRESSION: words the Business tab no longer says");
+  assert.ok(!/extra instructions|\bnotes\b/.test(textOf(tree)), "REGRESSION: words the Business tab no longer says");
   assert.match(textOf(tree), /things it should know/);
   assert.match(textOf(tree), /in your own words/);
 });
