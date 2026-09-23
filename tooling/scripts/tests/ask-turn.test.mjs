@@ -1529,9 +1529,10 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
   assert.ok(!JSON.parse(without.result).about.some((a) => a.startsWith("Proposal:")), "none on file: no row");
 });
 
-test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, and a bad stage or an unknown person is refused", async () => {
+test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, a named service picks its own open row or is refused, and a bad stage or an unknown person is refused", async () => {
   const MARIA = "cccccccc-cccc-4ccc-8ccc-cccccccccc21";
   const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccc22";
+  const NORA = "cccccccc-cccc-4ccc-8ccc-cccccccccc23";
   const t = tables({
     contacts: [
       { ...contact, tenant_id: A, erased_at: null },
@@ -1553,8 +1554,36 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
         email: null,
         erased_at: null,
       },
+      {
+        id: NORA,
+        tenant_id: A,
+        display_name: "Nora",
+        wa_profile_name: null,
+        phone_e164: "+15555550123",
+        email: null,
+        erased_at: null,
+      },
     ],
     deals: [
+      // Nora holds two open rows (already_open is per service): Ads is the newer, SEO the older.
+      {
+        id: "d4",
+        tenant_id: A,
+        contact_id: NORA,
+        stage: "proposed",
+        service: "Ads",
+        version: 2,
+        created_at: "2026-09-10T00:00:00Z",
+      },
+      {
+        id: "d3",
+        tenant_id: A,
+        contact_id: NORA,
+        stage: "proposed",
+        service: "SEO",
+        version: 1,
+        created_at: "2026-08-15T00:00:00Z",
+      },
       {
         id: "d1",
         tenant_id: A,
@@ -1605,6 +1634,51 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     "a passed proposal sent again moves its own row (DEAL_MOVES)",
   );
   assert.equal(again.proposal.summary, "Proposal out · Ads");
+
+  // REGRESSION: a move that named a service the open row is not for said that service on the card and moved the
+  // open row anyway; the door never changes a row's service, so the card names the row it moves, or refuses.
+  const wrong = await p("propose_deal", { contact_id: MARIA, stage: "won", service: "Ads" });
+  assert.equal(wrong.isError, true);
+  assert.match(wrong.result, /open deal is for SEO; name that service or none/);
+  const bySeo = await p("propose_deal", { contact_id: NORA, stage: "won", service: "SEO" });
+  assert.deepEqual(
+    [bySeo.proposal.payload.deal_id, bySeo.proposal.payload.version, bySeo.proposal.summary],
+    ["d3", 1, "Client · SEO"],
+    "a named service picks its own open row, not the newest",
+  );
+  assert.equal(
+    (await p("propose_deal", { contact_id: NORA, stage: "won", service: "seo" })).proposal.payload.deal_id,
+    "d3",
+    "the service folds (case and accents aside)",
+  );
+  const newest = await p("propose_deal", { contact_id: NORA, stage: "won" });
+  assert.deepEqual(
+    [newest.proposal.payload.deal_id, newest.proposal.summary],
+    ["d4", "Client · Ads"],
+    "no service named: the current row, the newest open one",
+  );
+  assert.match(
+    (await p("propose_deal", { contact_id: NORA, stage: "won", service: "Web design" })).result,
+    /open deals are for Ads and SEO; name one of those or none/,
+  );
+  assert.match(
+    (await p("propose_deal", { contact_id: P1, stage: "won" })).result,
+    /no open deal to move; record a proposal first/,
+    "no deal at all: refused in words before it becomes a card the door would refuse",
+  );
+  // A passed row is movable too (the door allows any move but out of ended); a service that is not its own is not.
+  const lostWon = await p("propose_deal", { contact_id: LUIS, stage: "won" });
+  assert.deepEqual([lostWon.proposal.payload.deal_id, lostWon.proposal.summary], ["d2", "Client · Ads"]);
+  assert.match(
+    (await p("propose_deal", { contact_id: LUIS, stage: "won", service: "SEO" })).result,
+    /last deal is for Ads; name that service or none/,
+  );
+  const other = await p("propose_deal", { contact_id: LUIS, stage: "proposed", service: "SEO" });
+  assert.deepEqual(
+    [other.proposal.payload.deal_id, other.proposal.payload.service, other.proposal.summary],
+    [undefined, "SEO", "Proposal out · SEO"],
+    "a passed proposal sent again for another service is a new row",
+  );
 
   const bad = await p("propose_deal", { contact_id: MARIA, stage: "banana" });
   assert.equal(bad.isError, true);

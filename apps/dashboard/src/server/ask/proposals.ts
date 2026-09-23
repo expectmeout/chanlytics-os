@@ -6,6 +6,7 @@ import {
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
   amountWords,
+  foldName,
   pickCurrentDeal,
   type DealStage,
   AskSettingsChangeSchema,
@@ -533,19 +534,36 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   if (dErr) throw new Error(dErr.message);
   const current = pickCurrentDeal(rows ?? []);
   const who = c.display_name || c.wa_profile_name || c.phone_e164 || c.email || "this person";
-  const service = str(input.service, 80) || current?.service || null;
+  const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
   const per = (DEAL_PERS as readonly string[]).includes(str(input.per, 10)) ? str(input.per, 10) : null;
   const note = str(input.note, 200);
-  // The row the person's page would move (DEAL_MOVES): an open row for any stage but a fresh proposal, a passed
-  // row proposed again. An ended engagement is re-signed as a new row, and a proposal beside an open one is new.
-  const sameRow =
-    current && current.stage !== "ended" && stage !== "proposed"
-      ? current
-      : current && current.stage === "lost" && stage === "proposed"
-        ? current
-        : null;
+  // The rows a move may move: the open ones (proposed, won; already_open is per service, so there may be two), else
+  // the current row unless it has ended -- so a passed row moves to won, lost or ended too, since the door allows
+  // any move but out of ended. A named service picks its own row among them (foldName: case and accents aside);
+  // unnamed, the current row moves. A proposal is a new row, unless it is a passed one sent again for its service.
+  type Row = NonNullable<typeof current>;
+  const isOpen = (r: Row) => r.stage === "proposed" || r.stage === "won";
+  const sameService = (r: Row) => foldName((r.service ?? "").trim()) === foldName(named ?? "");
+  const open = (rows ?? []).filter(isOpen);
+  const movable: Row[] = open.length ? open : current && current.stage !== "ended" ? [current] : [];
+  let sameRow: Row | null = null;
+  if (stage !== "proposed") {
+    if (!movable.length) return refuse("they have no open deal to move; record a proposal first");
+    sameRow = named ? (movable.find(sameService) ?? null) : current;
+    if (!sameRow) {
+      const names = movable.map((r) => r.service ?? "no named service");
+      const whose = open.length > 1 ? "open deals are" : open.length ? "open deal is" : "last deal is";
+      return refuse(
+        `their ${whose} for ${names.join(" and ")}; name ${names.length > 1 ? "one of those" : "that service"} or none`,
+      );
+    }
+  } else if (current && current.stage === "lost" && (!named || sameService(current))) {
+    sameRow = current;
+  }
+  // On a move the row's own service is said, never the input's: the door never changes a row's service.
+  const service = sameRow ? sameRow.service : (named ?? current?.service ?? null);
   t.read.person.add(id);
   const words = DEAL_STAGE_WORDS[stage as DealStage];
   const money = amount !== null && stage === "won" ? amountWords(amount, per) : null;
