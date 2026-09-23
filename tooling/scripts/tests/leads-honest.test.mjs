@@ -1354,6 +1354,32 @@ test("the People | Leads switch is a tablist in both scopes, and picking the oth
   assert.deepEqual(went, ["clients/leads"]);
 });
 
+test("where deals are on, the switch has the Pipeline in both scopes, and it goes to clients/pipeline", () => {
+  // People's surface says so (dealsAreOn, 0008); on a cold load of Leads it lands after Leads', and the switch gains its
+  // third tab then. The two-tab pins above stay: where deals are off, nothing changes.
+  fresh();
+  globalThis.window.__PEOPLE.dealsOn = true;
+  let tree = draw();
+  assert.deepEqual(
+    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
+      textOf(n),
+      n.props["aria-selected"],
+    ]),
+    [
+      ["People", false],
+      ["Leads", true],
+      ["Pipeline", false],
+    ],
+  );
+  click(byTestId(tree, "scope-pipeline"));
+  assert.deepEqual(went, ["clients/pipeline"]);
+  went.length = 0;
+  cells = [];
+  tree = draw({ scope: "people", leadsRoute: null });
+  click(byTestId(tree, "scope-pipeline"));
+  assert.deepEqual(went, ["clients/pipeline"], "and People's rail carries the same switch");
+});
+
 test("People and Leads are two components: each keeps its own state, and People listens for nothing of Leads'", () => {
   // They were one component, every hook of both scopes declared in both in one order: the order the stub kept hooks
   // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
@@ -2695,6 +2721,21 @@ test("on a phone the switch, the list, search and Find are one bar; search is a 
   const kept = byTestId(bar({ q: "pilates" }), "leads-phone-search");
   assert.equal(kept.props.value, "pilates", "a view's own words keep the field open");
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
+});
+
+test("where deals are on, a phone's bar has the Pipeline beside People and Leads, and Leads keeps its list and its count", () => {
+  fresh();
+  const t = bar({ dealsOn: true });
+  assert.deepEqual(
+    all(t, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
+    [
+      ["People", false],
+      ["Leads", true],
+      ["Pipeline", false],
+    ],
+  );
+  assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
+  assert.ok(byTestId(t, "leads-phone-find"));
 });
 
 test("Find on a phone is the gate's for anyone who may not find", () => {

@@ -261,6 +261,40 @@ test.describe("People on a real workspace", () => {
     }
   });
 
+  // People › Pipeline (0008) is a scope of People only where deals are on. The nightly workspace answers that its
+  // customers book, so there it has no tab and its address draws People; where deals are on, the tab opens it.
+  test("the Pipeline is a third scope of People only where deals are on, at clients/pipeline", async ({ page }) => {
+    const body = (await (await apiGet(page, "/api/v1/contacts")).json()).data as { deals_on?: boolean };
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    test.skip(
+      (await page.getByTestId("people-standing").count()) === 0,
+      "People is not real here: the local harness draws the seeded page",
+    );
+    await expect(page.getByTestId("scope-people")).toBeVisible();
+    const tab = page.getByTestId("scope-pipeline");
+    if (!body.deals_on) {
+      await expect(tab, "a workspace whose customers book is never offered a Pipeline").toHaveCount(0);
+      await page.goto("/#/clients/pipeline");
+      await expect(page.getByTestId("people-standing")).toBeVisible();
+      await expect(page.getByTestId("pipeline")).toHaveCount(0);
+      await expect
+        .poll(() => new URL(page.url()).hash, { message: "People's own address takes its place" })
+        .toBe("#/clients");
+      return;
+    }
+    await tab.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/pipeline");
+    await expect(page.getByTestId("pipeline")).toBeVisible();
+    await expect(page.getByTestId("scope-pipeline")).toHaveAttribute("aria-selected", "true");
+    // Its rows are People's, grouped; a row opens its person.
+    const rows = page.locator('[data-testid="pipeline"] .pl-table tbody tr[id^="person-"]');
+    if ((await rows.count()) > 0) {
+      await rows.first().click();
+      await expect(page.locator(".cl-prof-name")).toBeVisible();
+    }
+  });
+
   test("a state and a saved list are linkable: the address opens the view, and the view writes the address", async ({
     page,
   }) => {

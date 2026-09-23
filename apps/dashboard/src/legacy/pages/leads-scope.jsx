@@ -935,12 +935,13 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 // clients-a.jsx) with Find as its last control. The switch, the list and search are the same bar on both scopes, and
 // nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
 // (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {
   const Bar = window.PeoplePhoneBar;
   return (
     <Bar
       scope={scope}
       onScope={onScope}
+      dealsOn={dealsOn}
       listLabel={listLabel}
       listCount={listCount}
       onLists={onLists}
@@ -1028,7 +1029,7 @@ const LeadsScope = (p) => {
     <div className="clients leads-scope" data-loading={p.loading ? "1" : undefined}>
       {/* At a phone's width the rail is the bar's list button instead (the stylesheet hides .cl-rail at 900px
           anyway, and the switch the rail heads is the bar's own). */}
-      {!phone && <PeopleRail scope="leads" onScope={p.onScope}>{railRows}</PeopleRail>}
+      {!phone && <PeopleRail scope="leads" onScope={p.onScope} dealsOn={!!p.dealsOn}>{railRows}</PeopleRail>}
 
       <div className="cl-main">
         <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
@@ -1036,6 +1037,7 @@ const LeadsScope = (p) => {
             <LeadsPhoneBar
               scope="leads"
               onScope={p.onScope}
+              dealsOn={!!p.dealsOn}
               listLabel={p.railLabel}
               listCount={p.railCount}
               onLists={p.onLists}

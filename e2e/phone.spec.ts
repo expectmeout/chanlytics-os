@@ -324,6 +324,39 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
   });
   /**
+   * The switch holds two scopes, or three where deals are on (People › Pipeline, 0008), and the bar holds them beside
+   * the list, search and the scope's last control at the narrowest phone we draw for: nothing past its edge, nothing
+   * scrolled sideways. The nightly workspace answers that its customers book, so it proves the two; a workspace with
+   * deals on proves the three, and the Pipeline's own bar.
+   */
+  test("at 375px the bar holds every scope it offers, with nothing past its edge", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    const fits = async (testid: string) => {
+      const bar = page.getByTestId(testid);
+      await expect(bar).toBeVisible();
+      expect(
+        await bar.evaluate((el) => el.scrollWidth - el.clientWidth),
+        `${testid}: nothing inside the bar runs past it`,
+      ).toBeLessThanOrEqual(0);
+      for (const tab of await bar.getByRole("tab").all()) await expect(tab).toBeInViewport({ ratio: 1 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+        `${testid}: the page does not scroll sideways`,
+      ).toBe(0);
+    };
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    await fits("people-phone-bar");
+    const pipeline = page.getByTestId("people-phone-bar").getByRole("tab", { name: "Pipeline" });
+    if ((await pipeline.count()) === 0) return;
+    await pipeline.click();
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients/pipeline");
+    await fits("pipeline-phone-bar");
+    await page.goto("/#/clients/leads");
+    await page.waitForLoadState("networkidle");
+    await fits("leads-phone-bar");
+  });
+  /**
    * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one row standing on the tab
    * bar -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
    * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
