@@ -134,7 +134,9 @@ element for asking was elsewhere. So the face goes where asking already lives:
 - **Phone (720px and below).** The band stays on Today, between the standing line and the queue, always at the full
   face (232px, squares for 200). The top bar's Ask button is not drawn on a phone; the ✦ opens the palette, whose
   stage is 64px. A tap on the three slides the field in under them, focused; a press held listens; Escape, a tap
-  outside or Clear folds the field away (4.6's waking and folding, without the compact size).
+  outside or Clear folds the field away (4.6's waking and folding, without the compact size). The click opens it,
+  not the pointer's release: after a tap a phone sends its mouse events, and their mousedown would take the focus
+  back to the stage from a field focused on the release. A hold's release swallows the click that follows it.
 
 ## 5. The character
 

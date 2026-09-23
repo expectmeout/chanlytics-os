@@ -149,6 +149,8 @@ test.describe("Today on a real workspace", () => {
     const standing = await page.getByTestId("today-standing").boundingBox();
     const queue = await page.getByTestId("today-queue").boundingBox();
     expect(queue!.y - (standing!.y + standing!.height), "the queue right under the standing line").toBeLessThan(40);
+    // The local harness installs no Ask client, so its palette is the mockup's; only a workspace opens the real one.
+    if (!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask))) return;
     await page.getByTestId("tb-ask").click();
     const pal = page.getByTestId("ask-real");
     await expect(pal).toBeVisible();

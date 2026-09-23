@@ -65,7 +65,7 @@ const TodayFace = () => {
   const heardLen = useTfRef(0);
   const alive = useTfRef(true);
   const wantFocus = useTfRef(false);
-  const press = useTfRef({ timer: 0, held: false });
+  const press = useTfRef({ timer: 0, held: false, swallow: false });
   turnRef.current = turn;
   const t = window.askText(turn.language);
   const busy = turn.phase === "reading" || turn.phase === "answering";
@@ -199,8 +199,9 @@ const TodayFace = () => {
     dispatch({ t: talk.listening ? "pressed" : "released" });
   }, [talk.listening]);
 
-  // The stage: a click opens (or brings the field back into focus); a press held on it listens, opening the
-  // band to show it. The pointer sequence handles both; `onClick` takes only the keyboard's press (detail 0).
+  // The stage: a click opens (or brings the field back into focus); a press held on it listens, opening the band to
+  // show it. The click opens, not the release: after a tap a phone sends its mouse events, and their mousedown takes
+  // the focus back to the stage from a field focused on the release. A hold's release swallows the click after it.
   const wake = () => {
     wantFocus.current = true;
     if (!open) setOpen(true);
@@ -209,6 +210,7 @@ const TodayFace = () => {
   const onStageDown = (e) => {
     if (e.button != null && e.button !== 0) return;
     press.current.held = false;
+    press.current.swallow = false;
     clearTimeout(press.current.timer);
     press.current.timer = setTimeout(() => {
       press.current.held = true;
@@ -225,10 +227,9 @@ const TodayFace = () => {
     clearTimeout(press.current.timer);
     if (press.current.held) {
       press.current.held = false;
+      press.current.swallow = true;
       talk.stop();
-      return;
     }
-    wake();
   };
   const onStageCancel = () => {
     clearTimeout(press.current.timer);
@@ -237,8 +238,12 @@ const TodayFace = () => {
       talk.stop();
     }
   };
-  const onStageClick = (e) => {
-    if (e.detail === 0) wake();
+  const onStageClick = () => {
+    if (press.current.swallow) {
+      press.current.swallow = false;
+      return;
+    }
+    wake();
   };
 
   const submit = (e) => {
