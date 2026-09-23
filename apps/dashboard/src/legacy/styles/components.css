@@ -563,33 +563,106 @@ a.btn { text-decoration: none; }
 }
 .card-body { padding: 16px 18px; }
 
-/* ---------- Pills / badges ---------- */
+/* ---------- Badges: one shape per job ----------
+   docs/superpowers/specs/2026-09-23-one-badge-system-design.md. Five shapes, one size each; no page keeps its own.
+     pill   a state (StatePill; the tone is contracts' tone.ts). A ground means "look here": warn, info, danger and
+            the live accent are filled. A state at rest (ok, plain) is its 6px dot and its word.
+     chip   a name: a list, a person, a role, a service, a source. A hairline and no fill, never a tone.
+     tally  a number riding on a tab, a nav row, a filter or an icon. Grey for a total, amber for people who need you.
+     mark   what kind of row this is. Neutral always: the row's pill or its words say the tone.
+   Words take the tone's -ink, never the raw tone: 4.5:1 or better, on a tint too (tokens.css, #749). */
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 20px;
-  padding: 0 8px;
+  padding: 0;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: -0.005em;
+  border: 0;
   border-radius: 999px;
-  background: var(--bg-sunken);
+  background: none;
   color: var(--ink-muted);
-  border: 1px solid var(--line);
   white-space: nowrap;
 }
-.pill .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+/* At rest: the dot says the tone and the word says the state. An icon inside a pill is its own marker. */
+.pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
+.pill-ok::before { background: var(--ok); }
+.pill:has(> .icon)::before { content: none; }
+/* Asks to be seen: the tone's ground and its ink, and no dot. A dot inside a filled pill means live, and a live pill
+   carries its own (StatePill's .live-dot). */
+.pill-warn, .pill-info, .pill-danger, .pill-accent { gap: 5px; padding: 0 8px; }
+.pill-warn::before, .pill-info::before, .pill-danger::before, .pill-accent::before { content: none; }
+.pill-warn { color: var(--warn-ink); background: var(--warn-soft); }
+.pill-info { color: var(--info-ink); background: var(--info-soft); }
+.pill-danger { color: var(--danger-ink); background: var(--danger-soft); }
+.pill-accent { color: var(--accent-ink); background: var(--accent-soft); }
+/* A dot drawn inside a pill by hand says the pill's own dot twice. */
+.pill .dot { display: none; }
 
-/* A pill's words are small text on a tint, which is exactly what the -ink tokens are for (tokens.css: "the colour
-   as small text on the page ... 4.5:1 or more, on a tint too"). The raw tones read 2.1:1 (warn), 3.0:1 (ok) and
-   3.4:1 (info) on their own soft ground in light, and info 4.1:1 in dark. #610 found this on Settings and fixed it
-   there alone, so every other page kept a pill whose words fail AA. The ground stays the tone; the words take its ink. */
-.pill-ok    { color: var(--ok-ink); background: var(--ok-soft); border-color: transparent; }
-.pill-warn  { color: var(--warn-ink); background: var(--warn-soft); border-color: transparent; }
-.pill-danger{ color: var(--danger-ink); background: var(--danger-soft); border-color: transparent; }
-.pill-info  { color: var(--info-ink); background: var(--info-soft); border-color: transparent; }
-.pill-accent{ color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+button.chip, a.chip { cursor: pointer; }
+button.chip:hover, a.chip:hover, .chip:has(> button:hover) { color: var(--ink); border-color: var(--line-strong); }
+button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A chip that opens its name and can be taken off: the name is one button, the × another. */
+.chip > button { display: inline-flex; align-items: center; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.chip > button:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.chip:has(> .chip-x) { padding-right: 3px; }
+.chip > .chip-x { justify-content: center; flex: none; width: 14px; height: 14px; border-radius: 50%; color: var(--ink-faint); }
+.chip > .chip-x:hover { color: var(--ink); background: var(--bg-hover); }
+
+.tally {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.tally-warn { background: var(--warn-soft); color: var(--warn-ink); }
+/* On an icon (the bell, the phone's Inbox tab): a ring of the page lifts it off the glyph, and the amber ground turns
+   opaque so the glyph does not show through it. */
+.tally-icon { box-shadow: 0 0 0 2px var(--bg); }
+.tally-icon.tally-warn { background: color-mix(in oklab, var(--warn) 22%, var(--bg-raised)); }
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+}
 
 /* ---------- Live indicator (the signature accent moment) ---------- */
 .live-dot {
@@ -2368,7 +2441,6 @@ button.pb-tile-head:focus-visible { outline: none; box-shadow: var(--focus-ring)
 .pb-tile-name { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb-tile-hint { font-size: var(--text-xs); color: var(--ink-dim); }
 .pb-tile-head > .pill { flex: none; }
-.pb-tile-head > .pill:not([data-tone]) { background: var(--bg-active); border-color: transparent; }
 /* The message it sends and its languages, on a sunken strip. */
 .pb-tile-tpl { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 10px; border-radius: var(--radius-md); background: var(--bg-sunken); }
 .pb-tile-tpl-name { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

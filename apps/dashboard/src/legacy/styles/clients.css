@@ -1392,8 +1392,10 @@
 .cl-prof-now { display: inline-flex; }
 /* The standing beside the name is a dot and its word in the standing's own ink, not a filled pill: a word, not a
    control, so it also takes back the 36px touch floor legacy.css puts on every pill. */
-html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 0; border: 0; background: transparent; gap: 6px; font-size: var(--text-sm); font-weight: 400; }
+.cl-prof-now .pill { padding: 0; background: transparent; gap: 6px; font-size: var(--text-sm); font-weight: 400; }
 .cl-prof-now .pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+/* The head says every standing as a dot and a word in its own ink (the Quiet record, #915); a green one stays green. */
+.cl-prof-now .pill-ok { color: var(--ok-ink); }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
 .cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
@@ -2373,8 +2375,6 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pl-card-tick { display: none; }
   .pl-card-name { grid-column: 2; grid-row: 1; min-width: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-card > .pill { grid-column: 3; grid-row: 1; justify-self: end; }
-  /* A pill is words, not a control: the touch floor (legacy.css) made it 36px tall. */
-  html.legacy-on .pl-card > .pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
   .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-card-lead::first-letter { text-transform: uppercase; }
   .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }

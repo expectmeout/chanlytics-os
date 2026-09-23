@@ -368,11 +368,11 @@ const InboxList = ({
                             when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
                             row said "waiting 12m" beside "5:51 PM". */}
                         {sending != null ? (
-                          <span className="ix-wait ix-sending tabular"><span className="ix-veto-dot" aria-hidden="true" /> sending in {sending}s</span>
+                          <span className="pill pill-accent ix-wait ix-sending tabular"><span className="ix-veto-dot" aria-hidden="true" /> sending in {sending}s</span>
                         ) : t.state === "escalated" && t.waitingMin > 0 ? (
-                          <span className={`ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
+                          <span className={`pill ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "pill-warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
                         ) : t.state === "snoozed" && t.wake ? (
-                          <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
+                          <span className="pill ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
                         ) : (
                           <span className="ix-thread-time tabular">{t.lastAt}</span>
                         )}

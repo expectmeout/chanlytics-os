@@ -161,7 +161,6 @@
 }
 .settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); }
 .settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.settings .pill { height: 22px; padding: 0 9px; font-size: 11.5px; }
 .settings .cl-tab { font-variant-numeric: tabular-nums; }
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
@@ -209,13 +208,6 @@
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .setup-rows .cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
 .settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
-/* A state is a word, not something to press: on a phone the touch floor
-   (legacy-bridge/legacy.css) grew every pill to 36px, so "On" and "Paid" were
-   ovals taller than the text beside them. A pill that IS pressed is a button
-   and keeps the floor. */
-@media (pointer: coarse) {
-  html.legacy-on .settings span.pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
-}
 
 /* Facts in two columns (the Business pane, the activity ledger): the name of a
    fact, then the fact. The list is the person's page's, where the key is a word
