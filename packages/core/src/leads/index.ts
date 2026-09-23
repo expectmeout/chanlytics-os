@@ -9,3 +9,4 @@ export * from "./sizing";
 export * from "./question";
 export * from "./endings";
 export * from "./runner";
+export * from "./mark-image";

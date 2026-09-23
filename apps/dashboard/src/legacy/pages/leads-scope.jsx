@@ -309,7 +309,7 @@ const LEAD_COLUMNS = [
 // mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
 // it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
 const ldCardCell = (l, x) => window.plRowCard({
-  face: { initials: l.tile.initials, image: l.tile.logo || l.tile.image },
+  face: { initials: l.tile.initials, image: l.tile.image, mark: l.tile.logo },
   name: l.name,
   pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
   lead: l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub),

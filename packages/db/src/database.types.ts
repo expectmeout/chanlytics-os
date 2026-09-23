@@ -2729,6 +2729,7 @@ export type Database = {
           lng: number | null
           logo_url: string | null
           maps_url: string | null
+          mark_path: string | null
           neighborhood: string | null
           phone_e164: string | null
           phone_sources: number
@@ -2779,6 +2780,7 @@ export type Database = {
           lng?: number | null
           logo_url?: string | null
           maps_url?: string | null
+          mark_path?: string | null
           neighborhood?: string | null
           phone_e164?: string | null
           phone_sources?: number
@@ -2829,6 +2831,7 @@ export type Database = {
           lng?: number | null
           logo_url?: string | null
           maps_url?: string | null
+          mark_path?: string | null
           neighborhood?: string | null
           phone_e164?: string | null
           phone_sources?: number
@@ -4392,8 +4395,8 @@ export type Database = {
           lead_id: string
           linkedin_url: string
           lng: number
-          logo_url: string
           maps_url: string
+          mark_path: string
           member_id: string
           neighborhood: string
           page_key: string

@@ -1285,12 +1285,14 @@ test("the peek's folds: the week behind one line in its short hours, and no seco
   assert.equal(byTestId(bare, "peek-week"), null, "no hours, no fold");
 });
 
-// D6: who the company IS comes before which shop this is, so the mark covers the photograph here exactly as it does
-// on the row's tile -- the photograph is what Expand is for. The two are stacked rather than chosen: the layers are
-// both in the band, in paint order, and a mark that fails to load hides its own layer and uncovers the photo. No
-// state decides which one is showing, which is why there is an order to assert at all.
-test("the peek's band: the mark covers the photo, the photo stands alone without one, and the initials wait under both", () => {
-  const MARK = "https://zilkerstrength.example/mark.svg";
+// D6: each surface leads with what it draws best. A row's small square is the logo's size, so the mark is the row's
+// face; the band is a storefront's size, so the photograph is the band and the mark rides it as a chip in its free
+// corner (leads.css). With no photograph the chip sits in the middle of the tint. The layers are stacked rather than
+// chosen: both are in the band, in paint order, and a mark that fails to load takes only its own chip away.
+test("the peek's band: the photograph is the band, the mark rides it as a chip, and alone the chip sits in the tint", () => {
+  // The copy we keep, on our own storage (00161): the site's own address never reaches the band.
+  const MARK =
+    "https://project.supabase.co/storage/v1/object/public/lead-marks/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png";
   const PHOTO = "https://lh3.example/p.jpg";
   const band = (over) => {
     reset();
@@ -1302,12 +1304,20 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
     );
 
   assert.deepEqual(
-    layers({ image_url: PHOTO, logo_url: MARK }),
+    layers({ image_url: PHOTO, mark_url: MARK }),
     ["peek-photo", "peek-mark"],
-    "the mark is painted last, so it covers the photograph",
+    "the mark is painted last, so its chip sits on the photograph",
   );
+  const markOf = (over) => byTestId(band(over), "peek-mark");
+  assert.match(markOf({ image_url: PHOTO, mark_url: MARK }).props.className, /\bon-photo\b/, "a chip in the corner");
+  assert.doesNotMatch(
+    markOf({ mark_url: MARK }).props.className,
+    /\bon-photo\b/,
+    "with no photograph, the chip in the middle of the tint",
+  );
+  assert.equal(markOf({ mark_url: MARK }).props.loading, undefined, "asked for as the peek opens, as the photo is");
   assert.deepEqual(
-    layers({ logo_url: MARK }),
+    layers({ mark_url: MARK }),
     ["peek-mark"],
     "a business with a mark and no photograph still shows who it is",
   );
@@ -1318,19 +1328,19 @@ test("the peek's band: the mark covers the photo, the photo stands alone without
   );
   assert.deepEqual(layers({}), [], "with neither, nothing is drawn over the tint");
 
-  const withMark = band({ image_url: PHOTO, logo_url: MARK });
+  const withMark = band({ image_url: PHOTO, mark_url: MARK });
   assert.equal(byTestId(withMark, "peek-mark").props.src, MARK);
   assert.equal(byTestId(withMark, "peek-mark").props.alt, "", "a mark says nothing a screen reader must repeat");
   assert.equal(byTestId(withMark, "peek-photo").props.src, PHOTO, "the photograph is still there under it, for Expand");
   // The band carries its tint and nothing else. It used to carry `has-img` too, from before the mark painted over
   // the photograph: the rule that read it went with that change, and a class nothing reads gets read wrongly later.
-  for (const over of [{ image_url: PHOTO, logo_url: MARK }, { logo_url: MARK }, { image_url: PHOTO }, {}]) {
+  for (const over of [{ image_url: PHOTO, mark_url: MARK }, { mark_url: MARK }, { image_url: PHOTO }, {}]) {
     assert.doesNotMatch(band(over).props.className, /\bhas-img\b/, JSON.stringify(over));
     assert.match(band(over).props.className, /\bpk-band tint-\d\b/, "the tint is the ground under every layer");
   }
   // The initials are always drawn, under everything: they are what a layer that fails to load falls back onto.
   const initials = (over) => find(band(over), (n) => n.props?.className === "pk-band-initials");
-  assert.ok(initials({ image_url: PHOTO, logo_url: MARK }), "the initials wait under both layers");
+  assert.ok(initials({ image_url: PHOTO, mark_url: MARK }), "the initials wait under both layers");
   assert.ok(initials({}), "and carry the band alone when there is neither");
 });
 

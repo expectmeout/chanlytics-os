@@ -1558,6 +1558,9 @@ const plRowCard = ({ face, name, numeric = false, pill, lead = null, leadTestid 
       <div className={`ix-thread-avatar pl-card-face${face.glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
         {face.glyph ? <Icon name={face.glyph} size={12} className="pl-card-glyph" /> : <span className="pl-card-initials">{face.initials}</span>}
         {face.image ? <img className="pl-card-photo" src={face.image} alt="" loading="lazy" decoding="async" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
+        {/* A lead's own mark over its photo, on its plate: one that fails to load uncovers the photo, as the desktop's
+            tile does (LeadTile). A person has none. */}
+        {face.mark ? <img className="pl-card-photo pl-card-mark" src={face.mark} alt="" loading="lazy" decoding="async" data-testid="row-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         <Icon name="check" size={14} className="pl-card-tick" />
       </div>
       <div className={`pl-card-name${numeric ? " tabular" : ""}`}>{name}</div>

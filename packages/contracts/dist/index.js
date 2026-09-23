@@ -5677,7 +5677,7 @@ function toLeadPeekVM(r, search, tz, now) {
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
       band: r.image_url ?? null,
-      logo: r.logo_url ?? null
+      logo: r.mark_url ?? null
     },
     rated,
     slots: leadSlots(r),
@@ -6021,6 +6021,19 @@ function leadTileSrc(url, px = LEAD_TILE_PX) {
   if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
   return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
 }
+var LEAD_MARKS_BUCKET = "lead-marks";
+var LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
+function leadMarkSrc(supabaseUrl, path) {
+  if (!path || !LEAD_MARK_PATH.test(path) || !supabaseUrl) return null;
+  let origin;
+  try {
+    origin = new URL(supabaseUrl).origin;
+  } catch {
+    return null;
+  }
+  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
+  return `${origin}/storage/v1/object/public/${LEAD_MARKS_BUCKET}/${path}`;
+}
 function toLeadRowVM(r, tz, now, search = null) {
   const nowMs = now.getTime();
   const foundMs = Date.parse(r.found_at);
@@ -6100,7 +6113,7 @@ function toLeadRowVM(r, tz, now, search = null) {
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
       band: r.image_url ?? null,
-      logo: r.logo_url ?? null
+      logo: r.mark_url ?? null
     },
     waitsOn,
     state,
@@ -19110,6 +19123,8 @@ export {
   LEAD_LOW_SHARE_FLOOR,
   LEAD_MAILBOX_WORDS,
   LEAD_MAP_MAX_SPAN_M,
+  LEAD_MARKS_BUCKET,
+  LEAD_MARK_PATH,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
@@ -19666,6 +19681,7 @@ export {
   leadMapAcross,
   leadMapNote,
   leadMapPlot,
+  leadMarkSrc,
   leadMonth,
   leadNearWhere,
   leadNoCardLine,

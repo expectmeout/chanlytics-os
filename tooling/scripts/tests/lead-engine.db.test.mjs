@@ -2800,10 +2800,11 @@ test(
   },
 );
 
-// D6 (00147): the business's own mark rides the same commit as every other fact about it, comes back from
-// leads_page, fills a known place only where it was empty, and goes with the rest when the lead is blanked.
+// D6 (00147): the business's own mark rides the same commit as every other fact about it, fills a known place only
+// where it was empty, and goes with the rest when the lead is blanked. Since 00161 the page returns the copy we keep
+// (the next case) and not this address, which the dashboard could never draw; the address is read from the row.
 test(
-  "the lead wears its own mark: written by the commit, returned by the page, filled where empty, blanked with the rest",
+  "the lead wears its own mark: written by the commit, filled where empty, blanked with the rest",
   { skip },
   async () => {
     const search = ok(
@@ -2860,26 +2861,12 @@ test(
       }),
     );
     assert.equal(r.ok, true, JSON.stringify(r));
-    const rows = ok(
-      await owner.client.rpc("leads_page", {
-        p_tenant_id: A,
-        p_search_id: search,
-        p_class: "qualified",
-        p_sort: "found",
-        p_after_key: null,
-        p_limit: 50,
-      }),
-    );
     assert.equal(
-      rows.find((x) => x.place_id === "ChIJfixture0931").logo_url,
+      (await leadByPlace("ChIJfixture0931")).logo_url,
       "https://cdn.example/mark.png",
-      "the page returns what the commit wrote",
+      "the row holds what the commit wrote",
     );
-    assert.equal(
-      rows.find((x) => x.place_id === "ChIJfixture0932").logo_url,
-      null,
-      "a site that declared none keeps none",
-    );
+    assert.equal((await leadByPlace("ChIJfixture0932")).logo_url, null, "a site that declared none keeps none");
     // The same place found again: a mark it already wears stays, and one it was missing is filled.
     r = ok(
       await commit(run.id, "w-m6", run.gen, 1, 2, {
@@ -2905,6 +2892,132 @@ test(
       ok(await db.from("leads").select("logo_url").eq("id", one.id).single()).logo_url,
       null,
       "blanked with the rest",
+    );
+  },
+);
+
+// 00161: the copy of the mark we keep. The commit writes its name only when it is a name we write, the page returns
+// it in place of the site's address, a known place keeps the copy it wears, the column refuses anything else, and
+// blanking lets go of it. The bucket is public to read, and holds only the kinds of image we keep.
+test(
+  "the lead's mark is ours: the name of a kept copy is written, returned, kept, refused when it is not ours, and blanked",
+  { skip },
+  async () => {
+    const search = ok(
+      await db
+        .from("lead_searches")
+        .insert({
+          tenant_id: A,
+          created_by: owner.userId,
+          via: "people",
+          card: "local_businesses",
+          name: "florists",
+          asked: "florists in Austin",
+          plan: plan(5),
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const round = ok(
+      await db
+        .from("lead_rounds")
+        .insert({
+          tenant_id: A,
+          search_id: search,
+          seq: 1,
+          purpose: "probe",
+          plan: plan(5),
+          plan_version: 1,
+          target: 5,
+          state: "queued",
+          allowance_reserved: 5,
+          cost_reserved_usd: 1,
+          month: leadMonth(TZ, new Date()),
+          day: "2026-09-20",
+          platform_day: "2026-09-20",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const run = await runOf(round, "florist", "w-m7");
+    const KEPT = `${"a1".repeat(32)}.png`;
+    const OTHER = `${"b2".repeat(32)}.webp`;
+    const kept = (n, name) => {
+      const x = place(n, "qualified");
+      x.place = { ...x.place, logo_url: `https://fixture${n}.example/touch.png`, mark_path: name };
+      return x;
+    };
+    let r = ok(
+      await commit(run.id, "w-m7", run.gen, 0, 1, {
+        judgment: null,
+        // A kept copy; none yet; and a name that is not one of ours, which the door drops rather than refusing the page.
+        places: [kept(941, KEPT), kept(942, null), kept(943, "https://fixture943.example/touch.png")],
+        usage_usd: 0,
+        items_seen: 3,
+        run_state: null,
+        next: null,
+        round: { state: "probing", question: null, ending: null },
+      }),
+    );
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const rows = ok(
+      await owner.client.rpc("leads_page", {
+        p_tenant_id: A,
+        p_search_id: search,
+        p_class: "qualified",
+        p_sort: "found",
+        p_after_key: null,
+        p_limit: 50,
+      }),
+    );
+    const onPage = (n) => rows.find((x) => x.place_id === `ChIJfixture0${n}`);
+    assert.deepEqual(
+      [onPage(941).mark_path, onPage(942).mark_path, onPage(943).mark_path],
+      [KEPT, null, null],
+      "the page returns the name the commit wrote, and nothing for a name that was not ours",
+    );
+    assert.equal("logo_url" in onPage(941), false, "and not the site's own address, which could never draw");
+
+    // Found again: a copy it wears stays, and one it was missing is filled.
+    r = ok(
+      await commit(run.id, "w-m7", run.gen, 1, 2, {
+        judgment: null,
+        places: [kept(941, OTHER), kept(942, OTHER)],
+        usage_usd: 0,
+        items_seen: 2,
+        run_state: null,
+        next: null,
+        round: null,
+      }),
+    );
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const one = await leadByPlace("ChIJfixture0941");
+    const two = await leadByPlace("ChIJfixture0942");
+    assert.deepEqual(
+      [one.mark_path, two.mark_path],
+      [KEPT, OTHER],
+      "kept where it was worn, filled where it was empty",
+    );
+
+    // The column itself holds only our names, whoever writes it.
+    const bad = await db.from("leads").update({ mark_path: "../media/call.wav" }).eq("id", two.id);
+    assert.ok(bad.error, "a name that is not ours is refused by the column");
+    assert.match(bad.error.message, /leads_mark_path_shape/);
+
+    ok(await db.rpc("lead_blank", { p_lead_id: one.id }));
+    assert.equal(
+      ok(await db.from("leads").select("mark_path").eq("id", one.id).single()).mark_path,
+      null,
+      "blanked with the rest",
+    );
+
+    const bucket = ok(await db.storage.getBucket("lead-marks"));
+    assert.equal(bucket.public, true, "public to read: a logo is what a business shows the world");
+    assert.equal(bucket.file_size_limit, 524288, "a logo's size, as core's check keeps");
+    assert.deepEqual(
+      [...bucket.allowed_mime_types].sort(),
+      ["image/gif", "image/jpeg", "image/png", "image/webp", "image/x-icon"],
+      "the five kinds core keeps, and never an SVG",
     );
   },
 );

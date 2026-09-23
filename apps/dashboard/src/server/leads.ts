@@ -23,6 +23,7 @@ import {
   clockDate,
   estimateRoundUsd,
   leadDraftFooter,
+  leadMarkSrc,
   leadMonth,
   leadReachLine,
   parseTenantConfig,
@@ -469,8 +470,8 @@ interface LeadPageRow {
   neighborhood: string | null;
   lat: number | null;
   lng: number | null;
-  /** D6 (00147): the business's own mark. */
-  logo_url: string | null;
+  /** D6 (00161): the name of the copy of the business's mark we keep, in the lead-marks bucket. */
+  mark_path: string | null;
   website_host: string | null;
   instagram_url: string | null;
   phone_e164: string | null;
@@ -596,7 +597,8 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     street: r.street,
     postal_code: r.postal_code,
     neighborhood: r.neighborhood ?? null,
-    logo_url: r.logo_url ?? null,
+    // Served from our own storage, on the origin the content policy allows (00161); the site's own address never.
+    mark_url: leadMarkSrc(process.env.NEXT_PUBLIC_SUPABASE_URL, r.mark_path),
     lat: r.lat ?? null,
     lng: r.lng ?? null,
     search_name: searchNames.get(r.search_id) ?? null,

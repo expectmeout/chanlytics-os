@@ -1347,3 +1347,24 @@ test("the first page of leads carries the month's standing; a later page carries
     "nothing taken: the month's whole is contracts'",
   );
 });
+
+// 00161: the row carries the copy of the mark we keep, served from our own storage -- never the address on the
+// business's own site, which the dashboard's content policy would block, and never a name the collect did not write.
+test("a row's mark is the copy we keep, on our own storage; the site's own address never reaches the page", async () => {
+  const NAME_KEPT = `${"c".repeat(64)}.webp`;
+  const run = async (over) => {
+    const rpcs = doors({
+      leads_page: () => [pageRow({ logo_url: "https://travisheightscoaching.example/logo.png", ...over })],
+    });
+    return (await leads.GET.run(get(inA), ctxOf(world({ role: "viewer" }), {}, rpcs))).rows[0];
+  };
+  const kept = await run({ mark_path: NAME_KEPT });
+  assert.equal(
+    kept.mark_url,
+    `${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin}/storage/v1/object/public/lead-marks/${NAME_KEPT}`,
+  );
+  assert.equal("logo_url" in kept, false, "the site's address is where the copy came from, not something to draw");
+  assert.equal((await run({ mark_path: null })).mark_url, null, "no copy yet: the photo or the initials");
+  assert.equal((await run({})).mark_url, null, "a database from before 00161, which answers no name at all");
+  assert.equal((await run({ mark_path: "../media/x.png" })).mark_url, null, "a name we did not write is no address");
+});

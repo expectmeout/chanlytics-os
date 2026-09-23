@@ -7,6 +7,7 @@
  * here runs over fakes in a test: no network, no database.
  */
 import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
+import type { MarkImage } from "./mark-image";
 import type {
   JudgePlaceAnswer,
   LeadArea,
@@ -117,6 +118,11 @@ export interface LeadColumns {
   neighborhood: string | null;
   /** The business's own mark (D6, 00147): the logo its home page declares. Null without a site, or when it declared none. */
   logo_url: string | null;
+  /**
+   * The copy of that mark we keep (00161): `<sha256>.<ext>` in the public lead-marks bucket, stored once its bytes
+   * passed mark-image.ts. What every tile draws; the site's own address is only where it came from.
+   */
+  mark_path: string | null;
   /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
   about: string | null;
   hours: { day: string; hours: string }[];
@@ -295,6 +301,16 @@ export interface LeadPorts {
    * business fetching (a test world that models none): the collect then simply marks nothing.
    */
   fetchText?(url: string, timeoutMs: number): Promise<string | null>;
+  /**
+   * One GET of an image's bytes (00161): at most `maxBytes`, null on anything else -- a refusal, a timeout, a body
+   * that runs longer. What the bytes are is the engine's to judge (mark-image.ts), never the server's word for them.
+   */
+  fetchBytes?(url: string, timeoutMs: number, maxBytes: number): Promise<Uint8Array | null>;
+  /**
+   * Keep a copy of a mark that passed (00161): the bytes under their own hash, served as the type they were read as.
+   * Answers the stored path (`<sha256>.<ext>`), or null when it could not be kept; the same bytes twice are one copy.
+   */
+  storeMark?(bytes: Uint8Array, image: MarkImage): Promise<string | null>;
   /** Epoch ms: no provider or model call is started after this. */
   deadline: number;
 }
