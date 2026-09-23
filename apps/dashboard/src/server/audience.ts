@@ -1,7 +1,8 @@
-import { toPersonRowVM, type PersonRowDto, type PersonRowVM } from "@chanlytics/contracts";
+import { dealsAreAThing, toPersonRowVM, type PersonRowDto, type PersonRowVM } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { everyone } from "./people";
 import { withVisits, type PeopleVisits } from "./calendar";
+import { anyDealRecorded } from "./deals";
 
 /**
  * Everyone, with their appointments: the pool a broadcast's audience, a People list and a playbook's moment are
@@ -19,11 +20,24 @@ export interface AudiencePool {
   /** The same people as the page reads them: what every audience and list predicate in contracts is judged on. */
   rows: PersonRowVM[];
   calendar: PeopleVisits["calendar"];
+  /** The profile lists a consult-first service (0004): the "Consultation booked" list exists only then. */
+  consult_first: boolean;
+  /** Deals are a thing here (0004): a consult-first service listed, or a deal ever recorded. The deal lists exist only then. */
+  deals_on: boolean;
 }
 
 export async function audiencePool(ctx: RouteContext, tenantId: string, tz: string, now: Date): Promise<AudiencePool> {
-  const { people, calendar } = await withVisits(ctx, tenantId, await everyone(ctx, tenantId), now);
-  return { people, rows: people.map((r) => toPersonRowVM(r, tz, now)), calendar };
+  const [{ people, calendar, consult_first }, anyDeal] = await Promise.all([
+    everyone(ctx, tenantId).then((rows) => withVisits(ctx, tenantId, rows, now)),
+    anyDealRecorded(ctx, tenantId),
+  ]);
+  return {
+    people,
+    rows: people.map((r) => toPersonRowVM(r, tz, now)),
+    calendar,
+    consult_first,
+    deals_on: dealsAreAThing(consult_first ? ["listed"] : [], anyDeal),
+  };
 }
 
 /** The pool once per assistant turn: a turn that lists audiences and then proposes a send reads everyone once. */

@@ -3,6 +3,15 @@ import type { RouteContext } from "@/server/with-route";
 import type { DealReportDto } from "@chanlytics/contracts";
 
 /**
+ * Whether a deal was ever recorded here (0004), safe on an older database: a table that is not there reads as
+ * none, and costs the deal lists, never the list. The one read the People route and the assistant's pool share.
+ */
+export async function anyDealRecorded(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<boolean> {
+  const r = await ctx.supabase.from("deals").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+  return r.error ? false : (r.count ?? 0) > 0;
+}
+
+/**
  * Reports' Deals numbers (0004): one cohort -- the proposals sent in the
  * period and what became of them -- and the stock, clients now with their
  * monthly total. Counted over the columns under the member's own RLS. Null

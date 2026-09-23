@@ -1222,6 +1222,43 @@ test("REGRESSION: list_audiences counts everyone and every member, and names a c
   );
 });
 
+test("the deal lists reach Ask only where deals are a thing here -- list_audiences and search_people filtered People's lists on the calendar alone, so a salon was offered Proposal out and Clients, each counting nobody", async () => {
+  const DEAL_LISTS = ["consultation_booked", "proposal_out", "clients", "deal_ended"];
+  const ask = async (t) => {
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "list_audiences", input: {} });
+    assert.equal(out.isError, false, out.result);
+    const ids = JSON.parse(out.result).audiences.map((a) => a.audience_id);
+    const clients = await runTool(tc, { name: "search_people", input: { query: "", list: "clients" } });
+    return { named: DEAL_LISTS.filter((id) => ids.includes(id)), clients: JSON.parse(clients.result) };
+  };
+  // No deal ever recorded, no consult-first service listed: a salon. None of the four is named.
+  const salon = await ask(tables());
+  assert.deepEqual(salon.named, [], "REGRESSION: the deal lists were offered where deals are not a thing");
+  assert.match(salon.clients.error, /deals are a thing here/, "and the narrowing says why, instead of nobody");
+  assert.deepEqual(salon.clients.people, []);
+  // One deal recorded: the three lists a deal alone makes. Consultation booked also needs a calendar and a
+  // consult-first service, and this workspace has neither.
+  const agency = await ask(
+    tables({
+      deals: [
+        {
+          id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9",
+          tenant_id: A,
+          contact_id: ANA,
+          service: "Ad management",
+          stage: "proposed",
+          proposed_at: iso(NOW.getTime() - 86_400_000),
+          created_at: iso(NOW.getTime() - 86_400_000),
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(agency.named, ["proposal_out", "clients", "deal_ended"]);
+  assert.equal(agency.clients.error, undefined, agency.clients.error);
+  assert.deepEqual(agency.clients.people, [], "the list is offered; nobody is a client yet");
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });

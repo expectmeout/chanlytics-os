@@ -3,6 +3,7 @@ import { AppError, dealsAreAThing, normalizePhone, whyNotAPhone } from "@chanlyt
 import { read, write, workspace } from "@/server/route";
 import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
+import { anyDealRecorded } from "@/server/deals";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -33,16 +34,10 @@ export const GET = read({
       listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE }),
       countPeople(ctx, tenantId, q),
     ]);
-    // Each person with their appointments from the owner's calendar, when one
-    // is connected: Booked is a fact here, not a stage. Never fatal to the list.
-    const out = await withVisits(ctx, tenantId, rows);
-    // Whether any deal was ever recorded here (0004), safe on an older database: a table that is not there reads as
-    // none, and costs the deal lists, never the list.
-    const anyDeal = await ctx.supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .then((r) => (r.error ? false : (r.count ?? 0) > 0));
+    // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
+    // not a stage. Never fatal to the list. In the same round trip, whether any deal was ever recorded here (0004):
+    // a table that is not there reads as none, and costs the deal lists, never the list.
+    const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);
     return {
       ...out,
       // Deals are a thing here when the profile lists a consult-first service or a deal was ever recorded (0004): the

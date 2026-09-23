@@ -6907,7 +6907,7 @@ declare const PEOPLE_LISTS: readonly {
     needsDeals?: boolean;
     /**
      * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-     * say the two answers -- so their Lists section names only the lists it alone can.
+     * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
      */
     onProfile?: false;
     test: (vm: PersonRowVM) => boolean;

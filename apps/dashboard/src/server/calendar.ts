@@ -25,6 +25,7 @@ import {
   toVisitDto,
   zoneMidnight,
   type BookingRules,
+  type BusinessProfile,
   type CalendarDayDto,
   type CalendarItemDto,
   type CalendarWeekDto,
@@ -130,9 +131,6 @@ function readSettings(tenantId: string, raw: unknown): { cfg: TenantConfig | nul
   );
   return { cfg: null, lostCalendar };
 }
-
-/** The business's profile as the settings hold it, as far as the people reads need it. */
-type BusinessProfile = NonNullable<NonNullable<TenantConfig["brain"]>["profile"]>;
 
 /**
  * The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the

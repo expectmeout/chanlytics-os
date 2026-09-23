@@ -1781,6 +1781,14 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   assert.equal(calls.length, 1, "nothing recorded for an amount that is not a number");
   tree = client();
   assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
+  // A negative amount is refused the same way: the minus survives the strip, so "-5" is not five dollars.
+  type(byTestId(tree, "person-deal-amount"), "-5");
+  tree = client();
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  assert.equal(calls.length, 1, "REGRESSION: -5 went as 500 cents");
+  tree = client();
+  assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
   type(byTestId(tree, "person-deal-amount"), "2,500");
   tree = client();
   press(byTestId(tree, "person-deal-record"));

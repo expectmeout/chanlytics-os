@@ -994,7 +994,7 @@ const dayToIso = (ymd) => {
 };
 // Null for anything that is not a number: letters alone strip to "", and Number("") is 0, which made "abc" a $0 client.
 const centsOf = (text) => {
-  const digits = String(text || "").replace(/[^0-9.]/g, "");
+  const digits = String(text || "").replace(/[^0-9.-]/g, "");
   const n = digits ? Number(digits) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 };

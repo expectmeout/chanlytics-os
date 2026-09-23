@@ -1122,7 +1122,7 @@ export const PEOPLE_LISTS: readonly {
   needsDeals?: boolean;
   /**
    * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-   * say the two answers -- so their Lists section names only the lists it alone can.
+   * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
    */
   onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
@@ -1167,6 +1167,7 @@ export const PEOPLE_LISTS: readonly {
     needsCalendar: true,
     needsConsultFirst: true,
     needsDeals: true,
+    onProfile: false,
     test: (v) => v.consultationVisit && !v.deal,
   },
   {
@@ -1174,10 +1175,25 @@ export const PEOPLE_LISTS: readonly {
     label: "Proposal out",
     group: "journey",
     needsDeals: true,
+    onProfile: false,
     test: (v) => v.deal?.stage === "proposed",
   },
-  { id: "clients", label: "Clients", group: "journey", needsDeals: true, test: (v) => v.deal?.stage === "won" },
-  { id: "deal_ended", label: "Ended", group: "journey", needsDeals: true, test: (v) => v.deal?.stage === "ended" },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "won",
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "ended",
+  },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.

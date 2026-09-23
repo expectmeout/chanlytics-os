@@ -441,6 +441,7 @@ test("the Journey continues past the booking: four lists, each gated on deals be
     assert.ok(byId[id], id);
     assert.equal(byId[id].group, "journey");
     assert.equal(byId[id].needsDeals, true);
+    assert.equal(byId[id].onProfile, false, "the Deal section says the stage; the Lists section does not say it again");
   }
   assert.equal(byId.consultation_booked.needsCalendar, true);
   assert.equal(byId.consultation_booked.needsConsultFirst, true);
