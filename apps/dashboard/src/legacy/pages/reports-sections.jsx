@@ -213,6 +213,20 @@ const ReportsSections = ({ R, pick }) => {
   const people = rptPeriods(vm, "total", !!peopleBefore);
   const before = vm.period.before.toLowerCase();
   const sentPct = (n) => (cm && cm.totals.sent ? Math.round((n / cm.totals.sent) * 100) : 0);
+  // Deals (0004): the proposals of the period and what became of them, then the clients now. Three sentences from
+  // contracts' DealReportVM, each said once, in the booked card's own shape: the cohort's two lines, and the stock
+  // under the one hairline. No chart, since a few proposals a month are a sentence, not a series. Drawn wherever a
+  // deal was ever recorded, whatever came in this period: an engagement is agreed in a call or a meeting as often as
+  // in a message, so a quiet month for the receptionist is not a month without clients.
+  const deals = R.deals && R.deals.present ? (
+    <RptSection title="Deals" testid="rpt-deals">
+      <div className="rpt-booked">
+        <p className="rpt-booked-copy" data-testid="rpt-deals-headline">{R.deals.headline}</p>
+        {R.deals.parts && <p className="rpt-booked-copy" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
+        <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{R.deals.stock}</p>
+      </div>
+    </RptSection>
+  ) : null;
   return (
     <>
       <section className="rpt-grid rpt-top" aria-label="This period">
@@ -222,9 +236,12 @@ const ReportsSections = ({ R, pick }) => {
       <RptTiles vm={vm} booking={R.booking || null} />
 
       {vm.empty ? (
-        <EmptyState kind="card" glyph="wave" title="Nothing came in" testid="reports-empty"
-          body={`Nobody wrote or called between ${vm.since} and ${vm.until}.`}
-          action={days !== 90 ? { label: "Look at 90 days", onClick: () => pick(90) } : null} />
+        <>
+          <EmptyState kind="card" glyph="wave" title="Nothing came in" testid="reports-empty"
+            body={`Nobody wrote or called between ${vm.since} and ${vm.until}.`}
+            action={days !== 90 ? { label: "Look at 90 days", onClick: () => pick(90) } : null} />
+          {deals}
+        </>
       ) : (
         <>
           <RptSection title="The receptionist">
@@ -285,20 +302,8 @@ const ReportsSections = ({ R, pick }) => {
             </div>
           </RptSection>
 
-          {/* Deals (0004): the proposals of the period and what became of them, then the clients now. Three sentences
-              from contracts' DealReportVM, each said once, in the booked card's own shape: the cohort's two lines,
-              and the stock under the one hairline, as the booked card sets its other side. No chart, since a few
-              proposals a month are a sentence, not a series. Drawn only where a deal was ever recorded, so a salon's
-              Reports never grows a section of zeros. */}
-          {R.deals && R.deals.present && (
-            <RptSection title="Deals" testid="rpt-deals">
-              <div className="rpt-booked">
-                <p className="rpt-booked-copy" data-testid="rpt-deals-headline">{R.deals.headline}</p>
-                {R.deals.parts && <p className="rpt-booked-copy" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
-                <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{R.deals.stock}</p>
-              </div>
-            </RptSection>
-          )}
+          {/* Drawn only where a deal was ever recorded, so a salon's Reports never grows a section of zeros. */}
+          {deals}
 
           <RptSection title="Your customers">
             <div className="rpt-grid">

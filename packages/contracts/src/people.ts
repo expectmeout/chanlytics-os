@@ -1622,6 +1622,24 @@ export interface PersonTimelineItemVM {
   text: string;
   sub?: string;
   link?: { label: string; to: string };
+  /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
+  ahead?: boolean;
+}
+
+/**
+ * A visit that has not ended, as the page's Coming up draws it: a small leaf with the month and the day of the month,
+ * what it is, and when. `day` is "Today", "Tomorrow" or the weekday, by the business's clock.
+ */
+export interface PersonVisitAheadVM {
+  id: string;
+  month: string;
+  date: string;
+  day: string;
+  title: string;
+  time: string;
+  /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
+  byName: boolean;
+  to: string;
 }
 
 export interface PersonRightNow {
@@ -1650,6 +1668,8 @@ export interface PersonVM extends PersonRowVM {
   facts: PersonFact[];
   rightNow: PersonRightNow;
   timeline: PersonTimelineItemVM[];
+  /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
+  comingUp: PersonVisitAheadVM[];
   about: { k: string; v: string }[];
   /** The owner's notes, the receptionist's reading material. */
   notes: string | null;
@@ -1926,13 +1946,34 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
 
   // Their visits, from the calendar: what happened in the chair belongs on
   // the same line as what was said. A visit ahead reads as booked.
+  const comingUp: { t: number; vm: PersonVisitAheadVM }[] = [];
   if (d.visits?.all?.length) {
     const tz = d.visits.timezone;
     for (const v of d.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;
+      if (ahead) {
+        const on = visitDay(t, tz, nowMs);
+        comingUp.push({
+          t,
+          vm: {
+            id: `v-${v.id}`,
+            month: new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short" }).format(new Date(t)),
+            date: new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "numeric" }).format(new Date(t)),
+            day:
+              on === "Today" || on === "Tomorrow"
+                ? on
+                : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(t)),
+            title: v.title,
+            time: visitTime(v, tz),
+            byName: v.via === "name",
+            to: `calendar/${visitDateKey(v.start, tz)}`,
+          },
+        });
+      }
       items.push({
+        ...(ahead ? { ahead: true } : {}),
         id: `v-${v.id}`,
         ts: t,
         ...stamp(t),
@@ -2271,6 +2312,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     facts,
     rightNow,
     timeline: items,
+    comingUp: comingUp.sort((a, b) => a.t - b.t).map((c) => c.vm),
     about,
     notes: d.notes?.trim() || null,
     bookingLink: d.booking_link?.trim() || null,
