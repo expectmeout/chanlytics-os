@@ -24,6 +24,7 @@ import {
   toVisitDto,
   toPersonVM,
   afterPersonRefused,
+  personActs,
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
@@ -508,7 +509,7 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
   assert.deepEqual(
     vm.about.filter((a) => a.k === "Next visit" || a.k === "Last visit"),
     [
-      { k: "Next visit", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Maria Lopez - Balayage" },
+      { k: "Next visit", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" },
       { k: "Last visit", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
     ],
   );
@@ -1430,10 +1431,14 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   );
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
+  assert.ok(page.includes('sessionStorage.setItem("chanlytics-compose"'), "the send carries the link into the thread");
   assert.ok(
-    page.includes('id: "text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'),
-    "the button carries the link into the thread",
+    personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://booksy.com/melanys" }).some(
+      (a) => a.id === "booking" && a.label === "Send the booking link",
+    ),
+    "the page's More menu offers it, in plain words, once there is a thread to open (personActs)",
   );
+  assert.ok(!chat.acts.some((a) => a.id === "booking"), "and none without a thread to open it in");
   // The words are the contract's now (people bookingLinkAction), not the page's:
   // inside the window a reply is carried in, outside it the thread offers the template.
   assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
@@ -1710,4 +1715,6 @@ test("a visit's title drops the person's own name at its end, and nothing else: 
     "Cut · +1 917 555 0116",
     "a number is not a name",
   );
+  assert.equal(visitTitleFor("Maria Lopez - Balayage", "Maria Lopez"), "Balayage", "or at its start");
+  assert.equal(visitTitleFor("Maria Lopezz - Balayage", "Maria Lopez"), "Maria Lopezz - Balayage", "not a longer word");
 });

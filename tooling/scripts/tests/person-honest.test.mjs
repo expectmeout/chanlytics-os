@@ -637,9 +637,14 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     "one door, one label: the card said Open in Inbox and the header said Open thread",
   );
   const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
+  const more = find(actions, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-more");
   assert.ok(
-    byTestId(actions, "person-open-thread") && byTestId(actions, "text-booking-link"),
-    "the action lives beside what needs doing",
+    byTestId(actions, "person-open-thread") && more && more.props.label === "More",
+    "the thread beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
+  );
+  assert.ok(
+    more.props.items.some((i) => i.label === "Send the booking link"),
+    "REGRESSION: 'Send the booking-link template' was a button of its own beside a thread button to the same place",
   );
 
   assert.ok(
@@ -1639,17 +1644,22 @@ test("a proposal on file (00154): the About row is its control and the send sits
   assert.equal(byTestId(rowEl, "person-proposal-edit").props["aria-label"], "Change the proposal link");
   const keys = all(tree, (n) => cls(n) === "cl-prof-attr-key").map((k) => textOf(k));
   assert.equal(keys.indexOf("Proposal"), keys.indexOf("Email") + 1, `under the address: ${keys}`);
-  const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
-  // With the booking link too, the two are one Send menu beside the thread, so the head keeps one row on a phone.
-  const sendMenu = find(actions, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-send");
-  assert.ok(sendMenu, "the sends are one menu beside the thread");
-  assert.equal(sendMenu.props.label, "Send");
+  // The sends are the More menu's first items, in plain words, each saying what it does under it.
+  const moreOf = (t) => find(t, (n) => n.type === globalThis.MoreMenu && n.props.testid === "person-more");
+  const labels = (t) =>
+    moreOf(t)
+      ? moreOf(t)
+          .props.items.filter((i) => i.label)
+          .map((i) => i.label)
+      : [];
+  const items = moreOf(tree).props.items.filter((i) => i.label);
   assert.deepEqual(
-    sendMenu.props.items.map((i) => i.label),
-    [vm.bookingLinkAction.label, vm.proposalAction.label],
+    items.slice(0, 2).map((i) => i.label),
+    ["Send the booking link", "Send the proposal"],
     "the booking link, then the proposal",
   );
-  const send = { props: { onClick: sendMenu.props.items[1].onClick } };
+  assert.ok(/^Opens their thread with it ready to send/.test(items[1].hint), `what it does: ${items[1].hint}`);
+  const send = { props: { onClick: items[1].onClick } };
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
   const carried = [];
@@ -1674,16 +1684,16 @@ test("a proposal on file (00154): the About row is its control and the send sits
   const d = detail({ proposal_url: url });
   d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
-  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal");
+  assert.ok(labels(tree).includes("Send the proposal"));
   d.conversations[0].messages.push(outbound(iso(H), "sent"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
-  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal again");
+  assert.ok(labels(tree).includes("Send the proposal again"), labels(tree).join(", "));
 
   // None on file: the row invites, the send is absent.
   tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
   assert.equal(byTestId(tree, "person-proposal-edit").props["aria-label"], "Add a proposal link");
   assert.equal(byTestId(tree, "person-proposal-link"), null);
-  assert.equal(byTestId(tree, "send-proposal"), null);
+  assert.ok(!labels(tree).some((l) => /proposal/.test(l)), "no proposal, no send");
 
   // A viewer sees where it lives and changes nothing; no row at all when there is none.
   globalThis.window.__ME = { role: "viewer" };
@@ -1691,7 +1701,8 @@ test("a proposal on file (00154): the About row is its control and the send sits
     tree = (await profile(vm))();
     assert.ok(byTestId(tree, "person-proposal-link"));
     assert.equal(byTestId(tree, "person-proposal-edit"), null);
-    assert.equal(byTestId(tree, "send-proposal"), null);
+    assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
+    assert.ok(labels(tree).includes("Call from your phone"), "and may still call them from their own phone");
     tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
     assert.equal(byTestId(tree, "person-proposal"), null);
   } finally {
@@ -1706,7 +1717,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
   );
   tree = (await profile(quiet))();
   assert.ok(byTestId(tree, "person-proposal"));
-  assert.equal(byTestId(tree, "send-proposal"), null);
+  assert.ok(!labels(tree).some((l) => /^Send/.test(l)), "nothing is sent to someone who said stop");
 });
 
 /* ----------------------------------- the Deal section (0004) ----------------------------------- */
@@ -1954,4 +1965,49 @@ test("History names who added a person, by the door that did: the calendar, the 
   );
   assert.ok(row, "the added row is on the page");
   assert.equal(textOf(find(row, (m) => m.props?.className === "cl-tl-who")), "You", "REGRESSION: Calendar");
+});
+
+/* ------------------------------ opening a person is as quick as the tab can make it ------------------------------ */
+
+test("a People row reads its person as a pointer reaches it or the cursor lands on it, so the page opens on what the tab holds", async () => {
+  // The courier to read ahead (people-detail.ts warmPerson) was called by the retired demo page's rows alone: every
+  // open from People waited on the wire behind "Loading…".
+  const draw = await peoplePage([row()]);
+  const warmed = [];
+  const was = globalThis.window.__warmPerson;
+  globalThis.window.__warmPerson = (id) => warmed.push(id);
+  try {
+    const tr = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-p1");
+    tr.props.onPointerEnter();
+    tr.props.onFocus();
+    assert.deepEqual(warmed, ["p1", "p1"], "a pointer arriving, and the cursor landing");
+  } finally {
+    globalThis.window.__warmPerson = was;
+  }
+});
+
+test("a person not read yet opens on their People row, with Reading… after the standard's beat, never a bare Loading…", async () => {
+  await peoplePage([row()]);
+  let resolve = null;
+  globalThis.window.__personDetail = () =>
+    new Promise((r) => {
+      resolve = r;
+    });
+  globalThis.window.__peekPerson = () => null;
+  cells = [];
+  frames.begin();
+  let tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  frames.begin();
+  tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  const known = byTestId(tree, "person-known");
+  assert.ok(known, "the head is drawn from the row the tab already has");
+  assert.equal(known.props["aria-busy"], "true");
+  assert.equal(textOf(find(known, (n) => n.type === "h1")), "Daniela Reyes", "their name, at once");
+  assert.ok(
+    find(known, (n) => String(n.props?.className || "").includes("route-reading")),
+    "Reading…, after a beat",
+  );
+  assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
+  resolve(null);
+  await settle();
 });

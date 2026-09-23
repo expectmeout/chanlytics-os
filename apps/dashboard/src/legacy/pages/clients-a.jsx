@@ -2587,6 +2587,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         bookingLink: people.bookingLink || null,
         attention: people.attention,
         onOpen: (id) => cellOpenRef.current(id),
+        // Read a person before their row is pressed: a pointer arriving, a finger coming down, the cursor landing.
+        onWarm: (id) => { if (window.__warmPerson) window.__warmPerson(id); },
         drop: activeSaved && !activeSaved.rule && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
         listsOf,
         shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
