@@ -2716,3 +2716,31 @@ from `cm-face`, branch `design/the-three-in-the-header` off main `c50a856b`. Exe
 ### Task 20: Docs, gates, PR
 
 - [x] Spec 4.7, D14–D16; CLAUDE.md Today paragraph; gates; PR; merge on green; production.
+
+---
+
+## Part 4: the ✦ is the three, and the band says the mood (23 Sep, after #903 on main)
+
+Ruben: continue with the ✦. Spec 4.8 and D17. One PR from `cm-face`, branch `design/the-three-on-the-phone-door`
+off main `6037c804`. Executed inline.
+
+### Task 21: A tone for a coral button
+
+**Files:** `mascot/colour.ts` (`Tone`, `accentFg`, `palette(theme, tokens, tone)`), `mascot/driver.ts` (`tone`,
+`--accent-fg` read), `tooling/scripts/tests/mascot-colour.test.mjs`.
+
+- [x] On the accent the three are the glyph colour at the first step, each step nearer the coral, the last still
+  readable, in both themes; the page's tokens reach it.
+
+### Task 22: The ✦ draws the three; the band says the mood
+
+**Files:** `components/ask-face.jsx` (`tone`), `pages/app-shell.jsx` (the ✦ takes `window.AskFace`), `styles/ask.css`
+(`.phone-ask-face`), `pages/today-face.jsx` (says the mood, follows it), `pages/ask-real.jsx` (a word heard),
+`tooling/scripts/tests/today-face.test.mjs`, `e2e/phone.spec.ts`, `Chanlytics.html`.
+
+- [x] The band's case: drawn at rest it says nothing; a stepped turn says thinking, speaking, idle with a beat.
+  E2E: the ✦ has its face.
+
+### Task 23: Docs, gates, PR
+
+- [x] Spec 4.8, D17; CLAUDE.md; gates; PR; merge on green; production.

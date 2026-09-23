@@ -98,7 +98,7 @@ const AskReal = ({ open, onClose }) => {
   const talk = H.useAskTalk({
     lang,
     disabled: !!live,
-    onWords: (words) => setQuery(words),
+    onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
       if (heard) { submit(heard); return; }
       if (error === "blocked") flash({ msg: <>{t.micBlocked}</> });
