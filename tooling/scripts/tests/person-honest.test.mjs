@@ -597,6 +597,31 @@ test("REGRESSION (B18): a list chip on a profile opens its list -- the name was 
   assert.deepEqual(went, ["clients/list:s1"], "the list, picked, on People -- the Lists page folded into it");
 });
 
+test("REGRESSION: a profile's Add to a list opens over the card -- the card clipped it at its foot, under a header that said the button again", async () => {
+  await peoplePage(
+    [row()],
+    [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "Best buyers", ids: [] },
+    ],
+  );
+  cells = [];
+  frames.begin();
+  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const add = find(lists, (n) => n.type === globalThis.MoreMenu);
+  assert.equal(add.props.testid, "person-list-add");
+  assert.equal(add.props.escape, true, "placed against the window, so the card's rounded clip cannot cut it off");
+  assert.deepEqual(
+    add.props.items.map((i) => i.header || i.label),
+    ["Best buyers"],
+    "the lists they are not on, and no header saying Add to under a link that says it",
+  );
+  assert.ok(
+    add.props.btnClass.split(" ").includes("is-plain"),
+    "a quiet link under the chips, as Add an email is, not a button among them",
+  );
+});
+
 test("REGRESSION: a person's page says who they are once -- the header held two buttons to one thread and two pills, a card quoted the timeline's first two messages, and six cells said the rail again", async () => {
   const vm = toPersonVM(detail({ booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
   const draw = await profile(vm);
