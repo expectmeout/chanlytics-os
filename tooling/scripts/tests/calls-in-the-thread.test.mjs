@@ -811,13 +811,13 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     const menuOf = (tree) => find(tree, (n) => n.props?.label === "Actions" && Array.isArray(n.props?.items));
     const menu = menuOf(draw(vm));
     assert.ok(menu, "the header's Actions menu");
-    const item = menu.props.items.find((i) => i.label === "Send the proposal");
+    const item = menu.props.items.find((i) => i.label === "Send proposal");
     assert.ok(item, `the item is there: ${menu.props.items.map((i) => i.label)}`);
     assert.equal(item.hint, "docs.example.com", "the hint says where the link lives");
     assert.equal(item.icon, "send");
     // It heads the Deal group, after the person's own group.
     const shape = menu.props.items.map((i) => (i.divider ? "|" : i.label));
-    assert.equal(shape[shape.indexOf("Send the proposal") - 1], "|", "a group of its own");
+    assert.equal(shape[shape.indexOf("Send proposal") - 1], "|", "a group of its own");
     item.onClick();
     assert.equal(events.length, 1, "one event");
     assert.equal(events[0].type, "inbox:compose");
@@ -826,14 +826,14 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     const labels = (vm2) => menuOf(draw(vm2)).props.items.map((i) => i.label);
     assert.ok(
       !labels(toInboxThreadVM(conv([m("m1", 60)], { last_wa_inbound_at: at(60) }), null, ZONE, NOW)).includes(
-        "Send the proposal",
+        "Send proposal",
       ),
       "none on file: no item",
     );
-    assert.ok(!labels(withLink({ consent: "opted_out" })).includes("Send the proposal"), "said stop: no item");
+    assert.ok(!labels(withLink({ consent: "opted_out" })).includes("Send proposal"), "said stop: no item");
     const shut = withLink({}, { last_wa_inbound_at: at(1500) });
     assert.equal(shut.windowOpen, false, "a day and an hour since they wrote");
-    assert.ok(!labels(shut).includes("Send the proposal"), "a shut window: no item, the box offers the template");
+    assert.ok(!labels(shut).includes("Send proposal"), "a shut window: no item, the box offers the template");
     assert.equal(
       toInboxThreadVM(conv([m("m1", 60)], { contact: { ...conv([]).contact, proposal_url: "  " } }), null, ZONE, NOW)
         .proposalUrl,
@@ -842,7 +842,7 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
     );
 
     // The link is the deal's (0008, proposalLinkOf over People's row): a proposal out sends its own link...
-    const itemFor = () => menuOf(draw(vm)).props.items.find((i) => i.label === "Send the proposal");
+    const itemFor = () => menuOf(draw(vm)).props.items.find((i) => i.label === "Send proposal");
     people(true, { stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
     assert.equal(itemFor().hint, "quotes.example.com", "the deal's link, not the one left on the person");
     events.length = 0;

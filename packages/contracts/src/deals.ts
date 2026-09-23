@@ -298,13 +298,16 @@ export interface DealVM {
   /** The same amount as stored, for a box that edits it (the deal sheet): its cents and how it recurs; null without one. */
   amountCents: number | null;
   per: DealPer | null;
+  /** The currency it is in: what the sheet's box says it in (amountWords). */
+  currency: string;
   /** When the proposal went (its proposed_at), at every stage: the deal card's Proposal out step. Null when unknown. */
   proposedMs: number | null;
   /**
    * The proposal's link and the host it lives at; null where the deal carries none. On a person's page it also says
-   * whether it went (`sent`, from the thread's own messages, as PersonVM.proposal does); a People row cannot say.
+   * whether it went (`sent`, from the thread's own messages, as PersonVM.proposal does), and whether a message carrying
+   * it is still on its way (`sending`: queued, in the seconds its send can be undone); a People row can say neither.
    */
-  proposal: { url: string; host: string; sent?: { at: string; via: string | null } | null } | null;
+  proposal: { url: string; host: string; sent?: { at: string; via: string | null } | null; sending?: boolean } | null;
   /** "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only. */
   validUntil: { day: string; words: string; lapsed: boolean } | null;
   /** Why they passed, and its word: a passed deal's only. */
@@ -363,6 +366,7 @@ export function toDealVM(
         ? null
         : d.amount_cents,
     per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
     proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
     proposal: url ? { url, host: linkHost(url) } : null,
     validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
@@ -379,32 +383,23 @@ export function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, n
   return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
 }
 
-/** Which of the deal sheet's modes a move opens (0008): a new proposal, one proposed again, a yes, a pass, an end. */
-export type DealMoveMode = "propose" | "again" | "won" | "lost" | "ended";
+/** An act on a deal (0008): most open the deal sheet (deal-sheet.ts) in a mode; a send opens their thread. */
+export type DealActId = "propose" | "again" | "edit" | "won" | "lost" | "ended" | "send" | "follow-up";
 
-/** A move the person's page offers: where it goes, its words, and whether it moves the row it was pressed on or starts a new one. */
-export interface DealMove {
-  to: DealStage;
-  label: string;
-  sameRow: boolean;
-  mode: DealMoveMode;
-}
-
-/** From each stage, the moves in the order the page draws them. An ended engagement is re-signed as a new row. */
-export const DEAL_MOVES: Record<DealStage | "none", readonly DealMove[]> = {
-  none: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
-  proposed: [
-    { to: "won", label: "Became a client", sameRow: true, mode: "won" },
-    { to: "lost", label: "Passed", sameRow: true, mode: "lost" },
-  ],
-  won: [{ to: "ended", label: "Ended", sameRow: true, mode: "ended" }],
-  lost: [{ to: "proposed", label: "Proposal sent again", sameRow: true, mode: "again" }],
-  ended: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
+/**
+ * One act, one label, wherever it is drawn: the person page's deal card and its quiet line, the thread's Deal group,
+ * and the person's More menu, whose send is the proposal's (people.ts personActs).
+ */
+export const DEAL_ACT_WORDS: Record<DealActId, string> = {
+  propose: "Start a proposal",
+  again: "Propose again",
+  edit: "Edit proposal",
+  won: "Mark as client",
+  lost: "Mark as passed",
+  ended: "End the engagement",
+  send: "Send proposal",
+  "follow-up": "Follow up",
 };
-
-export function dealMoves(d: DealVM | null): readonly DealMove[] {
-  return DEAL_MOVES[d ? d.stage : "none"];
-}
 
 /**
  * The sentence the receptionist hears about this person's deal, beside the

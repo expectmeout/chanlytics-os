@@ -17,6 +17,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installLegacyReact, unmount, again, settle, find, byTestId, textOf, press } from "./_legacy-react.mjs";
 
 const {
+  DEAL_ACT_HINTS,
   DEAL_ACT_WORDS,
   DEAL_REFUSALS,
   DEAL_SEND_WHY,
@@ -28,6 +29,7 @@ const {
   dealSheetBody,
   dealSheetDirty,
   dealSheetFor,
+  dealSheetMerge,
   dealSheetMessage,
   dealSheetRefusal,
   pickCurrentDeal,
@@ -150,13 +152,13 @@ const fixtures = (now) => {
         }
       : {};
   };
-  /** Their last visit, a consultation that ended `ago` ago. */
-  const consulted = (ago) => {
+  /** Their last visit, a consultation that ended `ago` ago, titled as the calendar titled it. */
+  const consulted = (ago, title = "Consultation") => {
     const last = {
       id: "b0:1",
       start: at(ago + H),
       end: at(ago),
-      title: "Consultation",
+      title,
       all_day: false,
       via: "phone",
       consultation: true,
@@ -245,12 +247,16 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
   // The proposal out, edited: its link, its value and its day.
   const out = person({ deals: [dealDto({ valid_until: "2026-09-30" })] });
   s = dealSheetFor("edit", out, NOW, ZONE);
-  assert.equal(s.title, "Edit the proposal");
+  assert.equal(s.title, "Edit proposal", "the act's own words (DEAL_ACT_WORDS), no ellipsis");
   assert.equal(s.sub, "Daniela Reyes · Ad management");
   assert.deepEqual(
     [s.draft.link, s.draft.value, s.draft.per, s.draft.validUntil],
-    [LINK, "1,200", "once", "2026-09-30"],
+    [LINK, "$1,200", "once", "2026-09-30"],
+    "the value as amountWords says it, in its currency and without how often",
   );
+  assert.equal(contracts.parseAmount(s.draft.value), 120_000, "and read back to the same cents");
+  const euros = person({ deals: [dealDto({ currency: "EUR", amount_cents: 99_950 })] });
+  assert.equal(dealSheetFor("edit", euros, NOW, ZONE).draft.value, "€999.50");
   assert.equal(s.send, null, "an edit sends nothing");
   assert.equal(s.service, null);
   assert.equal(s.save.label, "Save");
@@ -260,7 +266,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
   assert.equal(s.title, "Mark as client");
   assert.deepEqual(
     [s.value.label, s.value.hint, s.draft.value],
-    ["Agreed amount", "The proposal's value, unless they agreed another.", "1,200"],
+    ["Agreed amount", "The proposal's value, unless they agreed another.", "$1,200"],
   );
   assert.deepEqual([s.when.label, s.draft.when, s.when.max], ["When they said yes", "2026-09-23", "2026-09-23"]);
   assert.deepEqual(
@@ -277,7 +283,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
 
   // A pass: the day, why, a note of the owner's.
   s = dealSheetFor("lost", out, NOW, ZONE);
-  assert.deepEqual([s.title, s.when.label, s.reason.label], ["Passed", "When they passed", "Why they passed"]);
+  assert.deepEqual([s.title, s.when.label, s.reason.label], ["Mark as passed", "When they passed", "Why they passed"]);
   assert.deepEqual(
     s.reason.options.map((o) => o.label),
     ["Price", "Timing", "Went elsewhere", "No reply", "Not a fit", "Other"],
@@ -293,7 +299,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
   });
   s = dealSheetFor("again", passed, NOW, ZONE);
   assert.equal(s.title, "Propose again");
-  assert.deepEqual([s.draft.link, s.draft.value, s.draft.validUntil, s.draft.send], [LINK, "1,200", "", true]);
+  assert.deepEqual([s.draft.link, s.draft.value, s.draft.validUntil, s.draft.send], [LINK, "$1,200", "", true]);
   assert.equal(s.service, null, "it is the passed deal's own service");
   assert.equal(s.save.withSend, "Record and send");
 
@@ -313,7 +319,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
 
 test("the send is one rule -- a conversation, no stop, free text on their wire -- and where it cannot go the switch says which, and the proposal is still recorded", () => {
   const base = person();
-  assert.deepEqual(dealSendOf(base), { can: true, why: null, label: "Send it now on WhatsApp" });
+  assert.deepEqual(dealSendOf(base), { can: true, reach: true, why: null, label: "Send it now on WhatsApp" });
   assert.equal(dealSendOf({ ...base, replyVia: "Email" }).label, "Send it now by email");
   assert.equal(dealSendOf({ ...base, replyVia: "Text" }).label, "Send it now as a text");
   // WhatsApp's window, shut a day after they last wrote.
@@ -321,22 +327,35 @@ test("the send is one rule -- a conversation, no stop, free text on their wire -
     rowOver: { latest_wa_inbound_at: at(30 * H), last_inbound_at: at(30 * H) },
     messages: [msg("m1", 30 * H)],
   });
-  assert.deepEqual([dealSendOf(shut).can, dealSendOf(shut).why], [false, DEAL_SEND_WHY.window]);
+  assert.deepEqual(
+    [dealSendOf(shut).can, dealSendOf(shut).reach, dealSendOf(shut).why],
+    [false, true, DEAL_SEND_WHY.window],
+    "no free text, but their thread still reaches them with an approved message",
+  );
   assert.equal(
     DEAL_SEND_WHY.window,
     "Their WhatsApp window has closed. Record it now, and send it from their thread when they write next.",
   );
   const s = dealSheetFor("propose", shut, NOW, ZONE);
   assert.deepEqual([s.draft.send, s.save.withSend], [false, null], "off where it cannot go, and Save says Record");
-  // Stop, and do-not-contact.
-  assert.equal(dealSendOf(person({ rowOver: { consent: "opted_out" } })).why, "They asked not to be messaged.");
-  assert.equal(dealSendOf(person({ rowOver: { dnc: true } })).why, "They asked not to be messaged.");
+  // Stop, and do-not-contact: not reached at all, by the one rule the More menu's sends ask too (people.ts mayReach).
+  for (const stopped of [person({ rowOver: { consent: "opted_out" } }), person({ rowOver: { dnc: true } })]) {
+    assert.deepEqual(
+      [dealSendOf(stopped).can, dealSendOf(stopped).reach, dealSendOf(stopped).why],
+      [false, false, "They asked not to be messaged."],
+    );
+    assert.equal(contracts.mayReach(stopped), false);
+  }
+  assert.equal(contracts.mayReach(base), true);
   // Someone who has only ever phoned has no conversation to send it in.
   const phoned = person({
     rowOver: { has_chat: false, latest_conversation_id: null, channels: ["voice"], call_count: 1 },
     conversations: [],
   });
-  assert.equal(dealSendOf(phoned).why, "There is no conversation with them yet.");
+  assert.deepEqual(
+    [dealSendOf(phoned).reach, dealSendOf(phoned).why],
+    [false, "There is no conversation with them yet."],
+  );
 });
 
 test("the body is the route's: a new proposal names its service, a move its row and version, an emptied field is cleared, and what is wrong is said under its field before a round trip", () => {
@@ -491,28 +510,80 @@ test("what the sheet opened with is what 'changed' is judged by, the words follo
   assert.equal(proposalFollowUp(LINK), `Just checking the proposal reached you. Here it is again: ${LINK}`);
 });
 
+test("read again with the sheet open, what was typed stays and every field left alone takes the fresh value, so a second Save never puts back a teammate's change", () => {
+  const opts = { tz: ZONE, nowMs: NOW, canSend: false };
+  // Opened on the proposal as it stood: $1,200 once, valid until the 30th, at version 2.
+  const was = dealSheetFor("edit", person({ deals: [dealDto({ valid_until: "2026-09-30" })] }), NOW, ZONE);
+  // A teammate since: $1,500 a month, valid until the 2nd, and the row at version 3.
+  const since = dealDto({ amount_cents: 150_000, per: "month", valid_until: "2026-10-02", version: 3 });
+  const now = dealSheetFor("edit", person({ deals: [since] }), NOW, ZONE);
+  // Here, only the link was changed.
+  const merged = dealSheetMerge({ ...was.draft, link: "docs.example.com/p/new" }, was.draft, now.draft);
+  assert.deepEqual(
+    [merged.link, merged.value, merged.per, merged.validUntil],
+    ["docs.example.com/p/new", "$1,500", "month", "2026-10-02"],
+  );
+  assert.equal(dealSheetDirty(merged, now.draft), true, "what was typed is still a change against the fresh draft");
+  assert.deepEqual(
+    dealSheetBody("edit", merged, now.deal, opts).body,
+    {
+      stage: "proposed",
+      deal_id: "d1",
+      version: 3,
+      amount_cents: 150_000,
+      per: "month",
+      proposal_url: "https://docs.example.com/p/new",
+      valid_until: "2026-10-02",
+    },
+    "REGRESSION: the second Save sent $1,200 once and the 30th back over the teammate's move",
+  );
+  // What was emptied here stays emptied, and is cleared against the row as it now stands.
+  const emptied = dealSheetMerge({ ...was.draft, validUntil: "" }, was.draft, now.draft);
+  assert.deepEqual(dealSheetBody("edit", emptied, now.deal, opts).body.clear, ["valid_until"]);
+  // A field the teammate emptied and nobody touched here is not cleared again: it is simply empty.
+  const bare = dealSheetFor("edit", person({ deals: [dealDto({ amount_cents: null, per: null })] }), NOW, ZONE);
+  const kept = dealSheetMerge({ ...was.draft, link: LINK }, was.draft, bare.draft);
+  assert.deepEqual([kept.value, dealSheetBody("edit", kept, bare.deal, opts).body.clear], ["", undefined]);
+  // Nothing typed: the fresh draft, whole.
+  assert.deepEqual(dealSheetMerge(was.draft, was.draft, now.draft), now.draft);
+});
+
 /* ----------------------------------------------- the card ----------------------------------------------- */
 
 const acts = (list) => list.map((a) => [a.id, a.label, a.mode]);
 
-test("the card's one next act follows the stage: add the link, send it, follow up after a quiet week, else the yes; a pass is proposed again; nothing open, start one", () => {
+test("the card's one next act follows the stage: the proposal's link, its send, a follow-up after a quiet week, else the yes; a pass is proposed again; nothing open, start one", () => {
   assert.deepEqual(acts([dealNextAct(person(), NOW)]), [["propose", "Start a proposal", "propose"]]);
+  // No link yet: the edit gives it one, in the edit's own words.
   assert.deepEqual(acts([dealNextAct(person({ deals: [dealDto({ proposal_url: null })] }), NOW)]), [
-    ["add-link", "Add the link", "edit"],
+    ["edit", "Edit proposal", "edit"],
   ]);
   assert.deepEqual(dealNextAct(person({ deals: [dealDto()] }), NOW), {
     id: "send",
-    label: "Send the proposal",
+    label: "Send proposal",
     mode: null,
     text: proposalMessage(LINK),
   });
-  // It cannot go (their window shut): the yes leads instead.
+  // Their WhatsApp window shut, and it never went: still the send, opening their thread, which offers an approved
+  // message -- nothing in the box, and the hover says so.
   const shut = person({
     deals: [dealDto()],
     rowOver: { latest_wa_inbound_at: at(30 * H), last_inbound_at: at(30 * H) },
     messages: [msg("m1", 30 * H)],
   });
-  assert.equal(dealNextAct(shut, NOW).id, "won");
+  assert.deepEqual(dealNextAct(shut, NOW), {
+    id: "send",
+    label: "Send proposal",
+    mode: null,
+    hint: DEAL_ACT_HINTS.approved,
+  });
+  assert.equal(
+    DEAL_ACT_HINTS.approved,
+    "Only an approved message reaches them until they write again; their thread offers those",
+  );
+  // On its way (a send still in the seconds it can be undone): the yes, and no second send.
+  const sending = person({ deals: [dealDto()], messages: [msg("m1", 3 * H), sentMsg(0, { status: "queued" })] });
+  assert.equal(dealNextAct(sending, NOW).id, "won");
   // Sent two days ago: the yes.
   const recent = person({
     deals: [dealDto({ proposed_at: at(2 * D), created_at: at(2 * D) })],
@@ -532,6 +603,31 @@ test("the card's one next act follows the stage: add the link, send it, follow u
     mode: null,
     text: proposalFollowUp(LINK),
   });
+  // On WhatsApp, eight days after it went with nothing back, their window is shut: the follow-up still leads, opening
+  // their thread with nothing in the box. REGRESSION: it fell to the yes, so a quiet week on WhatsApp -- the usual
+  // quiet week -- was never followed up.
+  const waQuiet = { rowOver: { latest_wa_inbound_at: at(12 * D), last_inbound_at: at(12 * D) } };
+  const waSent = [msg("m1", 12 * D), sentMsg(8 * D)];
+  assert.deepEqual(dealNextAct(person({ deals: [dealDto()], messages: waSent, ...waQuiet }), NOW), {
+    id: "follow-up",
+    label: "Follow up",
+    mode: null,
+    hint: DEAL_ACT_HINTS.approved,
+  });
+  // Nobody the page may not reach is offered a send or a follow-up: said stop, do-not-contact, no conversation.
+  for (const [why, over] of [
+    ["said stop", { rowOver: { ...waQuiet.rowOver, consent: "opted_out" } }],
+    ["do-not-contact", { rowOver: { ...waQuiet.rowOver, dnc: true } }],
+  ]) {
+    assert.equal(dealNextAct(person({ deals: [dealDto()], messages: waSent, ...over }), NOW).id, "won", why);
+    assert.equal(dealNextAct(person({ deals: [dealDto()], ...over }), NOW).id, "won", `${why}, never sent`);
+  }
+  const phoned = person({
+    deals: [dealDto()],
+    rowOver: { has_chat: false, latest_conversation_id: null, channels: ["voice"], call_count: 1 },
+    conversations: [],
+  });
+  assert.equal(dealNextAct(phoned, NOW).id, "won", "no conversation to send it in");
   assert.equal(dealNextAct(person({ deals: [dealDto({ stage: "won", decided_at: at(D) })] }), NOW), null);
   assert.deepEqual(acts([dealNextAct(person({ deals: [dealDto({ stage: "lost", decided_at: at(D) })] }), NOW)]), [
     ["again", "Propose again", "again"],
@@ -546,15 +642,51 @@ test("the thread's Deal group is the stage's moves, each opening the sheet but t
   const menu = (d) => dealMenuActs(d).map((a) => [a.label, a.mode]);
   assert.deepEqual(menu(null), [["Start a proposal", "propose"]]);
   assert.deepEqual(menu({ stage: "proposed" }), [
-    ["Send the proposal", null],
+    ["Send proposal", null],
     ["Mark as client", "won"],
-    ["Passed…", "lost"],
-    ["Edit the proposal", "edit"],
+    ["Mark as passed", "lost"],
+    ["Edit proposal", "edit"],
   ]);
-  assert.deepEqual(menu({ stage: "won" }), [["End the engagement…", "ended"]]);
+  assert.deepEqual(menu({ stage: "won" }), [["End the engagement", "ended"]]);
   assert.deepEqual(menu({ stage: "lost" }), [["Propose again", "again"]]);
   assert.deepEqual(menu({ stage: "ended" }), [["Start a proposal", "propose"]]);
-  assert.equal(DEAL_ACT_WORDS.lost, "Passed…");
+  // One act, one label, wherever it is drawn, and no label trails off.
+  assert.deepEqual(Object.values(DEAL_ACT_WORDS), [
+    "Start a proposal",
+    "Propose again",
+    "Edit proposal",
+    "Mark as client",
+    "Mark as passed",
+    "End the engagement",
+    "Send proposal",
+    "Follow up",
+  ]);
+  assert.ok(Object.values(DEAL_ACT_WORDS).every((w) => !w.endsWith("…") && !w.endsWith("...")));
+  // A sheet a move opens is titled by that move.
+  for (const mode of ["edit", "again", "won", "lost", "ended"])
+    assert.equal(DEAL_SHEET_WORDS.titles[mode], DEAL_ACT_WORDS[mode], mode);
+});
+
+test("the person's More menu offers the proposal's send only where the card does not lead with it, and none while one is on its way", () => {
+  const proposalAct = (p) => p.acts.find((a) => a.id === "proposal") ?? null;
+  // Never sent: the card leads with the send, so the menu does not say it again.
+  const out = person({ deals: [dealDto()] });
+  assert.equal(dealNextAct(out, NOW).id, "send");
+  assert.equal(proposalAct(out), null, "REGRESSION: Send proposal on the card and again under More");
+  // Sent two days ago: the card leads with the yes, and the menu keeps the send again.
+  const went = person({
+    deals: [dealDto({ proposed_at: at(2 * D), created_at: at(2 * D) })],
+    messages: [msg("m1", 3 * H), sentMsg(2 * D)],
+  });
+  assert.equal(dealNextAct(went, NOW).id, "won");
+  assert.equal(proposalAct(went).label, "Send proposal again");
+  // On its way: neither offers a send.
+  const sending = person({ deals: [dealDto()], messages: [msg("m1", 3 * H), sentMsg(0, { status: "queued" })] });
+  assert.equal(proposalAct(sending), null);
+  // A link left on someone with no deal (00154): the card starts a proposal, so the menu's send is its own.
+  const own = person({ proposal_url: "https://docs.example.com/p/own" });
+  assert.equal(dealNextAct(own, NOW).id, "propose");
+  assert.equal(proposalAct(own).label, DEAL_ACT_WORDS.send);
 });
 
 test("the card says each open deal once: its steps, its link and whether it went, its day, a quiet week, and its acts; with none open, one line", () => {
@@ -579,8 +711,8 @@ test("the card says each open deal once: its steps, its link and whether it went
   assert.deepEqual(card.flags, [], "they wrote back since, and the day has not passed: nothing wants a look");
   assert.deepEqual(acts([card.next]), [["won", "Mark as client", "won"]]);
   assert.deepEqual(acts(card.more), [
-    ["lost", "Passed…", "lost"],
-    ["edit", "Edit the proposal", "edit"],
+    ["lost", "Mark as passed", "lost"],
+    ["edit", "Edit proposal", "edit"],
   ]);
 
   // Not sent yet, and it can go: the send leads, and the yes waits among the quiet ones. No consultation, no step.
@@ -600,6 +732,15 @@ test("the card says each open deal once: its steps, its link and whether it went
     card.more.map((a) => a.id),
     ["won", "lost", "edit"],
   );
+
+  // On its way (queued, in the seconds its send can be undone): said, and the card offers no send until it went.
+  [card] = dealCardsOf(
+    person({ deals: [dealDto()], messages: [msg("m1", 3 * H), sentMsg(0, { status: "queued" })] }),
+    NOW,
+    ZONE,
+  ).cards;
+  assert.deepEqual([card.facts[0], card.next.id], ["Sending", "won"]);
+  assert.ok(![card.next, ...card.more].some((a) => a.id === "send" || a.id === "follow-up"), "no second send");
 
   // By email, nine days with nothing back: said in the warn tone's line, and the follow-up leads.
   [card] = dealCardsOf(
@@ -621,12 +762,12 @@ test("the card says each open deal once: its steps, its link and whether it went
     NOW,
     ZONE,
   ).cards;
-  assert.deepEqual([card.link, card.facts[0], card.next.id], [null, "No link", "add-link"]);
+  assert.deepEqual([card.link, card.facts[0], card.next.id], [null, "No link", "edit"]);
   assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
   assert.deepEqual(
     card.more.map((a) => a.id),
     ["won", "lost"],
-    "Add the link is the edit: not said twice",
+    "the edit leads: not said twice",
   );
 
   // A client beside a newer proposal for another service: two cards, newest first. A client's card is its steps.
@@ -653,7 +794,53 @@ test("the card says each open deal once: its steps, its link and whether it went
     ["Client", "Sep 20", "current", "ok"],
   ]);
   assert.deepEqual([won.link, won.facts, won.flags, won.next], [null, [], [], null]);
-  assert.deepEqual(acts(won.more), [["ended", "End the engagement…", "ended"]]);
+  assert.deepEqual(acts(won.more), [["ended", "End the engagement", "ended"]]);
+
+  // A consultation is a step on one card only: the deal whose service its title names, else the newest.
+  const two = (title) =>
+    dealCardsOf(
+      person({
+        deals: [
+          dealDto({ id: "d2", service: "SEO", proposed_at: at(D), created_at: at(D) }),
+          dealDto({ stage: "won", decided_at: at(3 * D) }),
+        ],
+        visits: consulted(5 * D, title),
+      }),
+      NOW,
+      ZONE,
+    ).cards.map((c) => [c.title, c.steps[0].key]);
+  assert.deepEqual(two("Ad management consultation · Daniela Reyes"), [
+    ["SEO", "proposal"],
+    ["Ad management", "consultation"],
+  ]);
+  assert.deepEqual(two("Consultation: SEO"), [
+    ["SEO", "consultation"],
+    ["Ad management", "proposal"],
+  ]);
+  assert.deepEqual(
+    two("Consultation"),
+    [
+      ["SEO", "consultation"],
+      ["Ad management", "proposal"],
+    ],
+    "REGRESSION: every open card drew the one consultation",
+  );
+  // Named by a word that only starts with the service: it names nothing, and the newest has it.
+  const swapped = dealCardsOf(
+    person({
+      deals: [
+        dealDto({ proposed_at: at(D), created_at: at(D) }),
+        dealDto({ id: "d2", service: "SEO", stage: "won", decided_at: at(3 * D) }),
+      ],
+      visits: consulted(5 * D, "Seoul trip consult"),
+    }),
+    NOW,
+    ZONE,
+  ).cards.map((c) => [c.title, c.steps[0].key]);
+  assert.deepEqual(swapped, [
+    ["Ad management", "consultation"],
+    ["SEO", "proposal"],
+  ]);
   assert.equal(
     dealCardsOf(person({ deals: [dealDto({ service: null, stage: "won", decided_at: at(D) })] }), NOW, ZONE).cards[0]
       .title,
@@ -758,6 +945,7 @@ let busy = 0;
 const wire = (dto) => {
   const calls = [];
   const answers = {
+    person: () => json(200, { ok: true, data: { person: dto } }),
     deal: (body) =>
       json(200, { ok: true, data: { deal: { id: "d9", stage: body.stage }, from: null, decision_id: "x1" } }),
     reply: () =>
@@ -767,7 +955,7 @@ const wire = (dto) => {
       }),
   };
   const answer = (u, body) => {
-    if (u.pathname === "/api/v1/contacts/p1") return json(200, { ok: true, data: { person: dto } });
+    if (u.pathname === "/api/v1/contacts/p1") return answers.person();
     if (u.pathname === "/api/v1/contacts/p1/deal") return answers.deal(body);
     if (u.pathname === "/api/v1/conversations/cv1/reply") return answers.reply(body);
     if (u.pathname === "/api/v1/messages/msg9/cancel-send") return json(200, { ok: true, data: { canceled: true } });
@@ -892,7 +1080,7 @@ test("a move opens on the deal as it stands, says it once when recorded and send
   tree = await until("the person is read", (t) => input(t, "deal-sheet-value-input"));
   assert.equal(title(tree), "Mark as client");
   assert.equal(sub(tree), "Daniela Reyes · Ad management");
-  assert.equal(input(tree, "deal-sheet-value-input").props.value, "1,200", "the proposal's value");
+  assert.equal(input(tree, "deal-sheet-value-input").props.value, "$1,200", "the proposal's value");
   assert.match(input(tree, "deal-sheet-when-input").props.value, /^\d{4}-\d{2}-\d{2}$/, "today");
   assert.equal(byTestId(tree, "deal-sheet-send"), null);
   assert.equal(textOf(saveOf(tree)), "Mark as client");
@@ -944,6 +1132,79 @@ test("a move opens on the deal as it stands, says it once when recorded and send
   await until("the wire is quiet", () => busy === 0);
 });
 
+test("read again with the sheet open -- after a refusal, or over the tab's held copy -- what was typed stays and the rest is the row as it stands, so the second Save never puts back a teammate's change", async () => {
+  const R = fixtures(Date.now());
+  // As the page first read it: $1,200 once, valid until the 30th, version 2. A teammate since: $1,500 a month, valid
+  // until the 2nd, version 3.
+  const was = R.detail({ deals: [R.dealDto({ valid_until: "2026-09-30" })] });
+  const since = R.detail({
+    deals: [R.dealDto({ amount_cents: 150_000, per: "month", valid_until: "2026-10-02", version: 3 })],
+  });
+  const { calls, answers } = wire(was);
+  const person = (dto) => () => json(200, { ok: true, data: { person: dto } });
+  const deals = () => calls.filter((c) => c.path === "/api/v1/contacts/p1/deal");
+  const accept = (body) =>
+    json(200, { ok: true, data: { deal: { id: "d1", stage: body.stage }, from: "proposed", decision_id: "x3" } });
+  const fields = (t) => ["link", "value", "valid"].map((f) => input(t, `deal-sheet-${f}-input`).props.value);
+
+  // A refusal: the link was changed here, the door says the deal moved on, and they are read again.
+  let tree = open();
+  W.openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
+  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"]);
+  type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/new");
+  answers.deal = () => json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.moved } });
+  answers.person = person(since);
+  press(saveOf(redraw()));
+  tree = await until(
+    "read again after the refusal",
+    (t) => input(t, "deal-sheet-value-input")?.props.value === "$1,500",
+  );
+  assert.deepEqual(fields(tree), ["docs.example.com/p/new", "$1,500", "2026-10-02"], "what was typed stays");
+  assert.equal(textOf(byTestId(tree, "deal-sheet-problem")), DEAL_REFUSALS.moved, "and what was said about it");
+  answers.deal = accept;
+  press(saveOf(tree));
+  await until("recorded", () => recorded.length > 0);
+  assert.deepEqual(
+    deals().at(-1).body,
+    {
+      stage: "proposed",
+      deal_id: "d1",
+      version: 3,
+      amount_cents: 150_000,
+      per: "month",
+      proposal_url: "https://docs.example.com/p/new",
+      valid_until: "2026-10-02",
+    },
+    "REGRESSION: the second Save put $1,200 once and the 30th back over the teammate's move",
+  );
+
+  // The tab's held copy, behind the row: painted at once, typed into before the fresh read lands, then merged.
+  tree = open();
+  answers.person = person(was);
+  await W.__personDetail("p1");
+  answers.person = person(since);
+  W.openDealSheet({ personId: "p1", mode: "edit", dealId: "d1" });
+  tree = redraw();
+  assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,200", "2026-09-30"], "the held copy, at once");
+  type(input(tree, "deal-sheet-valid-input"), "2026-10-09");
+  tree = await until("the fresh read lands", (t) => input(t, "deal-sheet-value-input")?.props.value === "$1,500");
+  assert.deepEqual(fields(tree), [R.dealDto().proposal_url, "$1,500", "2026-10-09"]);
+  answers.deal = accept;
+  press(saveOf(tree));
+  await until("recorded", () => recorded.length > 0);
+  assert.deepEqual(deals().at(-1).body, {
+    stage: "proposed",
+    deal_id: "d1",
+    version: 3,
+    amount_cents: 150_000,
+    per: "month",
+    proposal_url: R.dealDto().proposal_url,
+    valid_until: "2026-10-09",
+  });
+  await until("the wire is quiet", () => busy === 0);
+});
+
 test("a send refused after a good record says both and closes; where it cannot go the switch is off and says why; Cancel asks once about what was typed", async () => {
   const R = fixtures(Date.now());
   const { calls, answers } = wire(R.detail());
@@ -961,6 +1222,28 @@ test("a send refused after a good record says both and closes; where it cannot g
   assert.equal(textOf(toasts[0].msg), "Recorded. It did not send: Their WhatsApp window has closed.");
   assert.deepEqual(recorded, [{ personId: "p1" }]);
   assert.equal(calls.filter((c) => c.path === "/api/v1/contacts/p1/deal").length, 1);
+
+  // No reply courier where the sheet is drawn: recorded, and it says nothing went. REGRESSION: it said only the
+  // stage's word, "Proposal out", as though the proposal were on its way.
+  const courier = W.threadVerbs;
+  delete W.threadVerbs;
+  try {
+    const bare = wire(R.detail());
+    tree = open();
+    W.openDealSheet({ personId: "p1", mode: "propose" });
+    tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+    type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/bare");
+    assert.equal(textOf(saveOf(redraw())), "Record and send");
+    press(saveOf(redraw()));
+    tree = await until("recorded", () => recorded.length > 0);
+    assert.deepEqual(
+      toasts.map((t) => [t.tone, textOf(t.msg)]),
+      [["danger", "Recorded. It did not send."]],
+    );
+    assert.equal(bare.calls.filter((c) => c.path.endsWith("/reply")).length, 0);
+  } finally {
+    W.threadVerbs = courier;
+  }
 
   // Their window shut: the switch is off, a press cannot turn it on, it says why, and Save says Record.
   const shut = fixtures(Date.now());

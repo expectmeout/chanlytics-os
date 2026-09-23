@@ -211,13 +211,14 @@ test.describe("Consent for one person", () => {
     }
     const card = page.getByTestId("person-deal-card").first();
     await expect(card).toBeVisible();
-    // The link is changed in the sheet's edit: "Add the link" where there is none, else "Edit the proposal".
+    // The link is changed in the sheet's edit: the card leads with "Edit proposal" where there is none, else it is
+    // one of the quiet moves.
     const edit = async () => {
       const next = card.getByTestId("person-deal-next");
-      if ((await next.count()) && (await next.innerText()).trim() === "Add the link") await next.click();
-      else await card.getByTestId("person-deal-move").filter({ hasText: "Edit the proposal" }).click();
+      if ((await next.count()) && (await next.innerText()).trim() === "Edit proposal") await next.click();
+      else await card.getByTestId("person-deal-move").filter({ hasText: "Edit proposal" }).click();
       await expect(sheet).toBeVisible();
-      await expect(sheet.locator(".rec-sheet-title")).toHaveText("Edit the proposal");
+      await expect(sheet.locator(".rec-sheet-title")).toHaveText("Edit proposal");
     };
 
     await edit();

@@ -1897,8 +1897,14 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(all(card, (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), ["Not sent yet"]);
     // Not sent, and it can go: the next act is the send, an outline button; the page's one filled button is the thread.
     const next = byTestId(card, "person-deal-next");
-    assert.deepEqual([textOf(next), next.props.className], ["Send the proposal", "btn btn-sm"]);
-    assert.deepEqual(movesOf(card).map(textOf), ["Mark as client", "Passed…", "Edit the proposal"]);
+    assert.deepEqual([textOf(next), next.props.className], ["Send proposal", "btn btn-sm"]);
+    assert.deepEqual(movesOf(card).map(textOf), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    // The card leads with the send, so the More menu does not say it again.
+    const more = find(tree, (n) => n.props?.testid === "person-more");
+    assert.ok(
+      !more.props.items.some((i) => /proposal/i.test(i.label || "")),
+      "REGRESSION: Send proposal on the card and again under More",
+    );
     went.length = 0;
     press(next);
     assert.deepEqual(went, [vm.openThread], "the send opens their thread...");
@@ -1919,8 +1925,8 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(all(cardOf(tree), (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), [
       "No link",
     ]);
-    assert.equal(textOf(byTestId(tree, "person-deal-next")), "Add the link");
-    assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Passed…"], "the edit is said once");
+    assert.equal(textOf(byTestId(tree, "person-deal-next")), "Edit proposal");
+    assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Mark as passed"], "the edit is said once");
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
     // Nothing back in a week: a state in the warn tone, the house's one pill.
     tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) })))();
@@ -1938,7 +1944,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.equal(textOf(byTestId(cardOf(tree), "person-deal-value")), "$2,500 a month");
     assert.equal(byTestId(tree, "person-deal-link"), null, "a client's proposal is history");
     assert.equal(byTestId(tree, "person-deal-next"), null);
-    assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement…"]);
+    assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement"]);
     const current = find(cardOf(tree), (n) => n.props?.["aria-current"] === "step");
     assert.deepEqual(
       [current.props["data-tone"], textOf(find(current, (n) => n.props?.className === "cl-prof-deal-step-label"))],
@@ -1965,6 +1971,59 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     }
   } finally {
     delete globalThis.window.openDealSheet;
+    delete globalThis.sessionStorage;
+  }
+});
+
+test("where only an approved message can reach them, the card's follow-up opens their thread with nothing written in it and says why on hover; someone who said stop is offered none", async () => {
+  globalThis.window.__recordFolds.reset();
+  const url = "https://quotes.example.com/p/dani";
+  const carried = [];
+  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  const said = (id, dir, body, ago) => ({
+    id,
+    conversation_id: "cv1",
+    direction: dir,
+    sender: dir === "inbound" ? "customer" : "human",
+    type: "text",
+    body,
+    media: null,
+    meta: null,
+    status: dir === "inbound" ? "received" : "sent",
+    channel: "whatsapp",
+    created_at: iso(ago),
+  });
+  // Sent on WhatsApp eight days ago, and nothing from them in twelve: their window is shut.
+  const quiet = (rowOver = {}) =>
+    withDeals(
+      [dealRow({ proposal_url: url })],
+      {
+        conversations: [
+          {
+            ...detail().conversations[0],
+            last_wa_inbound_at: iso(12 * D),
+            messages: [
+              said("m1", "inbound", "Send it over", 12 * D),
+              said("m2", "outbound", contracts.proposalMessage(url), 8 * D),
+            ],
+          },
+        ],
+      },
+      { latest_wa_inbound_at: iso(12 * D), last_inbound_at: iso(12 * D), last_message_at: iso(8 * D), ...rowOver },
+    );
+  try {
+    const vm = quiet();
+    const tree = (await profile(vm))();
+    const next = byTestId(tree, "person-deal-next");
+    assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
+    press(next);
+    assert.deepEqual(went, [vm.openThread], "their thread, which offers the approved messages");
+    assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
+    for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
+      const stopped = (await profile(quiet(rowOver)))();
+      assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
+    }
+  } finally {
     delete globalThis.sessionStorage;
   }
 });

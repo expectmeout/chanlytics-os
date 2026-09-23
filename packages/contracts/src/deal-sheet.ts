@@ -8,10 +8,12 @@
  * So is the person page's deal card (dealCardsOf): its steps, its line, its one next act (dealNextAct) and the quiet
  * line where no deal is open; and the thread's Deal group (dealMenuActs). Pure.
  */
+import { foldName } from "./availability";
 import { visitDay } from "./calendar-people";
 import { clockDate, wallClockAt, zoneDayKey } from "./clock";
 import { isRealDate } from "./config";
 import {
+  DEAL_ACT_WORDS,
   DEAL_LINE_NONE,
   DEAL_LOST_REASONS,
   DEAL_LOST_REASON_WORDS,
@@ -19,9 +21,11 @@ import {
   DEAL_PER_WORDS,
   DEAL_REFUSALS,
   DEAL_STAGE_WORDS,
+  amountWords,
   consultationsWithoutProposal,
   parseAmount,
   waitingOnProposal,
+  type DealActId,
   type DealClearable,
   type DealLostReason,
   type DealPer,
@@ -29,7 +33,7 @@ import {
   type DealVM,
 } from "./deals";
 import { normalizeLink, whyNotALink } from "./link";
-import { proposalAction, proposalMessage } from "./people";
+import { mayReach, proposalAction, proposalMessage } from "./people";
 import { stateTone, type Tone } from "./tone";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
@@ -67,6 +71,8 @@ export interface DealPerson {
   consultedMs?: number | null;
   /** Their next or last visit is a consultation. */
   consultationVisit?: boolean;
+  /** That consultation's title, as the calendar says it: the service it names draws the Consultation step. */
+  consultationTitle?: string | null;
 }
 
 /* --------------------------------------------- the send ----------------------------------------------------- */
@@ -78,25 +84,34 @@ export const DEAL_SEND_WHY = {
   none: "There is no conversation with them yet.",
 } as const;
 
-/** Whether the proposal can go now, why not, and the switch's words by the wire a reply goes out on. */
+/**
+ * Whether the proposal can go now (`can`), whether they can be reached at all (`reach`: their thread offers an
+ * approved message where free text cannot go), why not, and the switch's words by the wire a reply goes out on.
+ */
 export interface DealSend {
   can: boolean;
+  reach: boolean;
   why: string | null;
   label: string;
 }
 
 /**
- * The one rule for sending a proposal from the sheet or the card: a conversation to send it in, no stop and no
- * do-not-contact, and free text allowed on their wire (proposalAction's `ready`: WhatsApp's window open, or email or
- * a text). Where it cannot go the sheet still records the proposal and says why here.
+ * The one rule for sending a proposal from the sheet or the card: someone the page may reach (people.ts mayReach: a
+ * conversation, no stop, no do-not-contact), and free text allowed on their wire (proposalAction's `ready`:
+ * WhatsApp's window open, or email or a text). Where it cannot go the sheet still records the proposal and says why
+ * here.
  */
 export function dealSendOf(p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow">): DealSend {
   const on = p.replyVia === "Email" ? "by email" : p.replyVia === "Text" ? "as a text" : "on WhatsApp";
   const label = `Send it now ${on}`;
-  if (p.consent.state === "opted_out" || p.consent.dnc) return { can: false, why: DEAL_SEND_WHY.stopped, label };
-  if (!p.openThread) return { can: false, why: DEAL_SEND_WHY.none, label };
-  if (!proposalAction(p.replyVia, p.replyWindow, null).ready) return { can: false, why: DEAL_SEND_WHY.window, label };
-  return { can: true, why: null, label };
+  const reach = mayReach(p);
+  if (!reach) {
+    const stopped = p.consent.state === "opted_out" || p.consent.dnc;
+    return { can: false, reach, why: stopped ? DEAL_SEND_WHY.stopped : DEAL_SEND_WHY.none, label };
+  }
+  if (!proposalAction(p.replyVia, p.replyWindow, null).ready)
+    return { can: false, reach, why: DEAL_SEND_WHY.window, label };
+  return { can: true, reach, why: null, label };
 }
 
 /** The words a follow-up carries into the composer, a week after the proposal went with nothing back. */
@@ -106,35 +121,27 @@ export function proposalFollowUp(url: string): string {
 
 /* --------------------------------------------- the acts ----------------------------------------------------- */
 
-/** An act on a deal: most open the sheet in a mode; a send opens the thread with the words ready. */
-export type DealActId = "propose" | "again" | "edit" | "add-link" | "won" | "lost" | "ended" | "send" | "follow-up";
-
-export const DEAL_ACT_WORDS: Record<DealActId, string> = {
-  propose: "Start a proposal",
-  again: "Propose again",
-  edit: "Edit the proposal",
-  "add-link": "Add the link",
-  won: "Mark as client",
-  lost: "Passed…",
-  ended: "End the engagement…",
-  send: "Send the proposal",
-  "follow-up": "Follow up",
-};
+/** What an act does, said on hover where it needs saying. Its label is DEAL_ACT_WORDS' (deals.ts). */
+export const DEAL_ACT_HINTS = {
+  /** A send where only an approved message can go: it opens their thread, which offers those. */
+  approved: "Only an approved message reaches them until they write again; their thread offers those",
+} as const;
 
 export interface DealAct {
   id: DealActId;
   label: string;
-  /** The sheet's mode it opens; null for a send, which opens the thread with `text` in the box instead. */
+  /** The sheet's mode it opens; null for a send, which opens the thread, with `text` in the box where it can go. */
   mode: DealSheetMode | null;
-  /** The words a send carries into the composer. */
+  /** The words a send carries into the composer; none where only an approved message can go. */
   text?: string;
+  /** What it does, on hover. */
+  hint?: string;
 }
 
 const MODE_OF: Record<DealActId, DealSheetMode | null> = {
   propose: "propose",
   again: "again",
   edit: "edit",
-  "add-link": "edit",
   won: "won",
   lost: "lost",
   ended: "ended",
@@ -142,14 +149,15 @@ const MODE_OF: Record<DealActId, DealSheetMode | null> = {
   "follow-up": null,
 };
 
-const act = (id: DealActId, text?: string): DealAct => ({
+const act = (id: DealActId, extra: { text?: string; hint?: string } = {}): DealAct => ({
   id,
   label: DEAL_ACT_WORDS[id],
   mode: MODE_OF[id],
-  ...(text !== undefined ? { text } : {}),
+  ...(extra.text !== undefined ? { text: extra.text } : {}),
+  ...(extra.hint !== undefined ? { hint: extra.hint } : {}),
 });
 
-/** Whether a deal's proposal went: the deal's own word for it on a person's page, else the person's for the same link. */
+/** Whether a deal's proposal went: the deal's own word for it on a person's page, else the person's for its link. */
 function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null } | null {
   const url = deal.proposal?.url ?? null;
   if (!url) return null;
@@ -158,22 +166,27 @@ function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null }
 }
 
 /**
- * The deal card's one next act, by stage (0008). A proposal with no link: add it. With a link that has not gone and
- * can: send it. Sent, a week with nothing back, and it can go: follow up. Otherwise the yes. A client has none; a pass
- * is proposed again; an end, or no deal at all, starts a proposal. `deal` is the card's (a person may hold one open
- * deal per service); the person's current one by default.
+ * The deal card's one next act, by stage (0008). A proposal with no link: edit it, to give it one. One on its way out
+ * (a send still in the seconds it can be undone): the yes, and no second send. A link that never went, to someone
+ * the page may reach: send it. Sent, a week with nothing back, to someone it may reach: follow up. Either opens their
+ * thread, with the words in the box where free text can go; where only an approved message can (WhatsApp's window
+ * shut after a quiet week) it opens the thread with nothing in the box, and says so on hover. Otherwise the yes. A
+ * client has none; a pass is proposed again; an end, or no deal at all, starts a proposal. `deal` is the card's (a
+ * person may hold one open deal per service); the person's current one by default.
  */
 export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = p.deal): DealAct | null {
   if (!deal || deal.stage === "ended") return act("propose");
   if (deal.stage === "won") return null;
   if (deal.stage === "lost") return act("again");
   const url = deal.proposal?.url ?? null;
-  if (!url) return act("add-link");
-  const canSend = dealSendOf(p).can;
+  if (!url) return act("edit");
+  if (deal.proposal?.sending) return act("won");
+  const send = dealSendOf(p);
   const sent = sentOf(p, deal);
-  if (!sent && canSend) return act("send", proposalMessage(url));
-  if (sent && canSend && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
-    return act("follow-up", proposalFollowUp(url));
+  const words = (text: string) => (send.can ? { text } : { hint: DEAL_ACT_HINTS.approved });
+  if (!sent && send.reach) return act("send", words(proposalMessage(url)));
+  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs))
+    return act("follow-up", words(proposalFollowUp(url)));
   return act("won");
 }
 
@@ -199,6 +212,8 @@ export const DEAL_CARD_WORDS = {
   consultation: "Consultation",
   noLink: "No link",
   notSent: "Not sent yet",
+  /** A message carrying the link is queued, in the seconds its send can be undone. */
+  sending: "Sending",
   openLink: "Open the proposal in a new tab",
 } as const;
 
@@ -276,14 +291,36 @@ function consultationWas(atMs: number, tz: string, nowMs: number): string {
   return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
 }
 
-function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number): DealStepVM[] {
+/** Whether a consultation's title names a service: the service's words, folded, in a row among the title's. */
+function namesService(title: string, service: string): boolean {
+  const words = (s: string) =>
+    foldName(s)
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean);
+  const said = words(title);
+  const named = words(service);
+  return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
+}
+
+/**
+ * The open deal a consultation belongs to, the one card that draws the Consultation step: the deal whose service the
+ * consultation's title names, else the newest. Null for someone with no consultation.
+ */
+function consultedDealOf(p: DealPerson, open: readonly DealVM[]): DealVM | null {
+  if ((p.consultedMs ?? null) === null && !p.consultationVisit) return null;
+  const title = p.consultationTitle ?? "";
+  return (title && open.find((d) => !!d.service && namesService(title, d.service))) || open[0] || null;
+}
+
+function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consultation: boolean): DealStepVM[] {
   const day = (ms: number | null) => (ms === null ? null : clockDate(ms, tz, nowMs));
   const won = deal.stage === "won";
   const tone = stateTone("deal", deal.stage);
   const steps: DealStepVM[] = [];
-  // A consultation is a step only for someone who has one: done once it ended, ahead while Coming up says when.
+  // A consultation is a step only on the card of the deal it began: done once it ended, ahead while Coming up says
+  // when.
   const consulted = p.consultedMs ?? null;
-  if (consulted !== null || p.consultationVisit) {
+  if (consultation) {
     const done = consulted !== null && consulted <= nowMs;
     steps.push({
       key: "consultation",
@@ -310,14 +347,22 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number): DealSt
   return steps;
 }
 
-function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string): DealCardVM {
+function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consultation: boolean): DealCardVM {
   const won = deal.stage === "won";
   const next = dealNextAct(p, nowMs, deal);
   const facts: string[] = [];
   const flags: DealCardVM["flags"] = [];
   if (!won) {
     const sent = sentOf(p, deal);
-    facts.push(!deal.proposal ? DEAL_CARD_WORDS.noLink : sent ? sentWords(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent);
+    facts.push(
+      !deal.proposal
+        ? DEAL_CARD_WORDS.noLink
+        : deal.proposal.sending
+          ? DEAL_CARD_WORDS.sending
+          : sent
+            ? sentWords(sent, tz, nowMs)
+            : DEAL_CARD_WORDS.notSent,
+    );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
     // Nothing back after a week: a proposal that went, or one recorded without a link (it went some other way). A
@@ -332,7 +377,7 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string): DealCar
     stage: won ? "won" : "proposed",
     title: deal.service ?? (won ? DEAL_CARD_WORDS.engagement : DEAL_CARD_WORDS.proposal),
     value: deal.amount,
-    steps: stepsOf(p, deal, tz, nowMs),
+    steps: stepsOf(p, deal, tz, nowMs, consultation),
     link: !won && deal.proposal ? { url: deal.proposal.url, host: deal.proposal.host } : null,
     facts,
     flags,
@@ -373,13 +418,14 @@ function quietOf(p: DealPerson, nowMs: number, tz: string): DealQuietVM {
 /**
  * The person page's Deal section (0008): one card per open deal (a proposal out, a client; one per service), newest
  * first, or, with none open, one quiet line. Say each fact once: an upcoming consultation is Coming up's, so it is
- * never said here.
+ * never said here, and a consultation is a step on one card only, the deal's it began (consultedDealOf).
  */
 export function dealCardsOf(p: DealPerson, nowMs: number, tz: string): PersonDealsVM {
   const deals = p.deals ?? (p.deal ? [p.deal] : []);
   const open = deals.filter((d) => d.stage === "proposed" || d.stage === "won");
   if (!open.length) return { cards: [], quiet: quietOf(p, nowMs, tz) };
-  return { cards: open.map((d) => cardOf(p, d, nowMs, tz)), quiet: null };
+  const consulted = consultedDealOf(p, open);
+  return { cards: open.map((d) => cardOf(p, d, nowMs, tz, d === consulted)), quiet: null };
 }
 
 /* --------------------------------------------- the sheet ---------------------------------------------------- */
@@ -387,11 +433,13 @@ export function dealCardsOf(p: DealPerson, nowMs: number, tz: string): PersonDea
 /** Every word the sheet says. */
 export const DEAL_SHEET_WORDS = {
   titles: {
+    // Each move's sheet is titled by its act (DEAL_ACT_WORDS; deal-sheet.test.mjs holds them together). Written out:
+    // a title read off another object would keep these words in every package that bundles contracts.
     propose: "New proposal",
-    edit: "Edit the proposal",
+    edit: "Edit proposal",
     again: "Propose again",
     won: "Mark as client",
-    lost: "Passed",
+    lost: "Mark as passed",
     ended: "End the engagement",
   } satisfies Record<DealSheetMode, string>,
   save: {
@@ -570,16 +618,6 @@ const DRAFT_EMPTY: DealSheetDraft = {
 
 const capital = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-/** An amount as a box shows it: "2,500", "999.50"; "" without one. parseAmount reads it back to the same cents. */
-function centsWords(cents: number | null): string {
-  if (cents === null || !Number.isFinite(cents)) return "";
-  const whole = cents % 100 === 0;
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
-  }).format(cents / 100);
-}
-
 /** The deal a move is about: the one it was opened for, else the person's current one. */
 function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | undefined): DealVM | null {
   if (mode === "propose") return null;
@@ -617,7 +655,9 @@ export function dealSheetFor(
     label: [`“${m.words}”`, m.via, m.when].filter(Boolean).join(" · "),
   }));
   const pers = DEAL_PERS.map((x) => ({ value: x, label: capital(DEAL_PER_WORDS[x]) }));
-  const valueOf = deal ? centsWords(deal.amountCents) : "";
+  // The deal's amount as a box shows it ("$2,500", without how often: the sheet asks that apart); parseAmount reads
+  // it back to the same cents.
+  const valueOf = (deal && amountWords(deal.amountCents, null, deal.currency)) || "";
   const draft: DealSheetDraft = {
     ...DRAFT_EMPTY,
     ...(mode === "propose"
@@ -713,6 +753,19 @@ export function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): b
   );
 }
 
+/**
+ * The draft once the person was read again with the sheet open (0008): a teammate's move since, or a held copy the
+ * page painted first. What was changed here stays; every field left as it opened takes the fresh value, and the fresh
+ * draft becomes what the sheet opened with, so a Save changes only what was typed here, and clears only what was
+ * emptied here.
+ */
+export function dealSheetMerge(draft: DealSheetDraft, opened: DealSheetDraft, fresh: DealSheetDraft): DealSheetDraft {
+  const keys = Object.keys(DRAFT_EMPTY) as (keyof DealSheetDraft)[];
+  return keys.reduce<DealSheetDraft>((out, k) => (draft[k] === opened[k] ? out : { ...out, [k]: draft[k] }), {
+    ...fresh,
+  });
+}
+
 /** The route's body for a move (the deal route and window.__recordDeal's DealBody). */
 export interface DealSheetBody {
   stage: DealStage;
@@ -752,7 +805,7 @@ export function dealSheetBody(
   mode: DealSheetMode,
   draft: DealSheetDraft,
   deal: DealVM | null,
-  opts: { tz: string; nowMs: number; canSend?: boolean },
+  opts: { tz: string; nowMs: number; canSend: boolean },
 ): DealSheetOutcome {
   const P = DEAL_SHEET_WORDS.problems;
   const problem = (field: DealSheetField | null, words: string): DealSheetOutcome => ({ problem: { field, words } });

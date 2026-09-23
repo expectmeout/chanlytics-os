@@ -1467,10 +1467,6 @@
 .cl-prof-deal-dot { color: var(--ink-faint); }
 /* What wants a look: the house's StatePill, each in its tone, never a badge of the card's own. */
 .cl-prof-deal-flags { display: flex; flex-wrap: wrap; gap: 6px; }
-/* A state is a word, not something to press: the touch floor (legacy.css) would make each 36px tall on a phone. */
-@media (pointer: coarse) {
-  html.legacy-on .cl-prof-deal-flags .pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
-}
 /* The one next act is an outline button (the page's one filled button is the thread's); the other moves are words,
    with no box of their own, so each lines up with the card's text wherever the row wraps. */
 .cl-prof-deal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 2px; }

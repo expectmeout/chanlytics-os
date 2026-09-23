@@ -1389,9 +1389,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // The page's one primary act is their thread. Everything else it can do for them is the More menu: which acts, their
   // words and who may press them are contracts' (personActs); the page keeps what its reader's role allows and does them.
   // A send opens their thread with the words ready; nothing is sent from here. It was a button of its own, "Send the
-  // booking-link template", beside a thread button that went to the same place.
+  // booking-link template", beside a thread button that went to the same place. A send with no words (the deal card's,
+  // where only an approved message can go) opens the thread and leaves its box alone: the thread offers those.
   const openWith = (text) => {
-    try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text })); } catch { /* nothing to carry */ }
+    if (text) {
+      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text })); } catch { /* nothing to carry */ }
+    }
     window.CHANLY.nav(p.openThread);
   };
   const copyOut = (text, what) => {

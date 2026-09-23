@@ -575,12 +575,18 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const shape = (tree) => itemsOf(tree).map((it) => (it.divider ? "|" : it.label));
   const was = { deal: globalThis.window.__deal, open: globalThis.window.openDealSheet };
   const opened = [];
+  // What happens, in order: the Actions button taking focus, and the sheet asked for.
+  const order = [];
   // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
   globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
   globalThis.window.openDealSheet = (ask) => {
     opened.push(ask);
+    order.push("sheet");
     return true;
   };
+  // The header's Actions button, as the page has it.
+  const actions = { focus: () => order.push("actions") };
+  globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
   const people = (deal, dealsOn = true) => {
     globalThis.window.__PEOPLE = { rows: [{ id: "k1", deal }], dealsOn };
   };
@@ -609,20 +615,25 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       { personId: "k1", mode: "propose", dealId: null },
       "the sheet, not the person's page",
     );
+    // The sheet gives focus back to what held it as it opened, and the menu's item is gone by then: the Actions button
+    // holds it first, so closing the sheet lands there. REGRESSION: focus fell to the page's body.
+    assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(6, 9), ["Mark as client", "Passed…", "Edit the proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(6, 9), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
-      ["Passed…", "lost"],
-      ["Edit the proposal", "edit"],
+      ["Mark as passed", "lost"],
+      ["Edit proposal", "edit"],
     ]) {
+      order.length = 0;
       press(label);
       assert.deepEqual(opened.at(-1), { personId: "k1", mode, dealId: "d1" });
+      assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(6, 7), ["End the engagement…"]);
-    press("End the engagement…");
+    assert.deepEqual(shape(draw(vm)).slice(6, 7), ["End the engagement"]);
+    press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });
     press("Propose again");
@@ -646,6 +657,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.ok(!shape(draw(vm)).includes("Start a proposal"), "People not read yet: nothing to say of a deal");
   } finally {
     delete globalThis.window.__PEOPLE;
+    delete globalThis.document.querySelector;
     globalThis.window.__deal = was.deal;
     globalThis.window.openDealSheet = was.open;
   }

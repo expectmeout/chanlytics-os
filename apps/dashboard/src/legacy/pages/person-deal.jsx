@@ -11,15 +11,17 @@
 // yet", and the one act that fits.
 //
 // Every sentence, every step, every act and which one leads are contracts' (deal-sheet.ts dealCardsOf, dealNextAct,
-// through window.__deal). A send -- "Send the proposal", "Follow up" -- opens their thread with the words in its box,
-// through the page's own path (`onCompose`, the More menu's); every other act opens the one deal sheet
-// (components/deal-sheet.jsx, window.openDealSheet). Nothing is drawn where deals are off. Hookless.
+// through window.__deal). A send -- "Send proposal", "Follow up" -- opens their thread through the page's own path
+// (`onCompose`, the More menu's), with the words in its box where free text can go; where only an approved message
+// can, it opens the thread with nothing in the box, which offers those, and its hover says so. Every other act opens the
+// one deal sheet (components/deal-sheet.jsx, window.openDealSheet). Nothing is drawn where deals are off. Hookless.
 
-// Run one of the card's acts: a send is the page's (the thread, with the words ready); a move is the sheet's.
+// Run one of the card's acts: a send is the page's (their thread, with the words ready where they can go, and
+// nothing written where they cannot); a move is the sheet's.
 const pdRun = (p, a, dealId, onCompose) => {
   if (!a) return;
   if (!a.mode) {
-    if (a.text && onCompose) onCompose(a.text);
+    if (onCompose) onCompose(a.text || null);
     return;
   }
   if (window.openDealSheet) window.openDealSheet({ personId: p.id, mode: a.mode, dealId: a.mode === "propose" ? null : dealId });
@@ -66,10 +68,10 @@ const PersonDealOne = ({ p, c, W, canRecord, onCompose }) => (
     {canRecord && (c.next || c.more.length) ? (
       <div className="cl-prof-deal-acts">
         {c.next ? (
-          <button type="button" className="btn btn-sm" onClick={() => pdRun(p, c.next, c.id, onCompose)} data-testid="person-deal-next">{c.next.label}</button>
+          <button type="button" className="btn btn-sm" title={c.next.hint || undefined} onClick={() => pdRun(p, c.next, c.id, onCompose)} data-testid="person-deal-next">{c.next.label}</button>
         ) : null}
         {c.more.map((a) => (
-          <button key={a.id} type="button" className="cl-prof-deal-act" onClick={() => pdRun(p, a, c.id, onCompose)} data-testid="person-deal-move">{a.label}</button>
+          <button key={a.id} type="button" className="cl-prof-deal-act" title={a.hint || undefined} onClick={() => pdRun(p, a, c.id, onCompose)} data-testid="person-deal-move">{a.label}</button>
         ))}
       </div>
     ) : null}
@@ -90,7 +92,7 @@ const PersonDealQuiet = ({ p, q, canRecord, onCompose }) => (
       ) : null}
     </p>
     {canRecord ? (
-      <button type="button" className={q.primary ? "btn btn-sm" : "cl-prof-deal-act"} onClick={() => pdRun(p, q.act, q.dealId, onCompose)} data-testid="person-deal-start">{q.act.label}</button>
+      <button type="button" className={q.primary ? "btn btn-sm" : "cl-prof-deal-act"} title={q.act.hint || undefined} onClick={() => pdRun(p, q.act, q.dealId, onCompose)} data-testid="person-deal-start">{q.act.label}</button>
     ) : null}
   </div>
 );

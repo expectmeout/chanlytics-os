@@ -660,6 +660,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   React.useEffect(() => {
     const onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Not a key something else took, and not one pressed inside a dialog over the page (the deal sheet, any
+      // aria-modal): an arrow on its select moved the thread behind it, and A on its buttons approved.
+      if (e.defaultPrevented || (e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) return;
       const tag = (e.target.tagName || "").toLowerCase();
       if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
       const k = e.key.toLowerCase();

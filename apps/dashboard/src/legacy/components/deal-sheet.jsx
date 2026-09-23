@@ -20,7 +20,9 @@
 // when "Send it now" is on, the proposal then goes through the Inbox's own reply courier (thread-pane.jsx threadVerbs:
 // its receipt, its Undo, its email retry), on the person's conversation. Then the sheet closes, says so, and
 // dispatches `deal:recorded` with the person's id, which the person page reloads on. A refusal keeps the sheet open,
-// said under the field it names; a send refused after a good record says both, and the sheet closes.
+// said under the field it names; a send refused after a good record says both, and the sheet closes. Whenever the
+// person is read again with the sheet open, what was typed stays and every field left alone takes the fresh value
+// (contracts dealSheetMerge), so a Save never puts back what a teammate changed.
 
 const { useState: useDsState, useEffect: useDsEffect, useRef: useDsRef } = React;
 
@@ -280,10 +282,12 @@ const DealSheetHost = () => {
     const opened = made ? made.draft : null;
     return { ...DS_CLOSED, ask, person, draft: opened, opened };
   };
-  // The person read, through the profile's own courier, every time the sheet opens: a sheet opened before they were
-  // read fills in as they land; one drawn from the tab's copy (which may be behind: someone moved the deal since)
-  // takes them as they now stand -- opened again on them while nothing is typed, and keeping what was typed and what
-  // was said about it otherwise, so a second Save moves the row as it stands.
+  // The person read, through the profile's own courier, every time the sheet opens and after a refusal: a sheet opened
+  // before they were read fills in as they land; one drawn from the tab's copy, or refused because someone moved the
+  // deal since, takes them as they now stand. What was typed stays, with what was said about it; every field left as it
+  // opened takes the fresh value, and the fresh draft becomes what "changed" is judged by (contracts dealSheetMerge),
+  // so a second Save moves the row as it stands and changes only what was typed here. A save still out keeps its draft:
+  // its refusal reads them again.
   const read = (ask) => {
     const words = window.__deal ? window.__deal.sheetWords : null;
     if (!window.__personDetail) {
@@ -295,8 +299,11 @@ const DealSheetHost = () => {
         if (s.ask !== ask) return s;
         if (!vm) return s.person ? s : { ...s, failed: words ? words.gone : "" };
         if (!s.person) return begin(ask, vm);
-        const untouched = !s.busy && (!s.draft || !s.opened || !window.__deal.dirty(s.draft, s.opened));
-        return untouched ? { ...begin(ask, vm), problem: s.problem } : { ...s, person: vm };
+        if (s.busy) return { ...s, person: vm };
+        const fresh = begin(ask, vm);
+        if (!s.draft || !s.opened || !fresh.draft) return { ...fresh, problem: s.problem };
+        const draft = dsWorked(() => window.__deal.merge(s.draft, s.opened, fresh.draft)) || fresh.draft;
+        return { ...s, person: vm, draft, opened: fresh.draft };
       }),
       (e) => setSt((s) => (s.ask !== ask || s.person ? s : { ...s, failed: (e && e.message) || "" })),
     );
@@ -349,15 +356,18 @@ const DealSheetHost = () => {
     // The send, once the record has landed: the Inbox's own courier, so its receipt, its Undo and its email retry are
     // the Inbox's. It says itself; a refusal says the record stood.
     let said = false;
-    if (out.send && canSend && person.threadId && window.threadVerbs) {
+    if (out.send && canSend) {
       const say = (toast) => {
         said = true;
         flash(toast && toast.tone === "danger" ? { ...toast, msg: <>{W.notSent} {toast.msg}</> } : toast);
       };
-      const t = { id: person.threadId, conversationId: person.threadId.replace(/^th-/, ""), escalationId: null, who };
       let went = false;
-      try { went = await window.threadVerbs(say).verb(t, "reply", { text: out.send.text }, W.sent, true); } catch { went = false; }
-      // Refused before anything could say why (no courier here, or it threw): the record stood, and nothing went.
+      if (person.threadId && window.threadVerbs) {
+        const t = { id: person.threadId, conversationId: person.threadId.replace(/^th-/, ""), escalationId: null, who };
+        try { went = await window.threadVerbs(say).verb(t, "reply", { text: out.send.text }, W.sent, true); } catch { went = false; }
+      }
+      // Refused before anything could say why (no conversation to send in, no courier here, or it threw): the record
+      // stood, and nothing went.
       if (!went && !said) { said = true; flash({ tone: "danger", msg: <>{W.unsent}</> }); }
     }
     setSt(DS_CLOSED);
