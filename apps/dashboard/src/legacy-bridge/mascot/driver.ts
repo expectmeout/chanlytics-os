@@ -6,7 +6,15 @@
  * tests run it on node with a fake canvas and a fake clock.
  */
 import { createCharacter, UNITS, type Character, type CharacterState, type Reaction } from "./character";
-import { clonePalette, easePalette, palette, type Palette, type ThemeName, type ThemeTokens } from "./colour";
+import {
+  clonePalette,
+  easePalette,
+  palette,
+  type Palette,
+  type ThemeName,
+  type ThemeTokens,
+  type Tone,
+} from "./colour";
 import { drawCharacter } from "./draw";
 
 export interface DriverEnv {
@@ -28,6 +36,8 @@ export interface MountOptions {
   /** one square, in CSS pixels; by default the canvas's shorter side holds UNITS squares */
   side?: number;
   seed?: number;
+  /** drawn on the page (the default) or on a coral button (colour.ts `Tone`) */
+  tone?: Tone;
   env?: Partial<DriverEnv>;
 }
 export interface Mounted {
@@ -101,7 +111,7 @@ function browserEnv(): DriverEnv {
       if (!w || !d) return {};
       const cs = w.getComputedStyle(d.documentElement);
       const v = (n: string) => cs.getPropertyValue(n).trim() || null;
-      return { bg: v("--bg"), ink: v("--ink"), accent: v("--accent") };
+      return { bg: v("--bg"), ink: v("--ink"), accent: v("--accent"), accentFg: v("--accent-fg") };
     },
     onTheme: (fn) => {
       if (!w || !d || typeof w.MutationObserver !== "function") return () => {};
@@ -117,7 +127,8 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
   if (!ctx) return null;
   const env: DriverEnv = { ...browserEnv(), ...(opts.env ?? {}) };
   const character: Character = createCharacter({ seed: opts.seed ?? 7, calm: env.reduced, enter: !env.reduced });
-  let palTarget = palette(env.theme(), env.tokens());
+  const tone = opts.tone ?? "page";
+  let palTarget = palette(env.theme(), env.tokens(), tone);
   const pal: Palette = clonePalette(palTarget);
   let w = 0;
   let h = 0;
@@ -217,7 +228,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
   undo.push(env.onPointer(gaze));
   undo.push(
     env.onTheme(() => {
-      palTarget = palette(env.theme(), env.tokens());
+      palTarget = palette(env.theme(), env.tokens(), tone);
       stillFrame();
       if (!raf) frame(0);
     }),
