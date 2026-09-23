@@ -1254,7 +1254,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* Below 1180px each row is one column, in the same order (spec 4.1). today-day.test pins this block's first two lines. */
 @media (max-width: 1180px) {
   .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }
-  .dash-a-v2-core > * { grid-column: 1; grid-row: auto; } /* one column: the three, the queue, the day, in source order */
+  /* One column: the three, the queue, the day, in source order. The same three selectors as the placement above, or
+     the placement wins on specificity and the day gets an implicit second column beside the band. */
+  .dash-a-v2-core > .today-face, .dash-a-v2-core > .tq, .dash-a-v2-core > .td-day { grid-column: 1; grid-row: auto; }
 }
 @media (max-width: 720px) {
   /* A phone puts nothing above the work it can help with: the head is one line with its door on it, and the
