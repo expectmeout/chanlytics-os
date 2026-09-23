@@ -201,10 +201,22 @@ test("an answer that carries a proposal hands off to the palette for review", as
   delete W.__ask;
 });
 
-test("with no client the field seeds the palette and the band rests", () => {
+test("with no client the field seeds the palette and the band rests; Enter on the field is the send", () => {
   delete W.__ask;
   asked.length = 0;
   let tree = start();
+  type(tree, "who needs me?");
+  tree = again(draw);
+  let prevented = 0;
+  byTestId(tree, "today-face-input").props.onKeyDown({
+    key: "Enter",
+    shiftKey: false,
+    preventDefault: () => prevented++,
+  });
+  assert.equal(prevented, 1, "the form's own submission is not left to the key's character");
+  assert.deepEqual(asked.at(-1), { prompt: "who needs me?" });
+  tree = again(draw);
+  assert.equal(byTestId(tree, "today-face-input").props.value, "", "the field is cleared");
   type(tree, "who needs me?");
   tree = again(draw);
   submit(tree);

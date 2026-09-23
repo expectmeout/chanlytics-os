@@ -165,6 +165,11 @@ const TodayFace = () => {
     setQuery("");
     ask(q);
   };
+  // Enter on the field, as the palette takes it (ask-real.jsx onKey): not left to the form's implicit submission,
+  // which a key event without its character never triggers.
+  const onKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) submit(e);
+  };
   const shape =
     turn.message && A && !turn.message.failed ? A.shape(turn.message, turn.language) : { open: null, followups: [] };
   const done = turn.phase === "settled" || turn.phase === "failed";
@@ -286,6 +291,7 @@ const TodayFace = () => {
           className="tf-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKey}
           placeholder={busy ? t.thinking : turn.threadId ? t.follow : t.todayPlaceholder}
           disabled={busy}
           maxLength={1000}
