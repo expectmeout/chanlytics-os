@@ -11,6 +11,7 @@
 import {
   REPLY_WINDOW_MS,
   broadcastFailureWords,
+  heardWords,
   noNumberWords,
   saidYesWords,
   toApprovalVM,
@@ -64,6 +65,8 @@ export const broadcasts = {
   noNumberWords,
   /** How many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it. */
   saidYesWords,
+  /** How many of those it reaches heard from a run this week, in the composer's words; null when none did. */
+  heardWords,
   /**
    * One run's report, as the opened run draws it: its five figures, everyone it touched in words, every reply, and
    * why it stopped -- stamped by the business's clock (zone.ts), which the page has installed before it opens a run.

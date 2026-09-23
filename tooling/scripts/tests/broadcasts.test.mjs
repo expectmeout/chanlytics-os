@@ -434,8 +434,8 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // audience the route would then refuse.
   // One pass per purpose now keeps a few of the rows as well as counting them, so
   // the composer can show one of the people the number is a length of.
-  assert.ok(s.includes('conversational: audiencePreview(rows, kind, id, ids, "conversational")'));
-  assert.ok(s.includes('marketing: audiencePreview(rows, kind, id, ids, "marketing")'));
+  assert.ok(s.includes('conversational: audiencePreview(rows, kind, id, ids, "conversational", 5, touched)'));
+  assert.ok(s.includes('marketing: audiencePreview(rows, kind, id, ids, "marketing", 5, touched)'));
   assert.ok(
     s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
     "the chip's number is the length of the list the preview walks -- never a second count",

@@ -1187,6 +1187,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes =
                 texted is not in an offer's count. The wire refuses per customer
                 (sms_carries_no_promotions); the page states the rule. */}
             {purpose === "marketing" && data.offersNote && <div className="bc-excl-hint" data-testid="bc-offers-note">{data.offersNote}</div>}
+            {/* Who of these already heard from a run this week: a send by hand is not held back by the week a playbook
+                waits, so the owner is told here, before it goes (contracts heardWords). */}
+            {active && sample && sample.heard > 0 && window.__broadcasts && window.__broadcasts.heardWords && (
+              <div className="bc-excl-hint" data-testid="bc-heard">{window.__broadcasts.heardWords(sample.heard)}</div>
+            )}
             {overLimit && active && number && (
               <div className="bc-excl-hint" data-testid="bc-over-limit">This number can start up to {number.health.limitPerDay.toLocaleString()} new conversations a day; “{active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.</div>
             )}

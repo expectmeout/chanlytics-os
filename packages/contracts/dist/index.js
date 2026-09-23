@@ -10186,10 +10186,15 @@ function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
   return rows;
 }
+function heardWords(n) {
+  if (n <= 0) return null;
+  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
+}
 function previewPerson(r, refusal) {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
-function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
+var NO_ONE = /* @__PURE__ */ new Set();
+function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5, touched = NO_ONE) {
   const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
   const held = pool.filter((r) => !mayReceive(r, purpose));
@@ -10209,7 +10214,8 @@ function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
     people,
     sending: sending.length,
     held: held.length,
-    saidYes: pool.filter((r) => saidYesTo(r, purpose)).length
+    saidYes: pool.filter((r) => saidYesTo(r, purpose)).length,
+    heard: sending.filter((r) => touched.has(r.id)).length
   };
 }
 function renderTemplate(body, params) {
@@ -17326,6 +17332,7 @@ export {
   handoffWords,
   hardLimitsWords,
   hasProfile,
+  heardWords,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
   hoursRuns,
