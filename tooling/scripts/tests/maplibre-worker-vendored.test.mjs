@@ -17,10 +17,15 @@ const require = createRequire(import.meta.url);
 const dist = path.dirname(require.resolve("maplibre-gl/dist/maplibre-gl.mjs"));
 const served = path.join(ROOT, "apps/dashboard/public/maplibre");
 
+// .gitattributes keeps the copy out of line-ending conversion; a checkout made before that still compares as text.
+const asText = (file) => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+
 for (const file of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) {
   test(`public/maplibre/${file} is the installed maplibre-gl's own`, () => {
-    const ours = fs.readFileSync(path.join(served, file));
-    const theirs = fs.readFileSync(path.join(dist, file));
-    assert.ok(ours.equals(theirs), `copy node_modules/maplibre-gl/dist/${file} to apps/dashboard/public/maplibre/`);
+    assert.equal(
+      asText(path.join(served, file)),
+      asText(path.join(dist, file)),
+      `copy node_modules/maplibre-gl/dist/${file} to apps/dashboard/public/maplibre/`,
+    );
   });
 }
