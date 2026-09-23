@@ -7591,12 +7591,17 @@ interface TodayVM {
     } | null;
     /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
     callsRead: boolean;
-    /** Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what the rows hold in words. */
+    /**
+     * Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, what the
+     * rows hold in words, and how many people are waiting on you across the whole queue (a handoff, a call-back or a
+     * closing window; a call worth a listen is nobody waiting), which Ask's Right now says.
+     */
     queue: {
         rows: TodayQueueRowVM[];
         more: number;
         parts: string[];
         empty: TodayQueueEmptyVM;
+        waiting: number;
     };
     quiet: {
         headline: string;
@@ -8196,7 +8201,10 @@ declare function oneDoor(a: AskAnswer, cards?: ReadonlyArray<Pick<AskProposal, "
  * threads untouched for 90 days (00040_ask.sql:86-103), so a thread in use keeps its old turns.
  */
 declare function answerFromV1(m: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language">): AskAnswer;
-/** Who is waiting, as Today's queue draws them (TodayVM.queue.rows), and the runs waiting for a yes. */
+/**
+ * Who is waiting, as Today's queue draws them (TodayVM.queue.rows, six at most), how many more wait past those
+ * (queue.waiting), and the runs waiting for a yes. Null is a queue not read yet: nobody is claimed to be waiting.
+ */
 interface AskWaiting {
     people: Array<{
         id: string;
@@ -8207,17 +8215,23 @@ interface AskWaiting {
         line: string;
         to: string;
     }>;
+    /** People waiting past the rows the queue draws. */
+    more: number;
+    /** A run's reach is the people it would send to. */
     runs: Array<{
         id: string;
         label: string;
-        line: string;
+        reach: number;
         to: string;
     }>;
 }
 /** Right now, in a sentence: the people waiting, then the runs waiting for a yes -- two populations, two clauses. */
-declare function rightNowLine(w: AskWaiting, language: AskLanguage): string;
-/** Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for people past the cap. */
-declare function needsAnswer(w: AskWaiting, language: AskLanguage): AskAnswer;
+declare function rightNowLine(w: AskWaiting | null, language: AskLanguage): string;
+/**
+ * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
+ * is drawn. A queue not read yet says so, and points at Today.
+ */
+declare function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer;
 /** Did anyone call: today's missed calls as doors, or none, with the call on the line; Do opens Live. */
 declare function callsAnswer(missed: FastCall[], live: FastCall[], language: AskLanguage): AskAnswer;
 /**
@@ -8234,7 +8248,7 @@ interface AskOpeningsView {
     }>;
 }
 /** What is open: the days as items, each a door to its day on the Calendar; Do opens the Calendar. */
-declare function openingsAnswer(o: AskOpeningsView, language: AskLanguage): AskAnswer;
+declare function openingsAnswer(o: AskOpeningsView, language: AskLanguage, day?: string | null): AskAnswer;
 
 /**
  * Ask: the workspace assistant, as a contract.

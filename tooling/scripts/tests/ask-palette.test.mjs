@@ -290,6 +290,12 @@ const inputOf = (tree) => byTestId(tree, "ask-input");
 const typed = (tree, words) => inputOf(tree).props.onChange({ target: { value: words } });
 const keyed = (tree, k) => inputOf(tree).props.onKeyDown(pressOf(k));
 const sent = (type, detail) => globalThis.window.dispatchEvent(new CustomEvent(type, { detail }));
+/** ⌘J, pressed anywhere in the Line: the window hears it, wherever the focus is. */
+const cmdJ = () => {
+  const e = { ...pressOf("j"), type: "keydown", metaKey: true, defaultPrevented: false };
+  globalThis.window.dispatchEvent(e);
+  return e;
+};
 
 /** A conversation as the Ask routes list it (contracts' AskThreadVM). */
 const TH = (n) => ({
@@ -517,6 +523,93 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   await closes();
 });
 
+test("REGRESSION: a turn left behind writes nothing -- the palette ignored only the last one stopped, so a first stopped question's late answer landed as the latest", async () => {
+  const calls = ask([]);
+  const finish = {};
+  globalThis.window.__ask.send = (input, on) =>
+    new Promise((res) => {
+      calls.sent.push(input.text);
+      on({ t: "trace", text: `Reading for ${input.text}…` });
+      finish[input.text] = () => {
+        on({ t: "thread", id: TH(7).id, title: input.text });
+        on({ t: "final", message: said(`late-${input.text}`, `Late answer to ${input.text}.`) });
+        res();
+      };
+    });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  for (const q of ["first question", "second question"]) {
+    typed(tree, q);
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Escape");
+    tree = await later(Palette, OPEN);
+  }
+  assert.deepEqual(calls.sent, ["first question", "second question"]);
+  finish["first question"]();
+  finish["second question"]();
+  tree = await later(Palette, OPEN);
+  assert.ok(!textOf(tree).includes("Late answer"), `a stopped turn's answer changed the line: ${textOf(tree)}`);
+  assert.ok(textOf(byTestId(tree, "ask-say")).startsWith("Stopped."), "the line still says it stopped");
+  await closes();
+});
+
+test("REGRESSION: a card sent once says Sent wherever it is drawn again -- a fold drew it fresh from the turn and offered Send a second time", async () => {
+  const calls = ask([]);
+  const committed = [];
+  const MSG = "cccccccc-cccc-4ccc-8ccc-000000000001";
+  Object.assign(globalThis.window.__ask, {
+    commit: async (p) => {
+      committed.push(p.id);
+      return { ok: true, receipt: "Sent to Nora", undo: null };
+    },
+    outcome: async () => true,
+    undoOpen: () => false,
+    editReply() {},
+    send: async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(8).id, title: input.text });
+      const card = {
+        id: "p1",
+        kind: "reply",
+        needs: "operator",
+        title: "Reply to Nora",
+        summary: "We're running 15 minutes late.",
+        payload: { conversation_id: "c1" },
+        undo: null,
+      };
+      on({
+        t: "final",
+        message:
+          calls.sent.length === 1
+            ? { ...said(MSG, "Here is a reply to send."), proposals: [card] }
+            : said("m-2", "Tomorrow is quiet."),
+      });
+    },
+  });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "tell nora we're late");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-card-approve"));
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(committed, ["p1"]);
+  assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Sent to Nora"));
+  typed(tree, "and tomorrow?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-fold"));
+  tree = await later(Palette, OPEN);
+  const fold = byClass(tree, "ask-fold")[0];
+  assert.equal(byTestId(fold, "ask-card-approve"), null, "REGRESSION: the fold offered Send again");
+  assert.ok(textOf(fold).includes("Sent to Nora"), "the fold's card says what happened");
+  await closes();
+});
+
 test("open, show or see: the Line goes there as the answer lands, and the place is offered once", async () => {
   const calls = ask([]);
   const went = [];
@@ -729,7 +822,7 @@ test("REGRESSION (N5): Earlier holds every conversation, opened with ⌘J from a
   press(byTestId(tree, "ask-row-thread"));
   tree = await later(Palette, OPEN);
   assert.equal(textOf(byTestId(tree, "ask-say")), "The answer to Question 1.", "a conversation is open");
-  inputOf(tree).props.onKeyDown({ ...pressOf("j"), metaKey: true });
+  cmdJ();
   tree = await later(Palette, OPEN);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").length, 4, "every conversation");
   press(byClass(tree, "ask-row-del")[1]);
@@ -746,7 +839,6 @@ test("Earlier finds a conversation by the words typed and Enter opens it; with n
   ask([]);
   render(Palette, OPEN);
   let tree = await later(Palette, OPEN);
-  const cmdJ = () => inputOf(lastTree).props.onKeyDown({ ...pressOf("j"), metaKey: true });
   cmdJ();
   tree = await later(Palette, OPEN);
   assert.equal(textOf(byClass(tree, "ask-rows-empty")[0]), "No earlier conversations yet.");

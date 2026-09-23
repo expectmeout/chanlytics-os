@@ -89,9 +89,8 @@ const AskReal = ({ open, onClose }) => {
   const bodyRef = useArRef(null);
   // The thread list as it is being fetched on open: a question typed before it lands still finds its twin.
   const threadsReady = useArRef(null);
-  // The turn in flight, and the last one the person stopped waiting for: a stopped turn's later events change nothing.
+  // The current turn: a turn left behind (stopped, cleared, another opened, a later question) writes nothing.
   const turnSeq = useArRef(0);
-  const stopped = useArRef(0);
   // What the shell asked for as it opened the Line, kept until the Line is open (the wiring audit's N3).
   const asked = useArRef(null);
   const t = window.askText(lang);
@@ -194,13 +193,19 @@ const AskReal = ({ open, onClose }) => {
 
   useArEffect(() => {
     if (!open || !A) return;
-    // Esc anywhere in the Line: stop a turn in flight, else close. The line takes it first when it has focus (onKey).
-    const onEsc = (e) => {
+    // Anywhere in the Line, not only on the line: ⌘J (or Ctrl J) opens Earlier, before the browser's Downloads can;
+    // Esc stops a turn in flight, else closes (the line takes Esc first when it has focus, onKey).
+    const onKeys = (e) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "j" || e.key === "J")) {
+        e.preventDefault();
+        setView((v) => (v === "earlier" ? "rows" : "earlier"));
+        return;
+      }
       if (e.key !== "Escape" || e.defaultPrevented) return;
       if (live) stop();
       else onClose();
     };
-    window.addEventListener("keydown", onEsc);
+    window.addEventListener("keydown", onKeys);
     // Taken once open, after the route's own scope, so a request's scope wins.
     const d = asked.current;
     if (d) {
@@ -210,10 +215,11 @@ const AskReal = ({ open, onClose }) => {
       else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuick(null); setQuery(d.prompt || ""); }
       else submit(d.prompt);
     }
-    return () => window.removeEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onKeys);
   });
 
-  useArEffect(() => { setSel(0); setMove(-1); }, [query, active, open, view, quick, live]);
+  // A new place to stand whenever what is under the line changes; not on every piece of a streaming answer.
+  useArEffect(() => { setSel(0); setMove(-1); }, [query, active, open, view, quick, !!live]);
   // A new answer starts at its top; the row or move the keys stand on stays in sight.
   useArEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [active && active.messages.length, quick, view]);
   useArEffect(() => {
@@ -230,13 +236,29 @@ const AskReal = ({ open, onClose }) => {
 
   // Going somewhere closes the Line; ⌘K brings the conversation back.
   const nav = (to) => { onClose(); window.CHANLY.nav(to); };
+  // Leaving the turn in flight, if any: whatever its stream sends after changes nothing on the line (its thread keeps
+  // the answer). Every turn checks it is still the current one (turnSeq) before it writes.
+  const moveOn = () => {
+    turnSeq.current += 1;
+    if (live) { setLive(null); if (M) M.mood.set("idle"); }
+  };
   // Clear: the conversation ends and the Line is home again; the thread stays in Earlier.
   const clearLine = () => {
+    moveOn();
     setActive(null); setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
     speech.stop();
   };
+  // What became of a card, kept on the conversation the Line holds, so the card drawn again (a fold, the answer back
+  // under the line) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
+  const noteOutcome = (messageId, pid, o) =>
+    setActive((prev) =>
+      prev
+        ? { ...prev, messages: prev.messages.map((m) => (m.id === messageId ? { ...m, proposals: (m.proposals || []).map((p) => (p.id === pid ? { ...p, outcome: o } : p)) } : m)) }
+        : prev,
+    );
 
   const openThread = async (th) => {
+    moveOn();
     const full = await A.thread(th.id);
     // A read that failed keeps the thread on the list and says so; only a thread that is gone is dropped as deleted.
     if (!full) { flash({ tone: "danger", msg: <>{t.threadUnreadable}</> }); return null; }
@@ -262,10 +284,8 @@ const AskReal = ({ open, onClose }) => {
   // Stop: the Line stops waiting for the turn in flight and says so; what the stream sends after changes nothing.
   const stop = () => {
     if (!live) return;
-    stopped.current = turnSeq.current;
-    setLive(null);
+    moveOn();
     setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, arFailed("s-" + Date.now(), t.stopped)] } : prev));
-    if (M) M.mood.set("idle");
   };
 
   // One turn: the question goes in, the words stream back, the answer lands. A quick question needs no model and no
@@ -280,9 +300,12 @@ const AskReal = ({ open, onClose }) => {
     if (!active) {
       const pending = A.quick(q);
       if (pending) {
+        const mine = ++turnSeq.current;
         setQuick({ q, pending: true });
         const answer = await pending;
-        setQuick((cur) => (cur && cur.q === q ? { q, answer } : cur));
+        // A later question, a conversation opened or Clear took the line meanwhile: this answer is not drawn.
+        if (mine !== turnSeq.current) return;
+        setQuick({ q, answer });
         if (M) { M.mood.set("idle"); M.mood.react("nod"); }
         return;
       }
@@ -303,7 +326,7 @@ const AskReal = ({ open, onClose }) => {
     let final = null;
     let spoke = false;
     await A.send({ text: q, threadId, scope: thread.scope || scope, surface }, (ev) => {
-      if (stopped.current === mine) return;
+      if (mine !== turnSeq.current) return;
       if (ev.t === "thread") { threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); }
       else if (ev.t === "trace") setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
       else if (ev.t === "delta") {
@@ -314,7 +337,7 @@ const AskReal = ({ open, onClose }) => {
       else if (ev.t === "final") final = ev.message;
       else if (ev.t === "error") final = arFailed("e-" + Date.now(), ev.text);
     });
-    if (stopped.current === mine) return;
+    if (mine !== turnSeq.current) return;
     if (!final) final = arFailed("e-" + Date.now(), t.cutOff);
     setLive(null);
     // Done: a failure shakes; an answer that streamed nods on its own as the row settles, one that did not nods here.
@@ -362,11 +385,6 @@ const AskReal = ({ open, onClose }) => {
 
   const onKey = (e) => {
     if (hold.onKeyDown(e)) return;
-    if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
-      e.preventDefault();
-      setView((v) => (v === "earlier" ? "rows" : "earlier"));
-      return;
-    }
     if (e.key === "Escape") {
       e.preventDefault();
       if (live) stop();
@@ -388,7 +406,8 @@ const AskReal = ({ open, onClose }) => {
       }
       return;
     }
-    if (e.key === "Delete" && showRows && rows[sel] && rows[sel].type === "thread") { e.preventDefault(); askDelete(rows[sel].th); return; }
+    // Delete asks to delete the conversation the keys stand on, from an empty line; with words it edits them.
+    if (e.key === "Delete" && !query && showRows && rows[sel] && rows[sel].type === "thread") { e.preventDefault(); askDelete(rows[sel].th); return; }
     if (e.key === "Enter") {
       e.preventDefault();
       const q = query.trim();
@@ -486,23 +505,27 @@ const AskReal = ({ open, onClose }) => {
         ))}
       </div>
     );
-  } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} />;
+  } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} />;
   else if (answerMsg)
     body = (
       <AskTurn
         m={answerMsg}
         q={latest.q ? latest.q.text : ""}
         latest
+        walk
         sel={move}
         t={t}
         lang={lang}
         onNav={nav}
         onFollow={submit}
+        onOutcome={noteOutcome}
         onRetry={answerMsg.failed && latest.q ? () => submit(latest.q.text) : undefined}
       />
     );
 
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
+  // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
+  const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
 
   return (
     // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is a sheet at the bottom
@@ -516,6 +539,7 @@ const AskReal = ({ open, onClose }) => {
         data-testid="ask-real"
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
       >
+        <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
         {/* A phone's sheet head: the grabber, Earlier, and a close within the thumb's reach. A desktop draws none. */}
         <div className="ask-line-head">
           <span className="ask-grabber" aria-hidden="true" />
@@ -542,7 +566,7 @@ const AskReal = ({ open, onClose }) => {
                     <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
                     <Icon name="chevron" size={12} className="ask-fold-chev" />
                   </button>
-                  {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} /> : null}
+                  {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} /> : null}
                 </div>
               );
             })}

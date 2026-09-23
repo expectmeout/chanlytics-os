@@ -41,6 +41,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-line .ask-confirm { flex: none; margin: 0 16px 10px; max-width: none; }
 /* A phone's sheet head (the grabber, Earlier, a close); a desktop closes with a press outside or Esc. */
 .ask-line-head { display: none; }
+/* What a screen reader hears once an answer is whole: its headline (spec 6.10). Not drawn. */
+.ask-said { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Hold to talk: the Line's, and Today's band's (today-face.jsx). */
 .ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--line); background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -181,7 +183,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   body:has(.inbox.phone-thread) .phone-ask,
   body:has(.conversations.phone-detail) .phone-ask { display: none; }
 
-  /* The sheet: at most 88% of the height, above the keyboard (--ask-kb, ask-real.jsx), the line at its foot. */
+  /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Line, and the Calendar's event panel
+     (calendar-real.jsx), which shares .ask-overlay and was docked here by this rule before the Line. */
+  .ask-overlay { padding: 0; align-items: flex-end; }
+  /* The Line's sheet: at most 88% of the height, above the keyboard (--ask-kb, ask-real.jsx), the line at its foot. */
   .ask-overlay.ask-line-scrim { padding: 0 0 var(--ask-kb, 0px); align-items: flex-end; }
   .ask-modal.ask-line {
     max-width: 100%; width: 100%; max-height: calc(88dvh - var(--ask-kb, 0px));

@@ -28,10 +28,13 @@ const answerMoves = (a) => [
 // goes through, Approve (or Edit in the composer), Not now, and the undo the
 // verb has. The commit runs through the verb's own route, which checks the
 // role and the state again; what happened is kept on the turn, so a thread
-// reads back with "Sent" rather than a fresh Approve. Its Open is the
-// contract's (cardOpenRoute), hidden where the answer already offers the
-// place (`hideOpen`, oneDoor).
-const AskCard = ({ p, messageId, t, onNav, hideOpen = false }) => {
+// reads back with "Sent" rather than a fresh Approve. The Line draws a card
+// again whenever its answer comes back under the line or opens in a fold, so
+// what happened is also written into the conversation it holds (`onOutcome`):
+// a card drawn again from a stale outcome offered Send a second time. Its
+// Open is the contract's (cardOpenRoute), hidden where the answer already
+// offers the place (`hideOpen`, oneDoor).
+const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome }) => {
   const A = window.__ask;
   const [state, setState] = useAtState(p.outcome ? p.outcome.state : "idle");
   const [receipt, setReceipt] = useAtState(p.outcome ? p.outcome.receipt : "");
@@ -50,7 +53,10 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false }) => {
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
   const gated = window.canDo ? !window.canDo(gateKey) : false;
   const pl = p.payload || {};
-  const record = (o) => { if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o); };
+  const record = (o) => {
+    if (onOutcome && messageId) onOutcome(messageId, p.id, o);
+    if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o);
+  };
   const approveWith = async (proposal) => {
     if (busy || !A) return;
     setBusy(true); setErr("");
@@ -183,8 +189,9 @@ const AskBreakdown = ({ b, t, onNav }) => {
 };
 
 // The answer: Say (the headline, or a prose answer's words), Show (the whole in its parts, the figures, the rows it
-// names), Do (the cards, Try again, Open, the next questions). `sel` is the move the keys stand on (answerMoves).
-const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, sel = -1, t, onNav, onFollow, compact = false }) => {
+// names), Do (the cards, Try again, Open, the next questions). `walk`: this is the answer the keys walk, whose moves
+// carry the ids the line points at (answerMoves' order) and `sel` is the one they stand on; a folded answer has none.
+const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome, compact = false }) => {
   const [receipt, setReceipt] = useAtState(-1);
   const a = answer;
   const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
@@ -192,7 +199,8 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, sel = -1, t, onN
   // Each move's place in answerMoves' order: the items, then Open, then the next questions.
   const openAt = a.show.items.length;
   const nextAt = openAt + (a.do.open ? 1 : 0);
-  const moveProps = (me, cls) => ({ id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` });
+  const moveProps = (me, cls) =>
+    walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
   return (
     <div className={`ask-answer${compact ? " compact" : ""}`} data-testid="ask-answer">
       <div className="ask-part say" data-testid="ask-say">
@@ -235,7 +243,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, sel = -1, t, onN
           <span className="ask-mark m3" aria-hidden="true" />
           <div className="ask-do">
             {(cards || []).map((p) => (
-              <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
+              <AskCard key={p.id} p={p} messageId={messageId} t={t} onNav={onNav} onOutcome={onOutcome} hideOpen={!!cardOpen && cardOpen[p.id] === false} />
             ))}
             {retry ? (
               <button type="button" className="ask-move" onClick={retry} data-testid="ask-retry">{t.tryAgain}</button>
@@ -257,9 +265,10 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, sel = -1, t, onN
   );
 };
 
-// A turn: the question over it, then the answer. While it streams, its words with a cursor; a failed turn says why
-// and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
-const AskTurn = ({ m, q, quick, latest = false, streaming = false, sel = -1, t, lang, onFollow, onNav, onRetry, compact = false }) => {
+// A turn: the question over it, then the answer. While it streams, its words with a cursor (the Line says the answer
+// once it is whole, not every piece: spec 6.10); a failed turn says why and, on the latest only, offers Try again
+// (N20). A quick answer (no model) is drawn the same way, from `quick`.
+const AskTurn = ({ m, q, quick, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, compact = false }) => {
   const A = window.__ask;
   if (streaming) {
     return (
@@ -267,7 +276,7 @@ const AskTurn = ({ m, q, quick, latest = false, streaming = false, sel = -1, t, 
         {q ? <p className="ask-turn-q">{q}</p> : null}
         <div className="ask-part say" data-testid="ask-say">
           <span className="ask-mark m1" aria-hidden="true" />
-          <p className="ask-prose" aria-live="polite">{m.text}<span className="ask-cursor" /></p>
+          <p className="ask-prose">{m.text}<span className="ask-cursor" /></p>
         </div>
       </div>
     );
@@ -287,10 +296,12 @@ const AskTurn = ({ m, q, quick, latest = false, streaming = false, sel = -1, t, 
         cards={m && !failed ? m.proposals || [] : []}
         messageId={m ? m.id : null}
         retry={failed && latest && onRetry ? onRetry : null}
+        walk={walk}
         sel={sel}
         t={t}
         onNav={onNav}
         onFollow={onFollow}
+        onOutcome={onOutcome}
         compact={compact}
       />
       {m && m.ungrounded ? <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div> : null}

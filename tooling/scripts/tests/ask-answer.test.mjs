@@ -121,7 +121,7 @@ test("a card's Open is the contract's: its page, the person's, or none, never a 
     assert.equal(cardOpenRoute({ kind: k, payload: {} }), null, k);
 });
 
-const waiting = (people, runs = 0) => ({
+const waiting = (people, runs = 0, more = 0) => ({
   people: people.map((who, i) => ({
     id: `c${i}`,
     kind: "thread",
@@ -131,10 +131,11 @@ const waiting = (people, runs = 0) => ({
     line: "“Can I come at 3?”",
     to: `inbox/th-c${i}`,
   })),
+  more,
   runs: Array.from({ length: runs }, (_, i) => ({
     id: `r${i}`,
     label: "Win-back · quiet 30 days",
-    line: "1 person. Nothing sends until you say so.",
+    reach: 1,
     to: `broadcasts/run:r${i}`,
   })),
 });
@@ -150,6 +151,17 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting([], 2), "en"), "2 playbook runs are waiting for your approval.");
   assert.equal(rightNowLine(waiting([]), "es"), "Nadie te espera ahora mismo.");
   assert.equal(rightNowLine(waiting(["Ana", "Sam"]), "es"), "Ana y Sam te esperan.");
+  assert.equal(
+    rightNowLine(waiting(["A", "B", "C", "D", "E", "F"], 0, 4), "en"),
+    "A, B and 8 others are waiting on you.",
+    "REGRESSION: the queue draws six rows; the people past them wait too",
+  );
+  assert.equal(
+    rightNowLine(null, "en"),
+    "Today's queue hasn't been read yet.",
+    "REGRESSION: a queue not read yet said nobody was waiting",
+  );
+  assert.equal(rightNowLine(null, "es"), "La cola de hoy aún no se ha leído.");
 });
 
 test("who needs me: the sentence, then the people and the runs as their own doors, and the Inbox only for the people past the cap", () => {
@@ -161,14 +173,24 @@ test("who needs me: the sentence, then the people and the runs as their own door
     [
       ["Ana", "WhatsApp · waited 3d", "“Can I come at 3?”", "inbox/th-c0"],
       ["Sam", "WhatsApp · waited 3d", "“Can I come at 3?”", "inbox/th-c1"],
-      ["Win-back · quiet 30 days", "Playbook", "1 person. Nothing sends until you say so.", "broadcasts/run:r0"],
+      ["Win-back · quiet 30 days", "Playbook", "1 person", "broadcasts/run:r0"],
     ],
   );
   assert.equal(a.do.open, null, "each item is already a door");
-  const many = needsAnswer(waiting(["A", "B", "C", "D", "E", "F", "G"]), "en");
+  assert.equal(needsAnswer(waiting([], 1), "es").show.items[0].line, "1 persona", "a run's reach, in Spanish too");
+  const many = needsAnswer(waiting(["A", "B", "C", "D", "E", "F"], 0, 3), "en");
   assert.equal(many.show.items.length, ASK_ANSWER_CAPS.items);
-  assert.deepEqual(many.do.open, { to: "inbox", label: "See all 7 in the Inbox", now: false });
+  assert.deepEqual(
+    many.do.open,
+    { to: "inbox", label: "See all 9 in the Inbox", now: false },
+    "the Inbox, for everyone waiting, not only the six rows drawn",
+  );
   assert.equal(answerText(needsAnswer(waiting([]), "en")), "Nobody is waiting on you right now.");
+  const unread = needsAnswer(null, "en");
+  assert.deepEqual(
+    [unread.say.headline, unread.show.items.length, unread.do.open],
+    ["Today's queue hasn't been read yet.", 0, { to: "today", label: "Open Today", now: false }],
+  );
 });
 
 test("did anyone call: today's missed calls by the business's clock as doors, or none with the call on the line; Do opens Live", () => {
@@ -214,6 +236,11 @@ test("what is open: the days with open times as items, each a door to its day, s
   assert.equal(
     openingsAnswer({ state: "ok", days: [] }, "en").say.headline,
     "Nothing is open on the calendar in the days ahead.",
+  );
+  assert.equal(
+    openingsAnswer({ state: "ok", days: [] }, "en", "2026-09-24").say.headline,
+    "Nothing is open on the calendar that day.",
+    "REGRESSION: the route reads only the day asked about; a full day said the whole calendar was",
   );
   const none = openingsAnswer({ state: "no_calendar", days: [] }, "en");
   assert.equal(none.say.headline, "No calendar is connected, so I can't see open times.");

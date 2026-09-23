@@ -219,7 +219,10 @@ export function answerFromV1(
 
 /* ------------------------------------------------------------- quick answers */
 
-/** Who is waiting, as Today's queue draws them (TodayVM.queue.rows), and the runs waiting for a yes. */
+/**
+ * Who is waiting, as Today's queue draws them (TodayVM.queue.rows, six at most), how many more wait past those
+ * (queue.waiting), and the runs waiting for a yes. Null is a queue not read yet: nobody is claimed to be waiting.
+ */
 export interface AskWaiting {
   people: Array<{
     id: string;
@@ -230,25 +233,35 @@ export interface AskWaiting {
     line: string;
     to: string;
   }>;
-  runs: Array<{ id: string; label: string; line: string; to: string }>;
+  /** People waiting past the rows the queue draws. */
+  more: number;
+  /** A run's reach is the people it would send to. */
+  runs: Array<{ id: string; label: string; reach: number; to: string }>;
 }
 
-const names = (list: string[], es: boolean) => {
-  if (list.length <= 2) return list.join(es ? " y " : " and ");
-  const rest = list.length - 2;
+/** Up to two names, then how many others: "Ana, Sam and 3 others"; a count alone when fewer names are drawn. */
+const names = (list: string[], total: number, es: boolean) => {
+  if (total <= 2 && list.length === total) return list.join(es ? " y " : " and ");
+  if (list.length < 2)
+    return es ? `${total} ${total === 1 ? "persona" : "personas"}` : `${total} ${total === 1 ? "person" : "people"}`;
+  const rest = total - 2;
   return es
     ? `${list[0]}, ${list[1]} y ${rest} más`
     : `${list[0]}, ${list[1]} and ${rest} ${rest === 1 ? "other" : "others"}`;
 };
 
+const unread = (es: boolean) => (es ? "La cola de hoy aún no se ha leído." : "Today's queue hasn't been read yet.");
+
 /** Right now, in a sentence: the people waiting, then the runs waiting for a yes -- two populations, two clauses. */
-export function rightNowLine(w: AskWaiting, language: AskLanguage): string {
+export function rightNowLine(w: AskWaiting | null, language: AskLanguage): string {
   const es = language === "es";
+  if (!w) return unread(es);
   const who = w.people.map((p) => p.who);
-  const people = who.length
+  const total = who.length + w.more;
+  const people = total
     ? es
-      ? `${names(who, true)} ${who.length === 1 ? "te espera" : "te esperan"}`
-      : `${names(who, false)} ${who.length === 1 ? "is" : "are"} waiting on you`
+      ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}`
+      : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you`
     : "";
   const n = w.runs.length;
   const runs = n
@@ -261,9 +274,17 @@ export function rightNowLine(w: AskWaiting, language: AskLanguage): string {
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 
-/** Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for people past the cap. */
-export function needsAnswer(w: AskWaiting, language: AskLanguage): AskAnswer {
+/**
+ * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
+ * is drawn. A queue not read yet says so, and points at Today.
+ */
+export function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer {
   const es = language === "es";
+  const a = structured(rightNowLine(w, language), language);
+  if (!w) {
+    a.do.open = { to: "today", label: es ? "Abrir Hoy" : "Open Today", now: false };
+    return a;
+  }
   const all: AskItem[] = [
     ...w.people.map((p) => ({
       title: p.who,
@@ -274,17 +295,19 @@ export function needsAnswer(w: AskWaiting, language: AskLanguage): AskAnswer {
     ...w.runs.map((r) => ({
       title: r.label,
       meta: "Playbook",
-      line: r.line,
+      line: es
+        ? `${r.reach} ${r.reach === 1 ? "persona" : "personas"}`
+        : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,
       source: { kind: "page" as const, id: r.to, label: r.label, to: r.to, door: true },
     })),
   ];
-  const a = structured(rightNowLine(w, language), language);
   a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
+  const total = w.people.length + w.more;
   const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
-  if (w.people.length > shownPeople)
+  if (total > shownPeople)
     a.do.open = {
       to: "inbox",
-      label: es ? `Ver los ${w.people.length} en el Inbox` : `See all ${w.people.length} in the Inbox`,
+      label: es ? `Ver los ${total} en el Inbox` : `See all ${total} in the Inbox`,
       now: false,
     };
   return a;
@@ -330,7 +353,10 @@ export interface AskOpeningsView {
   days: Array<{ key: string; label: string; windows: string[] }>;
 }
 
-const openingsHeadline = (days: AskOpeningsView["days"], es: boolean): string => {
+// The route reads only the day asked about when one was (askIntent's `day`), so an empty answer is that day's.
+const openingsHeadline = (days: AskOpeningsView["days"], es: boolean, asked: boolean): string => {
+  if (!days.length && asked)
+    return es ? "No hay nada libre en el calendario ese día." : "Nothing is open on the calendar that day.";
   if (!days.length)
     return es
       ? "No hay nada libre en el calendario en los próximos días."
@@ -347,7 +373,7 @@ const openingsHeadline = (days: AskOpeningsView["days"], es: boolean): string =>
 };
 
 /** What is open: the days as items, each a door to its day on the Calendar; Do opens the Calendar. */
-export function openingsAnswer(o: AskOpeningsView, language: AskLanguage): AskAnswer {
+export function openingsAnswer(o: AskOpeningsView, language: AskLanguage, day: string | null = null): AskAnswer {
   const es = language === "es";
   if (o.state === "no_calendar") {
     const a = structured(
@@ -366,7 +392,7 @@ export function openingsAnswer(o: AskOpeningsView, language: AskLanguage): AskAn
       language,
     );
   const days = o.days.filter((d) => d.windows.length);
-  const a = structured(openingsHeadline(days, es), language);
+  const a = structured(openingsHeadline(days, es, !!day), language);
   a.show.items = days.slice(0, ASK_ANSWER_CAPS.items).map((d) => ({
     title: d.label,
     meta: "",

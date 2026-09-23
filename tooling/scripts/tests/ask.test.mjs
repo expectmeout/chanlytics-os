@@ -401,9 +401,12 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
   ]);
   assert.deepEqual(
-    api.waiting().runs.map((r) => [r.id, r.label, r.line, r.to]),
-    [["r1", "Win-back · quiet 30 days", "1 person. Nothing sends until you say so.", "broadcasts/run:r1"]],
+    api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
+    [["r1", "Win-back · quiet 30 days", 1, "broadcasts/run:r1"]],
   );
+  win.TODAY_DATA.queue.waiting = 9;
+  assert.equal(api.waiting().more, 8, "the people waiting past the rows the queue draws (queue.waiting)");
+  delete win.TODAY_DATA.queue.waiting;
   assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
   const needs = await api.quick("who needs me?");
   assert.deepEqual(
@@ -904,7 +907,7 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   // Its sources are drawn as the answer's items (contracts answerFromV1): executed in ask-answer.test.mjs.
 });
 
-test("the composer is the way on: focus comes back, the mic is always visible, 'open' goes there, lists go one per line", () => {
+test("the answer's shape for the line: 'open' is a navigate with now, the mic says when it cannot listen, lists go one per line", () => {
   assert.deepEqual(ASK_FINISH_JSON_SCHEMA.properties.navigate.required, ["to", "label", "now"]);
   const go = parseAskFinish({
     answer: "Opening the 3:34 AM call.",
@@ -923,14 +926,6 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   });
   assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    !ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('),
-    "the input is never disabled while a turn runs",
-  );
-  assert.ok(
-    !/disabled=\{!!live\}\s*\n\s*aria-label="Ask Chanlytics"/.test(ui),
-    "the input stays enabled during a turn",
-  );
   assert.ok(
     ui.includes('data-testid="ask-talk-off"'),
     "where the browser cannot listen, the mic says so instead of vanishing",

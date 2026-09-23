@@ -20,7 +20,6 @@ import {
   rightNowLine,
   sameQuestion,
   scopeFromRoute,
-  todayRunWords,
   zoneDayKey,
   type AskAnswer,
   type AskLanguage,
@@ -71,6 +70,8 @@ export interface PaletteGlobals {
           "id" | "kind" | "conversationId" | "callId" | "who" | "channel" | "when" | "sentence" | "quoted" | "cta"
         >
       >;
+      /** How many people wait across the whole queue, past the six rows drawn. */
+      waiting?: number;
     };
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
@@ -124,29 +125,34 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
 }
 
 /**
- * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting), and the playbook
- * runs waiting for a yes, which the queue draws the same way (dashboard-a-command.jsx runsPending).
+ * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
+ * wait past its six rows, and the playbook runs waiting for a yes, which the queue draws the same way
+ * (dashboard-a-command.jsx runsPending). Null until Today's queue has been read: nobody is claimed to be waiting.
  */
-export function waitingFrom(win: Window): AskWaiting {
+export function waitingFrom(win: Window): AskWaiting | null {
   const w = win as unknown as PaletteGlobals;
+  const queue = w.TODAY_DATA?.queue;
+  if (!queue) return null;
+  const people = (queue.rows ?? [])
+    .filter((r) => r.kind !== "call")
+    .map((r) => ({
+      id: r.conversationId ?? r.callId ?? r.id,
+      kind: r.conversationId ? ("thread" as const) : ("call" as const),
+      who: r.who,
+      channel: r.channel,
+      when: r.when,
+      line: r.quoted ? `“${r.sentence}”` : r.sentence,
+      to: r.cta.to,
+    }));
   return {
-    people: (w.TODAY_DATA?.queue?.rows ?? [])
-      .filter((r) => r.kind !== "call")
-      .map((r) => ({
-        id: r.conversationId ?? r.callId ?? r.id,
-        kind: r.conversationId ? ("thread" as const) : ("call" as const),
-        who: r.who,
-        channel: r.channel,
-        when: r.when,
-        line: r.quoted ? `“${r.sentence}”` : r.sentence,
-        to: r.cta.to,
-      })),
+    people,
+    more: Math.max(0, (queue.waiting ?? people.length) - people.length),
     runs: (w.__BROADCASTS?.rows ?? [])
       .filter((r) => r.state === "pending_approval")
       .map((r) => ({
         id: r.id,
         label: r.audience?.label || "Playbook",
-        line: todayRunWords(r).waiting.sentence,
+        reach: r.recipient_count,
         to: `broadcasts/run:${r.id}`,
       })),
   };
@@ -189,13 +195,14 @@ export function askPalette(win: Window, storage: Storage | null) {
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
       const feed = feedFromGlobals(w as Parameters<typeof feedFromGlobals>[0], Date.now());
+      const who = waiting();
       // The business's today (clock.ts): a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
       const tz = timezone();
       const today = tz ? zoneDayKey(Date.now(), tz) : null;
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
-        needsYou: waiting().people.length,
+        needsYou: who ? who.people.length + who.more : 0,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
         missedToday: tz
           ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length
@@ -248,6 +255,7 @@ export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings
         openingsAnswer(
           { state: o.state === "ok" || o.state === "no_calendar" ? o.state : "unavailable", days: o.days ?? [] },
           lang,
+          intent.day,
         ),
       )
       .catch(() => openingsAnswer({ state: "unavailable", days: [] }, lang));

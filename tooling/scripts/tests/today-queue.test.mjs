@@ -177,6 +177,7 @@ test("one queue, longest wait first: the handoff, the call-back, the closing win
     ["handoff", "callback", "window", "call"],
   );
   assert.equal(vm.queue.more, 0);
+  assert.equal(vm.queue.waiting, 3, "the call worth an ear is nobody waiting");
 
   const handoff = rows[0];
   assert.deepEqual(
@@ -232,6 +233,7 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   const vm = toTodayVM(metrics({ now: { ...metrics().now, escalations_open: 8 } }), conversations, many, [], NOW);
   assert.equal(vm.queue.rows.length, 6);
   assert.equal(vm.queue.more, 3, "eight handoffs and the closing window: six shown, three more");
+  assert.equal(vm.queue.waiting, 9, "and all nine are people waiting, which Ask's Right now counts past the six shown");
   const quiet = toTodayVM(
     metrics({
       period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 },

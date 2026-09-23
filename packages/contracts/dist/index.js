@@ -8388,7 +8388,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       noReply,
       calls: null,
       callsRead,
-      queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
+      queue: { rows: [], more: 0, parts: [], empty: queueEmpty, waiting: 0 },
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -8625,7 +8625,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     rows: queueAll.slice(0, TODAY_QUEUE_MAX),
     more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX),
     parts: parts2,
-    empty: queueEmpty
+    empty: queueEmpty,
+    waiting: needN + winN
   };
   return {
     standing: {
@@ -9762,15 +9763,20 @@ function answerFromV1(m) {
     language
   };
 }
-var names = (list2, es) => {
-  if (list2.length <= 2) return list2.join(es ? " y " : " and ");
-  const rest = list2.length - 2;
+var names = (list2, total, es) => {
+  if (total <= 2 && list2.length === total) return list2.join(es ? " y " : " and ");
+  if (list2.length < 2)
+    return es ? `${total} ${total === 1 ? "persona" : "personas"}` : `${total} ${total === 1 ? "person" : "people"}`;
+  const rest = total - 2;
   return es ? `${list2[0]}, ${list2[1]} y ${rest} m\xE1s` : `${list2[0]}, ${list2[1]} and ${rest} ${rest === 1 ? "other" : "others"}`;
 };
+var unread = (es) => es ? "La cola de hoy a\xFAn no se ha le\xEDdo." : "Today's queue hasn't been read yet.";
 function rightNowLine(w, language) {
   const es = language === "es";
+  if (!w) return unread(es);
   const who = w.people.map((p) => p.who);
-  const people = who.length ? es ? `${names(who, true)} ${who.length === 1 ? "te espera" : "te esperan"}` : `${names(who, false)} ${who.length === 1 ? "is" : "are"} waiting on you` : "";
+  const total = who.length + w.more;
+  const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
   const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
   if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
@@ -9779,6 +9785,11 @@ function rightNowLine(w, language) {
 }
 function needsAnswer(w, language) {
   const es = language === "es";
+  const a = structured(rightNowLine(w, language), language);
+  if (!w) {
+    a.do.open = { to: "today", label: es ? "Abrir Hoy" : "Open Today", now: false };
+    return a;
+  }
   const all = [
     ...w.people.map((p) => ({
       title: p.who,
@@ -9789,17 +9800,17 @@ function needsAnswer(w, language) {
     ...w.runs.map((r) => ({
       title: r.label,
       meta: "Playbook",
-      line: r.line,
+      line: es ? `${r.reach} ${r.reach === 1 ? "persona" : "personas"}` : `${r.reach} ${r.reach === 1 ? "person" : "people"}`,
       source: { kind: "page", id: r.to, label: r.label, to: r.to, door: true }
     }))
   ];
-  const a = structured(rightNowLine(w, language), language);
   a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
+  const total = w.people.length + w.more;
   const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
-  if (w.people.length > shownPeople)
+  if (total > shownPeople)
     a.do.open = {
       to: "inbox",
-      label: es ? `Ver los ${w.people.length} en el Inbox` : `See all ${w.people.length} in the Inbox`,
+      label: es ? `Ver los ${total} en el Inbox` : `See all ${total} in the Inbox`,
       now: false
     };
   return a;
@@ -9826,7 +9837,9 @@ function callsAnswer(missed, live, language) {
   a.do.open = seeCalls;
   return a;
 }
-var openingsHeadline = (days, es) => {
+var openingsHeadline = (days, es, asked) => {
+  if (!days.length && asked)
+    return es ? "No hay nada libre en el calendario ese d\xEDa." : "Nothing is open on the calendar that day.";
   if (!days.length)
     return es ? "No hay nada libre en el calendario en los pr\xF3ximos d\xEDas." : "Nothing is open on the calendar in the days ahead.";
   if (days.length === 1) {
@@ -9835,7 +9848,7 @@ var openingsHeadline = (days, es) => {
   }
   return es ? `El calendario tiene horas libres en ${days.length} d\xEDas.` : `The calendar has open times on ${days.length} days.`;
 };
-function openingsAnswer(o, language) {
+function openingsAnswer(o, language, day = null) {
   const es = language === "es";
   if (o.state === "no_calendar") {
     const a2 = structured(
@@ -9852,7 +9865,7 @@ function openingsAnswer(o, language) {
       language
     );
   const days = o.days.filter((d) => d.windows.length);
-  const a = structured(openingsHeadline(days, es), language);
+  const a = structured(openingsHeadline(days, es, !!day), language);
   a.show.items = days.slice(0, ASK_ANSWER_CAPS.items).map((d) => ({
     title: d.label,
     meta: "",
