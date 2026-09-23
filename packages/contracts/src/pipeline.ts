@@ -23,6 +23,7 @@ import {
   DEAL_STAGE_WORDS,
   amountTotalsWords,
   consultationsWithoutProposal,
+  consultsHeldWords,
   heardSinceProposal,
   proposalsWaiting,
   waitingOnProposal,
@@ -225,18 +226,19 @@ const worth = (xs: readonly { d: DealVM }[]): string | null =>
  * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone.
  */
 export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: number, tz: string): PipelineVM<T> {
-  const held = new Set(consultationsWithoutProposal(rows, nowMs));
-  const consults: { r: T; at: number }[] = [];
+  // Held with no proposal since, in the rule's own order (the oldest first): the group lists them as the rule gives
+  // them, and Today names the first two of the same list. Nobody in it has an open deal, so nobody is in two groups.
+  const held = consultationsWithoutProposal(rows, nowMs);
+  const heldSet = new Set<T>(held);
   const ahead: { r: T; c: { startMs: number; allDay: boolean } }[] = [];
   const proposals: { r: T; d: DealVM }[] = [];
   const clients: { r: T; d: DealVM }[] = [];
   const closed: { r: T; d: DealVM }[] = [];
   for (const r of rows) {
+    if (heldSet.has(r)) continue;
     const d = r.deal;
     if (d && d.stage === "proposed") proposals.push({ r, d });
     else if (d && d.stage === "won") clients.push({ r, d });
-    else if (held.has(r) && r.consultedMs !== null && Number.isFinite(r.consultedMs))
-      consults.push({ r, at: r.consultedMs });
     // A consultation ahead of someone with nothing open: something new begins, whatever they passed on or ended before.
     else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
     else if (d) closed.push({ r, d });
@@ -253,11 +255,11 @@ export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: 
     group(
       "consultations",
       [
-        ...inOrder(consults, (x) => x.at).map((x) => heldRow(x.r, x.at, tz, nowMs)),
+        ...held.map((r) => heldRow(r, r.consultedMs as number, tz, nowMs)),
         ...inOrder(ahead, (x) => x.c.startMs).map((x) => aheadRow(x.r, x.c, tz, nowMs)),
       ],
-      // The rule's own week (CONSULT_FOLLOW_DAYS), said as Today's row that re-prints this number says it.
-      consults.length ? `${consults.length} held in the last week, no proposal yet` : null,
+      // One sentence, which Today's row re-prints word for word (consultsHeldWords).
+      held.length ? consultsHeldWords(held.length) : null,
     ),
     group(
       "proposals",

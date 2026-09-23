@@ -70,13 +70,14 @@ const TodayLeaks = () => {
                 )}
               </span>
               <span className="tl-math tabular" id={`today-leak-math-${l.id}`} hidden={phone && open !== l.id}>{l.math}</span>
-              {/* Who is waiting right now, from the threads Today holds: not the count's own subjects (the count is Reports' over
-                  its period), so the lead says so and the names are never drawn as the people the sentence counts. A person
-                  is a name, so each is the one chip. */}
+              {/* Who the row names, and the lead that says who they are: on the unanswered row, who is waiting right now, from
+                  the threads Today holds (not the count's own subjects: the count is Reports' over its period); on the
+                  consultations row, the count's own people (0008). The words are contracts'. A person is a name, so each
+                  is the one chip. */}
               {l.people.length > 0 && (
                 <span className="tl-people">
-                  <span className="tl-people-lead">Waiting now</span>
-                  {l.people.map((p) => <button key={p.id} type="button" className="chip tl-person" onClick={() => twNav(p.to)} title={`Open ${p.name}'s thread`}>{p.name}</button>)}
+                  {l.peopleLead && <span className="tl-people-lead">{l.peopleLead}</span>}
+                  {l.people.map((p) => <button key={p.id} type="button" className="chip tl-person" onClick={() => twNav(p.to)} title={p.title}>{p.name}</button>)}
                 </span>
               )}
             </span>

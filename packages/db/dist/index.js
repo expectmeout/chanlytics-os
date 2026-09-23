@@ -1063,11 +1063,13 @@ function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
 function pickCurrentDeal(rows) {
-  const open = (d) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 function proposalLinkOf(current, personLink) {
   if (!current) return personLink?.trim() || null;

@@ -23,6 +23,7 @@ import {
   DEAL_STAGE_WORDS,
   amountWords,
   consultationsWithoutProposal,
+  noProposalSince,
   parseAmount,
   waitingOnProposal,
   type DealActId,
@@ -200,6 +201,55 @@ export function dealMenuActs(deal: Pick<DealVM, "stage"> | null | undefined): De
   if (deal.stage === "proposed") return [act("send"), act("won"), act("lost"), act("edit")];
   if (deal.stage === "won") return [act("ended")];
   return [act("again")];
+}
+
+/**
+ * What an appointment's peek on the Calendar says of its person's deal (0008), from the People row the page holds: the
+ * deal's stage beside their name, and, once a consultation is over with no proposal since (deals.ts noProposalSince),
+ * the sheet's own act that starts one, for the service its title named. A new proposal always: a consultation after a
+ * pass or an end began something new, as the card's quiet line says. Nothing where deals are off (the People surface's
+ * `dealsOn`, dealsAreOn), where the appointment matched nobody, or where People does not hold them: a deal the page has
+ * not read is not one it can say is missing.
+ */
+export interface CalendarPeekDealVM {
+  /** Their deal's stage, for the one pill beside their name; null without a deal. */
+  stage: DealStage | null;
+  /** Once a consultation is over with no proposal since: the act (its words, the sheet's mode), whose, and for what. */
+  start: { act: DealAct; personId: string; service: string | null } | null;
+}
+
+/** The appointment as the Calendar's view model carries it (CalendarBlockVM): who, a consultation or not, its end. */
+interface PeekBlock {
+  person: { id: string } | null;
+  consultation: boolean;
+  consultService: string | null;
+  end: string;
+}
+
+/** The People surface, as far as the peek reads it: whether deals are on here, and each person's deal. */
+interface PeekPeople {
+  dealsOn?: boolean;
+  rows?: ReadonlyArray<{ id: string; deal?: Pick<DealVM, "stage" | "sinceMs"> | null }>;
+}
+
+export function calendarPeekDeal(
+  block: PeekBlock,
+  people: PeekPeople | null | undefined,
+  nowMs: number,
+): CalendarPeekDealVM {
+  const who = block.person;
+  const row = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
+  if (!who || !row) return { stage: null, start: null };
+  const deal = row.deal ?? null;
+  const endMs = Date.parse(block.end);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  return {
+    stage: deal ? deal.stage : null,
+    start:
+      over && noProposalSince(deal, endMs)
+        ? { act: act("propose"), personId: who.id, service: block.consultService }
+        : null,
+  };
 }
 
 /* --------------------------------------------- the card ----------------------------------------------------- */

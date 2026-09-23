@@ -49,6 +49,13 @@ export interface CalendarItemDto {
   contacts?: { phones: string[]; emails: string[] };
   /** The client's name as the event gives it, for "Add … to People"; null when the title says nothing name-like. */
   guess?: string | null;
+  /**
+   * A consultation (0008): the title says so, or names a consult-first service -- deals.ts isConsultationTitle over the
+   * workspace's services and rules, set by the server. Absent on an older read.
+   */
+  consultation?: boolean;
+  /** The consult-first service the title names, as Settings spells it (consultServiceOf); null when it names none. */
+  consult_service?: string | null;
 }
 
 export interface CalendarDayDto {
@@ -314,6 +321,10 @@ export interface CalendarBlockVM {
   contacts: { phones: string[]; e164: string[]; emails: string[] };
   /** The client's name as the event gives it, or null. */
   guess: string | null;
+  /** A consultation (0008), as the server found it (isConsultationTitle): once it is over, a proposal may follow. */
+  consultation: boolean;
+  /** The consult-first service its title names, as Settings spells it, or null: what a proposal after it is for. */
+  consultService: string | null;
   start: string;
   end: string;
   /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
@@ -533,6 +544,8 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
       emails: item.contacts?.emails ?? [],
     },
     guess: item.guess ?? null,
+    consultation: !!item.consultation,
+    consultService: item.consultation ? (item.consult_service ?? null) : null,
     start: item.start,
     end: item.end,
     lane: 0,

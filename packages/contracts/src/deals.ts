@@ -177,11 +177,15 @@ export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFac
  * people_list orders the same way.
  */
 export function pickCurrentDeal<T extends { stage: string; created_at: string }>(rows: readonly T[]): T | null {
-  const open = (d: T) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
   );
   return sorted[0] ?? null;
+}
+
+/** Whether a deal is open (0004): a proposal out, or a client. A pass or an end is history. */
+export function dealIsOpen(d: { stage: string } | null | undefined): boolean {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 
 /**
@@ -441,7 +445,29 @@ export function dealSentence(
   }
 }
 
-/** A calendar title that is a consultation: it says so, or it names a consult-first service. The fold is availability's. */
+/**
+ * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
+ * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
+ * it names none. The fold is availability's.
+ */
+export function consultServiceOf(
+  title: string | null | undefined,
+  services: readonly { name: string }[] | undefined,
+  rules: ConsultRules | null | undefined,
+): string | null {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best: { name: string; folded: string } | null = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+
+/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
 export function isConsultationTitle(
   title: string | null | undefined,
   services: readonly { name: string }[] | undefined,
@@ -450,10 +476,7 @@ export function isConsultationTitle(
   const t = foldName(String(title ?? "").trim());
   if (!t) return false;
   if (t.includes("consult")) return true;
-  return (services ?? []).some((s) => {
-    const n = foldName(String(s.name ?? "").trim());
-    return !!n && t.includes(n) && needsConsultation(s.name, rules);
-  });
+  return consultServiceOf(title, services, rules) !== null;
 }
 
 /**
@@ -491,21 +514,53 @@ export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: numbe
 }
 
 /**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
- * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
- * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
+ * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
+ * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
+ * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
+ * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
+ */
+export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+
+/**
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
+ * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
+ * a number there has no consultation to follow.
  */
 export function consultationsWithoutProposal<
-  T extends { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
+  T extends {
+    id?: string;
+    name?: string;
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+  },
 >(rows: readonly T[], nowMs: number): T[] {
-  return rows.filter((r) => {
-    const at = r.consultedMs;
-    if (at === null || at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-    const d = r.deal;
-    if (!d) return true;
-    if (d.stage === "proposed" || d.stage === "won") return false;
-    return d.sinceMs !== null && d.sinceMs < at;
-  });
+  const endOf = (r: T): number => r.consultedMs as number;
+  return rows
+    .filter((r) => {
+      const at = r.consultedMs;
+      if (typeof at !== "number" || !Number.isFinite(at)) return false;
+      if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+      return noProposalSince(r.deal, at);
+    })
+    .sort(
+      (a, b) =>
+        endOf(a) - endOf(b) ||
+        String(a.name ?? "").localeCompare(String(b.name ?? "")) ||
+        String(a.id ?? "").localeCompare(String(b.id ?? "")),
+    );
+}
+
+/**
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
+ * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ */
+export function consultsHeldWords(n: number): string {
+  return `${n} held in the last week, no proposal yet`;
 }
 
 /** What the door can answer, in a sentence the page shows at the control. */

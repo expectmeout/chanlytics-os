@@ -3462,6 +3462,8 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
       emails: item.contacts?.emails ?? []
     },
     guess: item.guess ?? null,
+    consultation: !!item.consultation,
+    consultService: item.consultation ? item.consult_service ?? null : null,
     start: item.start,
     end: item.end,
     lane: 0,
@@ -6232,11 +6234,13 @@ function dealFactsOf(r) {
   };
 }
 function pickCurrentDeal(rows) {
-  const open = (d) => d.stage === "proposed" || d.stage === "won";
   const sorted = [...rows].sort(
-    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
 }
 function proposalLinkOf(current, personLink) {
   if (!current) return personLink?.trim() || null;
@@ -6357,14 +6361,23 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }
 }
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
 function isConsultationTitle(title, services, rules) {
   const t = foldName(String(title ?? "").trim());
   if (!t) return false;
   if (t.includes("consult")) return true;
-  return (services ?? []).some((s) => {
-    const n = foldName(String(s.name ?? "").trim());
-    return !!n && t.includes(n) && needsConsultation(s.name, rules);
-  });
+  return consultServiceOf(title, services, rules) !== null;
 }
 function heardSinceProposal(r) {
   const d = r.deal;
@@ -6379,15 +6392,24 @@ function waitingOnProposal(r, nowMs) {
 function proposalsWaiting(rows, nowMs) {
   return rows.filter((r) => waitingOnProposal(r, nowMs));
 }
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
 function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r) => r.consultedMs;
   return rows.filter((r) => {
     const at2 = r.consultedMs;
-    if (at2 === null || at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
-    const d = r.deal;
-    if (!d) return true;
-    if (d.stage === "proposed" || d.stage === "won") return false;
-    return d.sinceMs !== null && d.sinceMs < at2;
-  });
+    if (typeof at2 !== "number" || !Number.isFinite(at2)) return false;
+    if (at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
+    return noProposalSince(r.deal, at2);
+  }).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
+}
+function consultsHeldWords(n) {
+  return `${n} held in the last week, no proposal yet`;
 }
 var DEAL_REFUSALS = {
   not_found: "Person not found.",
@@ -8920,7 +8942,14 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 var TODAY_LEAK_MAX = 2;
-var LEAK_ORDER = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
+var LEAK_ORDER = [
+  "never-booked",
+  "unanswered",
+  "consults-waiting",
+  "proposals-waiting",
+  "unreachable",
+  "quiet"
+];
 var askWhy = (text, math) => `${text} ${capitalize2(math)}. Why is that?`;
 function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const found = /* @__PURE__ */ new Map();
@@ -8944,6 +8973,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked")
@@ -8960,16 +8990,40 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       icon: "alert",
       text,
       math,
-      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
+      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to, title: `Open ${r.who}'s thread` })),
+      peopleLead: "Waiting now",
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null
+    });
+  }
+  const dealsAt = people && people.fetchedAt || nowMs;
+  const consultRows = (people?.rows ?? []).filter(
+    (r) => typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r
+  );
+  const held = consultationsWithoutProposal(consultRows, dealsAt);
+  if (people && people.dealsOn && held.length >= 1) {
+    const n = held.length;
+    const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+    const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
+    found.set("consults-waiting", {
+      id: "consults-waiting",
+      tone: "warn",
+      tag: "Next step",
+      icon: "calendar",
+      text,
+      math,
+      people: held.slice(0, 2).map((r) => ({ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name} in People` })),
+      peopleLead: "Held with",
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: "clients/pipeline" },
       also: null
     });
   }
   const dealRows = (people?.rows ?? []).filter(
     (r) => "deal" in r && "askedMs" in r
   );
-  const waiting = proposalsWaiting(dealRows, nowMs);
+  const waiting = proposalsWaiting(dealRows, dealsAt);
   const po = list2("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
@@ -8982,6 +9036,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null
@@ -9001,6 +9056,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
@@ -9018,6 +9074,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       text,
       math,
       people: [],
+      peopleLead: null,
       ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet")
@@ -17753,6 +17810,18 @@ function dealMenuActs(deal) {
   if (deal.stage === "won") return [act("ended")];
   return [act("again")];
 }
+function calendarPeekDeal(block, people, nowMs) {
+  const who = block.person;
+  const row2 = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
+  if (!who || !row2) return { stage: null, start: null };
+  const deal = row2.deal ?? null;
+  const endMs = Date.parse(block.end);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  return {
+    stage: deal ? deal.stage : null,
+    start: over && noProposalSince(deal, endMs) ? { act: act("propose"), personId: who.id, service: block.consultService } : null
+  };
+}
 var DEAL_CARD_WORDS = {
   title: "Deal",
   proposal: "Proposal",
@@ -18257,18 +18326,17 @@ function inOrder(xs, at2, latest = false) {
 }
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
 function pipelineOf(rows, nowMs, tz) {
-  const held = new Set(consultationsWithoutProposal(rows, nowMs));
-  const consults = [];
+  const held = consultationsWithoutProposal(rows, nowMs);
+  const heldSet = new Set(held);
   const ahead = [];
   const proposals = [];
   const clients = [];
   const closed = [];
   for (const r of rows) {
+    if (heldSet.has(r)) continue;
     const d = r.deal;
     if (d && d.stage === "proposed") proposals.push({ r, d });
     else if (d && d.stage === "won") clients.push({ r, d });
-    else if (held.has(r) && r.consultedMs !== null && Number.isFinite(r.consultedMs))
-      consults.push({ r, at: r.consultedMs });
     else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
     else if (d) closed.push({ r, d });
   }
@@ -18284,11 +18352,11 @@ function pipelineOf(rows, nowMs, tz) {
     group(
       "consultations",
       [
-        ...inOrder(consults, (x) => x.at).map((x) => heldRow(x.r, x.at, tz, nowMs)),
+        ...held.map((r) => heldRow(r, r.consultedMs, tz, nowMs)),
         ...inOrder(ahead, (x) => x.c.startMs).map((x) => aheadRow(x.r, x.c, tz, nowMs))
       ],
-      // The rule's own week (CONSULT_FOLLOW_DAYS), said as Today's row that re-prints this number says it.
-      consults.length ? `${consults.length} held in the last week, no proposal yet` : null
+      // One sentence, which Today's row re-prints word for word (consultsHeldWords).
+      held.length ? consultsHeldWords(held.length) : null
     ),
     group(
       "proposals",
@@ -19121,6 +19189,7 @@ export {
   businessRecordProblems,
   businessTypeOf,
   calendarOwnerOf,
+  calendarPeekDeal,
   callMoodTone,
   callOfKey,
   callOutcomeOf,
@@ -19177,7 +19246,9 @@ export {
   consentPageMetadata,
   consentPageVM,
   consentSourceLabel,
+  consultServiceOf,
   consultationsWithoutProposal,
+  consultsHeldWords,
   contactMeta,
   contactName,
   conversationOfNeedsKey,
@@ -19194,6 +19265,7 @@ export {
   dayWords,
   dealCardsOf,
   dealFactsOf,
+  dealIsOpen,
   dealMenuActs,
   dealNextAct,
   dealOf,
@@ -19420,6 +19492,7 @@ export {
   nextRunLabel,
   nextThemePref,
   noNumberWords,
+  noProposalSince,
   normalizeEmail,
   normalizeLink,
   normalizeLocalPart,

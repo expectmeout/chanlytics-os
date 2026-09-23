@@ -14,6 +14,7 @@ import {
   indexFeed,
   isDayKey,
   isConsultationTitle,
+  consultServiceOf,
   matchPerson,
   mondayOf,
   parseIcs,
@@ -198,6 +199,11 @@ export function personLike(
   };
 }
 
+/**
+ * The feed's items by day, as the board draws them: who each is for, what it carried, and whether it is a consultation
+ * (0008), by the one rule People's visits are marked by (withVisits): its title says so, or names a service the
+ * workspace's rules say needs a consultation first. `consult` is the profile's services and those rules.
+ */
 export function itemsToDays(
   items: FeedItem[],
   from: string,
@@ -205,7 +211,8 @@ export function itemsToDays(
   tz: string,
   people: PersonLike[],
   own: OwnAddresses,
-  services: string[] = [],
+  services: string[],
+  consult: { services: readonly { name: string }[]; rules: ConsultRules | null },
 ): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
   let dropped = 0;
@@ -228,6 +235,8 @@ export function itemsToDays(
         location: it.location,
         contacts: { phones: c.phones, emails: c.emails },
         guess: guessName(it, services),
+        consultation: isConsultationTitle(it.title, consult.services, consult.rules),
+        consult_service: consultServiceOf(it.title, consult.services, consult.rules),
       };
     });
     out.push({ key, items: rows });
@@ -413,6 +422,7 @@ export async function calendarWeek(
     people,
     ownAddressesOf(cfg),
     serviceNames,
+    { services: profile?.services ?? [], rules },
   );
   const openings = profile
     ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })
