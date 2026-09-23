@@ -1512,10 +1512,10 @@ declare const SCHEMA_SETS: {
     readonly "contacts.consent": readonly ["unknown", "opted_in", "opted_out"];
     readonly "contacts.marketing_consent": readonly ["unknown", "opted_in", "opted_out"];
     readonly "conversations.state": readonly ["open", "needs_human", "snoozed", "archived"];
-    readonly "decisions.actor_type": readonly ["user", "ai", "system", "owner_phone"];
     readonly "deals.per": readonly ["once", "month", "year"];
     readonly "deals.source": readonly ["person", "payment"];
     readonly "deals.stage": readonly ["proposed", "won", "lost", "ended"];
+    readonly "decisions.actor_type": readonly ["user", "ai", "system", "owner_phone"];
     readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal"];
     readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal"];
     readonly "escalations.reason": readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget", "policy_ask", "callback", "paused", "carriers", "email_review"];

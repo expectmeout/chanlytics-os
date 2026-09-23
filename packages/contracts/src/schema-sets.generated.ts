@@ -28,10 +28,10 @@ export const SCHEMA_SETS = {
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
-  "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
   "deals.per": ["once", "month", "year"],
   "deals.source": ["person", "payment"],
   "deals.stage": ["proposed", "won", "lost", "ended"],
+  "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
     "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal",
