@@ -1,9 +1,10 @@
 /**
  * Identity and workspace on the classic pages: the words for who is signed in
  * and for a member (contracts/identity.ts), the one write a person may make
- * about themselves — their name — and the one their workspace owns, its
- * timezone. The workspace surface publishes __ME and __WORKSPACES at boot;
- * this keeps both current after a change and tells the chrome.
+ * about themselves — their name — and the ones their workspace owns, its
+ * timezone and how its customers buy (0008). The workspace surface publishes
+ * __ME and __WORKSPACES at boot, each workspace with its `sells_by`; this keeps
+ * both current after a change and tells the chrome.
  */
 import {
   identityWords,
@@ -17,7 +18,7 @@ import {
   DEFAULT_TIMEZONE,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import type { Me } from "./surface-data";
+import type { Me, Workspace } from "./surface-data";
 
 export interface IdentityApi {
   words: typeof identityWords;
@@ -37,8 +38,16 @@ export interface TzApi {
   device: typeof usableDeviceTimezone;
 }
 
+/** What the active workspace's owner may change about it: its zone, how its customers buy (0008). At least one. */
+export interface WorkspacePatch {
+  timezone?: string;
+  sells_by?: string;
+}
+
 export interface WorkspaceApi {
-  /** Set the active workspace's timezone. Owner-only; never throws. */
+  /** Change the active workspace: what was sent, and what the server kept. Owner-only; never throws. */
+  patch(fields: WorkspacePatch): Promise<{ ok: boolean; workspace: Partial<Workspace>; message: string }>;
+  /** Set the active workspace's timezone: patch, for the zone alone. Owner-only; never throws. */
   setTimezone(tz: string): Promise<{ ok: boolean; tz: string; message: string }>;
 }
 
@@ -67,19 +76,31 @@ export function installIdentity(win: Window = window): void {
       return { ok: true, name: saved, message: "" };
     },
   };
+  const patch: WorkspaceApi["patch"] = async (fields) => {
+    const r = await api()("PATCH workspaces", { body: fields });
+    if (!r.ok) return { ok: false, workspace: {}, message: r.message };
+    const back = r.data.workspace ?? {};
+    // What the server kept, else what was sent, for each field sent and no other.
+    const saved: Partial<Workspace> = {
+      ...(fields.timezone !== undefined ? { timezone: back.timezone ?? fields.timezone } : {}),
+      ...(fields.sells_by !== undefined ? { sells_by: back.sells_by ?? fields.sells_by } : {}),
+    };
+    // Keep the published list current, or every date on the page keeps being
+    // read in the old zone, and every deal gate in the old answer, until a reload.
+    const w = win as unknown as { __WORKSPACES?: Partial<Workspace>[]; __ACTIVE_WORKSPACE?: string };
+    if (Array.isArray(w.__WORKSPACES)) {
+      w.__WORKSPACES = w.__WORKSPACES.map((t) => (t.id === w.__ACTIVE_WORKSPACE ? { ...t, ...saved } : t));
+    }
+    win.dispatchEvent(new CustomEvent("workspace:changed"));
+    return { ok: true, workspace: saved, message: "" };
+  };
   win.__workspace = {
+    patch,
     async setTimezone(tz) {
-      const r = await api()("PATCH workspaces", { body: { timezone: tz } });
-      if (!r.ok) return { ok: false, tz: "", message: r.message };
-      const saved = r.data.workspace?.timezone ?? tz;
-      // Keep the published list current, or every date on the page keeps
-      // being read in the old zone until a reload.
-      const w = win as unknown as { __WORKSPACES?: { id: string; timezone?: string }[]; __ACTIVE_WORKSPACE?: string };
-      if (Array.isArray(w.__WORKSPACES)) {
-        w.__WORKSPACES = w.__WORKSPACES.map((t) => (t.id === w.__ACTIVE_WORKSPACE ? { ...t, timezone: saved } : t));
-      }
-      win.dispatchEvent(new CustomEvent("workspace:changed"));
-      return { ok: true, tz: saved, message: "" };
+      const r = await patch({ timezone: tz });
+      return r.ok
+        ? { ok: true, tz: r.workspace.timezone ?? tz, message: "" }
+        : { ok: false, tz: "", message: r.message };
     },
   };
 }

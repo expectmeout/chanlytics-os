@@ -4,7 +4,8 @@
  * 00154 is a column, a CHECK, a trigger on erasure and a definer door. A
  * constraint, a trigger and a function body are what reading source cannot
  * prove, so these run against Postgres in the database workflow; skipped
- * without a local database.
+ * without a local database. Since 00160 the door writes through to the deal
+ * (0008), which holds the proposal now.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -156,6 +157,184 @@ test(
         await db.from("tenants").delete().eq("id", other.id);
       }
     } finally {
+      await db.auth.admin.deleteUser(userId);
+    }
+  },
+);
+
+test(
+  "the door writes through to the deal (0008): an open proposal takes the link and loses it when it is cleared, a person with no open deal gets a Proposal out, and a client's deal is left alone",
+  { skip },
+  async () => {
+    const email = `person-proposal-deal-${Date.now()}@example.test`;
+    const { data: made, error: uErr } = await db.auth.admin.createUser({
+      email,
+      password: "a-long-test-password-1",
+      email_confirm: true,
+    });
+    assert.equal(uErr, null, uErr?.message);
+    const userId = made.user.id;
+    try {
+      const { error: mErr } = await db
+        .from("memberships")
+        .insert({ tenant_id: tenantId, user_id: userId, role: "operator" });
+      assert.equal(mErr, null, mErr?.message);
+      const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
+      const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
+      assert.equal(sErr, null, sErr?.message);
+      // Deals are on here: the workspace says some customers get a proposal first (0008).
+      const { error: onErr } = await db.from("tenants").update({ sells_by: "proposal" }).eq("id", tenantId);
+      assert.equal(onErr, null, onErr?.message);
+
+      const { id: open } = await person({ display_name: "Open", phone_e164: "+15550100241" });
+      const { id: none } = await person({ display_name: "None", phone_e164: "+15550100242" });
+      const { id: client } = await person({ display_name: "Client", phone_e164: "+15550100243" });
+      const deal = async (contact, stage) => {
+        const { data, error } = await db
+          .from("deals")
+          .insert({
+            tenant_id: tenantId,
+            contact_id: contact,
+            stage,
+            service: "Ads",
+            decided_at: stage === "won" ? new Date().toISOString() : null,
+          })
+          .select("id")
+          .single();
+        assert.equal(error, null, error?.message);
+        return data.id;
+      };
+      const proposal = await deal(open, "proposed");
+      const engagement = await deal(client, "won");
+      const dealsOf = async (contact) => {
+        const { data } = await db
+          .from("deals")
+          .select("id, stage, service, proposal_url, version, source, created_by")
+          .eq("contact_id", contact)
+          .order("created_at");
+        return data;
+      };
+      const set = (contact, url) => as.rpc("set_person_proposal", { p_contact_id: contact, p_url: url });
+
+      // An open proposal takes the link, and its version moves so a page holding the old one reloads.
+      assert.equal((await set(open, "https://docs.example.com/p/open")).error, null);
+      assert.deepEqual(
+        (await dealsOf(open)).map((d) => [d.id, d.proposal_url, d.version]),
+        [[proposal, "https://docs.example.com/p/open", 2]],
+      );
+      // The same link again changes nothing on the deal.
+      await set(open, "https://docs.example.com/p/open");
+      assert.equal((await dealsOf(open))[0].version, 2);
+      // Cleared on the person, cleared on the deal: the two never disagree.
+      await set(open, "");
+      assert.deepEqual(
+        (await dealsOf(open)).map((d) => [d.stage, d.proposal_url, d.version]),
+        [["proposed", null, 3]],
+      );
+
+      // No open deal: the link opens a Proposal out, written by the person who set it, with deal_record's event.
+      await set(none, "https://docs.example.com/p/none");
+      const opened = await dealsOf(none);
+      assert.deepEqual(
+        opened.map((d) => [d.stage, d.service, d.proposal_url, d.source, d.created_by]),
+        [["proposed", null, "https://docs.example.com/p/none", "person", userId]],
+      );
+      const { data: events } = await db
+        .from("events")
+        .select("kind, data")
+        .eq("tenant_id", tenantId)
+        .eq("subject_id", opened[0].id);
+      assert.deepEqual(
+        events.map((e) => [e.kind, e.data.stage, e.data.from, e.data.by, e.data.contact_id]),
+        [["deal.proposed", "proposed", null, userId, none]],
+      );
+      assert.ok(!JSON.stringify(events).includes("example.com"), "the event names no address");
+      // A second link finds the deal the first one opened: one Proposal out, holding the newest link.
+      await set(none, "https://docs.example.com/p/none-2");
+      assert.deepEqual(
+        (await dealsOf(none)).map((d) => d.proposal_url),
+        ["https://docs.example.com/p/none-2"],
+      );
+
+      // A client's deal is left alone, and no proposal is opened beside it.
+      await set(client, "https://docs.example.com/p/client");
+      assert.deepEqual(
+        (await dealsOf(client)).map((d) => [d.id, d.stage, d.proposal_url, d.version]),
+        [[engagement, "won", null, 1]],
+      );
+      const { data: onPerson } = await db.from("contacts").select("proposal_url").eq("id", client).single();
+      assert.equal(onPerson.proposal_url, "https://docs.example.com/p/client", "the person's column is still written");
+    } finally {
+      await db.auth.admin.deleteUser(userId);
+    }
+  },
+);
+
+test(
+  "where deals are off the door opens no deal, but an open proposal still takes the link; a person merged into another is not found (0008)",
+  { skip },
+  async () => {
+    const email = `person-proposal-off-${Date.now()}@example.test`;
+    const { data: made, error: uErr } = await db.auth.admin.createUser({
+      email,
+      password: "a-long-test-password-1",
+      email_confirm: true,
+    });
+    assert.equal(uErr, null, uErr?.message);
+    const userId = made.user.id;
+    const { data: far } = await db
+      .from("tenants")
+      .insert({ slug: `person-proposal-off-${Date.now()}`, name: "Off" })
+      .select("id")
+      .single();
+    try {
+      const { error: mErr } = await db
+        .from("memberships")
+        .insert({ tenant_id: far.id, user_id: userId, role: "owner" });
+      assert.equal(mErr, null, mErr?.message);
+      const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
+      const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
+      assert.equal(sErr, null, sErr?.message);
+      const add = async (row) =>
+        (
+          await db
+            .from("contacts")
+            .insert({ tenant_id: far.id, ...row })
+            .select("id")
+            .single()
+        ).data.id;
+      const set = (contact, url) => as.rpc("set_person_proposal", { p_contact_id: contact, p_url: url });
+      const dealsOf = async (contact) =>
+        (await db.from("deals").select("stage, proposal_url").eq("contact_id", contact).order("created_at")).data;
+
+      // Never asked, then booking: a link is kept on the person and opens nothing.
+      const nobody = await add({ display_name: "Nobody", phone_e164: "+15550100251" });
+      for (const answer of [null, "booking"]) {
+        const { error: aErr } = await db.from("tenants").update({ sells_by: answer }).eq("id", far.id);
+        assert.equal(aErr, null, aErr?.message);
+        const { error } = await set(nobody, `https://docs.example.com/p/${answer ?? "unasked"}`);
+        assert.equal(error, null, error?.message);
+        assert.deepEqual(await dealsOf(nobody), [], `${answer ?? "not asked"}: no deal from the door`);
+      }
+      // A proposal already out takes the link whatever the answer: the two never disagree on one it holds.
+      const waiting = await add({ display_name: "Waiting", phone_e164: "+15550100252" });
+      const { error: dErr } = await db
+        .from("deals")
+        .insert({ tenant_id: far.id, contact_id: waiting, stage: "proposed", service: "Ads" });
+      assert.equal(dErr, null, dErr?.message);
+      await set(waiting, "https://docs.example.com/p/waiting");
+      assert.deepEqual(await dealsOf(waiting), [
+        { stage: "proposed", proposal_url: "https://docs.example.com/p/waiting" },
+      ]);
+
+      // A person merged into another is found by neither door.
+      const merged = await add({ display_name: "Merged", phone_e164: "+15550100253", merged_into_contact_id: nobody });
+      const { error: mergedErr } = await set(merged, "https://docs.example.com/p/merged");
+      assert.match(mergedErr?.message ?? "", /Person not found/);
+      const { data: kept } = await db.from("contacts").select("proposal_url").eq("id", merged).single();
+      assert.equal(kept.proposal_url, null, "and nothing was written on them");
+    } finally {
+      await db.from("tenants").delete().eq("id", far.id);
       await db.auth.admin.deleteUser(userId);
     }
   },

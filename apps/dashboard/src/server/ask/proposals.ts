@@ -2,10 +2,17 @@ import "server-only";
 import {
   AUDIENCE_KINDS,
   ASK_THREAD_VERBS,
+  DEAL_LOST_REASONS,
+  DEAL_LOST_REASON_WORDS,
   DEAL_PERS,
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
   amountWords,
+  isDealLostReason,
+  isRealDate,
+  linkHost,
+  normalizeLink,
+  whyNotALink,
   foldName,
   pickCurrentDeal,
   type DealStage,
@@ -129,7 +136,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_deal",
     description:
-      "Propose recording a deal on a person (0004): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year), a note. This records what a person told you; it never decides money.",
+      "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). This records what a person told you; it never decides money.",
     input_schema: obj(
       {
         contact_id: { type: "string" },
@@ -138,6 +145,9 @@ export const ACT_TOOLS: ToolDef[] = [
         amount_cents: { type: "number" },
         per: { type: "string", enum: [...DEAL_PERS] },
         note: { type: "string" },
+        proposal_url: { type: "string" },
+        valid_until: { type: "string" },
+        lost_reason: { type: "string", enum: [...DEAL_LOST_REASONS] },
       },
       ["contact_id", "stage"],
     ),
@@ -516,6 +526,16 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   const stage = str(input.stage, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
   if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
+  // The proposal's link, judged by the one normalizer the route uses; the day it stands until, a real one; and a reason
+  // only for a pass (0008). Each is refused in words before it becomes a card the route would refuse.
+  const typedLink = str(input.proposal_url, 600);
+  const url = typedLink ? normalizeLink(typedLink) : null;
+  if (typedLink && !url) return refuse(`proposal_url: ${whyNotALink(typedLink) ?? "that is not a web address"}`);
+  const day = str(input.valid_until, 10);
+  if (day && !isRealDate(day)) return refuse("valid_until must be a day, like 2026-09-30");
+  const reason = str(input.lost_reason, 20);
+  if (reason && !isDealLostReason(reason)) return refuse(`lost_reason must be one of ${DEAL_LOST_REASONS.join(", ")}`);
+  if (reason && stage !== "lost") return refuse("lost_reason goes only with stage lost");
   const { data: c, error } = await t.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
@@ -566,12 +586,14 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
   const service = sameRow ? sameRow.service : (named ?? current?.service ?? null);
   t.read.person.add(id);
   const words = DEAL_STAGE_WORDS[stage as DealStage];
-  const money = amount !== null && stage === "won" ? amountWords(amount, per) : null;
+  // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
+  const money = amount !== null ? amountWords(amount, per) : null;
+  const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   return propose({
     kind: "deal",
     needs: "operator",
     title: `${who} · ${words}`,
-    summary: [words, service, money].filter((x): x is string => !!x).join(" · "),
+    summary: [words, service, money, url ? linkHost(url) : null, why].filter((x): x is string => !!x).join(" · "),
     payload: {
       contact_id: id,
       stage,
@@ -580,6 +602,9 @@ async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Prom
       ...(amount !== null ? { amount_cents: amount } : {}),
       ...(per ? { per } : {}),
       ...(note ? { note } : {}),
+      ...(url ? { proposal_url: url } : {}),
+      ...(day ? { valid_until: day } : {}),
+      ...(reason ? { lost_reason: reason } : {}),
       who,
     },
     undo: null,

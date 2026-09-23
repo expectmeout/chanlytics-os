@@ -1055,6 +1055,9 @@ var LeadSuggestAnswerSchema = z5.object({
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
 function isDealStage(s) {
   return typeof s === "string" && DEAL_STAGES.includes(s);
 }
@@ -1064,6 +1067,11 @@ function pickCurrentDeal(rows) {
     (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
   );
   return sorted[0] ?? null;
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
 }
 function dealSinceMs(d) {
   const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
@@ -2168,6 +2176,12 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
     replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
   };
 }
+function sellsByOf(embedded) {
+  const t = Array.isArray(embedded) ? embedded[0] : embedded;
+  const v = t && typeof t === "object" ? t.sells_by : null;
+  return typeof v === "string" ? v : null;
+}
+var noSellsBy = (message) => /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 var EMPTY_LEAD = {
   contactId: null,
   conversationId: null,
@@ -2178,9 +2192,17 @@ var EMPTY_LEAD = {
   optedOut: false
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const { data: contact, error: cErr } = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  const withAnswer = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
+  let cErr = withAnswer.error;
+  if (cErr && noSellsBy(cErr.message)) {
+    const older = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    contact = older.data ? { ...older.data, sellsBy: null } : null;
+    cErr = older.error;
+  }
   if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
   if (!contact) return EMPTY_LEAD;
+  const dealsOn = dealsAreOn(contact.sellsBy);
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
   let history = [];
@@ -2189,7 +2211,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
     history = assembleHistory(rows ?? [], historyLimit);
   }
-  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
+  const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
   const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
   return {
@@ -2206,7 +2228,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: contact.proposal_url ?? null,
+    proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
     deal: current ? {
       stage: current.stage,
       service: current.service,
@@ -2217,8 +2239,8 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   };
 }
 async function readDealForPhone(db, tenantId, phoneE164) {
-  const { data: c } = await db.from("contacts").select("id").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-  if (!c) return null;
+  const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
   const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
   const d = pickCurrentDeal(data ?? []);
   return d ? { stage: d.stage, service: d.service, proposed_at: d.proposed_at, decided_at: d.decided_at, ended_at: d.ended_at } : null;

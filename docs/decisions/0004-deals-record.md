@@ -1,8 +1,12 @@
 # 0004 · A deal is a record
 
-**Status:** decided, not built. Written against commit `1b26296d` (PR #884,
-23 September 2026), and verified against the code at it. Where this note and
-the code disagree, the code wins.
+**Status:** decided and built (#892, #894, #898, #902, #905; the card's Deal
+row, #912). [0008](0008-a-proposal-is-part-of-the-deal.md) amends it: the
+proposal moves onto the deal, a proposal carries a value, the switch is how the
+workspace's customers buy, one sheet records every move, and the Pipeline is a
+view of People. Each amended passage below says so. Written against commit
+`1b26296d` (PR #884, 23 September 2026), and verified against the code at it.
+Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -173,7 +177,9 @@ and amounts keep their history.
 **The amount is optional, and never reaches the prompt.** An amount in cents,
 a `per` (once, month, year) and a short note; a free-text price the business
 cannot state flatly is the service's `price_note`, which exists. Reports sums
-what was recorded and says nothing about the rest.
+what was recorded and says nothing about the rest. _Amended by
+[0008](0008-a-proposal-is-part-of-the-deal.md): a proposal carries a value too,
+and the page says it at every stage; it still never reaches the prompt._
 
 **Evidence is optional, in the consent's shape.** A win may name the inbound
 message it was given in, or a note saying where it was signed. The carriers
@@ -196,7 +202,12 @@ does not insist.
   is drawn only where deals are a thing here — the workspace lists a
   consult-first service or has recorded a deal — so a salon never sees it. The
   timeline gains a `deal` kind, one line per event, and its filter appears only
-  when one exists. The About rows do not change.
+  when one exists. The About rows do not change. _Amended by
+  [0008](0008-a-proposal-is-part-of-the-deal.md): the gate is how the
+  workspace's customers buy (`tenants.sells_by`, `dealsAreOn`), and neither a
+  consult-first service nor a deal on file switches anything; one sheet
+  (`DealSheet`) replaces this how-row and the Deal row, and the deal holds the
+  proposal's link, so the About Proposal row goes._
 - **People** — Journey gains _Consultation booked_, _Proposal out_, _Clients_
   and _Ended_. A `deal` column, `on: false`. The row's second line says
   _Proposal out · 6 d_ after their words and before the visit; a client's row
@@ -211,7 +222,8 @@ does not insist.
   proposal), with the door to the list and _Ask why_. Not a queue row: the
   queue is what needs a person now.
 - **Reports** — a Deals section only when any deal exists, the way Google's
-  section exists only with keys. It counts one cohort, never a funnel of mixed
+  section exists only with keys (_and, since [0008](0008-a-proposal-is-part-of-the-deal.md),
+  only where deals are on_). It counts one cohort, never a funnel of mixed
   populations: of the proposals sent in the period, how many became clients,
   passed, or are still waiting; beside it the stock, clients now and their
   monthly total where amounts were recorded. Counts over columns, in the house
@@ -230,7 +242,11 @@ does not insist.
   whole change. Where a proposal link is on file for the person (PR #888's
   `contacts.proposal_url`), that link's own rule stands for a price question
   — send the address and state no figure — and the deal's sentence defers to
-  it rather than promising a follow-up.
+  it rather than promising a follow-up. _Amended by
+  [0008](0008-a-proposal-is-part-of-the-deal.md): the link is the deal's
+  (`proposalLinkOf`: a proposal's own, none for any other deal, the person's
+  only with no deal), and where deals are off the receptionist hears no deal
+  and no link._
 - **Ask** — `get_person` carries the deal in its facts; `search_people` names
   the new lists; a `propose_deal` act tool in `propose_person_mode`'s shape
   returns a card the member approves through the route.
@@ -238,13 +254,18 @@ does not insist.
   from `leads.contact_id`; nothing stored.
 - **Settings › Business, Setup, the Calendar board** — nothing changes. The
   offer already lives in services and consult-first; the board's windows are a
-  service's, not a person's.
+  service's, not a person's. _Amended by
+  [0008](0008-a-proposal-is-part-of-the-deal.md): Settings › Business asks how
+  customers buy, and the Calendar's peek of a consultation shows the person's
+  stage._
 
 **What it never does:** no Deals page, no board, no amounts in any prompt, no
 automatic follow-up, no stage inferred from a message or a calendar, no
 receptionist writing a row. A proposal follow-up sits near the locked money
 class; Today names the stale ones and a person sends the nudge, inside the
-window rules, until an Autonomy class for it is decided.
+window rules, until an Autonomy class for it is decided. _Amended by
+[0008](0008-a-proposal-is-part-of-the-deal.md): the Pipeline groups People's
+rows by stage, a view of People and not a Deals page or a board._
 
 ## Shape
 
@@ -333,7 +354,7 @@ export interface DealRowDto { ... }  export interface DealVM { stage; word; serv
 export function dealSentence(d: DealRowDto | null, now: number): string | null;
 /** Today's leak: proposals out past a week with nothing back. */
 export function proposalsWaiting(rows: PersonRowVM[], nowMs: number): number;
-/** Whether the workspace's rows or its profile make deals a thing here. */
+/** Whether the workspace's rows or its profile make deals a thing here. (0008: dealsAreOn(sellsBy) replaced it.) */
 export function dealsAreAThing(rows: readonly PersonRowVM[], consultFirst: readonly string[]): boolean;
 
 // packages/contracts/src/people.ts — PersonRowDto gains deal_* (optional: an older

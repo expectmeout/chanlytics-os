@@ -70,8 +70,20 @@ jobs:
           version: 2.116.0
       - if: steps.changed.outputs.db == 'true'
         run: pnpm install --frozen-lockfile
+      # ghcr.io answers a burst of image pulls with "toomanyrequests" and a
+      # retry-after of microseconds, which the daemon does not wait out, so one
+      # start can fail with most of the layers already down (23 September 2026:
+      # every replay for hours). A failed start keeps what it pulled, so a few
+      # more attempts, spaced out, finish the set; six failures still fail here.
       - if: steps.changed.outputs.db == 'true'
-        run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed on attempt $attempt; pulling the rest after a pause" >&2
+            supabase stop --no-backup || true
+            sleep $((attempt * 15))
+          done
+          exit 1
       # Every closed set the migrations declare, regenerated from the database.
       # A migration that changed one without regenerating fails here, and the
       # compiler then names every copy the change left behind.

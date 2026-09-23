@@ -115,8 +115,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT policies": settings,
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
-  // re-read, they kept the old zone until something else was saved.
-  "PATCH workspaces": settings,
+  // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
+  // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting.
+  "PATCH workspaces": () => [settingsOverride, peopleOverride, reportsOverride, todayOverride],
   "POST team/invite": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,

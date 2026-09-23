@@ -1803,6 +1803,8 @@ export interface PeopleListsLike {
    * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
    */
   rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
+  /** Whether deals are on here (dealsAreOn, 0008): the proposals waiting are a row only then. */
+  dealsOn?: boolean;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
@@ -1884,13 +1886,14 @@ export function todayLeaks(
   }
 
   // A proposal out past a week with nothing back costs a customer who was one step from yes (0004). One is enough: an
-  // agency sends a few a month. The rule is contracts' proposalsWaiting; the count is over the rows People holds.
+  // agency sends a few a month. The rule is contracts' proposalsWaiting; the count is over the rows People holds. Only
+  // where deals are on (0008): a workspace whose customers book keeps whatever deals it has out of sight.
   const dealRows = (people?.rows ?? []).filter(
     (r): r is typeof r & { deal: DealVM | null; askedMs: number | null } => "deal" in r && "askedMs" in r,
   );
   const waiting = proposalsWaiting(dealRows, nowMs);
   const po = list("proposal_out");
-  if (people && waiting.length >= 1) {
+  if (people && people.dealsOn && waiting.length >= 1) {
     const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
     const math = po ? `${po.count} on Proposal out · nothing heard since it went` : "nothing heard since it went";
     found.set("proposals-waiting", {

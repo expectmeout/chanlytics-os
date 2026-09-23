@@ -1,19 +1,27 @@
 import {
   CONSENT_SOURCES,
   DEAL_LINE_NONE,
+  DEAL_LOST_REASONS,
+  DEAL_LOST_REASON_WORDS,
   DEAL_PERS,
   DEAL_PER_WORDS,
   DEAL_STAGE_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
+  SELLS_BY,
+  SELLS_BY_QUESTION,
+  SELLS_BY_WORDS,
   TIMELINE_FILTERS,
   dealMoves,
   filterTimeline,
   mayReceive,
   offersYesRefusal,
+  parseAmount,
   toPersonVM,
   verbalOptInScript,
+  type DealClearable,
   type DealDto,
+  type DealLostReason,
   type DealPer,
   type DealStage,
   type PersonNoteDto,
@@ -254,7 +262,8 @@ export async function setPersonMarketingConsentMany(ids: string[], body: Consent
  * is a new engagement, which starts proposed; with one and the version the page
  * saw, a move. The door decides; the route records the decision. The list is
  * re-read afterwards (refresh-map) because the row's deal columns and the
- * Journey lists read from it.
+ * Journey lists read from it. A proposal's link, its valid-until day, a reason
+ * for passing and what a person emptied (0008) go only when named.
  */
 export interface DealBody {
   stage: DealStage;
@@ -267,6 +276,10 @@ export interface DealBody {
   note?: string;
   message_id?: string;
   form_note?: string;
+  proposal_url?: string;
+  valid_until?: string | null;
+  lost_reason?: DealLostReason;
+  clear?: DealClearable[];
 }
 
 export async function recordDeal(
@@ -326,13 +339,20 @@ declare global {
     __consentSources?: readonly { id: string; label: string }[];
     __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     __recordDeal?: typeof recordDeal;
-    /** The deal's words for the page (0004): the stage words, the per words, the pers, the empty line, the moves from a stage. */
+    /**
+     * The deal's words for the page (0004, 0008): the stage words, the per words, the pers, the empty line, the moves
+     * from a stage, the reasons for passing and theirs, the one reading of a typed amount, and how customers buy.
+     */
     __deal?: {
       words: typeof DEAL_STAGE_WORDS;
       perWords: typeof DEAL_PER_WORDS;
       pers: typeof DEAL_PERS;
       none: string;
       moves: typeof dealMoves;
+      reasons: typeof DEAL_LOST_REASONS;
+      reasonWords: typeof DEAL_LOST_REASON_WORDS;
+      parseAmount: typeof parseAmount;
+      sellsBy: { question: string; answers: typeof SELLS_BY; words: typeof SELLS_BY_WORDS };
     };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
@@ -405,6 +425,10 @@ export function installPeopleCourier(): void {
     pers: DEAL_PERS,
     none: DEAL_LINE_NONE,
     moves: dealMoves,
+    reasons: DEAL_LOST_REASONS,
+    reasonWords: DEAL_LOST_REASON_WORDS,
+    parseAmount,
+    sellsBy: { question: SELLS_BY_QUESTION, answers: SELLS_BY, words: SELLS_BY_WORDS },
   };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.

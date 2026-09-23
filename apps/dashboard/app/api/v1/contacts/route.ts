@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { AppError, dealsAreAThing, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
+import { AppError, dealsAreOn, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { PEOPLE_PAGE, countPeople, listPeople } from "@/server/people";
 import { withVisits } from "@/server/calendar";
-import { anyDealRecorded } from "@/server/deals";
+import { sellsByOf } from "@/server/deals";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -35,14 +35,15 @@ export const GET = read({
       countPeople(ctx, tenantId, q),
     ]);
     // Each person with their appointments from the owner's calendar, when one is connected: Booked is a fact here,
-    // not a stage. Never fatal to the list. In the same round trip, whether any deal was ever recorded here (0004):
-    // a table that is not there reads as none, and costs the deal lists, never the list.
-    const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);
+    // not a stage. Never fatal to the list. In the same round trip, how this workspace's customers buy (0008): an
+    // answer that cannot be read is not asked yet, and costs the deal lists, never the list.
+    const [out, sellsBy] = await Promise.all([withVisits(ctx, tenantId, rows), sellsByOf(ctx, tenantId)]);
     return {
       ...out,
-      // Deals are a thing here when the profile lists a consult-first service or a deal was ever recorded (0004): the
-      // Journey's deal lists, the thread's menu item, the column. The names of the services stay on the server.
-      deals_on: dealsAreAThing(out.consult_first ? ["listed"] : [], anyDeal),
+      // Deals are on where the workspace says some customers get a proposal first (dealsAreOn, 0008): the Journey's
+      // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
+      // names of the services stay on the server.
+      deals_on: dealsAreOn(sellsBy),
       consult_first: out.consult_first,
       page: { q, offset, limit: PEOPLE_PAGE, total, has_more: offset + rows.length < total },
     };

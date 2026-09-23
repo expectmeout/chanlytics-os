@@ -36,9 +36,9 @@ const brain = {
   profile: { hours: { mon: { open: "09:30", close: "18:00" }, sun: {} } },
 };
 
-/** The server: one workspace row with a zone, and a settings read that composes its preview in that zone. */
+/** The server: one workspace row with a zone and an answer, and a settings read that composes its preview in that zone. */
 const server = (zone) => {
-  const state = { zone, asked: [] };
+  const state = { zone, sellsBy: null, asked: [], bodies: [] };
   const json = (data, status = 200) =>
     new Response(
       JSON.stringify(
@@ -58,8 +58,18 @@ const server = (zone) => {
       timezone: state.zone,
     };
     if (path === "workspaces" && method === "PATCH") {
-      state.zone = JSON.parse(init.body).timezone;
-      return json({ workspace: { ...row, timezone: state.zone } });
+      // As the route does: only what was sent is written, and only what was written is read back (0008).
+      const sent = JSON.parse(init.body);
+      state.bodies.push(sent);
+      if (sent.timezone !== undefined) state.zone = sent.timezone;
+      if (sent.sells_by !== undefined) state.sellsBy = sent.sells_by;
+      return json({
+        workspace: {
+          ...row,
+          timezone: state.zone,
+          ...(sent.sells_by !== undefined ? { sells_by: state.sellsBy } : {}),
+        },
+      });
     }
     if (path === "workspaces") return json({ workspaces: [row], activeWorkspaceId: row.id });
     if (path === "settings") {
@@ -92,10 +102,12 @@ const quiet = async (fn) => {
 const pause = () => new Promise((r) => setTimeout(r, 5));
 
 test("saving a timezone re-reads settings, so the preview's zone and what the hours fold will say follow it", async () => {
+  // Settings first, the surface the preview rides on; then the three that how customers buy switches (0008), which
+  // is saved through the same route: People's lists and column, Reports' Deals section, Today's proposals waiting.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
-    ["settings"],
-    "the refresh map names the surface the preview rides on",
+    ["settings", "people", "reports", "today"],
+    "the refresh map names the surfaces the workspace's own fields ride on",
   );
 
   const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
@@ -137,6 +149,61 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
     });
   } finally {
     stop();
+    Object.assign(W, {
+      fetch: was.fetch,
+      __SETTINGS: was.settings,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+    });
+  }
+});
+
+test("how customers buy is saved through the workspace's own route: only what was said goes, the page's list keeps it, and what it switches is read again", async () => {
+  const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };
+  const srv = server("America/New_York");
+  Object.assign(W, {
+    fetch: srv.fetch,
+    __WORKSPACES: [
+      { id: "t-melany", timezone: "America/New_York", sells_by: null },
+      { id: "t-other", timezone: "Europe/London", sells_by: null },
+    ],
+    __ACTIVE_WORKSPACE: "t-melany",
+  });
+  installIdentity(W);
+  const heard = [];
+  const onChange = () => heard.push("workspace:changed");
+  W.addEventListener("workspace:changed", onChange);
+  const stop = startSurfaces([settingsOverride]);
+  try {
+    await quiet(async () => {
+      for (let i = 0; i < 40 && !(W.__SETTINGS && W.__SETTINGS.prompt); i += 1) await pause();
+      srv.asked.length = 0;
+      const r = await W.__workspace.patch({ sells_by: "proposal" });
+      assert.deepEqual(r, { ok: true, workspace: { sells_by: "proposal" }, message: "" });
+      assert.deepEqual(srv.bodies, [{ sells_by: "proposal" }], "the answer alone: the zone is not sent again");
+      assert.deepEqual(
+        W.__WORKSPACES.map((t) => [t.id, t.timezone, t.sells_by]),
+        [
+          ["t-melany", "America/New_York", "proposal"],
+          ["t-other", "Europe/London", null],
+        ],
+        "the active workspace's answer, and no other's; the zone as it was",
+      );
+      assert.deepEqual(heard, ["workspace:changed"]);
+      // Settings, People, Reports and Today (whose day reads the metrics) are read again once the answer is saved.
+      const patched = srv.asked.indexOf("PATCH workspaces");
+      for (const read of ["GET settings", "GET contacts", "GET reports", "GET metrics"])
+        assert.ok(srv.asked.indexOf(read) > patched, `${read} after the save: ${srv.asked.join(", ")}`);
+      // The zone's own door is the same courier, for the zone alone.
+      srv.bodies.length = 0;
+      const tz = await W.__workspace.setTimezone("America/Chicago");
+      assert.deepEqual(tz, { ok: true, tz: "America/Chicago", message: "" });
+      assert.deepEqual(srv.bodies, [{ timezone: "America/Chicago" }]);
+      assert.equal(W.__WORKSPACES[0].sells_by, "proposal", "a zone saved leaves the answer where it was");
+    });
+  } finally {
+    stop();
+    W.removeEventListener?.("workspace:changed", onChange);
     Object.assign(W, {
       fetch: was.fetch,
       __SETTINGS: was.settings,

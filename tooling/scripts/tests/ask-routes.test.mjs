@@ -383,3 +383,35 @@ test("the reports: the three presets and no other, the series from the function 
     "No workspace found for this report.",
   );
 });
+
+test("the reports' Deals section rides on how the workspace's customers buy (0008): drawn where it says proposal, and not even read where it books or was never asked", async () => {
+  const rpcs = { report_series: (a) => ({ days: a.p_days, tenant: a.p_tenant_id }), people_list: () => [] };
+  const won = {
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+    tenant_id: A,
+    contact_id: "cccccccc-cccc-4ccc-8ccc-cccccccccc01",
+    stage: "won",
+    proposed_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+    amount_cents: 250_000,
+    per: "month",
+  };
+  const run = async (sellsBy) => {
+    const tables = {
+      memberships: both("viewer", "viewer"),
+      tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+      tenant_config: [],
+      policies: [],
+      deals: [won],
+    };
+    const ctx = ctxFor(tables, {}, rpcs);
+    const out = await reports.GET.run(get(inA), ctx);
+    return { deals: out.deals, read: ctx.supabase.seen.some((q) => q.table === "deals") };
+  };
+  const on = await run("proposal");
+  assert.deepEqual([on.deals.any, on.deals.clients, on.deals.monthly_cents], [true, 1, 250_000]);
+  for (const sellsBy of ["booking", null, undefined]) {
+    const off = await run(sellsBy);
+    assert.equal(off.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
+    assert.equal(off.read, false, `${sellsBy}: the table is not read for a section not drawn`);
+  }
+});

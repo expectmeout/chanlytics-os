@@ -79,6 +79,11 @@ parsed at `:237`). The proposal link's own design kept a slot out on purpose,
 _"feasible later: the booking starter already carries its URL in a body slot"_
 (`docs/superpowers/specs/2026-09-22-proposal-link-design.md:100-107`).
 
+_Since [0008](0008-a-proposal-is-part-of-the-deal.md) (00160) the link lives on
+the deal, and `people_list` returns it as `deal_proposal_url` beside the other
+`deal_*` columns: every row a run is built from already carries the link of the
+proposal it waits on. This note reads the deal's link from here on._
+
 A visit playbook shows how a per-person fact reaches the send.
 `visitFactsFor` (`playbooks.ts:510-526`) computes the visit's time and service
 when the run is made. The run freezes them on each recipient
@@ -125,9 +130,10 @@ trigger both call it: _"One predicate per rule"_ (`CLAUDE.md`). A person is
 eligible when:
 
 - **they are waiting on a proposal,** by that rule;
-- **a proposal link is on file for them** (`contacts.proposal_url`, 00154).
-  Without one, the nudge would be a bare "just checking in", which is a
-  person's to write. The leak still names them;
+- **their proposal has a link** (the deal's, `deals.proposal_url`, 00160;
+  `deal_proposal_url` on their People row). Without one, the nudge would be a
+  bare "just checking in", which is a person's to write. The leak still names
+  them;
 - **no playbook has written to them since the proposal went out.** One
   follow-up per proposal, read from the touches the run already loads
   (`touches.byThis`), never a second nudge;
@@ -142,8 +148,8 @@ carries no price, date, amount or offer. The new slot kind is `proposal_link`, a
 only on this trigger. `templateValues` refuses it anywhere else, as it refuses
 a visit slot off a visit trigger (`template-values.ts:50-57`).
 
-**Where it shows.** The trigger is offered only where deals are a thing
-(`dealsAreAThing`). A salon's Playbooks page, Autonomy pane and Ask never see
+**Where it shows.** The trigger is offered only where deals are on
+(`dealsAreOn`, 0008). A salon's Playbooks page, Autonomy pane and Ask never see
 it. The Autonomy pane gains one row, _Follow-ups_, beside _Win-back_. Today's
 leak keeps its words, and when the playbook is on, it counts only the people
 the playbook will not reach (no link, or no yes). The leak's _See who_ then
@@ -198,10 +204,10 @@ insert into public.policies (tenant_id, class, mode)
   on conflict do nothing;
 ```
 
-The run context gains `proposals: Map<contactId, url>`. It is read once per
-run as the service role: `contacts.proposal_url` for the people whose deal is
-`proposed`. The send resolves `proposalLink` from the recipient's facts, and a
-missing one skips the person as `missing_value`, as a missing visit does.
+The run reads no link of its own: each row's `deal_proposal_url` (people_list, 00160) is the link of the proposal its deal holds, and `proposals` is those rows'
+links, keyed by person. The send resolves `proposalLink` from the recipient's
+facts, and a missing one skips the person as `missing_value`, as a missing visit
+does.
 
 ## Steps
 
@@ -224,12 +230,12 @@ lists policies and ignores a class it does not know. An older edge never runs
 a trigger it cannot find (`playbooks.ts:232-233`), and a class with no row
 runs as `ask`.
 
-**4 · The run.** The edge's run context reads the links, `playbookRunReach`
+**4 · The run.** The run takes each row's deal link, `playbookRunReach`
 gains the `deal` branch, and the run freezes `proposal_link`. The send
 resolves the slot. _Both orders:_ no playbook row names the trigger until a
 person makes one in step 5.
 
-**5 · The page.** Playbooks offers the trigger where deals are a thing, with
+**5 · The page.** Playbooks offers the trigger where deals are on, with
 its icon and blurb (`apps/dashboard/src/legacy/pages/outbound-real.jsx:100-112`),
 and the starter comes pre-filled. Ask's `propose_playbook` enum gains it
 (`apps/dashboard/src/server/ask/proposals.ts:213`). Today's leak counts only

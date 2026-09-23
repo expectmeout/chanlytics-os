@@ -41,7 +41,7 @@ import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
 import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
 import type { CALL_OUTCOMES } from "./call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "./config";
-import type { DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "./deals";
+import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "./deals";
 import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
@@ -158,4 +158,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DEAL_STAGES>, SchemaSet<"deals.stage">>>,
   Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
   Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
+  // A proposal is part of the deal (00160): why they passed, and how the workspace's customers buy.
+  Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
+  Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
 ];
