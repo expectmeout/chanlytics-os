@@ -722,6 +722,7 @@ const PersonProposal = ({ p, canEdit, flash }) => {
 // is contracts' (NOTE_WORDS, personNotesVM, through window.__personNotes); the page re-reads the person after a write.
 const NOTE_FALLBACK_WORDS = {
   placeholder: "Add a note…", add: "Add note", save: "Save", cancel: "Cancel", edit: "Edit", remove: "Delete",
+  askRemove: "Delete this note?", more: "More for this note", edited: "edited",
   forAnyone: "For anyone", forLabel: "For", teamOnly: "Team only", teamOnlyHint: "The receptionist won't read it",
   readsHint: "The receptionist uses notes as facts and never reads them aloud.", none: "No notes yet.",
   suggested: "Suggested by the receptionist", keep: "Keep", dismiss: "Dismiss", added: "Note added",
@@ -805,7 +806,7 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   const noteRow = (n) => {
     if (editing && editing.id === n.id) {
       return (
-        <li key={n.id} className="cl-prof-note is-editing" data-testid="person-note">
+        <li key={n.id} className="cl-pnote is-editing" data-testid="person-note">
           <textarea
             className="cl-prof-note-input"
             value={editing.text}
@@ -834,23 +835,23 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
       ...(mayRemove ? [{ label: W.remove, icon: "x", danger: true, onClick: () => setAsking(n.id) }] : []),
     ];
     return (
-      <li key={n.id} className={`cl-prof-note${n.forMe ? " is-for-me" : ""}`} data-testid="person-note">
+      <li key={n.id} className={`cl-pnote${n.forMe ? " is-for-me" : ""}`} data-testid="person-note">
         <div className="cl-prof-note-body">{n.body}</div>
         <div className="cl-prof-note-meta">
           <span className="cl-prof-note-who">{n.who}</span>
           <span title={n.whenFull}>{n.when}</span>
-          {n.edited && <span>edited</span>}
+          {n.edited && <span>{W.edited}</span>}
           {n.forWho && <span className="cl-prof-note-for-who">{n.forWho}</span>}
           {n.teamOnly && <span className="cl-prof-note-lock" title={W.teamOnlyHint}><Icon name="lock" size={10} /> {W.teamOnly}</span>}
           {acts.length > 0 && asking !== n.id && (
             <span className="cl-prof-note-more">
-              <MoreMenu items={acts} title="Note" size={12} escape btnClass="btn btn-ghost btn-icon btn-sm" />
+              <MoreMenu items={acts} title={W.more} size={12} escape btnClass="btn btn-ghost btn-icon btn-sm" />
             </span>
           )}
         </div>
         {asking === n.id && (
           <div className="cl-prof-note-ask" role="alert">
-            <span>Delete this note?</span>
+            <span>{W.askRemove}</span>
             <span className="cl-prof-name-acts">
               <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setAsking(null)}>{W.cancel}</button>
               <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove(n)} data-testid="person-note-remove">{W.remove}</button>
@@ -892,7 +893,7 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
       {waiting.length > 0 && (
         <ul className="cl-prof-note-list">
           {waiting.map((n) => (
-            <li key={n.id} className="cl-prof-note is-suggested" data-testid="person-note-suggested">
+            <li key={n.id} className="cl-pnote is-suggested" data-testid="person-note-suggested">
               <div className="cl-prof-note-meta">
                 <span className="cl-prof-note-who"><Icon name="sparkle" size={10} /> {W.suggested}</span>
                 {n.from && <span>{n.from}</span>}

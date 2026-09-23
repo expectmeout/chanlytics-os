@@ -6701,6 +6701,9 @@ declare const NOTE_WORDS: {
     readonly cancel: "Cancel";
     readonly edit: "Edit";
     readonly remove: "Delete";
+    readonly askRemove: "Delete this note?";
+    readonly more: "More for this note";
+    readonly edited: "edited";
     readonly forAnyone: "For anyone";
     readonly forLabel: "For";
     readonly teamOnly: "Team only";

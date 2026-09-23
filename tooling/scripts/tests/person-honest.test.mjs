@@ -2125,6 +2125,10 @@ test("REGRESSION: the notes card was one box the receptionist read whole, overwr
     assert.match(textOf(suggested), /Suggested by the receptionist/);
     assert.match(textOf(suggested), /After a call/);
     const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
+    assert.ok(
+      rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),
+      "REGRESSION: the row wore .cl-prof-note, the consent form's class, whose align-items: center pushed every note off the card's edge",
+    );
     assert.deepEqual(
       rows.map((r) => textOf(find(r, (n) => n.props?.className === "cl-prof-note-body"))),
       ["Allergic to ammonia.", "Call her back about the bridal party.", "Sees Sofia."],
