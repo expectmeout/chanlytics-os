@@ -3,9 +3,10 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { activeWorkspace, scoped, apiGet } from "./workspace";
 
 /**
- * Ask on a real workspace: the palette opens from ⌘K and the button, shows
- * the workspace and nothing seeded, jumps, answers the quick questions
- * without a model, and runs a real turn that reads and cites.
+ * Ask on a real workspace, as the Line: it opens from ⌘K and the top bar's
+ * button, shows the workspace and nothing seeded, draws no key, jumps,
+ * answers the quick questions without a model, and runs a real turn that
+ * reads and cites.
  */
 const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
@@ -31,30 +32,35 @@ test.describe("Ask on a real workspace", () => {
     await signIn(page);
   });
 
-  test("⌘K opens the palette on the workspace; the button and New Chat are live; nothing invented", async ({
+  test("⌘K opens the Line on the workspace; the top bar's button is the one door; nothing invented, no key drawn", async ({
     page,
   }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("tb-ask")).toBeEnabled();
     await expect(page.getByTestId("tb-ask")).not.toContainText("Soon");
+    await expect(page.getByRole("button", { name: "New Chat" }), "one door to Ask (the Line, D8)").toHaveCount(0);
     await page.keyboard.press("Control+k");
     const pal = page.getByTestId("ask-real");
     await expect(pal).toBeVisible();
     const text = await pal.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
-    await expect(pal.locator(".cmd-sec-label", { hasText: "Ask" }).first()).toBeVisible();
-    await page.screenshot({ path: "test-results/ask-palette.png" });
+    expect(text, "no key is drawn in the Line (D17)").not.toMatch(/[↵⌘]|\besc\b/i);
+    // At rest: Right now first, then the page's own questions.
+    await expect(pal.getByTestId("ask-row-now")).toBeVisible();
+    await expect(pal.locator(".ask-rows-label", { hasText: "Ask about Today" })).toBeVisible();
+    await page.screenshot({ path: "test-results/ask-line.png" });
     await page.keyboard.press("Escape");
     await expect(pal).toBeHidden();
     await page.getByTestId("tb-ask").click();
     await expect(page.getByTestId("ask-real")).toBeVisible();
-    // Ask's face: the three are the button's icon and stand on a stage above the conversation (ask-face.jsx).
-    await expect(page.getByTestId("tb-ask-face")).toBeVisible();
-    await expect(page.getByTestId("ask-real").getByTestId("ask-stage")).toBeVisible();
+    // Ask's face: the three are the button's icon, and stand in the line while it is open (ask-face.jsx).
+    await expect(page.getByTestId("ask-real").getByTestId("ask-line-face")).toBeVisible();
   });
 
-  test("two words jump; a quick question is answered without a model", async ({ page }) => {
+  test("two words jump; a quick question is answered without a model, as the Line draws an answer", async ({
+    page,
+  }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     await page.keyboard.press("Control+k");
@@ -63,11 +69,11 @@ test.describe("Ask on a real workspace", () => {
     await expect(page.getByTestId("ask-row-jump").first()).toContainText("Reports");
     await input.fill("who needs me?");
     await input.press("Enter");
-    const fast = page.getByTestId("ask-fast");
-    await expect(fast).toBeVisible();
-    await expect(fast).toContainText(/need|Nobody is waiting/);
+    const say = page.getByTestId("ask-say");
+    await expect(say).toBeVisible();
+    await expect(say).toContainText(/waiting/);
     await expect(page.getByTestId("ask-trace")).toHaveCount(0);
-    await page.screenshot({ path: "test-results/ask-fast.png" });
+    await page.screenshot({ path: "test-results/ask-quick.png" });
   });
 
   test("a real turn reads the workspace and answers with what it read", async ({ page }) => {
@@ -203,7 +209,7 @@ test.describe("Ask on a real workspace", () => {
     await page.request.delete(scoped(`/api/v1/ask/threads/${first}`, ws), fromTheApp);
   });
 
-  test("the palette streams a turn and shows citations or a plain failure", async ({ page }) => {
+  test("the Line streams a turn and shows its answer or a plain failure, with Clear to end it", async ({ page }) => {
     test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(120_000);
     await page.goto("/#/inbox");
@@ -215,12 +221,12 @@ test.describe("Ask on a real workspace", () => {
     const turn = page.getByTestId("ask-turn");
     await expect(turn.first()).toBeVisible({ timeout: 90_000 });
     await expect(page.locator(".ask-cursor")).toHaveCount(0, { timeout: 90_000 });
-    const text = await turn.first().innerText();
+    const text = await page.getByTestId("ask-say").innerText();
     expect(text.length).toBeGreaterThan(10);
     for (const s of INVENTED) expect(text).not.toContain(s);
-    // On a desktop the conversation has the rail beside it, with New chat.
-    await expect(page.getByTestId("ask-rail")).toBeVisible();
-    await expect(page.getByTestId("ask-rail").locator(".ask-new-btn")).toBeVisible();
     await page.screenshot({ path: "test-results/ask-turn.png" });
+    // Clear ends the conversation; the Line is home again.
+    await page.getByTestId("ask-clear").click();
+    await expect(page.getByTestId("ask-row-now")).toBeVisible();
   });
 });

@@ -457,7 +457,6 @@ const AskBarSeed = ({ open, onClose }) => {
 
   React.useEffect(() => {
     const handler = (e) => { if (e.key === "Escape" && open) onClose(); };
-    const onNew = () => { setActiveId(null); setQuery(""); };
     const onSeed = (e) => {
       const d = (e && e.detail) || {};
       if (d.mode === "compose") { setActiveId(null); setQuery(d.prompt || ""); return; }
@@ -486,9 +485,8 @@ const AskBarSeed = ({ open, onClose }) => {
       setQuery("");
     };
     window.addEventListener("keydown", handler);
-    window.addEventListener("ask:new", onNew);
     window.addEventListener("ask:seed", onSeed);
-    return () => { window.removeEventListener("keydown", handler); window.removeEventListener("ask:new", onNew); window.removeEventListener("ask:seed", onSeed); };
+    return () => { window.removeEventListener("keydown", handler); window.removeEventListener("ask:seed", onSeed); };
   }, [open, onClose]);
 
   React.useEffect(() => {

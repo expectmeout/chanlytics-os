@@ -1,6 +1,6 @@
 /* global React, Icon */
 // Chanlytics — Sidebar v3
-// Workspace menu (top) → New Chat → nav → (demo agents) → the shell's one
+// Workspace menu (top) → nav → (demo agents) → the shell's one
 // status line → account menu (foot). Two popovers and a rail. Every word
 // about a person comes from contracts/identity.ts through the bridge, and
 // everything the menus can do — switch, sign out, theme — goes through the
@@ -312,7 +312,6 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
 const Sidebar = ({
   active = "home",
   onNavigate = () => {},
-  onNewChat = () => {},
   onClose = null,
   agents = ACTIVE_AGENTS_DEFAULT,
   badges = {},
@@ -433,23 +432,7 @@ const Sidebar = ({
         <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />
       </SbMenu>
 
-      {/* New Chat — primary CTA. Opens Ask, gated the same way the topbar is. */}
-      <div className="sb-newchat">
-        <button
-          className="btn btn-primary"
-          style={{ width: "100%", height: 32, justifyContent: "center" }}
-          onClick={onNewChat}
-          title="Start a new Ask thread"
-          data-tip={collapsed ? "New Chat" : undefined}
-          data-tip-side="right"
-          data-testid="sb-newchat"
-        >
-          <Icon name="plus" size={13} />
-          {!collapsed && "New Chat"}
-        </button>
-      </div>
-
-      {/* Scrollable nav region — grows/shrinks with the agents block */}
+      {/* Scrollable nav region — grows/shrinks with the agents block. Ask has one door, the top bar's (the Line, D8). */}
       <div className="sb-nav-scroll">
         {renderGroup(NAV_PRIMARY)}
         {renderGroup(NAV_WORK, "Workspace")}

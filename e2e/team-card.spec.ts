@@ -99,15 +99,13 @@ test.describe("the Team card", () => {
 test.describe("the chrome tells the truth", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
-  test("New Chat opens the real palette, never the fabricated assistant", async ({ page }) => {
+  test("the top bar's Ask opens the real Line, never the fabricated assistant", async ({ page }) => {
     await signInAndGo(page, "#/today");
-    const newChat = page.getByRole("button", { name: "New Chat" });
-    await expect(newChat).toBeVisible();
-    // Once gated like the topbar's Ask button; now both open the palette that
-    // reads the workspace (ask-real.jsx). The seed overlay, which answered
-    // "$1,840 booked against a $4,200 pace", stays in the demo.
-    await expect(newChat).toBeEnabled();
-    await newChat.click();
+    // Ask has one door, the top bar's (the Line, D8): the sidebar's New Chat went with it. The seed overlay, which
+    // answered "$1,840 booked against a $4,200 pace", stays in the demo.
+    const ask = page.getByTestId("tb-ask");
+    await expect(ask).toBeEnabled();
+    await ask.click();
     await expect(page.getByTestId("ask-real")).toBeVisible();
     await expect(page.locator("body")).not.toContainText("$1,840");
   });
