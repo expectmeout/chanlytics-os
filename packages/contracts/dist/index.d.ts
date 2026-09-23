@@ -6415,6 +6415,15 @@ interface PersonRowDto {
     /** Their appointments on the owner's calendar, attached by the API when the
      *  workspace has one connected; null means no calendar. */
     visits?: PersonVisitsDto | null;
+    /** The newest open or current deal, else the newest of any (people_list, 00155): absent on a row read before the columns existed. */
+    deal_id?: string | null;
+    deal_stage?: string | null;
+    deal_service?: string | null;
+    deal_proposed_at?: string | null;
+    deal_decided_at?: string | null;
+    deal_ended_at?: string | null;
+    deal_amount_cents?: number | null;
+    deal_per?: string | null;
 }
 interface PersonIdentityDto {
     channel: string;
@@ -6807,6 +6816,8 @@ interface PersonRowVM {
     lastVisitDate: string | null;
     /** The calendar's zone; null without a calendar. */
     calendarTz: string | null;
+    /** Their deal, as the page says it (0004); null where none was recorded. */
+    deal: DealVM | null;
 }
 declare function toPersonRowVM(r: PersonRowDto, tz: string, now?: Date): PersonRowVM;
 type PeopleListGroup = "attention" | "journey" | "reach";

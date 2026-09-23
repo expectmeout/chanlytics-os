@@ -35,6 +35,7 @@ import {
 } from "./viewmodels";
 import { HELD_REASONS, isReplyTo } from "./run-words";
 import { leadsRoute } from "./leads";
+import { dealOf, type DealVM } from "./deals";
 import type { RecipientState } from "./broadcasts";
 
 /* --------------------------------- DTOs ---------------------------------- */
@@ -101,6 +102,15 @@ export interface PersonRowDto {
   /** Their appointments on the owner's calendar, attached by the API when the
    *  workspace has one connected; null means no calendar. */
   visits?: PersonVisitsDto | null;
+  /** The newest open or current deal, else the newest of any (people_list, 00155): absent on a row read before the columns existed. */
+  deal_id?: string | null;
+  deal_stage?: string | null;
+  deal_service?: string | null;
+  deal_proposed_at?: string | null;
+  deal_decided_at?: string | null;
+  deal_ended_at?: string | null;
+  deal_amount_cents?: number | null;
+  deal_per?: string | null;
 }
 
 export interface PersonIdentityDto {
@@ -890,6 +900,8 @@ export interface PersonRowVM {
   lastVisitDate: string | null;
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
+  /** Their deal, as the page says it (0004); null where none was recorded. */
+  deal: DealVM | null;
 }
 
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
@@ -990,6 +1002,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
+    deal: dealOf(r, tz, nowMs),
   };
 }
 
