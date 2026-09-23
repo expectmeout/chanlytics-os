@@ -1157,6 +1157,18 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var ASK_CAPS = {
   threads: 20,
   messages: 30,

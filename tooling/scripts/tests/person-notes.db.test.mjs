@@ -348,3 +348,144 @@ test(
     assert.equal(count, 0, "an erasure takes them: their titles name the person");
   },
 );
+
+test(
+  "note_candidates (00159): a call is looked at once, after its analysis; a conversation once per quiet spell, reading only what was said since; nothing for an erased person or a paused workspace",
+  { skip },
+  async () => {
+    const H = 3_600_000;
+    const ago = (ms) => new Date(Date.now() - ms).toISOString();
+    const id = await person({ display_name: "Ana", phone_e164: "+15550100371" });
+    // Other suites' rows share this database: the batch is read whole and only this test's people are looked at.
+    const mine = async () => {
+      const { data, error } = await db.rpc("note_candidates", { p_limit: 50 });
+      assert.equal(error, null, error?.message);
+      return data.filter((r) => r.contact_id === id);
+    };
+
+    const { data: call } = await db
+      .from("calls")
+      .insert({
+        tenant_id: tenantId,
+        contact_id: id,
+        retell_call_id: `rc-notes-${Date.now()}`,
+        direction: "inbound",
+        status: "ended",
+        ended_at: ago(H),
+        duration_ms: 120_000,
+        transcript_object: [
+          { role: "agent", content: "Hi, how can I help?" },
+          { role: "user", content: "Saturday mornings suit me best." },
+          { role: "injected", content: "Owner whisper: offer Saturday." },
+        ],
+      })
+      .select("id")
+      .single();
+    assert.deepEqual(await mine(), [], "not before its analysis is in");
+    await db
+      .from("calls")
+      .update({ notified_at: ago(H) })
+      .eq("id", call.id);
+    const first = await mine();
+    assert.equal(first.length, 1);
+    assert.equal(first[0].source, "call");
+    assert.equal(first[0].source_id, call.id);
+    assert.equal(first[0].seconds, 120);
+    assert.deepEqual(
+      first[0].turns,
+      [
+        { who: "business", text: "Hi, how can I help?" },
+        { who: "customer", text: "Saturday mornings suit me best." },
+      ],
+      "the caller's words and the receptionist's; an owner's whisper is not the caller",
+    );
+    assert.deepEqual(await mine(), [], "a call is looked at once");
+
+    const { data: conv } = await db
+      .from("conversations")
+      .insert({ tenant_id: tenantId, contact_id: id })
+      .select("id")
+      .single();
+    const msg = async (sender, body, at) => {
+      const { data, error } = await db
+        .from("messages")
+        .insert({
+          tenant_id: tenantId,
+          conversation_id: conv.id,
+          contact_id: id,
+          channel: "whatsapp",
+          direction: sender === "customer" ? "inbound" : "outbound",
+          sender,
+          type: "text",
+          body,
+          status: sender === "customer" ? "received" : "sent",
+          created_at: at,
+        })
+        .select("id")
+        .single();
+      assert.equal(error, null, error?.message);
+      return data.id;
+    };
+    await msg("customer", "Can I bring my daughter along next time?", ago(9 * H));
+    const newest = await msg("customer", "She is six.", ago(8 * H));
+    await msg("ai", "Of course, she is welcome.", ago(8 * H - 60_000));
+    await db
+      .from("conversations")
+      .update({ last_inbound_at: ago(8 * H) })
+      .eq("id", conv.id);
+    const t1 = await mine();
+    assert.equal(t1.length, 1, "quiet for six hours: read once");
+    assert.equal(t1[0].source, "thread");
+    assert.equal(t1[0].source_id, newest, "keyed by the newest customer message, not the conversation");
+    assert.equal(t1[0].turns.length, 3);
+    assert.deepEqual(await mine(), [], "the same spell is not read twice");
+
+    await msg("customer", "Also I prefer texts to calls.", ago(1 * H));
+    await db
+      .from("conversations")
+      .update({ last_inbound_at: ago(1 * H) })
+      .eq("id", conv.id);
+    assert.deepEqual(await mine(), [], "a spell still going is not read yet");
+    const later = await msg("customer", "Thanks again.", ago(7 * H));
+    // The last look was eight and a half hours ago: the next read starts there, so the daughter (nine hours ago) is not
+    // read again, and what came after is.
+    await db
+      .from("conversations")
+      .update({ last_inbound_at: ago(7 * H), note_checked_at: ago(8.5 * H) })
+      .eq("id", conv.id);
+    const t2 = await mine();
+    assert.equal(t2.length, 1);
+    const texts = t2[0].turns.map((t) => t.text);
+    assert.ok(!texts.includes("Can I bring my daughter along next time?"), `read again: ${texts}`);
+    assert.ok(texts.includes("Thanks again.") && texts.includes("She is six."), `${texts}`);
+    assert.equal(
+      t2[0].source_id,
+      (
+        await db
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conv.id)
+          .eq("sender", "customer")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single()
+      ).data.id,
+    );
+    assert.ok(later);
+
+    await db.from("tenants").update({ status: "paused" }).eq("id", tenantId);
+    await db.from("conversations").update({ note_checked_at: null }).eq("id", conv.id);
+    assert.deepEqual(await mine(), [], "a paused workspace is not looked at");
+    await db.from("tenants").update({ status: "active" }).eq("id", tenantId);
+    await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    await db.from("conversations").update({ note_checked_at: null }).eq("id", conv.id);
+    assert.deepEqual(await mine(), [], "nor an erased person");
+
+    const { data: clock } = await db
+      .from("sweep_status")
+      .select("sweep, jobname, judged_by")
+      .eq("sweep", "notes")
+      .single();
+    assert.deepEqual(clock, { sweep: "notes", jobname: "notes-sweep", judged_by: "request" });
+  },
+);

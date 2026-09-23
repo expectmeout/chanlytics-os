@@ -471,6 +471,7 @@ type Database = {
                     in_voicemail: boolean | null;
                     latency: Json | null;
                     message_id: string | null;
+                    note_checked_at: string | null;
                     notified_at: string | null;
                     outcome: string | null;
                     public_log_url: string | null;
@@ -510,6 +511,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    note_checked_at?: string | null;
                     notified_at?: string | null;
                     outcome?: string | null;
                     public_log_url?: string | null;
@@ -549,6 +551,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    note_checked_at?: string | null;
                     notified_at?: string | null;
                     outcome?: string | null;
                     public_log_url?: string | null;
@@ -799,6 +802,7 @@ type Database = {
                     last_inbound_at: string | null;
                     last_message_at: string | null;
                     last_wa_inbound_at: string | null;
+                    note_checked_at: string | null;
                     paused_until: string | null;
                     snooze_until: string | null;
                     state: string;
@@ -817,6 +821,7 @@ type Database = {
                     last_inbound_at?: string | null;
                     last_message_at?: string | null;
                     last_wa_inbound_at?: string | null;
+                    note_checked_at?: string | null;
                     paused_until?: string | null;
                     snooze_until?: string | null;
                     state?: string;
@@ -835,6 +840,7 @@ type Database = {
                     last_inbound_at?: string | null;
                     last_message_at?: string | null;
                     last_wa_inbound_at?: string | null;
+                    note_checked_at?: string | null;
                     paused_until?: string | null;
                     snooze_until?: string | null;
                     state?: string;
@@ -4653,6 +4659,23 @@ type Database = {
                 Args: never;
                 Returns: string;
             };
+            note_candidates: {
+                Args: {
+                    p_limit?: number;
+                };
+                Returns: {
+                    contact_id: string;
+                    dnc: boolean;
+                    known: Json;
+                    last_suggested: string;
+                    seconds: number;
+                    source: string;
+                    source_id: string;
+                    tenant_id: string;
+                    turns: Json;
+                    workspace_today: number;
+                }[];
+            };
             note_for_you_notify: {
                 Args: {
                     p_by: string;
@@ -5153,6 +5176,10 @@ type Database = {
                 Returns: number;
             };
             trigger_lines_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_notes_sweep: {
                 Args: never;
                 Returns: number;
             };

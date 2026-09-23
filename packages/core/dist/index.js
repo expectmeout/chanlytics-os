@@ -2014,6 +2014,18 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -4938,6 +4950,18 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA2 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS2, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -5446,8 +5470,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words22 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words22 ? words22[0].toUpperCase() + words22.slice(1) : String(name ?? "");
+  const words32 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words32 ? words32[0].toUpperCase() + words32.slice(1) : String(name ?? "");
 }
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
@@ -7171,6 +7195,18 @@ var KIND_META3 = {
   sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA3 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS3, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
 };
 var ASK_CAPS3 = {
   threads: 20,

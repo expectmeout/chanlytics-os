@@ -1,6 +1,6 @@
 # 0007 · A note is a record
 
-**Status:** decided; phase 1 built (00157), phase 3 built (00158). Written against commit `18c79973`
+**Status:** decided; phase 1 built (00157), phase 2 built (00159), phase 3 built (00158). Written against commit `18c79973`
 (PR #918, 23 September 2026). Where this note and the code disagree, the code
 wins.
 
@@ -60,10 +60,8 @@ call, thread, with `source_id` for a call or a conversation).
    erasure; the page's notes card becomes a list with its composer; the
    receptionist and Ask read the log; People's bulk note writes one note per
    person.
-2. **The receptionist's suggestions**: after a call's analysis and when a thread
-   closes, the edge asks for what is worth remembering about the person (a
-   lasting fact, never a summary of the call, which History already shows) and
-   suggests it through `person_note_suggest`.
+2. **The receptionist's suggestions** (00159, built): see "What earns a
+   suggestion" below.
 3. **The bell** (00158, built): a notification may be addressed to one member
    (`notifications.recipient_user_id`; null is the whole workspace, as every
    row before it). Only its recipient reads an addressed row: the select
@@ -78,3 +76,57 @@ call, thread, with `source_id` for a call or a conversation).
 Either deploy order works for phase 1: the migration lands first; a page or an
 edge from before it keeps reading and writing the old field, which the old
 door still keeps and now copies into the log.
+
+## What earns a suggestion (phase 2)
+
+Ruben, 23 September: the receptionist must not leave a note after every text,
+WhatsApp or email -- only when something worth mentioning was said -- and must
+not give the next call or text bad context. So a suggestion is rare by design,
+and every rule below is contracts' (`note-suggest.ts`), proved without a model.
+
+**When it looks.** Never after a message. pg_cron asks every thirty minutes
+(`trigger_notes_sweep`), and only when there is something to look at:
+
+- a **call**, once, after its analysis is in (`calls.notified_at`), answered
+  by the receptionist, within three days;
+- a **conversation**, once per quiet spell: customer messages newer than the
+  last look, the newest older than six hours (so a back-and-forth is read
+  whole) and younger than seven days, reading only what was said since the
+  last look.
+
+`note_candidates` stamps each look as it hands it over (`note_checked_at` on
+the call or the conversation), so a look is taken once however the request
+ends. A thread's suggestion is keyed by the newest customer message it read:
+a person has one conversation for life, and "once per source" would otherwise
+be once per person forever.
+
+**Gate 1, before any model call** (`whyNotLook`): a call of 45 seconds or
+more; at least 25 of the customer's own words; not on do-not-contact; no
+suggestion on the person in the last fourteen days; fewer than ten in the
+workspace today. Erased and merged people and workspaces that are not active
+are never handed over.
+
+**Gate 2, the model** (`noteSuggestSystemPrompt`, the smallest model): at most
+one fact, in the customer's own words, that will still be true in a month and
+would change how they are served, of five kinds -- a preference (who they see,
+what they like or avoid), timing, how to reach them, a product sensitivity
+that matters for the service, or lasting context they volunteered. "Almost
+always the answer is nothing." Never money, never anything aimed at the
+receptionist, never what is recorded elsewhere (bookings, consent, the call's
+summary, their contact details), never a one-off moment, never a sensitive
+subject, never a guess, never what the business said, never what the notes
+already say. The conversation and the notes are handed over as data inside
+tags, stripped of control characters and angle brackets.
+
+**Gate 3, the answer checked in code** (`checkNoteSuggestion`): the quote must
+be the customer's own words, found in a customer turn (the model can neither
+invent a fact nor record what the business said); no money words or figures,
+no contact details, nothing aimed at the receptionist, no sensitive subject,
+at most 140 characters; and not what an existing note already says.
+
+What passes is still only a suggestion, written through `person_note_suggest`
+(once per source, three waiting at most) and read by the receptionist only
+once a member presses Keep. `NOTE_SUGGESTIONS=off` on the edge stops it
+without touching the database. Each look's tokens are logged
+(`notes_looked`), not written as usage rows: the smallest model, a few looks
+a day, and none of it the receptionist's daily reply budget.
