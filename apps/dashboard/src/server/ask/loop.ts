@@ -1,6 +1,7 @@
 import "server-only";
 import {
   ASK_MAX_ROUNDS,
+  ASK_MAX_TOKENS,
   ASK_MODEL,
   ASK_TURN_BUDGET_MS,
   citationRoute,
@@ -21,7 +22,7 @@ import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./propo
 import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 import { snapshotFor } from "./snapshot";
 import { prefetchBlock, prefetchPlan } from "./prefetch";
-import { parseInput, runRound, type RoundBlock } from "./round";
+import { replayBlocks, runRound, type RoundBlock } from "./round";
 
 export { ASK_MODEL } from "@chanlytics/contracts";
 
@@ -37,15 +38,16 @@ export { ASK_MODEL } from "@chanlytics/contracts";
  * answer or a stated failure.
  */
 
-// The whole round: the model's thinking, every tool call it makes and, when it
-// answers in the same round, the answer itself. An act tool's arguments are
-// long -- propose_lead_search alone writes a who, a where, up to five terms,
-// six criteria and six exclusions -- and at 1200 the stream reached the cap in
-// the MIDDLE of that JSON. A cut-off tool call is not a smaller tool call: it
-// does not parse at all (see `argsOf`). A cap is not a spend, only a ceiling on
-// what may be generated, so raising it costs nothing on a turn that does not
-// need it.
-const MAX_TOKENS = 2400;
+// The whole round -- the model's thinking, every tool call it makes and, when
+// it answers in the same round, the answer itself -- fits in ASK_MAX_TOKENS
+// (contracts), the one number the edge also clamps Ask to. An act tool's
+// arguments are long -- propose_lead_search alone writes a who, a where, up to
+// five terms, six criteria and six exclusions -- and at 1200 the stream reached
+// the cap in the MIDDLE of that JSON. A cut-off tool call is not a smaller tool
+// call: it does not parse at all (see `argsOf`). The loop then asked for 2400,
+// but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
+// one number now, raised only when an eval case stops at it. A cap is not a
+// spend, only a ceiling on what may be generated.
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
 /**
@@ -351,7 +353,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }));
       const request = {
         model: ASK_MODEL,
-        max_tokens: MAX_TOKENS,
+        max_tokens: ASK_MAX_TOKENS,
         system,
         messages,
         tools,
@@ -535,14 +537,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           rounds: round,
         });
       }
-      messages.push({
-        role: "assistant",
-        content: blocks.map((b) =>
-          b.type === "text"
-            ? { type: "text", text: b.text || " " }
-            : { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) },
-        ),
-      });
+      messages.push({ role: "assistant", content: replayBlocks(blocks) });
       messages.push({
         role: "user",
         content: outcomes.map(({ block, out }) => ({

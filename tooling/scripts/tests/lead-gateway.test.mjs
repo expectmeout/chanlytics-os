@@ -36,12 +36,12 @@ const format = {
   },
 };
 
-test("three purposes, and only the two that are not Ask may name an output format", () => {
+test("the purposes, and every one may name an output format: the lead purposes answer as records, and Ask's turn in its answer schema (the Line, D3)", () => {
   assert.deepEqual([...GATEWAY_PURPOSES], ["ask", "lead_draft", "lead_suggest", "list_draft"]);
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });
   const ask = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "ask");
-  assert.deepEqual(ask.request.output_config, { effort: "low" }, "Ask's own turn is unchanged");
+  assert.deepEqual(ask.request.output_config, { effort: "low", format }, "Ask's own turn keeps its format now");
   assert.deepEqual(
     validateGatewayRequest({ ...base, output_config: { effort: "low" } }).request.output_config,
     { effort: "low" },

@@ -33,6 +33,14 @@ export const ASK_MAX_ROUNDS = 4;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
 /**
+ * The most one round may write: its thinking, its tool calls and its answer
+ * together. One number, read by the loop's request and by the edge's clamp on
+ * Ask, so the two cannot drift again: the loop asked for 2400 while the edge
+ * clamped every request to 2000, so 2000 was the ceiling a round really had.
+ * Raised only when an eval case stops at it (the Line's spec, 7.8).
+ */
+export const ASK_MAX_TOKENS = 2000;
+/**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
  * Counted on uncached input plus output. With the day's snapshot riding into
  * every round, a turn costs two to eight thousand such tokens; a busy owner

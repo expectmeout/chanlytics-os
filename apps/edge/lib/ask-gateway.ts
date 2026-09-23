@@ -10,7 +10,7 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MODEL } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, ASK_MODEL } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
@@ -175,8 +175,12 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
     : { type: "json_schema", schema: f.schema as Record<string, unknown> };
 }
 
-/** The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. */
-export const GATEWAY_MODELS = ["claude-opus-5", "claude-sonnet-5"] as const;
+/**
+ * The models a request may name; ASK_MODEL (contracts) is the one the loop sends and the default here. Opus 5.5 is the
+ * one the Line's model gate may choose (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, 8.3).
+ */
+export const GATEWAY_MODELS = ["claude-opus-5", "claude-opus-5-5", "claude-sonnet-5"] as const;
+/** The lead purposes' ceiling. Ask's own is ASK_MAX_TOKENS (contracts), the number its loop asks for. */
 export const GATEWAY_MAX_TOKENS = 2000;
 export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
@@ -190,7 +194,8 @@ export function validateGatewayRequest(
   if (!r || typeof r !== "object") return { ok: false, error: "request required" };
   const model = typeof r.model === "string" ? r.model : ASK_MODEL;
   if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return { ok: false, error: "unknown model" };
-  const maxTokens = Math.min(GATEWAY_MAX_TOKENS, Math.max(64, Math.round(num(r.max_tokens) || 800)));
+  const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
+  const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
     return { ok: false, error: `messages: 1-${GATEWAY_MAX_MESSAGES} turns` };
   }
@@ -205,9 +210,9 @@ export function validateGatewayRequest(
       ? (r.output_config as { effort?: unknown; format?: unknown })
       : null;
   const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as "low" | "medium" | "high") : null;
-  // Ask's own turn answers in prose and names no format; the two lead purposes
-  // answer as records, so theirs is passed through to the model.
-  const format = purpose === "ask" ? null : formatOf(oc ? oc.format : undefined);
+  // A format rides through for every purpose: the lead purposes answer as
+  // records, and Ask's turn answers in its answer schema (the Line, D3).
+  const format = formatOf(oc ? oc.format : undefined);
   if (format === "bad") return { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
   return {
     ok: true,
