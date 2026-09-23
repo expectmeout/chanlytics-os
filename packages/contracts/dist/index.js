@@ -6517,9 +6517,9 @@ function reasonsLine(reasons, passed) {
 }
 function openLine(open) {
   if (!open.count) return null;
-  const worth = amountTotalsWords(open.amounts);
-  if (!worth) return `${plural2(open.count, "proposal", "proposals")} still open.`;
-  return open.count === 1 ? `${worth} still open in 1 proposal.` : `${worth} still open across ${open.count} proposals.`;
+  const worth2 = amountTotalsWords(open.amounts);
+  if (!worth2) return `${plural2(open.count, "proposal", "proposals")} still open.`;
+  return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
 }
 function toDealReportVM(dto, rangeLabel) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
@@ -18367,7 +18367,7 @@ var PIPELINE_WORDS = {
   empty: { title: "No deals yet.", body: "Start a proposal from someone's page." }
 };
 var plural10 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-var upper = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
+var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
 var daysWords = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r, tz) => r.calendarTz || tz;
 function proposalChip(r, d, tz, nowMs) {
@@ -18378,7 +18378,7 @@ function proposalChip(r, d, tz, nowMs) {
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
   return null;
 }
-var clientChip = (d) => d.since ? { words: upper(d.since), tone: "plain" } : null;
+var clientChip = (d) => d.since ? { words: upper2(d.since), tone: "plain" } : null;
 function closedChip(d, tz, nowMs) {
   const what = d.reason ? d.reason.words : d.word;
   return { words: d.sinceMs === null ? what : `${what} \xB7 ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
@@ -18417,7 +18417,7 @@ function aheadRow(r, c, tz, nowMs) {
     service: null,
     value: null,
     inStage: "",
-    chip: { words: upper(when), tone: "info" }
+    chip: { words: upper2(when), tone: "info" }
   };
 }
 function inOrder(xs, at2, latest = false) {
