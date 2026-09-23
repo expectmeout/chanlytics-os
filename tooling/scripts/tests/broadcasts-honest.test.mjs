@@ -339,6 +339,8 @@ globalThis.window.__broadcasts = {
   noNumberWords: (who, purpose) => contracts.noNumberWords(who, purpose),
   // How many on the audience said yes, as the line under it says it.
   saidYesWords: (who, purpose, sending, saidYes) => contracts.saidYesWords(who, purpose, sending, saidYes),
+  // And who of an audience heard from a run this week.
+  heardWords: (n) => contracts.heardWords(n),
   report: (d) =>
     contracts.toRunReportVM(d, {
       windowMs: contracts.REPLY_WINDOW_MS,
@@ -3156,5 +3158,83 @@ test("A button cannot take a value, and needs somewhere to go", () => {
   assert.ok(
     textOf(byTestId(tree, "tpl-button-none")).includes("booking link"),
     textOf(byTestId(tree, "tpl-button-none")),
+  );
+});
+
+test("the send screen says how many of an audience heard from a playbook or a broadcast this week -- a send by hand is not held back by the week a playbook waits, and the owner was told nothing", async () => {
+  const rows = [
+    {
+      id: "a",
+      phone: "+13055550101",
+      consent: { state: "opted_in", marketing: "opted_in", dnc: false },
+      name: "Ana",
+      givenName: "Ana",
+      waName: null,
+    },
+    {
+      id: "b",
+      phone: "+13055550102",
+      consent: { state: "opted_in", marketing: "opted_in", dnc: false },
+      name: "Bea",
+      givenName: "Bea",
+      waName: null,
+    },
+    {
+      id: "c",
+      phone: "+13055550103",
+      consent: { state: "opted_in", marketing: "unknown", dnc: false },
+      name: "Cy",
+      givenName: "Cy",
+      waName: null,
+    },
+  ];
+  // Counted over who it reaches: Cy heard from a run, but no offer reaches Cy.
+  const touched = new Set(["b", "c"]);
+  const offers = contracts.audiencePreview(rows, "everyone", null, null, "marketing", 5, touched);
+  assert.deepEqual([offers.sending, offers.heard], [2, 1]);
+  const notes = contracts.audiencePreview(rows, "everyone", null, null, "conversational", 5, touched);
+  assert.deepEqual([notes.sending, notes.heard], [3, 2]);
+  assert.equal(
+    contracts.audiencePreview(rows, "everyone", null, null, "marketing").heard,
+    0,
+    "no touches read, nobody said",
+  );
+  assert.equal(contracts.heardWords(2), "2 of them heard from a playbook or a broadcast this week.");
+  assert.equal(contracts.heardWords(1), "One of them heard from a playbook or a broadcast this week.");
+  assert.equal(contracts.heardWords(0), null);
+
+  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
+  globalThis.window.__BROADCASTS = broadcastsSurface({
+    templates: [offer],
+    number: healthyNumber,
+    audiences: [
+      {
+        kind: "everyone",
+        id: null,
+        label: "Everyone",
+        counts: { marketing: 2, conversational: 3 },
+        preview: { marketing: offers, conversational: notes },
+      },
+    ],
+  });
+  const tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a playbook or a broadcast this week.");
+  globalThis.window.__BROADCASTS = broadcastsSurface({
+    templates: [offer],
+    number: healthyNumber,
+    audiences: [
+      {
+        kind: "everyone",
+        id: null,
+        label: "Everyone",
+        counts: { marketing: 2, conversational: 3 },
+        preview: { marketing: { ...offers, heard: 0 }, conversational: { ...notes, heard: 0 } },
+      },
+    ],
+  });
+  assert.equal(
+    byTestId(writing({ initialSegment: null, initialRun: null }), "bc-heard"),
+    null,
+    "nobody heard, nothing said",
   );
 });

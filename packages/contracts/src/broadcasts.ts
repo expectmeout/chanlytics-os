@@ -155,11 +155,26 @@ export interface AudiencePreview {
    * ones who did have no number, whom a door to "get their yes" would ask for an answer they gave (#663's rule).
    */
   saidYes: number;
+  /**
+   * How many of those it reaches heard from a playbook or a broadcast within the week (the touches a playbook's run
+   * waits a week after, PLAYBOOK_BREATH_MS): a send by hand is not held back by them, and the owner is told before it
+   * goes, not after.
+   */
+  heard: number;
+}
+
+/** The composer's note when some of an audience heard from a run this week; null when none did. */
+export function heardWords(n: number): string | null {
+  if (n <= 0) return null;
+  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null): PreviewPerson {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
 }
+
+/** Nobody touched: an audience read with no touches in hand. */
+const NO_ONE: ReadonlySet<string> = new Set();
 
 export function audiencePreview(
   rows: PersonRowVM[],
@@ -168,6 +183,8 @@ export function audiencePreview(
   savedIds: ReadonlySet<string> | null,
   purpose: SendPurpose,
   limit = 5,
+  /** Who a run of any kind reached within the week (packages/db touchesSince); none when not read. */
+  touched: ReadonlySet<string> = NO_ONE,
 ): AudiencePreview {
   const pool = audienceMembers(rows, kind, id, savedIds);
   const sending = pool.filter((r) => mayReceive(r, purpose));
@@ -196,6 +213,7 @@ export function audiencePreview(
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r) => saidYesTo(r, purpose)).length,
+    heard: sending.filter((r) => touched.has(r.id)).length,
   };
 }
 
