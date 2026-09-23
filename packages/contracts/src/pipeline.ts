@@ -18,7 +18,7 @@
  * a page only composes it. Pure.
  */
 import { clockDate, clockNear, clockNearWhen } from "./clock";
-import { DEAL_CARD_WORDS } from "./deal-sheet";
+import { DEAL_CARD_WORDS, type DealSheetMode } from "./deal-sheet";
 import {
   DEAL_STAGE_WORDS,
   amountTotalsWords,
@@ -117,6 +117,18 @@ export const PIPELINE_WORDS = {
   hide: "Hide",
   /** Where there is nobody in any group. */
   empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
+  /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
+  views: { label: "Show as", list: "List", board: "Board" },
+  /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+  peek: {
+    close: "Close",
+    page: "Open their page",
+    thread: "Open the thread",
+    reading: "Reading…",
+    what: "this person",
+  },
+  /** The board: a column with nobody in it, and what a card says of itself to a screen reader. */
+  board: { nobody: "Nobody here", card: "Open" },
 } as const;
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
@@ -289,4 +301,79 @@ export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: 
     clients.length ? worth(clients) : null,
   ].filter((x): x is string => !!x);
   return { summary, groups, empty: groups.length === 0 };
+}
+
+/* ------------------------------------------------ the Pipeline as a workspace: the peek and the board's moves */
+
+/** What a card dropped in another column asks for: the one deal sheet, in the mode the move needs (0008). */
+export interface PipelineMove {
+  mode: DealSheetMode;
+  /** The deal the move is about; null for a new proposal. */
+  dealId: string | null;
+}
+
+/**
+ * What dropping a card from one group into another means, or null where it means nothing. A consultation into
+ * Proposal out starts a proposal; a proposal into Clients is a yes, into Passed or ended a pass; a client into Passed
+ * or ended is an end; a passed deal back into Proposal out is proposed again, and an ended one begins a new proposal.
+ * Nothing else moves, and nothing moves without the sheet: a drop is a person's confirmation, never the record
+ * itself, so the sheet still asks what the move needs (the amount, the reason, the day).
+ */
+export function pipelineMove(
+  from: PipelineGroupKey,
+  to: PipelineGroupKey,
+  row: { person: Pick<PipelineSource, "deal"> },
+): PipelineMove | null {
+  if (from === to) return null;
+  const deal = row.person.deal;
+  if (from === "consultations" && to === "proposals") return { mode: "propose", dealId: null };
+  if (from === "proposals" && deal?.stage === "proposed") {
+    if (to === "clients") return { mode: "won", dealId: deal.id };
+    if (to === "closed") return { mode: "lost", dealId: deal.id };
+  }
+  if (from === "clients" && to === "closed" && deal?.stage === "won") return { mode: "ended", dealId: deal.id };
+  if (from === "closed" && to === "proposals" && deal)
+    return deal.stage === "lost" ? { mode: "again", dealId: deal.id } : { mode: "propose", dealId: null };
+  return null;
+}
+
+/** One quiet fact under the peek's deal: when they were last heard, their words, or what is coming up. */
+export interface PipelinePeekFact {
+  id: "heard" | "quote" | "next";
+  words: string;
+}
+
+/** The peek beside the rows: who, where they stand, and the facts People already says of them. */
+export interface PipelinePeekVM {
+  id: string;
+  name: string;
+  initials: string;
+  /** Whether the name is a number or an address, drawn in figures. */
+  numeric: boolean;
+  /** The group and the deal's service: "Proposal out · Bridal package", "Consultations". */
+  sub: string;
+  facts: PipelinePeekFact[];
+  /** Their thread's id ("th-…"), for the door to it; null for someone with no conversation. */
+  thread: string | null;
+}
+
+/**
+ * What the peek says of a row before the person is read: the head from the row alone, and the facts People's row
+ * already carries, so the peek stands the moment it opens and the deal card fills in as the person lands.
+ */
+export function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey): PipelinePeekVM {
+  const p = row.person;
+  const facts: PipelinePeekFact[] = [];
+  if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
+  if (p.quote) facts.push({ id: "quote", words: `“${p.quote}”` });
+  if (p.nextVisit) facts.push({ id: "next", words: `Coming up · ${p.nextVisit}` });
+  return {
+    id: row.id,
+    name: row.name,
+    initials: p.initials,
+    numeric: /^[+\d(]/.test(row.name) || row.name.includes("@"),
+    sub: row.service ? `${GROUP_WORDS[group]} · ${row.service}` : GROUP_WORDS[group],
+    facts,
+    thread: p.threadId,
+  };
 }

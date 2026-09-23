@@ -2530,3 +2530,46 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .cl-table td.pipe-service { max-width: 28ch; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-table td.pipe-value { color: var(--ink); }
 .pipe-card-value { flex: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- People › Pipeline as a workspace (pipeline-scope.jsx, pipeline-peek.jsx, pipeline-board.jsx) ---------------
+   The view switch is the house's small tab pair (cl-tabs) at the controls row's right. The peek is the lead peek's
+   pane (leads.css .pk: 408px beside the rows on a desk, the screen on a phone) with the person page's own deal card
+   inside it, frameless -- a box in a box said nothing -- then the row's quiet facts and the two doors as words. The
+   board is the four groups as columns in one row that scrolls sideways, the cards in the raised ground with a
+   hairline, as the deal card is; a column a card may drop into shows a dashed edge under it, and one it may not dims.
+   A desk's only: the phone keeps the list, and the switch is not drawn there. */
+.pipe-views .cl-tab { min-width: 52px; justify-content: center; }
+.pipe-peek .pk-head { align-items: center; }
+.pipe-peek-face { flex: none; width: 36px; height: 36px; font-size: 12px; }
+.pipe-peek .pk-name { font-size: 15px; }
+.pipe-peek-body { gap: 16px; }
+.pipe-peek .cl-prof-deal-card { max-width: none; padding: 0; background: transparent; border: 0; }
+.pipe-peek .cl-prof-deal-none { max-width: none; }
+.pipe-peek-facts { list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.pipe-peek-fact-quote { color: var(--ink); }
+.pipe-peek-doors { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pipe-peek-door .icon { margin-left: 4px; color: var(--ink-dim); }
+.pipe-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 10px; padding: 14px 28px 24px; overflow-x: auto; align-items: start; }
+.pipe-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pipe-col-head { display: flex; align-items: baseline; gap: 6px; padding: 0 4px; font-size: var(--text-xs); line-height: 18px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; }
+.pipe-col-head .pl-sec-label { font-weight: var(--weight-medium); }
+.pipe-col-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.pipe-col-meta::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
+.pipe-col-cards { display: flex; flex-direction: column; gap: 6px; min-height: 56px; padding: 4px; margin: -4px; border-radius: var(--radius-md); border: 1px dashed transparent; }
+.pipe-col.is-over > .pipe-col-cards { border-color: var(--ink-faint); background: var(--bg-hover); }
+.pipe-col.is-refused { opacity: .5; }
+.pipe-col-none { margin: 0; padding: 10px 8px; font-size: var(--text-xs); color: var(--ink-faint); }
+.pipe-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; }
+.pipe-card:hover { border-color: var(--line-strong); }
+.pipe-card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pipe-card.focused { border-color: var(--ink-faint); }
+.pipe-card[draggable="true"] { cursor: grab; }
+.pipe-card.is-dragging { opacity: .4; }
+.pipe-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pipe-card-face { flex: none; width: 24px; height: 24px; font-size: 9px; }
+.pipe-card-name { min-width: 0; font-size: 12.5px; font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-card-service { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pipe-card-value { color: var(--ink); }
+.pipe-card-stage { color: var(--ink-dim); }
+.pipe-card > .pill { align-self: flex-start; }

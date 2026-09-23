@@ -1381,8 +1381,9 @@ const plFace = (p) => ({ initials: p.initials, glyph: plIsNumber(p.name) ? "phon
 // What the search box says it finds, in both of its places: the desktop's placeholder and the phone's bar.
 const PL_SEARCH_LABEL = "Search by name or phone";
 // Who the words in the box find: the name, the number, the address, their name on WhatsApp -- and the words on the
-// row: their last message and their visits, so "balayage" finds people. The server's search and count match the same
-// (00125). People's views and the Pipeline ask it alike. Null for no words, which finds everyone.
+// row: their last message, their visits and their deal's service, so "balayage" finds people and "ad management" finds
+// the deals for it. The server's search and count match the same (00125). People's views and the Pipeline ask it
+// alike. Null for no words, which finds everyone.
 const plMatcher = (q) => {
   const needle = q.trim().toLowerCase();
   if (!needle) return null;
@@ -1394,7 +1395,8 @@ const plMatcher = (q) => {
     (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits)) ||
     (p.quote || "").toLowerCase().includes(needle) ||
     (p.nextVisit || "").toLowerCase().includes(needle) ||
-    (p.lastVisit || "").toLowerCase().includes(needle);
+    (p.lastVisit || "").toLowerCase().includes(needle) ||
+    ((p.deal && p.deal.service) || "").toLowerCase().includes(needle);
 };
 // The exact moment, by the business's clock (window.__clock): "Sep 6, 2026 · 3:10 PM".
 const plWhen = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? undefined : `${window.__clock.dateYear(ms)} · ${window.__clock.time(ms)}`; };

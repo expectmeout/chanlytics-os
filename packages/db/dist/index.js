@@ -2647,7 +2647,9 @@ var WATCHED = [
   { table: "leads", event: "*" },
   { table: "lead_searches", event: "*" },
   { table: "lead_rounds", event: "*" },
-  { table: "lead_search_members", event: "*" }
+  { table: "lead_search_members", event: "*" },
+  // a deal recorded or moved by a teammate, or by a payment: People (and its Pipeline) repaints (00156, 0008)
+  { table: "deals", event: "*" }
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

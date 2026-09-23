@@ -74,7 +74,10 @@ import "@/legacy/pages/inbox-rail.jsx";
 import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
-// People › Pipeline (0008), the third scope: before clients-a.jsx, whose ClientsA draws it.
+// People › Pipeline (0008), the third scope: its peek and its board before the scope, which draws them, and the
+// scope before clients-a.jsx, whose ClientsA draws it.
+import "@/legacy/pages/pipeline-peek.jsx";
+import "@/legacy/pages/pipeline-board.jsx";
 import "@/legacy/pages/pipeline-scope.jsx";
 import "@/legacy/pages/clients-a.jsx";
 // A person's deal (0008): the card the profile draws first in its left column.

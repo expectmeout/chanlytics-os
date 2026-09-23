@@ -18510,7 +18510,19 @@ var PIPELINE_WORDS = {
   show: "Show",
   hide: "Hide",
   /** Where there is nobody in any group. */
-  empty: { title: "No deals yet.", body: "Start a proposal from someone's page." }
+  empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
+  /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
+  views: { label: "Show as", list: "List", board: "Board" },
+  /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+  peek: {
+    close: "Close",
+    page: "Open their page",
+    thread: "Open the thread",
+    reading: "Reading\u2026",
+    what: "this person"
+  },
+  /** The board: a column with nobody in it, and what a card says of itself to a screen reader. */
+  board: { nobody: "Nobody here", card: "Open" }
 };
 var plural10 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 var upper2 = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
@@ -18638,6 +18650,35 @@ function pipelineOf(rows, nowMs, tz) {
     clients.length ? worth(clients) : null
   ].filter((x) => !!x);
   return { summary, groups, empty: groups.length === 0 };
+}
+function pipelineMove(from, to, row2) {
+  if (from === to) return null;
+  const deal = row2.person.deal;
+  if (from === "consultations" && to === "proposals") return { mode: "propose", dealId: null };
+  if (from === "proposals" && deal?.stage === "proposed") {
+    if (to === "clients") return { mode: "won", dealId: deal.id };
+    if (to === "closed") return { mode: "lost", dealId: deal.id };
+  }
+  if (from === "clients" && to === "closed" && deal?.stage === "won") return { mode: "ended", dealId: deal.id };
+  if (from === "closed" && to === "proposals" && deal)
+    return deal.stage === "lost" ? { mode: "again", dealId: deal.id } : { mode: "propose", dealId: null };
+  return null;
+}
+function pipelinePeekOf(row2, group) {
+  const p = row2.person;
+  const facts = [];
+  if (p.lastContact.label) facts.push({ id: "heard", words: p.lastContact.label });
+  if (p.quote) facts.push({ id: "quote", words: `\u201C${p.quote}\u201D` });
+  if (p.nextVisit) facts.push({ id: "next", words: `Coming up \xB7 ${p.nextVisit}` });
+  return {
+    id: row2.id,
+    name: row2.name,
+    initials: p.initials,
+    numeric: /^[+\d(]/.test(row2.name) || row2.name.includes("@"),
+    sub: row2.service ? `${GROUP_WORDS[group]} \xB7 ${row2.service}` : GROUP_WORDS[group],
+    facts,
+    thread: p.threadId
+  };
 }
 
 // src/lead-judge.ts
@@ -19803,7 +19844,9 @@ export {
   personStateFor,
   phoneTail,
   pickCurrentDeal,
+  pipelineMove,
   pipelineOf,
+  pipelinePeekOf,
   placeholdersOf,
   placeholdersSequential,
   placesToAsk,
