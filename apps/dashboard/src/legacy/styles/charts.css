@@ -140,7 +140,7 @@
 .ck-barlist-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .ck-barlist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
 .ck-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; }
+.ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; font-variant-numeric: tabular-nums; }
 .ck-barlist-track { display: block; height: 6px; }
 .ck-barlist-bar { display: block; height: 6px; border-radius: 0 3px 3px 0; transform-origin: left center; }
 
