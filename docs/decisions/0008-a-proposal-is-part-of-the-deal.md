@@ -1,10 +1,13 @@
 # 0008 · A proposal is part of the deal
 
-**Status:** decided, being built. Written against commit `d319dcdb` (PR #915,
+**Status:** built (PRs #927, #933, #937, #939, #938, #934, all merged 23
+September 2026), and amended the same day by "The Pipeline is a workspace"
+at the end of this note. Written against commit `d319dcdb` (PR #915,
 23 September 2026), and verified against the code at it. Where this note and
 the code disagree, the code wins. It amends [0004](0004-deals-record.md) where
-it says so, and the plan is
-`docs/superpowers/plans/2026-09-23-proposals-and-deals.md`.
+it says so, and the plans are
+`docs/superpowers/plans/2026-09-23-proposals-and-deals.md` and
+`docs/superpowers/plans/2026-09-23-pipeline-one-workspace.md`.
 
 ## Context
 
@@ -156,7 +159,9 @@ Deal row of #912._
 - **People › Pipeline.** A third tab beside People and Leads, only where deals
   are on, at `#/clients/pipeline`. `PeopleTable` gains sections; the Pipeline
   is People's rows grouped by stage with a one-line summary. _Amends 0004's "no
-  Deals page, no board": this is a view of People, not a page._
+  Deals page, no board": this is a view of People, not a page._ A row opens
+  its deal in a peek beside the rows, and on a desk the rows can be a board
+  ("The Pipeline is a workspace", below).
 - **Today.** One more counted row: consultations that ended in the last week
   with no proposal yet, with up to two names, re-printing the Pipeline's own
   number. Proposals waiting stays.
@@ -283,3 +288,79 @@ workspaces`' `sells_by`, every gate read from `sells_by`, the receptionist
    of the address not being the business's own.
 2. **A second nudge.** The follow-up playbook (0006) now reads the deal's link;
    whether it may send twice for one proposal stays its own question.
+
+## Amended 23 September 2026 · The Pipeline is a workspace
+
+Written against commit `cb34c3ae` (PR #935), after the Pipeline review of the
+same day scored the shipped Pipeline against the CRMs an agency already pays
+for: it reported honestly where each deal stood, and nothing could be worked
+from it. A row could only leave the page; no act was offered on a row; a
+teammate's move never arrived until the list reloaded; and the words in the
+box did not find a service. This amendment is the review's first phase, "one
+workspace", made Chanlytics-shaped. The plan is
+`docs/superpowers/plans/2026-09-23-pipeline-one-workspace.md`.
+
+### The peek
+
+A row opens its person's deal beside the rows, in the pane the lead's peek
+uses (408px on a desk; the whole screen on a phone, pulled down to close),
+never the person's page. The head is the row's -- who, the group and the
+service -- there the moment it opens; the deal is the person page's own card
+(`PersonDealOne`, `PersonDealQuiet` over `dealCardsOf`), drawn once the person
+lands, the tab's copy at once and the read behind it, with every act the card
+offers: a send opens their thread with the words in the box (the person page's
+own path), and every other act opens the one deal sheet. Under it, the facts
+People's row already says (when they were last heard, their words, what is
+coming up) and two doors as quiet words: their page, their thread. Enter
+opens it for the row under the cursor, Esc closes it, J and K walk on behind
+it and it follows; focus moves into it as it opens and back to the row as it
+closes. It re-reads the person when a deal is recorded on them
+(`deal:recorded`), and closes when they leave the Pipeline. It lives in the
+page's state, not the address: unlike a lead, a person has a page of their
+own to link to.
+
+### The board
+
+On a desk the rows can be a board: the same four groups as columns (every
+group, empty ones too, so a card has somewhere to drop), the same rows as
+cards -- who, the service, the value beside the time in stage, the one chip.
+The choice is kept per viewer on the device (`pipeline.view`). A card is a
+button too: Enter opens its peek, and J and K walk the cards as they walk the
+rows (each card carries the row's own id). A card dragged into another column
+asks for the one deal sheet in the mode the move needs, and nothing else moves:
+
+| From            | Into            | The sheet's mode                                      |
+| --------------- | --------------- | ----------------------------------------------------- |
+| Consultations   | Proposal out    | `propose`                                             |
+| Proposal out    | Clients         | `won`                                                 |
+| Proposal out    | Passed or ended | `lost`                                                |
+| Clients         | Passed or ended | `ended`                                               |
+| Passed or ended | Proposal out    | `again` for a passed deal, `propose` for an ended one |
+
+A drop is a person's confirmation, never the record: the sheet still asks what
+the move needs (the amount, the reason, the day), and a column the card cannot
+go into dims while it is in hand. The rule is contracts' `pipelineMove`; the
+browser's own drag and drop, no library. Only an owner or an operator drags,
+as only they may record. A phone keeps the list.
+
+### Live, and the words in the box
+
+The People surface repaints on the `deals` table too (`packages/db`
+`realtime.ts`, `peopleOverride.refreshOnTables`), so a teammate's move, or a
+payment's, shows on the rows, the Pipeline and the peek without a reload; the
+tab's own moves already re-read People through the refresh map. And the words
+in the box find a deal's service, on People as on the Pipeline
+(`plMatcher`).
+
+### Still held
+
+- **One row per open deal.** `people_list` returns one deal per person (the
+  newest open), so a person with two open deals, one per service, shows one
+  row. Its fix is a database change (the row carrying every open deal) and
+  waits for its own note.
+- **A pass in the history.** The timeline reads the deal rows, not their
+  events, so a deal passed and then proposed again shows no "Passed" line.
+  The events hold it; reading them into the timeline is its own change.
+- **A next step on every deal, "going cold" against the workspace's own pace,
+  open tracking, accepting, paying** are the review's later phases and the
+  owner's decisions, none of them started here.

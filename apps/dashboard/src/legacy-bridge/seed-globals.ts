@@ -19,6 +19,8 @@ import {
   proposalMessage,
   proposalLinkOf,
   pipelineOf,
+  pipelineMove,
+  pipelinePeekOf,
   PIPELINE_WORDS,
   whyNotAHandoff,
   handoffE164,
@@ -73,7 +75,12 @@ declare global {
     __linkHost: typeof linkHost;
     __proposalMessage: typeof proposalMessage;
     __proposalLinkOf: typeof proposalLinkOf;
-    __pipeline: { of: typeof pipelineOf; words: typeof PIPELINE_WORDS };
+    __pipeline: {
+      of: typeof pipelineOf;
+      move: typeof pipelineMove;
+      peek: typeof pipelinePeekOf;
+      words: typeof PIPELINE_WORDS;
+    };
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -152,9 +159,10 @@ if (typeof window !== "undefined") {
   // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
   // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.
   window.__proposalLinkOf = proposalLinkOf;
-  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, and every word the
-  // scope says. The page composes them; it decides nothing (pipeline-scope.jsx).
-  window.__pipeline = { of: pipelineOf, words: PIPELINE_WORDS };
+  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, what a card dropped in
+  // another column asks for, what the peek says of a row, and every word the scope says. The page composes them; it
+  // decides nothing (pipeline-scope.jsx).
+  window.__pipeline = { of: pipelineOf, move: pipelineMove, peek: pipelinePeekOf, words: PIPELINE_WORDS };
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as
