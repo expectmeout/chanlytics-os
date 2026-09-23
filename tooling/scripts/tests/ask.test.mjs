@@ -564,7 +564,7 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   );
 });
 
-test("the dashboard's stream parser: blocks, deltas, the stop reason, and pings ignored", async () => {
+test("the dashboard's stream parser: blocks, deltas, thinking and its signature, the stop reason, and pings ignored", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/sse.ts")).href);
   assert.equal(mod.parseFrame('event: ping\ndata: {"type":"ping"}'), null);
   assert.deepEqual(
@@ -586,6 +586,31 @@ test("the dashboard's stream parser: blocks, deltas, the stop reason, and pings 
   assert.deepEqual(
     mod.parseFrame('data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'),
     { type: "error", message: "Overloaded" },
+  );
+  assert.deepEqual(
+    mod.parseFrame(
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}',
+    ),
+    { type: "block_start", index: 0, block: { type: "thinking" } },
+    "a thinking block is its own kind, never text",
+  );
+  assert.deepEqual(
+    mod.parseFrame(
+      'data: {"type":"content_block_start","index":1,"content_block":{"type":"redacted_thinking","data":"EmwKAhgB"}}',
+    ),
+    { type: "block_start", index: 1, block: { type: "redacted_thinking", data: "EmwKAhgB" } },
+  );
+  assert.deepEqual(
+    mod.parseFrame(
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Two reads."}}',
+    ),
+    { type: "thinking", index: 0, thinking: "Two reads." },
+  );
+  assert.deepEqual(
+    mod.parseFrame(
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig-abc"}}',
+    ),
+    { type: "signature", index: 0, signature: "sig-abc" },
   );
   assert.equal(mod.featureRejected("tools.11.strict: Extra inputs are not permitted"), true);
   assert.equal(mod.featureRejected("credit balance too low"), false);
