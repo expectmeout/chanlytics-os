@@ -1,4 +1,5 @@
 import type { PersonRowDto } from "@chanlytics/contracts";
+import { PEOPLE_PAGE, everyoneIn, peoplePage } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 
 /**
@@ -11,8 +12,8 @@ import type { RouteContext } from "./with-route";
  * `people_list` under the caller's own RLS. Shared by the People list and the
  * CSV export so the two never disagree about who exists.
  */
-/** Rows per page: what people_list answers at most, and what the page loads at a time. */
-export const PEOPLE_PAGE = 1000;
+/** Rows per page: what people_list answers at most, and what the page loads at a time (packages/db people.ts). */
+export { PEOPLE_PAGE };
 
 export interface PeoplePage {
   /** A name, their WhatsApp name, their email address, or three digits of the number. */
@@ -40,20 +41,19 @@ export async function listPeople(
   tenantId: string,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
-  const q = searchNeedle(page.q) || null;
-  const offset = page.offset ?? 0;
-  const limit = page.limit ?? PEOPLE_PAGE;
-  // The page arguments are named only when they leave their defaults: a
-  // database that has not been given 00112 yet answers the first page as it
-  // always has, and refuses nothing.
-  const args = {
-    p_tenant_id: tenantId,
-    ...(q ? { p_query: q } : {}),
-    ...(offset > 0 ? { p_offset: offset } : {}),
-    ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
-  };
-  const { data, error } = await ctx.supabase.rpc("people_list", args);
-  if (error) throw new Error(error.message);
+  const rows = await peoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null });
+  return withReplyModes(ctx, tenantId, rows);
+}
+
+/**
+ * The reply mode in force for each person: their own policy row when set, else the workspace's. Read once for however
+ * many rows, so everyone() asks for the policies once, not once a page.
+ */
+async function withReplyModes(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  rows: PersonRowDto[],
+): Promise<PersonRowDto[]> {
   const { data: pols, error: polErr } = await ctx.supabase
     .from("policies")
     .select("subject_type, subject_id, mode")
@@ -64,7 +64,7 @@ export async function listPeople(
   const personMode = new Map(
     (pols ?? []).filter((p) => p.subject_type === "contact").map((p) => [p.subject_id, p.mode]),
   );
-  return ((data ?? []) as PersonRowDto[]).map((r) => ({
+  return rows.map((r) => ({
     ...r,
     effective_reply_mode: personMode.get(r.id) ?? workspaceMode,
   }));
@@ -80,13 +80,7 @@ export async function listPeople(
  * here.
  */
 export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  const all: PersonRowDto[] = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await listPeople(ctx, tenantId, { offset, limit: PEOPLE_PAGE });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) break;
-  }
-  return all;
+  return withReplyModes(ctx, tenantId, await everyoneIn(ctx.supabase, tenantId));
 }
 
 /**

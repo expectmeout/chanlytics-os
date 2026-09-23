@@ -929,3 +929,22 @@ test("a person carries the runs that named them, newest first, and the lead they
     "never an erased lead",
   );
 });
+
+test("REGRESSION: a change to a list past a thousand people answers with every one of them -- the answer was one select, and an Undo tells from it who an add really added", async () => {
+  const ids = Array.from({ length: 1500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  const tables = {
+    memberships: both("owner", "owner"),
+    segments: [{ id: S1, tenant_id: A, name: "Regulars" }],
+    segment_members: ids.map((contact_id) => ({ segment_id: S1, contact_id, tenant_id: A })),
+    contacts: [{ id: P3, tenant_id: A, erased_at: null }],
+  };
+  const ctx = {
+    supabase: fakeDb(tables, {}, {}, { maxRows: 1000 }),
+    userId: USER,
+    email: "ada@example.com",
+    params: { id: S1 },
+  };
+  const out = await list.PUT.run(send("PUT", { add: [P3] }), ctx);
+  assert.equal(out.ids.length, 1501, "REGRESSION: 1000 of 1501");
+  assert.ok(out.ids.includes(P3), "the one just added among them");
+});

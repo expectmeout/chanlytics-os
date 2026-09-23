@@ -49,7 +49,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
   assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
   assert.ok(
     list.includes(
-      'if (error.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);',
+      'if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);',
     ),
   );
   const one = readCode("apps/dashboard/app/api/v1/segments/[id]/route.ts");
@@ -58,19 +58,16 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
       one.includes('const remove = cleanIdList(body?.remove, "remove");'),
   );
   assert.ok(one.includes('throw new AppError("validation", "Nothing to change.");'));
-  assert.ok(
-    one.includes('{ onConflict: "segment_id,contact_id", ignoreDuplicates: true }'),
-    "adding someone twice is not an error",
-  );
+  // Adding someone twice is not an error: people-routes.test.mjs runs the PUT twice over the same person.
   assert.ok(
     /if \(error\.code === "42501"\)\s*throw new AppError\("validation", "One of those people is not in this workspace any more\."\);/.test(
       one,
     ),
     "RLS's refusal gets words",
   );
+  // The delete counts what it removed (packages/db deleteList); people-routes.test.mjs deletes a list twice.
   assert.ok(
-    one.includes('.delete({ count: "exact" })') &&
-      one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
+    one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
     "a delete that removed nothing is not a success",
   );
   const helper = readCode("apps/dashboard/src/server/lists.ts");

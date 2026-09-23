@@ -7,7 +7,15 @@
  * come here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent, listPolicies, type Database, type Json } from "./packages/db.js";
+import {
+  emitEvent,
+  everyoneIn,
+  listPolicies,
+  touchIndex,
+  touchesSince,
+  type Database,
+  type Json,
+} from "./packages/db.js";
 import { scheduleJob } from "./packages/jobs.js";
 import {
   runPlaybook as runOverPorts,
@@ -30,24 +38,12 @@ import {
   type PersonVisitsDto,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
-import { readAllRows } from "./paged.js";
 
 /**
  * How far back a touch can still hold somebody back: the longest gap a
  * playbook may set (365 days, check-playbook.ts), plus the week's breath.
  */
 const TOUCH_WINDOW_MS = (365 + 7) * 24 * 3600 * 1000;
-/** Ids per recipients query: they ride in the URL, which is not unbounded. */
-const RUN_IDS_PER_QUERY = 200;
-
-type BroadcastRow = {
-  id: string;
-  playbook_id: string | null;
-  state: string;
-  scheduled_for: string | null;
-  created_at: string;
-};
-type TouchRow = { broadcast_id: string; contact_id: string; state: string; sent_at: string | null };
 
 type Db = SupabaseClient<Database>;
 
@@ -64,18 +60,12 @@ export async function allPeople(
   db: Db,
   tenantId: string,
 ): Promise<{ data: PersonRowDto[] | null; error: { message: string } | null }> {
-  const all: PersonRowDto[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await db.rpc(
-      "people_list",
-      offset ? { p_tenant_id: tenantId, p_offset: offset, p_limit: 1000 } : { p_tenant_id: tenantId },
-    );
-    if (error) return { data: null, error };
-    const page = (data ?? []) as unknown as PersonRowDto[];
-    all.push(...page);
-    if (page.length < 1000) break;
-  }
-  return { data: all, error: null };
+  // packages/db everyoneIn: the dashboard's pager too. A page it cannot read is this tenant's error, never a
+  // thousand people counted as everyone.
+  return everyoneIn(db, tenantId).then(
+    (data) => ({ data, error: null }),
+    (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+  );
 }
 
 export interface TenantRunContext extends RunContext {
@@ -89,7 +79,7 @@ export async function loadTenantRunContext(
   tenantId: string,
   now: Date,
 ): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, pastRuns, { data: cfgRow }] =
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, touched, { data: cfgRow }] =
     await Promise.all([
       db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
       allPeople(db, tenantId),
@@ -102,35 +92,22 @@ export async function loadTenantRunContext(
         .eq("status", "active")
         .limit(1)
         .maybeSingle(),
-      // Every broadcast, not only the playbooks' runs: a message sent by hand is
-      // a touch too, and the week's breath is one message per person across all
-      // of them. byThis (the gap) still keys on the playbook that sent it.
+      // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
+      // message per person across all of them (packages/db touchesSince, which the Playbooks page reads too).
       //
-      // Bounded by TIME, not by luck. Nothing older than the longest gap a
-      // playbook may set can hold anybody back, so reading further is work for
-      // nothing -- and the ids come back to be listed in the recipients query
-      // below, where an unbounded set is a URL no proxy will accept.
+      // Bounded by TIME, not by luck: nothing older than the longest gap a playbook may set can hold anybody back.
       //
-      // The failure is CAUGHT to an error rather than to null: `null` reads as
-      // "no past broadcasts", which empties the touch history and re-messages
-      // everyone it can no longer see -- the exact defect the paging was added
-      // for, arrived at from the other side.
-      readAllRows<BroadcastRow>("broadcasts", (from, to) =>
-        db
-          .from("broadcasts")
-          .select("id, playbook_id, state, scheduled_for, created_at")
-          .eq("tenant_id", tenantId)
-          .gte("created_at", new Date(now.getTime() - TOUCH_WINDOW_MS).toISOString())
-          .order("id")
-          .range(from, to),
-      ).then(
+      // The failure is CAUGHT to an error rather than to nobody touched, which re-messages everyone it can no longer
+      // see; and returned as this tenant's error, never thrown. The hourly sweep reads `{ error }` to count one
+      // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
+      touchesSince(db, tenantId, new Date(now.getTime() - TOUCH_WINDOW_MS)).then(
         (data) => ({ data, error: null as string | null }),
         (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
       ),
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
     ]);
   if (pErr) return { error: pErr.message };
-  if (pastRuns.error) return { error: `broadcasts: ${pastRuns.error}` };
+  if (touched.error) return { error: touched.error };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
   if (tenant?.status === "paused") return { error: "paused" };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<
@@ -138,66 +115,9 @@ export async function loadTenantRunContext(
     unknown
   >;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
-  const byThis = new Map<string, Map<string, number>>();
-  const byAny = new Map<string, number>();
-  // A touch is a message sent, or one on its way: a run scheduled, waiting
-  // for a person or sending counts from the moment it is due, so two
-  // playbooks due the same hour never both pick the same person. A run that
-  // was canceled or failed touched nobody. A broadcast the owner sent by hand
-  // counts for the breath (byAny) and for no playbook's gap.
-  const runs = (pastRuns.data ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
-  const runIds = runs.map((b) => b.id);
-  const ofRun = new Map(runs.map((b) => [b.id, b]));
-  if (runIds.length) {
-    // Paged. Unbounded, this stopped at a thousand rows (api.max_rows) with no
-    // error, so past roughly a thousand touches the week's breath and each
-    // playbook's gap silently stopped holding -- and the people the run could
-    // no longer see it had touched were messaged again.
-    // Returned as this tenant's error, never thrown. The hourly sweep calls
-    // this without a try/catch and reads `{ error }` to count one workspace
-    // off and carry on (api/cron/playbooks.ts); a throw escapes the whole
-    // handler, so one workspace's unreadable touch history would end the tick
-    // for every workspace after it and skip the backlog note that would have
-    // said so.
-    let touched: TouchRow[];
-    try {
-      // Asked in batches. Every id rides in the QUERY STRING, so one list of
-      // them is a URL that grows with the workspace until a proxy refuses it
-      // and this workspace is skipped every tick, silently, for ever.
-      touched = [];
-      for (let i = 0; i < runIds.length; i += RUN_IDS_PER_QUERY) {
-        const batch = runIds.slice(i, i + RUN_IDS_PER_QUERY);
-        touched.push(
-          ...(await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
-            db
-              .from("broadcast_recipients")
-              .select("broadcast_id, contact_id, state, sent_at")
-              .in("broadcast_id", batch)
-              .in("state", ["sent", "queued"])
-              .order("broadcast_id")
-              .order("contact_id")
-              .range(from, to),
-          )),
-        );
-      }
-    } catch (e) {
-      // Never "assume nobody was touched": that is the reading that messages
-      // people twice, which is the defect the paging was added for.
-      return { error: e instanceof Error ? e.message : String(e) };
-    }
-    for (const r of touched) {
-      const run = ofRun.get(r.broadcast_id);
-      if (!run) continue;
-      const at = r.sent_at ? Date.parse(r.sent_at) : Date.parse(run.scheduled_for ?? run.created_at);
-      const pid = run.playbook_id as string;
-      if (pid) {
-        const m = byThis.get(pid) ?? new Map<string, number>();
-        m.set(r.contact_id, Math.max(m.get(r.contact_id) ?? 0, at));
-        byThis.set(pid, m);
-      }
-      byAny.set(r.contact_id, Math.max(byAny.get(r.contact_id) ?? 0, at));
-    }
-  }
+  // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
+  // hand counts for the breath (byAny) and for no playbook's gap (touchIndex).
+  const { byThis, byAny } = touchIndex(touched.data ?? []);
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.
