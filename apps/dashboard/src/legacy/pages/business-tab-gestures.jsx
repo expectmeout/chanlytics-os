@@ -78,6 +78,20 @@ const btAsks = ({ ask, fold, prefix, busy, dirty, close, reset }) => {
   };
 };
 
+/**
+ * Which lines of a block of what a save will say the draft has just changed, for the kit to mark (RecordSays'
+ * `changed`) and record.css to wash, once (spec §9, item 3). The block drawn last is kept, and a new one is compared
+ * with it as it is drawn (changedLines): the answer holds until the block changes again, so a draw that changes
+ * nothing leaves the mark where it is, on the same line, which does not wash twice. A block that goes (the editor
+ * closed, or a draft its checks refuse) is forgotten, so the next one to appear is arriving, not changing.
+ */
+const useBtChanged = (text) => {
+  const seen = useBtgRef({ text: null, changed: [] });
+  const now = typeof text === "string" && text !== "" ? text : null;
+  if (now !== seen.current.text) seen.current = { text: now, changed: window.__businessTabSave.changedLines(seen.current.text, now) };
+  return seen.current.changed;
+};
+
 // What a toast's Undo says when it can put nothing back: the fold it was in has closed, or its save is out, or the list
 // the row came from was replaced whole since (a day's hours copied over another's).
 const BT_UNDO_CLOSED = "Not put back — the editor it was in has closed. Open it again to change it.";
@@ -221,6 +235,11 @@ const BtRow = ({
   const now = open && draft != null ? draft : initial;
   const dirty = open && !S.same(storedAs(now), storedAs(initial));
   const save = (c, done) => { if (saver) saver.save({ row: id, change: c.change, said: c.said, done, flash }); };
+  // Whether the row at rest was drawn again by its editor's save, for its value to arrive (RecordRow's `settled`, the
+  // save settle): set as the save closes the editor, forgotten as it opens again.
+  const settled = useBtgRef(false);
+  if (open) settled.current = false;
+  const closeSaved = () => { settled.current = true; close(); };
   // Closed by anything -- saved, cancelled, or given way to another row -- the draft goes with it, and the next
   // opening starts from what is stored.
   const reset = () => { live.current.draft = null; setDraft(null); setProblem(null); ask.disarm(); };
@@ -240,7 +259,7 @@ const BtRow = ({
     if (!dirty) { close(); return; }
     // Saved with Ctrl or Cmd and Enter while Cancel's question was up: the question is answered.
     if (ask.armed) ask.disarm();
-    if (door) door.save(now, close); else save(commit(now), close);
+    if (door) door.save(now, closeSaved); else save(commit(now), closeSaved);
   };
 
   // What saving would tell the receptionist: the lines of its blocks that the draft changes, and the sentence for a
@@ -279,6 +298,9 @@ const BtRow = ({
     gate,
   } : null;
 
+  const changed = useBtChanged(says ? says.says : null);
+  const goneChanged = useBtChanged(says ? says.gone : null);
+
   // The field is named by the row's own label, where the label stays (the canvas's editing row), rather than by a
   // second copy of it over the box; what it will say describes the box too. Both ids are the kit's (RecordInline).
   const field = { id: `bt-${id}`, label: null, "aria-labelledby": `rec-inline-${id}-key`, "aria-describedby": says ? `rec-inline-${id}-says` : undefined, readOnly: busy || undefined };
@@ -296,6 +318,7 @@ const BtRow = ({
           source={source}
           disputed={other}
           wrong={wrong}
+          settled={settled.current}
           act={canEdit ? {
             label: value ? "Change" : "Add one",
             name: named ? (value ? `Change the ${named}` : `Add one ${named}`) : undefined,
@@ -319,6 +342,8 @@ const BtRow = ({
         onCancel={asks.cancel}
         saving={busy}
         gate={gate}
+        changed={changed}
+        goneChanged={goneChanged}
       >
         {inner}
       </window.RecordInline>
@@ -411,6 +436,9 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   const reset = () => { live.current.draft = null; live.current.opened = null; live.current.backs = BtPutBacks.none; live.current.agains = new Map(); live.current.produced = new Map(); setDraft(null); setProblems(null); ask.disarm(); setFocusOn(null); };
   useBtgEffect(() => { if (!open) reset(); }, [open]);
   if (open && live.current.opened == null) live.current.opening += 1;
+  // Whether the row at rest was drawn again by this editor's save (RecordRow's `settled`): set as the save closes it,
+  // forgotten as it opens again.
+  if (open) live.current.settled = false;
   // Untouched and not saving, the editor opens with what is stored NOW (the header says why); typed in, what it opened
   // with holds still, since that is what its save is judged against.
   if (open && (live.current.opened == null || (draft == null && live.current.draft == null && !busy))) live.current.opened = stored.draft;
@@ -556,7 +584,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
       if (!S.holdsChanges(id, base, typed)) return { nothing: true };
       const all = S.saveProblems(id, base, typed);
       if (Object.keys(all).length) return { problems: all };
-      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: close, flash }) };
+      return { job: S.foldJob(id, typed, { opened: live.current.opened, said, done: () => { live.current.settled = true; close(); }, flash }) };
     });
     if (!judged) { flash({ tone: "danger", msg: <>{BT_UNCHECKED}</> }); return; }
     if (judged.problems) { setProblems(judged.problems); return; }
@@ -586,7 +614,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
   };
   // `can` is what gates opening (btOpening): there is a config to save onto and a draft that could be worked out of
   // it. A card's `rest` asks it before it offers its act, as a row's act asks `stored`.
-  return { open, busy, stored, can, fields, will, asks, submit, focusOn, request: fold.request };
+  return { open, busy, stored, can, fields, will, asks, submit, focusOn, request: fold.request, settled: !open && !!live.current.settled };
 };
 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
@@ -670,28 +698,39 @@ const BtFold = ({
   const has = !(row.value == null || row.value === "" || row.value === false);
   const will = e.will;
   const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
+  const says = will ? (lines ? will.added : will.whole) : null;
+  const changed = useBtChanged(says);
+  const goneChanged = useBtChanged(will ? will.removed : null);
+  // What the row draws at rest: in the fold's place while it is closed, and handed to the fold (`behind`), which draws
+  // it behind its sheet while it is open on a phone, so the card under the wash keeps its height (record-fold.jsx).
+  // Hookless, so drawing it or not moves no cell.
+  const atRest = rest ? rest({ request: e.request, can: e.can }) : (
+    <window.RecordRow
+      id={id}
+      label={label}
+      value={row.value}
+      empty={row.empty}
+      hint={row.hint}
+      wrong={row.wrong}
+      settled={e.settled}
+      act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
+    >
+      {row.children || null}
+    </window.RecordRow>
+  );
   return (
     <>
-      {e.open ? null : rest ? rest({ request: e.request, can: e.can }) : (
-        <window.RecordRow
-          id={id}
-          label={label}
-          value={row.value}
-          empty={row.empty}
-          hint={row.hint}
-          wrong={row.wrong}
-          act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
-        >
-          {row.children || null}
-        </window.RecordRow>
-      )}
+      {e.open ? null : atRest}
       <window.RecordFold
+        behind={atRest}
         id={id}
         label={label}
         hint={hint}
         open={e.open}
         wide={wide}
-        says={will ? (lines ? will.added : will.whole) : null}
+        says={says}
+        changed={changed}
+        goneChanged={goneChanged}
         saysLabel={lines ? "It will be told" : "Your receptionist will be told"}
         gone={will ? will.removed : null}
         goneLabel="It will no longer be told"

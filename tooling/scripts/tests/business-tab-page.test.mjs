@@ -14,7 +14,19 @@ import {
   PROFILE_CROSSING_WORDS,
   hasProfile,
 } from "@chanlytics/contracts";
-import { again, unmount, remount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
+import {
+  again,
+  unmount,
+  remount,
+  settle,
+  all,
+  find,
+  byTestId,
+  textOf,
+  classes,
+  press,
+  atWidth,
+} from "./_legacy-react.mjs";
 import {
   KNOWN,
   W,
@@ -115,7 +127,7 @@ test("Who you are draws seven rows, in the spec's order", () => {
     "Booking link",
     "Answers on",
     "Tells customers to call",
-    "Transfers a caller to",
+    "Transfer number",
   ]);
 });
 
@@ -2129,5 +2141,429 @@ test("a row saved through its own door offers no press on a disagreement: it has
     find(row, (n) => n.type === "button" && classes(n).includes("btn")),
     null,
     "REGRESSION: a press that called a commit the row does not have",
+  );
+});
+
+/* ------------------------------------ on a phone ------------------------------------ */
+
+// On a phone a fold is drawn as a sheet rising from the bottom (record-fold.jsx); the page calls it the same way at
+// every width, so everything the page does with a fold holds there: one editor open, the asks, the one-section save.
+/** The fold's own box: the voice's textarea. */
+const voiceBox = (tree) =>
+  find(foldOf(tree, "tone"), (n) => (n.type === "textarea" || n.type === "input") && classes(n).includes("rec-input"));
+const lastDrawn = (tree) =>
+  []
+    .concat(tree.rendered.props.children)
+    .filter((c) => c != null && c !== false)
+    .at(-1);
+
+test("on a phone a row opens as a sheet from the bottom, asks there, and its save sends only that fold's keys", () => {
+  const width = atWidth(true);
+  try {
+    const sent = saving();
+    let tree = drawTab();
+    const stored = structuredClone(W.__SETTINGS.config);
+    openFold(tree, "tone");
+    tree = redrawTab();
+    const sheet = foldOf(tree, "tone");
+    assert.deepEqual(
+      [sheet.props.role, sheet.props["aria-modal"], sheet.props["aria-labelledby"]],
+      ["dialog", true, "rec-fold-tone-label"],
+      "a modal dialog, named by the row's label",
+    );
+    assert.equal(voiceBox(tree).props["aria-labelledby"], "rec-fold-tone-label", "and the box is named by it too");
+    assert.deepEqual(openFolds(tree), ["tone"]);
+    voiceBox(tree).props.onChange({ target: { value: "Calm and kind." } });
+    tree = redrawTab();
+
+    // Another row asked for: the one holding changes asks, in its sheet, above its Save.
+    openFold(tree, "booking_rules");
+    tree = redrawTab();
+    assert.deepEqual(openFolds(tree), ["tone"], "one editor open, as at any width");
+    const foot = find(foldOf(tree, "tone"), (n) => classes(n).includes("rec-sheet-foot"));
+    assert.match(textOf(byTestId(foot, "rec-fold-tone-ask-confirm")), /Discard your changes\?/, "in the sheet's foot");
+    press(byTestId(tree, "rec-fold-tone-ask-no"));
+    tree = redrawTab();
+    assert.equal(byTestId(tree, "rec-fold-tone-ask-confirm"), null);
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.", "Keep editing keeps what was typed");
+
+    saveFoldOf(tree, "tone");
+    tree = redrawTab();
+    const expected = structuredClone(stored);
+    expected.brain.profile.tone = "Calm and kind.";
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0].config, expected, "the stored config with the voice written, and nothing else");
+    assert.deepEqual(openFolds(tree), [], "taken, the sheet goes");
+    assert.equal(
+      find(tree, (n) => n.props?.role === "dialog"),
+      null,
+    );
+  } finally {
+    width.put();
+  }
+});
+
+test("a window that crosses a phone's width while a row is open keeps it open, and keeps what was typed", () => {
+  // Decided in Task 6.2b: the frame is the kit's and the draft is the page's, so a width crossed while a fold is open
+  // draws the same fold in the other frame, and nothing is asked. A phone turned on its side, or a window dragged
+  // narrower, is not a person leaving what they typed.
+  const width = atWidth(true);
+  try {
+    let tree = drawTab();
+    openFold(tree, "tone");
+    tree = redrawTab();
+    voiceBox(tree).props.onChange({ target: { value: "Calm and kind." } });
+    tree = redrawTab();
+    width.resize(false);
+    tree = redrawTab();
+    const fold = foldOf(tree, "tone");
+    assert.deepEqual([fold.props.role, fold.props.hidden], ["group", undefined], "a desktop's fold, still open");
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.", "with what was typed");
+    assert.equal(W.__settingsUnsaved(), true, "and still asked about before it is thrown away");
+    width.resize(true);
+    tree = redrawTab();
+    assert.equal(foldOf(tree, "tone").props.role, "dialog", "and a sheet again");
+    assert.equal(voiceBox(tree).props.value, "Calm and kind.");
+  } finally {
+    width.put();
+  }
+});
+
+test("on a phone the sheet slot is still the page's last child: a row's sheet is drawn where its fold is, and every row keeps its own", () => {
+  // A row's sheet is not the slot's. The slot is for what is drawn only while open (the kit's RecordSheet, which holds
+  // hooks then and none while closed); a fold holds the same hooks drawn open or closed, as a sheet or under its row,
+  // so it is drawn where the row is and moves no cell after it. The registry keeps one editor open at a time, so a
+  // row's sheet and the slot's never stand on the page together.
+  const width = atWidth(true);
+  try {
+    const at = (t) =>
+      ["rec-row-tone", "rec-row-services", "rec-row-booking_rules"].map((id) => textOf(byTestId(t, id)));
+    let tree = drawTab();
+    const rest = at(tree);
+    openFold(tree, "hours");
+    tree = redrawTab();
+    assert.equal(lastDrawn(tree).type, W.BtSheetSlot, "the slot is still last");
+    assert.equal(
+      find(lastDrawn(tree), (n) => n.props?.role === "dialog"),
+      null,
+      "and draws no sheet of the row's",
+    );
+    assert.equal(
+      find(byTestId(tree, "rec-card-open"), (n) => n.props?.role === "dialog")?.props["data-testid"],
+      "rec-fold-hours",
+      "the row's sheet is drawn by its own card",
+    );
+    assert.deepEqual(at(tree), rest, "every row after it says what it said");
+    typeAt(tree, "Monday closes", "17:00");
+    tree = redrawTab();
+    assert.equal(labelled(tree, "Monday closes").props.value, "17:00");
+    press(byTestId(tree, "rec-fold-cancel-hours"));
+    tree = redrawTab();
+    press(byTestId(tree, "rec-fold-hours-cancel-yes"));
+    tree = redrawTab();
+    assert.deepEqual(at(tree), rest);
+    // The slot's own sheet opens after it, as it always did.
+    press(byTestId(tree, "rec-row-act-services"));
+    tree = redrawTab();
+    assert.deepEqual(
+      all(tree, (n) => n.props?.role === "dialog").map((n) => n.props["data-testid"]),
+      ["rec-sheet-services"],
+    );
+    assert.equal(lastDrawn(tree).type, W.BtSheetSlot);
+  } finally {
+    width.put();
+  }
+});
+
+/* ------------------------------------ motion: what the stub can see of it ------------------------------------ */
+
+// Spec §9. The stub draws no frame and runs no stylesheet, so the motions themselves are the journey's to prove, by
+// computed style (e2e/settings-business.spec.ts). What the page decides is here: WHICH line of what a save will tell
+// the receptionist has just changed, which is the one line record.css washes.
+const saysLines = (tree, id, part = "says") =>
+  all(
+    find(byTestId(tree, `rec-fold-says-${id}`), (n) => n.props?.["data-part"] === part),
+    (n) => classes(n).includes("rec-says-line"),
+  ).map((l) => [textOf(l), l.props["data-changed"] === "true"]);
+const ruleBox = (tree, key) => find(byTestId(tree, `rec-rule-${key}`), (n) => n.type === "input");
+
+test("as the draft changes, only the line of what it will be told that changed is marked, and only until the next change", () => {
+  let tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  const opened = saysLines(tree, "booking_rules");
+  assert.ok(opened.length > 1, "the whole block is drawn as the fold opens");
+  assert.deepEqual(
+    opened.filter(([, on]) => on),
+    [],
+    "nothing has changed yet: the block the fold opens with is not a change",
+  );
+
+  ruleBox(tree, "lead_hours").props.onChange({ target: { value: "3" } });
+  tree = redrawTab();
+  const once = saysLines(tree, "booking_rules");
+  const was = opened.map(([l]) => l);
+  // The lines the draft changed, worked out from the block before and after, as the page must.
+  const fresh = once.filter(([l]) => l.trim() !== "" && !was.includes(l)).map(([l]) => l);
+  assert.equal(fresh.length, 1, `one line of the block says the notice: ${JSON.stringify(fresh)}`);
+  assert.match(fresh[0], /3 hours/);
+  assert.deepEqual(
+    once.filter(([, on]) => on).map(([l]) => l),
+    fresh,
+    "that line is marked, and no other",
+  );
+
+  // Drawn again with nothing changed, the mark stays where it is: it is the same line, and does not wash twice.
+  tree = redrawTab();
+  assert.deepEqual(saysLines(tree, "booking_rules"), once);
+
+  // The next change marks its own line, and the last one's mark goes.
+  ruleBox(tree, "party_max").props.onChange({ target: { value: "6" } });
+  tree = redrawTab();
+  const twice = saysLines(tree, "booking_rules");
+  const marked = twice.filter(([, on]) => on).map(([l]) => l);
+  assert.equal(marked.length, 1, JSON.stringify(marked));
+  assert.match(marked[0], /6 people/);
+  assert.ok(!/3 hours/.test(marked[0]), "the notice's line, changed a keystroke ago, washes no more");
+
+  // Closed and opened again, the block is new to the person, and nothing in it is a change.
+  press(byTestId(tree, "rec-fold-cancel-booking_rules"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-fold-booking_rules-cancel-yes"));
+  tree = redrawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  assert.deepEqual(
+    saysLines(tree, "booking_rules").filter(([, on]) => on),
+    [],
+  );
+});
+
+test("a row's own line of what it will say is marked as it changes, not as it first appears", () => {
+  let tree = drawTab();
+  press(byTestId(tree, "rec-row-act-website"));
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  const lines = () =>
+    all(byTestId(tree, "rec-inline-says-website"), (n) => classes(n).includes("rec-says-line")).map((l) => [
+      textOf(l),
+      l.props["data-changed"] === "true",
+    ]);
+  const first = lines().filter(([l]) => l.includes("melanys.example"));
+  assert.equal(first.length, 1, "it says the new address");
+  assert.equal(first[0][1], false, "what arrives with the block is not a change of it");
+  typeInto(tree, "website", "https://melanys.example/book");
+  tree = redrawTab();
+  const marked = lines().filter(([, on]) => on);
+  assert.deepEqual(marked.length, 1);
+  assert.match(marked[0][0], /melanys\.example\/book/, "the line the keystroke changed");
+});
+
+test("a row drawn again as its editor's save closes it says so, for its value to arrive; opened and cancelled, it does not", () => {
+  // Spec §9, item 4, the save settle: the fold closes, and the row's value arrives on the house's rise-in. The row is
+  // what says it arrived with a save (data-settled, the kit's RecordRow), for record.css to play rise-in on it once.
+  const settled = (tree, id) => byTestId(tree, `rec-row-${id}`).props["data-settled"];
+  saving();
+  let tree = drawTab();
+  assert.equal(settled(tree, "tone"), undefined, "drawn with the page, a row is simply there");
+  assert.equal(settled(tree, "website"), undefined);
+
+  // A fold, saved.
+  openFold(tree, "tone");
+  tree = redrawTab();
+  find(foldOf(tree, "tone"), (n) => n.type === "textarea").props.onChange({ target: { value: "Calm and kind." } });
+  tree = redrawTab();
+  saveFoldOf(tree, "tone");
+  tree = redrawTab();
+  assert.deepEqual(openFolds(tree), []);
+  assert.equal(settled(tree, "tone"), "true", "the fold's row, drawn again by its save");
+  assert.equal(settled(tree, "website"), undefined, "and no other");
+
+  // A row edited in place, saved.
+  openFold(tree, "website");
+  tree = redrawTab();
+  typeInto(tree, "website", "https://melanys.example");
+  tree = redrawTab();
+  saveRow(tree, "website");
+  tree = redrawTab();
+  assert.equal(settled(tree, "website"), "true", "the row, drawn again by its save");
+
+  // Opened and cancelled: nothing was saved, so nothing arrives.
+  tree = drawTab();
+  openFold(tree, "booking_rules");
+  tree = redrawTab();
+  cancelFoldOf(tree, "booking_rules");
+  tree = redrawTab();
+  assert.equal(settled(tree, "booking_rules"), undefined, "a fold cancelled");
+  openFold(tree, "website");
+  tree = redrawTab();
+  cancelRow(tree, "website");
+  tree = redrawTab();
+  assert.equal(settled(tree, "website"), undefined, "a row cancelled");
+});
+
+test("on a phone a row open as a sheet is still drawn in its card behind it, so nothing under the wash moves", () => {
+  // Task 6.2b's note 8: the card under a row's sheet was one row shorter, and grew back as the sheet went, which the
+  // sheet's leaving (spec §9, item 1) would have put on show. The fold draws the row behind its sheet (RecordFold's
+  // `behind`); the page still draws it itself only while the fold is closed.
+  const width = atWidth(true);
+  try {
+    let tree = drawTab();
+    const at = (t) => textOf(byTestId(t, "rec-row-tone"));
+    const rest = at(tree);
+    openFold(tree, "tone");
+    tree = redrawTab();
+    const sheet = foldOf(tree, "tone");
+    assert.equal(sheet.props.role, "dialog");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "rec-row-tone").length, 1, "one row, behind the sheet");
+    assert.equal(at(tree), rest, "saying what it said");
+    assert.equal(byTestId(sheet, "rec-row-tone"), null, "and not inside the dialog");
+    assert.ok(
+      find(byTestId(tree, "rec-card-answers"), (n) => n.props?.["data-testid"] === "rec-row-tone"),
+      "in its own card",
+    );
+  } finally {
+    width.put();
+  }
+  // At a desktop's width the fold stands in the row's place, as it always did.
+  let tree = drawTab();
+  openFold(tree, "tone");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-row-tone"), null);
+});
+
+test("the line the page marks as changed is the line the kit draws as a new element, and no other", () => {
+  // changedLines (business-tab-folds.jsx) says which lines of a block are new; RecordSays keys each line by its words
+  // and which time they occur, so a line that is new to the browser is drawn as a new element, which is what lets the
+  // wash play once as it arrives. The two must agree: a marked line that kept its element would never wash, and an
+  // unmarked line that arrived new is simply drawn. Both count occurrences in order, so of two lines alike the LATER
+  // is the new one on both sides. Only a blank line may be new without being marked: blank lines are never a change.
+  const changedLines = W.__businessTabSave.changedLines;
+  const keysOf = (text) => {
+    const tree = W.React.createElement(W.RecordSays, { text });
+    return all(
+      find(tree, (n) => n.type === "pre"),
+      (n) => n.type === W.React.Fragment,
+    ).map((f) => f.props.key);
+  };
+  const cases = [
+    ["reordered", "Mon: 9-5\nTue: 9-5\nWed: closed", "Wed: closed\nMon: 9-5\nTue: 9-5"],
+    [
+      "a duplicate added",
+      "- Walk-ins welcome\n- Parking at the back",
+      "- Walk-ins welcome\n- Parking at the back\n- Walk-ins welcome",
+    ],
+    [
+      "a duplicate removed",
+      "- Walk-ins welcome\n- Walk-ins welcome\n- Parking at the back",
+      "- Walk-ins welcome\n- Parking at the back",
+    ],
+    [
+      "blank lines",
+      "Booking rules:\n- At least 2 hours' notice.\n\nHours:",
+      "Booking rules:\n- At least 3 hours' notice.\n\n\nHours:",
+    ],
+    ["one line rewritten", "Tone: warm\nLanguages: English", "Tone: calm\nLanguages: English"],
+    ["no change", "Tone: warm", "Tone: warm"],
+  ];
+  for (const [what, was, now] of cases) {
+    const before = new Set(keysOf(was));
+    const lines = now.split("\n");
+    const fresh = keysOf(now)
+      .map((k, i) => (before.has(k) ? null : i))
+      .filter((i) => i != null);
+    const marked = changedLines(was, now);
+    assert.deepEqual(
+      fresh.filter((i) => lines[i].trim() !== ""),
+      marked,
+      `${what}: the marked lines are the new elements`,
+    );
+    for (const i of fresh.filter((i) => !marked.includes(i))) {
+      assert.equal(lines[i].trim(), "", `${what}: only a blank line arrives unmarked`);
+    }
+  }
+  assert.deepEqual(
+    changedLines("- Walk-ins welcome", "- Walk-ins welcome\n- Walk-ins welcome"),
+    [1],
+    "the later of two",
+  );
+  // A block that appears is arriving, not changing; one that goes marks nothing.
+  assert.deepEqual(changedLines(null, "Tone: warm"), []);
+  assert.deepEqual(changedLines("Tone: warm", null), []);
+});
+
+/* ------------------------------------ what is on screen at rest ------------------------------------ */
+
+// Spec §11, as amended by Task 6.3: at rest the page draws only what an owner acts on without looking for it, and every
+// other act is in the tab order and drawn on hover or focus (record.css: a filled row's act is opacity 0 until its row
+// is hovered or holds focus). What the stub can tell is which controls are drawn at rest -- neither in a closed editor
+// (hidden, whole) nor a filled row's latent act; the journey measures the rest by computed style.
+const CONTROL = (n) =>
+  ["button", "a", "input", "select", "textarea"].includes(n.type) ||
+  n.props?.role === "switch" ||
+  n.props?.tabIndex === 0;
+/** Every control the page draws at rest, each with the row it is in: a component is walked as what it rendered. */
+const drawnAtRest = (tree) => {
+  const out = [];
+  const walk = (n, row) => {
+    if (n == null || typeof n !== "object") return;
+    if (Array.isArray(n)) return n.forEach((k) => walk(k, row));
+    if (n.props?.hidden === true) return;
+    const inRow = classes(n).includes("rec-row") ? n : row;
+    if (typeof n.type === "string" && CONTROL(n)) {
+      const latent =
+        classes(n).includes("rec-row-act") &&
+        inRow &&
+        inRow.props["data-empty"] !== "true" &&
+        inRow.props["data-state"] !== "warn";
+      if (!latent) out.push({ id: n.props["data-testid"] || textOf(n).trim(), n, row: inRow });
+    }
+    if (typeof n.type === "function") walk(n.rendered, inRow);
+    else walk(n.props?.children, inRow);
+  };
+  walk(tree, null);
+  return out;
+};
+
+test("at rest a whole record draws four controls, each one an owner acts on without looking for it", () => {
+  const drawn = drawnAtRest(drawTab());
+  assert.deepEqual(
+    drawn.map((c) => c.id),
+    [
+      // Where the carrier record is asked, a link in Who you are's foot sentence: part of what it says.
+      "rec-who-carriers",
+      // Days you're closed has none ahead: the act on an empty row is never hidden (§11).
+      "rec-row-act-closures",
+      // Look at a photo is off: what is missing says so, with its door, at full strength (§11).
+      "rec-can-door-vision",
+      // Read it: what the receptionist is told.
+      "rec-prompt-open",
+    ],
+  );
+  // Nothing is missing from this record, so the standing line has no gap and no door.
+  assert.equal(byTestId(drawTab(), "rec-standing-door"), null);
+});
+
+test("at rest an empty record adds only what is empty or missing, and the standing line's door", () => {
+  const drawn = drawnAtRest(drawTab({ profile: {} }));
+  const why = (c) =>
+    c.id === "rec-prompt-open" || c.id === "rec-who-carriers"
+      ? "always"
+      : c.id === "rec-standing-door"
+        ? "the gap"
+        : c.row && (c.row.props["data-empty"] === "true" || c.row.props["data-state"] === "warn")
+          ? "empty or wrong"
+          : /^rec-can-door-/.test(c.id)
+            ? "missing"
+            : null;
+  assert.deepEqual(
+    drawn.filter((c) => !why(c)).map((c) => c.id),
+    [],
+    "nothing else is drawn at rest",
+  );
+  assert.ok(
+    drawn.some((c) => c.id === "rec-standing-door"),
+    "the standing line's one link",
   );
 });

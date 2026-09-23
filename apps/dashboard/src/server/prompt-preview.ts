@@ -23,7 +23,7 @@ import { loadFeed } from "@/server/ask/openings";
  * platform's own facts (the channel rows it provisioned, the listing Google
  * verified), the closures the clock states, and the openings from the
  * calendar feed, whose address never leaves the server. So the card said
- * "every WhatsApp message, word for word" over a prompt missing its rules.
+ * "Every WhatsApp message, word for word" over a prompt missing its rules.
  *
  * Now the settings read composes it, argument for argument as
  * whatsapp/inbound.ts and lib/call-start.ts do, and the browser only shows

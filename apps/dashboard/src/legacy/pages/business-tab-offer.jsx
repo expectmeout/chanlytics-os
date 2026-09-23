@@ -102,7 +102,8 @@ const BtwRules = ({ draft, update, problems, readOnly }) => {
       </div>
       <window.RecordField
         id="bt-rule-notes"
-        label="Anything else about booking, one per line"
+        label="Anything else about booking"
+        hint="One per line."
         rows={3}
         value={draft.notes}
         onChange={(v) => update((d) => ({ ...d, notes: v }), ["notes"])}

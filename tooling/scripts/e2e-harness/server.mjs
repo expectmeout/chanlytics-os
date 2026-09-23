@@ -101,12 +101,25 @@ const refused = (pathname) => ({
 });
 
 /**
+ * The app's own rules beside its stylesheets: legacy-bridge/legacy.css, which the app imports (app/(os)/layout.tsx),
+ * is the mockup's stylesheets in their order and then rules of its own, the 44px floor under a coarse pointer among
+ * them. The mockup's document already links the stylesheets, so the @imports are left out and the rest is served as
+ * it stands, read on every request as the pages are. Without it, a spec on a touch phone measured a Save 26px tall
+ * that the app draws at 44.
+ */
+const APP_CSS = path.resolve(HERE, "../../../apps/dashboard/src/legacy-bridge/legacy.css");
+export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import[^\n]*\n/gm, "");
+
+/**
  * The mockup's document with the fixture FIRST in its head -- before data/bridge-stubs.jsx, which writes only
- * what is missing, and before data/business-tab.js, which the harness then answers with nothing.
+ * what is missing, and before data/business-tab.js, which the harness then answers with nothing -- and the app's own
+ * rules LAST, after every stylesheet, where the app has them.
  */
 export function documentWithFixture() {
   const doc = fs.readFileSync(path.join(LEGACY, "Chanlytics.html"), "utf8");
-  return doc.replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>');
+  return doc
+    .replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>')
+    .replace("</head>", '  <link rel="stylesheet" href="/_hx/app.css" />\n</head>');
 }
 
 /**
@@ -129,6 +142,10 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
       }
       if (p === "/_hx/fixture.js") {
         send(res, 200, TYPES[".js"], fixture);
+        return;
+      }
+      if (p === "/_hx/app.css") {
+        send(res, 200, TYPES[".css"], appRules());
         return;
       }
       if (p === "/data/business-tab.js") {

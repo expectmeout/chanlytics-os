@@ -113,6 +113,11 @@ const btOpenRow = (id) => {
  *   - the prompt sheet holds nothing here: the page holds its state before every card (useBtPromptSheet), and the sheet
  *     is drawn only while the registry has "prompt" open, after the services sheet's editor and never beside its sheet.
  * Whatever sheet comes next goes through this slot too; a page test holds the slot last (business-tab-prompt.test.mjs).
+ *
+ * A row's fold on a phone is a sheet as well (record-fold.jsx), and it is NOT drawn here. The slot is for what is drawn
+ * only while open; a fold holds the same hooks open or closed, as a sheet or under its row, so it is drawn where its row
+ * is and moves no cell after it. Both can be on the page because only one can be open: the registry opens one editor
+ * or sheet at a time, so a row's sheet and this slot's never stand on screen together (business-tab-page.test.mjs).
  */
 const BtSheetSlot = ({ prompt, brain, canEdit, flash, saver }) => (
   <>

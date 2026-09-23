@@ -1,4 +1,4 @@
-/* global React */
+/* global React, Icon */
 // Chanlytics record kit: the fold and the inline editor, and the rule that only one is open.
 //
 // Two of the kit's three gestures (spec §5): the fold, a set of fields opened under the row that states them, and the
@@ -27,6 +27,16 @@
 // Its fields, what saving writes and its foot sit under the value, past the label column the rows keep. A fold whose
 // own grid carries a label column (a week's days, each named) is `wide`: its fields take the fold's whole width, and
 // what saving writes and the foot keep the indent. record.css draws both.
+//
+// On a phone (the kit's one breakpoint, REC_PHONE_QUERY, kept current as the window changes size) an open fold is a
+// sheet rising from the bottom instead (the canvas's Record-Phone): the sheet's own frame (record-sheet.jsx's classes,
+// and record.css's phone sheet), holding the same head, fields, what saving writes and foot. It is a modal dialog named
+// by the fold's label: Tab walks its own controls (data-bits trapTab), a press on the wash is Cancel, and Escape cancels
+// from anywhere, since nothing outside it can hold focus a person means. Focus comes and goes by the fold's own rules
+// (useRecFocus): to its first field as it opens, back to its row's act as it closes. The page never learns which frame
+// drew it: the fold is called the same way, holds the same hooks in the same order, open or closed, at either width,
+// and its registry, its asks and its save are the page's. A width crossed while it is open draws it again in the other
+// frame, still open, with focus in its first field; what was typed is the page's, and stays.
 //
 // A page may draw a fold only while it is open, or keep it and flip `open`. Closed, it is `hidden`, whole: its head
 // and its Close go with its fields, out of sight, the tab order and the accessibility tree, and the row it opens from
@@ -69,6 +79,9 @@
 // for tests (it forgets what is open and asked).
 
 const { useRef: useFoldRef, useEffect: useFoldEffect, useState: useFoldState } = React;
+// The sheet's leaving is put on the page before it paints (useRecLeaving), so a frame with no sheet at all is never
+// seen; a stub React with no layout effect runs it as an effect.
+const useFoldLayout = React.useLayoutEffect || React.useEffect;
 
 const recFolds = (() => {
   let openId = null;
@@ -372,14 +385,16 @@ const useRecFocusOn = (open, box, focusOn) => useFoldEffect(() => {
   const first = row && window.tabStops ? window.tabStops(row)[0] : null;
   if (first && first.focus) first.focus();
 }, [focusOn]);
-const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
+// `frame` names what drew the gesture (a fold on a phone is a sheet): a new frame is a new element, and focus that was
+// in the old one went with it, so it goes to the first thing in the new one, as it does on opening.
+const useRecFocus = (id, open, box, inner, fallback, focusOn = null, frame = null) => {
   const hold = useRecFocusHold(open, box, inner, fallback);
   useFoldEffect(() => {
     if (!open) { hold.forget(); return undefined; }
     const el = box.current;
     recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, el);
-  }, [open, id]);
+  }, [open, id, frame]);
   useRecFocusOn(open, box, focusOn);
   return hold.onFocus;
 };
@@ -389,6 +404,39 @@ const useRecFocus = (id, open, box, inner, fallback, focusOn = null) => {
 // (StrictMode, in development) or comes back as a new instance (a key change, a new parent) keeps hold. One closed, or
 // given way to another, before it goes is no longer the open one, and leaves it alone.
 const useRecDrawn = (id) => useFoldEffect(() => recFolds.drawn(id), [id]);
+// Whether the window is a phone's: the kit's one breakpoint, record.css's `max-width: 760px`, read as Reports reads it
+// (reports-sections.jsx useRptPhone) and kept current as the window changes size.
+const REC_PHONE_QUERY = "(max-width: 760px)";
+const recPhoneQuery = () => (typeof window.matchMedia === "function" ? window.matchMedia(REC_PHONE_QUERY) : null);
+const useRecPhone = () => {
+  const [phone, setPhone] = useFoldState(() => { const q = recPhoneQuery(); return !!(q && q.matches); });
+  useFoldEffect(() => {
+    const q = recPhoneQuery();
+    if (!q || !q.addEventListener) return undefined;
+    const on = (e) => setPhone(!!e.matches);
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  return phone;
+};
+// A modal sheet's Escape from anywhere, while `on`: from inside it, the sheet's own keys take it first and say so
+// (defaultPrevented); with focus on the page's body, where nobody put it, the key is still the sheet's. `cancel` is read
+// as the key arrives, and null (a save that is out) cancels nothing. The listener is on only while the sheet is; the
+// hook is called whether or not it is.
+const useRecSheetEscape = (on, cancel) => {
+  const latest = useFoldRef(cancel);
+  latest.current = cancel;
+  useFoldEffect(() => {
+    if (!on) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented || !latest.current) return;
+      e.preventDefault();
+      latest.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [on]);
+};
 // Escape cancels, unless something inside took the key first (a combobox's list closing); Ctrl or Cmd with Enter saves.
 // Neither while it saves: the save is on its way and closes it when the server takes it, and a Cancel meanwhile would
 // say the change was thrown away. Only its own keys: a portal's bubble through React from outside its DOM (a sheet
@@ -403,7 +451,28 @@ const recKeys = ({ onCancel, onSave, saving, refused }) => (e) => {
 // takes away, under a second (`goneLabel`); and a sentence of the page's own before them (`note`), where the change
 // reaches past its lines. Nothing to say draws nothing, never an empty block. `inline` sets each eyebrow beside its
 // lines, as an inline editor's row does on a desktop; a fold, and every phone, stacks them.
-const RecordSays = ({ id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null, inline = false }) => {
+//
+// Each line is a span of its own inside the block's <pre>, in the same text, newlines and all. `changed` and
+// `goneChanged` are the indexes of the lines of `text` and of `gone` that the draft has just changed: the page works
+// that out, since it holds the block before and after (business-tab-gestures.jsx), and the kit marks those lines
+// `data-changed` for record.css's wash (spec §9, item 3: only the changed clause, once). A line is keyed by its words,
+// so a line rewritten is a new element and washes as it arrives, and a line that stays keeps its element and never
+// washes again, whatever else is marked.
+const recSaysLines = (text, marks) => {
+  const on = new Set(Array.isArray(marks) ? marks : []);
+  const seen = new Map();
+  return text.split("\n").map((line, i) => {
+    const n = (seen.get(line) || 0) + 1;
+    seen.set(line, n);
+    return (
+      <React.Fragment key={`${n}:${line}`}>
+        {i ? "\n" : null}
+        <span className="rec-says-line" data-changed={on.has(i) ? "true" : undefined}>{line}</span>
+      </React.Fragment>
+    );
+  });
+};
+const RecordSays = ({ id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null, inline = false, changed = null, goneChanged = null }) => {
   const writes = typeof text === "string" && text.trim() !== "";
   const drops = typeof gone === "string" && gone.trim() !== "";
   if (!writes && !drops && !note) return null;
@@ -413,13 +482,13 @@ const RecordSays = ({ id = null, testid = null, text = null, label = null, gone 
       {writes ? (
         <div className="rec-says-part" data-part="says">
           {label ? <span className="rec-says-eyebrow">{label}</span> : null}
-          <pre>{text}</pre>
+          <pre>{recSaysLines(text, changed)}</pre>
         </div>
       ) : null}
       {drops ? (
         <div className="rec-says-part" data-part="gone">
           {goneLabel ? <span className="rec-says-eyebrow">{goneLabel}</span> : null}
-          <pre>{gone}</pre>
+          <pre>{recSaysLines(gone, goneChanged)}</pre>
         </div>
       ) : null}
     </div>
@@ -460,27 +529,191 @@ const RecordFoot = ({
   </div>
 );
 
+// ---- A fold's sheet leaving the page ----
+
+// Spec §9, item 1 closes a fold on --ease-in-out, and on a phone a fold is a sheet (below), which React takes off the
+// page the moment the registry closes it: focus goes back to the row's act and the next fold is let in at once, and
+// neither may wait on a motion. So nothing of React's is kept. What leaves is a still copy of the sheet and its wash as
+// they were on screen -- a cloned box and textarea keep their typed values (the HTML clone steps), and the body is put
+// back where it had scrolled to -- in the app's root beside where they stood, with nothing in it to press, focus, name
+// or find: no role, no ids and no test ids anywhere in it, `inert`, hidden from a screen reader. record.css slides it
+// down and fades its wash (data-leaving) on --duration-base and --ease-in-out, and it is gone as its slide ends, or
+// after twice that if no slide runs. Under reduced motion there is no copy at all: the sheet goes at once.
+const REC_LEAVE_FALLBACK_MS = 400;
+const recReducedMotion = () =>
+  typeof window.matchMedia === "function" && !!window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const recStill = (node, deep) => {
+  const copy = node.cloneNode(deep);
+  const all = [copy].concat(copy.querySelectorAll ? Array.from(copy.querySelectorAll("*")) : []);
+  for (const n of all) {
+    n.removeAttribute("id");
+    n.removeAttribute("data-testid");
+  }
+  for (const k of ["role", "aria-modal", "aria-labelledby", "aria-describedby", "aria-busy"]) copy.removeAttribute(k);
+  copy.setAttribute("aria-hidden", "true");
+  copy.setAttribute("inert", "");
+  copy.setAttribute("data-leaving", "true");
+  return copy;
+};
+const recSheetLeaves = (sheet, wash, top) => {
+  const root = document.querySelector ? document.querySelector(".app-root") : null;
+  if (!root || !sheet || !sheet.cloneNode || recReducedMotion()) return;
+  const washCopy = wash && wash.cloneNode ? recStill(wash, false) : null;
+  const sheetCopy = recStill(sheet, true);
+  if (washCopy) root.appendChild(washCopy);
+  root.appendChild(sheetCopy);
+  const body = sheetCopy.querySelector ? sheetCopy.querySelector(".rec-sheet-body") : null;
+  if (body) body.scrollTop = top;
+  let gone = false;
+  const go = () => {
+    if (gone) return;
+    gone = true;
+    sheetCopy.remove();
+    if (washCopy) washCopy.remove();
+  };
+  sheetCopy.addEventListener("transitionend", (e) => { if (e.target === sheetCopy) go(); });
+  setTimeout(go, REC_LEAVE_FALLBACK_MS);
+};
+// A fold's sheet, its wash, and where its body had scrolled to, read as the draw that closes it is made, while React's
+// refs still hold the sheet (by the time it is taken away they are let go of); and, as it goes, its leaving -- only when
+// the fold has CLOSED. A width crossed with the fold open draws it in the other frame, and a page going away takes it
+// with it: neither is a sheet leaving.
+const useRecLeaving = (sheet, open, box) => {
+  const wash = useFoldRef(null);
+  const shown = useFoldRef({ was: false, sheet: null, wash: null, top: 0 });
+  const openNow = useFoldRef(open);
+  openNow.current = open;
+  if (shown.current.was) {
+    shown.current.sheet = box.current || shown.current.sheet;
+    shown.current.wash = wash.current || shown.current.wash;
+  }
+  shown.current.was = sheet;
+  useFoldLayout(() => {
+    if (!sheet) return undefined;
+    return () => {
+      const was = shown.current;
+      shown.current = { was: was.was, sheet: null, wash: null, top: 0 };
+      if (!openNow.current) recSheetLeaves(was.sheet, was.wash, was.top);
+    };
+  }, [sheet]);
+  return { wash, scrolled: (e) => { if (e && e.currentTarget) shown.current.top = e.currentTarget.scrollTop; } };
+};
+
 // ---- The fold: a set of fields, under the row that states them ----
 
 // `confirm` is the page's ask (its Confirm), drawn above the foot while it is open: the section's own "Discard your
 // changes?", or the registry's `asking`. Answered with "Keep editing", focus comes back into the fold (useRecFocus).
 // `focusOn` ({ row }) names a row a list in it has just been given, by the data-rec-row the page put on it: focus goes
 // to that row's first box. A new object each time, so the same row named twice is focused twice.
+// `changed` and `goneChanged` are the lines of `says` and `gone` the draft has just changed, for RecordSays to mark.
 // Not while it saves: nothing asks whether to discard a change that is on its way (the header says what happens to an
 // ask meanwhile), and the fold says it is busy.
 const RecordFold = ({
   id, label, hint = null, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null,
-  footNote = null, confirm = null, focusOn = null,
+  footNote = null, confirm = null, focusOn = null, changed = null, goneChanged = null,
   onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel", closeLabel = "Close",
-  gate = null, wide = false, children = null,
+  gate = null, wide = false, behind = null, children = null,
 }) => {
   const box = useFoldRef(null);
   const ask = saving ? null : confirm;
-  const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", ".rec-fold-close", focusOn);
+  // Every hook here is called on every draw, whichever frame is drawn: the frame is a value, never a hook of its own,
+  // because the tests' stub React keeps every hook on a page in one call order (_legacy-react.mjs).
+  const phone = useRecPhone();
+  const sheet = open && phone;
+  const onFocus = useRecFocus(id, open, box, ".rec-fold-inner", sheet ? ".rec-sheet-close" : ".rec-fold-close", focusOn, sheet);
   useRecDrawn(id);
+  useRecSheetEscape(sheet, saving ? null : onCancel);
+  const leaving = useRecLeaving(sheet, open, box);
   const labelId = `rec-fold-${id}-label`;
   const closeId = `rec-fold-${id}-close`;
   const refused = !!(gate && gate["aria-disabled"]);
+  const keys = recKeys({ onCancel, onSave, saving, refused });
+  // Close, the foot's Cancel and a press on a phone's wash are one Cancel, and none acts while the fold saves (recKeys
+  // says why): Close once cancelled then, where the foot's Cancel and Escape did not.
+  const cancel = (e) => { if (saving) { if (e && e.preventDefault) e.preventDefault(); return; } if (onCancel) onCancel(e); };
+  const told = <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} />;
+  const foot = (
+    <RecordFoot
+      saveTestid={`rec-fold-save-${id}`}
+      cancelTestid={`rec-fold-cancel-${id}`}
+      onSave={onSave}
+      onCancel={onCancel}
+      saving={saving}
+      saveLabel={saveLabel}
+      savingLabel={savingLabel}
+      cancelLabel={cancelLabel}
+      gate={gate}
+      footNote={footNote}
+    />
+  );
+  if (sheet) {
+    const hintId = hint ? `rec-fold-${id}-hint` : undefined;
+    // The sheet's frame, as RecordSheet draws it on a phone: a wash over the page, and the sheet from the bottom with
+    // its head, a body that scrolls and a foot that holds still. Drawn in the app's root for RecordSheet's reasons (a
+    // Settings pane animates itself in with a transform and sizes every child to its column; People's keys hold still
+    // under a dialog there, PL_OVERLAY). The fields and what saving writes scroll; the ask, Save and Cancel stay in the
+    // foot, clear of the home indicator.
+    const node = (
+      <>
+        {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
+            reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
+            on the page. */}
+        <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" ref={leaving.wash} onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
+        <section
+          ref={box}
+          className="rec-sheet rec-fold-sheet"
+          role="dialog"
+          aria-modal={true}
+          aria-labelledby={labelId}
+          aria-describedby={hintId}
+          aria-busy={saving || undefined}
+          data-open="true"
+          data-testid={`rec-fold-${id}`}
+          onFocus={onFocus}
+          onKeyDown={(e) => { if (e.key === "Tab") { window.trapTab(e, e.currentTarget); return; } keys(e); }}
+        >
+          <header className="rec-sheet-head">
+            <div className="rec-sheet-heading">
+              <h2 className="rec-sheet-title" id={labelId}>{label}</h2>
+              {hint ? <p className="rec-sheet-sub" id={hintId}>{hint}</p> : null}
+            </div>
+            <button
+              type="button"
+              className="rec-sheet-close"
+              id={closeId}
+              aria-label={closeLabel}
+              aria-labelledby={`${closeId} ${labelId}`}
+              aria-disabled={saving || undefined}
+              onClick={cancel}
+              data-testid={`rec-fold-close-${id}`}
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </header>
+          <div className="rec-sheet-body" onScroll={leaving.scrolled}>
+            <div className="rec-fold-inner">
+              {children}
+              {told}
+            </div>
+          </div>
+          <footer className="rec-sheet-foot">
+            {ask}
+            {foot}
+          </footer>
+        </section>
+      </>
+    );
+    const root = document.querySelector ? document.querySelector(".app-root") : null;
+    const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
+    // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`): a card a
+    // row shorter under the wash grew back as the sheet left, which its leaving would have put on show.
+    // Behind the modal sheet it is a picture of the row, not the row: a box that lays out as nothing (record.css), so the
+    // card is as it was, aria-hidden and inert, so its act can be neither pressed, focused nor read out. `inert` is set
+    // through the ref, since React 18 and 19 spell the prop differently (this file's header). Keyed, so the fold's own
+    // box, drawn in its place as it closes, is never this one reused: it would carry `display: contents` into its close.
+    const shield = (n) => { if (n) n.setAttribute("inert", ""); };
+    return behind ? <><div key="behind" className="rec-fold-behind" aria-hidden="true" ref={shield}>{behind}</div>{drawn}</> : drawn;
+  }
   return (
     <div
       ref={box}
@@ -493,20 +726,19 @@ const RecordFold = ({
       data-wide={wide ? "true" : undefined}
       data-testid={`rec-fold-${id}`}
       onFocus={onFocus}
-      onKeyDown={recKeys({ onCancel, onSave, saving, refused })}
+      onKeyDown={keys}
     >
       <div className="rec-fold-head">
         <span className="rec-fold-label" id={labelId}>{label}</span>
         <span className="rec-fold-hint">{hint}</span>
-        {/* Close is Cancel, so it too does nothing while the fold saves (recKeys says why); it cancelled then, where
-            the foot's Cancel and Escape did not. Not disabled, as Save is not. */}
+        {/* Close is Cancel (above). Not disabled while the fold saves, as Save is not. */}
         <button
           type="button"
           className="rec-fold-close"
           id={closeId}
           aria-labelledby={`${closeId} ${labelId}`}
           aria-disabled={saving || undefined}
-          onClick={(e) => { if (saving) { e.preventDefault(); return; } if (onCancel) onCancel(e); }}
+          onClick={cancel}
           data-testid={`rec-fold-close-${id}`}
         >
           {closeLabel}
@@ -515,20 +747,9 @@ const RecordFold = ({
       <div className="rec-fold-body">
         <div className="rec-fold-inner">
           {children}
-          <RecordSays id={`rec-fold-${id}-says`} testid={`rec-fold-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} />
+          {told}
           {ask}
-          <RecordFoot
-            saveTestid={`rec-fold-save-${id}`}
-            cancelTestid={`rec-fold-cancel-${id}`}
-            onSave={onSave}
-            onCancel={onCancel}
-            saving={saving}
-            saveLabel={saveLabel}
-            savingLabel={savingLabel}
-            cancelLabel={cancelLabel}
-            gate={gate}
-            footNote={footNote}
-          />
+          {foot}
         </div>
       </div>
     </div>
@@ -558,7 +779,7 @@ const RecordFold = ({
 const RecordInline = ({
   id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
   confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
-  keys = "Esc cancels · ⌘↵ saves", gate = null, children = null,
+  keys = "Esc cancels · ⌘↵ saves", gate = null, changed = null, goneChanged = null, children = null,
 }) => {
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
@@ -585,7 +806,7 @@ const RecordInline = ({
       <div className="rec-inline-body">
         {disputed && Dispute ? <Dispute disputed={{ value: disputed.value, source: disputed.source, sentence: disputed.sentence }} /> : null}
         {children}
-        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} inline />
+        <RecordSays id={`rec-inline-${id}-says`} testid={`rec-inline-says-${id}`} text={says} label={saysLabel} gone={gone} goneLabel={goneLabel} note={note} changed={changed} goneChanged={goneChanged} inline />
         {ask}
         <RecordFoot
           saveTestid={`rec-inline-save-${id}`}

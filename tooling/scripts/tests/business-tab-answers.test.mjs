@@ -916,7 +916,7 @@ test("more reasons than the profile keeps are refused under the reasons' box", (
   assert.equal(sent.length, 0);
   assert.equal(problemOf(tree, "bt-escalate-when"), "At most 20 reasons, one to a line — this is 21.");
   assert.equal(
-    labelled(tree, "Your reasons, one per line"),
+    labelled(tree, "Your reasons"),
     null,
     "the box is named by its label, which holds it, not a second name",
   );

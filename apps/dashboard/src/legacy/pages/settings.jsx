@@ -1580,7 +1580,7 @@ const SET_SOON = {
   memory: {
     title: "AI memory",
     chip: "Not built yet",
-    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Business: the business details, hours, services, notes and the extra instructions saved there.",
+    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Business: who you are, when you're open, what you offer, the things it should know and what you tell it in your own words.",
     action: { label: "Open Business", tab: "workspace", icon: "home" },
   },
 };

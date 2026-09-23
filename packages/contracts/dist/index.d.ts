@@ -10939,8 +10939,8 @@ declare function promptTotalWords(total: number): string;
  * A plain literal of strings: nothing in it runs, so the four dists that never draw the tab leave it out.
  */
 declare const PROMPT_READERS: {
-    readonly whatsapp: "every WhatsApp message, word for word";
-    readonly voice: "every phone call, composed when the call starts";
+    readonly whatsapp: "Every WhatsApp message, word for word";
+    readonly voice: "Every phone call, composed when the call starts";
 };
 /**
  * What is sent beside the prompt: the clock, the closures that land today and the calendar's openings, rebuilt for

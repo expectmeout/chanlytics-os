@@ -33,6 +33,10 @@
    the one that takes an ink of its own, since a person has to settle it. */
 .rec-src { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .rec-src[data-tone="warn"] { color: var(--warn-ink); }
+/* The save settle (spec §9, item 4): a row drawn again by its editor's save (data-settled, the page's word) lets its
+   value arrive on the house's own rise-in, once, as the fold folds away under it and the toast rises. The label holds
+   still; a row drawn with its page, or after a Cancel, is simply there. */
+.rec-row[data-settled="true"] .rec-row-val { animation: rise-in var(--duration-base) var(--ease-out) backwards; }
 /* A sentence under the value takes a line of its own. */
 .rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
 /* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.
@@ -91,6 +95,16 @@
 .rec-fold-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--duration-base) var(--ease-out), opacity var(--duration-base) var(--ease-out); }
 .rec-fold-body > * { overflow: hidden; }
 @starting-style { .rec-fold-body { grid-template-rows: 0fr; opacity: 0; } }
+/* And it folds away as it closes (spec §9, item 1: --ease-in-out closing), the mirror of its opening: the head gives
+   way to the row at once, as the row gave way to it, and the fields fold up under the row on the same rows and
+   opacity. Nothing is kept by the page or the registry to do it: the fold is `hidden` the moment it closes, so focus
+   goes back to the row's act and the one-open rule lets the next fold in exactly when they did; the stylesheet alone
+   holds its box on screen for the fold's duration (display, allow-discrete) while it folds, then lets it go. For those
+   200ms what folds away takes no press. */
+.rec-fold { transition: display var(--duration-base) allow-discrete; }
+.rec-fold[hidden] { pointer-events: none; }
+.rec-fold[hidden] .rec-fold-head { display: none; }
+.rec-fold[hidden] .rec-fold-body { grid-template-rows: 0fr; opacity: 0; transition-timing-function: var(--ease-in-out); }
 /* The fields, what saving writes and the foot start under the value, past the label column (Edit-Fold's body is
    `padding: 8px 18px 0 168px`); 4px more either side, so the clip that folds the body never cuts a focused field's
    ring. A fold whose own grid carries a label column (a week, its days named) is wide: its fields take the whole
@@ -116,6 +130,14 @@
    typeface: these are sentences about a business, and a second face on a card of sentences is the first thing an
    owner notices about the page. */
 .rec-says pre { flex: 1; min-width: 0; margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The line the draft has just changed (RecordSays marks it; the page works out which), washed in the kit's one
+   on-and-ok tint and let go to nothing over 400ms, once (spec §9, item 3): the eye goes to the clause that moved and
+   the rest of the block holds still. No keyframe: the line is a new element whenever its words change (keyed by
+   them), so a transition from where it starts plays as it arrives, and a line that stays never plays again. Only its
+   ground moves, never its box: an inline span with no padding, so nothing re-lays out, and the wash follows a
+   wrapped line onto the next. */
+.rec-says-line[data-changed="true"] { border-radius: var(--radius-xs); -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-color calc(2 * var(--duration-base)) var(--ease-out); }
+@starting-style { .rec-says-line[data-changed="true"] { background-color: var(--ok-soft); } }
 .rec-says[data-inline="true"] { padding: 9px 11px; }
 .rec-says[data-inline="true"] .rec-says-part { flex-direction: row; align-items: flex-start; gap: 9px; }
 .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 2px; }
@@ -127,6 +149,10 @@
 .rec-foot-note { flex: 1; min-width: 0; text-align: right; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-foot-keys { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 
+/* A fold's row, drawn behind its sheet on a phone (record-fold.jsx `behind`): its box lays out as nothing, so the row
+   stands in its card exactly where it stood. */
+.rec-fold-behind { display: contents; }
+
 /* ---------- An inline editor: one value, edited in the row that states it ---------- */
 /* The row itself becomes the field (spec §5): the label stays in the label column, and the box, what it will say,
    and Save and Cancel take the value's place. Closed, it is hidden whole, as a closed fold is. */
@@ -136,6 +162,15 @@
    names it), and RecordField keeps its 5px gap under the label it leaves empty. */
 .rec-inline-key { flex: 0 0 var(--rec-key); padding-top: 12px; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-inline-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+/* The value becomes its field (spec §9, item 2): the label holds its place on the row's line, and what stood beside it
+   gives way to the box in a 120ms cross-fade, as the editor appears (a transition from @starting-style, no keyframe).
+   The box's focus ring is drawn inside what fades, so it is not seen on the first frame, and arrives with the second;
+   the caret is put at the end of the value as focus lands (record-fold.jsx recFocusIn). A fold's head does the same
+   where the value was, its hint, while its fields unfold under it. */
+.rec-inline-body, .rec-fold-hint { transition: opacity var(--duration-fast) var(--ease-out); }
+@starting-style {
+  .rec-inline:not([hidden]) .rec-inline-body, .rec-fold:not([hidden]) .rec-fold-hint { opacity: 0; }
+}
 
 /* ---------- A sheet: a list you scroll, beside the page ---------- */
 /* Over the shell as well as the page: the phone's tab bar (120) and drawer (220) sit above anything at a page's level,
@@ -166,10 +201,12 @@
    where the sheet rises from the bottom over the whole width, it is lifted above the sheet's foot. The height is the
    foot's with its line of what it will be told on two lines and an ask above Save: a toast over the rows hides a row
    for a few seconds, and one over Save hides the one press that finishes. */
-:root:has(.rec-sheet) .pp-toast-stack { bottom: calc(184px + env(safe-area-inset-bottom)); }
+/* A sheet on its way out (data-leaving, below) is not a sheet a toast has to clear: the toast a save raises would
+   otherwise start over where the sheet's foot was and drop as the sheet went. */
+:root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: calc(184px + env(safe-area-inset-bottom)); }
 @media (min-width: 1140px) {
-  :root:has(.rec-sheet) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
-  :root:has(.rec-sheet) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast-stack { bottom: 18px; left: calc((100vw - min(540px, 92vw)) / 2); }
+  :root:has(.rec-sheet:not([data-leaving])) .pp-toast { max-width: min(560px, calc(100vw - min(540px, 92vw) - 32px)); }
 }
 
 /* ---------- A field: a label, a box, a hint or what is wrong with it ---------- */
@@ -309,9 +346,32 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* The sheet rises from the bottom, and its foot clears the home indicator. */
   .rec-sheet { top: auto; left: 0; width: auto; height: 88vh; height: 88dvh; border-left: none; border-top: 1px solid var(--line-strong); border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
   .rec-sheet-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
+     voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
+     duration and easing (spec 9, item 1), and its wash comes in with it: a transition from where it starts, as the
+     fold's own opening is, never a keyframe. As the fold closes it goes down the way it came, on --ease-in-out (spec
+     9, item 1), its wash fading with it: React has taken it off the page by then, so what goes is a still copy of it
+     (record-fold.jsx recSheetLeaves, data-leaving), with nothing in it to press, and it is removed as its slide ends. */
+  .rec-sheet.rec-fold-sheet { height: auto; max-height: 88vh; max-height: 88dvh; transition: transform var(--duration-base) var(--ease-out); }
+  .rec-sheet-backdrop[data-fold="true"] { transition: opacity var(--duration-base) var(--ease-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet { transform: translateY(100%); }
+    .rec-sheet-backdrop[data-fold="true"] { opacity: 0; }
+  }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: translateY(100%); pointer-events: none; transition: transform var(--duration-base) var(--ease-in-out); }
+  .rec-sheet-backdrop[data-leaving="true"] { opacity: 0; pointer-events: none; transition: opacity var(--duration-base) var(--ease-in-out); }
+  @starting-style {
+    .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; }
+    .rec-sheet-backdrop[data-leaving="true"] { opacity: 1; }
+  }
+  /* The sheet's body carries the gutter; the fields keep the fold's 4px either side for a focused box's ring. */
+  .rec-fold-sheet .rec-fold-inner { padding-block: 16px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
-  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
+  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close,
+  .rec-sheet.rec-fold-sheet, .rec-sheet-backdrop[data-fold="true"] { transition: none; }
+  /* The kit puts no leaving copy on the page under reduced motion; were one there, it is not drawn. */
+  .rec-sheet[data-leaving], .rec-sheet-backdrop[data-leaving] { display: none; }
 }

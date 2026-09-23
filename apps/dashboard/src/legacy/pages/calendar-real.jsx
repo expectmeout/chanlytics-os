@@ -658,7 +658,8 @@ const CalendarReal = ({ initialDay = null }) => {
               </span>
             )}
             <span className="cal-rules-group">
-              <span className="cal-rules-label">Calendar</span>
+              {/* The Business tab's name for it, word for word (spec §10): one name for one thing on both pages. */}
+              <span className="cal-rules-label">Calendar it reads</span>
               <span className="cal-rules-value cal-rules-feed">
                 {/* The state in the pill Connections and Setup use, and only the details beside it (C3): a coloured dot said
                     it here, in no word those pages use. */}

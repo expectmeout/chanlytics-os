@@ -159,6 +159,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 
 **Fold.** Opens under its row inside the card, `grid-template-rows: 0fr → 1fr`. The accent left edge marks it. Its footer carries the composed block and its own Save. One at a time: opening another closes a clean fold and asks about a dirty one. The rows below are pushed, never covered, and the fold's top edge does not move.
 
+> **Amended 22 Sep, in execution (Task 6.2b).** On a phone (760px and under) an open fold rises from the bottom as a sheet instead: the same head, fields, composed block and Save, in the sheet's frame, modal, as tall as what it holds up to 88% of the screen. A press on the wash behind it is its Cancel, so reaching for another row asks about what was typed. The inline editor stays in its row at every width: one value, already the row's full width on a phone.
+
 **Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
 
 > **Amended 22 Sep, in execution (Task 5.1).** The prompt's sheet has no search and nothing to save. Its head is the title and who reads it (no count); its tools the channel, WhatsApp or Phone; its body the contents ("Written by", an entry per block with ONE thin bar as long as the block's share, the exact count only in the entry's accessible description and tip) beside the blocks (each its row's label, its door back to that row, its text in the page's face, its note), then what is sent beside the prompt under a dashed rule with the reason it is apart. On a phone the contents are not drawn, each block's head says its share in words, and the foot is one Close; on a desktop it has no foot. Both sheets go through one slot, drawn last on the page, which draws one of them or neither.
@@ -180,6 +182,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 | `RecordToggleGroup` | `.cl-tabs` used as a radiogroup |
 | `RecordTip` / `RecordTipCard` | `set-mark` + `window.__tip`, formalised as two tiers |
 | `RecordCombobox` | the 418-option timezone `<select>`, and the language add |
+
+> **Amended 22 Sep, in execution (Task 6.2b).** `RecordFold` is one component with two frames: under the phone query it draws itself in `RecordSheet`'s phone frame (a dialog in the app's root) and above it folds inline, with the same hooks either way, so a page calls it the same way at every width. `RecordSheet` itself is unchanged.
 
 Not built, and why: DatePicker (native `type="date"` is deliberate — 31 November cannot be typed), DataTable (`PeopleTable` is one; Settings has no table), Command (⌘K is Ask, shell-owned), Pagination, Drawer, Progress, Carousel, Menubar, Message/Bubble.
 
@@ -230,6 +234,8 @@ Four additions to the grammar `components.css` already documents (rise-in + 30ms
 
 Four refusals: nothing pulses (the accent means a live call); no skeleton shimmer (a read in flight dims the last value); no number counts up; every new selector joins the `prefers-reduced-motion` block.
 
+> **Amended 22 Sep, in execution (Task 6.1).** Two items are narrower than written. Item 2 is a 120ms fade-in of the editor's body (and of a fold's hint) as it appears, while the value it replaces leaves at once: the row is taken off the page as its editor opens, so there is nothing left to fade out, and the label holding its place is what keeps the line steady. The focus ring is inside what fades, so it is first seen on the second frame. Item 4's toast rises 6px, not 8: it is the house's shared toast (`components.css` `pp-toast-in`), which this work edited only in its reduced-motion list. Item 1's closing is built in both frames: an inline fold folds away on `--ease-in-out`, held on screen by the stylesheet for its duration, and a phone's sheet goes down the way it came as a still copy, with its row drawn behind it so the card never moves.
+
 ## 10. The words
 
 | Retired | Kept |
@@ -255,6 +261,17 @@ Sentence case throughout; no colons in a label; the label names the thing and th
 
 > **Amended again 22 Sep, in execution (Task 5.1).** The told section has no Show: its door is **Read it**, which opens the prompt sheet, and its phrase follows the channel last chosen ("every phone call, composed when the call starts" on Phone). The character count is on no glass at all -- a block's cost is its share, a thin bar, or "a quarter of everything it reads" on a phone, and the count is the accessible description of the entry that draws it. What is sent beside the prompt is "Sent alongside it, rebuilt for every message", and "... for every call" on Phone, where it said "every message" on both.
 
+> **Amended 22 Sep, in execution (Task 6.2).** Four settlements, each held by `business-tab-words.test.mjs`, which draws the tab (at rest, both sheets open, a viewer's page and an empty record) and asserts every retired phrase absent, every kept one present and every label sentence case with no colon and no instruction in it:
+>
+> | Retired | Kept |
+> |---|---|
+> | Transfers a caller to (Who you are's row label) | **Transfer number** -- the row stays: it is the number's one editor (§4.2, §4.5's amendment, Task 3.2), and one fact has one editor. *Hands you a customer* is the one hand-off row, naming both channels, and it reads the number and opens this row. What §10 retired was the label, a phrase, where the rule is that a label names the thing |
+> | Your reasons, one per line · Anything else about booking, one per line | **Your reasons** · **Anything else about booking**, with "One per line." as the hint under each box |
+> | every WhatsApp message, word for word (the told section's line, lower case) | **Every WhatsApp message, word for word**, and **Every phone call, composed when the call starts**: a line on its own starts as a sentence |
+> | Calendar (the Calendar page's rules bar) | **Calendar it reads**, the Business row's name, on both pages |
+>
+> *what it's told* is the told section, **What your receptionist is told** (Task 5.1), with its door **Read it**; its rows each name their own part (*Things it should know*, *In your own words*).
+
 ## 11. What is on screen
 
 At rest: **four** controls — *Read what it's told*, the standing line's one link, *Download*, and the one act under the pointer. Twenty more are in the tab order at all times and draw themselves on hover or focus.
@@ -262,6 +279,8 @@ At rest: **four** controls — *Read what it's told*, the standing line's one li
 Four things are never hidden: anything wrong or missing; the act on an empty row; everything on a touch screen (no hover on a phone — the whole row is the act and the chevron is always drawn); and the keyboard path.
 
 > **Amended 22 Sep, in execution (Task 5.1).** The first of the four is **Read it**, the door of the told section after *What it can do* (§4's amendment), not a *Read what it's told* in the head. Inside the prompt sheet, each block's door back to its row follows the same rule: drawn when its block is hovered or holds focus, and always on a touch screen and at a phone's width.
+
+> **Amended again 22 Sep, in execution (Task 6.3).** Counted, the claim is narrower in one way and wider in two. At rest, with the pointer away, a whole record (the salon's) draws **Read it**, **Download** under the tab (Your data's, with its mark and the two links in its deletion sentence), and nothing of the other twenty -- but also two things §11 did not count: the **Connections** link in Who you are's foot sentence, which is a word of that sentence rather than an act beside it, and whatever the four exceptions below put there (on the salon: *Add one* on Days you're closed, which is empty, and *Turn it on* beside Look at a photo, which is missing). The standing line's link is drawn only when there is a gap to close, so a whole record has none. The one act under the pointer is drawn on approach, and only it. `business-tab-page.test.mjs` names the four the tab draws at rest on a whole record and holds an empty one to the exceptions; the journey measures it by computed style at 1280 (pointer away, then on a filled row) and holds every act drawn at 390.
 
 ## 12. Tests
 

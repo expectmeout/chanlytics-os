@@ -36,6 +36,9 @@
 //   the page writes (a fact that is missing and needed), drawn under the value and describing the act that fixes it. A
 //   minor disagreement keeps its warn pill and its line at full strength and leaves the row as it is, its act waiting
 //   to be approached like any other: Group-Who washes only the phone conflict, not the address written two ways.
+// - `settled` is the page's word that this row has just been drawn again by its editor's save (spec §9, item 4, the
+//   save settle): data-settled="true", and record.css lets the value arrive on the house's rise-in, once, as the row
+//   appears. A row drawn with its page, or after a Cancel, says nothing, and is simply there.
 
 // A fallback for the press that takes the other answer, by where the answer came from. The page passes `useLabel`,
 // since it knows what the answer is; these stand in when it does not. A source's words (contracts SOURCE_WORDS:
@@ -107,7 +110,7 @@ const RecordDispute = ({ id = null, disputed }) => {
 
 const RecordRow = ({
   id = null, label, value = null, empty = null, hint = null, source = null, sourceLabel = null,
-  disputed = null, wrong = null, act = null, top = false, testid = null, children = null,
+  disputed = null, wrong = null, act = null, top = false, testid = null, settled = false, children = null,
 }) => {
   const isEmpty = recEmpty(value);
   const kids = recHasKids(children);
@@ -121,6 +124,7 @@ const RecordRow = ({
       data-empty={isEmpty ? "true" : "false"}
       data-state={wrong || (disputed && disputed.severity === "serious") ? "warn" : undefined}
       data-testid={testid || (id ? `rec-row-${id}` : undefined)}
+      data-settled={settled ? "true" : undefined}
     >
       <span className="rec-row-key" id={keyId}>{label}</span>
       <div className="rec-row-val">
