@@ -43395,12 +43395,17 @@ function holdPlan(replyMode, replyLimits, brainMeta) {
   if (heldForConfidence) delayMs = replyDelayMs("veto", replyLimits);
   return { delayMs, heldForConfidence, source: heldForConfidence ? "low_confidence" : "veto_window", minConfidence };
 }
+function urgentLine(x) {
+  const phone = resolveFacts(x.brainCfg, x.known).phone_display.value;
+  return phone ? ` For anything urgent, call ${phone}.` : "";
+}
 function layerTwo(x) {
   let { replyText, escalate, escalationReason } = x;
+  const urgent = urgentLine(x);
   let priceBlocked = false;
   if (violatesNoPrices(replyText)) {
     priceBlocked = true;
-    replyText = `Great question! Pricing is quoted at your consult \u2014 a member of our team will follow up here shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+    replyText = `Great question! Pricing is quoted at your consult \u2014 a member of our team will follow up here shortly.${urgent}`;
     escalate = true;
     escalationReason = "policy_block";
   }
@@ -43410,9 +43415,9 @@ function layerTwo(x) {
     const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
     complied = askClass === "booking" ? !carriesLink : escalate;
     if (askClass === "booking" && carriesLink) {
-      replyText = `A member of our team will confirm your booking with you shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+      replyText = `A member of our team will confirm your booking with you shortly.${urgent}`;
     } else if (askClass === "faq" && !escalate) {
-      replyText = `A member of our team will get back to you with the details shortly. For anything urgent, call ${x.brainCfg.phone_display}.`;
+      replyText = `A member of our team will get back to you with the details shortly.${urgent}`;
     }
     escalate = true;
     escalationReason = "policy_ask";
@@ -43807,7 +43812,8 @@ ${openings}` : ""}`,
         escalationReason,
         brainCfg,
         policy: rt?.policy,
-        intent: brainMeta?.intent ?? null
+        intent: brainMeta?.intent ?? null,
+        known: rt?.known
       });
       if (two.priceBlocked) L4.warn("policy_block_price");
       if (two.askClass)

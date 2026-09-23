@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode } from "./_source.mjs";
+import { formatPhoneDisplay } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../../..");
@@ -115,6 +116,45 @@ test("layer two: a price blocks the send; under ask a link is taken back and an 
     [null, null, false, "human_token", false],
   );
   assert.equal(plain.replyText, `Book here: ${brainCfg.booking_link}`);
+});
+
+test("layer two: the urgent line names the number the facts resolve to, and a workspace with none ends the sentence cleanly", () => {
+  const base = {
+    escalate: false,
+    escalationReason: "human_token",
+    policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
+  };
+  // The three replies layer two writes itself: the price block, the booking taken back, the answer held.
+  const replaced = (cfg, known) =>
+    [
+      { replyText: "A blowout is $45 today.", intent: "pricing" },
+      { replyText: `Book here: ${cfg.booking_link}`, intent: "booking" },
+      { replyText: "We open at 9 and do balayage.", intent: "services" },
+    ].map((m) => layerTwo({ ...base, ...m, brainCfg: cfg, known }).replyText);
+
+  for (const t of replaced(brainCfg, undefined))
+    assert.ok(t.endsWith(" For anything urgent, call (305) 555-0100."), `a typed number is the one named: ${t}`);
+
+  const LINE = "+13055550123";
+  const untyped = { ...brainCfg, phone_display: undefined };
+  const answering = { channels: [{ kind: "voice", number_e164: LINE, status: "active" }] };
+  for (const t of replaced(untyped, answering))
+    assert.ok(
+      t.endsWith(` For anything urgent, call ${formatPhoneDisplay(LINE)}.`),
+      `no typed number: the line the receptionist answers, formatted for a person: ${t}`,
+    );
+
+  const bare = replaced(untyped, null);
+  assert.deepEqual(
+    bare,
+    [
+      "Great question! Pricing is quoted at your consult — a member of our team will follow up here shortly.",
+      "A member of our team will confirm your booking with you shortly.",
+      "A member of our team will get back to you with the details shortly.",
+    ],
+    "no number anywhere: the sentence ends where it ends",
+  );
+  for (const t of bare) assert.ok(!/undefined|call\s*\./.test(t), `never "call undefined." or "call .": ${t}`);
 });
 
 test("a held thread says why, to the Inbox and to the alert, and a broken config is named as a mistake", () => {

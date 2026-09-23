@@ -772,6 +772,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
         brainCfg,
         policy: rt?.policy,
         intent: brainMeta?.intent ?? null,
+        known: rt?.known,
       });
       if (two.priceBlocked) L.warn("policy_block_price");
       if (two.askClass)
