@@ -298,7 +298,7 @@ test("sections: one body each, under a head row with no id that names it, counts
       {
         key: "one",
         label: "Consultations",
-        meta: "1 held, no proposal yet",
+        meta: "1 held in the last week, no proposal yet",
         rows: SECTIONED.slice(0, 2),
         collapsed: false,
       },
@@ -311,7 +311,7 @@ test("sections: one body each, under a head row with no id that names it, counts
         onToggle: () => {
           toggled += 1;
         },
-        toggle: "Show 1",
+        toggle: "Show",
       },
     ],
   });
@@ -331,14 +331,14 @@ test("sections: one body each, under a head row with no id that names it, counts
   );
   assert.equal(textOf(find(h1, (n) => n.props?.className === "pl-sec-label")), "Consultations");
   assert.equal(textOf(find(h1, (n) => n.props?.className === "tally")), "2", "the count is the one count, a tally");
-  assert.equal(textOf(byTestId(h1, "table-section-meta")), "1 held, no proposal yet");
+  assert.equal(textOf(byTestId(h1, "table-section-meta")), "1 held in the last week, no proposal yet");
   assert.equal(byTestId(h1, "table-section-toggle"), null, "a section that does not fold has nothing to press");
   // A collapsed section is its head alone, whose toggle says what opens it and presses the page's fold.
   assert.deepEqual(idsIn(t), ["person-c1", "person-c2"]);
   assert.equal(byTestId(h2, "table-section-meta"), null);
   assert.match(h2.props.className, /\bis-folded\b/);
   const toggle = byTestId(h2, "table-section-toggle");
-  assert.deepEqual([textOf(toggle), toggle.props["aria-expanded"]], ["Show 1", false]);
+  assert.deepEqual([textOf(toggle), toggle.props["aria-expanded"]], ["Show", false]);
   toggle.props.onClick();
   assert.equal(toggled, 1);
   // Select-all takes the rows shown, and the foot counts every row the page has.

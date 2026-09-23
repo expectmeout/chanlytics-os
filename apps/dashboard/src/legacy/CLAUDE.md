@@ -2,7 +2,8 @@
 
 > **Status, 11 September 2026.** This tree is the signed-in operator shell, bridged to real data by `src/legacy-bridge`
 > (see `surface-registry.ts` for which surfaces are real). The mockup-only surfaces — Agents (fleet, store, studio,
-> tasks), Content, Pipeline, the shared report viewer — stay here and stay hidden from every real workspace.
+> tasks), Content, the Deal board (`#/pipeline`), the shared report viewer — stay here and stay hidden from every real
+> workspace. People's Pipeline (`clients/pipeline`, 0008) is real, and is not that board.
 > Ruben's decision: most of it is revisited when the product is at 100%; none of those features is built before then.
 > Nothing below this line is a plan to build them.
 >

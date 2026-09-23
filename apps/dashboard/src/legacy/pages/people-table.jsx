@@ -25,6 +25,10 @@ const plDrawnColumns = (columns, choices, x) => columns.filter((c) => !c.needs |
 const plShownColumns = (drawn, phone) => (phone ? drawn : drawn.filter((c) => !c.off));
 
 const PL_NO_SEL = new Set();
+// The table's default for a door its page does not pass: one function for the page's life. A default written in the
+// parameter list is a new function on every draw, and the memoised rows handed one (onToggle, onCursor) drew again on
+// every keystroke, J, fold and toast of a page that never selects -- the Pipeline's.
+const PL_NOOP = () => {};
 // The rows a fresh mount draws first; the page lifts the budget a frame later (clients-a.jsx rowBudget). The switch
 // between People and Leads is a remount, and the Leads table's rows were most of what it waited on: measured on the
 // salon, a 250 ms draw of 96 leads, 125 ms with the first 24. Enough rows for a tall screen's first view.
@@ -67,10 +71,10 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // The columns are the page's to choose (plShownColumns): the table draws every one it is given.
 // `sections`: the rows in groups (the Pipeline's stages), [{ key, label, meta, rows, collapsed, onToggle, toggle }], each
 // its own <tbody> under a header row that names it, counts its rows and says its meta; a collapsed one draws its header
-// alone, with its `toggle` (the words that open it, "Show 4") pressing `onToggle`. The header row has no id, so the
+// alone, with its `toggle` (the words that open it, "Show") pressing `onToggle`. The header row has no id, so the
 // cursor and select-all, which go by rows' ids, pass it by. `rows` is still every row shown, in their order: what the
 // foot counts, select-all takes and the cursor walks. Without `sections` the table is one body, as it always was.
-const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null, busy = false, selectMode = false, sections = null }) => {
+const PeopleTable = ({ budget = Infinity, columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = PL_NOOP, onToggleAll = PL_NOOP, cursor = null, onCursor = PL_NOOP, empty = null, scrolled = false, onScrolled = PL_NOOP, noun = "person", rowClass = null, busy = false, selectMode = false, sections = null }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
   // `selectMode`: the page's Select people (a phone's more-menu), a selection begun with nobody picked yet: the faces are
   // rings from the start.

@@ -338,7 +338,11 @@ test.describe("Phone shell on a real workspace", () => {
         await bar.evaluate((el) => el.scrollWidth - el.clientWidth),
         `${testid}: nothing inside the bar runs past it`,
       ).toBeLessThanOrEqual(0);
-      for (const tab of await bar.getByRole("tab").all()) await expect(tab).toBeInViewport({ ratio: 1 });
+      for (const tab of await bar.getByRole("tab").all()) {
+        await expect(tab).toBeInViewport({ ratio: 1 });
+        // Each tab keeps the touch floor's 44px across: the bar's spacing gives way, never a tab.
+        expect((await tab.boundingBox())!.width, `${testid}: a tab a thumb can hit`).toBeGreaterThanOrEqual(44);
+      }
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
         `${testid}: the page does not scroll sideways`,

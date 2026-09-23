@@ -2322,12 +2322,13 @@
 /* The switch stands as tall as the list button beside it (44px with its frame); its halves are 38px, not the touch
    floor's 44 each, which drew the switch 50px tall beside a 44px button. */
 html.legacy-on .pp-bar .pt-scope button { min-height: 0; }
-/* Three scopes (the Pipeline, where deals are on): each tab as wide as its word and a little tighter, and the bar's
-   gaps too, so the list button keeps room for its words beside search and the last control at 375px (measured in
-   Geist: "Everyone" whole on People's bar). What still does not fit is the list's name, which an ellipsis shortens. */
+/* Three scopes (the Pipeline, where deals are on): each tab as wide as its word, and never under the touch floor's
+   44px ("Leads" was 43); the room comes from the spacing, never the type: the switch's own gaps and the bar's close
+   up, so the list button keeps its words beside search and the last control at 375px (measured in Geist: "Everyone"
+   whole on People's bar). What still does not fit is a list's name, which an ellipsis shortens. */
 .pp-bar:has(> .pt-scope > :nth-child(3)) { gap: 4px; }
-.pp-bar .pt-scope:has(> :nth-child(3)) { grid-auto-columns: auto; }
-.pp-bar .pt-scope:has(> :nth-child(3)) button { min-width: 0; padding: 0 4px; }
+.pp-bar .pt-scope:has(> :nth-child(3)) { grid-auto-columns: auto; gap: 1px; }
+.pp-bar .pt-scope:has(> :nth-child(3)) button { min-width: 44px; padding: 0 4px; }
 /* The page's menu is taller than a menu's 340px on a touch screen (44px items): it takes the room the phone has. */
 .pp-bar .more-menu { max-height: min(520px, calc(100vh - 140px)); }
 .pp-bar-pick { flex: 0 1 auto; min-width: 0; height: 40px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }

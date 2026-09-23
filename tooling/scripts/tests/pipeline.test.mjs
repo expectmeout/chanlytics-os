@@ -221,7 +221,7 @@ test("each row says one chip, and warn only where something waits on the owner",
   assert.deepEqual(said("wes"), ["Nothing back in 11 d", "warn"]);
   assert.deepEqual(said("nia"), ["No link", "warn"], "no link to it outranks the wait: there is nothing to send again");
   assert.deepEqual(said("lars"), ["Lapsed Sep 20", "warn"]);
-  assert.deepEqual(said("will"), ["They wrote Mon", "info"]);
+  assert.deepEqual(said("will"), ["Heard back Mon", "info"], "what came back, not how: a message or a call");
   assert.deepEqual(said("val"), ["Valid until Sep 30", "plain"]);
   assert.equal(said("fay"), null, "a proposal a day old, with its link and nothing to say: no chip");
   // Clients: since when. Passed or ended: why, else the stage, and the day.
@@ -258,14 +258,16 @@ test("a row's service, value and time in stage: a proposal's time in stage is th
 test("each group says what it comes to; only Passed or ended starts folded", () => {
   const vm = pipelineOf(fixture(), NOW, TZ);
   assert.deepEqual(
-    vm.groups.map((g) => [g.key, g.meta, g.collapsed, g.more]),
+    vm.groups.map((g) => [g.key, g.meta, g.collapsed]),
     [
-      ["consultations", "3 held, no proposal yet", false, "Show 8"],
-      ["proposals", "$4,250", false, "Show 6"],
-      ["clients", "$1,340 a month", false, "Show 3"],
-      ["closed", null, true, "Show 4"],
+      ["consultations", "3 held in the last week, no proposal yet", false],
+      ["proposals", "$4,250", false],
+      ["clients", "$1,340 a month", false],
+      ["closed", null, true],
     ],
   );
+  // A folded group's head counts its rows already: what opens it says "Show", not the count again.
+  assert.deepEqual([PIPELINE_WORDS.show, PIPELINE_WORDS.hide], ["Show", "Hide"]);
   // Nothing held: the consultations say nothing more than their count. No amount on file: no total.
   const quiet = pipelineOf(
     [
@@ -325,7 +327,36 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
     service: "Service",
     value: "Value",
     stage: "In stage",
-    chip: "Status",
+    chip: "Where it stands",
+  });
+});
+
+test("a consultation held is dated from its start, though the rule counts its week from its end; heard back is a message or a call", () => {
+  // An all-day consultation on Monday ends at Tuesday's midnight: dated from its end it read "Held yesterday".
+  const allDay = toPersonRowVM(
+    personRow(NOW, "mona", "Mona", { visits: visits(null, visit(ny("09-21", 0), { allDay: true, hours: 24 })) }),
+    TZ,
+    new Date(NOW),
+  );
+  assert.equal(allDay.consultedMs, ny("09-22", 0), "the rule's moment is its end");
+  const [row] = pipelineOf([allDay], NOW, TZ).groups[0].rows;
+  assert.deepEqual(
+    [row.chip.words, row.inStage],
+    ["Held Mon · no proposal yet", "2 d"],
+    "the words' day is the day it was held, and so is its count",
+  );
+  // A call they placed after the proposal went is something back, as a message is: the chip says what, not how.
+  const called = toPersonRowVM(
+    personRow(NOW, "cal", "Cal", {
+      ...deal(NOW, "proposed", { proposed: 5 }),
+      last_inbound_call_at: iso(ny("09-22", 15)),
+    }),
+    TZ,
+    new Date(NOW),
+  );
+  assert.deepEqual(pipelineOf([called], NOW, TZ).groups[0].rows[0].chip, {
+    words: "Heard back yesterday",
+    tone: "info",
   });
 });
 
@@ -479,7 +510,7 @@ const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge
 installClock();
 
 /** People over the wire, as GET contacts answers: whether deals are on here, and any view saved (which lands in `viewSaves`). */
-const wire = ({ people, dealsOn }) => {
+const wire = ({ people, dealsOn, total = people.length, hasMore = false }) => {
   const seen = { viewSaves: [] };
   globalThis.window.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
@@ -488,12 +519,14 @@ const wire = ({ people, dealsOn }) => {
       seen.viewSaves.push({ page: saving[1], view: JSON.parse(init.body).view });
       return json(200, { ok: true, data: { views: {} } });
     }
+    // More people than the surface reads (past its fifty pages): the first page is everyone it gets, and the next is
+    // empty, which ends its reading with the server still saying more follow.
     if (u.pathname === "/api/v1/contacts")
       return json(200, {
         ok: true,
         data: {
-          people,
-          page: { q: null, offset: 0, limit: 1000, total: people.length, has_more: false },
+          people: Number(u.searchParams.get("offset") || 0) === 0 ? people : [],
+          page: { q: null, offset: 0, limit: 1000, total, has_more: hasMore },
           calendar: { state: "ok", source: "Google Calendar" },
           booking_link: null,
           deals_on: dealsOn,
@@ -670,8 +703,8 @@ const peopleNow = () => {
 };
 
 /** People published by the real surface over the wire, and a page with nothing drawn yet. */
-const fresh = async ({ people = peopleNow(), dealsOn = true } = {}) => {
-  const seen = wire({ people, dealsOn });
+const fresh = async ({ people = peopleNow(), dealsOn = true, total, hasMore } = {}) => {
+  const seen = wire({ people, dealsOn, total, hasMore });
   await quietly(() => peopleOverride.apply());
   cells = [];
   went.length = 0;
@@ -732,10 +765,10 @@ test("the Pipeline is People's rail with its third tab, the line, and the table 
   );
   assert.deepEqual(vm.summary, ["2 proposals out", "$4,250", "2 waiting over a week", "1 client", "$1,000 a month"]);
   assert.deepEqual(heads(tree), [
-    { label: "Consultations", count: "2", meta: "1 held, no proposal yet", toggle: null },
+    { label: "Consultations", count: "2", meta: "1 held in the last week, no proposal yet", toggle: null },
     { label: "Proposal out", count: "2", meta: "$4,250", toggle: null },
     { label: "Clients", count: "1", meta: "$1,000 a month", toggle: null },
-    { label: "Passed or ended", count: "2", meta: null, toggle: "Show 2" },
+    { label: "Passed or ended", count: "2", meta: null, toggle: "Show" },
   ]);
   // The rows under the heads, in the Pipeline's order; Passed or ended folded; Nobody, with nothing to follow, absent.
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
@@ -750,7 +783,17 @@ test("the Pipeline is People's rail with its third tab, the line, and the table 
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["Person", "Service", "Value", "In stage", "Status"],
+    ["Person", "Service", "Value", "In stage", "Where it stands"],
+  );
+  // The chip's column says its name to a screen reader only: no one word is right above every chip.
+  const chipHead = all(
+    find(tree, (n) => n.type === "thead"),
+    (n) => n.type === "th",
+  ).at(-1);
+  assert.deepEqual(
+    chipHead.props.children.map((k) => [k.type, k.props.className, textOf(k)]),
+    [["span", "rec-sr", "Where it stands"]],
+    "the house's visually hidden words, and nothing seen",
   );
   assert.equal(
     find(tree, (n) => n.props?.className === "cl-th-sort"),
@@ -844,6 +887,35 @@ test("the Pipeline keeps no view of its own: no sort or columns saved, on this d
   assert.deepEqual(seen.viewSaves, [], "People's saved view is People's alone");
   assert.equal(globalThis.localStorage.getItem("chanlytics-people-view"), null);
   assert.equal(globalThis.localStorage.getItem("chanlytics-leads-view"), null);
+});
+
+test("one clock with the rows: the Pipeline counts at the moment the surface published them, not at the draw", async () => {
+  await fresh();
+  const published = globalThis.window.__PEOPLE.fetchedAt;
+  // The rows were said at `published`; a page that grouped them at the draw's own moment could say a consultation
+  // held two days ago beside a proposal's wait said the day before. Moved back a day, the Pipeline's own counts move
+  // with the surface's clock, and never with the wall's.
+  globalThis.window.__PEOPLE = { ...globalThis.window.__PEOPLE, fetchedAt: published - DAY };
+  const tree = draw();
+  const hana = find(tree, (n) => n.type === "tr" && n.props?.id === "person-hana");
+  assert.equal(
+    textOf(byTestId(hana, "pipe-in-stage")),
+    "1 d",
+    "held two days before the wall's now: one before the surface's",
+  );
+});
+
+test("past the people People has loaded, the line says it counts only them, in People's own words", async () => {
+  await fresh({ total: 1400, hasMore: true });
+  const people = globalThis.window.__PEOPLE;
+  assert.equal(people.page.has_more, true, "the surface stopped with more to follow");
+  const tree = draw();
+  const parts = all(byTestId(tree, "pipeline-summary"), (n) =>
+    /^pl-standing-(total|reached)$/.test(n.props?.className || ""),
+  ).map(textOf);
+  assert.equal(parts.at(-1), globalThis.window.plLoadedWords(people.rows.length, 1400));
+  assert.equal(parts.at(-1), `${people.rows.length} of 1,400 loaded`, "People's words: N of M loaded");
+  assert.deepEqual(parts.slice(0, -1), pipelineOf(people.rows, people.fetchedAt, ZONE).summary);
 });
 
 test("with nobody to follow, the table says so in contracts' words", async () => {

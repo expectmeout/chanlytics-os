@@ -1593,6 +1593,9 @@ const plCardRowClass = () => "pl-card-row";
 const PL_BATCH = 50;
 // The loaded rows and what a search found past them, each person once.
 const plWithFound = (loaded, found) => { const seen = new Set(loaded.map((p) => p.id)); return [...loaded, ...found.filter((p) => !seen.has(p.id))]; };
+// What People says while more people follow than it has loaded ("1,000 of 1,400 loaded"): its line under the table,
+// and the Pipeline's line, which counts only the loaded too.
+const plLoadedWords = (loaded, total) => `${loaded.toLocaleString()} of ${total.toLocaleString()} loaded`;
 // A list just made, by its own answer's id; by name only when the answer carries none. The server
 // tidies the spaces in a name, so a lookup by name alone could miss the list it had just made.
 const plMadeId = (c, name) => (c.data && c.data.id) || (((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === name) || {}).id || null;
@@ -2861,7 +2864,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
-              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
+              {plLoadedWords(rows.length, people.page.total)}{q.trim() ? (searching ? " · searching everyone…" : searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
               {" "}
               <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
             </div>
@@ -3611,4 +3614,4 @@ window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads"). The Pipeline (pipeline-scope.jsx) is a third view
 // over the same list page, and takes its hooks, its person cell and its search from here: one rule each.
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, PL_SEARCH_LABEL });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });

@@ -262,6 +262,14 @@ export function amountTotalsWords(items: readonly AmountFact[]): string | null {
     .join(" + ");
 }
 
+/**
+ * Whole days since a moment, as a deal counts its time in a stage: 0 on the day it began, never below it; null without
+ * the moment. A proposal's wait (DealVM.waitingDays) and the Pipeline's time in stage are this one count.
+ */
+export function wholeDaysSince(atMs: number | null, nowMs: number): number | null {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS));
+}
+
 /** When the stage began: the proposal's send, the answer, or the end. */
 export function dealSinceMs(d: DealFacts): number | null {
   const at =
@@ -331,8 +339,7 @@ export function toDealVM(
   if (!isDealStage(d.stage)) return null;
   const sinceMs = dealSinceMs(d);
   const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays =
-    d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS)) : null;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
   // A proposal carries a value as a client does (0008): the page says it at every stage.
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;

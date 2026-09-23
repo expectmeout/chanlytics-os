@@ -25,21 +25,23 @@ import {
   heardSinceProposal,
   proposalsWaiting,
   waitingOnProposal,
+  wholeDaysSince,
   type DealVM,
 } from "./deals";
 import type { PersonRowVM } from "./people";
 import type { Tone } from "./tone";
 
-const DAY_MS = 86_400_000;
-
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
 /** The groups, in the order the Pipeline draws them. */
 export const PIPELINE_GROUPS: readonly PipelineGroupKey[] = ["consultations", "proposals", "clients", "closed"];
 
-/** What of a People row the Pipeline reads: who, their deal as the page says it, when they last wrote, their consultations. */
+/**
+ * What of a People row the Pipeline reads: who, their deal as the page says it, when they last wrote or called, and
+ * their consultations -- the last one's end (the rule's) and its start (the words'), and the next one.
+ */
 export type PipelineSource = Pick<
   PersonRowVM,
-  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "consultAhead" | "calendarTz"
+  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz"
 >;
 
 /** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
@@ -68,13 +70,11 @@ export interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
   count: number;
   /**
    * What the group comes to: the value of its proposals or its clients in all ("$4,250", "$1,340 a month"), and for
-   * the consultations, how many were held with no proposal yet. Null for nothing to say.
+   * the consultations, how many were held in the last week with no proposal yet. Null for nothing to say.
    */
   meta: string | null;
-  /** Whether it starts folded: Passed or ended does, until someone opens it. */
+  /** Whether it starts folded: Passed or ended does, until someone opens it (PIPELINE_WORDS.show). */
   collapsed: boolean;
-  /** What opens it while it is folded: "Show 4". */
-  more: string;
   rows: PipelineRowVM<T>[];
 }
 
@@ -105,9 +105,13 @@ const GROUP_WORDS: Record<PipelineGroupKey, string> = /* @__PURE__ */ (() => ({
 /** Every word the Pipeline says that is not a row's own. */
 export const PIPELINE_WORDS = {
   groups: GROUP_WORDS,
-  /** The table's headings, in the order it draws them. */
-  columns: { person: "Person", service: "Service", value: "Value", stage: "In stage", chip: "Status" },
-  /** What folds an opened group again; a folded one opens with its own `more`. */
+  /**
+   * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
+   * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
+   */
+  columns: { person: "Person", service: "Service", value: "Value", stage: "In stage", chip: "Where it stands" },
+  /** What opens a folded group, whose head counts its rows already, and what folds it again. */
+  show: "Show",
   hide: "Hide",
   /** Where there is nobody in any group. */
   empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
@@ -117,18 +121,20 @@ export const PIPELINE_WORDS = {
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
-/** Whole days since a moment, as a deal counts its own wait (DealVM.waitingDays): "8 d". */
-const daysSince = (sinceMs: number | null, nowMs: number): string =>
-  sinceMs === null ? "" : `${Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS))} d`;
+/** A time in stage in words, "8 d", from the one count of whole days (wholeDaysSince); "" without one. */
+const daysWords = (days: number | null): string => (days === null ? "" : `${days} d`);
 /** A visit is said by the calendar's own clock, as People says it (PersonRowVM.nextVisit). */
 const zoneOf = (r: PipelineSource, tz: string): string => r.calendarTz || tz;
 
-/** A proposal out's one chip, the first that holds: no link to it, nothing back in a week, they wrote since, its day. */
+/**
+ * A proposal out's one chip, the first that holds: no link to it, nothing back in a week, heard back since, its day.
+ * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
+ */
 function proposalChip(r: PipelineSource, d: DealVM, tz: string, nowMs: number): PipelineChip | null {
   if (!d.proposal) return { words: PIPELINE_WORDS.noLink, tone: "warn" };
   if (waitingOnProposal(r, nowMs)) return { words: `Nothing back in ${d.waitingDays ?? 0} d`, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
-    return { words: `They wrote ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
+    return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
   return null;
 }
@@ -154,22 +160,25 @@ function dealRow<T extends PipelineSource>(
     person: r,
     service: d.service,
     value: d.amount,
-    // A proposal's time in stage IS its wait, the number its chip says: one count, never two that could disagree.
-    inStage:
-      d.stage === "proposed" ? (d.waitingDays === null ? "" : `${d.waitingDays} d`) : daysSince(d.sinceMs, nowMs),
+    // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
+    inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
     chip,
   };
 }
 
-/** A consultation held with no proposal since: how long ago, and the step not taken yet. */
-function heldRow<T extends PipelineSource>(r: T, heldMs: number, tz: string, nowMs: number): PipelineRowVM<T> {
+/**
+ * A consultation held with no proposal since: when, and the step not taken yet. The rule measures from its end
+ * (`consultedMs`); the words date it from its start, the day it was held, so one that took Monday reads Monday.
+ */
+function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowMs: number): PipelineRowVM<T> {
+  const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
   return {
     id: r.id,
     name: r.name,
     person: r,
     service: null,
     value: null,
-    inStage: daysSince(heldMs, nowMs),
+    inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
     chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} · no proposal yet`, tone: "warn" },
   };
 }
@@ -225,7 +234,8 @@ export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: 
     const d = r.deal;
     if (d && d.stage === "proposed") proposals.push({ r, d });
     else if (d && d.stage === "won") clients.push({ r, d });
-    else if (held.has(r) && r.consultedMs !== null) consults.push({ r, at: r.consultedMs });
+    else if (held.has(r) && r.consultedMs !== null && Number.isFinite(r.consultedMs))
+      consults.push({ r, at: r.consultedMs });
     // A consultation ahead of someone with nothing open: something new begins, whatever they passed on or ended before.
     else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
     else if (d) closed.push({ r, d });
@@ -236,7 +246,6 @@ export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: 
     count: rs.length,
     meta,
     collapsed: key === "closed",
-    more: `Show ${rs.length}`,
     rows: rs,
   });
   const groups = [
@@ -246,7 +255,8 @@ export function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: 
         ...inOrder(consults, (x) => x.at).map((x) => heldRow(x.r, x.at, tz, nowMs)),
         ...inOrder(ahead, (x) => x.c.startMs).map((x) => aheadRow(x.r, x.c, tz, nowMs)),
       ],
-      consults.length ? `${consults.length} held, no proposal yet` : null,
+      // The rule's own week (CONSULT_FOLLOW_DAYS), said as Today's row that re-prints this number says it.
+      consults.length ? `${consults.length} held in the last week, no proposal yet` : null,
     ),
     group(
       "proposals",

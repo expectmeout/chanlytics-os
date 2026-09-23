@@ -9,8 +9,9 @@
 // clients-a.jsx, which draws it, and it reads what that file publishes only as it draws.
 
 // The table's columns: People's own person cell, then the deal's service, its value in tabular figures, how long it has
-// stood where it is, and its one chip. Nothing sorts, since the order is the Pipeline's, and nothing hides. Made once,
-// from contracts' headings, so the list page's memo sees one list from one draw to the next.
+// stood where it is, and its one chip, whose heading only a screen reader hears (the house's .rec-sr): no one word is
+// right for "Fri 2:00 PM" and "Since Sep 18" alike. Nothing sorts, since the order is the Pipeline's, and nothing
+// hides. Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
 let PIPE_COLUMNS = null;
 const pipeColumns = () => {
   if (PIPE_COLUMNS) return PIPE_COLUMNS;
@@ -20,7 +21,7 @@ const pipeColumns = () => {
     { key: "service", label: w.service, sortable: false, cell: (r) => <td key="service" className="pipe-service" data-testid="pipe-service">{r.service || ""}</td> },
     { key: "value", label: w.value, sortable: false, cell: (r) => <td key="value" className="shrink tabular pipe-value" data-testid="pipe-value">{r.value || ""}</td> },
     { key: "stage", label: w.stage, sortable: false, cell: (r) => <td key="stage" className="shrink dim tabular pipe-stage" data-testid="pipe-in-stage">{r.inStage}</td> },
-    { key: "chip", label: w.chip, sortable: false, cell: (r) => <td key="chip" className="shrink pipe-chip">{r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}</td> },
+    { key: "chip", label: <span className="rec-sr">{w.chip}</span>, sortable: false, cell: (r) => <td key="chip" className="shrink pipe-chip">{r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}</td> },
   ];
   return PIPE_COLUMNS;
 };
@@ -47,6 +48,7 @@ const pipePhoneColumns = () => PIPE_PHONE_COLUMNS || (PIPE_PHONE_COLUMNS = [{ ke
 const pipeCardRow = () => "pl-card-row";
 // No sort to keep and none to start from: the headings do not sort, and the Pipeline's order is contracts'.
 const PIPE_SORT = { by: null, dir: "asc" };
+const pipeNoSort = () => {};
 const PIPE_CTX = {};
 
 const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
@@ -55,18 +57,24 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
   const nav = onNavigate || ((to) => window.CHANLY.nav(to));
   const words = window.__pipeline.words;
   // The workspace's zone, as every day on People is said (legacy-bridge/zone.ts).
-  const tz = window.__clock ? window.__clock.zone() : "UTC";
+  const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  // One clock with the rows: the surface said each row's wait, its "since" and its valid-until at the moment it
+  // published them (fetchedAt), so the Pipeline groups and counts at that same moment, and a proposal's "8 d" in its
+  // chip and its row never disagree across midnight.
+  const nowMs = people.fetchedAt || Date.now();
   const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, keepsView: false });
   const { phone, searchOpen, setSearchOpen, toastNode, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX } = controls;
   // The groups the member opened, or folded again, by key. One they never touched is as the Pipeline starts it.
   const [opened, setOpened] = React.useState({});
   const rows = people.rows;
   // The whole Pipeline says the line over the table; the words in the box choose only which rows show under it.
-  const all = React.useMemo(() => window.__pipeline.of(rows, Date.now(), tz), [rows, tz]);
+  const all = React.useMemo(() => window.__pipeline.of(rows, nowMs, tz), [rows, nowMs, tz]);
   const vm = React.useMemo(() => {
     const match = window.plMatcher(q);
-    return match ? window.__pipeline.of(rows.filter(match), Date.now(), tz) : all;
-  }, [all, rows, tz, q]);
+    return match ? window.__pipeline.of(rows.filter(match), nowMs, tz) : all;
+  }, [all, rows, nowMs, tz, q]);
+  // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
+  const summary = people.page && people.page.has_more ? [...all.summary, window.plLoadedWords(rows.length, people.page.total)] : all.summary;
   const searching = !!q.trim();
   // A search opens every group: someone looked for is someone shown.
   const sections = vm.groups.map((g) => {
@@ -79,7 +87,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
       rows: g.rows,
       collapsed,
       onToggle: folds ? () => setOpened((o) => ({ ...o, [g.key]: collapsed })) : null,
-      toggle: collapsed ? g.more : words.hide,
+      toggle: collapsed ? words.show : words.hide,
     };
   });
   const shown = sections.filter((s) => !s.collapsed).flatMap((s) => s.rows);
@@ -139,10 +147,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
             />
           )}
           {/* The line over the table, People's standing line in its parts: only the parts that have something. */}
-          {all.summary.length > 0 && (
+          {summary.length > 0 && (
             <div className="pl-standing" data-testid="pipeline-summary">
-              <span className="pl-standing-total">{all.summary[0]}</span>
-              {all.summary.slice(1).map((part, i) => (
+              <span className="pl-standing-total">{summary[0]}</span>
+              {summary.slice(1).map((part, i) => (
                 <span key={i} className="pl-standing-part">
                   <span className="pl-standing-dot" aria-hidden="true">·</span>
                   <span className="pl-standing-reached">{part}</span>
@@ -169,7 +177,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
             total={total}
             sortBy={null}
             sortDir="asc"
-            onSort={() => {}}
+            onSort={pipeNoSort}
             onOpen={rowOpen}
             filtered={searching}
             onClearFilters={() => setQ("")}
