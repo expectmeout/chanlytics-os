@@ -6594,6 +6594,8 @@ function consentOf(r, tz, nowMs) {
     state,
     dnc,
     label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
+    answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
     sub,
     source: r.consent_source ?? null,
     marketing,

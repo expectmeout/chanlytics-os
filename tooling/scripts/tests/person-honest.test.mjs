@@ -377,6 +377,9 @@ for (const k of [
 ])
   globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
+// The record kit, as both load lists put it before the pages: the profile's card draws its rows and folds.
+for (const f of ["record-row", "record-field", "record-fold", "record-sheet"])
+  await import(`../../../apps/dashboard/src/legacy/components/${f}.jsx`);
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 
 const walk = (n, fn) => {
@@ -1816,4 +1819,52 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   assert.equal(calls[1][1].version, 1, "the version the page saw goes with a move");
   assert.equal(calls[1][1].amount_cents, 250000);
   assert.equal(calls[1][1].per, "month");
+});
+
+/* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */
+
+test("the card's settings are one line each, and Change opens the editor under its row: the record kit's row and fold", async () => {
+  globalThis.window.__recordFolds.reset();
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const draw = await profile(vm);
+  let tree = draw();
+  const cls = (n) => String(n.props?.className || "");
+  const settings = byTestId(tree, "person-settings");
+  const rows = all(settings, (n) => cls(n).split(" ").includes("rec-row"));
+  assert.deepEqual(
+    rows.map((r) => textOf(find(r, (n) => cls(n) === "rec-row-key"))),
+    ["Receptionist", "Visit messages", "Offers & news"],
+    "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail",
+  );
+  assert.deepEqual(
+    rows.slice(1).map((r) => textOf(find(r, (n) => cls(n) === "rec-row-value"))),
+    [vm.consent.answerLabel, vm.consent.marketingLabel],
+    "each answer in its control's own words, from contracts",
+  );
+  // Closed, each editor is on the page and hidden, whole; Change opens it and the row gives it its place.
+  assert.equal(byTestId(tree, "rec-fold-person-visit").props.hidden, true);
+  press(byTestId(tree, "rec-row-act-person-visit"));
+  tree = draw();
+  const fold = byTestId(tree, "rec-fold-person-visit");
+  assert.equal(fold.props["data-open"], "true", "Change opens the fold");
+  assert.equal(byTestId(tree, "rec-row-person-visit"), null, "and the row gives it its place");
+  assert.ok(byTestId(fold, "consent-control"), "the ask is inside it");
+  assert.equal(byTestId(fold, "rec-fold-save-person-visit"), null, "an answer is recorded as it is chosen: no Save");
+  press(byTestId(tree, "rec-fold-close-person-visit"));
+  tree = draw();
+  assert.ok(byTestId(tree, "rec-row-person-visit"), "Close puts the row back");
+
+  // Someone who may only read sees the answers and no Change.
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    tree = (await profile(vm))();
+    assert.deepEqual(
+      all(byTestId(tree, "person-settings"), (n) => /^rec-row-act-/.test(String(n.props?.["data-testid"] || ""))),
+      [],
+      "nothing to press for a viewer",
+    );
+  } finally {
+    globalThis.window.__ME = me;
+  }
 });

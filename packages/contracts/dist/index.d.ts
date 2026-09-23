@@ -6675,6 +6675,8 @@ interface PersonConsent {
     state: "unknown" | "opted_in" | "opted_out";
     dnc: boolean;
     label: string;
+    /** The answer in its control's words: "Yes", "Not asked" or "No". */
+    answerLabel: "Yes" | "Not asked" | "No";
     sub: string;
     /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
     source: string | null;
