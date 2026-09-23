@@ -7,7 +7,7 @@
  *
  *   Conversations and the Inbox   "Unknown", credited to "WhatsApp Receptionist"
  *   their own page                ruben@... , "Phone since Sep 17",
- *                                 "Reply window: Closed · template only",
+ *                                 "Reply window: Closed · template only" (now "Replies"),
  *                                 "Send the booking-link template"
  *
  * None of those was a missing feature. Each was a second copy of a rule that
@@ -208,8 +208,8 @@ test("REGRESSION: their page does not hold a reply behind a window email does no
   assert.equal(p.replyVia, "Email");
   assert.equal(p.replyWindow.open, true);
   assert.deepEqual(
-    p.about.find((a) => a.k === "Reply window"),
-    { k: "Reply window", v: "None — replies go by email" },
+    p.about.find((a) => a.k === "Replies"),
+    { k: "Replies", v: "Any time, by email" },
   );
   assert.deepEqual(
     p.bookingLinkAction,

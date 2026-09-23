@@ -174,7 +174,7 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
   const notes = crNotesWorth(b.description, b.person, { ...contacts, e164 });
   const found = [...contacts.phones, ...contacts.emails];
   // The link into their thread, the way the People rows and the profile hand it over:
-  // a plain text while their reply window is open, the approved template once it has closed.
+  // a plain text while any message reaches them, the approved message once only that does.
   const textLink = () => {
     if (b.person.replyOpen) {
       try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: b.person.threadId, text: `Here's the link to book your appointment: ${bookingLink}` })); } catch { /* nothing to carry */ }
@@ -226,8 +226,8 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
               </button>
             )}
             {b.person && b.person.threadId && bookingLink && (
-              <button className="btn btn-ghost btn-sm" data-testid="cal-panel-text-link" title={b.person.replyOpen ? "Opens their thread with the link ready to send" : "Their reply window is closed — the thread offers the approved booking-link template"} onClick={textLink}>
-                <Icon name="calendar" size={12} /> {b.person.replyOpen ? "Text the booking link" : "Send the booking-link template"}
+              <button className="btn btn-ghost btn-sm" data-testid="cal-panel-text-link" title={b.person.replyOpen ? "Opens their thread with the link ready to send" : "Only an approved message reaches them until they write again; their thread offers the one with the link"} onClick={textLink}>
+                <Icon name="calendar" size={12} /> {b.person.replyOpen ? "Text the booking link" : "Send the booking link"}
               </button>
             )}
           </div>

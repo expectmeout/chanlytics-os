@@ -161,7 +161,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
               // one chosen (components.css), so the words stand in one column either way.
               const radio = typeof it.checked === "boolean";
               return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? it.checked : undefined} onClick={() => run(it)} {...(it.gate || {})}>
+                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role={radio ? "menuitemradio" : "menuitem"} aria-checked={radio ? it.checked : undefined} title={it.title || undefined} onClick={() => run(it)} {...(it.gate || {})}>
                   {radio ? <Icon name="check" size={13} /> : it.icon && <Icon name={it.icon} size={13} />}
                   <span className="more-item-label">{it.label}</span>
                   {it.meta && <span className="more-item-meta">{it.meta}</span>}

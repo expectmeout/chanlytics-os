@@ -643,7 +643,7 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     "the thread beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
   );
   assert.ok(
-    more.props.items.some((i) => i.label === "Send the booking link"),
+    more.props.items.some((i) => i.label === "Send booking link"),
     "REGRESSION: 'Send the booking-link template' was a button of its own beside a thread button to the same place",
   );
 
@@ -1655,10 +1655,13 @@ test("a proposal on file (00154): the About row is its control and the send sits
   const items = moreOf(tree).props.items.filter((i) => i.label);
   assert.deepEqual(
     items.slice(0, 2).map((i) => i.label),
-    ["Send the booking link", "Send the proposal"],
+    ["Send booking link", "Send proposal"],
     "the booking link, then the proposal",
   );
-  assert.ok(/^Opens their thread with it ready to send/.test(items[1].hint), `what it does: ${items[1].hint}`);
+  assert.ok(
+    /^Opens their thread with it ready to send/.test(items[1].title),
+    `what it does, on hover: ${items[1].title}`,
+  );
   const send = { props: { onClick: items[1].onClick } };
 
   // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
@@ -1684,10 +1687,10 @@ test("a proposal on file (00154): the About row is its control and the send sits
   const d = detail({ proposal_url: url });
   d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
-  assert.ok(labels(tree).includes("Send the proposal"));
+  assert.ok(labels(tree).includes("Send proposal"));
   d.conversations[0].messages.push(outbound(iso(H), "sent"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
-  assert.ok(labels(tree).includes("Send the proposal again"), labels(tree).join(", "));
+  assert.ok(labels(tree).includes("Send proposal again"), labels(tree).join(", "));
 
   // None on file: the row invites, the send is absent.
   tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
@@ -1702,7 +1705,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
     assert.ok(byTestId(tree, "person-proposal-link"));
     assert.equal(byTestId(tree, "person-proposal-edit"), null);
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
-    assert.ok(labels(tree).includes("Call from your phone"), "and may still call them from their own phone");
+    assert.ok(labels(tree).includes("Call"), "and may still call them from their own phone");
     tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
     assert.equal(byTestId(tree, "person-proposal"), null);
   } finally {

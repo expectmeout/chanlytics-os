@@ -368,7 +368,7 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-prof-name")).toBeVisible();
     // The send is in the page's More menu, in plain words, beside the one button to the thread.
     await page.getByTestId("person-more").click();
-    await page.getByRole("menuitem", { name: /Send the booking link/ }).click();
+    await page.getByRole("menuitem", { name: /Send booking link/ }).click();
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
   });
 

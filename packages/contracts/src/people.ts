@@ -423,13 +423,12 @@ export function bookingLinkAction(
   if (win && win.open)
     return {
       label: "Text the booking link",
-      title: `Opens the thread with the link ready to send · ${win.hoursLeft}h left in their reply window`,
+      title: `Opens the thread with the link ready to send · any message for ${win.hoursLeft}h more`,
       ready: true,
     };
   return {
-    label: "Send the booking-link template",
-    title:
-      "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
+    label: "Send the booking link",
+    title: "Only an approved message reaches them until they write again; their thread offers the one with the link",
     ready: false,
   };
 }
@@ -452,7 +451,7 @@ export function proposalMessage(url: string): string {
  * bookingLinkAction's twin. Nothing is sent from the button: it opens the
  * thread with the address ready in the composer. There is no template for a
  * proposal, so where WhatsApp's window has shut there is no button (`ready`
- * false) -- the About rail's Reply window row already says why. "again" once
+ * false) -- the About rail's Replies row already says why. "again" once
  * the address has gone out, so the page says what it knows without a second line.
  */
 export function proposalAction(
@@ -477,12 +476,12 @@ export function proposalAction(
   if (win && win.open)
     return {
       label: `Send the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send · ${win.hoursLeft}h left in their reply window${sent}`,
+      title: `Opens the thread with the proposal link ready to send · any message for ${win.hoursLeft}h more${sent}`,
       ready: true,
     };
   return {
     label: "Send the proposal",
-    title: "Their reply window is closed — the link can go by WhatsApp once they write again",
+    title: "Only an approved message reaches them until they write again, so the proposal waits until they do",
     ready: false,
   };
 }
@@ -1749,13 +1748,15 @@ export interface PersonVM extends PersonRowVM {
 }
 
 /**
- * One act in a person's More menu: what it says, a line under it where the act needs explaining, and who may press it
- * ("any" reader, one who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
+ * One act in a person's More menu: a few words, the line said on hover where the act needs explaining, the group it
+ * sits in (a send, a way to reach them, the delete: a line between groups), and who may press it ("any" reader, one
+ * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
  */
 export interface PersonActVM {
   id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
   label: string;
   hint: string | null;
+  group: "send" | "reach" | "delete";
   needs: "any" | "record" | "owner";
   danger?: boolean;
 }
@@ -1764,8 +1765,9 @@ export interface PersonActVM {
  * What can be done for a person from their page, besides opening their thread (the page's one primary act).
  *
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
- * on, and never names a template: where WhatsApp's window has shut the thread offers the approved message, which is
- * what the line under it says. No send reaches someone who said stop or is on do-not-contact, and no call reaches
+ * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
+ * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
+ * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
  * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
 export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
@@ -1777,25 +1779,27 @@ export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
   if (reach && p.bookingLink)
     acts.push({
       id: "booking",
-      label: "Send the booking link",
+      label: "Send booking link",
       hint: p.bookingLinkAction.ready
         ? ready
-        : "Their reply window has closed, so their thread offers the approved message with it",
+        : "Only an approved message reaches them until they write again; their thread offers the one with the link",
+      group: "send",
       needs: "record",
     });
   if (reach && p.proposal && p.proposalAction.ready)
     acts.push({
       id: "proposal",
-      label: p.proposal.sent ? "Send the proposal again" : "Send the proposal",
+      label: p.proposal.sent ? "Send proposal again" : "Send proposal",
       hint: ready,
+      group: "send",
       needs: "record",
     });
   if (p.phone && !p.consent.dnc) {
-    acts.push({ id: "call", label: "Call from your phone", hint: "Rings them from this device", needs: "any" });
-    acts.push({ id: "copy-phone", label: "Copy the number", hint: null, needs: "any" });
+    acts.push({ id: "call", label: "Call", hint: "From your own phone", group: "reach", needs: "any" });
+    acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
   }
-  if (p.email) acts.push({ id: "copy-email", label: "Copy the email", hint: null, needs: "any" });
-  acts.push({ id: "delete", label: "Delete this person…", hint: null, needs: "owner", danger: true });
+  if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  acts.push({ id: "delete", label: "Delete person…", hint: null, group: "delete", needs: "owner", danger: true });
   return acts;
 }
 
@@ -2317,21 +2321,24 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
   if (base.hasChat && via && exactWindow) {
-    // Only WhatsApp has a window. The row said WhatsApp's for everybody, so a
-    // person who had only ever emailed read "Closed · template only".
     const hours = exactWindow.closesAtIso
       ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000))
       : 0;
+    // What a reply may be, in the owner's words: WhatsApp takes any message for a day after they last wrote, and
+    // after that only a message WhatsApp approved ahead of time. It said "Reply window · Closed · template only",
+    // and before it was channel-aware it said so to a person who had only ever emailed.
     about.push({
-      k: "Reply window",
+      k: "Replies",
       v:
         via === "email"
-          ? "None — replies go by email"
+          ? "Any time, by email"
           : via === "sms"
-            ? "None — a text can be answered any time"
+            ? "Any time, by text"
             : exactWindow.open
-              ? `Open · ${hours}h left`
-              : "Closed · template only",
+              ? hours >= 1
+                ? `Any message, for ${hours} more ${hours === 1 ? "hour" : "hours"}`
+                : "Any message, for less than an hour"
+              : "Approved messages only, until they write again",
     });
   }
 

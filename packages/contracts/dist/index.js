@@ -6415,12 +6415,12 @@ function bookingLinkAction(replyVia, win) {
   if (win && win.open)
     return {
       label: "Text the booking link",
-      title: `Opens the thread with the link ready to send \xB7 ${win.hoursLeft}h left in their reply window`,
+      title: `Opens the thread with the link ready to send \xB7 any message for ${win.hoursLeft}h more`,
       ready: true
     };
   return {
-    label: "Send the booking-link template",
-    title: "Their reply window is closed \u2014 the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
+    label: "Send the booking link",
+    title: "Only an approved message reaches them until they write again; their thread offers the one with the link",
     ready: false
   };
 }
@@ -6445,12 +6445,12 @@ function proposalAction(replyVia, win, sentWords) {
   if (win && win.open)
     return {
       label: `Send the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send \xB7 ${win.hoursLeft}h left in their reply window${sent}`,
+      title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent}`,
       ready: true
     };
   return {
     label: "Send the proposal",
-    title: "Their reply window is closed \u2014 the link can go by WhatsApp once they write again",
+    title: "Only an approved message reaches them until they write again, so the proposal waits until they do",
     ready: false
   };
 }
@@ -7062,23 +7062,25 @@ function personActs(p) {
   if (reach && p.bookingLink)
     acts.push({
       id: "booking",
-      label: "Send the booking link",
-      hint: p.bookingLinkAction.ready ? ready : "Their reply window has closed, so their thread offers the approved message with it",
+      label: "Send booking link",
+      hint: p.bookingLinkAction.ready ? ready : "Only an approved message reaches them until they write again; their thread offers the one with the link",
+      group: "send",
       needs: "record"
     });
   if (reach && p.proposal && p.proposalAction.ready)
     acts.push({
       id: "proposal",
-      label: p.proposal.sent ? "Send the proposal again" : "Send the proposal",
+      label: p.proposal.sent ? "Send proposal again" : "Send proposal",
       hint: ready,
+      group: "send",
       needs: "record"
     });
   if (p.phone && !p.consent.dnc) {
-    acts.push({ id: "call", label: "Call from your phone", hint: "Rings them from this device", needs: "any" });
-    acts.push({ id: "copy-phone", label: "Copy the number", hint: null, needs: "any" });
+    acts.push({ id: "call", label: "Call", hint: "From your own phone", group: "reach", needs: "any" });
+    acts.push({ id: "copy-phone", label: "Copy number", hint: null, group: "reach", needs: "any" });
   }
-  if (p.email) acts.push({ id: "copy-email", label: "Copy the email", hint: null, needs: "any" });
-  acts.push({ id: "delete", label: "Delete this person\u2026", hint: null, needs: "owner", danger: true });
+  if (p.email) acts.push({ id: "copy-email", label: "Copy email", hint: null, group: "reach", needs: "any" });
+  acts.push({ id: "delete", label: "Delete person\u2026", hint: null, group: "delete", needs: "owner", danger: true });
   return acts;
 }
 var OWN_MESSAGE_CHOICES = 10;
@@ -7437,8 +7439,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   if (base.hasChat && via && exactWindow) {
     const hours = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
     about.push({
-      k: "Reply window",
-      v: via === "email" ? "None \u2014 replies go by email" : via === "sms" ? "None \u2014 a text can be answered any time" : exactWindow.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only"
+      k: "Replies",
+      v: via === "email" ? "Any time, by email" : via === "sms" ? "Any time, by text" : exactWindow.open ? hours >= 1 ? `Any message, for ${hours} more ${hours === 1 ? "hour" : "hours"}` : "Any message, for less than an hour" : "Approved messages only, until they write again"
     });
   }
   if (d.visits) {

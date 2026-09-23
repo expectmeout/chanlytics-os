@@ -1434,18 +1434,15 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.ok(page.includes('sessionStorage.setItem("chanlytics-compose"'), "the send carries the link into the thread");
   assert.ok(
     personActs({ ...chat, openThread: "inbox/th-1", bookingLink: "https://booksy.com/melanys" }).some(
-      (a) => a.id === "booking" && a.label === "Send the booking link",
+      (a) => a.id === "booking" && a.label === "Send booking link",
     ),
     "the page's More menu offers it, in plain words, once there is a thread to open (personActs)",
   );
   assert.ok(!chat.acts.some((a) => a.id === "booking"), "and none without a thread to open it in");
   // The words are the contract's now (people bookingLinkAction), not the page's:
-  // inside the window a reply is carried in, outside it the thread offers the template.
+  // inside the window a reply is carried in, outside it the thread offers the approved message.
   assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
-  assert.deepEqual(
-    [closed.bookingLinkAction.label, closed.bookingLinkAction.ready],
-    ["Send the booking-link template", false],
-  );
+  assert.deepEqual([closed.bookingLinkAction.label, closed.bookingLinkAction.ready], ["Send the booking link", false]);
   assert.ok(page.includes(': e.kind === "visit" ? <Icon name="calendar" size={12} />'));
   const composer = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(
