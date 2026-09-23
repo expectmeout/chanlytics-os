@@ -6493,6 +6493,14 @@ function cameFromOf(r) {
   if (!k || !Object.prototype.hasOwnProperty.call(PERSON_CAME_FROM_WORDS, k)) return null;
   return { key: k, label: PERSON_CAME_FROM_WORDS[k] };
 }
+function addedBy(added) {
+  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
+  const from = PERSON_CAME_FROM_WORDS[added.source];
+  return {
+    who: added.source === "calendar" ? "Calendar" : "Leads",
+    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
+  };
+}
 function personStanding(r, nowMs) {
   return standingOf(
     {
@@ -7243,15 +7251,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   }
   if (d.added) {
     const t = ts(d.added.at);
+    const by = addedBy(d.added);
     if (t !== null)
-      items.push({
-        id: "added",
-        ts: t,
-        ...stamp(t),
-        kind: "system",
-        who: "Calendar",
-        text: d.added.source === "calendar" ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "Added by hand"
-      });
+      items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` });
   }
   items.sort((a, b) => b.ts - a.ts);
   const latestConv = [...d.conversations].sort(
@@ -7423,11 +7425,14 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     const at2 = ts(d.added.at);
     about.push({
       k: "Added",
-      v: `${at2 !== null ? clockDateYear(at2, tz) : "\u2014"} \xB7 ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : d.added.source === "lead" ? "from a lead you found" : "by hand"}`
+      v: `${at2 !== null ? clockDateYear(at2, tz) : "\u2014"} \xB7 ${addedBy(d.added).how}`
     });
   } else if (d.lead) {
     const found = ts(d.lead.found_at);
-    about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "\u2014"} \xB7 from a lead you found` });
+    about.push({
+      k: "Added",
+      v: `${found !== null ? clockDateYear(found, tz) : "\u2014"} \xB7 ${addedBy({ source: "lead", title: null }).how}`
+    });
   }
   const vm = {
     ...base,
