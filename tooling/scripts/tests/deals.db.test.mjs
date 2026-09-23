@@ -329,6 +329,32 @@ test(
 );
 
 test(
+  "a passed proposal sent again stands until the day it is given, or none: the old day was the proposal they passed on",
+  { skip },
+  async () => {
+    const made = await record(w.operator, {
+      p_contact_id: w.contact,
+      p_stage: "proposed",
+      p_service: "Again",
+      p_valid_until: "2026-10-31",
+    });
+    assert.ok(made.deal, JSON.stringify(made));
+    const id = made.deal.id;
+    const move = (version, stage, extra = {}) =>
+      record(w.operator, { p_contact_id: w.contact, p_stage: stage, p_deal_id: id, p_version: version, ...extra });
+    const passed = await move(1, "lost");
+    assert.equal(passed.deal.valid_until, "2026-10-31", "a pass keeps the day the proposal had");
+    const again = await move(2, "proposed");
+    assert.equal(again.deal.valid_until, null, "sent again with no day: none, not the passed proposal's");
+    await move(3, "lost");
+    const dated = await move(4, "proposed", { p_valid_until: "2026-12-15" });
+    assert.equal(dated.deal.valid_until, "2026-12-15", "sent again with a day: that day");
+    const kept = await move(5, "proposed", { p_note: "Called to check" });
+    assert.equal(kept.deal.valid_until, "2026-12-15", "an edit of a proposal out keeps its day, as before");
+  },
+);
+
+test(
   "how customers buy is the owner's column: an owner writes it, an operator's write lands on no row, and nothing but the two answers is kept",
   { skip },
   async () => {

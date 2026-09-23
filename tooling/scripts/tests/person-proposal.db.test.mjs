@@ -182,6 +182,9 @@ test(
       const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
       const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
       assert.equal(sErr, null, sErr?.message);
+      // Deals are on here: the workspace says some customers get a proposal first (0007).
+      const { error: onErr } = await db.from("tenants").update({ sells_by: "proposal" }).eq("id", tenantId);
+      assert.equal(onErr, null, onErr?.message);
 
       const { id: open } = await person({ display_name: "Open", phone_e164: "+15550100241" });
       const { id: none } = await person({ display_name: "None", phone_e164: "+15550100242" });
@@ -262,6 +265,76 @@ test(
       const { data: onPerson } = await db.from("contacts").select("proposal_url").eq("id", client).single();
       assert.equal(onPerson.proposal_url, "https://docs.example.com/p/client", "the person's column is still written");
     } finally {
+      await db.auth.admin.deleteUser(userId);
+    }
+  },
+);
+
+test(
+  "where deals are off the door opens no deal, but an open proposal still takes the link; a person merged into another is not found (0007)",
+  { skip },
+  async () => {
+    const email = `person-proposal-off-${Date.now()}@example.test`;
+    const { data: made, error: uErr } = await db.auth.admin.createUser({
+      email,
+      password: "a-long-test-password-1",
+      email_confirm: true,
+    });
+    assert.equal(uErr, null, uErr?.message);
+    const userId = made.user.id;
+    const { data: far } = await db
+      .from("tenants")
+      .insert({ slug: `person-proposal-off-${Date.now()}`, name: "Off" })
+      .select("id")
+      .single();
+    try {
+      const { error: mErr } = await db
+        .from("memberships")
+        .insert({ tenant_id: far.id, user_id: userId, role: "owner" });
+      assert.equal(mErr, null, mErr?.message);
+      const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
+      const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
+      assert.equal(sErr, null, sErr?.message);
+      const add = async (row) =>
+        (
+          await db
+            .from("contacts")
+            .insert({ tenant_id: far.id, ...row })
+            .select("id")
+            .single()
+        ).data.id;
+      const set = (contact, url) => as.rpc("set_person_proposal", { p_contact_id: contact, p_url: url });
+      const dealsOf = async (contact) =>
+        (await db.from("deals").select("stage, proposal_url").eq("contact_id", contact).order("created_at")).data;
+
+      // Never asked, then booking: a link is kept on the person and opens nothing.
+      const nobody = await add({ display_name: "Nobody", phone_e164: "+15550100251" });
+      for (const answer of [null, "booking"]) {
+        const { error: aErr } = await db.from("tenants").update({ sells_by: answer }).eq("id", far.id);
+        assert.equal(aErr, null, aErr?.message);
+        const { error } = await set(nobody, `https://docs.example.com/p/${answer ?? "unasked"}`);
+        assert.equal(error, null, error?.message);
+        assert.deepEqual(await dealsOf(nobody), [], `${answer ?? "not asked"}: no deal from the door`);
+      }
+      // A proposal already out takes the link whatever the answer: the two never disagree on one it holds.
+      const waiting = await add({ display_name: "Waiting", phone_e164: "+15550100252" });
+      const { error: dErr } = await db
+        .from("deals")
+        .insert({ tenant_id: far.id, contact_id: waiting, stage: "proposed", service: "Ads" });
+      assert.equal(dErr, null, dErr?.message);
+      await set(waiting, "https://docs.example.com/p/waiting");
+      assert.deepEqual(await dealsOf(waiting), [
+        { stage: "proposed", proposal_url: "https://docs.example.com/p/waiting" },
+      ]);
+
+      // A person merged into another is found by neither door.
+      const merged = await add({ display_name: "Merged", phone_e164: "+15550100253", merged_into_contact_id: nobody });
+      const { error: mergedErr } = await set(merged, "https://docs.example.com/p/merged");
+      assert.match(mergedErr?.message ?? "", /Person not found/);
+      const { data: kept } = await db.from("contacts").select("proposal_url").eq("id", merged).single();
+      assert.equal(kept.proposal_url, null, "and nothing was written on them");
+    } finally {
+      await db.from("tenants").delete().eq("id", far.id);
       await db.auth.admin.deleteUser(userId);
     }
   },

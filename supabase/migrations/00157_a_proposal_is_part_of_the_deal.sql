@@ -4,9 +4,11 @@
 -- (00154) lived on the person and the deal (00156) knew nothing of it. The
 -- deal now holds it: the link, a "valid until" day, and a reason when someone
 -- passes, all through the one door. The person's link is attached to their
--- open deal, or opens a Proposal out for them, and set_person_proposal writes
--- through to the deal, so a page from the release before this one cannot
--- split the two. The person's column is read as a fallback until it retires.
+-- open deal, else to their newest deal; it opens a Proposal out only for a
+-- person with no deal, or one whose link was set after they passed or ended.
+-- set_person_proposal writes through to the deal, so a page from the release
+-- before this one cannot split the two. The person's column is read only for
+-- someone with no deal at all, until it retires.
 --
 -- And the workspace says how its customers buy (tenants.sells_by): deals are
 -- on exactly where it says 'proposal' (contracts dealsAreOn). Empty is not
@@ -69,9 +71,11 @@ drop function if exists public.deal_record(uuid, text, uuid, integer, text, time
 -- 00156's body, with the three fields and what to clear. A move keeps what it
 -- is not told, and p_clear names the fields a person emptied: proposal_url,
 -- valid_until, amount (the amount and its per) and note. Passing sets the
--- reason; any other stage clears it. The link is judged here, as the column
--- judges it, so a bad one is a refusal and never a 23514. Events are 00156's,
--- word for word: no link, amount, note or reason in them.
+-- reason; any other stage clears it. A passed proposal sent again stands until
+-- the day it is given, or no day: the old one belonged to the proposal they
+-- passed on. The link is judged here, as the column judges it, so a bad one is
+-- a refusal and never a 23514. Events are 00156's, word for word: no link,
+-- amount, note or reason in them.
 create or replace function public.deal_record(
   p_contact_id   uuid,
   p_stage        text,
@@ -206,7 +210,9 @@ begin
          note         = case when 'note' = any(v_clear) then null else coalesce(v_note, d.note) end,
          evidence     = coalesce(p_evidence, d.evidence),
          proposal_url = case when 'proposal_url' = any(v_clear) then null else coalesce(v_url, d.proposal_url) end,
-         valid_until  = case when 'valid_until' = any(v_clear) then null else coalesce(p_valid_until, d.valid_until) end,
+         valid_until  = case when 'valid_until' = any(v_clear) then null
+                             when p_stage = 'proposed' and v_from = 'lost' then p_valid_until
+                             else coalesce(p_valid_until, d.valid_until) end,
          -- Passing keeps the reason it was given, or the one it had; any other stage has none.
          lost_reason  = case when p_stage = 'lost'
                              then coalesce(p_lost_reason, case when v_from = 'lost' then d.lost_reason end)
@@ -269,11 +275,13 @@ comment on function public.deals_erase_on_contact() is
 
 /* -------------------------------------------- 5. the person's door writes through -- */
 
--- 00154's door, word for word, then the deal: the person's open deal, a
--- proposal first, the newest. A proposal takes the link (null when it is
--- cleared); with no open deal a link opens a Proposal out, as deal_record
--- would; a client's deal is left alone. So a page from before this release,
--- which sets the link on the person, still lands it where the deal reads it.
+-- 00154's door, then the deal: the person's open deal, a proposal first, the
+-- newest. A proposal takes the link (null when it is cleared), whatever the
+-- workspace answers; with no open deal a link opens a Proposal out, as
+-- deal_record would, but only where deals are on (sells_by 'proposal'); a
+-- client's deal is left alone. So a page from before this release, which sets
+-- the link on the person, still lands it where the deal reads it. A person
+-- merged into another is not found, as deal_record does not find them.
 create or replace function public.set_person_proposal(p_contact_id uuid, p_url text)
 returns jsonb
 language plpgsql
@@ -294,7 +302,9 @@ begin
        or v_url !~ '^https?://[^[:space:]]+$') then
     raise exception 'That is not a web address.' using errcode = '22023';
   end if;
-  select c.tenant_id into v_tenant from contacts c where c.id = p_contact_id and c.erased_at is null;
+  select c.tenant_id into v_tenant
+    from contacts c
+   where c.id = p_contact_id and c.erased_at is null and c.merged_into_contact_id is null;
   if v_tenant is null or not public.is_acting_member(v_tenant) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
@@ -313,7 +323,7 @@ begin
     if v_deal.stage = 'proposed' and v_deal.proposal_url is distinct from v_url then
       update deals set proposal_url = v_url, version = version + 1 where id = v_deal.id;
     end if;
-  elsif v_url is not null then
+  elsif v_url is not null and exists (select 1 from tenants t where t.id = v_tenant and t.sells_by = 'proposal') then
     insert into deals (tenant_id, contact_id, lead_id, service, stage, proposed_at, proposal_url, source, created_by)
     values (
       v_tenant, p_contact_id,
@@ -333,48 +343,65 @@ end $$;
 revoke execute on function public.set_person_proposal(uuid, text) from public, anon;
 grant execute on function public.set_person_proposal(uuid, text) to authenticated;
 comment on function public.set_person_proposal(uuid, text) is
-  'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0007): the person''s open proposal takes the link, no open deal opens a Proposal out with it, a client''s deal is left alone.';
+  'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0007): the person''s open proposal takes the link; with no open deal, a Proposal out is opened with it where deals are on (sells_by proposal); a client''s deal is left alone.';
 
 /* ------------------------------------------- 6. every link on file joins its deal -- */
 
--- Each live person with a link that no deal of theirs carries yet: their open
--- deal (a proposal first, the newest) takes it where it has none; with no open
--- deal, a Proposal out is opened for them, dated when the link was last set,
--- with its deal.proposed event in deal_record's shape and nobody as its
--- author. A second run finds every link carried and changes nothing.
+-- Each live person with a link that no deal of theirs carries yet, where the
+-- workspace has not said its customers book:
+--   - an open deal (a proposal first, the newest) takes the link where it has none;
+--   - else their newest deal (created_at, the row People shows), passed or
+--     ended: when the link was last set after that deal closed (decided or
+--     ended), the link is a proposal sent since, and a Proposal out is opened,
+--     dated when the link was set; otherwise the link was that deal's, and it
+--     takes it where it has none, as history -- nothing is reopened;
+--   - no deal at all: a Proposal out is opened, dated when the link was set.
+-- A deal opened here has its deal.proposed event in deal_record's shape, with
+-- nobody as its author and dated when the link was set, so the activity log
+-- says when it happened rather than a burst at the push. A second run finds
+-- every link carried, or left where it was, and changes nothing.
 do $$
 declare
-  k      record;
-  v_deal public.deals%rowtype;
-  v_at   timestamptz;
+  k       record;
+  v_deal  public.deals%rowtype;
+  v_at    timestamptz;
+  v_later boolean;
 begin
   for k in
     select c.id, c.tenant_id, c.proposal_url
       from public.contacts c
+      join public.tenants t on t.id = c.tenant_id
      where c.proposal_url is not null
        and c.erased_at is null
        and c.merged_into_contact_id is null
+       and t.sells_by is distinct from 'booking'
        and not exists (
          select 1 from public.deals d where d.contact_id = c.id and d.proposal_url = c.proposal_url
        )
      order by c.tenant_id, c.id
   loop
+    -- When the link was last set: the newest event that set one, not one that cleared it.
+    select max(e.created_at) into v_at
+      from public.events e
+     where e.tenant_id = k.tenant_id
+       and e.kind = 'contact.proposal_set'
+       and e.subject_type = 'contact'
+       and e.subject_id = k.id
+       and coalesce((e.data->>'set')::boolean, false);
+    -- Their open deal, a proposal first, the newest; else their newest of any stage.
     select * into v_deal from public.deals d
-     where d.contact_id = k.id and d.stage in ('proposed', 'won')
-     order by (d.stage = 'proposed') desc, d.created_at desc
+     where d.contact_id = k.id
+     order by (d.stage = 'proposed') desc, (d.stage = 'won') desc, d.created_at desc
      limit 1;
-    if v_deal.id is not null then
+    -- Set after the newest deal closed: only a closed deal has a close, and an unknown time is never later.
+    v_later := v_deal.id is not null
+               and v_deal.stage in ('lost', 'ended')
+               and coalesce(v_at > coalesce(v_deal.ended_at, v_deal.decided_at), false);
+    if v_deal.id is not null and not v_later then
       if v_deal.proposal_url is null then
         update public.deals set proposal_url = k.proposal_url, version = version + 1 where id = v_deal.id;
       end if;
     else
-      select max(e.created_at) into v_at
-        from public.events e
-       where e.tenant_id = k.tenant_id
-         and e.kind = 'contact.proposal_set'
-         and e.subject_type = 'contact'
-         and e.subject_id = k.id
-         and coalesce((e.data->>'set')::boolean, false);
       insert into public.deals (tenant_id, contact_id, lead_id, service, stage, proposed_at, proposal_url, source, created_by)
       values (
         k.tenant_id, k.id,
@@ -383,10 +410,11 @@ begin
         null, 'proposed', coalesce(v_at, now()), k.proposal_url, 'person', null
       )
       returning * into v_deal;
-      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data, created_at)
       values (k.tenant_id, 'deal.proposed', 'deal', 'deal', v_deal.id,
               jsonb_build_object('deal_id', v_deal.id, 'contact_id', k.id, 'stage', 'proposed',
-                                 'from', null, 'service', null, 'by', null));
+                                 'from', null, 'service', null, 'by', null),
+              coalesce(v_at, now()));
     end if;
   end loop;
 end $$;
