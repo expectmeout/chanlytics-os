@@ -286,14 +286,15 @@ const ReportsSections = ({ R, pick }) => {
           </RptSection>
 
           {/* Deals (0004): the proposals of the period and what became of them, then the clients now. Three sentences
-              from contracts' DealReportVM, each said once, in the booked card's own type; no chart, since a few
+              from contracts' DealReportVM, each said once, in the booked card's own shape: the cohort's two lines,
+              and the stock under the one hairline, as the booked card sets its other side. No chart, since a few
               proposals a month are a sentence, not a series. Drawn only where a deal was ever recorded, so a salon's
               Reports never grows a section of zeros. */}
           {R.deals && R.deals.present && (
             <RptSection title="Deals" testid="rpt-deals">
               <div className="rpt-booked">
                 <p className="rpt-booked-copy" data-testid="rpt-deals-headline">{R.deals.headline}</p>
-                {R.deals.parts && <p className="rpt-booked-rest" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
+                {R.deals.parts && <p className="rpt-booked-copy" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
                 <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{R.deals.stock}</p>
               </div>
             </RptSection>
