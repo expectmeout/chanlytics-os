@@ -169,12 +169,13 @@ test.describe("Consent for one person", () => {
   });
 
   /**
-   * The proposal link, for real, the same way (00154; e2e-workspace.mjs resets `proposal_url` and the deals each run):
-   * what is wrong with a typed address is said under the field and sends nothing; a good one goes through PUT details
-   * to set_person_proposal with its scheme supplied, the row shows where it lives, and an empty one clears it. The row
-   * is a deal's (0008): a workspace whose customers book has none, and the nightly's answers booking until it is seeded.
+   * The proposal's link, for real, the same way (0008; e2e-workspace.mjs resets `proposal_url` and the deals each run):
+   * the link is the deal's, given in the one sheet. What is wrong with a typed address is said under its field and
+   * sends nothing; a good one goes to the deal's door with its scheme supplied, the card shows where it lives, and an
+   * emptied one is cleared. Nothing is sent to anyone: the sheet's send stays off. A workspace whose customers book has
+   * no deal at all, and the nightly's answers booking until it is seeded.
    */
-  test("a person's proposal link is added, refused when it is not one, stored with its scheme, and cleared — through the real door", async ({
+  test("a proposal's link is given in the deal sheet, refused there when it is not one, stored on the deal with its scheme, and emptied again — through the real door", async ({
     page,
   }) => {
     await page.goto("/#/clients");
@@ -183,52 +184,71 @@ test.describe("Consent for one person", () => {
     test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
     await robin.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-
-    // The About rail is drawn with the address row in it; the proposal row beside it only where deals are on.
     await expect(page.getByTestId("person-email")).toBeVisible();
-    const row = page.getByTestId("person-proposal");
     test.skip(
-      (await row.count()) === 0,
-      "no proposal row: deals are off on this workspace (it answers that its customers book), so a proposal link has nowhere to live",
+      (await page.getByTestId("person-deal").count()) === 0,
+      "no Deal section: deals are off on this workspace (it answers that its customers book), so a proposal has nowhere to live",
     );
-    await expect(row).toBeVisible();
-    // A run that died half way leaves a link behind until the next seed: start from none.
-    if ((await page.getByTestId("person-proposal-edit").getAttribute("aria-label")) === "Change the proposal link") {
-      await page.getByTestId("person-proposal-edit").click();
-      await page.getByTestId("person-proposal-input").fill("");
-      await page.getByTestId("person-proposal-save").click();
-      await expect(page.getByTestId("person-proposal-edit")).toHaveAttribute("aria-label", "Add a proposal link");
-    }
 
-    const puts: string[] = [];
+    const posts: string[] = [];
     page.on("request", (r) => {
-      if (r.method() === "PUT" && /\/api\/v1\/contacts\/[^/]+\/details/.test(r.url())) puts.push(r.postData() ?? "");
+      if (r.method() === "POST" && /\/api\/v1\/contacts\/[^/]+\/deal/.test(r.url())) posts.push(r.postData() ?? "");
     });
+    const sheet = page.getByTestId("rec-sheet-deal-sheet");
+    const save = page.getByTestId("rec-sheet-save-deal-sheet");
+    const noSend = async () => {
+      const send = sheet.getByTestId("deal-sheet-send-switch");
+      if ((await send.count()) && (await send.getAttribute("aria-checked")) === "true") await send.click();
+    };
+    // A proposal out to work on: opened, without a link, where Robin has none (a run that died half way may leave one).
+    const start = page.getByTestId("person-deal-start");
+    if (await start.count()) {
+      await start.click();
+      await expect(sheet).toBeVisible();
+      await noSend();
+      await save.click();
+      await expect(sheet).toHaveCount(0);
+    }
+    const card = page.getByTestId("person-deal-card").first();
+    await expect(card).toBeVisible();
+    // The link is changed in the sheet's edit: "Add the link" where there is none, else "Edit the proposal".
+    const edit = async () => {
+      const next = card.getByTestId("person-deal-next");
+      if ((await next.count()) && (await next.innerText()).trim() === "Add the link") await next.click();
+      else await card.getByTestId("person-deal-move").filter({ hasText: "Edit the proposal" }).click();
+      await expect(sheet).toBeVisible();
+      await expect(sheet.locator(".rec-sheet-title")).toHaveText("Edit the proposal");
+    };
 
-    await page.getByTestId("person-proposal-edit").click();
-    const input = page.getByTestId("person-proposal-input");
+    await edit();
+    const input = sheet.getByTestId("deal-sheet-link-input");
+    const before = posts.length;
     await input.fill("docs");
-    await page.getByTestId("person-proposal-save").click();
-    await expect(page.getByTestId("person-proposal-problem")).toContainText("full web address");
-    expect(puts, "a refusal under the field sends nothing").toHaveLength(0);
+    await save.click();
+    await expect(sheet.getByTestId("deal-sheet-link").getByRole("alert")).toContainText("full web address");
+    expect(posts, "a refusal under the field sends nothing").toHaveLength(before);
 
     await input.fill(" docs.example.com/p/robin-e2e ");
-    await input.press("Enter");
-    await expect(page.getByTestId("person-proposal-link")).toHaveText("docs.example.com");
-    await expect(page.getByTestId("person-proposal-link")).toHaveAttribute(
-      "href",
-      "https://docs.example.com/p/robin-e2e",
-    );
-    expect(JSON.parse(puts[0])).toEqual({ proposal: "docs.example.com/p/robin-e2e" });
+    await save.click();
+    await expect(sheet).toHaveCount(0);
+    await expect(card.getByTestId("person-deal-link")).toHaveText("docs.example.com");
+    await expect(card.getByTestId("person-deal-link")).toHaveAttribute("href", "https://docs.example.com/p/robin-e2e");
+    expect(JSON.parse(posts.at(-1) ?? "{}")).toMatchObject({
+      stage: "proposed",
+      proposal_url: "https://docs.example.com/p/robin-e2e",
+    });
 
     // Still there on a cold load: it was stored, not drawn.
     await page.reload();
-    await expect(page.getByTestId("person-proposal-link")).toHaveText("docs.example.com");
+    await expect(page.getByTestId("person-deal-link").first()).toHaveText("docs.example.com");
 
-    await page.getByTestId("person-proposal-edit").click();
-    await page.getByTestId("person-proposal-input").fill("");
-    await page.getByTestId("person-proposal-save").click();
-    await expect(page.getByTestId("person-proposal-edit")).toHaveAttribute("aria-label", "Add a proposal link");
-    await expect(page.getByTestId("person-proposal-link")).toHaveCount(0);
+    // Emptied, it is cleared: the door is told which field was emptied, and the card says there is none.
+    await edit();
+    await sheet.getByTestId("deal-sheet-link-input").fill("");
+    await save.click();
+    await expect(sheet).toHaveCount(0);
+    await expect(card.getByTestId("person-deal-link")).toHaveCount(0);
+    await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link");
+    expect(JSON.parse(posts.at(-1) ?? "{}").clear).toContain("proposal_url");
   });
 });
