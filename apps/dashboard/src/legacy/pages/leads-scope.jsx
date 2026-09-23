@@ -232,9 +232,12 @@ const LeadRatedCard = ({ l }) => {
 const ldRowClass = (l) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
 // A converted lead whose person became a client (0004): the row reads People's row for them, and a deal won says
 // Client in the deal pill's own tone, in place of the lead's own tag. Nothing stored on the lead; a proposal still
-// out, or no deal, keeps the lead's word. People not read yet reads as no deal.
-const ldClientOf = (l) => {
-  const person = l.contactId && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((p) => p.id === l.contactId) : null;
+// out, or no deal, keeps the lead's word. People not read yet reads as no deal. The rows come through the cell
+// context (x.peopleRows, clients-a.jsx leadCellCtxFor), never the global: a memoised row is drawn again only when
+// a prop changes, and on a cold load of Leads the people land after the rows were drawn.
+const ldClientOf = (l, x) => {
+  const rows = x && x.peopleRows;
+  const person = l.contactId && rows ? rows.find((p) => p.id === l.contactId) : null;
   return !!(person && person.deal && person.deal.stage === "won");
 };
 const ldBusinessCell = (l, x) => (
@@ -246,7 +249,7 @@ const ldBusinessCell = (l, x) => (
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
           {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
           {x.mixedFits && l.fit ? <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" /> : null}
-          {ldClientOf(l) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
+          {ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state-tag" /> : l.stateTag ? <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" /> : null}
         </div>
         <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
         <LeadNameCard l={l} x={x} />
@@ -299,10 +302,10 @@ const LEAD_COLUMNS = [
 // person's row always says theirs); where it is, or what it waits on, or what left it out; and whether a phone and a
 // mailbox reach it, how it is rated and when it was found. Call is the lead's own page's first button -- the row opens
 // it -- and C on a keyboard: a 44px Call on every card made Leads' rows a second kind of list.
-const ldCardCell = (l) => window.plRowCard({
+const ldCardCell = (l, x) => window.plRowCard({
   face: { initials: l.tile.initials, image: l.tile.logo || l.tile.image },
   name: l.name,
-  pill: ldClientOf(l) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
+  pill: ldClientOf(l, x) ? <StatePill kind="deal" value="won" testid="lead-state" /> : <StatePill kind="lead_row_state" value={l.state} label={l.stateTag || l.stageLabel} testid="lead-state" />,
   lead: l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub),
   leadTestid: "lead-sub",
   facts: [

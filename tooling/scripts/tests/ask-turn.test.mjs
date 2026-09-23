@@ -1259,6 +1259,70 @@ test("the deal lists reach Ask only where deals are a thing here -- list_audienc
   assert.deepEqual(agency.clients.people, [], "the list is offered; nobody is a client yet");
 });
 
+test("a gated list's refusal names the condition that failed: with a calendar and a deal recorded but no consult-first service, Consultation booked is refused for the service alone", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e1",
+    "DTSTART:20260915T140000Z",
+    "DTEND:20260915T150000Z",
+    "SUMMARY:Consultation with Ana",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+    deals: [
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd8",
+        tenant_id: A,
+        contact_id: ANA,
+        service: "Ad management",
+        stage: "won",
+        proposed_at: iso(NOW.getTime() - 3 * 86_400_000),
+        decided_at: iso(NOW.getTime() - 86_400_000),
+        created_at: iso(NOW.getTime() - 3 * 86_400_000),
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const listed = await runTool(tc, { name: "list_audiences", input: {} });
+    assert.equal(listed.isError, false, listed.result);
+    const ids = JSON.parse(listed.result).audiences.map((a) => a.audience_id);
+    assert.ok(ids.includes("booked"), "the calendar was read: its lists are offered");
+    assert.ok(
+      ids.includes("clients") && !ids.includes("consultation_booked"),
+      "deals are a thing; the consultation list needs the service",
+    );
+    const consult = JSON.parse(
+      (await runTool(tc, { name: "search_people", input: { query: "", list: "consultation_booked" } })).result,
+    );
+    assert.match(consult.error, /lists a consult-first service under Settings › Business/, consult.error);
+    assert.doesNotMatch(
+      consult.error,
+      /deal recorded|calendar connected/,
+      "REGRESSION: the refusal named both conditions when only the service was missing",
+    );
+    assert.deepEqual(consult.people, []);
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });

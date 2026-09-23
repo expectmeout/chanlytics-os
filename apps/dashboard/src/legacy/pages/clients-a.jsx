@@ -707,18 +707,21 @@ const ldFinderSave = (f) => {
 const ldValuesPref = () => { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
 // page's latest closures through `acts`, so the object itself is kept across draws (in `kept`) and a memoised row
-// handed it is left alone.
-const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind) => {
+// handed it is left alone. People's rows ride in it (a converted lead's Client pill reads the person's deal, 0004):
+// publishPeople builds a fresh array each time People lands, so the context is new then and the rows redraw -- on a
+// cold load of Leads the rows paint before the people, and a row that read the global would say Converted until a
+// sort or a search drew it again.
+const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopleRows) => {
   const k = kept.current;
-  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind) return k.ctx;
+  if (k && k.values === values && k.mixedFits === mixedFits && k.hasCenter === hasCenter && k.canFind === canFind && k.peopleRows === peopleRows) return k.ctx;
   const door = (name) => (id) => acts.current[name](id);
   const ctx = {
     onOpen: door("onOpen"), onExpand: door("onExpand"),
-    values, mixedFits, hasCenter, canFind,
+    values, mixedFits, hasCenter, canFind, peopleRows,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
-  kept.current = { values, mixedFits, hasCenter, canFind, ctx };
+  kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, ctx };
   return ctx;
 };
 // Whether the window is a phone's width: the band People's cards use (clients.css, 900px) and the one the Columns
@@ -3278,7 +3281,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
   // changes, and a memoised row is left alone otherwise.
   leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
-  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind);
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows);
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads).
   const pickListRoute = (id) => window.__leadsRouteOf({ searchId: null, list: railToggle(leadView.searchId ? null : leadView.list, id) || "all", cls: null });
