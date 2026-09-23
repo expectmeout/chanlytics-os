@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -185,18 +186,19 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -206,7 +208,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -216,17 +218,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -452,7 +454,7 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
   try {
     cells = [];
     const render = () => {
-      seq = 0;
+      frames.begin();
       return globalThis.window.Inbox({ showAgentRail: false });
     };
     render();
@@ -506,7 +508,7 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
     },
   });
   const draw = (over = {}) => {
-    seq = 0;
+    frames.begin();
     return RealInboxList({ ...props, ...over });
   };
   buttonNamed(draw(), "Archive").props.onClick();
@@ -531,7 +533,7 @@ test("REGRESSION (A19): a bulk archive of real threads asks first -- it has no u
   const seeded = { ...rosa, id: "t-seed", real: false };
   cells = [];
   let pressed = 0;
-  seq = 0;
+  frames.begin();
   buttonNamed(
     RealInboxList(
       listProps({
@@ -559,7 +561,7 @@ test("REGRESSION (A25): the rows are a list a keyboard can walk -- Tab lands on 
     onToggleSelect: (id) => toggled.push(id),
   });
   const draw = (over = {}) => {
-    seq = 0;
+    frames.begin();
     return RealInboxList({ ...props, ...over });
   };
   let tree = draw();
@@ -660,7 +662,7 @@ test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- th
   globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
   const draw = (threads) => {
     cells = [];
-    seq = 0;
+    frames.begin();
     inboxWith(threads);
     return globalThis.window.Inbox({ showAgentRail: true });
   };

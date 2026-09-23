@@ -28,6 +28,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -93,7 +94,8 @@ function dto(over = {}) {
 /* -------------------------------- the page, drawn -------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 // What each effect hands back to be run when the page goes away, as React runs them on unmount.
 let cleanups = [];
 // What the page said in a toast, newest last.
@@ -108,11 +110,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -122,7 +124,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -132,14 +134,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   // Once per effect; with honourDeps, an effect whose dependencies changed runs again, its last cleanup first.
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     const moved =
       honourDeps &&
@@ -255,7 +257,7 @@ const leave = () => {
 };
 /** Draw the page again over the same cells; the board's five-minute timer is not started for real. */
 const page = (props = {}) => {
-  seq = 0;
+  frames.begin();
   const [si, ci] = [globalThis.setInterval, globalThis.clearInterval];
   globalThis.setInterval = () => 0;
   globalThis.clearInterval = () => {};
@@ -1106,7 +1108,7 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   Object.assign(globalThis.window, { __CALENDAR: { vm }, __today: { day: todayDay } });
   try {
     cells = [];
-    seq = 0;
+    frames.begin();
     const day = globalThis.window.TodayDay({});
     assert.equal(
       textOf(find(day, (n) => n.props?.className === "td-day-sub")),

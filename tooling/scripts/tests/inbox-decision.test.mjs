@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -135,18 +136,19 @@ test("the customer's own words ride with the decision: what they last wrote, quo
 /* ------------------------------ the pages, drawn ------------------------------ */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -156,7 +158,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -166,17 +168,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -257,7 +259,7 @@ const buttonsOf = (tree) => {
 
 const listOf = (threads) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxList({
     threads,
     allThreads: threads,
@@ -275,7 +277,7 @@ const listOf = (threads) => {
 const rowOf = (tree, who) => find(tree, (n) => hasClass("ix-thread")(n) && textOf(n).includes(who));
 const paneOf = (thread) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
 };
 

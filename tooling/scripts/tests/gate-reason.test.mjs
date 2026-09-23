@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -60,18 +61,19 @@ test("the gate names who may, and what this control does, in the words the serve
 /* ------------------------------ the page's gate ------------------------------ */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -81,7 +83,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -91,17 +93,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -254,7 +256,7 @@ test("presence and a busy menu refuse the same way: the reason reachable, the pr
     globalThis.window.PR_STORE.away = false;
   }
   cells = [];
-  seq = 0;
+  frames.begin();
   const busy = globalThis.window.MoreMenu({ items: [], gated: "One moment — the last change is still saving" });
   const trigger = find(busy, (n) => n.type === "button");
   assert.equal(
@@ -271,7 +273,7 @@ test("REGRESSION (A12): a menu item takes a gate -- the Inbox menu's Snooze did 
   let snoozed = 0;
   cells = [];
   const draw = () => {
-    seq = 0;
+    frames.begin();
     return globalThis.window.MoreMenu({
       items: [
         { header: "Conversation" },
@@ -303,7 +305,7 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
   let approved = 0;
   let opened = 0;
   cells = [];
-  seq = 0;
+  frames.begin();
   const row = globalThis.window.AttnRow({
     name: "Win-back",
     cta: {
@@ -409,7 +411,7 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
   });
   try {
     cells = [];
-    seq = 0;
+    frames.begin();
     globalThis.window.AgentCommand();
     const run = rows.find((p) => p.testid === "brief-run-row");
     assert.ok(run, "the run waiting for approval");
@@ -438,7 +440,7 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
   });
   try {
     cells = [];
-    seq = 0;
+    frames.begin();
     const tree = globalThis.window.MessagesPage();
     const write = byTestId(tree, "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");

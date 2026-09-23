@@ -979,7 +979,7 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
   amount and a per on "Became a client", a service picker only where the
   profile lists more than one, and the consent's evidence, optional here. No
   new CSS: .cl-prof-attr for the line, .cl-prof-how* for the row. Drawn on
-  every render and gated INSIDE (the stub React's one hook order); nothing
+  every render and gated INSIDE, so it holds the same hooks either way; nothing
   where deals are not a thing in this workspace.
 */
 const localToday = () => {

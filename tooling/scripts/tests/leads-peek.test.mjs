@@ -21,9 +21,11 @@ import {
   leadDraftFooter,
   toLeadPeekVM,
 } from "../../../packages/contracts/src/leads.ts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const listeners = {};
 const flashes = [];
 const opened = [];
@@ -35,11 +37,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -49,14 +51,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -400,7 +402,7 @@ const page = (over = {}) => {
     },
   };
   const draw = () => {
-    seq = 0;
+    frames.begin();
     const acts = globalThis.LeadPeekActions(p);
     return { tree: globalThis.LeadPeek({ vm: p.vm, mode: st.mode, armed: st.armed, draft: st.draft, ...acts }), acts };
   };
@@ -409,7 +411,7 @@ const page = (over = {}) => {
 
 const reset = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   flashes.length = 0;
   opened.length = 0;
   dialled.length = 0;
@@ -1679,7 +1681,7 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   const P = page();
   const acts = globalThis.LeadPeekActions(P.p);
   const withDeck = (over = {}) => {
-    seq = 0;
+    frames.begin();
     return globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over });
   };
   let tree = withDeck();
@@ -1740,7 +1742,7 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   );
 
   // A desktop has no deck at all: no place line, no swipe.
-  seq = 0;
+  frames.begin();
   const desk = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
   assert.equal(byTestId(desk, "peek-deck"), null);
   assert.equal(desk.props.onTouchStart, undefined);

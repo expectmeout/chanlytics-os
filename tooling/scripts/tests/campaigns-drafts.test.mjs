@@ -15,6 +15,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
@@ -84,7 +85,8 @@ installTabMemory(globalThis.window);
 const TM = globalThis.window.__tabMemory;
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 const toasts = [];
 globalThis.Icon = "Icon";
@@ -93,11 +95,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -107,7 +109,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -117,14 +119,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -202,21 +204,21 @@ const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount, as React mounts a page a person came back to: every cell forgotten, every listener gone. */
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   went.length = 0;
   toasts.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
 };
 /** The tree drawn again over the same cells, as React draws it after a state change. */
 const redraw = (draw) => {
-  seq = 0;
+  frames.begin();
   return draw();
 };
 /** The tree gone, as React unmounts it: each effect's cleanup, then the cells forgotten. */
 const unmount = () => {
-  for (const c of cells) if (c && typeof c.cleanup === "function") c.cleanup();
+  for (const c of Object.values(cells)) if (c && typeof c.cleanup === "function") c.cleanup();
   cells = [];
-  seq = 0;
+  frames.begin();
 };
 /** What the tab keeps, whole: every draft in the slot. */
 const drafts = () => JSON.parse(globalThis.sessionStorage.getItem("chanlytics.drafts.v1") || "{}");
@@ -699,7 +701,7 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     create: async (b) => ({ ok: true, data: { name: b.name } }),
   };
   try {
-    // New. (Drawn on its own: the stub keys hooks by call order, and Messages draws its rows after the composer.)
+    // New, drawn on its own.
     let closed = 0;
     const composeNew = () =>
       globalThis.window.TemplateComposer({

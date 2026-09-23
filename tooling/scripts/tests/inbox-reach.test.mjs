@@ -16,6 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -127,18 +128,19 @@ globalThis.document = {
 };
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -148,7 +150,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -158,17 +160,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -233,7 +235,7 @@ const buttonsOf = (tree) => {
 };
 const paneOf = (thread, over = {}) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" }, ...over });
 };
 
@@ -349,7 +351,7 @@ test("the countdown on screen, and the Hold that stops it, read and write the dr
       THREADS: [vm],
     };
     cells = [];
-    seq = 0;
+    frames.begin();
     globalThis.window.Inbox({ showAgentRail: false });
     return pane;
   };
@@ -375,7 +377,7 @@ test("the buckets say which one is open, and the select-all box says what it sel
   const one = vmOf(chat(), asked());
   const two = vmOf(chat({ id: "c2" }), asked({ id: "e2" }));
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = InboxList({
     threads: [one, two],
     allThreads: [one, two],
