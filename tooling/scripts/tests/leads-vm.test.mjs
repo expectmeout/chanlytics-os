@@ -239,7 +239,14 @@ test("a row's tile asks the listing's photo at the size it is drawn: 96px for a 
   const vm = toLeadRowVM(row({ image_url: G }), TZ, NOW, null);
   assert.equal(vm.tile.image, leadTileSrc(G), "the row's tile takes the small one");
   const peek = toLeadPeekVM(row({ image_url: G }), null, TZ, NOW);
-  assert.equal(peek.tile.image, G, "the peek's band and the photo expanded keep the whole photograph");
+  assert.equal(peek.tile.band, G, "the peek's band and the photo expanded keep the whole photograph, untouched");
+  assert.equal(peek.tile.image, vm.tile.image, "and under it the row's own tile, already in the browser from the list");
+  assert.equal(vm.tile.band, peek.tile.band, "the row names the band's photo, so it can ask for it before a press");
+});
+
+test("a lead with no photograph has no band and no tile: the initials stand", () => {
+  const none = toLeadPeekVM(row({ image_url: null }), null, TZ, NOW);
+  assert.deepEqual([none.tile.image, none.tile.band], [null, null]);
 });
 
 test("a stage change in the page's words becomes the door's arguments; the door, not the page, decides what converts", () => {
@@ -431,7 +438,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     },
     rated: { score: "5.0", count: "16" },
     spread: null,
-    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, logo: null },
+    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
     waitsOn: null,
     state: "ready",
     stateTag: null,
@@ -1044,7 +1051,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
   assert.deepEqual(
     [vm.tile, vm.rated, vm.distance, vm.checksSummary],
     [
-      { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, logo: null },
+      { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
       { score: "5.0", count: "16", low: null },
       "1.2 mi",
       "1 check passed · 1 couldn't tell · 1 failed",

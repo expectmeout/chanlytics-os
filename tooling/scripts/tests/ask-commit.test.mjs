@@ -338,6 +338,36 @@ test("a deal: the card's body to the person's deal route without the card's own 
     { ok: false, message: "This one has no undo." },
   );
   assert.equal(t.sent.length, 1, "an undo the card does not have reaches no route");
+
+  // A proposal's link, the day it stands and a reason for passing (0008) travel in the card's body like the rest.
+  const p = tab();
+  await commitProposal(
+    p.win,
+    card("deal", {
+      contact_id: P1,
+      stage: "proposed",
+      amount_cents: 120000,
+      per: "once",
+      proposal_url: "https://docs.example.com/p/maria",
+      valid_until: "2026-09-30",
+      who: "Maria",
+    }),
+    p.client,
+  );
+  assert.deepEqual(one(p).body, {
+    stage: "proposed",
+    amount_cents: 120000,
+    per: "once",
+    proposal_url: "https://docs.example.com/p/maria",
+    valid_until: "2026-09-30",
+  });
+  const l = tab();
+  await commitProposal(
+    l.win,
+    card("deal", { contact_id: P1, stage: "lost", deal_id: DEAL1, version: 4, lost_reason: "price", who: "Maria" }),
+    l.client,
+  );
+  assert.deepEqual(one(l).body, { stage: "lost", deal_id: DEAL1, version: 4, lost_reason: "price" });
 });
 
 test("a policy: the class with the mode or the dial, whichever the card carries; undo holds the previous values, or says it cannot", async () => {

@@ -947,7 +947,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
   assert.ok(
     readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes(
-      "const [out, anyDeal] = await Promise.all([withVisits(ctx, tenantId, rows), anyDealRecorded(ctx, tenantId)]);",
+      "const [out, sellsBy] = await Promise.all([withVisits(ctx, tenantId, rows), sellsByOf(ctx, tenantId)]);",
     ),
     "the list carries visits and the calendar's state, a page at a time",
   );

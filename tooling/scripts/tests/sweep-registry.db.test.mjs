@@ -78,6 +78,9 @@ const EVERY_CLOCK = {
   // a run is live or a round has not ended, and its nightly purge.
   leads: "leads-sweep",
   purge_leads: "purge-leads",
+  // The receptionist's note suggestions (00159): a thirty-minute clock that asks the edge only when a call's
+  // analysis is in or a conversation has gone quiet, and records that it looked otherwise.
+  notes: "notes-sweep",
 };
 const RUN_JUDGED = [
   "partitions",

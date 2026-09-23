@@ -20,6 +20,7 @@ import {
   frameWhisper,
   linkHost,
   proposalMessage,
+  proposalLinkOf,
   RECORDING_RETENTION_DAYS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
@@ -769,10 +770,18 @@ test("every message carries its own id on the page, the call's card too, so the 
 
 /* ------------------------------ the proposal, from the header ------------------------------ */
 
-test("a proposal on file (00154): the header's Actions put its words in the box -- only on a real thread with an open window, never for someone who said stop", () => {
+test("a proposal on file (00154, 0008): the header's Actions put its words in the box -- only where deals are on, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
   const url = "https://www.docs.example.com/p/emily";
+  const dealUrl = "https://quotes.example.com/p/emily-deal";
   globalThis.window.__proposalMessage = proposalMessage;
   globalThis.window.__linkHost = linkHost;
+  globalThis.window.__proposalLinkOf = proposalLinkOf;
+  const peopleWas = globalThis.window.__PEOPLE;
+  // People's row for the person behind the thread, as the surface publishes it: their deal as the row carries it.
+  const people = (dealsOn, deal = null, id = "k-emily") => {
+    globalThis.window.__PEOPLE = { rows: [{ id, deal }], dealsOn };
+  };
+  people(true);
   const events = [];
   const dispatched = globalThis.window.dispatchEvent;
   globalThis.window.dispatchEvent = (e) => {
@@ -822,9 +831,37 @@ test("a proposal on file (00154): the header's Actions put its words in the box 
       null,
       "blank is none",
     );
+
+    // The link is the deal's (0008, proposalLinkOf over People's row): a proposal out sends its own link...
+    const itemFor = () => menuOf(draw(vm)).props.items.find((i) => i.label === "Send the proposal");
+    people(true, { stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
+    assert.equal(itemFor().hint, "quotes.example.com", "the deal's link, not the one left on the person");
+    events.length = 0;
+    itemFor().onClick();
+    assert.deepEqual(events[0].detail, { text: proposalMessage(dealUrl), link: dealUrl });
+    // ...a proposal recorded without one sends nothing, and neither does a pass or a client, whatever the person holds.
+    for (const deal of [
+      { stage: "proposed", proposal: null },
+      { stage: "lost", proposal: { url: dealUrl, host: "quotes.example.com" } },
+      { stage: "won", proposal: { url: dealUrl, host: "quotes.example.com" } },
+      { stage: "ended", proposal: null },
+    ]) {
+      people(true, deal);
+      assert.equal(itemFor(), undefined, `${deal.stage}: no item`);
+    }
+    // Someone People has not read (or who has no row) keeps the thread's own link, as someone with no deal does.
+    people(true, null, "k-someone-else");
+    assert.equal(itemFor().hint, "docs.example.com");
+    // Where deals are off there is no proposal to send, and before People says whether they are on, no item either.
+    people(false);
+    assert.equal(itemFor(), undefined, "REGRESSION: a workspace whose customers book was offered a proposal");
+    delete globalThis.window.__PEOPLE;
+    assert.equal(itemFor(), undefined, "People not read yet: no item");
   } finally {
     globalThis.window.dispatchEvent = dispatched;
+    globalThis.window.__PEOPLE = peopleWas;
     delete globalThis.window.__proposalMessage;
     delete globalThis.window.__linkHost;
+    delete globalThis.window.__proposalLinkOf;
   }
 });

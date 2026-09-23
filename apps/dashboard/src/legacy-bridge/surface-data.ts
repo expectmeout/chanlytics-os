@@ -82,6 +82,8 @@ export interface Workspace {
   name: string;
   status: string;
   timezone: string;
+  /** How its customers buy (0008): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
+  sells_by?: string | null;
 }
 
 export interface Me {
@@ -764,7 +766,7 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
-  /** Deals are a thing here (0004): the Journey's deal lists, the thread's menu item, the column. */
+  /** Deals are on here (dealsAreOn, 0008): the Journey's deal lists, the thread's menu item, the column. */
   dealsOn: boolean;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
@@ -783,23 +785,32 @@ let peopleLoaded: {
   saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
-  /** Deals are a thing here, and the profile lists a consult-first service (0004): which Journey lists exist. */
+  /** Deals are on here (0008), and the profile lists a consult-first service (0004): which Journey lists exist. */
   dealsOn: boolean;
   consultFirst: boolean;
   views: Record<string, unknown>;
 } | null = null;
 
+/**
+ * A People row as the page reads it. Where deals are off (dealsAreOn, 0008) it carries no deal, whatever the database
+ * holds: not the lists, the column, the row's second line, the thread's chip and send, or Today's proposals waiting,
+ * which all read it from here.
+ */
+function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
+  const vm = toPersonRowVM(r, tz, now);
+  return dealsOn ? vm : { ...vm, deal: null };
+}
+
 /** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
 function publishPeople(): void {
   if (!peopleLoaded) return;
-  const { tz } = peopleLoaded;
+  const { tz, dealsOn, consultFirst } = peopleLoaded;
   const now = new Date();
-  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
+  const rows = peopleLoaded.people.map((r) => personRowOf(r, tz, now, dealsOn));
   const calendar = peopleLoaded.calendar;
-  const { dealsOn, consultFirst } = peopleLoaded;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
-    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are a thing.
+    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
     lists: PEOPLE_LISTS.filter(
       (l) =>
         (!l.needsCalendar || calendar.state === "ok") &&
@@ -902,7 +913,7 @@ async function peopleMore(): Promise<void> {
 async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; more: boolean }> {
   const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
   const now = new Date();
-  return { rows: r.people.map((p) => toPersonRowVM(p, tz, now)), more: !!r.page?.has_more };
+  return { rows: r.people.map((p) => personRowOf(p, tz, now, !!r.deals_on)), more: !!r.page?.has_more };
 }
 
 /**

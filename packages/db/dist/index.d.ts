@@ -471,6 +471,7 @@ type Database = {
                     in_voicemail: boolean | null;
                     latency: Json | null;
                     message_id: string | null;
+                    note_checked_at: string | null;
                     notified_at: string | null;
                     outcome: string | null;
                     public_log_url: string | null;
@@ -510,6 +511,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    note_checked_at?: string | null;
                     notified_at?: string | null;
                     outcome?: string | null;
                     public_log_url?: string | null;
@@ -549,6 +551,7 @@ type Database = {
                     in_voicemail?: boolean | null;
                     latency?: Json | null;
                     message_id?: string | null;
+                    note_checked_at?: string | null;
                     notified_at?: string | null;
                     outcome?: string | null;
                     public_log_url?: string | null;
@@ -799,6 +802,7 @@ type Database = {
                     last_inbound_at: string | null;
                     last_message_at: string | null;
                     last_wa_inbound_at: string | null;
+                    note_checked_at: string | null;
                     paused_until: string | null;
                     snooze_until: string | null;
                     state: string;
@@ -817,6 +821,7 @@ type Database = {
                     last_inbound_at?: string | null;
                     last_message_at?: string | null;
                     last_wa_inbound_at?: string | null;
+                    note_checked_at?: string | null;
                     paused_until?: string | null;
                     snooze_until?: string | null;
                     state?: string;
@@ -835,6 +840,7 @@ type Database = {
                     last_inbound_at?: string | null;
                     last_message_at?: string | null;
                     last_wa_inbound_at?: string | null;
+                    note_checked_at?: string | null;
                     paused_until?: string | null;
                     snooze_until?: string | null;
                     state?: string;
@@ -870,14 +876,17 @@ type Database = {
                     evidence: Json | null;
                     id: string;
                     lead_id: string | null;
+                    lost_reason: string | null;
                     note: string | null;
                     per: string | null;
+                    proposal_url: string | null;
                     proposed_at: string;
                     service: string | null;
                     source: string;
                     stage: string;
                     tenant_id: string;
                     updated_at: string;
+                    valid_until: string | null;
                     version: number;
                 };
                 Insert: {
@@ -891,14 +900,17 @@ type Database = {
                     evidence?: Json | null;
                     id?: string;
                     lead_id?: string | null;
+                    lost_reason?: string | null;
                     note?: string | null;
                     per?: string | null;
+                    proposal_url?: string | null;
                     proposed_at?: string;
                     service?: string | null;
                     source?: string;
                     stage: string;
                     tenant_id: string;
                     updated_at?: string;
+                    valid_until?: string | null;
                     version?: number;
                 };
                 Update: {
@@ -912,14 +924,17 @@ type Database = {
                     evidence?: Json | null;
                     id?: string;
                     lead_id?: string | null;
+                    lost_reason?: string | null;
                     note?: string | null;
                     per?: string | null;
+                    proposal_url?: string | null;
                     proposed_at?: string;
                     service?: string | null;
                     source?: string;
                     stage?: string;
                     tenant_id?: string;
                     updated_at?: string;
+                    valid_until?: string | null;
                     version?: number;
                 };
                 Relationships: [
@@ -3812,6 +3827,7 @@ type Database = {
                     id: string;
                     locale: string;
                     name: string;
+                    sells_by: string | null;
                     slug: string;
                     status: string;
                     timezone: string;
@@ -3822,6 +3838,7 @@ type Database = {
                     id?: string;
                     locale?: string;
                     name: string;
+                    sells_by?: string | null;
                     slug: string;
                     status?: string;
                     timezone?: string;
@@ -3832,6 +3849,7 @@ type Database = {
                     id?: string;
                     locale?: string;
                     name?: string;
+                    sells_by?: string | null;
                     slug?: string;
                     status?: string;
                     timezone?: string;
@@ -4042,13 +4060,17 @@ type Database = {
             deal_record: {
                 Args: {
                     p_amount_cents?: number;
+                    p_clear?: string[];
                     p_contact_id: string;
                     p_deal_id?: string;
                     p_evidence?: Json;
+                    p_lost_reason?: string;
                     p_note?: string;
                     p_per?: string;
+                    p_proposal_url?: string;
                     p_service?: string;
                     p_stage: string;
+                    p_valid_until?: string;
                     p_version?: number;
                     p_when?: string;
                 };
@@ -4653,6 +4675,23 @@ type Database = {
                 Args: never;
                 Returns: string;
             };
+            note_candidates: {
+                Args: {
+                    p_limit?: number;
+                };
+                Returns: {
+                    contact_id: string;
+                    dnc: boolean;
+                    known: Json;
+                    last_suggested: string;
+                    seconds: number;
+                    source: string;
+                    source_id: string;
+                    tenant_id: string;
+                    turns: Json;
+                    workspace_today: number;
+                }[];
+            };
             note_for_you_notify: {
                 Args: {
                     p_by: string;
@@ -4713,10 +4752,13 @@ type Database = {
                     deal_decided_at: string;
                     deal_ended_at: string;
                     deal_id: string;
+                    deal_lost_reason: string;
                     deal_per: string;
+                    deal_proposal_url: string;
                     deal_proposed_at: string;
                     deal_service: string;
                     deal_stage: string;
+                    deal_valid_until: string;
                     display_name: string;
                     dnc: boolean;
                     earliest_row_at: string;
@@ -5153,6 +5195,10 @@ type Database = {
                 Returns: number;
             };
             trigger_lines_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_notes_sweep: {
                 Args: never;
                 Returns: number;
             };
@@ -5659,9 +5705,16 @@ interface LeadContext {
         body: string;
         at: string;
     }[] | null;
-    /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+    /**
+     * Their proposal, as a web address: the current deal's while it is a proposal out, none for any other deal, the
+     * person's own only with no deal at all (proposalLinkOf, 0008); none where deals are off. Sent when they ask about
+     * price, its figures never stated.
+     */
     proposalUrl?: string | null;
-    /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
+    /**
+     * Their deal (0004), the newest open or current one: the sentence the receptionist hears; none where deals are off
+     * (dealsAreOn, 0008). Optional so every fake still compiles.
+     */
     deal?: DealFacts | null;
 }
 /**
@@ -5682,7 +5735,9 @@ interface LeadContext {
 declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
  * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
- * Every deal of theirs is read, because the current one may be the oldest (see readLeadContext).
+ * None where deals are off (dealsAreOn, 0008): the workspace's answer rides on the contact read, and a database that
+ * cannot say it has deals off. Every deal of theirs is read, because the current one may be the oldest (see
+ * readLeadContext).
  */
 declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
 /**

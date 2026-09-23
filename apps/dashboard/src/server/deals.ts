@@ -1,30 +1,40 @@
 import "server-only";
 import type { RouteContext } from "@/server/with-route";
-import type { DealReportDto } from "@chanlytics/contracts";
+import { isSellsBy, type DealReportDto, type SellsBy } from "@chanlytics/contracts";
 
 /**
- * Whether a deal was ever recorded here (0004), safe on an older database: a table that is not there reads as
- * none, and costs the deal lists, never the list. The one read the People route and the assistant's pool share.
+ * How this workspace's customers buy (tenants.sells_by, 0008): the answer every deal gate reads through contracts'
+ * dealsAreOn. Null when it was never given, and on a database 00160 has not reached: a column that is not there reads
+ * as not asked, which costs the deal layer, never the page. The one read the People routes, Reports and the
+ * assistant's pool share.
  */
-export async function anyDealRecorded(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<boolean> {
-  const r = await ctx.supabase.from("deals").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-  return r.error ? false : (r.count ?? 0) > 0;
+export async function sellsByOf(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SellsBy | null> {
+  const r = await ctx.supabase.from("tenants").select("sells_by").eq("id", tenantId).maybeSingle();
+  if (r.error || !r.data) return null;
+  const answer: unknown = (r.data as { sells_by?: unknown }).sells_by;
+  return isSellsBy(answer) ? answer : null;
 }
+
+const NONE: DealReportDto = { any: false, sent: 0, won: 0, lost: 0, waiting: 0, clients: 0, monthly_cents: 0 };
 
 /**
  * Reports' Deals numbers (0004): one cohort -- the proposals sent in the
  * period and what became of them -- and the stock, clients now with their
- * monthly total. Counted over the columns under the member's own RLS. Null
- * where the table cannot be read (an older database): the section is not
- * drawn and the report stands. Takes only the client it reads with, as the
- * calendar's readers do.
+ * monthly total. Counted over the columns under the member's own RLS. Drawn
+ * only where deals are on (`on`: the route's dealsAreOn, 0008) and a deal was
+ * recorded; where they are off the table is not read at all. Null where the
+ * table cannot be read (an older database): the section is not drawn and the
+ * report stands. Takes only the client it reads with, as the calendar's
+ * readers do.
  */
 export async function dealReport(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   days: number,
+  on: boolean,
   now = new Date(),
 ): Promise<DealReportDto | null> {
+  if (!on) return { ...NONE };
   const { data, error } = await ctx.supabase
     .from("deals")
     .select("stage, proposed_at, amount_cents, per")

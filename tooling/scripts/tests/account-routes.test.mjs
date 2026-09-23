@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { SELLS_BY_REFUSAL } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -215,6 +216,138 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
     "forbidden",
     403,
     "could not be changed",
+  );
+});
+
+test("how customers buy: the owner's, one of the two answers, only what was sent written and read back, and a change that landed on no row is a refusal (0008)", async () => {
+  const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
+  const ctx = () => ctxFor(tables);
+  await refused(
+    workspaces.PATCH.run(send("PATCH", { sells_by: "proposal" }, inA), ctx()),
+    "forbidden",
+    403,
+    "Only an owner",
+  );
+  await refused(
+    workspaces.PATCH.run(send("PATCH", { sells_by: "banana" }, inB), ctx()),
+    "validation",
+    400,
+    SELLS_BY_REFUSAL,
+  );
+  await refused(
+    workspaces.PATCH.run(send("PATCH", {}, inB), ctx()),
+    "validation",
+    400,
+    "Send the workspace's timezone, or how its customers buy.",
+  );
+  const c = ctx();
+  const changed = await workspaces.PATCH.run(send("PATCH", { sells_by: "proposal" }, inB), c);
+  assert.deepEqual(changed, {
+    workspace: {
+      id: B,
+      slug: "bayside",
+      name: "Bayside",
+      status: "active",
+      timezone: "America/New_York",
+      sells_by: "proposal",
+    },
+  });
+  assert.deepEqual(
+    c.supabase.seen.find((q) => q.table === "tenants" && q.op === "update").values,
+    { sells_by: "proposal" },
+    "the answer alone",
+  );
+  assert.equal(tables.tenants.find((t) => t.id === B).sells_by, "proposal");
+  assert.equal(tables.tenants.find((t) => t.id === A).sells_by, undefined, "the workspace named, and no other");
+  const both2 = await workspaces.PATCH.run(
+    send("PATCH", { timezone: "America/Chicago", sells_by: "booking" }, inB),
+    ctx(),
+  );
+  assert.deepEqual(
+    [both2.workspace.timezone, both2.workspace.sells_by],
+    ["America/Chicago", "booking"],
+    "both at once",
+  );
+  // A bad zone beside a good answer writes neither.
+  await refused(
+    workspaces.PATCH.run(send("PATCH", { timezone: "Mars/Olympus", sells_by: "proposal" }, inB), ctx()),
+    "validation",
+    400,
+  );
+  assert.equal(tables.tenants.find((t) => t.id === B).sells_by, "booking");
+  // A zone alone reads back only what it wrote, so it saves on a database that has no answer column yet.
+  const z = ctx();
+  await workspaces.PATCH.run(send("PATCH", { timezone: "America/Denver" }, inB), z);
+  assert.equal(
+    z.supabase.seen.find((q) => q.table === "tenants" && q.op === "update").columns,
+    "id, slug, name, status, timezone",
+  );
+  await refused(
+    workspaces.PATCH.run(send("PATCH", { sells_by: "proposal" }, inB), ctxFor({ ...tables, tenants: [] })),
+    "forbidden",
+    403,
+    "How that workspace's customers buy could not be changed.",
+  );
+});
+
+test("where you are says how each workspace's customers buy, and a database that has not reached 00160 still answers (0008)", async () => {
+  const tables = {
+    memberships: both("viewer", "owner"),
+    tenants: [
+      { ...tenants()[0], sells_by: "proposal" },
+      { ...tenants()[1], sells_by: null },
+    ],
+    profiles: [],
+  };
+  const rpcs = { is_platform_admin: () => false };
+  const home = await workspaces.GET.run(get(), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(
+    home.workspaces.map((w) => [w.slug, w.sells_by]),
+    [
+      ["bayside", null],
+      ["harbor", "proposal"],
+    ],
+  );
+  // The database PostgREST answers "column does not exist" for sells_by: the boot read asks again without it, and
+  // every workspace is not asked yet, rather than the app not starting.
+  const db = fakeDb({ ...tables, tenants: tenants() }, {}, rpcs);
+  const older = {
+    ...db,
+    from: (t) => {
+      const q = db.from(t);
+      if (t !== "tenants") return q;
+      return {
+        select: (cols, o) =>
+          /\bsells_by\b/.test(String(cols))
+            ? {
+                order: async () => ({
+                  data: null,
+                  error: { message: "column tenants.sells_by does not exist", code: "42703" },
+                }),
+              }
+            : q.select(cols, o),
+      };
+    },
+  };
+  const before = await workspaces.GET.run(get(), {
+    supabase: older,
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  });
+  assert.deepEqual(
+    before.workspaces.map((w) => [w.slug, w.sells_by]),
+    [
+      ["bayside", null],
+      ["harbor", null],
+    ],
+  );
+  assert.equal(before.activeWorkspaceId, A, "and where you are is answered as ever");
+  // Any other failure is still the failure.
+  const broken = fakeDb(tables, { "tenants.select": { message: "statement timeout" } }, rpcs);
+  await assert.rejects(
+    workspaces.GET.run(get(), { supabase: broken, userId: USER, email: "ada@example.com", params: {} }),
+    /statement timeout/,
   );
 });
 

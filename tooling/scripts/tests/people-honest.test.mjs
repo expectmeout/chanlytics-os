@@ -2094,6 +2094,41 @@ test("a Deal column waits in the Columns menu only where deals are a thing here,
   assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-deal")).trim(), "", "nothing where no deal was recorded");
 });
 
+test("where deals are off, People's rows carry no deal, whatever the database holds: the lists, the row's line and Today's count read none (0008)", async () => {
+  const proposed = person(1, {
+    deal_id: "d1",
+    deal_stage: "proposed",
+    deal_service: "Ad management",
+    deal_proposed_at: iso(9 * 86_400_000),
+    deal_decided_at: null,
+    deal_ended_at: null,
+    deal_amount_cents: 120000,
+    deal_per: "once",
+    deal_proposal_url: "https://docs.example.com/p/one",
+    last_inbound_text: null,
+  });
+  await freshPage({ people: [proposed, person(2)], dealsOn: false });
+  const off = globalThis.window.__PEOPLE;
+  assert.equal(off.dealsOn, false);
+  assert.deepEqual(
+    off.rows.map((r) => r.deal),
+    [null, null],
+    "REGRESSION: a workspace whose customers book carried its old deals on every row",
+  );
+  assert.ok(!off.lists.some((l) => l.id === "proposal_out"), "and no deal list");
+  assert.doesNotMatch(off.attention.p1.sentence, /Proposal out/, "the row's line says no proposal");
+  // Deals on: the same rows carry theirs.
+  await freshPage({ people: [proposed, person(2)], dealsOn: true });
+  const on = globalThis.window.__PEOPLE;
+  assert.equal(on.rows.find((r) => r.id === "p1").deal.stage, "proposed");
+  assert.equal(on.rows.find((r) => r.id === "p1").deal.proposal.url, "https://docs.example.com/p/one");
+  assert.equal(on.attention.p1.sentence, "Proposal out · 9 d");
+  // A search's rows answer to the same switch.
+  wire({ people: [], dealsOn: false, search: () => ({ people: [proposed], total: 1, has_more: false }) });
+  const found = await globalThis.window.__peopleSearch("Person");
+  assert.equal(found.rows[0].deal, null, "a search where deals are off finds no deal either");
+});
+
 test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {
   await freshPage({
     people: [person(1)],

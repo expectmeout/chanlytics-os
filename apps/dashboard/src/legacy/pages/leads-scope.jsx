@@ -710,13 +710,16 @@ const useLeadMapFit = () => {
     const fit = () => {
       const box = el.querySelector(".ld-map-main > :first-child");
       if (!wide.matches || !box) { el.classList.remove("fit"); return; }
+      // Fitted first: .fit takes the padding off under the map and under the page (leads.css), so what is measured
+      // next is the room the fitted page really has, and the foot ends on the screen's bottom edge.
+      el.classList.add("fit");
       const sc = scroller();
       const top = sc ? box.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop : box.getBoundingClientRect().top + window.scrollY;
       const foot = el.querySelector(".ld-map-foot");
-      const under = (foot ? foot.offsetHeight + 8 : 0) + (parseFloat(getComputedStyle(el).paddingBottom) || 0);
+      const pad = (n) => (n ? parseFloat(getComputedStyle(n).paddingBottom) || 0 : 0);
+      const under = (foot ? foot.offsetHeight + 8 : 0) + pad(el) + pad(sc);
       const room = (sc ? sc.clientHeight : window.innerHeight) - top - under;
       el.style.setProperty("--map-h", `${Math.max(320, Math.round(room))}px`);
-      el.classList.add("fit");
       // Whatever still scrolls below it (the page's own padding under the column) comes off the map too, so the
       // map view never scrolls to empty space.
       const view = sc || document.scrollingElement;
