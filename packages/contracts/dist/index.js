@@ -6642,6 +6642,14 @@ function receptionistOf(r, tz, nowMs) {
     return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }
+function visitTitleFor(title, name) {
+  const n = name.trim().toLowerCase();
+  if (!n || isIdentifierName(name)) return title;
+  const t = title.trimEnd();
+  if (!t.toLowerCase().endsWith(n)) return title;
+  const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
+  return m ? m[1].trim() : title;
+}
 function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const name = personName(r);
@@ -6690,8 +6698,8 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     calendar,
     booked,
     nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
-    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
-    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.next.title, name)}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
     // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
     // WhatsApp's for everybody, so a person who had only ever emailed was shown
@@ -7199,7 +7207,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
             month: new Intl.DateTimeFormat("en-US", { timeZone: tz2, month: "short" }).format(new Date(t)),
             date: new Intl.DateTimeFormat("en-US", { timeZone: tz2, day: "numeric" }).format(new Date(t)),
             day: on === "Today" || on === "Tomorrow" ? on : new Intl.DateTimeFormat("en-US", { timeZone: tz2, weekday: "short" }).format(new Date(t)),
-            title: v.title,
+            title: visitTitleFor(v.title, base.name),
             time: visitTime(v, tz2),
             byName: v.via === "name",
             to: `calendar/${visitDateKey(v.start, tz2)}`
@@ -7213,7 +7221,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} \xB7 ${v.title}`,
+        text: `${ahead ? "Booked" : "Visited"} \xB7 ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, tz2)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz2)}` }
       });
@@ -7397,7 +7405,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   }
   if (d.visits) {
     const v = d.visits;
-    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
+    const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.next.title, base.name)}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
     facts.push({
       label: "Next visit",
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
@@ -7405,7 +7413,11 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       meta: v.next ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " \xB7 by name" : ""}` : v.state === "ok" ? "none booked" : "could not be read"
     });
     about.push({ k: "Next visit", v: nextLine });
-    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` });
+    if (v.last)
+      about.push({
+        k: "Last visit",
+        v: `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${visitTitleFor(v.last.title, base.name)}`
+      });
   }
   if (d.added) {
     const at2 = ts(d.added.at);
@@ -18379,6 +18391,7 @@ export {
   visitLine,
   visitStartTime,
   visitTime,
+  visitTitleFor,
   visitsIn,
   visitsOf,
   waWindow,

@@ -1512,7 +1512,7 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 .cl-tl-row-door:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .cl-tl-go { align-self: center; color: var(--ink-faint); opacity: 0; transition: opacity 120ms ease; }
 .cl-tl-row-door:hover .cl-tl-go, .cl-tl-row-door:focus-visible .cl-tl-go { opacity: 1; }
-@media (hover: none) { .cl-tl-go { opacity: 0.7; } }
+@media (hover: none) { .cl-tl-go { display: none; } }
 .cl-tl-older { margin: var(--space-1) 0 0 40px; align-self: flex-start; }
 .cl-tl-mark {
   width: 28px; height: 28px;
@@ -1587,12 +1587,10 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 }
 .cl-prof-rail-section:last-child { border-bottom: none; }
 .cl-prof-rail-label {
-  font-size: 10px;
+  font-size: var(--text-sm);
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--ink-dim);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .cl-prof-attr-list {
@@ -1602,11 +1600,11 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 }
 .cl-prof-attr {
   display: grid;
-  grid-template-columns: 100px 1fr;
+  grid-template-columns: var(--rec-key, 104px) minmax(0, 1fr);
   gap: 12px;
-  padding: 6px 0;
-  font-size: 11.5px;
-  border-bottom: 1px dashed var(--line);
+  padding: 8px 0;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
 }
 .cl-prof-attr:last-child { border-bottom: none; }
 .cl-prof-attr-key { color: var(--ink-dim); }
@@ -1614,7 +1612,7 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 .cl-prof-attr-door { margin-left: 8px; }
 /* A run on a person's page: the row is its door to the run's report, drawn as an About row, the outcome under the
    run's name in the page's quiet ink, green once they replied and amber when it was held or never sent. */
-.cl-prof-run { width: 100%; margin: 0; background: none; border: 0; border-bottom: 1px dashed var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cl-prof-run { width: 100%; margin: 0; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cl-prof-run:last-child { border-bottom: none; }
 .cl-prof-run:hover .cl-prof-run-title { text-decoration: underline; }
 .cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
@@ -1842,7 +1840,14 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 .cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
 .cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
 /* No name yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
-.cl-prof-rename.is-plain { width: auto; gap: 5px; padding: 0 8px 0 6px; opacity: 1; color: var(--ink-muted); border-color: var(--line); font: inherit; font-size: 11.5px; }
+.cl-prof-rename.is-plain { width: auto; gap: 5px; padding: 0 6px 0 0; opacity: 1; color: var(--ink-muted); border-color: transparent; font: inherit; font-size: var(--text-sm); justify-content: flex-start; }
+.cl-prof-rename.is-plain:hover { border-color: transparent; background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+/* On a touch screen a quiet act in an About row keeps the 44px it may be pressed across, and the row keeps its own
+   height: the press reaches into the row's padding instead of growing it, so the words stay on the label's line. */
+@media (pointer: coarse) {
+  html.legacy-on .cl-prof-attr .cl-prof-rename.is-plain,
+  html.legacy-on .cl-prof-attr .cl-prof-attr-door { margin-block: -13px; }
+}
 @media (hover: none) { .cl-prof-rename { opacity: 1; } }
 .cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; flex: 1 1 200px; min-width: 0; max-width: 420px; outline: none; }
 .cl-prof-name-input:focus { border-color: var(--accent); }

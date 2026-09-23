@@ -995,6 +995,21 @@ export interface PersonRowVM {
   consultationVisit: boolean;
 }
 
+/**
+ * A visit's title as a calendar wrote it, without the person's own name at its end: a booking app titles an
+ * appointment "Consultation · Tom Baker", and on Tom's page and his row the name is said already. Only the whole name,
+ * after a separator, goes; a title that is the name alone, or says anything else, is the calendar's and stays.
+ */
+export function visitTitleFor(title: string, name: string): string {
+  const n = name.trim().toLowerCase();
+  if (!n || isIdentifierName(name)) return title;
+  const t = title.trimEnd();
+  if (!t.toLowerCase().endsWith(n)) return title;
+  // What comes before the name must end in a separator: the name is a part of its own, not the end of a word.
+  const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
+  return m ? m[1].trim() : title;
+}
+
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
   const nowMs = now.getTime();
   const name = personName(r);
@@ -1064,8 +1079,8 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     calendar,
     booked,
     nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
-    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : null,
-    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
+    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, name)}` : null,
+    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, name)}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
     // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
     // WhatsApp's for everybody, so a person who had only ever emailed was shown
@@ -1969,7 +1984,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
               on === "Today" || on === "Tomorrow"
                 ? on
                 : new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(t)),
-            title: v.title,
+            title: visitTitleFor(v.title, base.name),
             time: visitTime(v, tz),
             byName: v.via === "name",
             to: `calendar/${visitDateKey(v.start, tz)}`,
@@ -1983,7 +1998,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
+        text: `${ahead ? "Booked" : "Visited"} · ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
       });
@@ -2259,7 +2274,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   if (d.visits) {
     const v = d.visits;
     const nextLine = v.next
-      ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}`
+      ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, base.name)}`
       : v.state === "ok"
         ? "Nothing on the calendar"
         : "Calendar could not be read";
@@ -2274,7 +2289,11 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
           : "could not be read",
     });
     about.push({ k: "Next visit", v: nextLine });
-    if (v.last) about.push({ k: "Last visit", v: `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` });
+    if (v.last)
+      about.push({
+        k: "Last visit",
+        v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, base.name)}`,
+      });
   }
   if (d.added) {
     const at = ts(d.added.at);

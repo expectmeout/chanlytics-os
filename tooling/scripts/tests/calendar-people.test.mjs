@@ -1696,3 +1696,18 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
   );
   assert.ok(!extractContacts(balayage, own).names.includes("Ruben"), "nor their name among its guests");
 });
+
+test("a visit's title drops the person's own name at its end, and nothing else: on Tom's page it is Consultation", async () => {
+  const { visitTitleFor } = await import("../../../packages/contracts/src/people.ts");
+  assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
+  assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
+  assert.equal(visitTitleFor("Consultation · Tom", "Tom Baker"), "Consultation · Tom", "not a part of the name");
+  assert.equal(visitTitleFor("Tom Baker", "Tom Baker"), "Tom Baker", "a title that is only the name stays");
+  assert.equal(visitTitleFor("Balayage", "Tom Baker"), "Balayage", "a title without it stays");
+  assert.equal(visitTitleFor("Cut · Mary-Jane Lee", "Mary-Jane Lee"), "Cut", "a hyphen inside the name is the name's");
+  assert.equal(
+    visitTitleFor("Cut · +1 917 555 0116", "+1 917 555 0116"),
+    "Cut · +1 917 555 0116",
+    "a number is not a name",
+  );
+});
