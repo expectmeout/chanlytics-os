@@ -314,3 +314,79 @@ test("a People row carries its deal, and none without the columns (an older data
   assert.equal(withDeal.stage, "proposed");
   assert.equal(withDeal.id, "d1");
 });
+
+/** The least a person's page reads (PersonDetailDto): the row and empty arrays; the person-honest test builds the full one. */
+const detail = (over = {}) => ({
+  row: personRow(),
+  identities: [],
+  conversations: [],
+  calls: [],
+  escalations: [],
+  decisions: [],
+  ...over,
+});
+
+test("a person's page lists their deals, says the current one among its facts, and puts each move on the timeline", () => {
+  const { toPersonVM, filterTimeline, TIMELINE_FILTERS } = contracts;
+  const d = detail({
+    row: personRow(
+      cols({ deal_stage: "won", deal_decided_at: daysAgo(3), deal_amount_cents: 250_000, deal_per: "month" }),
+    ),
+    deals: [
+      {
+        id: "d1",
+        contact_id: "p1",
+        service: "Ad management",
+        stage: "won",
+        proposed_at: daysAgo(20),
+        decided_at: daysAgo(3),
+        ended_at: null,
+        amount_cents: 250_000,
+        per: "month",
+        currency: "USD",
+        note: null,
+        version: 2,
+        created_at: daysAgo(20),
+      },
+      {
+        id: "d0",
+        contact_id: "p1",
+        service: "SEO",
+        stage: "lost",
+        proposed_at: daysAgo(60),
+        decided_at: daysAgo(50),
+        ended_at: null,
+        amount_cents: null,
+        per: null,
+        currency: "USD",
+        note: null,
+        version: 2,
+        created_at: daysAgo(60),
+      },
+    ],
+    deals_on: true,
+    services: ["Ad management", "SEO", "Discovery call"],
+  });
+  const vm = toPersonVM(d, TZ, new Date(NOW));
+  assert.equal(vm.dealsOn, true);
+  assert.deepEqual(vm.services, ["Ad management", "SEO", "Discovery call"]);
+  assert.equal(vm.deals.length, 2);
+  assert.equal(vm.deal.stage, "won");
+  assert.ok(vm.facts.some((f) => f.label === "Deal" && f.value === "Client" && /Ad management/.test(f.meta)));
+  const texts = vm.timeline.filter((i) => i.kind === "deal").map((i) => i.text);
+  assert.deepEqual(
+    texts.sort(),
+    [
+      "Became a client · Ad management · $2,500 a month",
+      "Passed · SEO",
+      "Proposal sent · Ad management",
+      "Proposal sent · SEO",
+    ].sort(),
+  );
+  assert.ok(TIMELINE_FILTERS.some((f) => f.id === "deals"));
+  assert.deepEqual([...new Set(filterTimeline(vm.timeline, "deals").map((i) => i.kind))], ["deal"]);
+  const none = toPersonVM(detail(), TZ, new Date(NOW));
+  assert.equal(none.dealsOn, false);
+  assert.deepEqual(none.deals, []);
+  assert.ok(!none.facts.some((f) => f.label === "Deal"));
+});

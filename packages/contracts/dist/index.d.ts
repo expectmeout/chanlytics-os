@@ -6497,6 +6497,12 @@ interface PersonDetailDto {
     notes?: string | null;
     /** The owner's proposal link for this person (00154): the About row and the one-step send. */
     proposal_url?: string | null;
+    /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
+    deals?: DealDto[];
+    /** Whether deals are a thing in this workspace: the profile lists a consult-first service, or a deal was ever recorded. */
+    deals_on?: boolean;
+    /** The profile's service names, for the page's picker when it lists more than one. */
+    services?: string[];
     /** The workspace's booking link, for the profile's one-step send. */
     booking_link?: string | null;
     /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
@@ -7003,12 +7009,12 @@ interface AttentionRowVM {
  * from opening the profile, which the row itself does.
  */
 declare function attentionRow(p: PersonRowVM, tz: string, nowMs: number): AttentionRowVM;
-type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
 /**
  * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
  * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
  */
-type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
+type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
 declare const TIMELINE_FILTERS: readonly {
     id: TimelineFilterId;
     label: string;
@@ -7093,6 +7099,12 @@ interface PersonVM extends PersonRowVM {
         title: string;
         ready: boolean;
     };
+    /** Their deals, newest first, as the page says them (0004). */
+    deals: DealVM[];
+    /** Whether the page draws its Deal section at all. */
+    dealsOn: boolean;
+    /** The profile's service names; the picker appears only past one. */
+    services: string[];
     /** "inbox/th-…" or null for a phone-only person. */
     openThread: string | null;
     /** The person's own setting (null = following the workspace) and the

@@ -176,7 +176,7 @@ test("REGRESSION (B17): every message, escalation and visit on the timeline open
   assert.equal(of("visit").link?.to, `calendar/${day}`, "a visit opens its day on the Calendar");
   assert.deepEqual(
     contracts.TIMELINE_FILTERS?.map((f) => f.id),
-    ["all", "messages", "calls", "visits", "consent"],
+    ["all", "messages", "calls", "visits", "consent", "deals"],
   );
   assert.deepEqual(
     filterTimeline(vm.timeline, "visits").map((i) => i.kind),
