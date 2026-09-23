@@ -3160,3 +3160,97 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   color: var(--ink-faint);
   font-size: 11px;
 }
+
+/* ====================================================================
+   HOW THINGS COME AND GO — one motion for every overlay
+   A dialog, a sheet or a palette appeared and went in a single frame: a hard cut on the calm page around it. Each
+   now comes in the way it sits -- a centred dialog rises a few pixels as it fades up, a side sheet slides in from its
+   edge, a sheet from the bottom of a phone rises from there -- and the wash behind it fades. It leaves the same way,
+   faster and speeding up as it goes (--ease-in), by a still copy of itself React no longer holds (data-bits
+   leaving, [data-leaving]). A thumb that pulls one away moves it with the finger first (data-bits touchSwipe).
+   Only `translate`, `scale` and `opacity` move, never `transform` itself, so a sheet centred by its own transform, or
+   dragged by the finger's, keeps it. Menus, toasts, the lead's peek, the fold's sheet and a route already move; this
+   is the rest, on the same tokens. Nothing here moves under reduced motion.
+   ==================================================================== */
+@keyframes wash-in { from { opacity: 0; } }
+@keyframes wash-out { to { opacity: 0; } }
+@keyframes modal-in { from { opacity: 0; translate: 0 8px; scale: 0.985; } }
+@keyframes modal-out { to { opacity: 0; translate: 0 4px; scale: 0.99; } }
+@keyframes side-in { from { opacity: 0; translate: 24px 0; } }
+@keyframes side-out { to { opacity: 0; translate: 24px 0; } }
+@keyframes sheet-rise { from { translate: 0 100%; } }
+@keyframes sheet-drop { to { translate: 0 100%; } }
+@keyframes sheet-in { from { opacity: 0; translate: 0 28px; } }
+@keyframes sheet-out { to { opacity: 0; translate: 0 28px; } }
+@keyframes nudge-in { from { opacity: 0; translate: 0 4px; } }
+@keyframes pop-in { from { opacity: 0; scale: 0.97; } }
+
+/* Coming in. Ask's palette and the Calendar's dialog (.ask-overlay, .ask-modal) have their own fade and slide
+   (dashboard-a-v2.css); here they gain their leaving, and on a phone the palette rises as the sheet it is. */
+.sb-sheet-backdrop, .rec-sheet-backdrop:not([data-fold]), .ld-lightbox-backdrop, .nav-backdrop {
+  animation: wash-in var(--duration-base) var(--ease-out);
+}
+.sb-sheet, .ld-lightbox { animation: modal-in 240ms var(--ease-out); }
+.rec-sheet:not(.rec-fold-sheet) { animation: side-in 260ms var(--ease-out); }
+.cl-health-pop { transform-origin: top left; animation: pop-in var(--duration-base) var(--ease-out); }
+/* What answers a press in place: the question that stands where the button was, and a figure's receipt. */
+.confirm { animation: wash-in 160ms var(--ease-out); }
+.confirm-block, .tc-receipt { animation: nudge-in var(--duration-base) var(--ease-out); }
+
+/* Going out: a still copy, played once and removed (data-bits leaveOverlay). Nothing in it takes a press. */
+[data-leaving="true"] { pointer-events: none; }
+.ask-overlay[data-leaving="true"], .sb-sheet-backdrop[data-leaving="true"],
+.rec-sheet-backdrop[data-leaving="true"]:not([data-fold]), .ld-lightbox-backdrop[data-leaving="true"] {
+  animation: wash-out 160ms var(--ease-in) forwards;
+}
+.ask-overlay[data-leaving="true"] .ask-modal, .sb-sheet[data-leaving="true"], .ld-lightbox[data-leaving="true"] {
+  animation: modal-out 160ms var(--ease-in) forwards;
+}
+.rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: side-out 180ms var(--ease-in) forwards; }
+
+/* On a phone a sheet sits on the bottom edge, so it rises from there and drops back to it. A tall one (the kit's
+   sheet, Ask's palette) travels its whole height; a short one (People's and Leads' sheets) the last 28px, as the
+   template list and the thread's Actions already do. */
+@media (max-width: 900px) {
+  .sb-sheet.pl-sheet, .sb-sheet.pp-sheet, .sb-sheet.pl-finder { animation: sheet-in 260ms var(--ease-out); }
+  .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pp-sheet[data-leaving="true"], .sb-sheet.pl-finder[data-leaving="true"] {
+    animation: sheet-out 180ms var(--ease-in) forwards;
+  }
+}
+@media (max-width: 760px) {
+  .rec-sheet:not(.rec-fold-sheet) { animation: sheet-rise 300ms var(--ease-out); }
+  .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
+}
+@media (max-width: 720px) {
+  .ask-modal.cmd-modal.ask-real { animation: sheet-rise 300ms var(--ease-out); }
+  .ask-overlay[data-leaving="true"] { animation-duration: 220ms; }
+  .ask-overlay[data-leaving="true"] .ask-modal.cmd-modal.ask-real { animation: sheet-drop 220ms var(--ease-in) forwards; }
+  /* A sheet pulled by the finger moves, not its list: a list at its top does not stretch under the pull. */
+  .rec-sheet-body, .sb-sheet, .pk-body, .ask-home, .ask-rail-list { overscroll-behavior-y: none; }
+}
+
+/* An open thread going back to its list on a phone, under the thumb (inbox-thread.jsx, data-going): the list is
+   drawn under the thread as it moves, so what is behind it is what it goes back to. */
+@media (max-width: 720px) {
+  .inbox.phone-thread[data-going] > .ix-list,
+  .conversations.phone-detail[data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
+  .inbox.phone-thread[data-going] > .ix-thread-pane,
+  .conversations.phone-detail[data-going] > .ix-thread-pane { grid-area: 1 / 1; z-index: 1; box-shadow: -12px 0 32px oklch(0 0 0 / 0.18); }
+}
+
+/* Tabs answer a press and ease into their state: the section tabs, and the phone's tab bar. */
+.stabs-tab { transition: color var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out); }
+.stabs-tab:active { transform: translateY(0.5px) scale(0.985); }
+.phone-tab { transition: color var(--duration-base) var(--ease-out), transform var(--duration-fast) var(--ease-out); }
+.phone-tab:active { transform: scale(0.94); }
+
+/* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
+.tl-arrived { animation: nudge-in 260ms var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-overlay, .ask-modal, .sb-sheet, .sb-sheet-backdrop, .rec-sheet, .rec-sheet-backdrop, .ld-lightbox,
+  .ld-lightbox-backdrop, .nav-backdrop, .cl-health-pop, .confirm, .confirm-block, .tc-receipt, .tl-arrived,
+  [data-leaving="true"] { animation: none; }
+  .stabs-tab, .phone-tab { transition: none; }
+  .stabs-tab:active, .phone-tab:active { transform: none; }
+}

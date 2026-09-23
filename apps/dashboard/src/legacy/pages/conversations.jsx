@@ -128,7 +128,7 @@ const CallPane = ({ c, onBack = null }) => {
   }, [live, c.id]);
   const secs = live && c.ts > 0 ? Math.max(0, Math.floor((Date.now() - c.ts) / 1000)) : null;
   return (
-    <div className="ix-thread-pane cv-call-pane" data-testid="cv-call-pane">
+    <div className="ix-thread-pane cv-call-pane" data-testid="cv-call-pane" {...(window.ixSwipeBack ? window.ixSwipeBack(onBack) : {})}>
       <header className="ix-th-head">
         <div className="ix-th-head-main">
           {onBack && (

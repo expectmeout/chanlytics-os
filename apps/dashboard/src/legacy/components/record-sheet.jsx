@@ -83,13 +83,23 @@ const RecordSheet = ({
   }, []);
   // A callback ref, not an effect: React calls it with the sheet as the sheet opens and with null as it goes, which
   // is exactly when focus moves in and when it goes back.
+  // What stood behind the sheet as it opened, and when: as React lets go of it, a still copy of both plays out the way
+  // it came (data-bits leaveOverlay, components.css [data-leaving]). React takes the wash first, so it is held here.
+  const wash = useSheetRef(null);
+  const since = useSheetRef(0);
   const place = useSheetCallback((el) => {
+    const was = box.current;
     box.current = el;
     if (el) {
+      wash.current = el.previousElementSibling || null;
+      since.current = Date.now();
       opener.current = document.activeElement;
       if (el.focus) el.focus();
       return;
     }
+    // Not from a frame mounted and let go of at once (StrictMode's check in development).
+    if (was && window.leaveOverlay && Date.now() - since.current > 60) window.leaveOverlay(was, wash.current);
+    wash.current = null;
     const back = opener.current;
     opener.current = null;
     if (back && back.focus && back.isConnected !== false) back.focus();

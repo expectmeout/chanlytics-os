@@ -306,8 +306,10 @@ const AskReal = ({ open, onClose }) => {
   const lastAssistant = active ? [...active.messages].reverse().find((m) => m.role === "assistant") : null;
 
   return (
-    <div className="ask-overlay" onClick={onClose} data-tick={tick}>
-      <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real">
+    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is a sheet from the bottom
+    // (ask.css), a thumb pulls it down (touchSwipe).
+    <div className="ask-overlay" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
+      <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real" {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches) }) : {})}>
         {railOn && <AskRail threads={threads} active={active} more={railMore} t={t} onNew={newChat} onOpen={openThread} onDelete={askDelete} onMore={() => setRailMore(true)} />}
         <div className={railOn ? "ask-main" : "ask-single"}>
           {/* The three, Ask's face (components/ask-face.jsx): they grow from the button's size as the palette

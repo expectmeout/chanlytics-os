@@ -593,3 +593,28 @@ test("Actions can record a deal, after the receptionist's settings, only where d
     delete globalThis.window.__PEOPLE;
   }
 });
+
+/* ------------------------------ it moves as one ------------------------------ */
+
+test("a message that arrives while the thread is open rises into place; the ones it opened with are simply there", () => {
+  const two = [m("m1", 40, { body: "Hi" }), m("m2", 38, { body: "Is Friday open?" })];
+  const opened = draw(toInboxThreadVM(conv({ messages: two }), asked, ZONE, NOW));
+  assert.equal(all(opened, hasClass("tl-arrived")).length, 0, "opening a thread animates none of it");
+  // The same thread, drawn again with one more message, over the same hook state: as React draws it after a read.
+  frames.begin();
+  const more = InboxThread({
+    thread: toInboxThreadVM(conv({ messages: [...two, m("m3", 1, { body: "Or Saturday?" })] }), asked, ZONE, NOW),
+    channelLabels: labels,
+    onArchive: () => {},
+  });
+  const risen = all(more, hasClass("tl-arrived"));
+  assert.equal(risen.length, 1, "only the one that arrived");
+  assert.equal(risen[0].props["data-mid"], "m3");
+});
+
+test("on a phone an open thread swipes back to its list: the pane carries a thumb's handlers when it has a Back", () => {
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const pane = (props) => find(draw(vm, props), hasClass("ix-thread-pane"));
+  assert.equal(typeof pane({ onBack: () => {} }).props.onTouchMove, "function");
+  assert.equal(pane({}).props.onTouchMove, undefined, "with no Back (a desktop's pane), nothing to swipe to");
+});

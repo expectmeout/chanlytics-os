@@ -182,7 +182,7 @@ const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose })
     window.CHANLY.nav(window.CHANLY.R.thread(b.person.threadId));
   };
   return (
-    <div className="ask-overlay" onClick={onClose}>
+    <div className="ask-overlay" onClick={onClose} ref={window.leaving ? window.leaving("cal-ev") : undefined}>
       <div ref={boxRef} className="ask-modal cal-ev" role="dialog" aria-modal="true" aria-labelledby="cal-panel-title" tabIndex={-1} onKeyDown={(e) => { if (e.key === "Tab") crTrapTab(e, boxRef.current); }} onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
         <section className="st-modal-section">
           <div className="st-modal-name" id="cal-panel-title">{b.title}</div>
