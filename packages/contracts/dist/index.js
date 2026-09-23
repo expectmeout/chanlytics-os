@@ -1237,6 +1237,11 @@ function standingOf(i, nowMs) {
   const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
   return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
 }
+function replyWaitsOnYou(r, nowMs) {
+  if (r.held) return false;
+  if (r.endsAtMs !== void 0 && r.endsAtMs !== null) return r.endsAtMs > nowMs;
+  return !!r.queued;
+}
 
 // src/whisper.ts
 var OPEN = 'Owner: "';
@@ -6248,7 +6253,7 @@ function isOwned(r, nowMs) {
 function personStateFor(r, nowMs) {
   const v = personStanding(r, nowMs);
   const owned = !!r.latest_assignee_user_id || v.takenOver;
-  if (v.standing === "needs_you") return "needs_you";
+  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
   if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
@@ -6395,7 +6400,7 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
-  const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, tz, nowMs)}` : "";
+  const stateDetail = state === "needs_you" ? r.open_escalation_reason ? reasonShort(r.open_escalation_reason) : r.queued_reply_at && personStanding(r, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? "you own the thread and they wrote last" : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, tz, nowMs)}` : "";
   return {
     id: r.id,
     real: true,
@@ -17589,6 +17594,7 @@ export {
   registrationPreflight,
   renderTemplate,
   replyDelayMs,
+  replyWaitsOnYou,
   replyWhy,
   replyWindow,
   reportFacts,

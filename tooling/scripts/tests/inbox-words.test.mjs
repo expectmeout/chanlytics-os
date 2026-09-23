@@ -386,9 +386,9 @@ test("the composer names the channel and the number the way the header does", ()
   );
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   assert.equal(
-    textOf(find(composerOf(closed), hasClass("ix-composer-channel"))),
-    "WhatsApp · to Rosa Díaz",
-    "REGRESSION: it read WHATSAPP · to Rosa Díaz",
+    find(composerOf(closed), hasClass("ix-composer-channel")),
+    undefined,
+    "a closed window's reply box is the send alone: the header names the wire and the person, and the bar under it the window",
   );
 });
 

@@ -322,8 +322,9 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
   const tree = paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW));
   const banner = find(tree, byTestId("ix-theirs"));
   assert.ok(banner, "the claim is said where the take banner was");
-  // The pill their row in the list wears, in the same words: "Ana García is answering this" was a sentence of its own.
-  assert.match(textOf(banner), /Ana García has it/);
+  // The pill their row in the list wears, in the same words, in the bar under the header: "Ana García is answering
+  // this" was a sentence of its own.
+  assert.match(textOf(find(tree, byTestId("ix-th-standing"))), /Ana García has it/);
   assert.match(
     textOf(banner),
     /If you reply, the thread becomes yours\./,

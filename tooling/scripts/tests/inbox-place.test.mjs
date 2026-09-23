@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -78,7 +78,7 @@ globalThis.window = {
   sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
+  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",
@@ -705,9 +705,13 @@ test("REGRESSION (A11): an archived thread says it was archived, not that nobody
   cells = [];
   seq = 0;
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
+  assert.equal(
+    textOf(find(tree, byTestId("ix-th-standing"))),
+    "Archived",
+    "the pill says it, in the bar under the header",
+  );
   const archived = textOf(find(tree, byTestId("ix-archived")));
-  assert.ok(archived.startsWith("Archived"), `the pill says it: ${archived}`);
-  assert.match(archived, /Their request is closed\. If they write again, it comes back\./);
+  assert.match(archived, /^Their request is closed\. If they write again, it comes back\./);
   assert.ok(!textOf(tree).includes("no one asked for you"));
   assert.equal(toInboxThreadVM(conv({ state: "open" }), null, ZONE, NOW).archived, false);
 });

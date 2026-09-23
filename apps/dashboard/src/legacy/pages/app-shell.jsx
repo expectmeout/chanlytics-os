@@ -416,6 +416,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       : [{ label: "People", to: "clients" }, "Leads"];
     pane = true;
     content = <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+  } else if (page === "clients" && param === "new-list") {
+    // People with the New list box open: a door elsewhere (a profile's "Make one on People") says where it goes in
+    // the address, rather than navigating and then firing segments:new on a timer it hoped the page had loaded by.
+    activeNav = "clients";
+    crumbs = [{ label: "People", to: "clients" }, "New list"];
+    pane = true;
+    content = <ClientsA key="people" scope="people" newList onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param && /^(seg|list|state):/.test(param)) {
     // One view of People, linkable: a smart list (seg:), a list kept by hand
     // (list:) or a state (state:) — what the assistant and Today point at.

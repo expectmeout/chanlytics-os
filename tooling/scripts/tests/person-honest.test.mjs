@@ -906,8 +906,8 @@ test("a person known by number is invited to name them; an empty Lists section i
     press(byTestId(lists, "person-lists-make"));
     assert.deepEqual(
       went,
-      ["clients"],
-      "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; the door lands on People with the box opening",
+      ["clients/new-list"],
+      "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; the door says in the address that the box opens, never a timer",
     );
   } finally {
     globalThis.window.__PEOPLE = saved;
@@ -1469,4 +1469,38 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   assert.ok(chip && textOf(chip).includes("Booked"));
   press(find(chip, (n) => n.type === "button"));
   assert.deepEqual(went, ["clients/seg:booked"]);
+});
+
+test("clients/new-list opens People with the New list box open from the first draw -- the door fired segments:new on a 450ms timer and hoped", async () => {
+  await peoplePage([row()], []);
+  const was = globalThis.window.__lists;
+  globalThis.window.__lists = { create: async () => ({ ok: true, data: { id: "s9" } }) };
+  try {
+    cells = [];
+    seq = 0;
+    globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
+    seq = 0;
+    const tree = globalThis.window.ClientsA({ onOpenProfile: () => {}, newList: true });
+    assert.ok(byTestId(tree, "new-list-name"), "the box, open, waiting for a name");
+  } finally {
+    globalThis.window.__lists = was;
+  }
+});
+
+test("REGRESSION: a reply counting down to send waits on you on People as in the Inbox -- the rule lived in inbox.jsx, and People counted that person as waiting on nobody", () => {
+  const { replyWaitsOnYou } = contracts;
+  assert.equal(replyWaitsOnYou({ endsAtMs: NOW + 20_000 }, NOW), true, "the Inbox: counting down");
+  assert.equal(replyWaitsOnYou({ endsAtMs: NOW - 1 }, NOW), false, "sent: it is in your name now");
+  assert.equal(replyWaitsOnYou({ endsAtMs: NOW + 20_000, held: true }, NOW), false, "held in this tab: stopped");
+  assert.equal(replyWaitsOnYou({ queued: true }, NOW), true, "People: queued is exactly while it can be stopped");
+  assert.equal(replyWaitsOnYou({}, NOW), false);
+  const quiet = { needs_human: false, open_escalation_reason: null, open_escalation_since: null };
+  const queued = toPersonRowVM(row({ ...quiet, queued_reply_at: iso(10_000) }), ZONE, new Date(NOW));
+  assert.equal(queued.state, "needs_you", "REGRESSION: 'active' while the Inbox counted them in Needs you");
+  assert.equal(queued.stateDetail, "a reply is about to send — you can still stop it");
+  assert.equal(
+    toPersonRowVM(row(quiet), ZONE, new Date(NOW)).state === "needs_you",
+    false,
+    "nothing queued, nothing waiting",
+  );
 });
