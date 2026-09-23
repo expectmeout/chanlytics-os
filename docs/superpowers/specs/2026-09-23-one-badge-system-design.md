@@ -1,6 +1,6 @@
 # One badge system: design spec
 
-**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved (23 Sep: option B, a quiet bell, the letter marks removed, "Yes, build it") · **Review page:** https://claude.ai/artifact/7gHvLSThQ8mnmm3xttY7D5 · **Plan:** `docs/superpowers/plans/2026-09-23-one-badge-system.md`
+**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved (23 Sep: option B, a quiet bell, the letter marks removed, "Yes, build it") · **Built:** branch `design/one-badge-system` · **Review page:** https://claude.ai/artifact/7gHvLSThQ8mnmm3xttY7D5 · **Plan:** `docs/superpowers/plans/2026-09-23-one-badge-system.md`
 
 **Analysis:** every badge measured from the browser's computed styles on a local build of `main` at `18c79973` (#918), signed in to Melany's Beauty Salon, light theme: 13 pages and their tabs at 1440px, Today and People again at 390px. Contrast figures composite each tint over its real ground. `main` moved to `191ca9f7` (#920) during the analysis; that commit touches none of the files below.
 
@@ -84,7 +84,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | Today | Leak tones | "No reply", "Booking gap" `danger` | `warn` | contracts today.ts |
 | Today | Day card "1 needs you" `b.warn` | `--danger-ink` | `--warn-ink` | dashboard-a-v2.css |
 | Today | Agenda `.ag-item-flag` | red dot + `--danger-ink` | amber dot + `--warn-ink` | components.css |
-| Today | Agenda `.ag-window` | 20.5px, outlined, raw `--ok` 3.42:1 | quiet ok ("Open 3 – 5 PM") | components.css (+ day-agenda.jsx words if needed) |
+| Today | Agenda `.ag-window` | 20.5px, outlined, raw `--ok` 3.42:1 | one line of words after the page's label: "Open 3 – 5 PM · 9:30 – 10:30 AM" | components.css |
 | Today | Away and brief marks `.tbn-icon`, `.brief-beat-glyph`, `.ag-item-glyph` | 26 / 24 / 20px, toned or bordered | mark | components.css, dashboard-a-v2.css |
 | Inbox | Tab counts `.stabs-badge` | 15px, 10px/600, coral | count: amber when it counts people who need you, else total | components.css, surface-tabs.jsx callers |
 | Inbox | Bucket count `.ix-bucket-count`, `.ix-bucket.accent` | coral number on a coral tab | amber number; the tab's selected look is every tab's | inbox.css |
@@ -99,11 +99,11 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | People | Offers "No" `.cl-row-offers.no` | raw `--danger` | `--ink-muted` | clients.css |
 | Person | Lists `.seg-chip` (and smart lists) | 17px, 10px, raw `--info` 3.36:1 | chip with × | client-profile.jsx, people.css |
 | Person | Campaign outcome `.cl-prof-run-out[data-tone]` | ok words green | ok words `--ink-muted`; warn and danger keep their ink | clients.css |
-| Person | Head standing `.cl-prof-now .pill` | quiet already, ok words green | the shared quiet state | clients.css |
+| Person | Head standing `.cl-prof-now .pill` | quiet already, ok words green | unchanged: a dot and the word in the standing's ink for every tone (the Quiet record, #915) | clients.css |
 | Inbox thread | Next visit `.ix-th-visit-*` | `--ok-ink` words | `--ink-muted` | inbox.css |
 | Leads | Stage column plain pills | 97 filled grey pills | quiet (D1) | (CSS only) |
 | Leads | "Not a fit" beside the name | a second pill for Stage's fact | removed | leads-finder.jsx |
-| Leads | Fit in the table vs the peek | text vs green pill | quiet ok in both | leads-finder.jsx or leads-scope.jsx |
+| Leads | Fit in the table vs the peek | text vs green pill | no change: under B the peek's pill is the quiet state, so the two read alike (a dot is the only difference) | — |
 | Leads | Placeholder initials `.ld-tile-initials` | tone inks by hash | `--ink-muted` | leads.css |
 | Calendar | `.cal-today-chip` | 15.5px, 9px/600, uppercase, coral | removed (the date already wears the accent) | calendar-real.jsx, calendar.css |
 | Campaigns | Tab counts `.stabs-campaigns .stabs-badge` | mono, 11px/400 | the one count (amber when waiting on you) | components.css |
@@ -123,7 +123,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | Settings | Team roles `RolePill` | Owner blue, others grey pills | chips | settings.jsx; contracts tone.ts (`role` plain) |
 | Settings | Notifications `.set-notif-platform` | a pill | chip | settings.jsx |
 | Settings | Business services `.rec-chip` | 22px, outlined | chip (20px) | record.css |
-| Settings | Activity `.act-day-n`, `.act-glyph` | 18.5px count; 22px toned circles | total count; round mark | settings.css |
+| Settings | Activity `.act-day-n`, `.act-glyph` | 18.5px count; 22px toned circles | total count; round mark; a warning's or a failure's words in its ink | activity.jsx, settings.css |
 | Settings | Back office `.lead` words | raw tones 2.36 – 3.88:1 | tone inks | the back office's CSS |
 
 The plan resolves each row to exact selectors and lines; a row whose element turns out to be mockup-only is left for its page's own slice and said so in the PR.
