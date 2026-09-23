@@ -1034,6 +1034,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* Fitted to the screen (useLeadMapFit, desktop): the map is as tall as the room under it, the square no taller than
    that, and the list beside it ends where the map does (its bar is 41px). */
 .ld-map.fit .ld-map-streets { aspect-ratio: auto; height: var(--map-h); min-height: 320px; }
+/* Nothing under the foot: the map view ends where the screen does, with no padding to scroll to. */
+.ld-map.fit { padding-bottom: 0; }
+.cl-main-scroll:has(> .ld-map.fit) { padding-bottom: 0; }
 .ld-map.fit .ld-map-plot:not(.ld-map-wide) { width: min(100%, 640px, var(--map-h)); }
 .ld-map.fit .ld-map-rows { max-height: calc(var(--map-h) - 41px); }
 .ld-map-row { display: grid; grid-template-columns: 20px 28px minmax(0, 1fr) 10px; gap: 9px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
