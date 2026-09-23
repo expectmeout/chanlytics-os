@@ -2005,7 +2005,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-th-visit::before { content: "·"; color: var(--ink-faint); }
 .ix-th-visit .icon { flex: none; }
 .ix-th-visit-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ix-th-visit.ahead { color: var(--ok-ink); font-weight: 500; }
+.ix-th-visit.ahead { color: var(--ink-muted); font-weight: 500; }
 /* What they asked, as words under the reason: it was a boxed quote with a side stripe inside the banner. */
 .ix-th-status .ix-take-ask { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: none; }
 .ix-th-status .ix-take-ask-label { font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }

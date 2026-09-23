@@ -1625,7 +1625,6 @@
 .cl-prof-run:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 .cl-prof-run-title { display: block; }
 .cl-prof-run-out { display: block; color: var(--ink-dim); }
-.cl-prof-run-out[data-tone="ok"] { color: var(--ok-ink); }
 .cl-prof-run-out[data-tone="warn"] { color: var(--warn-ink); }
 /* The line under a person's name breaks between its parts, never inside one, and no line starts with a dot: every
    part carries its separator in a 14px lead, and the run sits 14px left inside a clip, so the part that starts a
@@ -1911,7 +1910,8 @@
 .cl-rail-group-label { padding: 2px 10px 4px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 .cl-list-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
 .cl-list-action-text { font-size: 12.5px; color: var(--ink-dim); }
-.cl-row-next { color: var(--ok); font-weight: 500; }
+/* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
+.cl-row-next { color: var(--ink-muted); font-weight: 500; }
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
 /* The receptionist's word beside the state is said once. While its column shows (is-in-column), a desktop leaves the word
    to that column. A card draws the column's cell whatever the member chose, and Visits takes its place, so a card leaves
@@ -1950,8 +1950,8 @@
 .cl-row-name-them:hover { color: var(--accent); }
 .cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
 .cl-row-offers { font-size: 11.5px; }
-.cl-row-offers.yes { color: var(--ok); font-weight: 500; }
-.cl-row-offers.no { color: var(--danger); }
+.cl-row-offers.yes { color: var(--ink-muted); font-weight: 500; }
+.cl-row-offers.no { color: var(--ink-muted); }
 .cl-row-offers.unasked { color: var(--ink-faint); }
 .cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; padding-left: 0; }
 .cl-table th.cl-actions-head { width: 1%; }
@@ -2109,7 +2109,7 @@
 .pl-standing-dot { color: var(--ink-faint); }
 /* Both sides, for the reason .cm-standing-tap gives: -6px on the left alone left
    12px of ink between "need a person" and the dot after it, against 6 before. */
-.pl-standing-needs { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
+.pl-standing-needs { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--warn-ink); cursor: pointer; font-variant-numeric: tabular-nums; }
 .pl-standing-needs:hover { background: var(--bg-hover); }
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }
@@ -2192,11 +2192,10 @@
    person is needed, blue for in progress, green for healthy, the accent for right
    now, and red for the back office's workspace whose line failed or whose card
    stopped working -- not the same kind of amber as one waiting on a person. */
-.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn); }
-.cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info); }
-.cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ok); }
-.cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent); }
-.cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger); }
+.cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn-ink); }
+.cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
+.cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
+.cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .cl-attn-cta {
   align-self: center;
   font-size: 11px; font-weight: 500;
@@ -2367,7 +2366,7 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pl-card-lead { grid-column: 2 / 4; min-width: 0; font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-card-lead::first-letter { text-transform: uppercase; }
   .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
-  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ok-ink); font-weight: var(--weight-medium); }
+  .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* A lead's face is its mark or its listing's photo over its initials, round as a person's is; a photo that will not
      load leaves the initials (plRowCard). */

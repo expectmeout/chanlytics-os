@@ -2264,15 +2264,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .cm-head-sub { margin-top: 5px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; font-size: var(--text-sm); color: var(--ink-dim); }
 .cm-head-dot { color: var(--ink-faint); }
 .cm-head-n { font-weight: 400; color: var(--ink); }
-.cm-head-ok { color: var(--ok-ink); }
+/* Good news is said in the quiet ink: a colour is kept for what asks for a look. */
+.cm-head-ok { color: var(--ink-muted); }
 .cm-head-info { color: var(--info-ink); }
 .cm-head-right { flex: none; display: flex; align-items: center; gap: 10px; }
-.cm-flag { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
-.cm-flag-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: currentColor; }
-.cm-flag[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
-.cm-flag[data-tone="warn"] .cm-flag-dot { background: var(--warn); }
-.cm-flag[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
-.cm-flag[data-tone="danger"] .cm-flag-dot { background: var(--danger); }
+.cm-flag { flex: none; }
 /* The search box beside the head's act: the same height as the act, quiet until used. */
 .cm-search { display: inline-flex; align-items: center; gap: 7px; width: 180px; height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink-faint); }
 .cm-search:focus-within { border-color: var(--line-strong); box-shadow: var(--focus-ring); }
@@ -2373,7 +2369,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .pb-standing-warn { color: var(--warn-ink); }
 .pb-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
 .pb-tile { box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 15px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
-.pb-tile.is-warn { border-color: var(--warn-soft); }
 .pb-tile.is-empty { border-style: dashed; background: var(--bg-sunken); }
 .pb-tile.is-open { grid-column: 1 / -1; }
 /* Where a link landed: marked, in ink -- the accent is the live agent's. */
@@ -2391,7 +2386,6 @@ button.pb-tile-head:focus-visible { outline: none; box-shadow: var(--focus-ring)
 .pb-tile-lang { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--ink-dim); }
 .pb-tile-foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
 .pb-tile-next { min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pb-tile-next.is-warn { color: var(--warn-ink); }
 button.pb-tile-next { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); cursor: pointer; }
 button.pb-tile-next:hover { text-decoration: underline; text-underline-offset: 2px; }
 .pb-tile-spacer { flex: 1 1 auto; }
@@ -3099,21 +3093,21 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-/* Their thread needs someone: a warning, never the coral accent. */
+/* Their thread needs someone: amber, as "needs you" is on every badge; never the coral accent, never the red of a failure. */
 .ag-item-flag {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: var(--danger-ink);
+  color: var(--warn-ink);
 }
 .ag-item-flag::before {
   content: "";
   flex: none;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--danger);
+  background: var(--warn);
 }
 /* What kind of visit it is, as the one mark (.mark). */
 .ag-item-glyph { margin-top: 1px; }
@@ -3143,15 +3137,15 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   margin-right: 2px;
   color: var(--ink-dim);
 }
+/* The times it would offer, said after the page's label as one line ("Open 3 – 5 PM · 9:30 – 10:30 AM"): numbers as
+   words, not a row of outlined badges in a private green. */
 .ag-window {
-  padding: 1px 8px;
-  border: 1px dashed var(--ok);
-  border-radius: 999px;
-  color: var(--ok);
+  color: var(--ink-muted);
   font-size: 11px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.ag-window + .ag-window::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
 .ag-none {
   color: var(--ink-faint);
   font-size: 11px;

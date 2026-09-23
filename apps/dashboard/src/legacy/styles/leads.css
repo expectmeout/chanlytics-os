@@ -871,7 +871,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-identity .pk-name { font-size: 18px; }
 .pk-sub-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .pk-identity .pk-sub { margin: 0; }
-.pk-today { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ok-ink); font-weight: var(--weight-medium); }
+.pk-today { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ink-muted); font-weight: var(--weight-medium); }
 .pk-today.closed { color: var(--ink-dim); font-weight: var(--weight-regular); }
 .pk-identity .pk-about { margin-top: 2px; }
 .pk-identity .pk-where { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
