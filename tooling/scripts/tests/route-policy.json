@@ -254,6 +254,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/deal": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "PUT contacts/[id]/marketing-consent": {
       "kind": "write",
       "scope": "row",

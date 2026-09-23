@@ -1052,7 +1052,12 @@ var EVENT_KINDS = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -1136,7 +1141,8 @@ var DECISION_VERBS = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -1937,11 +1943,11 @@ var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
   inherit: "Follow the workspace"
 };
-var DAY_MS3 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS3;
-var MONTH_MS = 30 * DAY_MS3;
-var NEW_WINDOW_MS = 7 * DAY_MS3;
-var QUIET_AFTER_MS = 30 * DAY_MS3;
+var DAY_MS4 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS4;
+var NEW_WINDOW_MS = 7 * DAY_MS4;
+var QUIET_AFTER_MS = 30 * DAY_MS4;
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -1963,9 +1969,9 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS4 = 24 * 3600 * 1e3;
-var DAY_MS5 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DAY_MS5 = 24 * 3600 * 1e3;
+var DAY_MS6 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
@@ -2314,7 +2320,7 @@ var ListDraftAnswerSchema = z7.object({
   cannot: z7.string().trim().max(200),
   all: z7.array(ListConditionSchema).max(8)
 });
-var DAY_MS7 = 864e5;
+var DAY_MS8 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -2323,7 +2329,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
@@ -2862,7 +2868,12 @@ var EVENT_KINDS2 = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -2946,7 +2957,8 @@ var DECISION_VERBS2 = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
@@ -4709,11 +4721,11 @@ var PERSON_MODE_WORDS2 = {
   ...PERSON_MODE_LABELS2,
   inherit: "Follow the workspace"
 };
-var DAY_MS32 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS32;
-var MONTH_MS2 = 30 * DAY_MS32;
-var NEW_WINDOW_MS2 = 7 * DAY_MS32;
-var QUIET_AFTER_MS3 = 30 * DAY_MS32;
+var DAY_MS42 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS42;
+var MONTH_MS2 = 30 * DAY_MS42;
+var NEW_WINDOW_MS2 = 7 * DAY_MS42;
+var QUIET_AFTER_MS3 = 30 * DAY_MS42;
 var REPLY_VIA2 = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -4829,9 +4841,9 @@ var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to 
 function noNumberWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
 }
-var DAY_MS42 = 24 * 3600 * 1e3;
-var DAY_MS52 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS52;
+var DAY_MS52 = 24 * 3600 * 1e3;
+var DAY_MS62 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS62;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS2 = {
   whatsapp: "WhatsApp",
@@ -5545,7 +5557,7 @@ var ListDraftAnswerSchema2 = z72.object({
   cannot: z72.string().trim().max(200),
   all: z72.array(ListConditionSchema2).max(8)
 });
-var DAY_MS72 = 864e5;
+var DAY_MS82 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -5617,7 +5629,7 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS82;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
@@ -5643,8 +5655,8 @@ function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
     rows.filter((r) => {
       if (!r.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS72));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS72)) && !r.booked;
+        return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS82));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS82)) && !r.booked;
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -5664,7 +5676,7 @@ function playbookRunReach(rows, p, touches, nowMs, listIds = null) {
     reach.will = allowed.length;
     return { eligible: allowed, reach, saidYes };
   }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS72;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS82;
   const picked = allowed.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) {
@@ -5742,7 +5754,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS72);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS82);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -6137,7 +6149,12 @@ var EVENT_KINDS3 = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -6221,10 +6238,11 @@ var DECISION_VERBS3 = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
-var DAY_MS6 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS6;
+var DAY_MS3 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS3;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -7014,11 +7032,11 @@ var PERSON_MODE_WORDS3 = {
   ...PERSON_MODE_LABELS3,
   inherit: "Follow the workspace"
 };
-var DAY_MS33 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS33;
-var MONTH_MS3 = 30 * DAY_MS33;
-var NEW_WINDOW_MS3 = 7 * DAY_MS33;
-var QUIET_AFTER_MS4 = 30 * DAY_MS33;
+var DAY_MS43 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS43;
+var MONTH_MS3 = 30 * DAY_MS43;
+var NEW_WINDOW_MS3 = 7 * DAY_MS43;
+var QUIET_AFTER_MS4 = 30 * DAY_MS43;
 var REPLY_VIA3 = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -7040,9 +7058,9 @@ var PERSON_CAME_FROM_WORDS3 = {
   import: "Imported history",
   lead: "A lead you found"
 };
-var DAY_MS43 = 24 * 3600 * 1e3;
-var DAY_MS53 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS53;
+var DAY_MS53 = 24 * 3600 * 1e3;
+var DAY_MS63 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS63;
 var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var CHANNEL_KIND_WORDS3 = {
   whatsapp: "WhatsApp",
@@ -7391,7 +7409,7 @@ var ListDraftAnswerSchema3 = z73.object({
   cannot: z73.string().trim().max(200),
   all: z73.array(ListConditionSchema3).max(8)
 });
-var DAY_MS73 = 864e5;
+var DAY_MS83 = 864e5;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -7400,7 +7418,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS83;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,

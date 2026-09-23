@@ -1,11 +1,19 @@
 import {
   CONSENT_SOURCES,
+  DEAL_LINE_NONE,
+  DEAL_PERS,
+  DEAL_PER_WORDS,
+  DEAL_STAGE_WORDS,
   TIMELINE_FILTERS,
+  dealMoves,
   filterTimeline,
   mayReceive,
   offersYesRefusal,
   toPersonVM,
   verbalOptInScript,
+  type DealDto,
+  type DealPer,
+  type DealStage,
   type PersonVM,
   type SendPurpose,
 } from "@chanlytics/contracts";
@@ -238,6 +246,33 @@ export async function setPersonMarketingConsentMany(ids: string[], body: Consent
   return recordMany(ids, body, "marketing");
 }
 
+/**
+ * A deal on a person's word (0004): `window.__recordDeal(id, body)`. No `deal_id`
+ * is a new engagement, which starts proposed; with one and the version the page
+ * saw, a move. The door decides; the route records the decision. The list is
+ * re-read afterwards (refresh-map) because the row's deal columns and the
+ * Journey lists read from it.
+ */
+export interface DealBody {
+  stage: DealStage;
+  deal_id?: string;
+  version?: number;
+  service?: string;
+  when?: string;
+  amount_cents?: number;
+  per?: DealPer;
+  note?: string;
+  message_id?: string;
+  form_note?: string;
+}
+
+export async function recordDeal(
+  id: string,
+  body: DealBody,
+): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string }>> {
+  return api()("POST contacts/[id]/deal", { params: { id }, body });
+}
+
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
@@ -251,6 +286,15 @@ declare global {
     __setPersonMarketingConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
     __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
+    __recordDeal?: typeof recordDeal;
+    /** The deal's words for the page (0004): the stage words, the per words, the pers, the empty line, the moves from a stage. */
+    __deal?: {
+      words: typeof DEAL_STAGE_WORDS;
+      perWords: typeof DEAL_PER_WORDS;
+      pers: typeof DEAL_PERS;
+      none: string;
+      moves: typeof dealMoves;
+    };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
     /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
@@ -307,6 +351,15 @@ export function installPeopleCourier(): void {
   window.__consentSources = CONSENT_SOURCES;
   // The timeline's filters and the rule that applies them: a profile narrows by the kinds contracts names.
   window.__timeline = { filters: TIMELINE_FILTERS, filter: filterTimeline };
+  // A deal on a person's word, and the words the page says one in: the rule, not a copy of it (0004).
+  window.__recordDeal = recordDeal;
+  window.__deal = {
+    words: DEAL_STAGE_WORDS,
+    perWords: DEAL_PER_WORDS,
+    pers: DEAL_PERS,
+    none: DEAL_LINE_NONE,
+    moves: dealMoves,
+  };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.
   window.__mayReceive = mayReceive;

@@ -87,3 +87,25 @@ test("siblings of one type keep their own cells by their turn, or by their key; 
   List({ keys: ["x"] });
   assert.equal(frames.called(), 1, "how many hooks the draw called, for a test that counts them");
 });
+
+test("a component that calls a different number of hooks from one draw to the next throws, as React does; reset() forgets", () => {
+  // Kept apart, a component whose hooks change in number shifts nobody else's cells, so no neighbour's test would see
+  // it: the frames throw the error React throws instead.
+  cells = [];
+  frames.reset();
+  const Shifty = ({ more }) => {
+    React.useState(0);
+    if (more) React.useState(1);
+    return h("i", null);
+  };
+  const Host = ({ more }) => h("div", null, h(Shifty, { more }));
+  frames.begin();
+  Host({ more: false });
+  frames.begin();
+  assert.throws(() => Host({ more: true }), /Rendered more hooks than during the previous render/);
+  frames.reset();
+  frames.begin();
+  Host({ more: true });
+  frames.begin();
+  assert.throws(() => Host({ more: false }), /Rendered fewer hooks/);
+});

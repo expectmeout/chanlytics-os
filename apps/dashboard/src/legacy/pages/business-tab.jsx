@@ -16,11 +16,11 @@
 // window.__FACTS), read as the page draws. What a save writes is pages/business-tab-save.jsx's, through
 // window.__businessTabSave: each row's check and patch, and the tab's one saver. That file loads before this one.
 //
-// The tests' stub React (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order,
-// so a component holding hooks that is drawn on one render and not the next moves every cell after it. So every
-// component on the page that holds one is drawn on every render (business-tab-gestures.jsx says how the gestures keep
-// to it), and what comes and goes (a row at rest, a Confirm, a note) holds none. That is the stub's rule, not React's,
-// which keeps each component's hooks with the component: nothing here needs shaping further for React's sake. And no
+// Every component on the page that holds a hook is drawn on every render, and what comes and goes (a row at rest, a
+// Confirm, a note) holds none: the tests' old stub React kept every hook on a page as a cell in one order, and this
+// page was shaped to it. The stub now keeps each component's hooks where it sits, as React does, and throws as React
+// does when a component's hooks change in number (tooling/scripts/tests/_hook-frames.mjs), so the shape stands as a
+// habit and nothing new needs keeping to it. And no
 // object rest in a pattern anywhere in this file: the standalone mockup compiles every file into one global
 // scope, where Babel's `_excluded` for a rest is shared, and the last file compiled decides what every earlier rest
 // leaves out (record-field.jsx says how that bit).
@@ -104,15 +104,14 @@ const btOpenRow = (id) => {
 /**
  * The page's one sheet slot, drawn LAST of everything on the page that holds a hook, and drawing at most one sheet.
  *
- * The kit's RecordSheet holds hooks and is drawn only while it is open, and the tests' stub React keeps every hook on
- * the page as a cell in one order (this file's header): a sheet drawn before a card shifted that card's cells whenever
- * it opened (Task 3.4's note 3). Two sheets cannot both be last, so both go through here (the plan's Phase 5 note), and
- * the fold registry opens one editor or sheet at a time, so the slot draws one of them or neither:
+ * The kit's RecordSheet is drawn only while it is open. Under the tests' old stub a sheet drawn before a card shifted
+ * that card's cells whenever it opened (Task 3.4's note 3), which is why the slot is last; it no longer must be. The
+ * fold registry opens one editor or sheet at a time, so the slot draws one of them or neither:
  *   - the services sheet's editor is held on every draw, since it binds its unsaved test to the registry and counts
  *     itself on the page (BtSheet), and it draws the kit's sheet only while the registry has "services" open;
  *   - the prompt sheet holds nothing here: the page holds its state before every card (useBtPromptSheet), and the sheet
  *     is drawn only while the registry has "prompt" open, after the services sheet's editor and never beside its sheet.
- * Whatever sheet comes next goes through this slot too; a page test holds the slot last (business-tab-prompt.test.mjs).
+ * Whatever sheet comes next goes through this slot too (business-tab-prompt.test.mjs holds it to one sheet or none).
  *
  * A row's fold on a phone is a sheet as well (record-fold.jsx), and it is NOT drawn here. The slot is for what is drawn
  * only while open; a fold holds the same hooks open or closed, as a sheet or under its row, so it is drawn where its row

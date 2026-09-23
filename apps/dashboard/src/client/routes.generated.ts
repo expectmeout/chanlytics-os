@@ -81,6 +81,7 @@ export const ROUTES = {
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
   "POST contacts": { method: "POST", path: "/api/v1/contacts" },
+  "POST contacts/[id]/deal": { method: "POST", path: "/api/v1/contacts/[id]/deal" },
   "POST conversations/[id]/archive": { method: "POST", path: "/api/v1/conversations/[id]/archive" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
@@ -234,6 +235,7 @@ export type Routes = {
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;
   "POST contacts": typeof import("../../app/api/v1/contacts/route").POST;
+  "POST contacts/[id]/deal": typeof import("../../app/api/v1/contacts/[id]/deal/route").POST;
   "POST conversations/[id]/archive": typeof import("../../app/api/v1/conversations/[id]/archive/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;

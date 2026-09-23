@@ -64,6 +64,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT contacts/receptionist": people,
   "PUT contacts/notes": people,
   "PUT contacts/[id]/details": people,
+  "POST contacts/[id]/deal": people,
   "POST contacts": people,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],

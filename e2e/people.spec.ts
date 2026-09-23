@@ -147,6 +147,47 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 
+  // Runs for real only where deals are a thing: the seeded nightly workspace lists no consult-first service today, so
+  // this skips there until the seed gains one (a decision for the owner: the Settings journey depends on that seed
+  // being empty). On the local harness there is no People surface at all, so it skips too.
+  test("a deal is recorded on a person's page: the section says the stage first and offers the moves", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    // The real People page stands on its standing line; the local harness has no People surface and draws the
+    // seeded page instead, whose profile never opens. Only the real page has a person to record a deal on.
+    test.skip(
+      (await page.getByTestId("people-standing").count()) === 0,
+      "People is not real here: the local harness draws the seeded page",
+    );
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
+    test.skip((await rows.count()) === 0, "this workspace has nobody to open");
+    await rows.first().click();
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+    const section = page.getByTestId("person-deal");
+    if ((await section.count()) === 0) {
+      // Deals are not a thing here (no consult-first service, no deal recorded): the section is not drawn.
+      test.skip(true, "deals are not a thing on this workspace");
+      return;
+    }
+    const line = page.getByTestId("person-deal-line");
+    const before = (await line.innerText()).trim();
+    expect(before.length).toBeGreaterThan(0);
+    const moves = page.getByTestId("person-deal-move");
+    expect(await moves.count()).toBeGreaterThan(0);
+    await moves.first().click();
+    await expect(page.getByTestId("person-deal-how")).toBeVisible();
+    await page.getByTestId("person-deal-record").click();
+    // Production records it and the line moves on; a workspace that refuses the write says so under the row.
+    await expect(async () => {
+      const moved = (await line.innerText()).trim() !== before;
+      const error = page.getByTestId("person-deal-error");
+      const refused = (await error.count()) > 0 && (await error.innerText()).trim().length > 0;
+      expect(moved || refused).toBe(true);
+    }).toPass();
+  });
+
   test("a profile deep link to a stranger's id says so instead of inventing a person", async ({ page }) => {
     await page.goto("/#/clients/00000000-0000-4000-8000-000000000000");
     await page.waitForLoadState("networkidle");

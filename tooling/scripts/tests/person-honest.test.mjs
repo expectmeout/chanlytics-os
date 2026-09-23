@@ -176,7 +176,7 @@ test("REGRESSION (B17): every message, escalation and visit on the timeline open
   assert.equal(of("visit").link?.to, `calendar/${day}`, "a visit opens its day on the Calendar");
   assert.deepEqual(
     contracts.TIMELINE_FILTERS?.map((f) => f.id),
-    ["all", "messages", "calls", "visits", "consent"],
+    ["all", "messages", "calls", "visits", "consent", "deals"],
   );
   assert.deepEqual(
     filterTimeline(vm.timeline, "visits").map((i) => i.kind),
@@ -338,7 +338,7 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props, and hookless stand-ins, so the stub's hook order holds.
+// Menus and questions as their props, drawn by hookless stand-ins.
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
 // The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
@@ -1687,4 +1687,98 @@ test("a proposal on file (00154): the About row is its control and the send sits
   tree = (await profile(quiet))();
   assert.ok(byTestId(tree, "person-proposal"));
   assert.equal(byTestId(tree, "send-proposal"), null);
+});
+
+/* ----------------------------------- the Deal section (0004) ----------------------------------- */
+
+test("the Deal section: drawn only where deals are a thing, says the stage first, offers its moves, and records through the courier", async () => {
+  globalThis.window.__deal = {
+    words: contracts.DEAL_STAGE_WORDS,
+    perWords: contracts.DEAL_PER_WORDS,
+    pers: contracts.DEAL_PERS,
+    none: contracts.DEAL_LINE_NONE,
+    moves: contracts.dealMoves,
+  };
+  const calls = [];
+  globalThis.window.__recordDeal = async (id, body) => (
+    calls.push([id, body]),
+    { ok: true, data: { deal: { id: "d9" }, from: null, decision_id: "x" } }
+  );
+
+  const none = await profile(toPersonVM(detail({ deals_on: false, deals: [], services: [] }), ZONE, new Date(NOW)));
+  assert.equal(byTestId(none(), "person-deal"), null, "a salon never sees it");
+
+  const on = await profile(
+    toPersonVM(detail({ deals_on: true, deals: [], services: ["Ad management", "SEO"] }), ZONE, new Date(NOW)),
+  );
+  let tree = on();
+  assert.equal(textOf(byTestId(tree, "person-deal-line")), "No proposal yet");
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "person-deal-move").map(textOf), ["Proposal sent"]);
+  press(byTestId(tree, "person-deal-move"));
+  tree = on();
+  assert.ok(byTestId(tree, "person-deal-service"), "two services: the picker shows");
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "p1");
+  assert.equal(calls[0][1].stage, "proposed");
+  assert.ok(calls[0][1].when, "a date always goes, today by default");
+
+  const proposed = {
+    id: "d1",
+    contact_id: "p1",
+    service: "Ad management",
+    stage: "proposed",
+    proposed_at: iso(9 * D),
+    decided_at: null,
+    ended_at: null,
+    amount_cents: null,
+    per: null,
+    currency: "USD",
+    note: null,
+    version: 1,
+    created_at: iso(9 * D),
+  };
+  const client = await profile(
+    toPersonVM(
+      detail({
+        deals_on: true,
+        deals: [proposed],
+        services: ["Ad management"],
+        row: row({
+          visits: VISITS,
+          deal_id: "d1",
+          deal_stage: "proposed",
+          deal_service: "Ad management",
+          deal_proposed_at: proposed.proposed_at,
+          deal_decided_at: null,
+          deal_ended_at: null,
+          deal_amount_cents: null,
+          deal_per: null,
+        }),
+      }),
+      ZONE,
+      new Date(NOW),
+    ),
+  );
+  tree = client();
+  assert.match(textOf(byTestId(tree, "person-deal-line")), /^Proposal out · since/);
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "person-deal-move").map(textOf), [
+    "Became a client",
+    "Passed",
+  ]);
+  press(byTestId(tree, "person-deal-move"));
+  tree = client();
+  const amount = byTestId(tree, "person-deal-amount");
+  assert.ok(amount, "a client's move asks for the amount");
+  type(amount, "2,500");
+  tree = client();
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1][1].stage, "won");
+  assert.equal(calls[1][1].deal_id, "d1");
+  assert.equal(calls[1][1].version, 1, "the version the page saw goes with a move");
+  assert.equal(calls[1][1].amount_cents, 250000);
+  assert.equal(calls[1][1].per, "month");
 });

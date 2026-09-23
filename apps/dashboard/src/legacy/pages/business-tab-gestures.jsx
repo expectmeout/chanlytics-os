@@ -13,12 +13,11 @@
 //
 // Loaded after business-tab-folds.jsx and before the cards (both load lists); the cards read window.BtRow,
 // window.BtFold and window.BtSheet as they draw. Its top-level names are bt-prefixed and its hook aliases its own
-// (useBtg*), and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. The tests' stub
-// React (tooling/scripts/tests/_legacy-react.mjs) keeps every hook on the page as a cell in one order, so a component
-// holding hooks that is drawn on one render and not the next moves every cell after it: the row and the fold are drawn
-// on every render (closed, the kit hides them whole), and what comes and goes inside them (a row at rest, a Confirm, a
-// note) holds none. The sheet's editor is drawn on every render too; the kit's sheet, drawn only while it is open, is
-// the page's LAST hook-holding child (BtSheet says how). That is the stub's rule, not React's.
+// (useBtg*), and no pattern in it holds an object rest, for the reasons business-tab-save.jsx gives. The row and the
+// fold are drawn on every render (closed, the kit hides them whole), and what comes and goes inside them (a row at
+// rest, a Confirm, a note) holds no hook. That shape was the tests' old stub React's rule -- every hook on a page as a
+// cell in one order -- and is no longer anyone's: the stub keeps each component's hooks where it sits, as React does
+// (tooling/scripts/tests/_hook-frames.mjs). It stands because it works, not because it must.
 
 const { useState: useBtgState, useEffect: useBtgEffect, useRef: useBtgRef } = React;
 
@@ -627,8 +626,7 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * row says at rest (`row`); nothing else.
  *
  * `body` draws the fields. It is drawn on every render, open or not: a body may hold hooks (a menu, a field's id), and
- * the tests' stub React keeps every hook on the page as a cell in one order (this file's header). So a body whose rows
- * come and go draws them hookless. It is handed all of this, and takes nothing else from its card, `flash` least of all:
+ * rows that come and go are drawn hookless, as everything that comes and goes here is (this file's header). It is handed all of this, and takes nothing else from its card, `flash` least of all:
  *   draft                 the draft as it stands: what is stored, while the fold is closed;
  *   open                  whether the fold is open, for a body that draws less while it is not;
  *   problems              what stopped the last Save, by field key;
@@ -768,11 +766,9 @@ const BtFold = ({
  * (window.__recordFolds.request); the page draws the sheet.
  *
  * The page draws it LAST of everything on it that holds a hook. It holds its editor's hooks on every draw, and the kit's
- * RecordSheet holds more and is drawn only while it is open, and the tests' stub React keeps every hook on the page as
- * a cell in one order (this file's header): a component with hooks that appears drawn before another's shifts every
- * cell after it, so a sheet drawn before a card read that card's cells as its own. Drawn after every card, only the tail
- * of the order comes and goes. Its rows are drawn hookless for the same reason: they come and go before RecordSheet's
- * own hooks.
+ * RecordSheet holds more and is drawn only while it is open. Last was the tests' old stub's rule (a sheet drawn before a
+ * card read that card's cells as its own); the stub now keeps each component's hooks where it sits, so it stays last
+ * as a habit, not a need. Its rows are drawn hookless, as everything that comes and goes here is.
  *
  * Escape and the head's Close are the foot's Cancel, with its ask: nothing typed is thrown away unasked, and nothing
  * cancels a save that is out; Ctrl or Cmd with Enter saves. The foot, its asks and its keys are the kit's, as a fold's

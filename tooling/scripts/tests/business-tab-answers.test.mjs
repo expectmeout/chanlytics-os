@@ -1393,9 +1393,8 @@ test("Save stays a button focus can rest on while it saves, and the boxes take n
   assert.equal(boxIn(tree, "tone").props.value, "Calm.", "a preset pressed while it saves changes nothing");
 });
 
-test("the services sheet stays the page's last hook-holding child: opened and closed above this card, every fold of it keeps its own", () => {
-  // The stub keeps every hook on the page in one order (_legacy-react.mjs). This card is drawn before the sheet, so
-  // the sheet coming and going must move none of its cells.
+test("the services sheet opened and closed beside this card, every fold of it keeps its own", () => {
+  // The sheet comes and goes; this card's rows and folds must not move with it.
   let tree = drawTab();
   const at = (t) => ROWS.map((id) => textOf(byTestId(t, `rec-row-${id}`)));
   const rest = at(tree);
