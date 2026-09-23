@@ -1726,9 +1726,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   };
   const base = toPersonRowVM(row, tz, now);
   // Their deals as the page lists them (0004): each row through the one view model the People row uses.
-  const deals = (d.deals ?? [])
-    .map((x) => toDealVM({ ...x, id: x.id, version: x.version }, tz, nowMs))
-    .filter((x): x is DealVM => !!x);
+  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x);
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -2241,6 +2239,9 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
           to: leadsRoute({ peek: d.lead.id }),
         }
       : null,
+    // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy
+    // of it carries the version a move is checked against, which the columns do not.
+    deal: deals.find((x) => x.id === base.deal?.id) ?? base.deal,
     deals,
     dealsOn: !!d.deals_on,
     services: d.services ?? [],

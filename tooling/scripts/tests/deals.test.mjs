@@ -363,15 +363,32 @@ test("a person's page lists their deals, says the current one among its facts, a
         version: 2,
         created_at: daysAgo(60),
       },
+      {
+        id: "d2",
+        contact_id: "p1",
+        service: "Audit",
+        stage: "ended",
+        proposed_at: daysAgo(200),
+        decided_at: daysAgo(190),
+        ended_at: daysAgo(10),
+        amount_cents: 50_000,
+        per: "once",
+        currency: "USD",
+        note: null,
+        version: 3,
+        created_at: daysAgo(200),
+      },
     ],
     deals_on: true,
     services: ["Ad management", "SEO", "Discovery call"],
   });
   const vm = toPersonVM(d, TZ, new Date(NOW));
+  assert.equal(vm.deal.version, 2, "the current deal carries its version for a move");
   assert.equal(vm.dealsOn, true);
   assert.deepEqual(vm.services, ["Ad management", "SEO", "Discovery call"]);
-  assert.equal(vm.deals.length, 2);
+  assert.equal(vm.deals.length, 3);
   assert.equal(vm.deal.stage, "won");
+  assert.equal(vm.deal.id, "d1", "open or current first: the ended engagement is not the one shown");
   assert.ok(vm.facts.some((f) => f.label === "Deal" && f.value === "Client" && /Ad management/.test(f.meta)));
   const texts = vm.timeline.filter((i) => i.kind === "deal").map((i) => i.text);
   assert.deepEqual(
@@ -381,6 +398,9 @@ test("a person's page lists their deals, says the current one among its facts, a
       "Passed · SEO",
       "Proposal sent · Ad management",
       "Proposal sent · SEO",
+      "Proposal sent · Audit",
+      "Became a client · Audit · $500",
+      "Ended · Audit",
     ].sort(),
   );
   assert.ok(TIMELINE_FILTERS.some((f) => f.id === "deals"));

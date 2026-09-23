@@ -10,10 +10,10 @@ const Body = z
     deal_id: z.string().uuid().optional(),
     version: z.number().int().min(1).optional(),
     service: z.string().trim().min(1).max(80).optional(),
-    /** An ISO instant; absent means now. */
+    /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
     when: z
       .string()
-      .refine((s) => Number.isFinite(Date.parse(s)), "when must be an ISO instant")
+      .refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time")
       .optional(),
     amount_cents: z.number().int().min(0).max(1_000_000_000).optional(),
     per: z.enum(DEAL_PERS).optional(),
@@ -57,7 +57,17 @@ export const POST = write({
     });
     if (error) throw new AppError("validation", error.message);
     const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null };
-    if (r.error || !r.deal) throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
+    if (r.error || !r.deal) {
+      // A key the sentences lack, or no deal and no error: an answer this route does not know. Logged raw before
+      // the generic sentence, so a new refusal is found in the log rather than by its blandness.
+      if (!(r.error && DEAL_REFUSALS[r.error])) {
+        console.error(
+          "deal_door_unknown_answer",
+          JSON.stringify({ contact: contact.id, error: r.error ?? null, deal: !!r.deal }),
+        );
+      }
+      throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
+    }
     const decision_id = await recordDecision(ctx, contact.tenant_id, "deal", r.deal.id, "record_deal", {
       contact_id: contact.id,
       stage: input.stage,

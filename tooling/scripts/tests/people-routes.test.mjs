@@ -1033,6 +1033,15 @@ test("deal: a proposal is recorded through the door, its decision holds the move
     deal.POST.run(send("POST", { stage: "banana" }), ctxFor(tables, { id: P2 }, rpcs)),
     (e) => (assert.equal(e.code, "validation"), true),
   );
+  await assert.rejects(
+    deal.POST.run(send("POST", { stage: "proposed", when: "2026-09-20" }), ctxFor(tables, { id: P2 }, rpcs)),
+    (e) => (assert.equal(e.code, "validation"), true),
+  );
+  await assert.rejects(
+    deal.POST.run(send("POST", { stage: "proposed", extra: 1 }), ctxFor(tables, { id: P2 }, rpcs)),
+    (e) => (assert.equal(e.code, "validation"), true),
+  );
+  assert.equal(doors.length, 0, "a bare date and an unknown key are refused before the door opens");
   const out = await deal.POST.run(
     send("POST", { stage: "proposed", service: "SEO", when: "2026-09-20T15:00:00.000Z" }),
     ctxFor(tables, { id: P2 }, rpcs),

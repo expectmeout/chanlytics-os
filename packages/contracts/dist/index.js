@@ -7033,7 +7033,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     visits: d.visits ?? d.row.visits ?? null
   };
   const base = toPersonRowVM(row2, tz, now);
-  const deals = (d.deals ?? []).map((x) => toDealVM({ ...x, id: x.id, version: x.version }, tz, nowMs)).filter((x) => !!x);
+  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x);
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items = [];
@@ -7383,6 +7383,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       found: ts(d.lead.found_at) !== null ? clockDate(ts(d.lead.found_at), tz, nowMs) : "\u2014",
       to: leadsRoute({ peek: d.lead.id })
     } : null,
+    // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy
+    // of it carries the version a move is checked against, which the columns do not.
+    deal: deals.find((x) => x.id === base.deal?.id) ?? base.deal,
     deals,
     dealsOn: !!d.deals_on,
     services: d.services ?? []

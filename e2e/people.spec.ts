@@ -147,6 +147,9 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 
+  // Runs for real only where deals are a thing: the seeded nightly workspace lists no consult-first service today, so
+  // this skips there until the seed gains one (a decision for the owner: the Settings journey depends on that seed
+  // being empty). On the local harness there is no People surface at all, so it skips too.
   test("a deal is recorded on a person's page: the section says the stage first and offers the moves", async ({
     page,
   }) => {

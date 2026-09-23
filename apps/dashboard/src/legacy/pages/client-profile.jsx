@@ -1002,10 +1002,7 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
   const [st, setSt] = useStateP(DEAL_EMPTY);
   const kit = window.__deal;
   if (!p || !p.dealsOn || !kit) return null;
-  // The row's deal says WHICH one shows (contracts pickCurrentDeal, the people read's lateral join); the listed copy
-  // of it carries the version the door checks a move against, which the row's columns do not.
-  const shown = p.deal || null;
-  const d = shown ? (p.deals || []).find((x) => x.id === shown.id) || shown : null;
+  const d = p.deal || null;
   const moves = kit.moves(d);
   const services = p.services || [];
   const close = () => setSt(DEAL_EMPTY);
