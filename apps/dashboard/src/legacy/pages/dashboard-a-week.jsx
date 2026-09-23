@@ -1,4 +1,4 @@
-/* global React, Icon, FailedRead */
+/* global React, Icon, FailedRead, StatePill */
 // Below the day's card: the few things worth a look that no row above says on its own, and what happened while the
 // owner was away. Each reads a surface the page already holds (Reports, People, the bell) and the words are
 // contracts/today.ts todayLeaks / todayAwayGrouped through window.__today. Nothing is computed on the page; every
@@ -22,8 +22,8 @@ const twSurface = (key) => (window.todaySurface ? window.todaySurface(key) : win
 //
 // "18 wrote or called" lives on Reports and "17 asked, never booked" lives on People, and neither page can say they
 // are the same eighteen people. This band is the only place on Today that puts two numbers beside each other, and
-// it prints the arithmetic under every sentence so nobody has to take it on faith. Each row wears a word and an icon
-// for its tone (never colour alone), names who is waiting where the page holds them, and offers Ask its own facts:
+// it prints the arithmetic under every sentence so nobody has to take it on faith. Each row wears its tone once, as the
+// one pill with a word in it (never colour alone), names who is waiting where the page holds them, and offers Ask its own facts:
 // "Ask why" asks the row's sentence, so Ask grounds the answer in what it can read. It is gone entirely on a
 // workspace with nothing wrong: there is no congratulation state. A third problem is a line, never silence.
 //
@@ -59,21 +59,24 @@ const TodayLeaks = () => {
       <div className="tl-list">
         {rows.map((l) => (
           <div key={l.id} className={`tl-row tl-${l.tone}`} data-testid={`today-leak-${l.id}`}>
-            <span className={`tl-glyph tl-${l.tone}`} aria-hidden="true"><Icon name={l.icon} size={13} /></span>
             <span className="tl-body">
-              <span className="tl-tag">{l.tag}</span>
-              {phone ? (
-                <button type="button" className="tl-text tl-text-door" aria-expanded={open === l.id} aria-controls={`today-leak-math-${l.id}`} onClick={() => setOpen(open === l.id ? null : l.id)} data-testid={`today-leak-text-${l.id}`}>{l.text}</button>
-              ) : (
-                <span className="tl-text">{l.text}</span>
-              )}
+              {/* The row's tone, once: the one pill, in front of its sentence. A tinted tile and an amber word said it twice. */}
+              <span className="tl-line">
+                <StatePill kind="tone" value={l.tone} label={l.tag} className="tl-tag" />
+                {phone ? (
+                  <button type="button" className="tl-text tl-text-door" aria-expanded={open === l.id} aria-controls={`today-leak-math-${l.id}`} onClick={() => setOpen(open === l.id ? null : l.id)} data-testid={`today-leak-text-${l.id}`}>{l.text}</button>
+                ) : (
+                  <span className="tl-text">{l.text}</span>
+                )}
+              </span>
               <span className="tl-math tabular" id={`today-leak-math-${l.id}`} hidden={phone && open !== l.id}>{l.math}</span>
               {/* Who is waiting right now, from the threads Today holds: not the count's own subjects (the count is Reports' over
-                  its period), so the lead says so and the names are never drawn as the people the sentence counts. */}
+                  its period), so the lead says so and the names are never drawn as the people the sentence counts. A person
+                  is a name, so each is the one chip. */}
               {l.people.length > 0 && (
                 <span className="tl-people">
                   <span className="tl-people-lead">Waiting now</span>
-                  {l.people.map((p) => <button key={p.id} type="button" className="tl-person" onClick={() => twNav(p.to)} title={`Open ${p.name}'s thread`}>{p.name}</button>)}
+                  {l.people.map((p) => <button key={p.id} type="button" className="chip tl-person" onClick={() => twNav(p.to)} title={`Open ${p.name}'s thread`}>{p.name}</button>)}
                 </span>
               )}
             </span>
@@ -140,7 +143,7 @@ const TodayAway = () => {
             const act = n.actions && n.actions[0];
             return (
               <div key={n.id} className={`ta-row ${n.tone}`} data-testid="today-away-row" data-count={g.count}>
-                <span className={`tbn-icon ${n.tone}`}><Icon name={n.icon} size={13} /></span>
+                <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
                 <button className="ta-main" onClick={() => act && open(g, act.to)} title={act ? act.label : undefined}>
                   <span className="ta-line1">
                     <span className="ta-title">{g.title || n.title}</span>

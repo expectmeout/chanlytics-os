@@ -646,8 +646,9 @@
    carry that a pill does not is its place in the line: the name gives way first, the tags never squeeze. */
 .ld-biz-cell .cl-row-fullname .pill { flex: none; }
 
-/* The tile: the photo, else initials on a tint the kind decides. A photo that fails to load falls back to the tile. */
-.ld-tile { position: relative; flex: none; display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
+/* The tile: the photo, else initials on one quiet ground. A photo that fails to load falls back to the tile. Initials
+   are a name's letters, not a state: the tones picked by hash drew a red "CH" that read as a failure. */
+.ld-tile { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; flex: none; display: inline-grid; place-items: center; border: 0; padding: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--tint); color: var(--tint-ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: default; }
 button.ld-tile { cursor: pointer; }
 button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -658,12 +659,6 @@ button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile-initials { position: relative; z-index: 0; }
 .ld-tile-expand { position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.55); color: oklch(1 0 0); display: grid; place-items: center; opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
 .ld-tile:hover .ld-tile-expand, .ld-tile:focus-visible .ld-tile-expand { opacity: 1; }
-.ld-tile.tint-1 { --tint: oklch(from var(--ok) l c h / 0.18); --tint-ink: var(--ok-ink); }
-.ld-tile.tint-2 { --tint: oklch(from var(--warn) l c h / 0.2); --tint-ink: var(--warn-ink); }
-.ld-tile.tint-3 { --tint: oklch(from var(--info) l c h / 0.18); --tint-ink: var(--info-ink); }
-.ld-tile.tint-4 { --tint: oklch(from var(--accent) l c h / 0.16); --tint-ink: var(--accent-ink); }
-.ld-tile.tint-5 { --tint: oklch(from var(--danger) l c h / 0.14); --tint-ink: var(--danger-ink); }
-.ld-tile.tint-6 { --tint: var(--bg-active); --tint-ink: var(--ink-muted); }
 
 /* The two reach slots: shape carries the meaning, colour repeats it. */
 .ld-reach-cell { overflow: visible; }
@@ -849,13 +844,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* ---------------------------------------------- the peek, re-cut (D5) -- */
 /* The head is a photo band, the identity under it, the verdict a card, what people say a card, the checks under
    their own head, the act pinned at the foot. Each rule a token or a measure. */
-.pk-band { position: relative; height: 176px; flex: none; overflow: hidden; background: var(--tint); color: var(--tint-ink); display: grid; place-items: center; }
-.pk-band.tint-1 { --tint: oklch(from var(--ok) l c h / 0.18); --tint-ink: var(--ok-ink); }
-.pk-band.tint-2 { --tint: oklch(from var(--warn) l c h / 0.2); --tint-ink: var(--warn-ink); }
-.pk-band.tint-3 { --tint: oklch(from var(--info) l c h / 0.18); --tint-ink: var(--info-ink); }
-.pk-band.tint-4 { --tint: oklch(from var(--accent) l c h / 0.16); --tint-ink: var(--accent-ink); }
-.pk-band.tint-5 { --tint: oklch(from var(--danger) l c h / 0.14); --tint-ink: var(--danger-ink); }
-.pk-band.tint-6 { --tint: var(--bg-active); --tint-ink: var(--ink-muted); }
+.pk-band { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; height: 176px; flex: none; overflow: hidden; background: var(--tint); color: var(--tint-ink); display: grid; place-items: center; }
 .pk-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 /* A photograph that fails to load takes its own layer down, never the mark painted over it. */
 .pk-band.no-img img:not(.pk-band-mark) { display: none; }
@@ -871,7 +860,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-identity .pk-name { font-size: 18px; }
 .pk-sub-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .pk-identity .pk-sub { margin: 0; }
-.pk-today { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ok-ink); font-weight: var(--weight-medium); }
+.pk-today { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ink-muted); font-weight: var(--weight-medium); }
 .pk-today.closed { color: var(--ink-dim); font-weight: var(--weight-regular); }
 .pk-identity .pk-about { margin-top: 2px; }
 .pk-identity .pk-where { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
@@ -916,13 +905,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-lb-name { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 .ld-lb-sub { font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-lb-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
-.ld-lb-photo { position: relative; display: grid; place-items: center; background: var(--tint); color: var(--tint-ink); overflow: hidden; }
-.ld-lb-photo.tint-1 { --tint: oklch(from var(--ok) l c h / 0.18); --tint-ink: var(--ok-ink); }
-.ld-lb-photo.tint-2 { --tint: oklch(from var(--warn) l c h / 0.2); --tint-ink: var(--warn-ink); }
-.ld-lb-photo.tint-3 { --tint: oklch(from var(--info) l c h / 0.18); --tint-ink: var(--info-ink); }
-.ld-lb-photo.tint-4 { --tint: oklch(from var(--accent) l c h / 0.16); --tint-ink: var(--accent-ink); }
-.ld-lb-photo.tint-5 { --tint: oklch(from var(--danger) l c h / 0.14); --tint-ink: var(--danger-ink); }
-.ld-lb-photo.tint-6 { --tint: var(--bg-active); --tint-ink: var(--ink-muted); }
+.ld-lb-photo { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; display: grid; place-items: center; background: var(--tint); color: var(--tint-ink); overflow: hidden; }
 .ld-lb-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: oklch(0 0 0 / 0.85); display: block; }
 .ld-lb-photo.no-img img { display: none; }
 .ld-lb-initials { font-family: var(--font-mono); font-size: 72px; font-weight: 500; letter-spacing: .04em; opacity: .85; }

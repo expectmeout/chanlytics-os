@@ -372,7 +372,7 @@ const BroadcastsPage = ({ initialSegment = null }) => {
                 {h.name}<span className="bc-hist-date">{h.date}</span>
               </span>
               {h.segId ? (
-                <button className="bc-hist-seg seg-chip" title="Open in Segments" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(h.segId))}>
+                <button className="bc-hist-seg chip" title="Open in Segments" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(h.segId))}>
                   <Icon name="sparkle" size={9} />{h.seg}
                 </button>
               ) : (

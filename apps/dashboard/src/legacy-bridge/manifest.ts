@@ -16,7 +16,7 @@ import "@/legacy/components/icons.jsx";
 import "@/legacy/components/surface-tabs.jsx";
 import "@/legacy/components/sidebar.jsx";
 import "@/legacy/components/shortcuts.jsx";
-// The three as the top bar's Ask button and the palette's stage: before the two that draw it.
+// The three as the top bar's Ask button and the Line's face: before the two that draw it.
 import "@/legacy/components/ask-face.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";

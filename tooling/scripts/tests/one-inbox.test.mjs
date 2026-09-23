@@ -140,6 +140,7 @@ const strip = (page, param = null) => {
     label: textOf(b.props.children.filter((c) => typeof c === "string")).trim(),
     active: hasClass(b, "active"),
     badge: textOf(findAll(b, (n) => hasClass(n, "stabs-badge"))[0]) || null,
+    tally: String((findAll(b, (n) => hasClass(n, "stabs-badge"))[0] || { props: {} }).props.className || ""),
   }));
 };
 
@@ -229,6 +230,12 @@ test("the strip's badge is the count that already exists, not a second reading o
   };
   assert.equal(win.sbNeedsCount(), 2, "the fixture holds two that wait on you");
   assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
+  assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
+  assert.match(
+    strip("inbox")[0].tally,
+    /\btally-warn\b/,
+    "amber: it counts people who need you, as the Needs you pill does",
+  );
   win.INBOX_DATA = { THREADS: [{ id: "c3", real: true, needsYou: false }] };
   assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
   delete win.ixWaitsOnYou;

@@ -169,7 +169,7 @@ const TasksPage = () => {
             {TK_FILTERS.map(f => (
               <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
                 {f.label}
-                <span className="fleet-filter-count tabular">{counts[f.id]}</span>
+                <span className="fleet-filter-count tally">{counts[f.id]}</span>
               </button>
             ))}
           </div>

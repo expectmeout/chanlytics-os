@@ -1763,7 +1763,8 @@ export type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | 
 
 export interface TodayLeakVM {
   id: TodayLeakId;
-  tone: "danger" | "warn" | "info";
+  /** A look, never a failure: amber where a person should look, blue for what waits on someone else. */
+  tone: "warn" | "info";
   /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
   tag: string;
   /** The tone's icon (the legacy Icon set). */
@@ -1848,7 +1849,7 @@ export function todayLeaks(
     const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
-      tone: "danger",
+      tone: "warn",
       tag: "Booking gap",
       icon: "calendar",
       text,
@@ -1870,7 +1871,7 @@ export function todayLeaks(
     const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
     found.set("unanswered", {
       id: "unanswered",
-      tone: "danger",
+      tone: "warn",
       tag: "No reply",
       icon: "alert",
       text,

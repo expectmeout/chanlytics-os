@@ -49,10 +49,13 @@ const ActivityRow = ({ r, actors }) => {
     : r.subject_type === "conversation" && r.subject_id ? `inbox/th-${r.subject_id}`
     : r.subject_type === "call" && r.subject_id ? `conversations/cv-${r.subject_id}`
     : null;
+  // The kind's tone (contracts activityTone) is said by the row's words where it is a warning or a failure; the node on
+  // the spine is the neutral mark every row wears.
+  const tone = window.__activity && window.__activity.tone ? window.__activity.tone(r.kind) : "plain";
   return (
-    <div className="act-row" data-testid="act-row">
-      <span className="act-glyph" data-tone={window.__activity && window.__activity.tone ? window.__activity.tone(r.kind) : "plain"} aria-hidden="true">
-        <Icon name={ACT_GLYPH(r.kind)} size={11} />
+    <div className="act-row" data-testid="act-row" data-tone={tone}>
+      <span className="mark act-glyph" aria-hidden="true">
+        <Icon name={ACT_GLYPH(r.kind)} size={13} />
       </span>
       <span className="act-when">{ACT_TIME(r.at)}</span>
       <span className="act-what">{who && <b>{who} · </b>}{r.text}</span>
@@ -184,7 +187,7 @@ const PaneActivity = () => {
         <datalist id="act-kinds">{st.kinds.map((k) => <option key={k} value={k} />)}</datalist>
         <input className="set-input" type="date" aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} data-testid="act-day" />
         {person
-          ? <span className="cl-seg-filter" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="cl-seg-filter-x" aria-label={`Everyone, not only ${person.name}`} onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
+          ? <span className="chip" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="chip-x" aria-label={`Everyone, not only ${person.name}`} onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
           : (
             <span className="set-filter-person">
               <input className="set-input" placeholder="A person, by name or number" aria-label="A person, by name or number" value={personQ} onChange={(e) => setPersonQ(e.target.value)} data-testid="act-person-q" />
@@ -205,7 +208,7 @@ const PaneActivity = () => {
           <div className="act-day"><span className="act-bone act-bone-day" /></div>
           {[68, 52, 61, 44, 57, 49, 63].map((w, i) => (
             <div className="act-row" key={i}>
-              <span className="act-glyph" />
+              <span className="mark act-glyph" />
               <span className="act-when"><span className="act-bone" /></span>
               <span className="act-what"><span className="act-bone" style={{ width: `${w}%` }} /></span>
             </div>
@@ -218,7 +221,7 @@ const PaneActivity = () => {
             {opens[i] && (
               <div className="act-day">
                 {opens[i]}
-                <span className="act-day-n">{perDay[i]}</span>
+                <span className="act-day-n tally">{perDay[i]}</span>
               </div>
             )}
             <ActivityRow r={r} actors={st.actors} />

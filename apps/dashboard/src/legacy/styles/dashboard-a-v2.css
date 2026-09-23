@@ -383,20 +383,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.fleet-filter-count {
-  font-size: 10px;
-  color: var(--ink-dim);
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  padding: 0 5px;
-  border-radius: 999px;
-  line-height: 14px;
-  min-width: 18px;
-  text-align: center;
-}
-.fleet-filter-chip.active .fleet-filter-count {
-  background: var(--bg-sunken);
-}
 
 /* "Show all" card — slots into the grid as a peer of agent cards */
 .fleet-more {
@@ -1029,8 +1015,8 @@
 .td-frame-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); min-width: 0; }
 .td-frame.today .td-frame-label { color: var(--ink); }
 .td-frame-note { flex: none; font-size: 10.5px; color: var(--ink-dim); white-space: nowrap; }
-/* "1 needs you" and the flag on a person are a warning, not live state: danger ink, never the coral accent. */
-.td-frame-note .warn { color: var(--danger-ink); font-weight: 500; }
+/* "1 needs you" is amber, as "needs you" is on every badge; red is for what failed, and never the coral accent. */
+.td-frame-note .warn { color: var(--warn-ink); font-weight: 500; }
 /* The schedule's rows are the shared agenda row (components.css .ag-*, components/day-agenda.jsx): the same
    row the Calendar's agenda wears, so one appointment reads the same on both. Its numbers were these.
    What stays here is the day card the rows sit in. */
@@ -1069,7 +1055,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tc-receipt-door { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; background: transparent; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
 .tc-receipt-door:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 /* Every control here takes the house focus ring (spec 8). */
-.tc-receipt-door:focus-visible, .tl-person:focus-visible, .td-day-more:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.tc-receipt-door:focus-visible, .td-day-more:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
 .tc-beats { padding: 10px 18px 14px; margin-top: 0; }
 .tc-beats:empty { display: none; }
 .tc-foot { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--bg-sunken); border-radius: 0 0 var(--radius-lg) var(--radius-lg); font-size: 12px; color: var(--ink-muted); }
@@ -1085,25 +1071,19 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tsec-note { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-dim); }
 
 /* ---- Worth a look: the page's one place where two numbers meet ------------- */
-/* Deliberately quiet. A red panel shouting at a salon owner every morning is noise within a week; a glyph and a word
-   for the tone, the sentence, and the arithmetic under it in the tone's own ink is read once and believed. */
+/* Deliberately quiet. A red panel shouting at a salon owner every morning is noise within a week; one pill for the
+   tone, the sentence, and the arithmetic under it is read once and believed. */
 .tl-list { display: flex; flex-direction: column; }
-.tl-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: start; gap: 0 12px; padding: 12px 14px 12px 16px; border-top: 1px solid var(--line); }
+.tl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 12px; padding: 12px 14px 12px 16px; border-top: 1px solid var(--line); }
 .tl-row:first-child { border-top: none; }
-.tl-glyph { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; margin-top: 1px; color: var(--ink-muted); background: var(--bg-sunken); }
-.tl-glyph.tl-danger { color: var(--danger-ink); background: var(--danger-soft); }
-.tl-glyph.tl-warn { color: var(--warn-ink); background: var(--warn-soft); }
-.tl-glyph.tl-info { color: var(--info-ink); background: var(--info-soft); }
 .tl-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.tl-tag { font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-dim); }
-.tl-row.tl-danger .tl-tag { color: var(--danger-ink); }
-.tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
+/* The pill, then the sentence; on a narrow card the sentence wraps under its pill. */
+.tl-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.tl-line > .tl-text, .tl-line > .tl-text-door { flex: 1 1 12rem; min-width: 0; }
 .tl-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
 .tl-math { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
 .tl-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
 .tl-people-lead { font-size: 11px; color: var(--ink-dim); }
-.tl-person { font: inherit; font-size: 11.5px; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
-.tl-person:hover { color: var(--ink); border-color: var(--line-strong); }
 .tl-acts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: none; flex-wrap: wrap; }
 .tl-failed { padding: 10px 16px; }
 
@@ -1154,8 +1134,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .tc-foot { flex-wrap: wrap; }
 }
 @media (max-width: 640px) {
-  .tl-row { grid-template-columns: 24px minmax(0, 1fr); }
-  .tl-acts { grid-column: 2; justify-content: flex-start; padding-top: 8px; }
+  .tl-row { grid-template-columns: minmax(0, 1fr); }
+  .tl-acts { grid-column: 1; justify-content: flex-start; padding-top: 8px; }
 }
 
 /* ---- The canvas's proportions ("Today, redesigned") ------------------------
@@ -1214,18 +1194,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
 
-/* The lines that are not numbers wear the canvas's glyph tile, not a bullet: at
-   this size a 4px dot carried no meaning, and the tile says which kind of line
-   it is before the sentence does. */
+/* The lines that are not numbers wear the one mark (.mark), not a bullet: at
+   this size a 4px dot carried no meaning, and the mark says which kind of line
+   it is before the sentence does. It is neutral; a warning's words say it. */
 .tc-beats .brief-beat { align-items: center; gap: 10px; }
-.brief-beat-glyph {
-  width: 24px; height: 24px; border-radius: 7px; flex: none;
-  display: grid; place-items: center;
-  background: var(--bg-sunken); color: var(--ink-muted);
-}
-.brief-beat-glyph.ok { color: var(--ok); }
-.brief-beat-glyph.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
-.brief-beat-glyph.danger { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
 
 /* ---- The canvas's finish ---------------------------------------------------
    The proportions landed in #699; this is the rest of what the canvas draws
@@ -1239,18 +1211,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 :where(.dash-a-v2) .tq .cl-attn-status, :where(.dash-a-v2) .tq .cl-attn-status span { color: var(--ink-muted); }
 :where(.dash-a-v2) .tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
 
-/* Worth a look: the tag in words, not a red mono label; the arithmetic in the
-   page's own type (the mono read as a second font on a phone, Ruben 22 Sep);
-   a neutral tile, amber only where a person is waiting. On a phone the
-   sentence is the door to its arithmetic, and wears the page's own sign that a
-   word has more behind it, a dotted rule under the words. */
-.tl-tag { font-family: inherit; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
-.tl-row.tl-danger .tl-tag, .tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
+/* Worth a look: the tag is the row's one pill (components.css), in words; the
+   arithmetic in the page's own type (the mono read as a second font on a
+   phone, Ruben 22 Sep). On a phone the sentence is the door to its arithmetic,
+   and wears the page's own sign that a word has more behind it, a dotted rule
+   under the words. */
 .tl-math { font-family: inherit; font-size: 11.5px; letter-spacing: 0; }
 .tl-text-door { display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 4px; background: none; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
 .tl-text-door:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.tl-glyph.tl-danger, .tl-glyph.tl-warn, .tl-glyph.tl-info { color: var(--ink-muted); background: var(--bg-sunken); }
-.tl-row.tl-danger .tl-glyph, .tl-row.tl-warn .tl-glyph { color: var(--warn-ink); background: var(--warn-soft); }
 
 /* The doors on the day's lines are links; the period's one door is the button. */
 .tc-beats .brief-chip { background: transparent; border-color: transparent; padding: 4px 6px; font-size: 12.5px; color: var(--ink-muted); border-radius: 8px; }

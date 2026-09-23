@@ -64,12 +64,13 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
   const fresh = items.filter(n => n.unread);
   const earlier = items.filter(n => !n.unread);
   const row = (n) => (
-    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`}>
+    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`} data-tone={n.tone}>
       <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
         <Icon name="x" size={10} />
       </button>
       {n.unread && <span className="tbn-dot" />}
-      <span className={`tbn-icon ${n.tone}`}><Icon name={n.icon} size={13} /></span>
+      {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
+      <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
       <div className="tbn-body">
         <div className="tbn-line1">
           <span className="tbn-item-title">{n.title}</span>
@@ -93,7 +94,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
       <div className="tbn-pop" role="dialog" aria-label="Notifications">
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {fresh.length > 0 && <span className="tbn-count tabular">{fresh.length} new</span>}
+          {fresh.length > 0 && <span className="tbn-count tally">{fresh.length} new</span>}
           <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>
         </header>
         <div className="tbn-list">
@@ -473,7 +474,7 @@ const Topbar = ({
           onClick={() => setOpenNotifs(v => !v)}
         >
           <Icon name="bell" />
-          {unread > 0 && <span className="tb-bell-badge tabular">{unread}</span>}
+          {unread > 0 && <span className="tb-bell-badge tally tally-icon">{unread}</span>}
         </button>
         {openNotifs && (
           <NotifPopover

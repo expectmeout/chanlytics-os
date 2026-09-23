@@ -38,8 +38,8 @@ const CmDot = () => <span className="cm-head-dot" aria-hidden="true">·</span>;
  * you". The tone is the vocabulary's (tone.ts); this never picks one.
  */
 const CmFlag = ({ tone = "warn", children, testid = null }) => (
-  <span className="cm-flag" data-tone={tone} data-testid={testid || undefined}>
-    <span className="cm-flag-dot" aria-hidden="true" />
+  // The house pill in the tone (components.css): it was a 28px flag of its own, the largest badge in the app.
+  <span className={`pill pill-${tone} cm-flag`} data-tone={tone} data-testid={testid || undefined}>
     {children}
   </span>
 );
@@ -291,7 +291,7 @@ const CmPicker = ({ value, choices = [], groups = {}, onPick, status, tag = null
           <>
             {display === "label" ? <Icon name="globe" size={13} /> : status !== undefined ? <CmLangGlyph status={status} size={12} /> : null}
             <span className="lp-words">{words}</span>
-            {more > 0 && <span className="lp-more" aria-hidden="true">+{more}</span>}
+            {more > 0 && <span className="lp-more tally" aria-hidden="true">+{more}</span>}
           </>
         )}
         <span className="lp-caret" aria-hidden="true"><Icon name="chevron-down" size={10} /></span>

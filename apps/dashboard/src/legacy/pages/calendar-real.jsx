@@ -264,7 +264,6 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
                 <span className="cal-date tabular">{d.date}</span>
               </button>
             )}
-            {d.today && <span className="cal-today-chip">Today</span>}
             {d.closed.yes && <span className="cal-closed-chip" title={d.closed.note || ""}>Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
             {d.allDay.map((b) => (
               <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title} aria-label={`${b.title}, all day, ${d.long}`}>{b.title}</button>
@@ -365,7 +364,6 @@ const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => {
             <div className="cal-agenda-head">
               <span className="cal-dow">{d.dow}</span>
               <span className="cal-date tabular">{d.date}</span>
-              {d.today && <span className="cal-today-chip">Today</span>}
               {d.closed.yes && <span className="cal-closed-chip">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
             </div>
             {items.length > 0 && (

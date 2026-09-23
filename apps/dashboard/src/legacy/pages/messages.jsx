@@ -218,14 +218,17 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
             row that is not already something you can press. The languages and
             what sends it are their own acts, in their own cells. */}
         <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-testid="template-open">
-          <span className="msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
-            <Icon name={offer ? "gift" : "bell"} size={14} />
+          <span className="mark msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
+            <Icon name={offer ? "gift" : "bell"} size={13} />
           </span>
           <span className="msg-row-said">
             <span className="msg-row-titles">
               <span className="msg-row-title">{g.title}</span>
               {gName && <span className="msg-row-name mono">{gName}</span>}
-              {tag && <span className="msg-tag" data-tone={tag.tone} data-testid={tag.state ? "template-status" : "template-origin"}>{tag.words}</span>}
+              {/* A template's state is a pill in its tone; where it came from is a name, a chip. */}
+              {tag && (tag.state
+                ? <span className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`} data-tone={tag.tone} data-testid="template-status">{tag.words}</span>
+                : <span className="chip msg-tag" data-testid="template-origin">{tag.words}</span>)}
             </span>
             <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>
           </span>

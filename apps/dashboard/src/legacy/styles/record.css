@@ -73,7 +73,8 @@
 /* A row of chips under a value (a row's children): each names one thing the value counts, with its measure beside it
    in the faint ink ("Balayage 180m"), and the last may say how many more there are, drawn with no edge. */
 .rec-chips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
-.rec-chip { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%; min-height: 22px; padding: 2px 9px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: var(--text-xs); line-height: 1.4; color: var(--ink-muted); overflow-wrap: anywhere; }
+/* The chip (components.css), except that a long name wraps rather than being cut: a rule's words run long. */
+.rec-chip { gap: 5px; height: auto; min-height: 20px; padding-block: 2px; line-height: 14px; white-space: normal; overflow-wrap: anywhere; }
 .rec-chip-meta { flex: none; font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .rec-chip[data-more="true"] { border-color: transparent; color: var(--ink-dim); }
 

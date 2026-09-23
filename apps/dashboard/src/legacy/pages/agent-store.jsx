@@ -677,7 +677,7 @@ const AgentStore = () => {
                     onClick={() => setCategory(c.id)}
                   >
                     {c.label}
-                    <span className="fleet-filter-count tabular">{catCounts[c.id]}</span>
+                    <span className="fleet-filter-count tally">{catCounts[c.id]}</span>
                   </button>
                 ))}
               </div>
