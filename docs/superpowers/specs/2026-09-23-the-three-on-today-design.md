@@ -24,6 +24,9 @@ The face is the mark itself: the three rounded squares that step down a diagonal
 | D8 | The character is a pure module with no DOM and no clock; a driver owns the canvas; a reducer owns the turn; a page component wires them. | The stub React draws pages on node with no canvas and no `requestAnimationFrame` (`_legacy-react.mjs:64-77`); anything that needs a browser must sit behind a seam the tests can replace. |
 | D9 | The listening level comes from the words the recogniser hears, not from the microphone's audio. | The app captures no audio anywhere (no `getUserMedia`, no `AudioContext` in `apps/dashboard/src`); `useAskTalk` hands back words only (`ask-hooks.jsx:16-61`). Words arriving are what the app actually knows; a real level is a later refinement, not a requirement. |
 | D10 | The answer is read aloud only when the owner asks, with the palette's own tool. The face does not speak on its own. | `speech.ts:19-35` has no per-word events; a voice with no beats would leave the three still. The delta stream carries the beats instead. |
+| D11 | At rest the band is the mark alone, small, at the top of the queue's column; no field, no box. A click opens it; a press held on it listens. | Ruben, 23 Sep, on main: "too much dead space left and right", "the type in chat looks ugly, I'd rather like it open or appear or slide appear when users click to activate the agent". Section 4.6. |
+| D12 | Open, the stage is a 620px block centred in the column (the column on a phone), 232px tall; the squares grow with it. Escape, a press outside, or Clear folds it back; a question in flight carries on behind the mark. | The same block as the field it answers into; the character keeps its one size when open (D4). |
+| D13 | Before the recogniser starts, the press asks the browser whether the microphone is blocked (the Permissions API, where it exists) and says where to allow it. The site cannot make a browser ask again after a No. | Ruben hit the block on main. A stored denial is silent in Chrome; the old toast said only that permission was needed. |
 
 ## 3. Principles the band holds
 
@@ -72,6 +75,37 @@ The column is `--measure-wide` (1480px). The stage spans it; the three sit at it
 ### 4.4 Phone (720px and below)
 
 The stage is the page's width inside its 16px padding (`mobile.css:114-116`). The field sits under it; the tab bar and the ✦ stay where they are (`mobile.css:455-469`, `ask.css:87-99`): the ✦ opens the palette, the stage's hold talks to the face. The band stays 232px tall. Nothing in the band scrolls sideways.
+
+### 4.5 The cost, measured
+
+Closed, the band is the mark (64px) and the gap under it (12px): the queue's head moves down by about 76px, on a
+phone as on a desktop. Open, it is the stage (232px), the field (40px) and their margins and gap (about 26px), about
+300px, only while the owner is asking, and the exchange adds the answer's own height. On the prototype at 390px the
+queue's head sat 423px from the phone frame's top with a 200px stage always open; that was the cost Ruben paid for
+D2 at first, and 4.6 is what he asked for on seeing it.
+
+### 4.6 Compact at rest, open on activation (23 Sep, D11–D13)
+
+Seen on main, the open band left the queue's column mostly empty (52px squares in a 940px column, a permanent field
+under them). So the band has two states, `data-open` on its section:
+
+- **Closed (rest).** The stage alone: 84×64px at the column's left (4px in), squares of 18px, the mark. It breathes,
+  fidgets and perks as before. No exchange, no field, no caption. The queue sits 12px under it: on a phone the queue's
+  head is about 250px higher than with the open band.
+- **Open.** The stage grows to `min(100%, 620px)` centred in the column and 232px tall over 260ms, and the driver
+  eases the squares from 18px to 52.6px with it (`Mounted.setSide`, τ 0.1 s). The exchange and the field come in
+  under it (220ms, from 6px above). The field takes focus inside the click's own task (a layout effect), so a phone
+  shows its keyboard.
+- **Waking it.** A press on the stage shorter than 320ms is a click: open, or bring the field back into focus. A
+  press held 320ms is a hold: open and listen at once; release stops. Enter or Space on the focused stage is a click.
+  A long press never opens the context menu.
+- **Folding it.** Escape (when the palette is not open over the page), a press anywhere outside the band, or Clear.
+  Escape and an outside press keep the turn: the small mark shows a question still reading or answering, and
+  opening again shows where it got to. Clear forgets it and closes.
+- **The microphone.** Before the recogniser starts, `useAskTalk.start` asks the Permissions API whether the
+  microphone is `denied` for the site (Chrome, Android; Safari and Firefox have no such answer and prompt on their
+  own). Denied: no recogniser, and the toast says where to allow it (`micBlocked`, en/es). Otherwise the browser's
+  own prompt comes with the start. A browser told No once does not ask again; the site cannot make it.
 
 ### 4.5 The cost, measured
 

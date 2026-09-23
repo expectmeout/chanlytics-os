@@ -158,6 +158,33 @@ test("a word heard lifts the level, and it falls on its own", () => {
   m.destroy();
 });
 
+test("a new size is followed, not jumped to: the squares grow with a stage that opens", () => {
+  const { canvas } = fakeCanvas();
+  const F = fakeEnv();
+  const m = mountCharacter(canvas, { side: 18, env: F.env });
+  assert.equal(m.side(), 18);
+  m.setSide(52);
+  assert.equal(m.side(), 18, "nothing moves until a frame");
+  for (let i = 1; i <= 4; i++) F.frame(i * 16);
+  assert.ok(m.side() > 18 && m.side() < 52, `on its way: ${m.side()}`);
+  for (let i = 5; i <= 60; i++) F.frame(i * 16);
+  assert.ok(Math.abs(m.side() - 52) < 0.5, `there within a second: ${m.side()}`);
+  m.destroy();
+});
+
+test("under reduced motion a new size is drawn at once", () => {
+  const { canvas, calls } = fakeCanvas();
+  const F = fakeEnv();
+  F.env.reduced = true;
+  const m = mountCharacter(canvas, { side: 18, env: F.env });
+  const draws = () => calls.filter((c) => c[0] === "clearRect").length;
+  const before = draws();
+  m.setSide(52);
+  assert.equal(m.side(), 52);
+  assert.equal(draws(), before + 1, "drawn once at the new size");
+  m.destroy();
+});
+
 test("no 2D context, no driver", () => {
   const F = fakeEnv();
   assert.equal(mountCharacter({ getContext: () => null, clientWidth: 10, clientHeight: 10 }, { env: F.env }), null);

@@ -41,6 +41,7 @@ const ASK_TEXT = {
     listening: "Listening…",
     micDenied: "The browser needs microphone permission to talk to Ask.",
     micFailed: "Couldn't hear you — try again or type it.",
+    micBlocked: "The microphone is blocked for this site. Allow it in the browser’s site settings — the lock beside the address, or on iPhone the aA menu, Website Settings — then press again.",
     noVoice: "Voice needs Chrome, Edge or Safari; this browser can't listen. Type instead.",
     // Today's band (today-face.jsx): the three, asking on the page.
     todayPlaceholder: "Ask about today…",
@@ -104,6 +105,7 @@ const ASK_TEXT = {
     listening: "Escuchando…",
     micDenied: "El navegador necesita permiso del micrófono para hablar con Ask.",
     micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
+    micBlocked: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador — el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web — y vuelve a pulsar.",
     noVoice: "La voz necesita Chrome, Edge o Safari; este navegador no puede escuchar. Escríbelo.",
     todayPlaceholder: "Pregunta sobre hoy…",
     continueInAsk: "Seguir en Ask",
