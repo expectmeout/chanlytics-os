@@ -436,12 +436,11 @@ const Topbar = ({
           demo it answers the seed world. Either way the button opens it. Its
           icon is the three (ask-face.jsx), Ask's face: ink at rest, coral and
           moving while Ask listens, reads or answers, on every page. */}
-      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics (⌘K)" data-testid="tb-ask">
+      <button className="tb-ask" onClick={onAsk} title="Ask Chanlytics" data-testid="tb-ask">
         {TbFace
           ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
           : <Icon name="sparkle" size={13} />}
         <span className="tb-ask-label">Ask Chanlytics</span>
-        <span className="kbd">⌘K</span>
       </button>
 
       {right}

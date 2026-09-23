@@ -10,7 +10,6 @@ import {
   resolveTheme,
   isThemePref,
   isSidebarPref,
-  workspaceHotkey,
   isTypingTarget,
   shellStatusLine,
   shortcutGroups,
@@ -35,11 +34,7 @@ test("the theme: a choice, or the device's; unknown values fall back; the sideba
   for (const t of THEME_OPTIONS) assert.ok(t.label && t.icon, t.id);
 });
 
-test("hotkeys and typing: ⌘1 to ⌘9 for the first nine workspaces; a field being typed in keeps its keys", () => {
-  assert.equal(workspaceHotkey(0), "⌘1");
-  assert.equal(workspaceHotkey(8), "⌘9");
-  assert.equal(workspaceHotkey(9), null);
-  assert.equal(workspaceHotkey(-1), null);
+test("typing: a field being typed in keeps its keys", () => {
   assert.equal(isTypingTarget("INPUT", false), true);
   assert.equal(isTypingTarget("textarea", false), true);
   assert.equal(isTypingTarget("DIV", true), true);
@@ -68,7 +63,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   const groups = shortcutGroups(SHORTCUTS);
   assert.deepEqual(
     groups.map((g) => g.group),
-    ["Everywhere", "People", "Inbox"],
+    ["Everywhere", "People", "Inbox", "Calendar", "Settings"],
   );
   const does = SHORTCUTS.map((s) => s.does);
   for (const d of [
@@ -98,8 +93,24 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
       ["F", "Find leads (on Leads)"],
       ["C", "Call the lead under the cursor (on Leads)"],
     ],
-    "People's keys, the ones its table's foot names: the sheet listed only /",
+    "People's keys, the ones its table's foot named: the sheet listed only /",
   );
+  // The sheet is the one place a key is drawn (Ruben, 23 Sep 2026), so a key said only where it worked had to join it
+  // when that went: the Calendar's legend and its buttons' tips, and the Business tab's inline editor.
+  assert.deepEqual(
+    groups.slice(3).map((g) => [g.group, g.items.map((s) => [s.keys.join(" "), s.does])]),
+    [
+      [
+        "Calendar",
+        [
+          ["← →", "Previous and next"],
+          ["T", "Back to today"],
+        ],
+      ],
+      ["Settings", [["⌘↵", "Save a change on the Business tab"]]],
+    ],
+  );
+  assert.deepEqual(where("⌘↵"), ["Inbox", "Settings"], "⌘↵ sends in the Inbox and saves on the Business tab");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
   assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");

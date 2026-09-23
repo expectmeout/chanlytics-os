@@ -13,6 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -393,6 +394,61 @@ test("REGRESSION: a real thread's reply box is one line with Send beside it, nam
     [1, "WhatsApp to Rosa Díaz…", "Reply to Rosa Díaz"],
   );
   assert.ok(find(box, hasClass("ix-composer-send")), "Send beside it");
+});
+
+test("REGRESSION: the reply box and a seeded approval draw no key -- Send said ⌘↵ and the card's foot A, D and E, beside the ? sheet that lists them", () => {
+  cells = [];
+  frames.begin();
+  const box = globalThis.window.InboxComposer({ thread: vmOf(chat({ state: "open" })), reply: "", onSend() {} });
+  assert.equal(textOf(find(box, hasClass("ix-composer-send"))), "Send");
+  assert.deepEqual(keysDrawn(box), []);
+  const seeded = {
+    id: "t-seed",
+    real: false,
+    who: "Aisha",
+    whoMeta: "",
+    avatar: "A",
+    state: "needs",
+    confidence: 0.86,
+    takenOver: false,
+    claimedByOther: false,
+    agent: { name: "Aria", glyph: "A", autonomy: "Asks first" },
+    timeline: [],
+    channels: ["sms"],
+    primaryChannel: "sms",
+    priority: "P2",
+  };
+  assert.deepEqual(keysDrawn(paneOf(seeded)), [], "the demo's reply box");
+  const chanly = globalThis.window.CHANLY;
+  globalThis.window.CHANLY = { ...chanly, fmtDelta: (n) => `$${n}`, confTone: () => "safe" };
+  try {
+    const pane = paneOf({
+      ...seeded,
+      approval: {
+        kind: "Reschedule",
+        summary: "Move Friday to Saturday",
+        recommended: "Approve",
+        suggestedReply: "Saturday at 11 works. Shall I book it?",
+        plan: {
+          label: "Friday to Saturday",
+          oneLine: "Same stylist, nobody waits",
+          dollarDelta: 0,
+          ltv: 0,
+          confidence: 0.86,
+        },
+        fallback: "Keeps Friday",
+        evidence: [],
+        alternatives: [],
+        nextSteps: [],
+      },
+    });
+    const foot = find(pane, hasClass("ix-approval-foot"));
+    assert.ok(foot, "the card is drawn");
+    assert.equal(find(foot, hasClass("ix-approval-shortcuts")), undefined, "the card's line of keys");
+    assert.deepEqual(keysDrawn(pane), []);
+  } finally {
+    globalThis.window.CHANLY = chanly;
+  }
 });
 
 test("the demo keeps its cards over its story, with no status row", () => {

@@ -437,10 +437,10 @@ const LeadFinder = ({
         ) : null}
         {composing ? (
           <button type="button" className="btn btn-primary btn-sm lf-go" data-testid="finder-plan" disabled={!!busy || !typed} onClick={() => onPlan(words)}>
-            Plan it<span className="lf-key" aria-hidden="true">{"↵"}</span>
+            Plan it
           </button>
         ) : null}
-        <button type="button" className="lf-close" aria-label="Close" title="Close (esc)" data-testid="finder-close" onClick={onClose}><Icon name="x" size={12} /></button>
+        <button type="button" className="lf-close" aria-label="Close" title="Close" data-testid="finder-close" onClick={onClose}><Icon name="x" size={12} /></button>
         {thinking ? <span className="lf-sweep" aria-hidden="true" /> : null}
       </div>
       {composing && refusal ? <p className="lf-said" role="status" data-testid="finder-refusal">{refusal}</p> : null}

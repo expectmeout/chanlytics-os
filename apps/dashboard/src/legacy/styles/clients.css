@@ -1963,8 +1963,6 @@
 /* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row
    paints no box-shadow, inside the row so the pinned cells do not cover it. */
 .cl-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
-.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-dim); background: var(--bg-raised); }
 /* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
 .cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The Columns menu: a check beside what shows; Person, which always shows, says so and does not press. */
@@ -1999,7 +1997,6 @@
   .cl-table td.cl-visits-cell, .cl-table td.cl-recept-cell { grid-area: visits; justify-self: end; }
   .cl-table td.cl-offers-cell { grid-area: offers; }
   .cl-table td.cl-actions-cell { display: none; }
-  .cl-table-keys { display: none; }
   /* A card keeps its own few facts: where they came from, their address and their lists are the desktop's columns. */
   .cl-table td.cl-came-cell, .cl-table td.cl-email-cell, .cl-table td.cl-lists-cell { display: none; }
   /* Visits and the receptionist share one place on a card; with both columns chosen, the visit keeps it. */

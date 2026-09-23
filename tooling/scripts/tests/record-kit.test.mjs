@@ -21,6 +21,7 @@ import {
   press,
   atWidth,
 } from "./_legacy-react.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 // The app's chrome bridge publishes contracts' stateOf as __chrome.state (legacy-bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -1915,7 +1916,27 @@ test("an inline editor is the row's label and its field, what saving writes, and
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website"));
   press(find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website"));
   assert.deepEqual([saved.length, cancelled.length], [1, 1]);
-  assert.match(textOf(find(tree, (n) => classes(n).includes("rec-foot-keys"))), /Esc cancels/);
+  // Escape and Ctrl or Cmd with Enter do what Cancel and Save do. The foot said so ("Esc cancels · ⌘↵ saves") until
+  // the ? sheet became the one place the keys are listed (Ruben, 23 Sep 2026).
+  const key = (k, over = {}) => ({
+    key: k,
+    defaultPrevented: false,
+    metaKey: false,
+    ctrlKey: false,
+    currentTarget: { contains: () => true },
+    target: {},
+    preventDefault() {},
+    ...over,
+  });
+  editor.props.onKeyDown(key("Escape"));
+  editor.props.onKeyDown(key("Enter", { metaKey: true }));
+  assert.deepEqual([saved.length, cancelled.length], [2, 2], "Escape cancels; Cmd with Enter saves");
+  assert.equal(
+    find(tree, (n) => classes(n).includes("rec-foot-keys")),
+    null,
+    "REGRESSION: the foot's line of keys",
+  );
+  assert.deepEqual(keysDrawn(tree), []);
   // Closed, it is hidden whole, as a closed fold is: the row is what shows.
   assert.equal(find(drawInline(website({ open: false })), (n) => classes(n).includes("rec-inline")).props.hidden, true);
 });

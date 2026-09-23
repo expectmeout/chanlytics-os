@@ -25,6 +25,7 @@ import {
 } from "../../../packages/contracts/src/lead-search.ts";
 import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -1021,12 +1022,12 @@ test("holding the band, the strip drops its own ways into each pile -- the band'
   );
 });
 
-test("the composer is one row: the consent rule is behind the lock beside Plan it, the key is on the button it presses, and there is no footer", () => {
+test("the composer is one row: the consent rule is behind the lock beside Plan it, and there is no footer", () => {
   const { st } = page();
   const tree = drawFinder(st);
   const lock = byTestId(tree, "finder-consent");
   assert.equal(lock.props["aria-label"], "You can email and call leads. Texts and offers wait for their yes.");
-  assert.match(textOf(byTestId(tree, "finder-plan")), /^Plan it/);
+  assert.equal(textOf(byTestId(tree, "finder-plan")), "Plan it");
   assert.equal(
     find(tree, (n) => n.props?.className === "lf-foot"),
     null,
@@ -1040,4 +1041,11 @@ test("the composer is one row: the consent rule is behind the lock beside Plan i
     find(thinking, (n) => n.props?.className === "lf-sweep"),
     "the hairline runs while it reads",
   );
+});
+
+test("REGRESSION: the finder draws no key -- Plan it drew ↵ and Close's tip said (esc), beside the ? sheet that lists them", () => {
+  const { st } = page({ words: "florists in Austin" });
+  const tree = drawFinder(st);
+  assert.equal(byTestId(tree, "finder-close").props.title, "Close");
+  assert.deepEqual(keysDrawn(tree), []);
 });

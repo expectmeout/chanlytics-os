@@ -416,15 +416,6 @@
   color: var(--ink-dim);
 }
 .tb-ask:hover .tb-ask-label { color: var(--ink-muted); }
-.tb-ask .kbd {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  padding: 1px 5px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg);
-}
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -505,15 +496,6 @@ a.btn { text-decoration: none; }
 }
 .input input::placeholder { color: var(--ink-faint); }
 .input .icon { width: 14px; height: 14px; color: var(--ink-dim); }
-.input .kbd {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  padding: 1px 5px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg-sunken);
-}
 
 /* ---------- Card ---------- */
 .card {
@@ -2205,7 +2187,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 .sb-collapse:hover { background: var(--bg-hover); color: var(--ink); }
-.sb-collapse .kbd { margin-left: auto; }
 
 /* Menus are drawn on the page, anchored to their trigger, so the rail can open them too. */
 .sb-menu { position: fixed; top: auto; right: auto; max-width: 300px; max-height: min(520px, 84vh); }

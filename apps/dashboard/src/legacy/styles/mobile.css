@@ -77,7 +77,7 @@
   /* ---------- Topbar ---------- */
   .topbar { padding: 10px 14px; gap: 8px; }
   .tb-ask { width: auto; max-width: none; padding: 0 9px; }
-  .tb-ask .tb-ask-label, .tb-ask .kbd { display: none; }
+  .tb-ask .tb-ask-label { display: none; }
   .crumbs { font-size: 12px; overflow: hidden; }
   .shell-status { padding: 8px 14px; gap: 8px; }
   .live-bar { padding: 8px 14px; gap: 8px; }
@@ -250,10 +250,6 @@
   /* Pipeline list view scrolls sideways instead of crushing 6 columns */
   .pp-list-wrap { overflow-x: auto; }
   .pp-list-wrap .tbl { min-width: 720px; }
-
-  /* Keyboard chrome is dead weight on touch widths */
-  .ix-approval-shortcuts { display: none; }
-  .cl-search-wrap .kbd { display: none; }
 
   /* Entity crumbs (“Inbox / Aisha Khan”) never push the bell off-screen */
   .crumbs { white-space: nowrap; }

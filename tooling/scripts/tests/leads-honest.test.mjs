@@ -42,6 +42,7 @@ import {
   planWho,
 } from "../../../packages/contracts/src/lead-search.ts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -1583,6 +1584,15 @@ test("the keys: J and K move, Enter peeks, x selects, C calls, F finds; one list
   );
   assert.equal(press("f"), true);
   assert.equal(draw() && finders.at(-1).open, true, "F opens the finder");
+});
+
+test("REGRESSION: Leads draws no key -- its search box drew a / and Find leads an F, beside the ? sheet that lists them", () => {
+  fresh();
+  const tree = draw();
+  assert.equal(textOf(byTestId(tree, "leads-find")).trim(), "Find leads");
+  assert.deepEqual(keysDrawn(tree), []);
+  assert.equal(press("f"), true, "F still finds");
+  assert.equal(draw() && finders.at(-1).open, true);
 });
 
 test("Esc closes the peek, then the finder, then the Columns menu, then the selection -- one press each, in that order", () => {

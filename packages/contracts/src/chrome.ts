@@ -101,11 +101,6 @@ export function themeBootScript(): string {
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
-/** ⌘1 … ⌘9 for the first nine workspaces; none beyond. */
-export function workspaceHotkey(index: number): string | null {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `⌘${index + 1}` : null;
-}
-
 /** Whether a key press belongs to a field the person is typing in. */
 export function isTypingTarget(tagName: string | null | undefined, contentEditable: boolean): boolean {
   const t = (tagName ?? "").toUpperCase();
@@ -248,7 +243,9 @@ export interface Shortcut {
 /**
  * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
  * were listed for every list (the wiring audit's N17): "/" searches only People, and J/K walk only People's rows and
- * the Inbox's. People's rows are the keys its table's foot names.
+ * the Inbox's. The sheet is the one place a key is drawn (Ruben, 23 Sep 2026): no button, tip, foot or legend names
+ * one, so a key the app answers to is here or nowhere. The Calendar's and the Business tab's were said only on their
+ * own pages until then.
  */
 export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘K"], does: "Ask Chanlytics" },
@@ -268,6 +265,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
   { group: "Inbox", keys: ["⌘↵"], does: "Send" },
+  { group: "Calendar", keys: ["←", "→"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" },
+  { group: "Settings", keys: ["⌘↵"], does: "Save a change on the Business tab" },
 ];
 
 /** The sheet's groups, in order, each with its shortcuts. */

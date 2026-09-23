@@ -14246,9 +14246,6 @@ function themeBootScript() {
   ].join("");
 }
 var isSidebarPref = (v) => v === "open" || v === "rail";
-function workspaceHotkey(index) {
-  return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
-}
 function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
@@ -14336,7 +14333,10 @@ var SHORTCUTS = [
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
-  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" }
+  { group: "Inbox", keys: ["\u2318\u21B5"], does: "Send" },
+  { group: "Calendar", keys: ["\u2190", "\u2192"], does: "Previous and next" },
+  { group: "Calendar", keys: ["T"], does: "Back to today" },
+  { group: "Settings", keys: ["\u2318\u21B5"], does: "Save a change on the Business tab" }
 ];
 function shortcutGroups(list2 = SHORTCUTS) {
   const out = [];
@@ -18563,7 +18563,6 @@ export {
   whyNotAnEmail,
   whyNotReceive,
   windowFor,
-  workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,
   zoneDayKey,

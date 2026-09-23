@@ -317,7 +317,7 @@ const ClientsTable = ({ clients, sortBy, sortDir, onSort, selected, onToggle, on
       </table>
       <div className="cl-table-foot">
         <span>Showing {clients.length} of {CLIENTS_AGGREGATES.total}</span>
-        <span>Sort any column · press / to search</span>
+        <span>Sort any column</span>
       </div>
     </div>
   );
@@ -482,7 +482,6 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
               <input ref={searchRef} placeholder="Search by name, tag, staff…" value={clQuery} onChange={(e) => setClQuery(e.target.value)} />
-              <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}>
@@ -2737,7 +2736,6 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             <div className="cl-search-wrap">
               <Icon name="search" size={13} />
               <input ref={searchRef} placeholder="Search by name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
-              <span className="kbd">/</span>
             </div>
             <div className="cl-controls-right">
               {canEditLists && window.__addPerson && <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />}

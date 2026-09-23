@@ -25,6 +25,7 @@ import {
   toPersonRowVM,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -1825,8 +1826,6 @@ const BODY = element("BODY");
 /** The row under the keyboard's cursor, by its id. */
 const cursorRow = (tree) =>
   find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
-/** The table foot's line of keys, as it reads. */
-const keysLine = (tree) => textOf(find(tree, (n) => n.props?.className === "cl-table-keys"));
 
 test("REGRESSION: Esc in a field is the field's, even once the field has gone -- Esc in the bulk bar's list name cleared the whole selection", async () => {
   await freshPage({ people: [person(1), person(2)] });
@@ -1947,13 +1946,7 @@ test("Esc closes the phone's lists sheet first, and the selection stays; the nex
     assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
   }));
 
-test("x and Space select nobody for a member who can neither edit lists nor export, and the foot's keys say what the member's keys do", async () => {
-  await freshPage({ people: [person(1), person(2)] });
-  assert.equal(
-    keysLine(draw()),
-    "JK move · x selects · esc clears · ↵ opens · / searches",
-    "an owner's foot names every key",
-  );
+test("x and Space select nobody for a member who can neither edit lists nor export", async () => {
   await freshPage({ people: [person(1), person(2)] });
   const me = globalThis.window.__ME;
   globalThis.window.__ME = { role: "viewer" };
@@ -1965,10 +1958,25 @@ test("x and Space select nobody for a member who can neither edit lists nor expo
     assert.equal(press("x"), false, "x selects nobody");
     assert.equal(press(" "), false, "nor does Space");
     assert.equal(byTestId(draw(), "bulk-bar"), null);
-    assert.equal(keysLine(tree), "JK move · ↵ opens · / searches", "and the foot does not offer them");
   } finally {
     globalThis.window.__ME = me;
   }
+});
+
+test("REGRESSION: People draws no key -- the table's foot named every one (J K x esc ↵ /) and the search box a /, beside the ? sheet that lists them", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  const tree = draw();
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cl-table-keys"),
+    null,
+    "the foot's line of keys",
+  );
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "cl-table-foot")),
+    "2 people",
+    "the foot says the count",
+  );
+  assert.deepEqual(keysDrawn(tree), []);
 });
 
 test("/ goes to the search on an empty table too", async () => {

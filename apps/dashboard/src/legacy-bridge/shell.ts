@@ -13,7 +13,6 @@ import {
   shortcutGroups,
   shellStatusLine,
   isTypingTarget,
-  workspaceHotkey,
   toastShape,
   replyWaitsOnYou,
   stateOf,
@@ -57,7 +56,6 @@ export interface ChromeWords {
   fmtClock: typeof fmtClock;
   /** The tab's name: from the crumbs the shell draws, with what needs you counted. */
   title: typeof pageTitle;
-  workspaceHotkey: typeof workspaceHotkey;
   /** A toast's tone, icon, role and lifetime: decided in contracts, drawn by usePPToast. */
   toast: typeof toastShape;
   /** A state's tone and words: decided in contracts, drawn by StatePill. */
@@ -139,7 +137,6 @@ export function installShell(win: Window = window): void {
     liveStillUp,
     fmtClock,
     title: pageTitle,
-    workspaceHotkey,
     toast: toastShape,
     state: stateOf,
     // A reply counting down to send waits on you (contracts standing.ts): the Inbox's Needs you and People's, one rule.

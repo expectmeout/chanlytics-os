@@ -742,7 +742,7 @@ const ApprovalCard = ({ thread, approval, onDecide = () => {}, planParam = 0, on
         </ExpanderPanel>
       )}
 
-      {/* Footer — decide row + agent attribution + shortcuts */}
+      {/* Footer — decide row + agent attribution. A, D and E still decide (the ? sheet lists them). */}
       <div className="ix-approval-foot">
         <div className="ix-approval-decide">
           <button className="btn btn-primary btn-sm" onClick={() => onDecide(thread.id, "Approve", plan.param ? { param: (plan.param.options[planParam] || {}).label } : {})} {...window.gate("approve")}>
@@ -758,11 +758,6 @@ const ApprovalCard = ({ thread, approval, onDecide = () => {}, planParam = 0, on
         <span className="ix-approval-hint">
           <span>{thread.agent.name} · {thread.agent.autonomy}</span>
         </span>
-        <div className="ix-approval-shortcuts">
-          <span className="kbd">A</span><span className="kbd-text">Approve</span>
-          <span className="kbd">D</span><span className="kbd-text">Decline</span>
-          <span className="kbd">E</span><span className="kbd-text">Edit</span>
-        </div>
       </div>
     </div>
   );
@@ -1591,7 +1586,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
           onClick={doSend}
           {...window.gate("approve")}
         >
-          {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"} <span className="kbd kbd-on-dark">⌘↵</span>
+          {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"}
         </button>
       </div>
     );
@@ -1634,7 +1629,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
             onClick={doSend}
             {...window.gate("approve")}
           >
-            {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"} <span className="kbd kbd-on-dark">⌘↵</span>
+            {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"}
           </button>
         </div>
       </div>

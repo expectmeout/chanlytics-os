@@ -22,6 +22,7 @@ import assert from "node:assert/strict";
 import { pageTitle, shellStatusLine, toBillingVM, toLiveVM } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1137,6 +1138,30 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
     );
   } finally {
     deep = true;
+    delete globalThis.usePPToast;
+  }
+});
+
+test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key -- ⌘K stood in it and in its tip, beside the ? sheet that lists it", () => {
+  shell.installShell(win);
+  globalThis.usePPToast = () => [null, () => {}];
+  try {
+    deep = true;
+    cells = [];
+    frames.begin();
+    const tree = win.Topbar({
+      crumbs: ["Today"],
+      theme: "dark",
+      themePref: "dark",
+      onTheme() {},
+      onAsk() {},
+      onMenu() {},
+    });
+    const ask = find(tree, (n) => n.props?.["data-testid"] === "tb-ask");
+    assert.equal(textOf(ask), "Ask Chanlytics");
+    assert.equal(ask.props.title, "Ask Chanlytics");
+    assert.deepEqual(keysDrawn(ask), []);
+  } finally {
     delete globalThis.usePPToast;
   }
 });

@@ -64,7 +64,6 @@ w.__chrome = {
   liveStillUp: C.liveStillUp,
   fmtClock: C.fmtClock,
   title: C.pageTitle,
-  workspaceHotkey: C.workspaceHotkey,
   toast: C.toastShape,
   state: C.stateOf,
   typing: (t: EventTarget | null) => C.isTypingTarget(t as Element),

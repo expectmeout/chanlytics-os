@@ -148,7 +148,6 @@
 .rec-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .rec-foot [aria-busy="true"] { cursor: progress; }
 .rec-foot-note { flex: 1; min-width: 0; text-align: right; font-size: var(--text-sm); color: var(--ink-dim); }
-.rec-foot-keys { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* A fold's row, drawn behind its sheet on a phone (record-fold.jsx `behind`): its box lays out as nothing, so the row
    stands in its card exactly where it stood. */
@@ -306,7 +305,6 @@ html.legacy-on .rec-row-act { min-height: 0; }
    wider than a phone has no hover either. And no wash lingers on the row a finger last touched. */
 @media (hover: none), (pointer: coarse) {
   .rec-row-act { opacity: 1; color: var(--ink-muted); }
-  .rec-foot-keys { display: none; }
   .rec-row:hover::before { background: none; }
 }
 

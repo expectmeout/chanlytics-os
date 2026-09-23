@@ -499,13 +499,13 @@ const RecordSays = ({ id = null, testid = null, text = null, label = null, gone 
   );
 };
 
-// The foot: Save and Cancel, and beside them a line of the page's (`footNote`) or the keys that do the same (`keys`,
-// which record.css hides on a touch screen, where there are none). Save is busy, not disabled, while it saves: a disabled
+// The foot: Save and Cancel, and beside them a line of the page's (`footNote`). The keys that do the same (recKeys) are
+// not named here: the ? sheet is the one place a key is drawn. Save is busy, not disabled, while it saves: a disabled
 // button lets go of focus, to the page, and a save that failed left it there. It stays a button focus can rest on, and
 // a press while it saves does nothing; so does a press on Cancel, for the reason recKeys gives.
 const RecordFoot = ({
   saveTestid, cancelTestid, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…",
-  cancelLabel = "Cancel", gate = null, footNote = null, keys = null,
+  cancelLabel = "Cancel", gate = null, footNote = null,
 }) => (
   <div className="rec-foot">
     <button
@@ -529,7 +529,6 @@ const RecordFoot = ({
       {cancelLabel}
     </button>
     {footNote ? <span className="rec-foot-note">{footNote}</span> : null}
-    {keys ? <span className="rec-foot-keys">{keys}</span> : null}
   </div>
 );
 
@@ -770,7 +769,7 @@ const RecordFold = ({
 // The kit's third gesture (spec §5, canvas Edit-Inline), for one value. The row becomes its field: its label stays in
 // the label column (`label`, drawn as rec-inline-<id>-key, which names the whole editor and which the page's field
 // names its box by), and the page's field, what saving writes (RecordSays, as rec-inline-<id>-says, which describes the
-// box), the page's ask, and Save and Cancel with the keys that do the same take the value's place. A disagreement on
+// box), the page's ask, and Save and Cancel take the value's place, with the fold's keys doing the same. A disagreement on
 // the row (`disputed`, RecordRow's shape) stays on screen while it is edited, to read: its press is the row's, at rest.
 // Its line carries no id here: the editor is on the page, hidden, while the row is at rest, and the row's own line has
 // the id its press is described by (rec-row-<id>-other), which was in the document twice.
@@ -788,7 +787,7 @@ const RecordFold = ({
 const RecordInline = ({
   id, label, open = true, says = null, saysLabel = null, gone = null, goneLabel = null, note = null, disputed = null,
   confirm = null, onSave, onCancel, saving = false, saveLabel = "Save", savingLabel = "Saving…", cancelLabel = "Cancel",
-  keys = "Esc cancels · ⌘↵ saves", gate = null, changed = null, goneChanged = null, children = null,
+  gate = null, changed = null, goneChanged = null, children = null,
 }) => {
   const box = useFoldRef(null);
   // Its ask is not drawn while it saves, as a fold's is not.
@@ -827,7 +826,6 @@ const RecordInline = ({
           savingLabel={savingLabel}
           cancelLabel={cancelLabel}
           gate={gate}
-          keys={keys}
         />
       </div>
     </div>

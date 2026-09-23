@@ -60,7 +60,6 @@
 }
 .lf-lock:hover::after, .lf-lock:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
 .lf-go { margin-left: 2px; }
-.lf-go .lf-key { margin-left: 6px; font-size: 11px; opacity: 0.55; }
 /* Ideas from what the business does: quiet pills under an empty bar, gone the moment the owner types. How
    reachable each kind is sits in the pill's tooltip. */
 .lf-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 12px 36px; }
@@ -593,7 +592,6 @@
   .pl-finder .lf-lock { position: absolute; left: 0; top: 0; }
   .pl-finder .lf-close { position: absolute; right: 0; top: 0; }
   .pl-finder .lf-go { order: 9; width: 100%; min-height: 48px; justify-content: center; margin: 0; }
-  .pl-finder .lf-go .lf-key { display: none; }
   .pl-finder .lf-think { max-width: 100%; text-align: center; }
   .pl-finder .lf-lock::after { left: 0; right: auto; top: calc(100% + 6px); transform: translateY(-3px); }
   .pl-finder .lf-lock:hover::after, .pl-finder .lf-lock:focus-visible::after, .pl-finder .lf-lock:focus::after { transform: none; opacity: 1; }

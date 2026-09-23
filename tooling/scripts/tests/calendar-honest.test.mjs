@@ -29,6 +29,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { keysDrawn } from "./_keys.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -1267,7 +1268,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
   assert.match(
     textOf(byTestId(tree, "cal-legend")),
-    /times are New York time/,
+    /Times are New York time/,
     "REGRESSION: 'times in America/New_York'",
   );
   assert.match(
@@ -1375,7 +1376,7 @@ test("REGRESSION (C4): an appointment and an all-day event name their time and d
   );
 });
 
-test("REGRESSION (C4): a move of the board is announced, and the key hints are their own part of the legend -- the range changed in silence, and a phone was told to press arrow keys", () => {
+test("REGRESSION (C4): a move of the board is announced -- the range changed in silence", () => {
   fresh();
   const tree = page();
   assert.equal(
@@ -1383,9 +1384,27 @@ test("REGRESSION (C4): a move of the board is announced, and the key hints are t
     "polite",
     "REGRESSION: the new range was never announced",
   );
-  const keys = find(byTestId(tree, "cal-legend"), (n) => n.props?.className === "cal-keys");
-  assert.ok(keys && textOf(keys).includes("← → move · T today"), "the keys, apart, where a touch screen can drop them");
-  assert.ok(!textOf(keys).includes("New York"), "and the zone outside them");
+});
+
+test("REGRESSION: the Calendar draws no key -- its legend said ← → move · T today, and Previous, Today and Next named ←, T and → in their tips, beside the ? sheet that lists them", () => {
+  fresh();
+  const tree = page();
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cal-keys"),
+    null,
+    "the legend's keys",
+  );
+  assert.equal(
+    textOf(find(tree, (n) => n.props?.className === "cal-legend-rules")),
+    "Times are New York time",
+    "the zone, a line of the legend on its own",
+  );
+  assert.deepEqual(
+    ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props.title),
+    ["Previous", undefined, "Next"],
+    "the arrows' tips name them, and Today says Today already",
+  );
+  assert.deepEqual(keysDrawn(tree), []);
 });
 
 test("REGRESSION: the Calendar shows the calendar first -- a title the top bar already says, a paragraph, three stat cards and five rows of controls came before the first day, and on a phone the first day sat below the fold", () => {

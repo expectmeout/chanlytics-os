@@ -437,8 +437,6 @@
 .cal-legend-swatch.open { border: 1px dashed var(--ok); background: oklch(from var(--ok) l c h / 0.06); }
 .cal-legend-swatch.closed { background: var(--bg-sunken); border-color: var(--line); }
 .cal-legend-rules { margin-left: auto; white-space: nowrap; }
-/* Keys are for a keyboard: a touch screen is not told to press arrows (C4). */
-@media (hover: none) { .cal-keys { display: none; } }
 /* On a touch screen legacy.css gives every control 44 px of height. The ‹ › arrows get the width to match (they were
    26 px), and an appointment keeps the height of its time: the floor drew a half-hour block over the next (C4). */
 @media (pointer: coarse) {

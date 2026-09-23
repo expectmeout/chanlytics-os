@@ -909,7 +909,6 @@
   gap: 6px;
   color: var(--ink-dim);
 }
-.ix-approval-shortcuts { color: var(--ink-faint); display: flex; align-items: center; gap: 4px; }
 .kbd {
   display: inline-block;
   font-family: var(--font-mono);
@@ -921,14 +920,6 @@
   border-radius: 3px;
   padding: 0 4px;
   line-height: 14px;
-}
-.kbd-text { color: var(--ink-dim); margin-right: 6px; }
-/* The button's own colour, so the hint reads on either theme's primary: literal white was 1.11:1 on the dark theme's
-   near-white button. */
-.kbd-on-dark {
-  background: color-mix(in oklab, currentColor 14%, transparent);
-  border-color: color-mix(in oklab, currentColor 28%, transparent);
-  color: inherit;
 }
 
 /* === Timeline === */
@@ -2025,8 +2016,6 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-composer-send { flex: none; height: 36px; }
 @media (pointer: coarse) {
   .ix-composer-row .ix-composer-text, .ix-composer-send { min-height: 44px; }
-  /* A hint for a keyboard, not a thumb. */
-  .ix-composer .kbd { display: none; }
 }
 /* Under a thread that opens at its newest message, what they wrote is in view over its status: the quote said it again. */
 @container ixpane (max-width: 640px) { .ix-th-status .ix-take-ask { display: none; } }
