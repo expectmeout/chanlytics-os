@@ -1695,8 +1695,8 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
 
   // A swipe is the same two presses under a thumb: 80px across, and a scroll is never a move.
   const el = { dataset: {} };
-  const swipe = (dx, dy) => {
-    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el });
+  const swipe = (dx, dy, target = null) => {
+    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el, target });
     tree.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
   };
   swipe(-120, 6);
@@ -1707,6 +1707,21 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   swipe(-40, 10);
   swipe(-120, 300);
   assert.equal(moved.length, before, "a short drag and a scroll move nothing");
+
+  // On a phone the peek is the whole screen: a pull down from the top of what it shows is its Close, as the X is;
+  // a pull through a scrolled body is a scroll, and beside a desktop's table nothing is pulled.
+  const closed = [];
+  tree = withDeck({ phone: true, onClose: () => closed.push(1) });
+  swipe(6, 120);
+  assert.deepEqual(closed, [1], "REGRESSION: the X in the corner was the only way out of a full screen");
+  swipe(6, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 140, parentElement: null });
+  assert.deepEqual(closed, [1], "through a scrolled body it is a scroll");
+  swipe(-120, 6);
+  assert.equal(moved.at(-1), "next", "and the pile still walks");
+  tree = withDeck({ phone: false, onClose: () => closed.push(1) });
+  swipe(6, 120);
+  assert.deepEqual(closed, [1], "beside the table, nothing is pulled");
+  tree = withDeck();
 
   // Back from the call: the six outcomes wear their dots, the sheet says what saving does, and one press saves and moves on.
   const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
