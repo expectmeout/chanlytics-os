@@ -41,6 +41,7 @@ import {
   planWhere,
   planWho,
 } from "../../../packages/contracts/src/lead-search.ts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -322,7 +323,8 @@ globalThis.window = {
 
 let cells = [];
 let setters = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const flashes = [];
 const went = [];
 const opened = [];
@@ -332,13 +334,13 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   // The setter is one function for the cell's life, as React's is: a memoised row is handed setters (people-table.jsx).
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     setters[k] ||= (v) => {
       cells[k] = typeof v === "function" ? v(cells[k]) : v;
@@ -346,7 +348,7 @@ globalThis.React = {
     return [cells[k], setters[k]];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -356,13 +358,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   // Kept while its deps hold, as React's is: the page's stable objects (a cell context, the columns) are proved here.
   useMemo: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -377,7 +379,7 @@ globalThis.React = {
   },
   // Kept while its deps hold, as React's is, and a cell of its own: the page hands a memoised row one function.
   useCallback: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -391,7 +393,7 @@ globalThis.React = {
     return fn;
   },
   useEffect: (fn, deps) => {
-    const k = seq++;
+    const k = frames.key();
     const prev = cells[k];
     if (
       prev &&
@@ -765,7 +767,7 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   delete globalThis.window.__saveView;
 };
 const draw = (props = {}) => {
-  seq = 0;
+  frames.begin();
   return globalThis.window.ClientsA({
     scope: "leads",
     leadsRoute: "leads",
@@ -1355,10 +1357,10 @@ test("the People | Leads switch is a tablist in both scopes, and picking the oth
 test("drawing People then Leads keeps the page's hook order: every hook the Leads scope needs is declared in both", () => {
   fresh();
   draw({ scope: "people", leadsRoute: null });
-  const asPeople = seq;
+  const asPeople = frames.called();
   cells = [];
   draw();
-  assert.equal(seq, asPeople, "one call order, whichever scope is drawn");
+  assert.equal(frames.called(), asPeople, "one call order, whichever scope is drawn");
   assert.ok(asPeople > 20, `and it is the page's own hooks that were counted (${asPeople})`);
 });
 
@@ -1931,8 +1933,9 @@ const paned = (table) => {
       .split(/\s+/)
       .includes("cl-main-scroll"),
   ).props.ref;
-  const at = cells.indexOf(paneRef);
-  assert.ok(at >= 0, "the pane's ref is one of the page's cells");
+  // The cell the ref lives in, by the key its component keeps it under (_hook-frames.mjs).
+  const at = Object.keys(cells).find((k) => cells[k] === paneRef);
+  assert.ok(at !== undefined, "the pane's ref is one of the page's cells");
   const heard = [];
   const attrs = {};
   const capture = (opts) => opts === true || !!(opts && opts.capture);
@@ -2617,7 +2620,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
 
 const bar = (over = {}) => {
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.LeadsPhoneBar({
     scope: "leads",
     onScope() {},
@@ -2688,13 +2691,17 @@ test("Find on a phone is the gate's for anyone who may not find", () => {
 test("the finder's sheet is the page's own dialog and registers no listener of its own", () => {
   fresh();
   cells = [];
-  seq = 0;
-  const before = seq;
+  frames.begin();
+  const before = frames.called();
   const t = globalThis.window.LeadFinderSheet({
     onClose() {},
     children: globalThis.React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type"),
   });
-  assert.equal(seq, before, "hookless: the page's listener owns Esc, and a second one would take the key twice");
+  assert.equal(
+    frames.called(),
+    before,
+    "hookless: the page's listener owns Esc, and a second one would take the key twice",
+  );
   const sheet = byTestId(t, "leads-finder-sheet");
   assert.equal(sheet.props.role, "dialog");
   assert.ok(sheet.props.className.includes("pl-finder"), "PL_OVERLAY names .pl-finder as the page's own");
@@ -3041,11 +3048,15 @@ test("with no recogniser there is no mic, and a page drawn without Ask's hooks k
     assert.equal(finders.at(-1).talk.canTalk, false, "a browser that cannot hear is offered nothing");
     fresh();
     draw();
-    const withHooks = seq;
+    const withHooks = frames.called();
     delete globalThis.window.AskHooks;
     fresh();
     const tree = draw();
-    assert.equal(seq, withHooks, "the stand-in declares the same hooks, so the page's one call order does not move");
+    assert.equal(
+      frames.called(),
+      withHooks,
+      "the stand-in declares the same hooks, so the page's one call order does not move",
+    );
     assert.ok(byTestId(tree, "leads-standing"), "and the page still draws");
   } finally {
     globalThis.window.SpeechRecognition = SR;
