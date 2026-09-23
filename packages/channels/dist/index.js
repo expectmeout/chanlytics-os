@@ -3246,8 +3246,14 @@ function replySubject(parentSubject) {
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+var LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
+var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
+  const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
+  const href = m.slice(0, m.length - trail.length);
+  return `<a href="${href}">${href}</a>${trail}`;
+});
 function emailHtml(text) {
-  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("\n");
+  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
 }
 function messageIdHeader(id) {
   const s = oneLine(id ?? "");
