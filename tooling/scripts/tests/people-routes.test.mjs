@@ -382,7 +382,7 @@ test("details: an operator where the person lives, a name or notes or both, trim
   await refused(details.PUT.run(send("PUT", { name: "Ada" }), ctxFor(tables, { id: P1 }, rpcs)), "forbidden", 403);
   await assert.rejects(details.PUT.run(send("PUT", {}), ctxFor(tables, { id: P2 }, rpcs)), (e) => {
     assert.equal(e.code, "validation");
-    assert.match(e.message, /Send a name, notes or an email address\./);
+    assert.match(e.message, /Send a name, notes, an email address or a proposal link\./);
     return true;
   });
   await refused(
@@ -451,6 +451,43 @@ test("details: an email address is judged by the one normalizer before the door 
     assert.equal(e.message, taken.message);
     return true;
   });
+});
+
+test("details: a proposal link is judged by the one normalizer before the door opens, stored with its scheme, cleared by an empty string", async () => {
+  const doors = [];
+  const rpcs = {
+    set_person_proposal: (a) => {
+      doors.push(a);
+      return { proposal_url: a.p_url || null };
+    },
+  };
+  const tables = {
+    memberships: both("viewer", "operator"),
+    contacts: [contact(P1, A), contact(P2, B), contact(P3, B, { erased_at: "2026-09-01T00:00:00Z" })],
+  };
+  const put = (body, id = P2) => details.PUT.run(send("PUT", body), ctxFor(tables, { id }, rpcs));
+  await refused(put({ proposal: "https://docs.example.com/p/1" }, P1), "forbidden", 403);
+  await refused(put({ proposal: "https://docs.example.com/p/1" }, P3), "not_found", 404, "erased");
+  for (const [typed, words] of [
+    ["docs", /full web address/],
+    ["mailto:ana@example.com", /starting with https/],
+    ["https://docs.example.com/p 1", /no spaces/],
+  ]) {
+    await assert.rejects(put({ proposal: typed }), (e) => {
+      assert.equal(e.code, "validation");
+      assert.match(e.message, words);
+      return true;
+    });
+  }
+  assert.equal(doors.length, 0, "no door was opened for a refusal");
+  assert.deepEqual(
+    await put({ proposal: " docs.example.com/p/1 " }),
+    { contact_id: P2, proposal_url: "https://docs.example.com/p/1" },
+    "the scheme is supplied, the rest kept as typed",
+  );
+  assert.deepEqual(doors, [{ p_contact_id: P2, p_url: "https://docs.example.com/p/1" }]);
+  assert.deepEqual(await put({ proposal: "" }), { contact_id: P2, proposal_url: null }, "an empty string clears");
+  assert.deepEqual(doors[1], { p_contact_id: P2, p_url: "" });
 });
 
 test("the receptionist for one person: owner-only where they live, one of four modes, a policies row replaced not duplicated and removed by inherit, each change on the ledger", async () => {

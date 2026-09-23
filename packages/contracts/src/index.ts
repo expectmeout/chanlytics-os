@@ -5,6 +5,7 @@ export * from "./errors";
 export * from "./phone";
 export * from "./person-name";
 export * from "./email-address";
+export * from "./link";
 export * from "./mailbox";
 export * from "./enums";
 export * from "./consent";

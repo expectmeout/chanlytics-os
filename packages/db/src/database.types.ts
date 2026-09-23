@@ -710,6 +710,7 @@ export type Database = {
           merged_into_contact_id: string | null
           notes: string | null
           phone_e164: string | null
+          proposal_url: string | null
           tenant_id: string
           updated_at: string
           wa_profile_name: string | null
@@ -737,6 +738,7 @@ export type Database = {
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
+          proposal_url?: string | null
           tenant_id: string
           updated_at?: string
           wa_profile_name?: string | null
@@ -764,6 +766,7 @@ export type Database = {
           merged_into_contact_id?: string | null
           notes?: string | null
           phone_e164?: string | null
+          proposal_url?: string | null
           tenant_id?: string
           updated_at?: string
           wa_profile_name?: string | null
@@ -4454,6 +4457,10 @@ export type Database = {
       }
       set_person_notes: {
         Args: { p_contact_id: string; p_notes: string }
+        Returns: Json
+      }
+      set_person_proposal: {
+        Args: { p_contact_id: string; p_url: string }
         Returns: Json
       }
       set_template_hidden: {

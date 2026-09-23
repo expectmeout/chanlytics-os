@@ -157,6 +157,43 @@ function whyNotAnEmail(raw) {
   return "That is not an email address anyone can be reached at.";
 }
 
+// src/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 // src/mailbox.ts
 var MAILBOX_RESERVED = /* @__PURE__ */ new Set([
   "r",
@@ -314,6 +351,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
   /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
   "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
@@ -14599,6 +14638,7 @@ var WORDS = {
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
   "contact.email_set": "A person's email address changed",
+  "contact.proposal_set": "A person's proposal link changed",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
@@ -17455,6 +17495,7 @@ export {
   lineCredentialFailure,
   lineRetryRefusal,
   lineStuckProvisioning,
+  linkHost,
   listingLine,
   liveBar,
   liveStillUp,
@@ -17488,6 +17529,7 @@ export {
   nextThemePref,
   noNumberWords,
   normalizeEmail,
+  normalizeLink,
   normalizeLocalPart,
   normalizeNavigate,
   normalizePhone,
@@ -17781,6 +17823,7 @@ export {
   whyCannotSpend,
   whyNotAFromName,
   whyNotAHandoff,
+  whyNotALink,
   whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,

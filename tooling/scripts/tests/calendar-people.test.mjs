@@ -1008,7 +1008,10 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
     /rpc\("set_person_name", \{\s*p_contact_id: id,\s*p_name: name \?\? "",?\s*\}\)/.test(route) &&
       /rpc\("set_person_notes", \{\s*p_contact_id: id,\s*p_notes: notes \?\? "",?\s*\}\)/.test(route),
   );
-  assert.ok(route.includes('"Send a name, notes or an email address."'), "the schema refuses in the same words");
+  assert.ok(
+    route.includes('"Send a name, notes, an email address or a proposal link."'),
+    "the schema refuses in the same words",
+  );
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(
     detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') &&
