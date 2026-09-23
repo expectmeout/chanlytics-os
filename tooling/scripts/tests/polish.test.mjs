@@ -75,7 +75,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(
     server.includes("REPLY_WINDOW_MS,") &&
-      server.includes("<= REPLY_WINDOW_MS) {") &&
+      server.includes("isReplyTo(sentAt, m.created_at)") &&
       server.includes("replied.set(m.conversation_id, m.created_at)"),
     "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)",
   );

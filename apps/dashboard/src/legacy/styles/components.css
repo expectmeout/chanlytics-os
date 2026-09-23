@@ -843,6 +843,9 @@ a.btn { text-decoration: none; }
 
 /* ---------- Route transition ---------- */
 .route-view { animation: route-in 240ms var(--ease-out); }
+/* A view that follows another of the same page (People to Leads and back) draws at once: the fade is for arriving
+   somewhere else, and it made every switch between the two scopes read as a wait (app-shell.jsx routeStay). */
+.route-view.route-stay { animation: none; }
 @keyframes route-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }

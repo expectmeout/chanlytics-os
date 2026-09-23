@@ -576,7 +576,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   );
   assert.ok(
     readCode("packages/contracts/src/viewmodels.ts").includes(
-      '{ kind: "playbook" as const, name: String(m.meta.playbook_name) }',
+      '{ kind: "playbook", name: String(m.meta.playbook_name) }',
     ),
   );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx").includes("`the ${entry.via.name} playbook`"));

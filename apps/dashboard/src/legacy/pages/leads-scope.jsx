@@ -1036,6 +1036,7 @@ const LeadsScope = (p) => {
             : (
               <PeopleTable
                 busy={!!p.loading}
+                budget={p.rowBudget}
                 noun="lead"
                 columns={p.columns}
                 ctx={p.cellCtx}

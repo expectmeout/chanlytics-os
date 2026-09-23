@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { cleanListName, type SavedListDto } from "@/server/lists";
+import { cleanListName, savedLists, type SavedListDto } from "@/server/lists";
 
 /**
  * Saved lists: a name and the people on it.
@@ -9,7 +9,8 @@ import { cleanListName, type SavedListDto } from "@/server/lists";
  * GET  /api/v1/segments — every list of ONE workspace with its members' ids.
  *      The ids, not counts: People already holds every row, so the page
  *      filters and counts client-side the way it does for the computed lists,
- *      and an erased person (gone from the rows) never counts.
+ *      and an erased person (gone from the rows) never counts. Every id, not
+ *      the first thousand memberships (lists.ts savedLists).
  * POST /api/v1/segments — { name } makes an empty list. Owner or operator.
  *
  * Scoped explicitly by tenant, not by RLS alone (the templates route's rule):
@@ -17,23 +18,7 @@ import { cleanListName, type SavedListDto } from "@/server/lists";
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => {
-    const tenantId = member.tenantId;
-    const [{ data: lists, error: lErr }, { data: members, error: mErr }] = await Promise.all([
-      ctx.supabase.from("segments").select("id, name").eq("tenant_id", tenantId).order("name"),
-      ctx.supabase.from("segment_members").select("segment_id, contact_id").eq("tenant_id", tenantId),
-    ]);
-    if (lErr) throw new Error(lErr.message);
-    if (mErr) throw new Error(mErr.message);
-    const byList = new Map<string, string[]>();
-    for (const m of members ?? []) {
-      const arr = byList.get(m.segment_id) ?? [];
-      arr.push(m.contact_id);
-      byList.set(m.segment_id, arr);
-    }
-    const out: SavedListDto[] = (lists ?? []).map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [] }));
-    return { lists: out };
-  },
+  handle: async ({ ctx, member }) => ({ lists: await savedLists(ctx, member.tenantId) }),
 });
 
 /** The name is the only thing a person types, and cleanListName refuses it in the words the edit route uses too. */

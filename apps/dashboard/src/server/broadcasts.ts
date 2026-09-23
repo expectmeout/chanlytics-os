@@ -3,6 +3,7 @@ import {
   AppError,
   REPLY_WINDOW_MS,
   firstNameOf,
+  isReplyTo,
   parseParamSpecs,
   personName,
   type Audience,
@@ -11,8 +12,10 @@ import {
   type BroadcastDto,
   type BroadcastRecipientDto,
   type BroadcastState,
+  type PersonCampaignDto,
   type RecipientState,
 } from "@chanlytics/contracts";
+import { readAllRows } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -103,7 +106,7 @@ function countRecipients(
   return { counts, threadsOf };
 }
 
-// A reply is an inbound within the contracts' reply window of the send (REPLY_WINDOW_MS); the SQL series keeps the same one.
+// A reply is an inbound within the contracts' reply window of the send (isReplyTo); the SQL series keeps the same one.
 
 /**
  * Which threads heard from the customer within the reply window after the broadcast reached them, and when the first
@@ -135,7 +138,7 @@ async function repliedThreads(
       body?: string | null;
     }[]) {
       const sentAt = threads.get(m.conversation_id);
-      if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) {
+      if (sentAt && isReplyTo(sentAt, m.created_at)) {
         const first = replied.get(m.conversation_id);
         if (!first || m.created_at < first) {
           replied.set(m.conversation_id, m.created_at);
@@ -390,4 +393,69 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
   return { broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()), recipients: people };
+}
+
+/** How many of a person's runs their page lists: the newest. */
+export const PERSON_RUNS = 20;
+
+/**
+ * The runs that named one person, newest first, the newest PERSON_RUNS of them: a playbook's run named for its
+ * playbook, a broadcast for itself, each with what the send job recorded for them. Every recipient row is read, since
+ * a row carries no time of its own and the newest is known only once each run's time is: a person is on few runs.
+ */
+export async function personRuns(ctx: RouteContext, tenantId: string, contactId: string): Promise<PersonCampaignDto[]> {
+  const rows = await readAllRows<{
+    broadcast_id: string;
+    state: string;
+    reason: string | null;
+    sent_at: string | null;
+    message_id: string | null;
+  }>("broadcast_recipients", (from, to) =>
+    ctx.supabase
+      .from("broadcast_recipients")
+      .select("broadcast_id, state, reason, sent_at, message_id")
+      .eq("tenant_id", tenantId)
+      .eq("contact_id", contactId)
+      .order("broadcast_id")
+      .range(from, to),
+  );
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.broadcast_id);
+  const runs = new Map<
+    string,
+    { name: string; playbook_id: string | null; audience: unknown; scheduled_for: string | null; created_at: string }
+  >();
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const { data, error } = await ctx.supabase
+      .from("broadcasts")
+      .select("id, name, playbook_id, audience, scheduled_for, created_at")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IN_CHUNK));
+    if (error) throw new Error(error.message);
+    for (const b of data ?? []) runs.set(b.id, b);
+  }
+  const out: (PersonCampaignDto & { at: string })[] = [];
+  for (const r of rows) {
+    const b = runs.get(r.broadcast_id);
+    if (!b) continue;
+    const label = (b.audience as { label?: unknown } | null)?.label;
+    out.push({
+      broadcast_id: r.broadcast_id,
+      name: b.name,
+      playbook_id: b.playbook_id,
+      // The name a run's messages carry (core messages/broadcast.ts): the playbook's, as the run was drawn.
+      playbook_name: b.playbook_id ? (typeof label === "string" && label ? label : b.name) : null,
+      // One of RECIPIENT_STATES: the column's CHECK.
+      state: r.state as RecipientState,
+      reason: r.reason,
+      sent_at: r.sent_at,
+      scheduled_for: b.scheduled_for,
+      message_id: r.message_id,
+      at: r.sent_at ?? b.scheduled_for ?? b.created_at,
+    });
+  }
+  return out
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+    .slice(0, PERSON_RUNS)
+    .map(({ at: _at, ...c }) => c);
 }
