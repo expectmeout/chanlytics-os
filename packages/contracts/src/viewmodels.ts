@@ -57,6 +57,8 @@ export interface ConversationDto {
     phone_e164: string | null;
     /** As stored (00125). Absent on payloads read without it. */
     email?: string | null;
+    /** The owner's proposal link (00154). Absent on payloads read without it. */
+    proposal_url?: string | null;
     /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
      *  opt-out was enforced, which is why every reader treats it as optional
      *  and only 'opted_out'/dnc blocks — never the absence of a value. */
@@ -536,6 +538,8 @@ export interface InboxThreadVM {
   optedOut: boolean;
   /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
   offersOk: boolean;
+  /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
+  proposalUrl: string | null;
   who: string;
   whoMeta: string;
   avatar: string;
@@ -882,6 +886,7 @@ export function toInboxThreadVM(
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
+    proposalUrl: dto.contact.proposal_url?.trim() || null,
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have

@@ -634,7 +634,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
   if (error) throw new Error(error.message);
   const row = (rows ?? [])[0] as PersonRowDto | undefined;
   if (!row) return { error: "no such person in this workspace" };
-  const [convs, calls, personPol, wsPol] = await Promise.all([
+  const [convs, calls, personPol, wsPol, own] = await Promise.all([
     sb
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -664,9 +664,13 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
       .eq("class", "reply")
       .is("subject_type", null)
       .maybeSingle(),
+    // The owner's proposal link (00154): people_list does not carry it, and About should say "Proposal: <host>"
+    // so a card can carry the address into a reply.
+    sb.from("contacts").select("proposal_url").eq("id", id).maybeSingle(),
   ]);
   if (convs.error) throw new Error(convs.error.message);
   if (calls.error) throw new Error(calls.error.message);
+  if (own.error) throw new Error(own.error.message);
   const convIds = (convs.data ?? []).map((c) => c.id);
   let byConv = new Map<string, MessageDto[]>();
   let escalations: PersonEscalationDto[] = [];
@@ -706,6 +710,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     decisions,
     receptionist_mode: personPol.data?.mode ?? null,
     workspace_reply_mode: wsPol.data?.mode ?? null,
+    proposal_url: own.data?.proposal_url ?? null,
   };
   const vm = toPersonVM(detail, t.timezone, t.now);
   t.read.person.add(id);

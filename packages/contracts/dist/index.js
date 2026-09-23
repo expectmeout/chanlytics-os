@@ -1934,6 +1934,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
+    proposalUrl: dto.contact.proposal_url?.trim() || null,
     ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
