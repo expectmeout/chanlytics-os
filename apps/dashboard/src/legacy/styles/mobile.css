@@ -127,6 +127,7 @@
   .ix-agent-rail { display: none; }
   .ix-list { border-right: none; border-bottom: 1px solid var(--line); }
   .ix-th-head { padding: 12px 16px; }
+  .ix-th-bar { padding: 5px 16px; }
   .ix-th-channels-meta { display: none; }
   .ix-context-strip { padding: 0 16px; }
   .ix-thread-pane > .confirm-block { margin: 10px 16px 4px; }

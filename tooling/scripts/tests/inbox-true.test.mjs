@@ -427,13 +427,14 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
     ["Inbound call", "3 min", "asked about a bridal trial"],
   );
 
+  // A quiet thread's one sentence is the bar's under the header, in the tone of what it says.
   const answered = find(
     paneOf(vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")]))),
-    byTestId("ix-last-word"),
+    hasClass("ix-th-standing-words"),
   );
   assert.equal(textOf(answered), "Answered by the receptionist — no one asked for you.");
   assert.ok(
-    !hasClass("danger")(answered) && !hasClass("warn")(answered) && !hasClass("plain")(answered),
+    hasClass("ok")(answered) && !hasClass("danger")(answered) && !hasClass("warn")(answered),
     "an answered thread keeps the plain green line",
   );
 });
@@ -451,10 +452,10 @@ test("the pane: a thread you have says why it was flagged, where 'Where this sta
   );
   assert.equal(mine.takenOver, true);
   const tree = paneOf(mine);
+  assert.equal(textOf(find(tree, byTestId("ix-th-standing"))), "You have it", "the pill its row wears, in the bar");
   const owned = find(tree, byTestId("ix-yours"));
   assert.ok(owned, "the owned thread's line");
-  assert.match(textOf(owned), /^You have it/, "the pill its row wears");
-  assert.match(textOf(owned), /The receptionist stays quiet while you have it\./);
+  assert.match(textOf(owned), /^The receptionist stays quiet while you have it\./);
   assert.match(
     textOf(owned),
     /They asked for a person\. A holding message went out — they're waiting on you\./,

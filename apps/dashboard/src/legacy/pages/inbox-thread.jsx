@@ -90,6 +90,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   return (
     <div className="ix-thread-pane">
       <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} onArchive={thread.real && onArchive ? () => setAskArchive(true) : null} />
+      {thread.real && <ThreadBar thread={thread} />}
       {askArchive && thread.real && onArchive && (
         <Confirm
           block
@@ -155,6 +156,8 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
 // On a real thread it sits under the conversation, by the reply box (InboxThread). Over the timeline it was a stack
 // of cards that took a phone's first screen -- Rosa's banner was 262px and her first message started at 427px -- and
 // scrolled away with the words. A seeded thread keeps its cards over its story.
+// The state's name is the bar's (ThreadBar, under the header): here is what is more than the name -- the reason, what
+// they asked, and what to do about it. A quiet thread's one sentence is the bar's, so it says nothing here.
 const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onWake, onTakeOver, onDecide, onHandBack, veto, vetoPaused, onVetoAct }) => (
   <>
     {stale && (
@@ -188,8 +191,6 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
       // believe it was dealt with.
       <IxState
         testid="ix-snoozed"
-        pill={<StatePill kind="thread" value="snoozed" />}
-        meta={`back ${thread.wake || "tomorrow 10:00"}`}
         says={<>Hidden from your queue. The receptionist still answers, and a new message brings it back.{thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}</>}
         acts={<button className="btn btn-ghost btn-sm" onClick={() => onWake(thread.id)} {...window.gate("approve", "wake a conversation")}>Wake now</button>}
       />
@@ -206,10 +207,6 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
     {thread.state === "escalated" && !thread.takenOver && !thread.claimedByOther && (thread.real ? (
       <IxState
         testid="ix-needs-you"
-        pill={<StatePill kind="thread" value="escalated" />}
-        // In the row's own words, and amber past half an hour as the row's pill is.
-        meta={thread.waited ? `waiting ${thread.waited}` : null}
-        late={thread.waitingMin > 30}
         // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
         // a held message was not "already answered", and a call back is not a reply.
         says={thread.summary}
@@ -254,35 +251,29 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
     {thread.real && thread.claimedByOther && (
       <IxState
         testid="ix-theirs"
-        // The pill their row in the list wears, in the same words.
-        pill={<StatePill kind="thread" value="theirs" label={`${window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"} has it`} />}
-        meta={thread.waited ? `waiting ${thread.waited}` : null}
         says="The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours."
       />
     )}
     {thread.real && thread.state === "done" && !thread.resolution && (thread.archived ? (
       <IxState
         testid="ix-archived"
-        pill={<StatePill kind="thread" value="archived" label="Archived" />}
         says="Their request is closed. If they write again, it comes back."
       />
     // A draft still waiting to go out is the thread's state, said by its bar: "They wrote last — no reply yet"
     // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
-    ) : thread.lastWord && !thread.veto ? (
-      // Who had the last word, and whether a reply didn't send (the view model's lastWord). Every quiet thread
-      // read "Answered by the receptionist — no one asked for you", over a reply that never left (I1).
-      // A reply that didn't send wears the row's own pill ("Didn't send"); a quiet thread is its one quiet sentence.
+    ) : thread.lastWord && !thread.veto && thread.lastWord.short ? (
+      // A reply that didn't send: the bar wears the row's pill ("Didn't send"), and here is what it means -- who
+      // wrote last and what they know. A quiet thread's one sentence is the bar's alone: it read here too, under
+      // "Answered by the receptionist — no one asked for you" over a reply that never left (I1).
       <IxState
         testid="ix-last-word"
         tone={thread.lastWord.tone === "ok" ? null : thread.lastWord.tone}
-        pill={thread.lastWord.short ? <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} /> : null}
         says={thread.lastWord.text}
       />
     ) : null)}
     {thread.takenOver && (thread.real ? (
       <IxState
         testid="ix-yours"
-        pill={<StatePill kind="thread" value="yours" label="You have it" />}
         // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
         says={<>The receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>}
         // What they asked, where you answer it: it was only in the timeline (I3).
@@ -321,22 +312,60 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
   </>
 );
 
-// The state a real thread is in, said one way whatever the state: the pill its row in the list wears (StatePill -- one
-// vocabulary for both), a quiet word beside it, one sentence, and what you can do about it. It was a dot and a bold
-// title here, an icon and a bold name inside a sentence there, a white slab of a button beside a link with an arrow:
-// six looks for one line of a thread.
-const IxState = ({ pill = null, meta = null, late = false, says = null, ask = null, acts = null, tone = null, testid = null }) => {
-  const bare = !pill && !meta && !acts;
+// What a real thread's state asks of you, said one way whatever the state: one sentence, what they asked, and what
+// you can do about it, under the sentence. It was a dot and a bold title here, an icon and a bold name inside a
+// sentence there, a white slab of a button beside a link with an arrow: six looks for one line of a thread. The
+// state's name -- the pill its row wears, and its wait -- is the bar's under the header (ThreadBar), said once.
+const IxState = ({ says = null, ask = null, acts = null, tone = null, testid = null }) => (
+  <div className={`ix-state${tone ? ` ${tone}` : ""}`} data-testid={testid || undefined}>
+    {(says || ask) && <div className="ix-state-says">{says}{ask}</div>}
+    {acts && <div className="ix-state-acts">{acts}</div>}
+  </div>
+);
+
+// =============== THE BAR — where the conversation stands, under the header ===============
+// One slim line a thread opens on: the pill its row in the list wears (StatePill -- one vocabulary for both) and how
+// long they have waited, or a quiet thread's one sentence; and, when WhatsApp's reply window has closed, that it has,
+// with why a tap away. It was said three times at the foot of a phone: the standing as a line of its own, the window
+// as a red block, and the reply box's refusal under both. Nothing when there is nothing to say.
+const ixStanding = (thread) => {
+  if (thread.state === "snoozed") return { pill: <StatePill kind="thread" value="snoozed" />, meta: `back ${thread.wake || "tomorrow 10:00"}` };
+  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" label="You have it" /> };
+  const waiting = thread.waited ? `waiting ${thread.waited}` : null;
+  if (thread.claimedByOther) return { pill: <StatePill kind="thread" value="theirs" label={`${window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"} has it`} />, meta: waiting };
+  // Amber past half an hour, as the row's pill is.
+  if (thread.state === "escalated") return { pill: <StatePill kind="thread" value="escalated" />, meta: waiting, late: thread.waitingMin > 30 };
+  if (thread.state !== "done" || thread.resolution) return null;
+  if (thread.archived) return { pill: <StatePill kind="thread" value="archived" label="Archived" /> };
+  // A draft still waiting to go out is the thread's state, said by its countdown: "They wrote last — no reply yet"
+  // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
+  if (!thread.lastWord || thread.veto) return null;
+  // A reply that didn't send wears the row's own pill ("Didn't send"); a quiet thread is its one quiet sentence.
+  return thread.lastWord.short
+    ? { pill: <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} /> }
+    : { words: thread.lastWord.text, tone: thread.lastWord.tone };
+};
+
+const ThreadBar = ({ thread }) => {
+  const standing = ixStanding(thread);
+  // Only WhatsApp has a window (replyWindow), and it is the reply box's concern when they opted out, or never
+  // wrote on WhatsApp at all: then nothing about a window is true enough to say.
+  const closed = thread.hasChat !== false && !thread.optedOut && thread.windowOpen === false;
+  if (!standing && !closed) return null;
   return (
-    <div className={`ix-state${tone ? ` ${tone}` : ""}${bare ? " bare" : ""}`} data-testid={testid || undefined}>
-      {(pill || meta) && (
-        <div className="ix-state-head">
-          {pill}
-          {meta && <span className={`ix-state-meta tabular${late ? " late" : ""}`}>{meta}</span>}
-        </div>
+    <div className="ix-th-bar" data-testid="ix-th-bar">
+      {standing && (
+        <span className="ix-th-standing" data-testid="ix-th-standing">
+          {standing.pill || <span className={`ix-th-standing-words ${standing.tone}`} title={standing.words}>{standing.words}</span>}
+          {standing.meta && <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>{standing.meta}</span>}
+        </span>
       )}
-      {acts && <div className="ix-state-acts">{acts}</div>}
-      {(says || ask) && <div className="ix-state-says">{says}{ask}</div>}
+      {closed && (
+        <>
+          <span className="ix-th-window" data-testid="ix-th-window">Window closed</span>
+          <IxWhy said="The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only." testid="ix-th-window-why" />
+        </>
+      )}
     </div>
   );
 };
@@ -1295,10 +1324,11 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread 
   // Nothing approved yet. Say so, rather than offering a send that cannot
   // happen: outside the window this is the only thing WhatsApp will deliver,
   // so an operator needs to know the gap is at Meta and not on this screen.
+  // The window itself is the bar's to say (ThreadBar): it was said here too.
   if (real && templates && templates.length === 0) {
     return quiet ? null : (
       <span className="ix-tpl-none">
-        No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
+        No approved template yet — nothing can be sent until one is.
       </span>
     );
   }
@@ -1473,18 +1503,13 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     );
   }
 
+  // The window has closed: the bar under the header says so, and why (ThreadBar), and the header names the wire and
+  // the person. What is left is the one send that works. It was a red block saying the window had closed, over a
+  // line saying "WhatsApp · to Rosa Díaz" again, over the send: three rows at the foot of a phone.
   if (thread.real && thread.windowOpen === false) {
     return (
       <div className="ix-composer">
-        <div className="ix-composer-banner">
-          <Icon name="clock" size={11} />
-          <span>The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only.</span>
-        </div>
         <div className="ix-composer-foot">
-          <div className="ix-composer-channel">
-            <Icon name="chat" size={12} />
-            <span>WhatsApp · to {thread.who}</span>
-          </div>
           <div className="ix-composer-actions">
             <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>

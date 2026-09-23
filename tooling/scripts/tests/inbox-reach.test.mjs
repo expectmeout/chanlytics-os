@@ -263,8 +263,10 @@ test("the Needs you line keeps its words and its buttons apart: the words take t
 
 test("a thread you have shows what they asked, where you answer it", () => {
   const mine = vmOf(chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked());
-  const owned = find(paneOf(mine), byTestId("ix-yours"));
-  assert.ok(owned && textOf(owned).startsWith("You have it"));
+  const pane = paneOf(mine);
+  assert.equal(textOf(find(pane, byTestId("ix-th-standing"))), "You have it", "named in the bar under the header");
+  const owned = find(pane, byTestId("ix-yours"));
+  assert.ok(owned && textOf(owned).startsWith("The receptionist stays quiet"));
   assert.equal(
     textOf(find(owned, byTestId("ix-take-ask"))),
     "They wrote“Can I move my appointment to Friday?”",

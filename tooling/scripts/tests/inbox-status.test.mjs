@@ -243,28 +243,49 @@ test("REGRESSION: on a real thread what it needs from you sits under the convers
   for (const cls of ["ix-take", "ix-resolved", "ix-state", "ix-veto"])
     assert.equal(find(scroller, hasClass(cls)), undefined, `REGRESSION: ${cls} scrolled away with the words`);
   const take = find(find(pane, byTestId("ix-th-status")), byTestId("ix-needs-you"));
-  assert.ok(take, "Needs you is by the reply box");
-  assert.match(textOf(take), /Needs you/);
-  assert.match(textOf(take), /waiting 40m/);
+  assert.ok(take, "what Needs you asks is by the reply box");
+  assert.match(textOf(take), /I'll answer this/);
+  // Its name and its wait are the bar's, under the header (the thread state bar).
+  const standing = find(pane, byTestId("ix-th-standing"));
+  assert.match(textOf(standing), /Needs you/);
+  assert.match(textOf(standing), /waiting 40m/);
+  assert.ok(!textOf(take).includes("waiting 40m"), "said once");
 });
 
-test("every state of a real thread is said there: yours, a teammate's, snoozed, archived, and who had the last word", () => {
+test("every state of a real thread is named in the bar under the header, and what it asks is said by the reply box: yours, a teammate's, snoozed, archived, and who had the last word", () => {
   const states = {
-    yours: [chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked(), /You have it/],
-    theirs: [chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }), asked(), /has it/],
-    snoozed: [chat({ state: "snoozed", snooze_until: later, paused_until: later }), null, /Snoozedback /],
-    archived: [chat({ state: "archived" }), null, /ArchivedTheir request is closed/],
+    yours: [
+      chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }),
+      asked(),
+      /^You have it$/,
+      /stays quiet while you have it/,
+    ],
+    theirs: [
+      chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
+      asked(),
+      /has itwaiting 40m$/,
+      /until they hand it back/,
+    ],
+    snoozed: [
+      chat({ state: "snoozed", snooze_until: later, paused_until: later }),
+      null,
+      /^Snoozedback /,
+      /Hidden from your queue/,
+    ],
+    archived: [chat({ state: "archived" }), null, /^Archived$/, /Their request is closed/],
     lastWord: [
       chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }),
       null,
-      /Answered by the receptionist/,
+      /^Answered by the receptionist — no one asked for you\.$/,
+      /^$/,
     ],
   };
-  for (const [name, [dto, esc, words]] of Object.entries(states)) {
+  for (const [name, [dto, esc, named, asks]] of Object.entries(states)) {
     const pane = paneOf(vmOf(dto, esc));
+    assert.match(textOf(find(pane, byTestId("ix-th-standing"))), named, `${name}: named in the bar`);
     const status = find(pane, byTestId("ix-th-status"));
     assert.ok(status, `${name}: the status row`);
-    assert.match(textOf(status), words, `${name}: said by the reply box`);
+    assert.match(textOf(status), asks, `${name}: what it asks, by the reply box`);
     for (const cls of ["ix-resolved", "ix-state"])
       assert.equal(
         find(find(pane, hasClass("ix-th-scroll")), hasClass(cls)),
@@ -286,15 +307,17 @@ test("REGRESSION: a draft waiting to go out is the thread's one state -- 'They w
     "REGRESSION: 'no reply yet' over a reply about to send",
   );
   assert.ok(!textOf(status).includes("no reply yet"));
+  assert.equal(find(pane, byTestId("ix-th-standing")), undefined, "and the bar under the header says nothing either");
 });
 
 test("Needs you has one signal: the pill its row wears, and its wait, amber past thirty minutes -- a red flag in a red-outlined card", () => {
   const signal = (min) => {
-    const take = find(find(paneOf(vmOf(chat(), asked(min))), byTestId("ix-th-status")), byTestId("ix-needs-you"));
+    const pane = paneOf(vmOf(chat(), asked(min)));
+    const standing = find(pane, byTestId("ix-th-standing"));
     return {
-      pill: !!find(take, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
-      flag: !!find(take, (n) => n.type === "Icon" && n.props?.name === "flag"),
-      wait: find(take, hasClass("ix-state-meta")),
+      pill: !!find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
+      flag: !!find(pane, (n) => n.type === "Icon" && n.props?.name === "flag"),
+      wait: find(standing, hasClass("ix-th-standing-meta")),
     };
   };
   const late = signal(40);
