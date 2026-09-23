@@ -450,8 +450,20 @@ export function isConsultationTitle(
 }
 
 /**
- * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. `askedMs` is when
- * the person last wrote or called. Today's leak and the Pipeline both ask it, one row at a time.
+ * Whether anything came back since a proposal went (0008): they wrote or called after it. `askedMs` is when the person
+ * last did either. What "nothing back" is measured against, and what the Pipeline's "They wrote" says.
+ */
+export function heardSinceProposal(r: {
+  deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+  askedMs: number | null;
+}): boolean {
+  const d = r.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
+}
+
+/**
+ * The one rule for a proposal waiting (0006, 0008): out past a week with nothing back since it went. Today's leak and
+ * the Pipeline both ask it, one row at a time.
  */
 export function waitingOnProposal(
   r: { deal: Pick<DealVM, "stage" | "sinceMs"> | null; askedMs: number | null },
@@ -460,7 +472,7 @@ export function waitingOnProposal(
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
   if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS) return false;
-  return r.askedMs === null || r.askedMs < d.sinceMs;
+  return !heardSinceProposal(r);
 }
 
 /** Today's leak: the rows waiting on a proposal, by waitingOnProposal. */

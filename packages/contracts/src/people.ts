@@ -1200,6 +1200,8 @@ export interface PersonRowVM {
    * otherwise. The service it names says which of their deals it began (the deal card's Consultation step, 0008).
    */
   consultationTitle: string | null;
+  /** Their next visit, when it is a consultation (0008): when it starts, and whether it takes the day. Null otherwise. */
+  consultAhead: { startMs: number; allDay: boolean } | null;
 }
 
 /**
@@ -1327,6 +1329,10 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
     consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
+    consultAhead:
+      v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
+        ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
+        : null,
   };
 }
 
