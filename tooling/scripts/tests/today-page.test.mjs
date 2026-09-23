@@ -1286,16 +1286,16 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
     "BriefBeats",
   ])
     assert.ok(!names.includes(seeded), `${seeded} is gone from Today`);
-  // The band between the standing line and the queue: the three (today-face.jsx).
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    ["HeroBrief", "TodayFace", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
   );
+  // The three (today-face.jsx) stand in the queue's column, above it; the day keeps its column beside both.
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
   assert.deepEqual(
     core.props.children.filter((c) => c && typeof c.type === "function").map((c) => c.type.name),
-    ["AgentCommand", "TodayDay"],
+    ["TodayFace", "AgentCommand", "TodayDay"],
   );
   const foot = find(tree, (n) => classes(n).includes("dash-a-v2-foot"));
   assert.deepEqual(

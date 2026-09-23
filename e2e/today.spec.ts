@@ -147,7 +147,13 @@ test.describe("Today on a real workspace", () => {
     await expect(band).toBeVisible();
     const bandBox = await band.boundingBox();
     const queueBox = await page.getByTestId("today-queue").boundingBox();
+    const day = page.getByTestId("today-day");
+    const dayBox = (await day.count()) ? await day.boundingBox() : null; // a day that could not be read is another card
     expect(bandBox!.y, "the band stands above the queue").toBeLessThan(queueBox!.y);
+    expect(Math.abs(bandBox!.x - queueBox!.x), "in the queue's column").toBeLessThan(2);
+    expect(Math.abs(bandBox!.width - queueBox!.width), "as wide as the queue, no wider").toBeLessThan(2);
+    // Two columns wide (over 1180px): the day starts beside the band, not under it.
+    if (dayBox && dayBox.y < queueBox!.y) expect(dayBox.x).toBeGreaterThan(bandBox!.x + bandBox!.width - 1);
     await expect(band).toHaveAttribute("data-phase", "rest");
     expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
     // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.

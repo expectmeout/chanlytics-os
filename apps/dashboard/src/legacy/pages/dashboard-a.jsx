@@ -4,8 +4,8 @@
 // never outranks a person who has been waiting eleven days.
 //
 //   the standing line
-//   the three (today-face.jsx)
-//   the queue (8 of 12)          | the day (4 of 12)
+//   the three (today-face.jsx)   | the day (4 of 12)
+//   the queue (8 of 12)          |
 //   the day's card (12)
 //   worth a look (7)             | while you were away (5)
 //
@@ -15,8 +15,8 @@
 const DashboardA = () => (
   <div className="dash-a-v2">
     <HeroBrief />
-    <TodayFace />
     <div className="dash-a-v2-core">
+      <TodayFace />
       <AgentCommand />
       <TodayDay />
     </div>

@@ -18,7 +18,10 @@
 > the three grow in from nothing at birth; the character test keeps a size as a number, because `frame()` hands back
 > live objects; the band's test helper draws over the cells as they are (`start()` forgets them first); the harness
 > server (`e2e-harness/server.mjs`) got its own `/data/mascot.js` route beside the mockup's; and a commit chain never
-> ends in `| grep -v`, which exits 1 when it filters every line and stops the chain.
+> ends in `| grep -v`, which exits 1 when it filters every line and stops the chain. On seeing it, Ruben moved the
+> band from full width into the queue's column: `<TodayFace />` is the first child of `.dash-a-v2-core`, placed by
+> three grid rules (band column 1 row 1, `.tq` column 1 row 2, `.td-day` column 2 over both rows; one column below
+> 1180px in source order), and the composition pins and the e2e read that order.
 
 ---
 

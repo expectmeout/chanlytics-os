@@ -40,15 +40,18 @@ The face is the mark itself: the three rounded squares that step down a diagonal
 
 ### 4.1 Where
 
-`dashboard-a.jsx:13-26` is the page. The band is a new child between `<HeroBrief />` and `.dash-a-v2-core`:
+`dashboard-a.jsx:13-26` is the page. The band is the first child of `.dash-a-v2-core`, placed by the grid in the queue's column (Ruben, 23 Sep, on seeing it full width: "it should be on the left column not full width"); the day keeps its column beside both:
 
 ```
 [ standing line ]
-[ the three: a 232px band, the character centred, then the exchange, then the field ]
-[ Your queue                         ][ The day ]
+[ the three: a 232px band, the character  ][ The day ]
+[ centred, the exchange, the field        ][         ]
+[ Your queue                              ][         ]
 [ Today ]
 [ Worth a look                 ][ While you were away ]
 ```
+
+Below 1180px the core is one column, in source order: the three, the queue, the day.
 
 The page's flex column and its 12px gap (`dashboard-a-v2.css:6-13`) are unchanged. The composition test that pins the children of `.dash-a-v2-core` and `.dash-a-v2-foot` (`today-page.test.mjs:1285-1294`) is untouched; a new pin covers the new child.
 

@@ -70,6 +70,11 @@
   gap: 12px;
   align-items: start;
 }
+/* The three stand in the queue's column, above it (pages/today-face.jsx, the core's first child), and the day keeps
+   its column beside both. Placed by hand: auto-placement would seat the queue beside the band. */
+.dash-a-v2-core > .today-face { grid-column: 1; grid-row: 1; }
+.dash-a-v2-core > .tq { grid-column: 1; grid-row: 2; }
+.dash-a-v2-core > .td-day { grid-column: 2; grid-row: 1 / span 2; }
 .dash-a-v2-foot {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
@@ -1249,6 +1254,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* Below 1180px each row is one column, in the same order (spec 4.1). today-day.test pins this block's first two lines. */
 @media (max-width: 1180px) {
   .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }
+  .dash-a-v2-core > * { grid-column: 1; grid-row: auto; } /* one column: the three, the queue, the day, in source order */
 }
 @media (max-width: 720px) {
   /* A phone puts nothing above the work it can help with: the head is one line with its door on it, and the
