@@ -144,13 +144,17 @@ test.describe("Today on a real workspace", () => {
     // Wider than a phone the band is not drawn; Ask's face is the top bar's button, and the palette's stage.
     await expect(page.getByTestId("today-face")).toBeHidden();
     await expect(page.getByTestId("tb-ask").getByTestId("tb-ask-face")).toBeVisible();
-    // The queue is the first thing on the page, or the second under a line that is down.
-    const first = await page.evaluate(
-      () =>
-        [...(document.querySelector(".dash-a-v2")?.children ?? [])].find((el) => el.getBoundingClientRect().height > 0)
-          ?.className ?? "",
-    );
+    // The queue is the first thing on the page, or the second under a line that is down, and it has room under the
+    // bar: with the standing line gone nothing else gave it any, and the card's edge sat on the bar's rule.
+    const { first, gap } = await page.evaluate(() => {
+      const el = [...(document.querySelector(".dash-a-v2")?.children ?? [])].find(
+        (c) => c.getBoundingClientRect().height > 0,
+      );
+      const bar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
+      return { first: el?.className ?? "", gap: el ? el.getBoundingClientRect().top - bar : -1 };
+    });
     expect(first, "nothing stands above the queue but a line that is down").toMatch(/dash-a-v2-core|today-alert/);
+    expect(gap, "the first band keeps the page's gap under the top bar").toBeGreaterThanOrEqual(8);
     // The local harness installs no Ask client, so its palette is the mockup's; only a workspace opens the real one.
     if (!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask))) return;
     await page.getByTestId("tb-ask").click();
