@@ -97,6 +97,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | People | Rail counts `.cl-rail-row.smart .count` | coral on every smart list | `--ink-dim`; the needs-you list `--warn-ink` | clients.css (+ the rail's JSX for the needs-you marker) |
 | People | Next visit `.cl-row-next`, `.pl-card-visit` | raw `--ok` 3.28:1 / `--ok-ink` | `--ink-muted`, the calendar icon stays | clients.css |
 | People | Offers "No" `.cl-row-offers.no` | raw `--danger` | `--ink-muted` | clients.css |
+| People | Active state filter `.cl-seg-filter` | 10.5px, raw `--info` | chip with × | clients-a.jsx |
 | Person | Lists `.seg-chip` (and smart lists) | 17px, 10px, raw `--info` 3.36:1 | chip with × | client-profile.jsx, people.css |
 | Person | Campaign outcome `.cl-prof-run-out[data-tone]` | ok words green | ok words `--ink-muted`; warn and danger keep their ink | clients.css |
 | Person | Head standing `.cl-prof-now .pill` | quiet already, ok words green | unchanged: a dot and the word in the standing's ink for every tone (the Quiet record, #915) | clients.css |
@@ -111,11 +112,12 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | Campaigns | Playbook card mark `.pb-tile-mark` | 30px, toned | mark | components.css |
 | Campaigns | Playbook "Not set up" pill override | its own grey, no border | quiet | components.css |
 | Campaigns | Footer words `.pb-tile-next.is-warn` | amber, repeating the pill | `--ink-muted` (the pill says it) | components.css |
-| Campaigns | Policy chips `button.pill.pol-chip` | a pill as a button | chip (locked stays an amber pill) | data-bits.jsx, components.css |
+| Campaigns | Policy chips `button.pill.pol-chip` | a pill as a button | chip, locked ones too ("Owner-only · …"): a lock is a rule, not a person needed | data-bits.jsx, components.css |
 | Campaigns | Template row mark `.msg-row-mark` | 28px, amber for marketing | mark | components.css |
 | Campaigns | Template source `.msg-tag` | 18px, 11px/400, grey fill | chip (toned `msg-tag`s become pills) | components.css |
 | Campaigns | More languages `.lp-more` | 16px, 10.5px | total count | components.css |
 | Campaigns | Recipients `.bc-person-pill` | ~19px, its own tone family | pill / quiet by tone | components.css |
+| Campaigns | Run mark `.bc-run-mark` | 34px, amber or coral by state | mark (the run's pill says its state) | broadcasts-real.jsx, components.css |
 | Reports | Fact marks `.rpt-fact-icon` | 24px, radius 7, toned | mark | reports.css |
 | Settings | `.settings .pill` | 22px, 11.5px | the one pill (quiet for ok) | settings.css |
 | Settings | Connections inner `.dot` in ok pills | a second dot under B | removed | integrations-real.jsx |

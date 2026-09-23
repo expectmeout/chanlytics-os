@@ -39,7 +39,7 @@ const RunsDone = ({ nav }) => {
     const w = window.__today.runs(r).done;
     return (
       <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
-        <span className="mark brief-beat-glyph"><Icon name="bolt" size={12} /></span>
+        <span className="mark brief-beat-glyph"><Icon name="bolt" size={13} /></span>
         <span className="brief-beat-text">
           <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)}: {w.counts}{w.still ? " · still sending" : ""}
         </span>
@@ -59,7 +59,7 @@ const SetupLine = ({ nav }) => {
     <div className="brief-beat" data-testid="brief-setup">
       {/* Not answering yet is a warning, not live state: said by the words in amber, as the failed reply's line says its own
           in red. The mark stays neutral, as every mark is. */}
-      <span className="mark brief-beat-glyph"><Icon name="settings" size={12} /></span>
+      <span className="mark brief-beat-glyph"><Icon name="settings" size={13} /></span>
       <span className="brief-beat-text" style={S.vm.readiness.answering ? undefined : { color: "var(--warn-ink)" }}>{S.vm.line}</span>
       <button className="brief-chip" onClick={() => nav("admin/setup")}>Open Setup <Icon name="arrow-right" size={10} /></button>
     </div>
@@ -77,7 +77,7 @@ const ReviewLine = ({ nav }) => {
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">
-      <span className="mark brief-beat-glyph"><Icon name="star" size={12} /></span>
+      <span className="mark brief-beat-glyph"><Icon name="star" size={13} /></span>
       <span className="brief-beat-text">{line.text}</span>
       <button className="brief-chip" onClick={() => nav(line.to)}>Open Reports <Icon name="arrow-right" size={10} /></button>
     </div>
@@ -191,7 +191,7 @@ const TodayCard = () => {
       <div className="brief-beats tc-beats" data-testid="today-recap">
         {quiet && (vm.standing.chips.length > 0 || quiet.launchpad) && (
           <div className="brief-beat" data-testid="brief-quiet-proof">
-            <span className="mark brief-beat-glyph"><Icon name="check" size={12} /></span>
+            <span className="mark brief-beat-glyph"><Icon name="check" size={13} /></span>
             <span className="brief-beat-text">
               {quiet.proof.filter((pr) => pr.label !== "Checked").map((pr) => `${pr.label}: ${pr.value}`).join(" · ")}
             </span>
@@ -203,7 +203,7 @@ const TodayCard = () => {
         {/* Everything the figures do not carry, crucially a reply that failed to deliver: the one line that must never be quiet. */}
         {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (
           <div key={`sn-${i}`} className="brief-beat">
-            <span className="mark brief-beat-glyph"><Icon name={sn.warn ? "alert" : "info"} size={12} /></span>
+            <span className="mark brief-beat-glyph"><Icon name={sn.warn ? "alert" : "info"} size={13} /></span>
             <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger-ink)" } : undefined}>{sn.text}</span>
             {sn.warn && (
               <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
@@ -214,7 +214,7 @@ const TodayCard = () => {
         {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
         {(recap ? recap.receipts : []).map((r, i) => (
           <div key={i} className="brief-beat" data-testid="brief-receipt">
-            <span className="mark brief-beat-glyph"><Icon name="check" size={12} /></span>
+            <span className="mark brief-beat-glyph"><Icon name="check" size={13} /></span>
             <span className="brief-beat-text">{r.at}: {r.text}</span>
             <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
           </div>

@@ -54,7 +54,7 @@ const AgendaItem = ({
       </span>
       {glyph && (
         <span className="mark ag-item-glyph">
-          <Icon name={glyph} size={11} />
+          <Icon name={glyph} size={13} />
         </span>
       )}
     </button>

@@ -711,7 +711,7 @@ const BcRunCard = ({ row, canSend, onOpen, armed, onArm, stopping, approving = f
   const inner = (
     <>
       <div className="bc-run-line">
-        <span className="bc-run-mark" data-tone={waiting ? "warn" : sending || soon ? "accent" : "plain"} aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={16} /></span>
+        <span className="mark bc-run-mark" aria-hidden="true"><Icon name={byPb ? "repeat" : "send"} size={13} /></span>
         <div className="bc-run-what">
           <div className="bc-run-titles">
             <button type="button" className="bc-run-name" onClick={onOpen} data-testid="bc-open-who">{row.name}</button>

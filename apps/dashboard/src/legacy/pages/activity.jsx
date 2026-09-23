@@ -55,7 +55,7 @@ const ActivityRow = ({ r, actors }) => {
   return (
     <div className="act-row" data-testid="act-row" data-tone={tone}>
       <span className="mark act-glyph" aria-hidden="true">
-        <Icon name={ACT_GLYPH(r.kind)} size={11} />
+        <Icon name={ACT_GLYPH(r.kind)} size={13} />
       </span>
       <span className="act-when">{ACT_TIME(r.at)}</span>
       <span className="act-what">{who && <b>{who} · </b>}{r.text}</span>

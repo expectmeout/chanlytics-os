@@ -213,7 +213,7 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
           <div className="fl-head-name">
             {agent.name}
             <span className={`pill ${status === "active" ? "pill-accent" : isPaused ? "pill-warn" : ""}`}>
-              {status === "active" && <span className="dot" />}
+              {status === "active" && <span className="live-dot" style={{ width: 5, height: 5 }} />}
               {statusLabel}
             </span>
           </div>

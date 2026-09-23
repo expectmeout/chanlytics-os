@@ -953,7 +953,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   // The lists that keep themselves current and have them on today (contracts PersonVM.smartLists): each opens on People.
   // No cross: nobody is taken off a list that is a rule. A list is a name, not a state: the one chip, in no tone.
   const smartChips = smart.map((l) => (
-    <span key={l.id} className="chip" data-testid="person-smart-chip">
+    <span key={l.id} className="chip chip-wrap" data-testid="person-smart-chip">
       <button type="button" onClick={() => window.CHANLY.nav(window.CHANLY.R.clientSeg(l.id))} title={`${l.label} keeps itself current — open it on People`}>{l.label}</button>
     </span>
   ));
@@ -975,7 +975,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
       <div className="cl-tag-stack cl-prof-list-chips">
         {smartChips}
         {on.map((s) => (
-          <span key={s.id} className="chip" data-testid="person-list-chip">
+          <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
             <button type="button" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
             {canEdit && !s.rule && (
               <button

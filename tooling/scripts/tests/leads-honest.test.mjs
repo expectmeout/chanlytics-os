@@ -3250,6 +3250,25 @@ test("a lead's state and fit are the one StatePill, in the registry's tones -- a
     null,
     "with the column, only the column says it",
   );
+  // It gives way only where the column says the same thing. Needs review is not a stage, a left-out lead's Stage cell is
+  // empty, and Contacted says how long ago: those keep their tag with the column on.
+  for (const id of ["p2", "p4", "p6"]) {
+    const l = rows.find((r) => r.id === id);
+    assert.ok(
+      tagIn(business.cell(l, { ...rowNode.props.ctx, stageShown: true })),
+      `${id} keeps its tag: the column does not say it`,
+    );
+  }
+  assert.equal(
+    tagIn(
+      business.cell(
+        rows.find((r) => r.id === "p3"),
+        { ...rowNode.props.ctx, stageShown: true },
+      ),
+    ),
+    null,
+    "Talking is said by the column once",
+  );
 
   // On a phone the row is People's (the phone pass), and its pill is the row's state -- Ready too, as a person's row
   // always says theirs -- in the same registry tones.
