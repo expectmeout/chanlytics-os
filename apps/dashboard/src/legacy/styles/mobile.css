@@ -158,10 +158,7 @@
      edited beside two buttons made a 375px page 442px wide. The rail stops being a scroll box under the main column:
      as one, its track sized to the scroll box's min-content, which is nothing, and the rail was 1px tall with its
      seven sections clipped inside it. */
-  .cl-profile { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
-  .cl-prof-main { border-right: none; overflow: visible; }
-  .cl-prof-rail { border-top: 1px solid var(--line); overflow: visible; }
-  .cl-prof-hero, .cl-prof-section { padding-left: 16px; padding-right: 16px; }
+  .cl-prof-page { padding: 12px 16px 32px; gap: 20px; }
   .cl-prof-rail-section { padding: 16px; }
   .cl-prof-rail-note { padding: 10px 16px; }
   .cl-prof-money.stat-strip { grid-template-columns: 1fr 1fr; }
@@ -356,12 +353,20 @@
 
   /* A person's page shows the person first. The top bar says People, so the back is the arrow alone, a thumb
      wide, on the same line as the name, and the avatar shrinks to a mark: the hero was 152px of chrome above the work. */
-  .cl-prof-hero { display: flex; align-items: flex-start; gap: var(--space-2); padding: 12px 16px 12px 4px; }
-  .cl-prof-back { flex: none; width: 44px; min-width: 44px; margin: 0; justify-content: center; font-size: 16px; }
+  .cl-prof-hero { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: "back id" "acts acts" "danger danger"; gap: 12px 4px; margin-left: -12px; }
+  .cl-profile--solo .cl-prof-hero { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: none; }
+  .cl-prof-hero > .cl-prof-back { width: 44px; min-width: 44px; height: 44px; justify-content: center; font-size: 16px; }
   .cl-prof-back .cl-prof-back-word { display: none; }
-  .cl-prof-id { flex: 1; min-width: 0; margin: 0; flex-wrap: nowrap; align-items: flex-start; gap: 10px; }
+  .cl-prof-id { align-items: flex-start; gap: 10px; }
   .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
   .cl-prof-name { font-size: 18px; }
+  /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
+     share it, and the ⋯ keeps a thumb's width at its end. */
+  .cl-prof-hero > .cl-prof-queue-actions { margin-left: 12px; justify-content: stretch; }
+  .cl-prof-hero > .cl-prof-queue-actions > * { flex: 1 1 0; }
+  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap > .btn { width: 100%; }
+  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap:has(> [data-testid="person-more"]) { flex: 0 0 44px; }
+  .cl-prof-hero > .cl-prof-danger { margin-left: 12px; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once. */
   .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
   .main:has(.cl-profile) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
