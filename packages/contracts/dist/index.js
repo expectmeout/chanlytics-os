@@ -17157,6 +17157,7 @@ var SCHEMA_SETS = {
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
+  "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],
   "deals.per": ["once", "month", "year"],
   "deals.source": ["person", "payment"],
   "deals.stage": ["proposed", "won", "lost", "ended"],
@@ -17373,6 +17374,7 @@ var SCHEMA_SETS = {
   "templates.source": ["meta", "chanlytics"],
   "tenant_channels.kind": ["whatsapp", "voice", "sms", "email", "instagram"],
   "tenant_channels.status": ["active", "disabled"],
+  "tenants.sells_by": ["booking", "proposal"],
   "tenants.status": ["active", "paused", "test"]
 };
 

@@ -1516,6 +1516,7 @@ declare const SCHEMA_SETS: {
     readonly "contacts.consent": readonly ["unknown", "opted_in", "opted_out"];
     readonly "contacts.marketing_consent": readonly ["unknown", "opted_in", "opted_out"];
     readonly "conversations.state": readonly ["open", "needs_human", "snoozed", "archived"];
+    readonly "deals.lost_reason": readonly ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
     readonly "deals.per": readonly ["once", "month", "year"];
     readonly "deals.source": readonly ["person", "payment"];
     readonly "deals.stage": readonly ["proposed", "won", "lost", "ended"];
@@ -1579,6 +1580,7 @@ declare const SCHEMA_SETS: {
     readonly "templates.source": readonly ["meta", "chanlytics"];
     readonly "tenant_channels.kind": readonly ["whatsapp", "voice", "sms", "email", "instagram"];
     readonly "tenant_channels.status": readonly ["active", "disabled"];
+    readonly "tenants.sells_by": readonly ["booking", "proposal"];
     readonly "tenants.status": readonly ["active", "paused", "test"];
 };
 
@@ -13345,8 +13347,8 @@ declare function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): {
 };
 declare const LeadsQuerySchema: z.ZodObject<{
     list: z.ZodDefault<z.ZodEnum<{
-        said_no: "said_no";
         not_a_fit: "not_a_fit";
+        said_no: "said_no";
         ready: "ready";
         nurture: "nurture";
         converted: "converted";
@@ -13387,8 +13389,8 @@ declare const LeadsViewSchema: z.ZodObject<{
     }>>;
     search: z.ZodOptional<z.ZodString>;
     list: z.ZodDefault<z.ZodEnum<{
-        said_no: "said_no";
         not_a_fit: "not_a_fit";
+        said_no: "said_no";
         ready: "ready";
         nurture: "nurture";
         converted: "converted";
@@ -13449,9 +13451,9 @@ declare function stageArgs(i: LeadStageInput): {
 declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     by: z.ZodLiteral<"ids">;
     action: z.ZodEnum<{
+        not_a_fit: "not_a_fit";
         keep: "keep";
         exclude: "exclude";
-        not_a_fit: "not_a_fit";
         contacted: "contacted";
     }>;
     ids: z.ZodArray<z.ZodString>;
@@ -13473,8 +13475,8 @@ declare const LeadsBulkSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>>;
         search: z.ZodOptional<z.ZodString>;
         list: z.ZodDefault<z.ZodEnum<{
-            said_no: "said_no";
             not_a_fit: "not_a_fit";
+            said_no: "said_no";
             ready: "ready";
             nurture: "nurture";
             converted: "converted";
@@ -13519,8 +13521,8 @@ declare const LeadExportQuerySchema: z.ZodObject<{
     }>>;
     search: z.ZodOptional<z.ZodString>;
     list: z.ZodDefault<z.ZodEnum<{
-        said_no: "said_no";
         not_a_fit: "not_a_fit";
+        said_no: "said_no";
         ready: "ready";
         nurture: "nurture";
         converted: "converted";
