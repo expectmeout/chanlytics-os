@@ -322,9 +322,60 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
     __PEOPLE: { rows: [{ id: ID, name: "Rosa Pérez" }] },
     __SETTINGS: { config: { calendar: { ical_url: "https://x" } } },
-    __WORKSPACES: [{ id: "w1", slug: "m", name: "Melany's", status: "active", timezone: "America/New_York" }],
+    __WORKSPACES: [{ id: "w1", slug: "m", name: "Studio", status: "active", timezone: "America/New_York" }],
     __ACTIVE_WORKSPACE: "w1",
     __TEAM_INVITES: [],
+    // Who is waiting is Today's queue itself, and the runs waiting for a yes (the Line, D7), never the bell's rows.
+    TODAY_DATA: {
+      queue: {
+        rows: [
+          {
+            id: "q1",
+            kind: "handoff",
+            conversationId: "c1",
+            callId: null,
+            who: "Nora",
+            channel: "WhatsApp",
+            when: "waited 2h",
+            sentence: "Can I come at 3?",
+            quoted: true,
+            cta: { label: "Reply", to: "inbox/th-c1" },
+          },
+          {
+            id: "q2",
+            kind: "call",
+            conversationId: null,
+            callId: "k9",
+            who: "Lee",
+            channel: "Phone",
+            when: "2:14 PM · 1:35",
+            sentence: "Asked about a gift card.",
+            quoted: false,
+            cta: { label: "Listen", to: "conversations/cv-k9" },
+          },
+        ],
+      },
+    },
+    __BROADCASTS: {
+      rows: [
+        {
+          id: "r1",
+          state: "pending_approval",
+          recipient_count: 1,
+          when: "now",
+          counts: { sent: 0, replied: 0 },
+          audience: { label: "Win-back · quiet 30 days" },
+        },
+        {
+          id: "r2",
+          state: "sent",
+          recipient_count: 4,
+          when: "Sep 20",
+          counts: { sent: 4, replied: 1 },
+          audience: { label: "Welcome" },
+        },
+      ],
+    },
   };
   const api = mod.installAsk(win, storage);
   assert.equal(win.__ask, api, "published for the palette");
@@ -333,10 +384,41 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(!idx.some((j) => /Aisha/.test(j.label)), "a seeded thread never reaches the jump list");
   assert.ok(idx.some((j) => j.to === `clients/${ID}`));
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
-  assert.equal(api.rightNow().length, 2, "the thread that needs you and today's missed call; never the seeded thread");
-  assert.ok(api.rightNow().some((r) => r.title === "Dani needs you"));
-  assert.equal(api.fast("who needs me?").answer, "One person needs you: Dani.");
-  assert.equal(api.fast("did anyone call?").kind, "calls");
+  assert.equal(
+    api.rightNow("en"),
+    "Nora is waiting on you; one playbook run is waiting for your approval.",
+    "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
+  );
+  assert.deepEqual(api.waiting().people, [
+    {
+      id: "c1",
+      kind: "thread",
+      who: "Nora",
+      channel: "WhatsApp",
+      when: "waited 2h",
+      line: "“Can I come at 3?”",
+      to: "inbox/th-c1",
+    },
+  ]);
+  assert.deepEqual(
+    api.waiting().runs.map((r) => [r.id, r.label, r.line, r.to]),
+    [["r1", "Win-back · quiet 30 days", "1 person. Nothing sends until you say so.", "broadcasts/run:r1"]],
+  );
+  assert.deepEqual(api.intent("who needs me?"), { kind: "needs" });
+  const needs = await api.quick("who needs me?");
+  assert.deepEqual(
+    needs.show.items.map((i) => i.source.to),
+    ["inbox/th-c1", "broadcasts/run:r1"],
+  );
+  const called = await api.quick("did anyone call?");
+  assert.deepEqual(
+    [called.say.headline, called.show.items.map((i) => i.source.to)],
+    ["One missed call today.", ["conversations/cv-k1"]],
+  );
+  assert.equal(api.quick("what did the receptionist tell Dani?"), null, "the long tail is the model's");
+  const drawn = api.answer({ text: "Hi", citations: [], navigate: null, followups: [], proposals: [], language: "en" });
+  assert.equal(drawn.answer.form, "prose", "an answer made before the Line reads back as prose");
+  assert.equal(api.answerText(drawn.answer), "Hi");
   assert.equal(
     api.suggestions("today", null, "en").some((s) => /open tomorrow/i.test(s.q)),
     true,
