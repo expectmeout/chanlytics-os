@@ -107,7 +107,7 @@ export const SCHEMA_SETS = {
   "notifications.kind": [
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
-    "broadcast_stopped", "leads_ready", "leads_question",
+    "broadcast_stopped", "leads_ready", "leads_question", "note_for_you",
   ],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
