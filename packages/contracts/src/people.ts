@@ -36,7 +36,7 @@ import {
 } from "./viewmodels";
 import { HELD_REASONS, isReplyTo } from "./run-words";
 import { leadsRoute } from "./leads";
-import { dealOf, type DealVM } from "./deals";
+import { amountWords, dealOf, toDealVM, type DealDto, type DealVM } from "./deals";
 import type { RecipientState } from "./broadcasts";
 
 /* --------------------------------- DTOs ---------------------------------- */
@@ -161,6 +161,12 @@ export interface PersonDetailDto {
   notes?: string | null;
   /** The owner's proposal link for this person (00154): the About row and the one-step send. */
   proposal_url?: string | null;
+  /** Every deal recorded on them, newest first (0004); absent on a read before the table existed. */
+  deals?: DealDto[];
+  /** Whether deals are a thing in this workspace: the profile lists a consult-first service, or a deal was ever recorded. */
+  deals_on?: boolean;
+  /** The profile's service names, for the page's picker when it lists more than one. */
+  services?: string[];
   /** The workspace's booking link, for the profile's one-step send. */
   booking_link?: string | null;
   /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
@@ -1488,13 +1494,13 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
 /* -------------------------------- profile -------------------------------- */
 
 export type TimelineKind =
-  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
 
 /**
  * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
  * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
  */
-export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
+export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent" | "deals";
 export const TIMELINE_FILTERS: readonly {
   id: TimelineFilterId;
   label: string;
@@ -1505,6 +1511,7 @@ export const TIMELINE_FILTERS: readonly {
   { id: "calls", label: "Calls", kinds: ["call"] },
   { id: "visits", label: "Visits", kinds: ["visit"] },
   { id: "consent", label: "Consent", kinds: ["consent"] },
+  { id: "deals", label: "Deals", kinds: ["deal"] },
 ];
 
 /** The items a filter shows, in the order they came; an unknown filter shows everything. */
@@ -1599,6 +1606,12 @@ export interface PersonVM extends PersonRowVM {
   proposal: PersonProposalVM | null;
   /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
   proposalAction: { label: string; title: string; ready: boolean };
+  /** Their deals, newest first, as the page says them (0004). */
+  deals: DealVM[];
+  /** Whether the page draws its Deal section at all. */
+  dealsOn: boolean;
+  /** The profile's service names; the picker appears only past one. */
+  services: string[];
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -1712,6 +1725,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, tz, now);
+  // Their deals as the page lists them (0004): each row through the one view model the People row uses.
+  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x);
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
@@ -1875,6 +1890,21 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
       });
     }
+  }
+  // Each move of a deal, on the same line as what was said: what a person recorded, when (0004).
+  for (const x of d.deals ?? []) {
+    const svc = x.service ? ` · ${x.service}` : "";
+    const put = (id: string, at: string | null, text: string) => {
+      const t = ts(at);
+      if (t === null) return;
+      items.push({ id, ts: t, ...stamp(t), kind: "deal", who: "You", text });
+    };
+    put(`dl-${x.id}-p`, x.proposed_at, `Proposal sent${svc}`);
+    const won = amountWords(x.amount_cents, x.per, x.currency);
+    if (x.stage === "won" || x.stage === "ended")
+      put(`dl-${x.id}-w`, x.decided_at, `Became a client${svc}${won ? ` · ${won}` : ""}`);
+    if (x.stage === "lost") put(`dl-${x.id}-l`, x.decided_at, `Passed${svc}`);
+    if (x.stage === "ended") put(`dl-${x.id}-e`, x.ended_at, `Ended${svc}`);
   }
   if (d.added) {
     const t = ts(d.added.at);
@@ -2077,6 +2107,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       value: toneWord[base.receptionist.tone],
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label),
     },
+    // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
+    ...(base.deal ? [{ label: "Deal", value: base.deal.word, meta: base.deal.line, tone: "" as const }] : []),
   ];
 
   // The owner's proposal for them (00154): the address, its host for the row, and whether it went out.
@@ -2207,6 +2239,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
           to: leadsRoute({ peek: d.lead.id }),
         }
       : null,
+    // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy
+    // of it carries the version a move is checked against, which the columns do not.
+    deal: deals.find((x) => x.id === base.deal?.id) ?? base.deal,
+    deals,
+    dealsOn: !!d.deals_on,
+    services: d.services ?? [],
   };
   // The send's words follow the wire the page has settled on, exact window included.
   return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };

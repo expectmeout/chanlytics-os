@@ -122,7 +122,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   );
 });
 
-const TONED_KINDS = 42;
+const TONED_KINDS = 43;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.
@@ -430,4 +430,13 @@ test("a cursor that is not one is refused, like every other filter -- but every 
     const r = await route.GET.run(get(`&cursor=${encodeURIComponent(`${at}|d-d1`)}`), ctxFor(tables(), rpcs));
     assert.ok(Array.isArray(r.rows), `${at} is a cursor`);
   }
+});
+
+test("a deal's verb and kinds have the owner's words", () => {
+  assert.equal(activityWords("record_deal", {}), "Recorded a deal");
+  assert.equal(activityWords("deal.proposed", {}), "A proposal went out");
+  assert.equal(activityWords("deal.won", {}), "A person became a client");
+  assert.equal(activityWords("deal.lost", {}), "A person passed on a proposal");
+  assert.equal(activityWords("deal.ended", {}), "An engagement ended");
+  assert.equal(activityTone("deal.won"), "ok");
 });

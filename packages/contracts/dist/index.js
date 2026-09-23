@@ -6954,7 +6954,8 @@ var TIMELINE_FILTERS = [
   { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
   { id: "calls", label: "Calls", kinds: ["call"] },
   { id: "visits", label: "Visits", kinds: ["visit"] },
-  { id: "consent", label: "Consent", kinds: ["consent"] }
+  { id: "consent", label: "Consent", kinds: ["consent"] },
+  { id: "deals", label: "Deals", kinds: ["deal"] }
 ];
 function filterTimeline(items, id) {
   const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
@@ -7032,6 +7033,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     visits: d.visits ?? d.row.visits ?? null
   };
   const base = toPersonRowVM(row2, tz, now);
+  const deals = (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x);
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items = [];
@@ -7144,6 +7146,20 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz2)}` }
       });
     }
+  }
+  for (const x of d.deals ?? []) {
+    const svc = x.service ? ` \xB7 ${x.service}` : "";
+    const put = (id, at2, text) => {
+      const t = ts(at2);
+      if (t === null) return;
+      items.push({ id, ts: t, ...stamp(t), kind: "deal", who: "You", text });
+    };
+    put(`dl-${x.id}-p`, x.proposed_at, `Proposal sent${svc}`);
+    const won = amountWords(x.amount_cents, x.per, x.currency);
+    if (x.stage === "won" || x.stage === "ended")
+      put(`dl-${x.id}-w`, x.decided_at, `Became a client${svc}${won ? ` \xB7 ${won}` : ""}`);
+    if (x.stage === "lost") put(`dl-${x.id}-l`, x.decided_at, `Passed${svc}`);
+    if (x.stage === "ended") put(`dl-${x.id}-e`, x.ended_at, `Ended${svc}`);
   }
   if (d.added) {
     const t = ts(d.added.at);
@@ -7282,7 +7298,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       label: "Receptionist",
       value: toneWord[base.receptionist.tone],
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label)
-    }
+    },
+    // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
+    ...base.deal ? [{ label: "Deal", value: base.deal.word, meta: base.deal.line, tone: "" }] : []
   ];
   const proposalUrl = d.proposal_url?.trim() || null;
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
@@ -7364,7 +7382,13 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       name: d.lead.business_name || base.name,
       found: ts(d.lead.found_at) !== null ? clockDate(ts(d.lead.found_at), tz, nowMs) : "\u2014",
       to: leadsRoute({ peek: d.lead.id })
-    } : null
+    } : null,
+    // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy
+    // of it carries the version a move is checked against, which the columns do not.
+    deal: deals.find((x) => x.id === base.deal?.id) ?? base.deal,
+    deals,
+    dealsOn: !!d.deals_on,
+    services: d.services ?? []
   };
   return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
 }
@@ -15032,6 +15056,11 @@ var WORDS = {
   "contact.noted": "A note was written",
   "contact.email_set": "A person's email address changed",
   "contact.proposal_set": "A person's proposal link changed",
+  // A deal is a record (0004): each move of one, in the owner's words.
+  "deal.proposed": "A proposal went out",
+  "deal.won": "A person became a client",
+  "deal.lost": "A person passed on a proposal",
+  "deal.ended": "An engagement ended",
   "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
@@ -15226,6 +15255,7 @@ var TONES = {
   approve: "ok",
   resolve: "ok",
   connect_channel: "ok",
+  "deal.won": "ok",
   // warn -- somebody stopped something, or a rule was stepped around
   "billing.paused": "warn",
   "policy.veto_window_skipped": "warn",
