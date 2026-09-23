@@ -46,13 +46,26 @@ test("a question, end to end", () => {
   assert.equal(s.text, "Nora has waited longest.");
 });
 
-test("a quick answer settles at once, with no thread", () => {
+// A quick answer as the Line draws it (contracts ask-answer.ts): the band draws the same parts.
+const quick = (headline) => ({
+  v: 2,
+  form: "structured",
+  say: { headline, detail: "" },
+  show: { figures: [], items: [], breakdown: null },
+  do: { open: null, next: [] },
+  language: "en",
+});
+
+test("a quick answer settles at once, with no thread, carrying the answer the Line draws; the next question forgets it", () => {
   let s = asked(initialTurn(), "who needs me?");
-  s = R(s, { t: "fast", text: "Two people need you.", links: [{ label: "Open Inbox", to: "inbox" }], seq: s.seq });
+  const answer = quick("Two people are waiting on you.");
+  s = R(s, { t: "fast", text: "Two people are waiting on you.", answer, seq: s.seq });
   assert.equal(s.phase, "settled");
-  assert.equal(s.text, "Two people need you.");
+  assert.equal(s.text, "Two people are waiting on you.");
   assert.equal(s.threadId, null);
-  assert.deepEqual(s.links, [{ label: "Open Inbox", to: "inbox" }]);
+  assert.equal(s.answer, answer);
+  s = asked(s, "and yesterday?");
+  assert.equal(s.answer, null, "a new question starts without the last one's answer");
 });
 
 test("a failed final, a transport error and a cut-off all fail with their sentence", () => {
@@ -115,7 +128,7 @@ test("a press that ends with no words goes back to where it was: rest, or the an
   s = R(s, { t: "released" });
   assert.equal(s.phase, "rest");
   s = asked(s, "a");
-  s = R(s, { t: "fast", text: "Nobody is waiting.", seq: s.seq });
+  s = R(s, { t: "fast", text: "Nobody is waiting.", answer: quick("Nobody is waiting."), seq: s.seq });
   s = R(s, { t: "pressed" });
   assert.equal(s.phase, "listening");
   s = R(s, { t: "released" });
