@@ -12,26 +12,15 @@
   position: relative;
 }
 
-/* Today's standing line: the date, the time and whether the lines are up, one line above the work, where a hero
-   with a greeting, a headline, four sentences, a chip, an arc and six stat cards used to stand. */
-.today-standing {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  padding: 2px 0 6px;
-  font-size: 11.5px;
-  color: var(--ink-dim);
-}
-.today-standing-lines { display: inline-flex; align-items: center; gap: 6px; }
-.today-standing-alert { color: var(--danger); font-weight: 500; }
-/* Its own dot: quiet green when every line is up; red with a ring when one is down. Never the coral live-dot, which
-   is the agent's live state (components.css). The ring pulses only where motion is welcome. */
-.today-standing-dot { position: relative; width: 7px; height: 7px; border-radius: 999px; background: var(--ok); flex: none; }
-.today-standing-dot.down { background: var(--danger); }
-.today-standing-dot.down::before { content: ""; position: absolute; inset: -3px; border-radius: 999px; border: 1.5px solid var(--danger); opacity: 0.45; }
+/* Above the work, only while a line is down or the workspace is paused (dashboard-a-brief.jsx TodayAlert): the one
+   thing on Today that cannot wait. Nothing stands here while every line is up; the standing line and its hairline
+   went (23 Sep). Its dot is red with a ring, never the coral live-dot, which is the agent's live state
+   (components.css); the ring pulses only where motion is welcome. */
+.today-alert { display: flex; align-items: center; gap: 10px; padding: 2px 0 4px; font-size: 12.5px; font-weight: 500; color: var(--danger); }
+.today-alert-dot { position: relative; width: 7px; height: 7px; border-radius: 999px; background: var(--danger); flex: none; }
+.today-alert-dot::before { content: ""; position: absolute; inset: -3px; border-radius: 999px; border: 1.5px solid var(--danger); opacity: 0.45; }
 @media (prefers-reduced-motion: no-preference) {
-  .today-standing-dot.down::before { animation: today-ring 1.6s var(--ease-out) infinite; }
+  .today-alert-dot::before { animation: today-ring 1.6s var(--ease-out) infinite; }
 }
 @keyframes today-ring { from { transform: scale(0.7); opacity: 0.6; } to { transform: scale(1.6); opacity: 0; } }
 
@@ -1331,9 +1320,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .td-item { grid-template-columns: 52px 12px minmax(0, 1fr) auto; padding: 7px 0; }
 .td-item-start { font-size: 13px; }
 
-/* The standing line sits on a hairline, as the canvas draws it. */
-.today-standing { padding: 12px 0 10px; box-shadow: 0 1px 0 var(--line); }
-
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
 
@@ -1401,12 +1387,14 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .td-item-flag::before { display: none; }
 .td-item.now .td-item-time { font-weight: 500; }
 
-/* The page owns no top gutter; the first thing on it owns its own breathing room.
-   That is the Inbox's rule: .stabs sits flush under the bar with 6px of its own and
-   the tab's 7px, so its first words land 13px down. The standing line's own 12px
-   lands ours in the same place. 28px of page gutter put them at 44px, and 10px at
-   22px -- both of them lower than every other page. The sides keep the gutter. */
-.dash-a-v2 { padding-top: 0; }
+/* The page's top gutter is the gap between its bands, 12px: the queue's card sits
+   under the bar as it sits under any card above it, and a line that is down
+   (TodayAlert, 2px of its own) lands its words 14px down, where the Inbox's first
+   words land (13px: .stabs sits flush under the bar with 6px of its own and the
+   tab's 7px). The standing line used to own this room; at 0 without it, the card's
+   edge sat on the bar's rule (23 Sep). 28px would land them lower than every other
+   page. The sides keep the gutter; a phone keeps its own 16px (mobile.css). */
+.dash-a-v2 { padding-top: 12px; }
 
 /* A run is not a customer's words: it reads in one glance, verbs on the right,
    and that shape is what tells a run from a person in the same list. On a phone

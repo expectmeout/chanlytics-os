@@ -60,7 +60,7 @@
     "may-spend.test.mjs": 3,
     "media.test.mjs": 11,
     "message-delivery-honesty.test.mjs": 2,
-    "metrics-truth.test.mjs": 4,
+    "metrics-truth.test.mjs": 3,
     "notifications-durable.test.mjs": 11,
     "notifications.test.mjs": 3,
     "numbers-two-tables.test.mjs": 1,

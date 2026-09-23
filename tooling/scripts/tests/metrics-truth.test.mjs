@@ -172,11 +172,9 @@ test("Today: a workspace with no channel says so, and statuses are words", () =>
     on.quiet.proof.some((p) => /· on$/.test(p.value)),
     "never the raw column value 'active'",
   );
-  const brief = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(
-    brief.includes("standing.lines.text"),
-    "the page draws the counted sentence; contracts counts the wires, so never '0 of 0 agents live'",
-  );
+  // The count is contracts' alone (standing.lines.text, for Ask): the page stopped drawing it on 23 Sep, so it can
+  // never count its own chips again ("0 of 0 agents live").
+  assert.equal(on.standing.lines.text, "1 of 1 line connected");
 });
 
 test("Today claims 'handled everything' only when the receptionist did", () => {

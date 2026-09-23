@@ -76,6 +76,14 @@ export const STATES: readonly CharacterState[] = ["idle", "listening", "thinking
  * size (232px for squares sized to 200).
  */
 export const UNITS = 3.8;
+/**
+ * The box the three need so that nothing they do is ever clipped, in squares about the centre: every state, move and
+ * fidget, measured on 23 Sep at 4.05 high and 4.93 wide (the leap's apex is the top, the row's ends the sides). A
+ * canvas that sizes its squares from its own box (a button's icon, the palette's stage) uses fitSide; UNITS alone
+ * clipped the leap's apex there.
+ */
+export const FIT = { w: 5, h: 4.1 } as const;
+export const fitSide = (w: number, h: number): number => Math.min(w / FIT.w, h / FIT.h);
 
 const TAU = Math.PI * 2;
 const STEP: readonly [number, number] = [1.08, 0.64];
