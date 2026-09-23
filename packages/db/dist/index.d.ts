@@ -5705,7 +5705,10 @@ interface LeadContext {
         body: string;
         at: string;
     }[] | null;
-    /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+    /**
+     * Their proposal, as a web address: the current deal's while it is a proposal out, else the person's own with no open
+     * deal (proposalLinkOf, 0007). Sent when they ask about price, its figures never stated.
+     */
     proposalUrl?: string | null;
     /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
     deal?: DealFacts | null;

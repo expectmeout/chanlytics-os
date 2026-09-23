@@ -421,3 +421,54 @@ test("the notes are said within a budget: the newest always, older ones while th
   const unread = describeLead({ ...base, noteList: null, notes: "Old field" }, NOW);
   assert.ok(unread.includes("Notes from the owner about them (use as facts, never read aloud or quoted): Old field"));
 });
+
+test("the link the receptionist sends is the deal's while it is a proposal out, the person's own with no open deal, and none for a client (0007)", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const PHONE = "+13055550124";
+  const own = "https://docs.example.com/p/own";
+  const onDeal = "https://docs.example.com/p/deal";
+  const lead = async (deals, personLink = own) => {
+    const c = { id: "contact-2", tenant_id: T, phone_e164: PHONE, display_name: "Ana", proposal_url: personLink };
+    const rows = deals.map((d, i) => ({
+      id: `deal-${i}`,
+      tenant_id: T,
+      contact_id: c.id,
+      service: null,
+      proposed_at: "2026-09-10T12:00:00Z",
+      decided_at: d.stage === "proposed" ? null : "2026-09-12T12:00:00Z",
+      ended_at: null,
+      created_at: `2026-09-1${i}T12:00:00Z`,
+      proposal_url: null,
+      ...d,
+    }));
+    const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: rows });
+    return readLeadContext(db, T, PHONE);
+  };
+  assert.equal(
+    (await lead([{ stage: "proposed", proposal_url: onDeal }])).proposalUrl,
+    onDeal,
+    "the deal's, over the person's",
+  );
+  assert.equal((await lead([{ stage: "proposed" }])).proposalUrl, null, "a proposal recorded without a link has none");
+  assert.equal(
+    (await lead([{ stage: "won", proposal_url: onDeal }])).proposalUrl,
+    null,
+    "a client is sent no proposal",
+  );
+  assert.equal(
+    (await lead([{ stage: "lost", proposal_url: onDeal }])).proposalUrl,
+    own,
+    "no open deal: the person's own",
+  );
+  assert.equal((await lead([])).proposalUrl, own, "no deal at all: the person's own, read until it retires");
+  assert.equal((await lead([], null)).proposalUrl, null);
+  // And the sentences follow the link that counts: a client hears no proposal link.
+  const client = await lead([{ stage: "won", service: "Ad management", proposal_url: onDeal }]);
+  assert.doesNotMatch(describeLead(client, new Date("2026-09-23T16:00:00Z")), /docs\.example\.com/);
+  const waiting = await lead([{ stage: "proposed", proposal_url: onDeal }]);
+  assert.match(describeLead(waiting, new Date("2026-09-23T16:00:00Z")), /send them the proposal link/);
+  assert.match(
+    describeLead(waiting, new Date("2026-09-23T16:00:00Z")),
+    /proposal ready for them at https:\/\/docs\.example\.com\/p\/deal\./,
+  );
+});

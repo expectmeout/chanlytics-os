@@ -1,14 +1,19 @@
 /**
- * A deal is a record (docs/decisions/0004-deals-record.md).
+ * A deal is a record (docs/decisions/0004-deals-record.md), and a proposal is
+ * part of it (0007).
  *
  * One engagement a person is deciding on or has taken: a proposal out, a
- * client, passed, ended. Everything a page or a receptionist says about one
- * is derived here, once: the words, the line, the chip, the moves the
- * person's page offers, the sentence the receptionist hears, Today's leak,
- * Reports' cohort. Pure.
+ * client, passed, ended. The proposal's link, its value, the day it stands
+ * until and the reason someone passed live on the deal. Everything a page or
+ * a receptionist says about one is derived here, once: the words, the line,
+ * the chip, the moves the person's page offers, the sentence the receptionist
+ * hears, Today's leak, Reports' cohort, and the one switch the whole layer
+ * hangs on (dealsAreOn). Pure.
  */
 import { foldName, needsConsultation, type ConsultRules } from "./availability";
-import { clockDate } from "./clock";
+import { clockDate, wallClockAt, zoneDayKey } from "./clock";
+import { isRealDate } from "./config";
+import { linkHost } from "./link";
 import type { SchemaSet } from "./schema-sets";
 
 export const DEAL_STAGES = ["proposed", "won", "lost", "ended"] as const;
@@ -17,6 +22,51 @@ export const DEAL_PERS = ["once", "month", "year"] as const;
 export type DealPer = SchemaSet<"deals.per">;
 export const DEAL_SOURCES = ["person", "payment"] as const;
 export type DealSource = SchemaSet<"deals.source">;
+/** Why someone passed (00157). The deal's note says the rest in the owner's words. */
+export const DEAL_LOST_REASONS = ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"] as const;
+export type DealLostReason = SchemaSet<"deals.lost_reason">;
+export const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string> = {
+  price: "Price",
+  timing: "Timing",
+  elsewhere: "Went elsewhere",
+  no_reply: "No reply",
+  not_a_fit: "Not a fit",
+  other: "Other",
+};
+
+/**
+ * How a workspace's customers buy (tenants.sells_by, 00157): they book an
+ * appointment, or some get a proposal first. Null is not asked yet. The deal
+ * layer is there or absent by this answer and nothing else (dealsAreOn).
+ */
+export const SELLS_BY = ["booking", "proposal"] as const;
+export type SellsBy = SchemaSet<"tenants.sells_by">;
+export const SELLS_BY_QUESTION = "How customers buy";
+export const SELLS_BY_WORDS: Record<SellsBy, { label: string; sentence: string }> = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports.",
+  },
+};
+
+export function isSellsBy(s: unknown): s is SellsBy {
+  return typeof s === "string" && (SELLS_BY as readonly string[]).includes(s);
+}
+
+/** What the workspace route answers for anything but the two answers: the question and both labels (deals.test holds them). */
+export const SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+
+/**
+ * Whether deals are on in this workspace (0007): exactly when it says some of
+ * its customers get a proposal first. The one predicate every gate reads --
+ * the person's page, People's lists and column, the thread, Today, Reports,
+ * Ask. A consult-first service is a booking rule, and a deal on file switches
+ * nothing.
+ */
+export function dealsAreOn(sellsBy: string | null | undefined): boolean {
+  return sellsBy === "proposal";
+}
 
 /** The word a stage wears; "Client" is a stage word, never a word for a person (docs/glossary.md). */
 export const DEAL_STAGE_WORDS: Record<DealStage, string> = {
@@ -30,12 +80,22 @@ export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a
 export const DEAL_LINE_NONE = "No proposal yet";
 /** A proposal out this long with nothing back is Today's leak. */
 export const WAITING_AFTER_DAYS = 7;
+/** A consultation this recent with no proposal after it is the next step to take. */
+export const CONSULT_FOLLOW_DAYS = 7;
 
 const DAY_MS = 86_400_000;
 
 export function isDealStage(s: unknown): s is DealStage {
   return typeof s === "string" && (DEAL_STAGES as readonly string[]).includes(s);
 }
+
+export function isDealLostReason(s: unknown): s is DealLostReason {
+  return typeof s === "string" && (DEAL_LOST_REASONS as readonly string[]).includes(s);
+}
+
+/** What a move may empty (deal_record's p_clear, 00157): the link, the valid-until day, the amount with its per, the note. */
+export const DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"] as const;
+export type DealClearable = (typeof DEAL_CLEARABLE)[number];
 
 /** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
 export interface DealColumns {
@@ -47,6 +107,10 @@ export interface DealColumns {
   deal_ended_at: string | null;
   deal_amount_cents: number | null;
   deal_per: string | null;
+  /** Its link, the day it stands until and why they passed (00157); absent on a row read before them. */
+  deal_proposal_url?: string | null;
+  deal_valid_until?: string | null;
+  deal_lost_reason?: string | null;
 }
 
 /** A deal as the door returns it and the person's page lists them. */
@@ -64,6 +128,12 @@ export interface DealDto {
   note: string | null;
   version: number;
   created_at: string;
+  /** The proposal's web address (00157); absent on a read before the column existed. */
+  proposal_url?: string | null;
+  /** The last day the proposal stands, `YYYY-MM-DD` by the business's calendar. */
+  valid_until?: string | null;
+  /** Why they passed, on a passed deal. */
+  lost_reason?: string | null;
 }
 
 /** What every reader needs of a deal, from either shape. */
@@ -76,6 +146,9 @@ export interface DealFacts {
   amount_cents?: number | null;
   per?: string | null;
   currency?: string | null;
+  proposal_url?: string | null;
+  valid_until?: string | null;
+  lost_reason?: string | null;
 }
 
 export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFacts | null {
@@ -88,6 +161,9 @@ export function dealFactsOf(r: Partial<DealColumns> | null | undefined): DealFac
     ended_at: r.deal_ended_at ?? null,
     amount_cents: r.deal_amount_cents ?? null,
     per: r.deal_per ?? null,
+    proposal_url: r.deal_proposal_url ?? null,
+    valid_until: r.deal_valid_until ?? null,
+    lost_reason: r.deal_lost_reason ?? null,
   };
 }
 
@@ -102,6 +178,20 @@ export function pickCurrentDeal<T extends { stage: string; created_at: string }>
     (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at),
   );
   return sorted[0] ?? null;
+}
+
+/**
+ * The proposal link a person has now (0007), one rule for their page and the receptionist: their current deal's while
+ * it is a proposal out; with no open deal, the one on the person (00154), read until that column retires; for a client,
+ * none. `current` is the deal the page shows: pickCurrentDeal's, or people_list's row.
+ */
+export function proposalLinkOf(
+  current: { stage: string; proposal_url?: string | null } | null | undefined,
+  personLink: string | null | undefined,
+): string | null {
+  if (current?.stage === "proposed") return current.proposal_url?.trim() || null;
+  if (!current || current.stage === "lost" || current.stage === "ended") return personLink?.trim() || null;
+  return null;
 }
 
 /** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
@@ -122,6 +212,50 @@ export function amountWords(
   return p && per !== "once" ? `${money} ${p}` : money;
 }
 
+/**
+ * Cents from what a person typed ("2,500", "$999.50"), or null for anything
+ * that is not an amount. Everything but digits, a point and a minus goes
+ * first; letters alone strip to "", and Number("") is 0, which once made
+ * "abc" a $0 client; the minus survives the strip, so "-5" is refused rather
+ * than read as five dollars.
+ */
+export function parseAmount(words: string | null | undefined): number | null {
+  const digits = String(words || "").replace(/[^0-9.-]/g, "");
+  const n = digits ? Number(digits) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+
+/** An amount as a deal carries one: its cents, how it recurs and its currency. */
+export interface AmountFact {
+  amount_cents?: number | null;
+  per?: string | null;
+  currency?: string | null;
+}
+
+/**
+ * What a set of deals is worth, summed by how each recurs and joined: "$4,250
+ * + $600 a month". Once and no per are one sum; a currency is never added to
+ * another. Null when nothing has an amount.
+ */
+export function amountTotalsWords(items: readonly AmountFact[]): string | null {
+  const order = ["once", "month", "year"];
+  const sums = new Map<string, { cents: number; per: string; currency: string }>();
+  for (const i of items) {
+    if (i.amount_cents === null || i.amount_cents === undefined || !Number.isFinite(i.amount_cents)) continue;
+    const per = i.per === "month" || i.per === "year" ? i.per : "once";
+    const currency = (i.currency || "USD").toUpperCase();
+    const key = `${per}|${currency}`;
+    const s = sums.get(key) ?? { cents: 0, per, currency };
+    s.cents += i.amount_cents;
+    sums.set(key, s);
+  }
+  if (!sums.size) return null;
+  return [...sums.values()]
+    .sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency))
+    .map((s) => amountWords(s.cents, s.per, s.currency))
+    .join(" + ");
+}
+
 /** When the stage began: the proposal's send, the answer, or the end. */
 export function dealSinceMs(d: DealFacts): number | null {
   const at =
@@ -140,7 +274,10 @@ export interface DealVM {
   sinceMs: number | null;
   /** "since Sep 12"; "" when the date is unknown. */
   since: string;
-  /** "Proposal out · since Sep 12", "Client · since Oct 1 · $2,500 a month": the stage and its facts, without the service. */
+  /**
+   * "Proposal out · since Sep 12 · $1,200", "Client · since Oct 1 · $2,500 a month": the stage and its facts, without
+   * the service.
+   */
   said: string;
   /** The service in front of `said`, for a line that stands alone. */
   line: string;
@@ -150,8 +287,23 @@ export interface DealVM {
   brief: string | null;
   /** Days since the proposal went, for a proposal out; null otherwise. */
   waitingDays: number | null;
-  /** The client's amount in words; null for every other stage and without one. */
+  /** The deal's amount in words at every stage: a proposal's value, a client's agreed amount (0007). Null without one. */
   amount: string | null;
+  /** The proposal's link and the host it lives at; null where the deal carries none. */
+  proposal: { url: string; host: string } | null;
+  /** "Valid until Sep 30", or "Lapsed Sep 30" once that day has passed by the business's calendar: a proposal's only. */
+  validUntil: { day: string; words: string; lapsed: boolean } | null;
+  /** Why they passed, and its word: a passed deal's only. */
+  reason: { code: DealLostReason; words: string } | null;
+}
+
+/** The day a proposal stands until, said by the business's calendar; null for a day that is not one. */
+function validUntilOf(day: string | null | undefined, tz: string, nowMs: number): DealVM["validUntil"] {
+  if (!day || !isRealDate(day)) return null;
+  const at = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at)) return null;
+  const lapsed = zoneDayKey(nowMs, tz) > day;
+  return { day, words: `${lapsed ? "Lapsed" : "Valid until"} ${clockDate(at, tz, nowMs)}`, lapsed };
 }
 
 export function toDealVM(
@@ -164,7 +316,9 @@ export function toDealVM(
   const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
   const waitingDays =
     d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS)) : null;
-  const amount = d.stage === "won" ? amountWords(d.amount_cents, d.per, d.currency ?? "USD") : null;
+  // A proposal carries a value as a client does (0007): the page says it at every stage.
+  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
+  const url = d.proposal_url?.trim() || null;
   const word = DEAL_STAGE_WORDS[d.stage];
   const said = [word, since, amount].filter((x): x is string => !!x).join(" · ");
   const line = [d.service, said].filter((x): x is string => !!x).join(" · ");
@@ -189,6 +343,12 @@ export function toDealVM(
     brief,
     waitingDays,
     amount,
+    proposal: url ? { url, host: linkHost(url) } : null,
+    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
+    reason:
+      d.stage === "lost" && isDealLostReason(d.lost_reason)
+        ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] }
+        : null,
   };
 }
 
@@ -198,23 +358,27 @@ export function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, n
   return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
 }
 
+/** Which of the deal sheet's modes a move opens (0007): a new proposal, one proposed again, a yes, a pass, an end. */
+export type DealMoveMode = "propose" | "again" | "won" | "lost" | "ended";
+
 /** A move the person's page offers: where it goes, its words, and whether it moves the row it was pressed on or starts a new one. */
 export interface DealMove {
   to: DealStage;
   label: string;
   sameRow: boolean;
+  mode: DealMoveMode;
 }
 
 /** From each stage, the moves in the order the page draws them. An ended engagement is re-signed as a new row. */
 export const DEAL_MOVES: Record<DealStage | "none", readonly DealMove[]> = {
-  none: [{ to: "proposed", label: "Proposal sent", sameRow: false }],
+  none: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
   proposed: [
-    { to: "won", label: "Became a client", sameRow: true },
-    { to: "lost", label: "Passed", sameRow: true },
+    { to: "won", label: "Became a client", sameRow: true, mode: "won" },
+    { to: "lost", label: "Passed", sameRow: true, mode: "lost" },
   ],
-  won: [{ to: "ended", label: "Ended", sameRow: true }],
-  lost: [{ to: "proposed", label: "Proposal sent again", sameRow: true }],
-  ended: [{ to: "proposed", label: "Proposal sent", sameRow: false }],
+  won: [{ to: "ended", label: "Ended", sameRow: true, mode: "ended" }],
+  lost: [{ to: "proposed", label: "Proposal sent again", sameRow: true, mode: "again" }],
+  ended: [{ to: "proposed", label: "Proposal sent", sameRow: false, mode: "propose" }],
 };
 
 export function dealMoves(d: DealVM | null): readonly DealMove[] {
@@ -224,10 +388,10 @@ export function dealMoves(d: DealVM | null): readonly DealMove[] {
 /**
  * The sentence the receptionist hears about this person's deal, beside the
  * owner's note (describeLead). One per stage; never an amount; nothing
- * without a deal. Channel-neutral: "hand over" is what both do. Where the
- * person has a proposal link on file (contacts.proposal_url, 00154), that
- * link's own rule stands for a price question, so the proposal's sentence
- * points at it instead of promising a follow-up.
+ * without a deal. Channel-neutral: "hand over" is what both do. Where a
+ * proposal link is on file -- the deal's (00157), else the person's while it
+ * is still read (00154) -- that link's own rule stands for a price question,
+ * so the proposal's sentence points at it instead of promising a follow-up.
  */
 export function dealSentence(
   d: DealFacts | null | undefined,
@@ -269,21 +433,43 @@ export function isConsultationTitle(
   });
 }
 
-/** Whether the workspace's profile or its records make deals a thing here: the person's page draws its section, People its lists. */
-export function dealsAreAThing(consultFirst: readonly string[] | undefined, anyDeal: boolean): boolean {
-  return anyDeal || (Array.isArray(consultFirst) && consultFirst.length > 0);
+/**
+ * The one rule for a proposal waiting (0006, 0007): out past a week with nothing back since it went. `askedMs` is when
+ * the person last wrote or called. Today's leak and the Pipeline both ask it, one row at a time.
+ */
+export function waitingOnProposal(
+  r: { deal: Pick<DealVM, "stage" | "sinceMs"> | null; askedMs: number | null },
+  nowMs: number,
+): boolean {
+  const d = r.deal;
+  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+  if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS) return false;
+  return r.askedMs === null || r.askedMs < d.sinceMs;
 }
 
-/** Today's leak: proposals out past a week with nothing back since they went. `askedMs` is when the person last wrote or called. */
+/** Today's leak: the rows waiting on a proposal, by waitingOnProposal. */
 export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: number | null }>(
   rows: readonly T[],
   nowMs: number,
 ): T[] {
+  return rows.filter((r) => waitingOnProposal(r, nowMs));
+}
+
+/**
+ * The next step nobody has taken (0007): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
+ * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
+ * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
+ */
+export function consultationsWithoutProposal<
+  T extends { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
+>(rows: readonly T[], nowMs: number): T[] {
   return rows.filter((r) => {
+    const at = r.consultedMs;
+    if (at === null || at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
     const d = r.deal;
-    if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-    if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS) return false;
-    return r.askedMs === null || r.askedMs < d.sinceMs;
+    if (!d) return true;
+    if (d.stage === "proposed" || d.stage === "won") return false;
+    return d.sinceMs !== null && d.sinceMs < at;
   });
 }
 
@@ -299,11 +485,14 @@ export const DEAL_REFUSALS: Record<string, string> = {
   already_open: "They already have a proposal out or an engagement running for this service.",
   moved: "Someone changed this deal since you opened it. Reload and try again.",
   ended: "An ended engagement is not reopened: record a new proposal.",
+  bad_link: "That is not a web address.",
+  bad_reason: "A reason for passing is price, timing, went elsewhere, no reply, not a fit or other.",
+  bad_clear: "Only the link, the valid-until day, the amount or the note can be emptied.",
 };
 
 /** Reports: one cohort (the proposals sent in the period) and the stock (clients now). Computed by the reports route from the table. */
 export interface DealReportDto {
-  /** Whether any deal was ever recorded here: the section is drawn only then. */
+  /** Whether the section is drawn: deals are on here (dealsAreOn, 0007) and a deal was ever recorded. */
   any: boolean;
   sent: number;
   won: number;

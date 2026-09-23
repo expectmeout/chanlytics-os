@@ -13,6 +13,8 @@ import {
   LEAD_ENDING_WORDS,
   PERSON_STATE_LABELS,
   REPORT_RANGES,
+  SELLS_BY_QUESTION,
+  SELLS_BY_WORDS,
   ago,
   clockStamp,
   emptyReadSet,
@@ -118,7 +120,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "search_people",
     description:
-      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are a thing here).",
+      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are on here).",
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
@@ -601,8 +603,8 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   const vmOf = new Map(pool.rows.map((v) => [v.id, v]));
   if (list?.needsCalendar && calendar.state !== "ok")
     return { error: "that list needs the calendar connected under Settings › Business", people: [] };
-  // The deal lists exist only where deals are a thing here (0004), as on the page and in list_audiences. The refusal
-  // names the condition that failed: Consultation booked needs the consult-first service itself, whatever was recorded.
+  // The deal lists exist only where deals are on here (dealsAreOn, 0007), as on the page and in list_audiences. The
+  // refusal names the condition that failed: Consultation booked needs the consult-first service itself as well.
   if (list?.needsConsultFirst && !pool.consult_first)
     return {
       error: "that list exists only where the profile lists a consult-first service under Settings › Business",
@@ -610,8 +612,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     };
   if (list?.needsDeals && !pool.deals_on)
     return {
-      error:
-        "that list exists only where deals are a thing here: a consult-first service under Settings › Business, or a deal recorded on a person's page",
+      error: `that list exists only where deals are on: the workspace answers "${SELLS_BY_QUESTION}" with "${SELLS_BY_WORDS.proposal.label}"`,
       people: [],
     };
   const digits = q.replace(/\D/g, "");
@@ -743,7 +744,14 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     name: vm.name,
     since: vm.since,
     right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
-    facts: vm.facts.map((f) => `${f.label}: ${f.value}${f.meta ? ` (${f.meta})` : ""}`),
+    // The deal's fact says its value at every stage (0007), and where its proposal lives: the host, never the address.
+    facts: vm.facts.map((f) => {
+      const meta =
+        f.label === "Deal" && vm.deal?.proposal
+          ? [f.meta, `proposal at ${vm.deal.proposal.host}`].filter(Boolean).join(" · ")
+          : f.meta;
+      return `${f.label}: ${f.value}${meta ? ` (${meta})` : ""}`;
+    }),
     about: vm.about.map((a) => `${a.k}: ${a.v}`),
     receptionist_mode: vm.receptionistMode,
     last_exchange: vm.lastExchange,
@@ -986,7 +994,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
     // The page's lists: a calendar's lists only when there is a calendar to read them from; the deal lists only
-    // where deals are a thing here (0004).
+    // where deals are on here (dealsAreOn, 0007).
     ...PEOPLE_LISTS.filter(
       (l) =>
         l.id !== "opted_in" &&

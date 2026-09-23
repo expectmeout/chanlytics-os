@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
+import { DEAL_REFUSALS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -1230,4 +1231,143 @@ test("a note on a person (0007): one route writes or changes it, one takes it aw
       removed: N2,
     },
   );
+});
+
+test("deal: a proposal's link, its day, a reason for passing and what a person emptied each reach the door only when named, and are judged before it opens (0007)", async () => {
+  const doors = [];
+  const rpcs = {
+    deal_record: (a) => (
+      doors.push(a),
+      {
+        deal: {
+          id: D1,
+          contact_id: P2,
+          service: null,
+          stage: a.p_stage,
+          proposed_at: "2026-09-23T12:00:00Z",
+          decided_at: null,
+          ended_at: null,
+          amount_cents: null,
+          per: null,
+          currency: "USD",
+          note: null,
+          version: 2,
+          created_at: "2026-09-23T12:00:00Z",
+          proposal_url: a.p_proposal_url ?? null,
+          valid_until: a.p_valid_until ?? null,
+          lost_reason: a.p_lost_reason ?? null,
+        },
+        from: "proposed",
+      }
+    ),
+  };
+  const tables = { memberships: both("viewer", "operator"), contacts: [contact(P1, A), contact(P2, B)], decisions: [] };
+  const run = (body) => deal.POST.run(send("POST", body), ctxFor(tables, { id: P2 }, rpcs));
+
+  // The link as the one normalizer stores it, and the day it stands until.
+  const out = await run({ stage: "proposed", proposal_url: " docs.example.com/p/2 ", valid_until: "2026-09-30" });
+  assert.deepEqual(doors.at(-1), {
+    p_contact_id: P2,
+    p_stage: "proposed",
+    p_proposal_url: "https://docs.example.com/p/2",
+    p_valid_until: "2026-09-30",
+  });
+  assert.equal(out.deal.proposal_url, "https://docs.example.com/p/2", "the deal comes back with it");
+  // A pass with its reason; a move that empties what a person cleared.
+  await run({ stage: "lost", deal_id: D1, version: 1, lost_reason: "timing" });
+  assert.deepEqual(doors.at(-1), {
+    p_contact_id: P2,
+    p_stage: "lost",
+    p_deal_id: D1,
+    p_version: 1,
+    p_lost_reason: "timing",
+  });
+  await run({ stage: "proposed", deal_id: D1, version: 2, clear: ["proposal_url", "amount"] });
+  assert.deepEqual(doors.at(-1), {
+    p_contact_id: P2,
+    p_stage: "proposed",
+    p_deal_id: D1,
+    p_version: 2,
+    p_clear: ["proposal_url", "amount"],
+  });
+  // A day of null and an empty list say nothing, so the door keeps what it has.
+  await run({ stage: "proposed", deal_id: D1, version: 3, valid_until: null, clear: [] });
+  assert.deepEqual(doors.at(-1), { p_contact_id: P2, p_stage: "proposed", p_deal_id: D1, p_version: 3 });
+
+  // Refused before the door opens: not a link (in the words that say which kind), not a day, not a reason, not a field.
+  const opened = doors.length;
+  const why = async (body, words) =>
+    assert.rejects(run(body), (e) => {
+      assert.equal(e.code, "validation");
+      if (words) assert.equal(e.message, words);
+      return true;
+    });
+  await why(
+    { stage: "proposed", proposal_url: "mailto:ana@example.com" },
+    "That needs to be a web address, starting with https://.",
+  );
+  await why({ stage: "proposed", proposal_url: "   " }, "A web address is needed.");
+  await why({ stage: "proposed", proposal_url: "x".repeat(601) });
+  await why({ stage: "proposed", valid_until: "2026-02-31" });
+  await why({ stage: "proposed", valid_until: "Sep 30" });
+  await why({ stage: "lost", deal_id: D1, version: 3, lost_reason: "banana" });
+  await why({ stage: "proposed", deal_id: D1, version: 3, clear: ["service"] });
+  assert.equal(doors.length, opened, "no door was opened for any of them");
+
+  // The door's own new refusals are sentences, and no decision is recorded for them.
+  const decided = tables.decisions.length;
+  for (const code of ["bad_link", "bad_reason", "bad_clear"]) {
+    const refusing = { deal_record: () => ({ error: code }) };
+    await assert.rejects(
+      deal.POST.run(send("POST", { stage: "proposed" }), ctxFor(tables, { id: P2 }, refusing)),
+      (e) => {
+        assert.equal(e.message, DEAL_REFUSALS[code], code);
+        return true;
+      },
+    );
+  }
+  assert.equal(tables.decisions.length, decided);
+});
+
+test("deals are on in People exactly where the workspace says some customers get a proposal first; a deal on file switches nothing (0007)", async () => {
+  const won = {
+    id: D1,
+    tenant_id: A,
+    contact_id: P1,
+    service: null,
+    stage: "won",
+    proposed_at: "2026-09-01T12:00:00Z",
+    decided_at: "2026-09-05T12:00:00Z",
+    ended_at: null,
+    amount_cents: 250000,
+    per: "month",
+    currency: "USD",
+    note: null,
+    version: 2,
+    created_at: "2026-09-01T12:00:00Z",
+    proposal_url: "https://docs.example.com/p/1",
+    valid_until: null,
+    lost_reason: null,
+  };
+  const world = (sellsBy) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [],
+    tenant_config: [],
+    contacts: [contact(P1, A)],
+    deals: [won],
+    tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+  });
+  const rpcs = {
+    people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
+  };
+  const list = async (s) => (await contacts.GET.run(get(inA), ctxFor(world(s), {}, rpcs))).deals_on;
+  const page = async (s) => (await person.GET.run(get(inA), ctxFor(world(s), { id: P1 }, rpcs))).person;
+  assert.equal(await list("proposal"), true);
+  const p = await page("proposal");
+  assert.equal(p.deals_on, true);
+  assert.equal(p.deals[0].proposal_url, "https://docs.example.com/p/1", "each deal with its link");
+  for (const s of ["booking", null, undefined]) {
+    assert.equal(await list(s), false, `${s}: the list`);
+    assert.equal((await page(s)).deals_on, false, `${s}: the person's page`);
+  }
 });

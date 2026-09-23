@@ -82,6 +82,8 @@ export interface Workspace {
   name: string;
   status: string;
   timezone: string;
+  /** How its customers buy (0007): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
+  sells_by?: string | null;
 }
 
 export interface Me {
@@ -764,7 +766,7 @@ export interface PeopleSurface {
   calendar: { state: "ok" | "unavailable" | "none"; source: string };
   /** The booking link on file, so a row can offer to text it. */
   bookingLink: string | null;
-  /** Deals are a thing here (0004): the Journey's deal lists, the thread's menu item, the column. */
+  /** Deals are on here (dealsAreOn, 0007): the Journey's deal lists, the thread's menu item, the column. */
   dealsOn: boolean;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
@@ -783,7 +785,7 @@ let peopleLoaded: {
   saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
-  /** Deals are a thing here, and the profile lists a consult-first service (0004): which Journey lists exist. */
+  /** Deals are on here (0007), and the profile lists a consult-first service (0004): which Journey lists exist. */
   dealsOn: boolean;
   consultFirst: boolean;
   views: Record<string, unknown>;
@@ -799,7 +801,7 @@ function publishPeople(): void {
   const { dealsOn, consultFirst } = peopleLoaded;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
-    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are a thing.
+    // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
     lists: PEOPLE_LISTS.filter(
       (l) =>
         (!l.needsCalendar || calendar.state === "ok") &&

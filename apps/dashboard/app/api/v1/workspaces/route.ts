@@ -1,9 +1,48 @@
 import { read, write, account, workspace } from "@/server/route";
-import { memberContext } from "@/server/with-route";
-import { AppError, cleanTimezone, pendingWorkspaceOf, providerNameOf, signupPosture } from "@chanlytics/contracts";
+import { memberContext, type RouteContext } from "@/server/with-route";
+import {
+  AppError,
+  SELLS_BY_REFUSAL,
+  cleanTimezone,
+  isSellsBy,
+  pendingWorkspaceOf,
+  providerNameOf,
+  signupPosture,
+  type SellsBy,
+} from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/service";
 import { isPlatformAdmin } from "@/server/platform";
 import { isSameOrigin } from "@/server/request-guards";
+
+/** A workspace as the list says it: its zone, and how its customers buy (0007), null when it was never asked. */
+interface WorkspaceRow {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  timezone: string;
+  sells_by: string | null;
+}
+const COLUMNS = "id, slug, name, status, timezone, sells_by";
+const OLDER_COLUMNS = "id, slug, name, status, timezone";
+
+/** The error a read that names sells_by gets from a database 00157 has not reached. */
+const noSellsBy = (message: string): boolean =>
+  /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+
+/**
+ * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database 00157 has not reached
+ * -- which answers "column does not exist" for sells_by -- it reads again without it, and every workspace is not asked
+ * yet: deals off, never a blank app. Either deploy order works.
+ */
+async function tenantsOf(
+  supabase: RouteContext["supabase"],
+): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
+  const r = await supabase.from("tenants").select(COLUMNS).order("name");
+  if (!r.error || !noSellsBy(r.error.message)) return r;
+  const older = await supabase.from("tenants").select(OLDER_COLUMNS).order("name");
+  return { data: older.data?.map((t) => ({ ...t, sells_by: null })) ?? null, error: older.error };
+}
 
 /**
  * GET /api/v1/workspaces — the session's tenants, RLS-scoped, plus who is
@@ -25,7 +64,7 @@ export const GET = read({
   scope: account,
   handle: async ({ ctx, req: _req }) => {
     const { supabase, userId, email } = ctx;
-    let { data, error } = await supabase.from("tenants").select("id, slug, name, status, timezone").order("name");
+    let { data, error } = await tenantsOf(supabase);
     if (error) throw new Error(error.message);
     // The name this person gave (profiles, 00068) rides with the identity, so
     // the chrome shows a person rather than the workspace standing in for one.
@@ -65,7 +104,7 @@ export const GET = read({
     // is benign and idempotent, but it is a write, so it happens only on the
     // app's own reads: a cross-site GET gets the list and nothing else (F51).
     if (isSameOrigin(_req) && (await acceptOpenInvites(userId, email ?? null)) > 0) {
-      const retry = await supabase.from("tenants").select("id, slug, name, status, timezone").order("name");
+      const retry = await tenantsOf(supabase);
       if (retry.error) throw new Error(retry.error.message);
       data = retry.data;
     }
@@ -139,34 +178,53 @@ export const GET = read({
 });
 
 /**
- * PATCH /api/v1/workspaces — {timezone}. Owner-only, and no bucket, said out
- * loud: the zone is set once and read forever.
+ * PATCH /api/v1/workspaces — {timezone?, sells_by?}, at least one. Owner-only,
+ * and no bucket, said out loud: each is set once and read forever.
  *
- * The one field on the tenant row a business owns rather than Chanlytics: the
- * zone its day is measured in. Name, slug and status stay concierge operations
- * -- a slug is a URL and a status is a billing state -- and 00084's column
- * grant enforces that regardless of what this route asks for.
+ * The two fields on the tenant row a business owns rather than Chanlytics: the
+ * zone its day is measured in, and how its customers buy (0007), which decides
+ * whether deals exist here at all. Name, slug and status stay concierge
+ * operations -- a slug is a URL and a status is a billing state -- and the
+ * column grant (00084, 00157) enforces that regardless of what this route asks
+ * for. Only what was sent is written, and only what was written is read back,
+ * so a zone saved on a database 00157 has not reached still saves.
  */
 export const PATCH = write({
   scope: workspace,
   role: "owner",
   rate: null,
   handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as { timezone?: unknown } | null;
-    const parsed = cleanTimezone(body?.timezone);
-    if (!parsed.ok) throw new AppError("validation", parsed.reason);
+    const body = (await req.json().catch(() => null)) as { timezone?: unknown; sells_by?: unknown } | null;
+    const zone = body?.timezone !== undefined;
+    const answer = body?.sells_by;
+    if (!zone && answer === undefined)
+      throw new AppError("validation", "Send the workspace's timezone, or how its customers buy.");
+    const patch: { timezone?: string; sells_by?: SellsBy } = {};
+    if (zone) {
+      const parsed = cleanTimezone(body?.timezone);
+      if (!parsed.ok) throw new AppError("validation", parsed.reason);
+      patch.timezone = parsed.tz;
+    }
+    if (answer !== undefined) {
+      if (!isSellsBy(answer)) throw new AppError("validation", SELLS_BY_REFUSAL);
+      patch.sells_by = answer;
+    }
 
-    const { data, error } = await ctx.supabase
+    const { data, error } = (await ctx.supabase
       .from("tenants")
-      .update({ timezone: parsed.tz })
+      .update(patch)
       .eq("id", member.tenantId)
-      .select("id, slug, name, status, timezone");
+      .select(patch.sells_by ? COLUMNS : OLDER_COLUMNS)) as unknown as {
+      data: Partial<WorkspaceRow>[] | null;
+      error: { message: string } | null;
+    };
     if (error) throw new Error(error.message);
     // A forbidden UPDATE comes back successful with zero rows in this stack, so
     // the row count IS the permission check. Without this an owner whose policy
     // or grant went missing would be told the zone was saved and see the old one
     // on the next read.
-    if (!data?.length) throw new AppError("forbidden", "That workspace's timezone could not be changed.", 403);
+    const what = zone ? "That workspace's timezone" : "How that workspace's customers buy";
+    if (!data?.length) throw new AppError("forbidden", `${what} could not be changed.`, 403);
     return { workspace: data[0] };
   },
 });

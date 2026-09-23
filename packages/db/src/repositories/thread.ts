@@ -17,7 +17,7 @@
  * miss.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type DealFacts, clockDate, dealSentence, pickCurrentDeal } from "@chanlytics/contracts";
+import { type DealFacts, clockDate, dealSentence, pickCurrentDeal, proposalLinkOf } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -195,7 +195,10 @@ export interface LeadContext {
   /** The notes the receptionist reads (0007): kept, not for the team only, newest first. Null where they could not
    *  be read. Optional so every fake still compiles. */
   noteList?: { body: string; at: string }[] | null;
-  /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+  /**
+   * Their proposal, as a web address: the current deal's while it is a proposal out, else the person's own with no open
+   * deal (proposalLinkOf, 0007). Sent when they ask about price, its figures never stated.
+   */
   proposalUrl?: string | null;
   /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
   deal?: DealFacts | null;
@@ -264,10 +267,10 @@ export async function readLeadContext(
 
   // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
   // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
-  // for other services, and a cap would hide it behind them.
+  // for other services, and a cap would hide it behind them. With its link (0007): the proposal the receptionist sends.
   const { data: dealRows } = await db
     .from("deals")
-    .select("stage, service, proposed_at, decided_at, ended_at, created_at")
+    .select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url")
     .eq("tenant_id", tenantId)
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false });
@@ -299,7 +302,7 @@ export async function readLeadContext(
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: contact.proposal_url ?? null,
+    proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current
       ? {
           stage: current.stage,
@@ -401,8 +404,8 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   // answers a price question, so the proposal's sentence points at it instead of promising a follow-up.
   const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
   if (deal) bits.push(deal);
-  // The owner's priced answer for this person is a link (00154): the receptionist
-  // hands it over and prices nothing itself. A reader without the column says nothing.
+  // The owner's priced answer for this person is a link (00154), the deal's now (0007):
+  // the receptionist hands it over and prices nothing itself. No link, nothing said.
   const proposal = (lead.proposalUrl ?? "").trim();
   if (proposal)
     bits.push(

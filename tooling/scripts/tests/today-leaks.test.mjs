@@ -927,9 +927,10 @@ test("the runs' words read a real broadcast view model: a round trip through toB
   assert.equal(w.people, "3 people");
 });
 
-test("proposals waiting: out past a week with nothing back, said once, with the door to the list", () => {
+test("proposals waiting: out past a week with nothing back, said once, with the door to the list, and only where deals are on", () => {
   // A proposal out past a week with nothing back since it went (0004; contracts' proposalsWaiting over People's
   // rows). One is enough: an agency sends a few a month. The count is the rows'; the list's count is the arithmetic.
+  // People says whether deals are on (0007); the fixture says they are, and the last case says what happens where not.
   const rowsWith = (n, waiting) =>
     Array.from({ length: n }, () => ({
       consent: { state: "opted_in" },
@@ -942,6 +943,7 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     lists: [list("proposal_out", "Proposal out", rows.filter((r) => r.deal).length, act("Open the Inbox", "inbox"))],
     aggregates: { total: rows.length },
     rows,
+    dealsOn: true,
   });
   const rows = todayLeaksV2(
     reports({ booking: { present: false } }),
@@ -995,4 +997,17 @@ test("proposals waiting: out past a week with nothing back, said once, with the 
     NOW.getTime(),
   ).rows.map((r) => r.id);
   assert.deepEqual(order, ["unanswered", "proposals-waiting", "quiet"]);
+  // A workspace whose customers book never hears about a proposal, whatever deals it holds (0007).
+  for (const dealsOn of [false, undefined])
+    assert.equal(
+      todayLeaksV2(
+        reports({ booking: { present: false } }),
+        { ...people(rowsWith(3, true)), dealsOn },
+        [],
+        4,
+        NOW.getTime(),
+      ).rows.find((r) => r.id === "proposals-waiting"),
+      undefined,
+      `deals ${dealsOn === false ? "off" : "never said"}: no row`,
+    );
 });

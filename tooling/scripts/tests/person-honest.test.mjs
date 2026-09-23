@@ -1643,9 +1643,11 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
   );
 });
 
-test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer or for someone who said stop", async () => {
+test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer, for someone who said stop, or where customers book", async () => {
   const cls = (n) => String(n.props?.className || "");
   const url = "https://docs.example.com/p/dani";
+  // The send is a deal's (0007): the workspace here says some customers get a proposal first. The last case is one
+  // whose customers book.
   const outbound = (at, status) => ({
     id: `m-${status}`,
     conversation_id: "cv1",
@@ -1659,7 +1661,11 @@ test("a proposal on file (00154): the About row is its control and the send sits
     channel: "whatsapp",
     created_at: at,
   });
-  const vm = toPersonVM(detail({ proposal_url: url, booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
+  const vm = toPersonVM(
+    detail({ proposal_url: url, booking_link: "https://book.example/salon", deals_on: true }),
+    ZONE,
+    new Date(NOW),
+  );
   let tree = (await profile(vm))();
   const rowEl = byTestId(tree, "person-proposal");
   assert.ok(rowEl, "the About row");
@@ -1709,7 +1715,7 @@ test("a proposal on file (00154): the About row is its control and the send sits
   }
 
   // Once the address went out the label says so; a message still in its cancel window does not count.
-  const d = detail({ proposal_url: url });
+  const d = detail({ proposal_url: url, deals_on: true });
   d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
   assert.ok(labels(tree).includes("Send proposal"));
@@ -1739,13 +1745,29 @@ test("a proposal on file (00154): the About row is its control and the send sits
 
   // Someone who said stop: the row, never the send.
   const quiet = toPersonVM(
-    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url }),
+    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url, deals_on: true }),
     ZONE,
     new Date(NOW),
   );
   tree = (await profile(quiet))();
   assert.ok(byTestId(tree, "person-proposal"));
   assert.ok(!labels(tree).some((l) => /^Send/.test(l)), "nothing is sent to someone who said stop");
+
+  // A workspace whose customers book: the booking link's send, and no proposal's (0007).
+  tree = (
+    await profile(
+      toPersonVM(
+        detail({ proposal_url: url, booking_link: "https://book.example/salon", deals_on: false }),
+        ZONE,
+        new Date(NOW),
+      ),
+    )
+  )();
+  assert.ok(labels(tree).includes("Send booking link"));
+  assert.ok(
+    !labels(tree).some((l) => /proposal/.test(l)),
+    `REGRESSION: a salon was offered a proposal: ${labels(tree)}`,
+  );
 });
 
 /* ----------------------------------- the Deal section (0004) ----------------------------------- */
@@ -1904,6 +1926,57 @@ test("the Deal row: drawn only where deals are a thing, says the stage in the ca
   } finally {
     globalThis.window.__ME = me;
   }
+});
+
+test("the Deal row says a proposal's value, as it says a client's (0007)", async () => {
+  globalThis.window.__recordFolds.reset();
+  globalThis.window.__deal = {
+    words: contracts.DEAL_STAGE_WORDS,
+    perWords: contracts.DEAL_PER_WORDS,
+    pers: contracts.DEAL_PERS,
+    none: contracts.DEAL_LINE_NONE,
+    moves: contracts.dealMoves,
+  };
+  const at = iso(9 * D);
+  const vm = toPersonVM(
+    detail({
+      deals_on: true,
+      services: ["Ad management"],
+      deals: [
+        {
+          id: "d1",
+          contact_id: "p1",
+          service: "Ad management",
+          stage: "proposed",
+          proposed_at: at,
+          decided_at: null,
+          ended_at: null,
+          amount_cents: 120_000,
+          per: "once",
+          currency: "USD",
+          note: null,
+          version: 1,
+          created_at: at,
+        },
+      ],
+      row: row({
+        visits: VISITS,
+        deal_id: "d1",
+        deal_stage: "proposed",
+        deal_service: "Ad management",
+        deal_proposed_at: at,
+        deal_decided_at: null,
+        deal_ended_at: null,
+        deal_amount_cents: 120_000,
+        deal_per: "once",
+      }),
+    }),
+    ZONE,
+    new Date(NOW),
+  );
+  const tree = (await profile(vm))();
+  assert.equal(textOf(byTestId(tree, "person-deal-line")), "Proposal out");
+  assert.match(textOf(byTestId(tree, "person-deal-facts")), /^Ad management · since \w{3} \d+ · \$1,200$/);
 });
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */

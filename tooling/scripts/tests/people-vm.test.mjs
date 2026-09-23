@@ -819,3 +819,76 @@ test("the Replies row says what a reply may be in the owner's words: no 'window'
     "REGRESSION: it said Closed · template only",
   );
 });
+
+test("a person's proposal is their deal's (0007): the deal's link while it is out, their own with no open deal, a client's none", () => {
+  const own = "https://docs.example.com/p/own";
+  const onDeal = "https://docs.example.com/p/deal";
+  const dealRow = (stage, link) => ({
+    id: "d1",
+    contact_id: "c1",
+    service: null,
+    stage,
+    proposed_at: iso(3 * D),
+    decided_at: stage === "proposed" ? null : iso(D),
+    ended_at: null,
+    amount_cents: 120_000,
+    per: "once",
+    currency: "USD",
+    note: null,
+    version: 2,
+    created_at: iso(3 * D),
+    proposal_url: link,
+    valid_until: null,
+    lost_reason: null,
+  });
+  const vmWith = (stage, link) =>
+    toPersonVM(
+      detail({
+        proposal_url: own,
+        deals: [dealRow(stage, link)],
+        deals_on: true,
+        row: row({
+          deal_id: "d1",
+          deal_stage: stage,
+          deal_service: null,
+          deal_proposed_at: iso(3 * D),
+          deal_decided_at: stage === "proposed" ? null : iso(D),
+          deal_ended_at: null,
+          deal_amount_cents: 120_000,
+          deal_per: "once",
+          deal_proposal_url: link,
+        }),
+      }),
+      ZONE,
+      NOW,
+    );
+  const out = vmWith("proposed", onDeal);
+  assert.equal(out.proposal.url, onDeal, "the deal's link, not the one left on the person");
+  assert.ok(out.about.some((a) => a.k === "Proposal" && a.v === "docs.example.com"));
+  assert.ok(
+    out.acts.some((a) => a.id === "proposal"),
+    "and the send, where deals are on",
+  );
+  assert.equal(vmWith("proposed", null).proposal, null, "a proposal recorded without a link has none to send");
+  assert.equal(vmWith("won", onDeal).proposal, null, "a client is not sent a proposal");
+  assert.equal(vmWith("lost", null).proposal.url, own, "no open deal: the person's own, read until it retires");
+  // Its value rides on the deal's facts, at every stage.
+  assert.ok(
+    out.facts.some((f) => f.label === "Deal" && f.meta === "Proposal out · since Sep 1 · $1,200"),
+    out.facts,
+  );
+});
+
+test("the proposal's send is a deal's: a workspace whose customers book is never offered it", () => {
+  const url = "https://docs.example.com/p/dani";
+  const acts = (on) =>
+    toPersonVM(
+      detail({ proposal_url: url, deals_on: on, booking_link: "https://book.example/dani" }),
+      ZONE,
+      NOW,
+    ).acts.map((a) => a.id);
+  assert.ok(acts(true).includes("proposal"));
+  assert.ok(!acts(false).includes("proposal"), "REGRESSION: a salon's More menu offered to send a proposal");
+  assert.ok(!acts(undefined).includes("proposal"), "an older read says nothing about deals: off");
+  assert.equal(acts(false)[0], "booking", "the booking link's send stays where it was");
+});

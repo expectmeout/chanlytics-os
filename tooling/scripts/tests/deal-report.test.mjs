@@ -1,8 +1,9 @@
 /**
  * Reports' Deals numbers (0004), executed over a database in memory: one
  * cohort -- the proposals sent in the period and what became of them -- and
- * the stock, clients now with their monthly total. Null where the table
- * cannot be read, so the section is not drawn and the report stands.
+ * the stock, clients now with their monthly total. Drawn only where deals are
+ * on (0007), the answer the route hands in. Null where the table cannot be
+ * read, so the section is not drawn and the report stands.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -49,7 +50,7 @@ test("the period's cohort by when the proposal went, and the stock of clients no
     deal("d2", { stage: "won", proposed_at: iso(10), decided_at: iso(8), amount_cents: 250_000, per: "month" }),
     deal("d3", { stage: "lost", proposed_at: iso(40), decided_at: iso(35) }), // before the period: not in the cohort
   ];
-  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 30, NOW), {
+  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 30, true, NOW), {
     any: true,
     sent: 2,
     won: 1,
@@ -75,7 +76,7 @@ test("a year is twelve months, once is not a month, an ended engagement was won 
     }),
     deal("l", { stage: "lost", proposed_at: iso(2), decided_at: iso(1) }),
   ];
-  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 7, NOW), {
+  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 7, true, NOW), {
     any: true,
     sent: 5,
     won: 4,
@@ -87,7 +88,7 @@ test("a year is twelve months, once is not a month, an ended engagement was won 
 });
 
 test("nothing ever recorded reads as none, and another workspace's deals are not this one's", async () => {
-  assert.deepEqual(await dealReport(ctxFor({ deals: [] }), T, 30, NOW), {
+  assert.deepEqual(await dealReport(ctxFor({ deals: [] }), T, 30, true, NOW), {
     any: false,
     sent: 0,
     won: 0,
@@ -96,6 +97,20 @@ test("nothing ever recorded reads as none, and another workspace's deals are not
     clients: 0,
     monthly_cents: 0,
   });
-  const theirs = await dealReport(ctxFor({ deals: [deal("x", { tenant_id: OTHER, stage: "won" })] }), T, 30, NOW);
+  const theirs = await dealReport(ctxFor({ deals: [deal("x", { tenant_id: OTHER, stage: "won" })] }), T, 30, true, NOW);
   assert.equal(theirs.any, false);
+});
+
+test("where deals are off the section is not drawn, whatever deals the table holds, and the table is not read", async () => {
+  const ctx = ctxFor({ deals: [deal("d1", { stage: "won", amount_cents: 250_000, per: "month" })] });
+  assert.deepEqual(await dealReport(ctx, T, 30, false, NOW), {
+    any: false,
+    sent: 0,
+    won: 0,
+    lost: 0,
+    waiting: 0,
+    clients: 0,
+    monthly_cents: 0,
+  });
+  assert.equal(ctx.supabase.seen.filter((q) => q.table === "deals").length, 0, "nothing read for a section not drawn");
 });

@@ -1,4 +1,4 @@
-import { AppError, consentChangeOf, dealsAreAThing } from "@chanlytics/contracts";
+import { AppError, consentChangeOf, dealsAreOn } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
@@ -23,6 +23,7 @@ import { personLike, personVisits } from "@/server/calendar";
 import { personRuns } from "@/server/broadcasts";
 import { leadOfPerson } from "@/server/leads";
 import { personNotesRead } from "@/server/person-notes";
+import { sellsByOf } from "@/server/deals";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -309,7 +310,7 @@ export const GET = read({
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
 
     const sb = ctx.supabase;
-    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history, runs, lead, deals, anyDeal] =
+    const [idents, convs, calls, personPol, wsPol, added, own, cfgRow, history, runs, lead, deals, sellsBy] =
       await Promise.all([
         sb
           .from("contact_identities")
@@ -376,22 +377,19 @@ export const GET = read({
         // way back to where the finder found them.
         personRuns(ctx, tenantId, id),
         leadOfPerson(ctx, tenantId, id),
-        // Their deals, newest first, and whether any deal was ever recorded here (0004). Each is safe on an older
-        // database: a table that is not there costs the section, never the profile.
+        // Their deals, newest first, each with its link, the day it stands until and why they passed (0007); and how
+        // this workspace's customers buy, which decides whether the page says any of it. Each is safe on an older
+        // database: a table or a column that is not there costs the section, never the profile.
         sb
           .from("deals")
           .select(
-            "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at",
+            "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason",
           )
           .eq("tenant_id", tenantId)
           .eq("contact_id", id)
           .order("created_at", { ascending: false })
           .then((r) => (r.error ? null : (r.data ?? []))),
-        sb
-          .from("deals")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
-          .then((r) => (r.error ? false : (r.count ?? 0) > 0)),
+        sellsByOf(ctx, tenantId),
       ]);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
@@ -402,12 +400,9 @@ export const GET = read({
     if (cfgRow.error) throw new Error(cfgRow.error.message);
     if (added.error) throw new Error(added.error.message);
     const bookingLink = (cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
-    // The profile's services and its consult-first rule: whether deals are a thing here, and the page's service picker.
-    const profile = (
-      cfgRow.data?.config as {
-        brain?: { profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: string[] } } };
-      } | null
-    )?.brain?.profile;
+    // The profile's services: the page's service picker.
+    const profile = (cfgRow.data?.config as { brain?: { profile?: { services?: { name: string }[] } } } | null)?.brain
+      ?.profile;
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);
     if (wsPol.error) throw new Error(wsPol.error.message);
@@ -481,7 +476,7 @@ export const GET = read({
       campaigns: runs,
       lead,
       deals: deals ?? undefined,
-      deals_on: dealsAreAThing(profile?.booking_rules?.consult_first, anyDeal),
+      deals_on: dealsAreOn(sellsBy),
       services: (profile?.services ?? []).map((s) => s.name),
       added: added.data
         ? {

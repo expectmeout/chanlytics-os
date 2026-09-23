@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { AppError, REPORT_RANGES, type ReportDto } from "@chanlytics/contracts";
+import { AppError, REPORT_RANGES, dealsAreOn, type ReportDto } from "@chanlytics/contracts";
 import { everyone } from "@/server/people";
 import { bookingReport } from "@/server/calendar";
-import { dealReport } from "@/server/deals";
+import { dealReport, sellsByOf } from "@/server/deals";
 
 const Query = z.object({
   /** 7, 30 or 90; thirty by default. */
@@ -48,9 +48,11 @@ export const GET = read({
         );
         return null;
       });
-    // The deals of the period and the clients now (0004), only where a deal was ever recorded. Never fatal either:
-    // a table that cannot be read costs the section, not the report.
-    const deals = await dealReport(ctx, tenantId, days).catch(() => null);
+    // The deals of the period and the clients now (0004), only where deals are on (0007) and a deal was recorded.
+    // Never fatal either: a table that cannot be read costs the section, not the report.
+    const deals = await sellsByOf(ctx, tenantId)
+      .then((sellsBy) => dealReport(ctx, tenantId, days, dealsAreOn(sellsBy)))
+      .catch(() => null);
     return { report, booking, deals };
   },
 });

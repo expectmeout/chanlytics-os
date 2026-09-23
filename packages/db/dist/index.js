@@ -1065,6 +1065,11 @@ function pickCurrentDeal(rows) {
   );
   return sorted[0] ?? null;
 }
+function proposalLinkOf(current, personLink) {
+  if (current?.stage === "proposed") return current.proposal_url?.trim() || null;
+  if (!current || current.stage === "lost" || current.stage === "ended") return personLink?.trim() || null;
+  return null;
+}
 function dealSinceMs(d) {
   const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
   const ms2 = at2 ? Date.parse(at2) : NaN;
@@ -2189,7 +2194,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
     history = assembleHistory(rows ?? [], historyLimit);
   }
-  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
+  const { data: dealRows } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
   const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
   return {
@@ -2206,7 +2211,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: contact.proposal_url ?? null,
+    proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current ? {
       stage: current.stage,
       service: current.service,
