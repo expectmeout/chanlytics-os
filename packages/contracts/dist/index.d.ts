@@ -1562,7 +1562,7 @@ declare const SCHEMA_SETS: {
     readonly "messages.sender": readonly ["customer", "ai", "human", "system"];
     readonly "messages.status": readonly ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
     readonly "messages.type": readonly ["text", "template", "media", "call_summary", "note"];
-    readonly "notifications.kind": readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question"];
+    readonly "notifications.kind": readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you"];
     readonly "person_notes.author_kind": readonly ["member", "receptionist"];
     readonly "person_notes.source": readonly ["page", "bulk", "moved", "call", "thread"];
     readonly "person_notes.state": readonly ["kept", "suggested"];
@@ -4391,7 +4391,7 @@ declare function agoLabel(atMs: number, now: number): string;
 /** The kinds a device is woken for; an invitation can wait for the bell. */
 declare const ALERT_KINDS: readonly NotificationKind[];
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question"];
+declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you"];
 type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 /**
  * What a BACKGROUND JOB's alert can be. Four things, and a job says which;

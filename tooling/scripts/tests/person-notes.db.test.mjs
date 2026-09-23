@@ -291,3 +291,60 @@ test("a member of another workspace reads none of these notes", { skip }, async 
     await db.from("tenants").delete().eq("id", t2.id);
   }
 });
+
+test(
+  "a note for a teammate reaches only them (00158): named, never its words; again only when it is addressed to someone new; gone with the person",
+  { skip },
+  async () => {
+    const id = await person({ display_name: "Tom Baker", phone_e164: "+15550100361" });
+    const bell = (who) =>
+      who.as
+        .from("notifications")
+        .select("id, kind, title, body, route, recipient_user_id")
+        .eq("tenant_id", tenantId)
+        .eq("kind", "note_for_you")
+        .eq("subject_id", id);
+
+    const { data: a } = await maria.as.rpc("person_note_add", {
+      p_contact_id: id,
+      p_body: "Call her about the bridal party.",
+      p_for_user_id: sam.id,
+    });
+    const { data: samSees } = await bell(sam);
+    assert.equal(samSees.length, 1, "the reader is told");
+    assert.equal(samSees[0].recipient_user_id, sam.id);
+    assert.match(samSees[0].title, /left you a note on Tom Baker$/);
+    assert.equal(samSees[0].route, `clients/${id}`);
+    assert.ok(!`${samSees[0].title} ${samSees[0].body}`.includes("bridal"), "the words stay on the page");
+    assert.deepEqual((await bell(maria)).data, [], "its writer is not");
+    assert.deepEqual((await bell(owner)).data, [], "nor an owner: it is addressed to one member");
+    const { error: markErr } = await owner.as.rpc("notification_mark", { p_id: samSees[0].id, p_read: true });
+    assert.match(markErr?.message ?? "", /not found/i, "nobody else can mark it");
+
+    await maria.as.rpc("person_note_edit", {
+      p_note_id: a.note.id,
+      p_body: "Call her about the bridal party on Friday.",
+      p_for_user_id: sam.id,
+      p_version: 1,
+    });
+    assert.equal((await bell(sam)).data.length, 1, "changing the words tells nobody again");
+    await maria.as.rpc("person_note_edit", {
+      p_note_id: a.note.id,
+      p_body: "Call her about the bridal party on Friday.",
+      p_for_user_id: owner.id,
+      p_version: 2,
+    });
+    assert.equal((await bell(owner)).data.length, 1, "addressed to someone new, they are told");
+
+    await maria.as.rpc("person_note_add", { p_contact_id: id, p_body: "Reminder to myself.", p_for_user_id: maria.id });
+    assert.deepEqual((await bell(maria)).data, [], "a note for its own writer tells nobody");
+
+    await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    const { count } = await db
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "note_for_you")
+      .eq("subject_id", id);
+    assert.equal(count, 0, "an erasure takes them: their titles name the person");
+  },
+);

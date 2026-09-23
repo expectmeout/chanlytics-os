@@ -2014,6 +2014,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   // the same thing about the same fact.
   broadcast_sent: ["broadcast finished", "broadcasts finished"],
   broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
+  note_for_you: ["note left for you", "notes left for you"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */

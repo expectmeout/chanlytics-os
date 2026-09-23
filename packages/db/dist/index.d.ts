@@ -3201,6 +3201,7 @@ type Database = {
                     created_at: string;
                     id: string;
                     kind: string;
+                    recipient_user_id: string | null;
                     route: string | null;
                     subject_id: string | null;
                     subject_type: string | null;
@@ -3212,6 +3213,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind: string;
+                    recipient_user_id?: string | null;
                     route?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
@@ -3223,6 +3225,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind?: string;
+                    recipient_user_id?: string | null;
                     route?: string | null;
                     subject_id?: string | null;
                     subject_type?: string | null;
@@ -4649,6 +4652,16 @@ type Database = {
             mint_reply_token: {
                 Args: never;
                 Returns: string;
+            };
+            note_for_you_notify: {
+                Args: {
+                    p_by: string;
+                    p_contact_id: string;
+                    p_for: string;
+                    p_note_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
             };
             note_sweep_backlog: {
                 Args: {
