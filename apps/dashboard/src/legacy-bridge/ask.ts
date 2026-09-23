@@ -12,10 +12,7 @@ import {
   PROPOSAL_GATE,
   answerText,
   askUndoOpen,
-  callsAnswer,
   cardOpenRoute,
-  needsAnswer,
-  openingsAnswer,
   type AskAnswer,
   type AskProposal,
   type AskProposalOutcome,
@@ -23,11 +20,11 @@ import {
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
-import { askPalette } from "./ask/palette";
+import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech } from "./ask/speech";
 
 export type { SendEvent, CommitResult };
-export { jumpIndexFrom, surfaceFor, waitingFrom } from "./ask/palette";
+export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
 export { readLines } from "./ask/api";
 
 export type AskApi = ReturnType<typeof askPalette> &
@@ -66,20 +63,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     undo: (p, o) => undoProposal(win, p, o),
     editReply: (p) => editReply(win, p),
     undoOpen: askUndoOpen,
-    quick: (question) => {
-      const intent = palette.intent(question);
-      if (!intent) return null;
-      const lang = palette.language(question);
-      if (intent.kind === "needs") return Promise.resolve(needsAnswer(palette.waiting(), lang));
-      if (intent.kind === "calls") {
-        const c = palette.callsToday();
-        return Promise.resolve(callsAnswer(c.missed, c.live, lang));
-      }
-      return api
-        .openings(intent.day, intent.service)
-        .then((o) => openingsAnswer({ state: okState(o.state), days: o.days ?? [] }, lang))
-        .catch(() => openingsAnswer({ state: "unavailable", days: [] }, lang));
-    },
+    quick: quickAnswer(palette, api.openings),
     answerText,
     cardOpenRoute,
   };
@@ -87,10 +71,6 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   (win as unknown as { PROPOSAL_GATE?: typeof PROPOSAL_GATE }).PROPOSAL_GATE = PROPOSAL_GATE;
   return ask;
 }
-
-/** The openings route's state, as the answer knows it; anything else is a calendar that could not be read. */
-const okState = (s: string): "ok" | "no_calendar" | "unavailable" =>
-  s === "ok" || s === "no_calendar" ? s : "unavailable";
 
 function safeStorage(): Storage | null {
   try {

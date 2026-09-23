@@ -11,9 +11,12 @@ import {
   askIntent,
   askJump,
   buildAskSuggestions,
+  callsAnswer,
   callsToday,
   detectLanguage,
+  needsAnswer,
   oneDoor,
+  openingsAnswer,
   rightNowLine,
   sameQuestion,
   scopeFromRoute,
@@ -205,7 +208,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         dealsOn: !!w.__PEOPLE?.dealsOn,
       });
     },
-    /** Which of the three quick questions this is, if any; the answer is ask-answer.ts's (bridge ask.ts `quick`). */
+    /** Which of the three quick questions this is, if any; the answer is quickAnswer's. */
     intent: (question: string) => askIntent(question, Date.now(), timezone()),
     callsToday: () => callsToday(calls(), Date.now(), timezone()),
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
@@ -217,5 +220,36 @@ export function askPalette(win: Window, storage: Storage | null) {
     rememberLanguage,
     timezone,
     sameQuestion,
+  };
+}
+
+/** The openings route as the quick answer reads it (ask/api.ts `openings`). */
+type Openings = (
+  day: string | null,
+  service: string | null,
+) => Promise<{ state: string; days?: Array<{ key: string; label: string; windows: string[] }> }>;
+
+/**
+ * A quick question's answer, without a model: who needs me from Today's queue, today's calls, or the openings route's
+ * days; null for every other question, which is the model's. The sentences are contracts' (ask-answer.ts).
+ */
+export function quickAnswer(p: ReturnType<typeof askPalette>, openings: Openings) {
+  return (question: string): Promise<AskAnswer> | null => {
+    const intent = p.intent(question);
+    if (!intent) return null;
+    const lang = p.language(question);
+    if (intent.kind === "needs") return Promise.resolve(needsAnswer(p.waiting(), lang));
+    if (intent.kind === "calls") {
+      const c = p.callsToday();
+      return Promise.resolve(callsAnswer(c.missed, c.live, lang));
+    }
+    return openings(intent.day, intent.service)
+      .then((o) =>
+        openingsAnswer(
+          { state: o.state === "ok" || o.state === "no_calendar" ? o.state : "unavailable", days: o.days ?? [] },
+          lang,
+        ),
+      )
+      .catch(() => openingsAnswer({ state: "unavailable", days: [] }, lang));
   };
 }

@@ -1,7 +1,7 @@
 /* global React */
-// The palette's hooks: hold to talk, the desktop/phone split, focus that
-// returns to the input, and reading aloud. Each does one thing and knows
-// nothing about the palette's state. Published as window.AskHooks.
+// Ask's hooks: hold to talk, a held Space that talks, focus that returns to
+// the line, and reading aloud. Each does one thing and knows nothing about
+// the Line's state. Published as window.AskHooks.
 
 const useAhState = React.useState;
 const useAhEffect = React.useEffect;
@@ -91,19 +91,29 @@ const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
   return { canTalk, listening, start, stop };
 };
 
-// A desktop has room for the rail beside a conversation; a phone keeps the
-// single-column sheet. A media query, not a device guess.
-const useAskWide = () => {
-  const mq = () => (typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 721px)") : null);
-  const [wide, setWide] = useAhState(() => { const m = mq(); return !!(m && m.matches); });
-  useAhEffect(() => {
-    const m = mq();
-    if (!m) return;
-    const on = () => setWide(m.matches);
-    if (m.addEventListener) m.addEventListener("change", on); else m.addListener(on);
-    return () => { if (m.removeEventListener) m.removeEventListener("change", on); else m.removeListener(on); };
-  }, []);
-  return wide;
+// A Space held on an empty line talks (the Line, 6.6): held 300ms it starts
+// listening, and letting go asks. A tap does nothing, because an empty line
+// takes no leading space; once there are words, Space is a space. The key's
+// repeats while held are swallowed. Two cells.
+const AH_HOLD_MS = 300;
+const useHoldSpace = ({ empty, talk }) => {
+  const timer = useAhRef(null);
+  const held = useAhRef(false);
+  const onKeyDown = (e) => {
+    if (e.key !== " ") return false;
+    if (held.current || timer.current) { e.preventDefault(); return true; }
+    if (!empty()) return false;
+    e.preventDefault();
+    timer.current = setTimeout(() => { timer.current = null; held.current = true; talk.start(); }, AH_HOLD_MS);
+    return true;
+  };
+  const onKeyUp = (e) => {
+    if (e.key !== " ") return false;
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; return true; }
+    if (held.current) { held.current = false; talk.stop(); return true; }
+    return false;
+  };
+  return { onKeyDown, onKeyUp };
 };
 
 // The input is the way on: focus comes back to it whenever `when` is true
@@ -131,4 +141,4 @@ const useAskSpeech = (A) => {
   return { canSpeak: !!(A && A.canSpeak()), speakingId, toggle, stop };
 };
 
-window.AskHooks = { useAskTalk, useAskWide, useAskFocus, useAskSpeech };
+window.AskHooks = { useAskTalk, useHoldSpace, useAskFocus, useAskSpeech };

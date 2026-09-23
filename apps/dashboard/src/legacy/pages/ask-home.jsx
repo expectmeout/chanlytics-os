@@ -1,8 +1,8 @@
 /* global React, Icon */
-// The palette at rest and while typing: the sections (Right now, Ask, Act,
-// Jump to, Recent), the rows, and the quick answer that needs no model.
-// Pure of state: buildAskSections turns what the bridge holds into rows,
-// AskRows draws them. Published as window.AskHome.
+// The rows under the Line (ask-real.jsx): at rest, Right now, three questions about the page and three earlier
+// conversations; while typing, the words as a question, the jumps and the questions that match; Earlier (⌘J), every
+// conversation. Pure of state: buildLineRows turns what the bridge holds into rows, AskRows draws them as one listbox.
+// No key symbol is drawn (the Line, D17). Published as window.AskHome.
 
 const ahAgo = (ms) => {
   if (!ms) return "";
@@ -13,86 +13,86 @@ const ahAgo = (ms) => {
   return Math.round(s / 86400) + "d ago";
 };
 
-const ahJumpIcon = (kind) => (kind === "person" ? "users" : kind === "thread" ? "inbox" : kind === "call" ? "phone" : "arrow-right");
-
-// Rows for the query as typed, or the home sections when nothing is typed.
-// Every row carries what activating it does: a route, words to send, words
-// to finish in the input, or a thread to open.
-const buildAskSections = ({ A, t, lang, query, surface, scope, threads }) => {
+// Every row carries what activating it does: a route, words to ask, words to finish on the line, or a thread to open.
+const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => {
   const q = query.trim();
-  const sections = [];
+  const thread = (th) => ({ type: "thread", label: th.title, sub: ahAgo(th.lastAtMs), th });
+  if (view === "earlier") return [{ key: "earlier", label: t.earlier, items: threads.map(thread) }];
   if (q) {
-    const fp = A.fast(q);
-    sections.push({ key: "fb", items: [{ type: "ask", icon: "sparkle", label: t.askRow(q), sub: fp ? t.instant : t.askSub, q }] });
+    const sections = [{ key: "ask", items: [{ type: "ask", label: q, q }] }];
     const jumps = A.jump(q);
-    if (jumps.length) sections.push({ key: "jump", label: t.jump, items: jumps.map((j) => ({ type: "jump", icon: ahJumpIcon(j.kind), label: j.label, sub: j.sub, meta: j.kind, to: j.to })) });
-    const hits = A.suggestions(surface, scope, lang).filter((s) => (s.label || s.q).toLowerCase().includes(q.toLowerCase()));
-    if (hits.length) sections.push({ key: "sug", label: t.ask, items: hits.map((s) => ({ type: s.kind === "act" ? "act" : "ask", icon: s.icon, label: s.label || s.q, q: s.q, compose: s.compose, meta: s.kind === "act" ? t.tagCard : undefined })) });
+    if (jumps.length)
+      sections.push({ key: "jump", label: t.jump, items: jumps.map((j) => ({ type: "jump", label: j.label, sub: j.sub, meta: t.kind[j.kind] || "", to: j.to })) });
+    const hits = A.suggestions(surface, scope, lang).filter((s) => (s.label || s.q).toLowerCase().includes(q.toLowerCase()) && s.q !== q);
+    if (hits.length)
+      sections.push({
+        key: "match",
+        items: hits.map((s) => ({ type: s.kind === "act" ? "act" : "sug", label: s.label || s.q, q: s.q, compose: s.compose, meta: s.kind === "act" ? t.tagCard : undefined })),
+      });
     return sections;
   }
-  const now = A.rightNow().slice(0, 4);
-  if (now.length) sections.push({ key: "now", label: t.now, items: now.map((n) => ({ type: "now", icon: n.icon || "inbox", label: n.title, sub: n.message, to: n.to })) });
-  const all = A.suggestions(surface, scope, lang);
-  sections.push({ key: "ask", label: t.ask, items: all.filter((s) => s.kind !== "act").map((s) => ({ type: "ask", icon: s.icon, label: s.q, q: s.q, fast: s.fast })) });
-  const acts = all.filter((s) => s.kind === "act");
-  if (acts.length) sections.push({ key: "act", label: t.act, items: acts.map((s) => ({ type: "act", icon: s.icon, label: s.label || s.q, q: s.q, compose: s.compose, meta: t.tagCard })) });
-  if (threads.length) sections.push({ key: "recent", label: t.recent, items: threads.slice(0, 6).map((th) => ({ type: "thread", icon: "sparkle", label: th.title, sub: ahAgo(th.lastAtMs), th })) });
+  // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer).
+  const sections = [{ key: "now", items: [{ type: "now", label: A.rightNow(lang), q: t.needsQ }] }];
+  const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
+  if (asks.length) sections.push({ key: "about", label: t.askAbout(surface), items: asks.map((s) => ({ type: "sug", label: s.q, q: s.q })) });
+  if (threads.length) {
+    const items = threads.slice(0, 3).map(thread);
+    if (threads.length > 3) items.push({ type: "all", label: t.allEarlier });
+    sections.push({ key: "earlier", label: t.earlier, items });
+  }
   return sections;
 };
 
-// A quick answer: no model, no thread. Openings come from the calendar route.
-const AskFast = ({ fast, t, onNav, speech, lang }) => {
-  if (!fast) return null;
+// The flat list the keys walk, in the order the rows are drawn.
+const flatRows = (sections) => sections.flatMap((sec) => sec.items);
+
+const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t }) => {
+  const flat = flatRows(sections);
+  if (!flat.length) return <div className="ask-rows-empty">{t.nothing}</div>;
+  let at = 0;
   return (
-    <div className="ask-fast" data-testid="ask-fast">
-      <div className="ask-fast-q">{fast.q}</div>
-      <div className="ask-fast-a">{fast.text}</div>
-      {fast.days && fast.days.length ? (
-        <div className="ask-fast-days">
-          {fast.days.map((d) => <div key={d.key}><b>{d.label}</b> {d.windows.join(" · ")}</div>)}
-        </div>
-      ) : null}
-      {(fast.links || []).length ? (
-        <div className="ask-msg-links">
-          {fast.links.map((l, i) => <button key={i} className="ask-link-chip" onClick={() => onNav(l.to)}>{l.label} <Icon name="arrow-right" size={10} /></button>)}
-        </div>
-      ) : null}
-      {speech.canSpeak && !fast.pending && (
-        <div className="ask-tools always">
-          <button type="button" className={`ask-tool ${speech.speakingId === "fast" ? "on" : ""}`} onClick={() => speech.toggle("fast", fast.text, lang)} title={speech.speakingId === "fast" ? t.stop : t.read} aria-label={t.read}>
-            <Icon name={speech.speakingId === "fast" ? "pause" : "headphones"} size={12} />
-          </button>
-        </div>
-      )}
+    <div className="ask-rows" role="listbox" id="ask-rows" aria-label={t.rowsLabel}>
+      {sections.map((sec) => (
+        <React.Fragment key={sec.key}>
+          {sec.label ? <div className="ask-rows-label" role="presentation">{sec.label}</div> : null}
+          {sec.items.map((it) => {
+            const i = at++;
+            return (
+              <div
+                key={i}
+                id={`ask-row-${i}`}
+                role="option"
+                aria-selected={i === sel}
+                className={`ask-row ${it.type}${i === sel ? " sel" : ""}`}
+                onMouseMove={() => setSel(i)}
+                onClick={() => onActivate(it)}
+                data-testid={`ask-row-${it.type}`}
+              >
+                <span className="ask-row-main">
+                  <span className="ask-row-label">{it.label}</span>
+                  {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
+                </span>
+                {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+                {it.type === "thread" ? (
+                  <button
+                    type="button"
+                    className="ask-row-del"
+                    tabIndex={-1}
+                    aria-label={t.deleteThread}
+                    title={t.deleteThread}
+                    onClick={(e) => { e.stopPropagation(); onDelete(it.th); }}
+                    data-testid="ask-row-del"
+                  >
+                    <Icon name="x" size={10} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </React.Fragment>
+      ))}
     </div>
   );
 };
 
-const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t }) => {
-  const flat = [];
-  sections.forEach((sec) => sec.items.forEach((it) => { it._i = flat.length; flat.push(it); }));
-  if (!flat.length) return <div className="cmd-empty">{t.empty}</div>;
-  return sections.map((sec) => (
-    <React.Fragment key={sec.key}>
-      {sec.label && <div className="cmd-sec-label">{sec.label}</div>}
-      {sec.items.map((it) => (
-        <button key={it._i} className={`cmd-row ${it.type} ${it._i === sel ? "sel" : ""}`} onMouseMove={() => setSel(it._i)} onClick={() => onActivate(it)} data-testid={`ask-row-${it.type}`}>
-          <span className="cmd-row-ic"><Icon name={it.icon} size={12} /></span>
-          <span className="cmd-row-main">
-            <span className="cmd-row-label">{it.label}</span>
-            {it.sub && <span className="cmd-row-sub">{it.sub}</span>}
-          </span>
-          {it.fast && <span className="cmd-row-kind">{t.instant}</span>}
-          {it.meta && <span className="cmd-row-kind">{it.meta}</span>}
-          {it.type === "thread" && <span className="cmd-row-del" role="button" tabIndex={-1} aria-label={t.deleteThread} onClick={(e) => { e.stopPropagation(); onDelete(it.th); }}><Icon name="x" size={10} /></span>}
-          <Icon name="arrow-right" size={12} className="cmd-row-arrow" />
-        </button>
-      ))}
-    </React.Fragment>
-  ));
-};
-
-// The flat list the keyboard walks, in the order the rows are drawn.
-const flatRows = (sections) => sections.flatMap((sec) => sec.items);
-
-window.AskHome = { buildAskSections, AskFast, AskRows, flatRows, ahAgo };
+window.AskHome = { buildLineRows, AskRows, flatRows, ahAgo };

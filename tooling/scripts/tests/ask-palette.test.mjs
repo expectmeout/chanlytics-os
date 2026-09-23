@@ -1,15 +1,14 @@
 /**
- * Ask's palette takes what the shell sends as it opens, deletes a conversation only when asked twice, and puts every
- * shipped page a jump away.
- *
- * - The sidebar's New chat reopened the last conversation, and a seeded question opened an empty palette: the shell
- *   opens the palette and sends in the same moment, and the palette listened only once it was open (the wiring
- *   audit's N3).
+ * Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6): what it shows at rest, how a
+ * conversation folds above the line and ends at Clear, how Esc stops an answer, how a held Space talks; and what the
+ * palette it replaced was fixed for, kept:
+ * - A seeded question opened an empty palette: the shell opens the Line and sends in the same moment, and the palette
+ *   listened only once it was open (the wiring audit's N3).
  * - A conversation was deleted by a hover × with no question and no Undo, and no key reached the × (N5).
  * - ⌘K "calendar" offered only to ask about it: the jump list stopped at the pages that were real before the
  *   Calendar, Lists, Campaigns, Setup, Billing and Activity shipped (N18).
  * Run against ask-real.jsx and its parts on a stub React whose effects run after their component returns, as React's
- * do, over the bridge's real palette and speech and a recorded stand-in for the Ask routes.
+ * do, over the bridge's real palette, quick answers and speech and a recorded stand-in for the Ask routes.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,7 +17,9 @@ import {
   roleGate,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
+  answerText,
   askJump,
+  cardOpenRoute,
   groundCitations,
   safeNavigate,
 } from "@chanlytics/contracts";
@@ -44,8 +45,6 @@ globalThis.document = {
   querySelector: () => null,
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-/** Whether the screen is wide enough for the rail beside a conversation: the media query a case sets. */
-const screen = { wide: false };
 /** The window's listeners: events really travel here, because when the palette listens is what N3 is about. */
 const heard = new Map();
 globalThis.window = {
@@ -61,7 +60,7 @@ globalThis.window = {
   history: { replaceState() {} },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  matchMedia: () => ({ matches: screen.wide, addEventListener() {}, removeEventListener() {} }),
+  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
   addEventListener: (type, fn) => {
     if (!heard.has(type)) heard.set(type, new Set());
     heard.get(type).add(fn);
@@ -184,10 +183,12 @@ Object.assign(globalThis.window, { usePPToast: () => [null, (m) => flashed.push(
 await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-home.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/ask-real.jsx");
-// Ask's face on the palette's stage (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
+// Ask's face in the line (components/ask-face.jsx): drawn in every case; it moves only where a case installs the bridge.
 await import("../../../apps/dashboard/src/legacy/components/ask-face.jsx");
-const { askPalette, surfaceFor } = await import("../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
+const { askPalette, quickAnswer, surfaceFor } =
+  await import("../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
 
 const walk = (n, fn) => {
@@ -297,17 +298,33 @@ const TH = (n) => ({
   lastAtMs: Date.now() - n * 3_600_000,
   scope: null,
 });
+/** An answer as the routes return one (contracts' AskMessageVM). */
+const said = (id, text) => ({
+  id,
+  role: "assistant",
+  text,
+  atMs: Date.now(),
+  failed: false,
+  citations: [],
+  followups: [],
+  proposals: [],
+});
 /**
- * Ask as the bridge installs it: the real palette and speech over this window, and a recorded stand-in for the routes
- * that go out (the threads, one thread, a deletion, a turn).
+ * Ask as the bridge installs it: the real palette, quick answers and speech over this window, and a recorded stand-in
+ * for the routes that go out (the threads, one thread, a deletion, a turn, the openings).
  */
 const ask = (threads = []) => {
   const calls = { deleted: [], sent: [], opened: [] };
   let list = [...threads];
+  const palette = askPalette(globalThis.window, globalThis.localStorage);
+  const openings = async () => ({ state: "no_calendar", days: [] });
   globalThis.window.__ask = {
     surfaceFor,
-    ...askPalette(globalThis.window, globalThis.localStorage),
+    ...palette,
     ...askSpeech(globalThis.window),
+    quick: quickAnswer(palette, openings),
+    answerText,
+    cardOpenRoute,
     threads: async () => list,
     thread: async (id) => {
       calls.opened.push(id);
@@ -325,6 +342,7 @@ const ask = (threads = []) => {
                 followups: [],
                 proposals: [],
               },
+              said(`a-${id}`, `The answer to ${th.title}.`),
             ],
           }
         : { missing: true };
@@ -337,17 +355,17 @@ const ask = (threads = []) => {
     send: async (input) => {
       calls.sent.push(input.text);
     },
-    openings: async () => ({ state: "no_calendar" }),
+    openings,
   };
   return calls;
 };
 
 /* ------------------------------ N3 ------------------------------ */
 
-test("REGRESSION (N3): what the shell sends as the palette opens is taken -- a seeded question and New chat both fired before the palette listened", async () => {
+test("REGRESSION (N3): what the shell sends as the Line opens is taken -- a seeded question fired before the palette listened", async () => {
   const calls = ask([TH(1)]);
   render(Palette, CLOSED);
-  // The shell keeps the palette mounted and closed, then opens it and sends in the same moment.
+  // The shell keeps the Line mounted and closed, then opens it and sends in the same moment.
   sent("ask:seed", { prompt: "Draft a reply to Rosa", mode: "compose" });
   let tree = await opens();
   assert.equal(
@@ -359,36 +377,182 @@ test("REGRESSION (N3): what the shell sends as the palette opens is taken -- a s
   await closes();
   sent("ask:seed", { prompt: "Summarise last week for me" });
   tree = await opens();
-  assert.deepEqual(calls.sent, ["Summarise last week for me"], "a question to ask is asked as the palette opens");
-  assert.equal(byClass(tree, "ask-msgs").length, 1, "and its conversation is open");
+  assert.deepEqual(calls.sent, ["Summarise last week for me"], "a question to ask is asked as the Line opens");
+  assert.ok(byTestId(tree, "ask-turn"), "and its conversation is open");
 
   await closes();
   tree = await opens();
-  assert.equal(byClass(tree, "ask-msgs").length, 1, "⌘K alone brings the conversation back");
-
-  await closes();
-  sent("ask:new");
-  tree = await opens();
-  assert.equal(byClass(tree, "ask-msgs").length, 0, "REGRESSION: New chat reopened the last conversation");
-  assert.equal(inputOf(tree).props.value, "", "and starts with nothing typed");
+  assert.ok(byTestId(tree, "ask-turn"), "⌘K alone brings the conversation back: it lasts until Clear (D14)");
   await closes();
 });
 
-test("a seed that names a thread opens that thread, the way a prompt is asked and New chat is taken", async () => {
+test("a seed that names a thread opens that thread, its last answer under the line", async () => {
   const calls = ask([TH(1), TH(2)]);
   render(Palette, CLOSED);
-  // Today's band hands its conversation over as the palette opens (today-face.jsx, Continue in Ask).
+  // Today's band hands its conversation over as the Line opens (today-face.jsx, Continue in Ask).
   sent("ask:seed", { thread: TH(2).id });
   const tree = await opens();
   assert.deepEqual(calls.opened, [TH(2).id], "the thread was read");
-  assert.equal(byClass(tree, "ask-msgs").length, 1, "and its conversation is open");
+  assert.equal(textOf(byTestId(tree, "ask-say")), "The answer to Question 2.", "and its conversation is open");
   assert.deepEqual(calls.sent, [], "nothing was asked");
   await closes();
 });
 
+/* ------------------------------ the Line ------------------------------ */
+
+test("the Line at rest: Right now is Today's queue, then questions about the page, then earlier conversations -- and no key is drawn", async () => {
+  globalThis.window.TODAY_DATA = {
+    queue: {
+      rows: [
+        {
+          id: "q1",
+          kind: "handoff",
+          conversationId: "c1",
+          callId: null,
+          who: "Nora",
+          channel: "WhatsApp",
+          when: "waited 2h",
+          sentence: "Can I come at 3?",
+          quoted: true,
+          cta: { label: "Reply", to: "inbox/th-c1" },
+        },
+      ],
+    },
+  };
+  try {
+    const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    assert.equal(textOf(byTestId(tree, "ask-row-now")), "Nora is waiting on you.");
+    assert.ok(
+      textOf(tree).includes("Ask about Today") && byTestId(tree, "ask-row-sug"),
+      "questions about the page, under its name",
+    );
+    assert.equal(
+      all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").length,
+      3,
+      "three earlier conversations, and a row for the rest",
+    );
+    assert.ok(byTestId(tree, "ask-row-all"));
+    assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
+    // ↵ on the empty line runs the row it stands on: Right now's own question, answered without a model.
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, [], "a quick answer asks no model");
+    assert.equal(textOf(byTestId(tree, "ask-say")), "Nora is waiting on you.");
+    assert.deepEqual(
+      all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => textOf(n)),
+      ["NoraWhatsApp · waited 2h“Can I come at 3?”"],
+      "the person is her own door; there is no second one to the Inbox",
+    );
+    assert.equal(byTestId(tree, "ask-open"), null);
+    await closes();
+  } finally {
+    delete globalThis.window.TODAY_DATA;
+  }
+});
+
+test("a follow-up folds the answer above the line; Clear ends the conversation, which stays in Earlier", async () => {
+  const calls = ask([]);
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(5).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.sent.length}`, `Answer ${calls.sent.length}.`) });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "how was the week?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byTestId(tree, "ask-say")), "Answer 1.");
+  assert.ok(byTestId(tree, "ask-clear") && byTestId(tree, "ask-copy"), "an answer's line offers Copy and Clear");
+  typed(tree, "and the week before?");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["how was the week?", "and the week before?"]);
+  const folds = all(tree, (n) => n.props?.["data-testid"] === "ask-fold");
+  assert.equal(folds.length, 1, "the first answer folds above the line");
+  assert.ok(textOf(folds[0]).includes("how was the week?") && textOf(folds[0]).includes("Answer 1."));
+  assert.equal(textOf(byTestId(tree, "ask-say")), "Answer 2.");
+  press(byTestId(tree, "ask-clear"));
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-turn"), null, "home again");
+  assert.ok(byTestId(tree, "ask-row-now"));
+  await closes();
+});
+
+test("Esc while Ask reads stops waiting: the turn says so, and what the stream sends after changes nothing; Esc again closes", async () => {
+  const calls = ask([]);
+  let finish = () => {};
+  globalThis.window.__ask.send = (input, on) =>
+    new Promise((res) => {
+      calls.sent.push(input.text);
+      on({ t: "trace", text: "Reading the inbox…" });
+      finish = () => {
+        on({ t: "final", message: said("late", "Too late.") });
+        res();
+      };
+    });
+  let closed = 0;
+  const props = { open: true, onClose: () => (closed += 1) };
+  render(Palette, props);
+  let tree = await later(Palette, props);
+  typed(tree, "who wrote today?");
+  tree = await later(Palette, props);
+  keyed(tree, "Enter");
+  tree = await later(Palette, props);
+  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the inbox…"), "reading, in the tools' words");
+  assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while Ask reads");
+  keyed(tree, "Escape");
+  tree = await later(Palette, props);
+  assert.equal(closed, 0, "the first Esc stops the answer, and the Line stays");
+  finish();
+  tree = await later(Palette, props);
+  assert.ok(textOf(byTestId(tree, "ask-say")).startsWith("Stopped."), textOf(tree));
+  assert.ok(!textOf(tree).includes("Too late."), "the late answer changed nothing");
+  keyed(tree, "Escape");
+  assert.equal(closed, 1, "then Esc closes");
+  await closes();
+});
+
+test("Space held on an empty line talks; a tap does nothing; after words, Space is a space", async () => {
+  const started = [];
+  const talk = { start: () => started.push("start"), stop: () => started.push("stop") };
+  let hold = null;
+  let empty = true;
+  const Probe = () => {
+    hold = globalThis.window.AskHooks.useHoldSpace({ empty: () => empty, talk });
+    return null;
+  };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  render(Probe, {});
+  const down = pressOf(" ");
+  assert.equal(hold.onKeyDown(down), true);
+  assert.equal(down.prevented, true, "an empty line takes no leading space");
+  await wait(340);
+  assert.deepEqual(started, ["start"], "held: listening");
+  assert.equal(hold.onKeyDown(pressOf(" ")), true, "the key's repeats while held are swallowed");
+  assert.equal(hold.onKeyUp(pressOf(" ")), true);
+  assert.deepEqual(started, ["start", "stop"], "let go: it asks");
+
+  render(Probe, {});
+  hold.onKeyDown(pressOf(" "));
+  hold.onKeyUp(pressOf(" "));
+  await wait(340);
+  assert.deepEqual(started, ["start", "stop"], "a tap started nothing");
+
+  empty = false;
+  render(Probe, {});
+  const typing = pressOf(" ");
+  assert.equal(hold.onKeyDown(typing), false);
+  assert.equal(typing.prevented, false, "a space between words is typed");
+});
+
 /* ------------------------------ Ask's face ------------------------------ */
 
-test("the palette draws Ask's face on a stage above the conversation, and says Ask's mood as a turn runs", async () => {
+test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs", async () => {
   const { MASCOT } = await import("../../../apps/dashboard/src/legacy-bridge/mascot/index.ts");
   globalThis.window.__mascot = MASCOT;
   const said = [];
@@ -417,7 +581,7 @@ test("the palette draws Ask's face on a stage above the conversation, and says A
     sent("ask:seed", { prompt: "who has waited longest?" });
     let tree = await opens();
     for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
-    assert.ok(byTestId(tree, "ask-stage"), "the stage above the conversation");
+    assert.ok(byTestId(tree, "ask-line-face"), "the three stand in the line");
     assert.deepEqual(calls.sent, ["who has waited longest?"]);
     assert.deepEqual(
       said.filter((s) => s !== "beat"),
@@ -447,8 +611,8 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
   };
   try {
     render(Palette, CLOSED);
-    // "who needs me?" is one the palette answers itself (contracts fastPath): no turn, a nod. First, because a
-    // conversation left open takes every later question to the model.
+    // "who needs me?" is one the Line answers itself (contracts askIntent, ask-answer.ts): no turn, a nod. First,
+    // because a conversation left open takes every later question to the model.
     sent("ask:seed", { prompt: "who needs me?" });
     await opens();
     assert.deepEqual(calls.sent, [], "the quick question sent nothing");
@@ -473,7 +637,7 @@ test("REGRESSION (N5): a conversation is deleted only when asked twice, from its
   const calls = ask([TH(1), TH(2)]);
   render(Palette, OPEN);
   let tree = await later(Palette, OPEN);
-  const xs = byClass(tree, "cmd-row-del");
+  const xs = byClass(tree, "ask-row-del");
   assert.equal(xs.length, 2, "both conversations are listed");
   press(xs[0]);
   tree = await later(Palette, OPEN);
@@ -494,7 +658,7 @@ test("REGRESSION (N5): a conversation is deleted only when asked twice, from its
     find(
       lastTree,
       (n) =>
-        String(n.props?.className || "").startsWith("cmd-row ") && String(n.props.className).split(" ").includes("sel"),
+        String(n.props?.className || "").startsWith("ask-row ") && String(n.props.className).split(" ").includes("sel"),
     );
   for (let i = 0; i < 30 && !String(selected()?.props.className || "").includes("thread"); i++) {
     keyed(lastTree, "ArrowDown");
@@ -515,31 +679,28 @@ test("REGRESSION (N5): a conversation is deleted only when asked twice, from its
   press(byTestId(tree, "ask-delete-yes"));
   tree = await later(Palette, OPEN);
   assert.equal(calls.deleted.length, 1, "Yes, delete deletes it");
-  assert.equal(byClass(tree, "cmd-row-del").length, 1, "and it leaves the list");
+  assert.equal(byClass(tree, "ask-row-del").length, 1, "and it leaves the list");
   await closes();
 });
 
-test("REGRESSION (N5): the rail's × beside an open conversation asks first too", async () => {
-  screen.wide = true;
-  try {
-    const calls = ask([TH(1), TH(2)]);
-    render(Palette, OPEN);
-    let tree = await later(Palette, OPEN);
-    press(byTestId(tree, "ask-row-thread"));
-    tree = await later(Palette, OPEN);
-    const rail = byTestId(tree, "ask-rail");
-    assert.ok(rail, "the rail is beside the conversation");
-    press(byClass(rail, "ask-thread-x")[1]);
-    tree = await later(Palette, OPEN);
-    assert.deepEqual(calls.deleted, [], "REGRESSION: the rail's × deleted at once");
-    assert.ok(textOf(byTestId(tree, "ask-delete-confirm")).includes("Question 2"));
-    press(byTestId(tree, "ask-delete-yes"));
-    await later(Palette, OPEN);
-    assert.deepEqual(calls.deleted, [TH(2).id]);
-    await closes();
-  } finally {
-    screen.wide = false;
-  }
+test("REGRESSION (N5): Earlier holds every conversation, opened with ⌘J from an open one, and its × asks first too", async () => {
+  const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-row-thread"));
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byTestId(tree, "ask-say")), "The answer to Question 1.", "a conversation is open");
+  inputOf(tree).props.onKeyDown({ ...pressOf("j"), metaKey: true });
+  tree = await later(Palette, OPEN);
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").length, 4, "every conversation");
+  press(byClass(tree, "ask-row-del")[1]);
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.deleted, [], "REGRESSION: the × deleted at once");
+  assert.ok(textOf(byTestId(tree, "ask-delete-confirm")).includes("Question 2"));
+  press(byTestId(tree, "ask-delete-yes"));
+  await later(Palette, OPEN);
+  assert.deepEqual(calls.deleted, [TH(2).id]);
+  await closes();
 });
 
 /* ------------------------------ N18 ------------------------------ */
