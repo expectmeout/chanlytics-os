@@ -553,6 +553,21 @@ export function cameFromOf(r: { came_from?: string | null }): { key: PersonCameF
   return { key: k as PersonCameFrom, label: PERSON_CAME_FROM_WORDS[k as PersonCameFrom] };
 }
 
+/**
+ * Who added a person and how, from their first contact.added event (PersonDetailDto.added), read as
+ * people_list reads it for came_from (00138): 'calendar' is the calendar sweep, 'lead' the lead finder
+ * (00140, 00142), and any other source -- 'manual', or whatever POST contacts was given -- a hand. In
+ * came_from's words, once: History's row says who and "Added" how, About's Added row the day and how.
+ */
+function addedBy(added: Pick<NonNullable<PersonDetailDto["added"]>, "source" | "title">): { who: string; how: string } {
+  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
+  const from = PERSON_CAME_FROM_WORDS[added.source];
+  return {
+    who: added.source === "calendar" ? "Calendar" : "Leads",
+    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
+  };
+}
+
 type StandingRow = Pick<
   PersonRowDto,
   "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason"
@@ -2021,18 +2036,9 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   }
   if (d.added) {
     const t = ts(d.added.at);
+    const by = addedBy(d.added);
     if (t !== null)
-      items.push({
-        id: "added",
-        ts: t,
-        ...stamp(t),
-        kind: "system",
-        who: "Calendar",
-        text:
-          d.added.source === "calendar"
-            ? `Added from your calendar${d.added.title ? ` (${d.added.title})` : ""}`
-            : "Added by hand",
-      });
+      items.push({ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` });
   }
 
   items.sort((a, b) => b.ts - a.ts);
@@ -2299,12 +2305,15 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const at = ts(d.added.at);
     about.push({
       k: "Added",
-      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : d.added.source === "lead" ? "from a lead you found" : "by hand"}`,
+      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${addedBy(d.added).how}`,
     });
   } else if (d.lead) {
     // Found as a lead, with no row saying when they were added: the lead's own day says it.
     const found = ts(d.lead.found_at);
-    about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "—"} · from a lead you found` });
+    about.push({
+      k: "Added",
+      v: `${found !== null ? clockDateYear(found, tz) : "—"} · ${addedBy({ source: "lead", title: null }).how}`,
+    });
   }
 
   const vm: Omit<PersonVM, "proposal" | "proposalAction"> = {

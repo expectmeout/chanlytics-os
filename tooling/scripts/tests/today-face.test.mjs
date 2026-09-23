@@ -1,10 +1,10 @@
 /**
- * The band above the queue, EXECUTED on the stub React: compact at rest (the mark alone, no field); a click opens
+ * The band above the queue on a phone, EXECUTED on the stub React: at rest the face with no field; a tap's click wakes
  * it with the field; a press held on it listens (or says the browser cannot); Escape folds it and keeps the answer;
- * Clear forgets and folds. Open, the field sends through the palette's client and the exchange shows what the
- * stream says; a failed turn shows its sentence and Try again; a follow-up goes on the same thread; Continue in
- * Ask opens the thread in the palette; an answer with a proposal hands off for review; and with no client the
- * field seeds the palette. Today's composition, with the band in it, is pinned in today-page.test.mjs.
+ * Clear forgets and folds. Woken, the field sends through the palette's client and the exchange shows what the stream
+ * says; a failed turn shows its sentence and Try again; a follow-up goes on the same thread; Continue in Ask opens the
+ * thread in the palette; an answer with a proposal hands off for review; the band says Ask's one mood; and with no
+ * client the field seeds the palette. Today's composition, with the band in it, is pinned in today-page.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -258,6 +258,49 @@ test("an answer that carries a proposal hands off to the palette for review", as
   tree = again(draw);
   assert.equal(textOf(byTestId(tree, "today-face-continue")), "Review in Ask");
   delete W.__ask;
+});
+
+test("the band says Ask's one mood, so every face moves with it: reading, answering with a beat per word, then rest", async () => {
+  const said = [];
+  const stop = MASCOT.mood.subscribe((ev) =>
+    said.push(ev.t === "state" ? ev.state : ev.t === "react" ? ev.kind : ev.t),
+  );
+  // A turn the case steps through by hand, drawing between the events as React would.
+  let on = null;
+  let finish = null;
+  const A = client([]);
+  A.send = (input, cb) => {
+    A.sent.push(input);
+    on = cb;
+    return new Promise((r) => (finish = r));
+  };
+  W.__ask = A;
+  try {
+    let tree = openBand(start());
+    assert.deepEqual(said, [], "a band drawn at rest says nothing: the palette may be reading");
+    type(tree, "who has waited longest?");
+    tree = again(draw);
+    submit(tree);
+    await settle();
+    tree = again(draw);
+    on({ t: "thread", id: "th-m", title: "who has waited longest?" });
+    on({ t: "delta", text: "Nora has " });
+    tree = again(draw);
+    on({ t: "final", message: msg() });
+    finish();
+    await settle();
+    tree = again(draw);
+    assert.deepEqual(
+      said.filter((s) => s !== "beat"),
+      ["thinking", "speaking", "idle"],
+      "the row nods on its own as it settles",
+    );
+    assert.equal(said.filter((s) => s === "beat").length, 1, "a beat for the word");
+  } finally {
+    stop();
+    MASCOT.mood.set("idle");
+    delete W.__ask;
+  }
 });
 
 test("with no client the field seeds the palette and the band rests; Enter on the field is the send", () => {

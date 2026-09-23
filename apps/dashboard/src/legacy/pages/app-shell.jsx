@@ -298,6 +298,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     else navigate("clients");
   }, [navigate]);
   const openAsk = useShellCallback(() => setAskOpen(true), []);
+  // The phone's ✦ is Ask's face too (components/ask-face.jsx), drawn on the button's coral; the sparkle where the three
+  // are not loaded.
+  const PhoneFace = window.AskFace || null;
 
   // Expose for deep components (fleet cards, command rows) without prop-drilling
   window.appNavigate = navigate;
@@ -849,7 +852,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
         {!askOpen && !navOpen && (
           <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
-            <Icon name="sparkle" size={20} />
+            {PhoneFace
+              ? <PhoneFace className="phone-ask-face" tone="accent" testId="phone-ask-face" />
+              : <Icon name="sparkle" size={20} />}
           </button>
         )}
       </div>

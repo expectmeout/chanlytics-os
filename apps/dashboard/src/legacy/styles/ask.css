@@ -101,6 +101,9 @@
     background: var(--accent); color: var(--accent-fg); z-index: 121;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   }
+  /* The three in the ✦ (components/ask-face.jsx, tone accent): a canvas whose height holds the whole leap, so the
+     squares are about 6px and the stair about 20 by 14, in the button's own foreground on its coral. */
+  .phone-ask .phone-ask-face { display: block; width: 30px; height: 24px; }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }
   /* Inside an open thread the reply box IS the action, and Send sits a thumb from here: two

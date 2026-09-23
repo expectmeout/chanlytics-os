@@ -9,7 +9,15 @@ export interface ThemeTokens {
   bg?: string | null;
   ink?: string | null;
   accent?: string | null;
+  /** what is drawn on the accent: the phone's ✦ button's glyph colour */
+  accentFg?: string | null;
 }
+/**
+ * Where the three are drawn. `page`: on the page, the app's ink at rest and its coral at work. `accent`: on a coral
+ * button (the phone's ✦), in the button's own foreground, fading toward the coral the way the mark fades and a little
+ * brighter at work; there the state shows as motion, since the button is already the accent.
+ */
+export type Tone = "page" | "accent";
 export interface Palette {
   rest: [Lab, Lab, Lab];
   live: [Lab, Lab, Lab];
@@ -20,9 +28,36 @@ const gam = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 /
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 export function rgbToLab(r: number, g: number, b: number): Lab {
-  const R = lin(r),
-    G = lin(g),
-    B = lin(b);
+  return linearToOklab(lin(r), lin(g), lin(b));
+}
+
+/**
+ * CSS `lab(L a b)`, CIE Lab under D50, to OKLab: through XYZ, adapted to D65 (Bradford) and linear sRGB, per CSS Color 4.
+ * The app's build writes every `oklch()` token as `lab()`, so this is the form the page's tokens are read back in.
+ */
+export function cieLabToOklab(L: number, a: number, b: number): Lab {
+  const e = 216 / 24389;
+  const k = 24389 / 27;
+  const fy = (L + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+  const xr = fx ** 3 > e ? fx ** 3 : (116 * fx - 16) / k;
+  const yr = L > k * e ? fy ** 3 : L / k;
+  const zr = fz ** 3 > e ? fz ** 3 : (116 * fz - 16) / k;
+  const X = xr * 0.9642956764295677;
+  const Y = yr;
+  const Z = zr * 0.8251046025104602;
+  const x = 0.955473421488075 * X - 0.02309845494876471 * Y + 0.06325924320057072 * Z;
+  const y = -0.0283697093338637 * X + 1.0099953980813041 * Y + 0.021041441191917323 * Z;
+  const z = 0.012314014864481998 * X - 0.020507649298898964 * Y + 1.330365926242124 * Z;
+  return linearToOklab(
+    3.2409699419045226 * x - 1.537383177570094 * y - 0.4986107602930034 * z,
+    -0.9692436362808796 * x + 1.8759675015077202 * y + 0.04155505740717559 * z,
+    0.05563007969699366 * x - 0.20397695888897652 * y + 1.0569715142428786 * z,
+  );
+}
+
+function linearToOklab(R: number, G: number, B: number): Lab {
   const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
   const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
   const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
@@ -44,7 +79,10 @@ export function labToCss([L, A, B]: Lab): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/** '#rrggbb', '#rgb', 'rgb(r, g, b)' or 'oklch(L C H)': the forms the app's tokens take. Anything else is null. */
+/**
+ * '#rrggbb', '#rgb', 'rgb(r, g, b)', 'oklch(L C H)' or 'lab(L a b)': the forms the app's tokens take, as written and
+ * as the browser reads them back after the build. Anything else is null.
+ */
 export function parseColor(value: string | Lab | null | undefined): Lab | null {
   if (Array.isArray(value)) return value as Lab;
   const str = String(value ?? "")
@@ -65,6 +103,9 @@ export function parseColor(value: string | Lab | null | undefined): Lab | null {
     const h = (parseFloat(m[4]) * Math.PI) / 180;
     return [L, C * Math.cos(h), C * Math.sin(h)];
   }
+  if ((m = /^lab\(\s*(-?[\d.]+)%?\s+(-?[\d.]+)\s+(-?[\d.]+)/.exec(str))) {
+    return cieLabToOklab(parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]));
+  }
   if ((m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(str))) {
     return rgbToLab(+m[1] / 255, +m[2] / 255, +m[3] / 255);
   }
@@ -79,8 +120,18 @@ export const mixLab = (p: Lab, q: Lab, t: number): Lab => [
 
 /** The app's tokens (tokens.css), for when the page gives none. */
 const TOKENS: Record<ThemeName, Required<ThemeTokens>> = {
-  light: { bg: "oklch(0.985 0.003 80)", ink: "oklch(0.18 0.01 260)", accent: "oklch(0.62 0.19 25)" },
-  dark: { bg: "oklch(0.16 0.005 260)", ink: "oklch(0.96 0.004 80)", accent: "oklch(0.7 0.18 28)" },
+  light: {
+    bg: "oklch(0.985 0.003 80)",
+    ink: "oklch(0.18 0.01 260)",
+    accent: "oklch(0.62 0.19 25)",
+    accentFg: "oklch(0.99 0 0)",
+  },
+  dark: {
+    bg: "oklch(0.16 0.005 260)",
+    ink: "oklch(0.96 0.004 80)",
+    accent: "oklch(0.7 0.18 28)",
+    accentFg: "oklch(0.16 0.005 260)",
+  },
 };
 /**
  * How far each square fades toward the page, first to last, the way the mark fades. On a dark page coral faded far
@@ -92,11 +143,13 @@ const FADES: Record<ThemeName, { rest: [number, number, number]; live: [number, 
 };
 
 /** Three colours at rest (the ink) and three at work (the accent), first square to last. */
-export function palette(theme: ThemeName, tokens: ThemeTokens = {}): Palette {
+export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone = "page"): Palette {
   const base = TOKENS[theme];
-  const bg = parseColor(tokens.bg) ?? (parseColor(base.bg) as Lab);
-  const ink = parseColor(tokens.ink) ?? (parseColor(base.ink) as Lab);
-  const accent = parseColor(tokens.accent) ?? (parseColor(base.accent) as Lab);
+  const pageAccent = parseColor(tokens.accent) ?? (parseColor(base.accent) as Lab);
+  const onAccent = parseColor(tokens.accentFg) ?? (parseColor(base.accentFg) as Lab);
+  const bg = tone === "accent" ? pageAccent : (parseColor(tokens.bg) ?? (parseColor(base.bg) as Lab));
+  const ink = tone === "accent" ? onAccent : (parseColor(tokens.ink) ?? (parseColor(base.ink) as Lab));
+  const accent = tone === "accent" ? onAccent : pageAccent;
   const f = FADES[theme];
   return {
     rest: [mixLab(ink, bg, f.rest[0]), mixLab(ink, bg, f.rest[1]), mixLab(ink, bg, f.rest[2])],

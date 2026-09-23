@@ -137,8 +137,21 @@ test("Resend delivers at least once: a replay is answered as the fact it is, and
     503,
     "a mailbox that could not be looked up is not nobody's",
   );
+  // No database: setPg(null) hands the door back to the environment, so the
+  // environment names none for this step. Credentials exported for a local
+  // stack would otherwise build a real client, and the delivery would be
+  // answered as mail for nobody.
+  const credentials = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"].map((k) => [k, process.env[k]]);
+  for (const [k] of credentials) delete process.env[k];
   setPg(null);
-  assert.equal(await post(received(["bestmovers@mail.chanlytics.com"])), 503);
+  try {
+    assert.equal(await post(received(["bestmovers@mail.chanlytics.com"])), 503);
+  } finally {
+    for (const [k, v] of credentials) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });
 
 test("mail for nobody is acknowledged and counted, once a minute at most, and an event with no work is a quiet 200", async () => {
