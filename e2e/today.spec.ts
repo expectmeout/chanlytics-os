@@ -140,46 +140,23 @@ test.describe("Today on a real workspace", () => {
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
   });
 
-  test("the three: the band above the queue takes a question; a quick one settles without a model turn", async ({
+  test("the three are the Ask button's face on a desktop: nothing stands between the standing line and the queue", async ({
     page,
   }) => {
-    const band = page.getByTestId("today-face");
-    await expect(band).toBeVisible();
-    const bandBox = await band.boundingBox();
-    const queueBox = await page.getByTestId("today-queue").boundingBox();
-    const day = page.getByTestId("today-day");
-    const dayBox = (await day.count()) ? await day.boundingBox() : null; // a day that could not be read is another card
-    expect(bandBox!.y, "the band stands above the queue").toBeLessThan(queueBox!.y);
-    expect(Math.abs(bandBox!.x - queueBox!.x), "in the queue's column").toBeLessThan(2);
-    expect(Math.abs(bandBox!.width - queueBox!.width), "as wide as the queue, no wider").toBeLessThan(2);
-    // Two columns wide (over 1180px): the day starts beside the band, not under it.
-    if (dayBox && dayBox.y < queueBox!.y) expect(dayBox.x).toBeGreaterThan(bandBox!.x + bandBox!.width - 1);
-    await expect(band).toHaveAttribute("data-phase", "rest");
-    // At rest it is the mark alone: closed, small, no field. A click opens it with the field focused.
-    await expect(band).toHaveAttribute("data-open", "false");
-    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
-    expect(bandBox!.height, "the mark at rest is small").toBeLessThan(90);
-    await band.getByTestId("today-face-stage").click();
-    await expect(band).toHaveAttribute("data-open", "true");
-    await expect(band.getByTestId("today-face-input")).toBeFocused();
-    expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
-    // Escape folds it; a click opens it again.
+    // Wider than a phone the band is not drawn; Ask's face is the top bar's button, and the palette's stage.
+    await expect(page.getByTestId("today-face")).toBeHidden();
+    await expect(page.getByTestId("tb-ask").getByTestId("tb-ask-face")).toBeVisible();
+    const standing = await page.getByTestId("today-standing").boundingBox();
+    const queue = await page.getByTestId("today-queue").boundingBox();
+    expect(queue!.y - (standing!.y + standing!.height), "the queue right under the standing line").toBeLessThan(40);
+    // The local harness installs no Ask client, so its palette is the mockup's; only a workspace opens the real one.
+    if (!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask))) return;
+    await page.getByTestId("tb-ask").click();
+    const pal = page.getByTestId("ask-real");
+    await expect(pal).toBeVisible();
+    await expect(pal.getByTestId("ask-stage")).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(band).toHaveAttribute("data-open", "false");
-    await band.getByTestId("today-face-stage").click();
-    await expect(band).toHaveAttribute("data-open", "true");
-    // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
-    test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
-    // The palette's own quick question (contracts fastPath, kind "needs"): no model turn, no cost.
-    await band.getByTestId("today-face-input").fill("who needs me?");
-    await band.getByTestId("today-face-input").press("Enter");
-    await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });
-    await expect(band.getByTestId("today-face-exchange")).toContainText(/need|waiting/i);
-    await expect(band.getByTestId("today-face-continue")).toHaveCount(0);
-    // Clear forgets the turn and folds the band.
-    await band.getByTestId("today-face-clear").click();
-    await expect(band).toHaveAttribute("data-phase", "rest");
-    await expect(band).toHaveAttribute("data-open", "false");
+    await expect(pal).toBeHidden();
   });
 
   test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({
@@ -204,11 +181,12 @@ test.describe("Today on a phone", () => {
     await page.waitForLoadState("networkidle");
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
-    // The three stand above the queue, closed and small at rest, and never widen the page.
+    // The three stand above the queue at their full size, with no field until they are woken, and never widen the page.
     const band = page.getByTestId("today-face");
     await expect(band).toBeVisible();
     await expect(band).toHaveAttribute("data-open", "false");
-    expect((await band.boundingBox())!.height, "the mark at rest is small").toBeLessThan(90);
+    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
+    expect((await band.getByTestId("today-face-stage").boundingBox())!.height, "the full face").toBeGreaterThan(200);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const box = await queue.boundingBox();
     expect(box!.y, "the queue's head is on the first screen").toBeLessThan(844 - 120);
@@ -224,5 +202,31 @@ test.describe("Today on a phone", () => {
     await expect(receipt).toBeVisible();
     const position = await receipt.evaluate((el) => getComputedStyle(el).position);
     expect(position).toBe("static");
+  });
+
+  test("the three on a phone: a tap slides the field in, a quick question settles without a model turn, Clear folds it", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const band = page.getByTestId("today-face");
+    await expect(band).toBeVisible();
+    await expect(band).toHaveAttribute("data-phase", "rest");
+    await band.getByTestId("today-face-stage").tap();
+    await expect(band).toHaveAttribute("data-open", "true");
+    await expect(band.getByTestId("today-face-input")).toBeFocused();
+    // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
+    test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
+    // The palette's own quick question (contracts fastPath, kind "needs"): no model turn, no cost.
+    await band.getByTestId("today-face-input").fill("who needs me?");
+    await band.getByTestId("today-face-input").press("Enter");
+    await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });
+    await expect(band.getByTestId("today-face-exchange")).toContainText(/need|waiting/i);
+    await expect(band.getByTestId("today-face-continue")).toHaveCount(0);
+    await band.getByTestId("today-face-clear").tap();
+    await expect(band).toHaveAttribute("data-phase", "rest");
+    await expect(band).toHaveAttribute("data-open", "false");
+    await expect(band.getByTestId("today-face-input")).toHaveCount(0);
   });
 });

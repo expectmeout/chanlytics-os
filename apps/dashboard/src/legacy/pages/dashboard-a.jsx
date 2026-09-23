@@ -1,11 +1,10 @@
 /* global React, HeroBrief, TodayFace, AgentCommand, TodayDay, TodayCard, TodayLeaks, TodayAway */
-// Today. Four bands, in this order, and the order is the argument: the work first (a phone puts nothing above it
-// but the face, which is where the work is asked about), then the day's own card, then what is left over. Analysis
-// never outranks a person who has been waiting eleven days.
+// Today. Three bands, in this order, and the order is the argument: the work first, then the day's own card, then
+// what is left over. Analysis never outranks a person who has been waiting eleven days.
 //
 //   the standing line
-//   the three (today-face.jsx)   | the day (4 of 12)
-//   the queue (8 of 12)          |
+//   the three (today-face.jsx, on a phone only: wider, Ask's face is the top bar's button)
+//   the queue (8 of 12)          | the day (4 of 12)
 //   the day's card (12)
 //   worth a look (7)             | while you were away (5)
 //
@@ -15,8 +14,8 @@
 const DashboardA = () => (
   <div className="dash-a-v2">
     <HeroBrief />
+    <TodayFace />
     <div className="dash-a-v2-core">
-      <TodayFace />
       <AgentCommand />
       <TodayDay />
     </div>

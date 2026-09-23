@@ -2671,3 +2671,48 @@ block "should prompt the browser to allow". Spec D11–D13 and section 4.6. One 
 
 - [x] Spec 4.6 + D11–D13; CLAUDE.md Today paragraph; `pnpm test`, typecheck, lint, format:check; PR; merge on green;
   a look at production.
+
+---
+
+## Part 3: the face in the header on a desktop, the full face on a phone (23 Sep, after #899 and #901 on main)
+
+Ruben, on main: the desktop placement was not a nice place, bring the queue up, perhaps a tiny icon or the header;
+on a phone, the full face always, the field only when activated. Approved option A. Spec 4.7 and D14–D16. One PR
+from `cm-face`, branch `design/the-three-in-the-header` off main `c50a856b`. Executed inline.
+
+### Task 17: One mood
+
+**Files:** `legacy-bridge/mascot/mood.ts`, `mascot/index.ts` (`mood`, `follow`), `tooling/scripts/tests/mascot-mood.test.mjs`.
+
+- [x] `createMood()`: a state (a new one reaches every face; the same one, or no state, none), reactions, beats and
+  words heard; `follow(face, mood)` sets the face to the state now and passes every event after; the bridge
+  publishes one mood.
+
+### Task 18: The three as the Ask button and the palette's stage
+
+**Files:** `components/ask-face.jsx` (new; manifest + Chanlytics.html before `topbar.jsx`), `components/topbar.jsx`,
+`styles/components.css`, `pages/ask-real.jsx`, `styles/ask.css`, `tooling/scripts/tests/ask-palette.test.mjs`.
+
+- [x] `AskFace({ className, grow, testId })`: mounts the driver on its canvas and follows the mood; `grow` starts at
+  the button's square (6px) and eases to the stage's (`clientHeight / UNITS`).
+- [x] The top bar's button takes its icon from `window.AskFace` (the sparkle where it is not loaded); the palette
+  draws a stage (`ask-stage`) as its main column's first child and drops the input bar's sparkle; both take the
+  component from `window`, as the palette takes `AskTurn`, because a test's window is not the global object.
+- [x] The palette says the mood (an effect on the computed state) and its events (a beat per delta; idle, then a shake
+  for a failure or a nod for an answer that never streamed; a nod for a quick answer). Tests: the stage is drawn; a
+  streamed turn says thinking, speaking, idle with two beats; a quick answer nods; a failure shakes.
+
+### Task 19: Today: the band on a phone only, always full
+
+**Files:** `pages/dashboard-a.jsx` (the band back between the standing line and the core), `pages/today-face.jsx`
+(no compact size), `styles/dashboard-a-v2.css` (the band `display: none` at 721px and up; the core grid as before
+#896), `tooling/scripts/tests/today-page.test.mjs`, `e2e/today.spec.ts`, `e2e/ask.spec.ts`.
+
+- [x] Composition pins back to `["HeroBrief", "TodayFace", "dash-a-v2-core", …]` and `["AgentCommand", "TodayDay"]`.
+  E2E: on a desktop the band is hidden, the button has its face, the queue is under the standing line and the
+  palette has its stage; on a phone the stage is full and fieldless, a tap brings the field, a quick question
+  settles and Clear folds it.
+
+### Task 20: Docs, gates, PR
+
+- [x] Spec 4.7, D14–D16; CLAUDE.md Today paragraph; gates; PR; merge on green; production.

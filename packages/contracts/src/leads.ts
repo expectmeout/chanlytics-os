@@ -496,6 +496,17 @@ export interface LeadEndingLine {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** "Alpine and Fort Davis"; "Round Rock, Pflugerville and Kyle". */
+/**
+ * Where the nearest areas are, as a sentence says it: "near 10005, 10464 and 10467" when every label is a ZIP's
+ * ("near 10005"), else "in Round Rock and Pflugerville". Joining the labels whole read "in near 10005, near 10464".
+ */
+export function leadNearWhere(labels: readonly string[]): string {
+  const isNear = (l: string) => l.toLowerCase().startsWith("near ");
+  return labels.length && labels.every(isNear)
+    ? `near ${leadAnd(labels.map((l) => l.slice(5).trim()))}`
+    : `in ${leadAnd(labels)}`;
+}
+
 export function leadAnd(items: readonly string[]): string {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -534,7 +545,7 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
           mark,
           title: `There are ${plural(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
-          step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null,
+          step: f.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(f.nearby)}` } : null,
         };
       }
       return {
@@ -557,7 +568,7 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
         title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
-        parts: [yours, ...(f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [])],
+        parts: [yours, ...(f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : [])],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null,
       };
     case "stopped":

@@ -83,6 +83,12 @@
 .ask-real .ask-thread-more .ask-thread-at { color: var(--ink-dim); }
 .ask-real .ask-new-btn { cursor: pointer; font: inherit; font-size: 12px; }
 
+/* ---- The stage: the three, Ask's face, above the conversation (components/ask-face.jsx) ----
+   One band across the palette's column; its height holds the whole leap, so the squares are about 21px on a desktop
+   and 17px on a phone. They grow from the button's size as the palette opens. */
+.ask-real .ask-stage { position: relative; flex: none; height: 80px; border-bottom: 1px solid var(--line); }
+.ask-real .ask-stage-face { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
 /* ---- A phone: the ✦, the sheet, the composer at the thumb ---- */
 .phone-ask { display: none; }
 @media (max-width: 720px) {
@@ -110,6 +116,8 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .ask-real .cmd-input-bar { border-bottom: 0; border-top: 1px solid var(--line); }
+  /* The sheet is a reversed column (the composer at the thumb): a higher order keeps the stage at its top. */
+  .ask-real .ask-stage { order: 1; height: 64px; }
   .ask-real .cmd-foot { display: none; }
   .ask-real .cmd-input { font-size: 16px; }
   .ask-real .ask-msgs { padding: 14px 14px 8px; }

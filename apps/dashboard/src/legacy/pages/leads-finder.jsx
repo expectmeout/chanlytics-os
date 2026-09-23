@@ -388,11 +388,16 @@ const LeadFinder = ({
   const card = proposal && proposal.payload ? proposal.payload : {};
   const shown = plan || card.plan || null;
   const composing = stage === "compose";
+  const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
+  const typed = !!(words || "").trim();
+  const ideas = composing && !typed && suggestions && suggestions.items ? suggestions.items.slice(0, 3) : [];
+  // One line: the spark, the words, and what can be pressed. What used to be a footer is said where it is used --
+  // the keys on the button they press, the consent rule behind the lock beside it -- so the bar is one row tall.
   return (
     <div className="lf-panel pl-finder" role="dialog" aria-label="Find leads" data-testid="lead-finder">
-      <div className="lf-compose">
-        <span className={`lf-spark ${stage === "thinking" ? "live" : ""}`}><Icon name="sparkle" size={16} /></span>
+      <div className={`lf-compose${thinking ? " thinking" : ""}`}>
+        <span className={`lf-spark ${thinking ? "live" : ""}`}><Icon name="sparkle" size={16} /></span>
         <input
           className="lf-input"
           type="text"
@@ -403,9 +408,12 @@ const LeadFinder = ({
           data-testid="finder-input"
           disabled={!composing}
           onChange={(e) => onWords(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && composing && !busy && (words || "").trim()) { e.preventDefault(); onPlan(words); } }}
+          onKeyDown={(e) => { if (e.key === "Enter" && composing && !busy && typed) { e.preventDefault(); onPlan(words); } }}
         />
-        {talk && talk.canTalk ? (
+        {thinking ? (
+          <span className="lf-think" role="status" data-testid="finder-thinking">{trace || "Reading what you asked"}</span>
+        ) : null}
+        {talk && talk.canTalk && composing ? (
           <button
             type="button"
             className={`lf-mic ${talk.listening ? "on" : ""}`}
@@ -413,7 +421,6 @@ const LeadFinder = ({
             aria-pressed={!!talk.listening}
             aria-label="Hold to talk"
             title="Hold to talk"
-            disabled={!composing}
             onPointerDown={talk.start}
             onPointerUp={talk.stop}
             onPointerLeave={talk.stop}
@@ -424,27 +431,28 @@ const LeadFinder = ({
           </button>
         ) : null}
         {composing ? (
-          <button type="button" className="btn btn-primary btn-sm" data-testid="finder-plan" disabled={!!busy || !(words || "").trim()} onClick={() => onPlan(words)}>Plan it</button>
+          <span className="lf-lock" tabIndex={0} role="note" aria-label={LEAD_FINDER_CONSENT} data-tip={LEAD_FINDER_CONSENT} data-testid="finder-consent">
+            <Icon name="lock" size={13} />
+          </span>
         ) : null}
-        <button type="button" className="btn btn-ghost btn-sm" aria-label="Close" data-testid="finder-close" onClick={onClose}><Icon name="x" size={12} /></button>
+        {composing ? (
+          <button type="button" className="btn btn-primary btn-sm lf-go" data-testid="finder-plan" disabled={!!busy || !typed} onClick={() => onPlan(words)}>
+            Plan it<span className="lf-key" aria-hidden="true">{"↵"}</span>
+          </button>
+        ) : null}
+        <button type="button" className="lf-close" aria-label="Close" title="Close (esc)" data-testid="finder-close" onClick={onClose}><Icon name="x" size={12} /></button>
+        {thinking ? <span className="lf-sweep" aria-hidden="true" /> : null}
       </div>
       {composing && refusal ? <p className="lf-said" role="status" data-testid="finder-refusal">{refusal}</p> : null}
-      {composing && suggestions && suggestions.items && suggestions.items.length ? (
+      {ideas.length ? (
         <div className="lf-examples" data-testid="finder-suggestions">
-          <div className="lf-ex-h">Suggested from what your business does</div>
-          {suggestions.items.slice(0, 3).map((s) => (
-            <button key={s.words} type="button" className="lf-ex" data-testid="finder-suggestion" onClick={() => onWords(s.words)}>
-              <Icon name="search" size={13} />
-              <span>{s.words}</span>
+          <span className="lf-ex-h">Suggested from what your business does</span>
+          {ideas.map((s, i) => (
+            <button key={s.words} type="button" className="lf-ex" style={{ "--i": i }} data-testid="finder-suggestion" title={s.reach || undefined} onClick={() => onWords(s.words)}>
+              <span className="w">{s.words}</span>
               {s.reach ? <span className="k">{s.reach}</span> : null}
             </button>
           ))}
-        </div>
-      ) : null}
-      {stage === "thinking" ? (
-        <div className="lf-think" role="status" data-testid="finder-thinking">
-          <span className="ask-trace-dot" aria-hidden="true" />
-          <span>{trace || "Reading what you asked"}</span>
         </div>
       ) : null}
       {planning && shown ? (
@@ -462,15 +470,11 @@ const LeadFinder = ({
           onBack={onBack}
         />
       ) : null}
-      <div className="lf-foot">
-        <span className="lock"><Icon name="lock" size={12} />You can email and call leads. Texts and offers wait for their yes.</span>
-        <span className="sp" />
-        <span className="keys"><span className="kbd">{"↵"}</span>{composing ? "plan it" : "approve"}</span>
-        <span className="keys"><span className="kbd">esc</span>close</span>
-      </div>
     </div>
   );
 };
+/** The consent rule the finder works under, said once, behind the lock beside Plan it. */
+const LEAD_FINDER_CONSENT = "You can email and call leads. Texts and offers wait for their yes.";
 
 /* ----------------------------------------------------------- the strip -- */
 
@@ -580,7 +584,7 @@ const ldStripOf = (s, now, nearby) => {
   if (!C.leadEndingLine) return null;
   const line = C.leadEndingLine(r.ending || "paused", ldEndingFacts(C, s, nearby));
   const step = line.step
-    ? [{ id: line.step.id, label: line.step.label, primary: line.step.id !== "excluded" && line.step.id !== "sort_fit", arg: line.step.id === "excluded" ? "excluded" : ldLookStep(line.step.id) && r.nearby && r.nearby.length ? { ...plan, area: r.nearby[0] } : plan }]
+    ? [{ id: line.step.id, label: line.step.label, primary: line.step.id !== "excluded" && line.step.id !== "sort_fit", arg: line.step.id === "excluded" ? "excluded" : ldLookStep(line.step.id) && r.nearby && r.nearby.length ? { ...plan, area: r.nearby[0] } : plan, where: ldLookStep(line.step.id) && r.nearby && r.nearby.length && C.leadNearWhere ? `Look ${C.leadNearWhere(r.nearby.map((a) => a.label))}` : null }]
     : [];
   const sorts = counted > 0 && (r.ending === "target_reached" || r.ending === "searched_everything") && (!line.step || line.step.id !== "sort_fit")
     ? [{ id: "sort_fit", label: "Sort by fit" }]
@@ -588,8 +592,8 @@ const ldStripOf = (s, now, nearby) => {
   // The ending's numbers are the way into each pile: quiet links, never beside
   // a primary step that already opens one of them.
   const piles = [
-    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review" }] : []),
-    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded" }] : []),
+    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review", pile: true }] : []),
+    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded", pile: true }] : []),
   ].filter((a) => !line.step || line.step.id !== a.id);
   return { state: "ended", alert: false, title: line.title, parts: line.parts, progress: 1, actions: [...step, ...sorts, ...piles] };
 };
@@ -619,42 +623,50 @@ const leadStrip = (s, now, extra) => {
  * button hands its id and its argument back through the one onAction the page
  * gives it, and presses nothing itself.
  */
-const LeadStrip = ({ vm, onAction }) => {
+const LeadStrip = ({ vm, onAction, children = null }) => {
   if (!vm) return null;
   const tone = vm.state === "question" ? "ask" : vm.state === "ended" ? "done" : "";
   const quiet = ["undo", "excluded", "review", "stop", "stop_here", "sort_fit", "take_offered", "not_now"];
+  // With the band inside, its tabs ARE the ways into each pile: the strip's own "14 need a look" link beside a tab
+  // saying "14 need a look" was the same door twice. A step that opens a pile stays -- it is the one next thing.
+  const actions = children ? vm.actions.filter((a) => !a.pile) : vm.actions;
+  const parts = vm.parts.map((t) => ` · ${t}`).join("");
   return (
-    <div className={`lf-strip ${tone}`} role={vm.alert ? "alert" : "status"} data-testid="lead-strip">
+    <div className={`lf-strip ${tone}${children ? " has-band" : ""}`} role={vm.alert ? "alert" : "status"} data-testid="lead-strip">
       {vm.state === "running" ? <span className="live-dot" aria-hidden="true" /> : null}
       {vm.state === "question" ? <span className="qmark" aria-hidden="true">?</span> : null}
-      {vm.state === "ended" ? <span className="ok-mark"><Icon name="check" size={16} /></span> : null}
+      {vm.state === "ended" ? <span className="ok-mark"><Icon name="check" size={15} /></span> : null}
       {vm.state === "question" ? (
         <span className="lf-ask-text">
           <span className="lf-q" data-testid="strip-title">{vm.title}</span>
-          <span className="lf-q-sub" data-testid="strip-parts">{vm.parts.join(" \u00b7 ")}</span>
+          <span className="lf-q-sub" data-testid="strip-parts">{vm.parts.join(" · ")}</span>
         </span>
       ) : (
-        <>
+        // The title holds; what follows it gives way first, and says itself whole on hover.
+        <span className="lf-strip-said" title={`${vm.title}${parts}`}>
           <span className="lf-strip-title" data-testid="strip-title">{vm.title}</span>
-          {vm.parts.length ? <span className="lf-strip-parts" data-testid="strip-parts">{vm.parts.map((t) => ` \u00b7 ${t}`).join("")}</span> : null}
-        </>
+          {vm.parts.length ? <span className="lf-strip-parts" data-testid="strip-parts">{parts}</span> : null}
+        </span>
       )}
-      <span className="sp" />
-      {/* .lf-acts is what the stylesheet already stacks at a phone's width (styles/leads.css:317), so the
-          actions are one group here rather than loose buttons in the strip's flex row. */}
-      <span className="lf-acts">
-        {vm.actions.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className={a.id === "excluded" || a.id === "review" ? "lnk" : `btn btn-sm ${a.primary ? "btn-primary" : quiet.indexOf(a.id) >= 0 ? "btn-ghost" : ""}`}
-            data-testid={`strip-${a.id}`}
-            onClick={() => onAction(a.id, a.arg)}
-          >
-            {a.label}
-          </button>
-        ))}
-      </span>
+      {children ? <span className="lf-strip-band">{children}</span> : <span className="sp" />}
+      {/* .lf-acts is what the stylesheet already stacks at a phone's width, so the actions are one group here
+          rather than loose buttons in the strip's flex row. */}
+      {actions.length ? (
+        <span className="lf-acts">
+          {actions.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className={a.id === "excluded" || a.id === "review" ? "lnk" : `btn btn-sm ${a.primary ? "btn-primary" : quiet.indexOf(a.id) >= 0 ? "btn-ghost" : ""}`}
+              data-testid={`strip-${a.id}`}
+              title={a.where || undefined}
+              onClick={() => onAction(a.id, a.arg)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </span>
+      ) : null}
       {vm.progress === null ? null : <span className="lf-strip-bar" style={{ width: `${Math.round(vm.progress * 100)}%` }} aria-hidden="true" />}
     </div>
   );
