@@ -13,7 +13,7 @@ import {
   type DecisionVerb,
   type DecisionSubject,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import { listRow, type Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -382,14 +382,9 @@ export interface VerbList {
 /** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
 export async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
   const listId = requireUuid(id, "list");
-  const { data, error } = await ctx.supabase
-    .from("segments")
-    .select("id, tenant_id, name")
-    .eq("id", listId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new AppError("not_found", "List not found.", 404);
-  return data;
+  const list = await listRow(ctx.supabase, listId);
+  if (!list) throw new AppError("not_found", "List not found.", 404);
+  return list;
 }
 export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? "")));
 

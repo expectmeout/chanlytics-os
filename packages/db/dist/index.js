@@ -2102,6 +2102,152 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (error) throw new Error(error.message);
 }
 
+// src/repositories/people.ts
+var PEOPLE_PAGE = 1e3;
+async function peoplePage(db, tenantId, page = {}) {
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  const { data, error } = await db.rpc("people_list", {
+    p_tenant_id: tenantId,
+    ...page.q ? { p_query: page.q } : {},
+    ...offset > 0 ? { p_offset: offset } : {},
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data ?? [];
+}
+async function everyoneIn(db, tenantId) {
+  const all = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await peoplePage(db, tenantId, { offset });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) return all;
+  }
+}
+
+// src/paged.ts
+var MAX_ROWS = 1e3;
+var DEFAULT_ROW_CAP = 2e4;
+async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+  const out = [];
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(out.length, out.length + size - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+  onCapped(what, cap);
+  return out;
+}
+
+// src/repositories/lists.ts
+async function savedListsFor(db, tenantId) {
+  const [lists, members] = await Promise.all([
+    readAllRows(
+      "segments",
+      (from, to) => db.from("segments").select("id, name").eq("tenant_id", tenantId).order("name").order("id").range(from, to)
+    ),
+    readAllRows(
+      "segment_members",
+      (from, to) => db.from("segment_members").select("segment_id, contact_id").eq("tenant_id", tenantId).order("segment_id").order("contact_id").range(from, to)
+    )
+  ]);
+  const byList = /* @__PURE__ */ new Map();
+  for (const m of members) {
+    const ids = byList.get(m.segment_id) ?? [];
+    ids.push(m.contact_id);
+    byList.set(m.segment_id, ids);
+  }
+  return lists.map((l) => ({ id: l.id, name: l.name, ids: byList.get(l.id) ?? [] }));
+}
+async function listMemberIds(db, listId) {
+  const rows = await readAllRows(
+    "segment_members",
+    (from, to) => db.from("segment_members").select("contact_id").eq("segment_id", listId).order("contact_id").range(from, to)
+  );
+  return rows.map((m) => m.contact_id);
+}
+async function savedListFor(db, tenantId, id) {
+  const { data, error } = await db.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`segments: ${error.message}`);
+  if (!data) return null;
+  return { id: data.id, name: data.name, ids: await listMemberIds(db, data.id) };
+}
+async function listRow(db, id) {
+  const { data, error } = await db.from("segments").select("id, tenant_id, name").eq("id", id).maybeSingle();
+  if (error) throw new Error(`segments: ${error.message}`);
+  return data ? { id: data.id, tenant_id: data.tenant_id, name: data.name } : null;
+}
+async function createList(db, tenantId, name, userId) {
+  const { data, error } = await db.from("segments").insert({ tenant_id: tenantId, name, created_by: userId }).select("id, name").single();
+  return error ? { list: null, error } : { list: { id: data.id, name: data.name }, error: null };
+}
+async function renameList(db, id, name) {
+  const { error } = await db.from("segments").update({ name }).eq("id", id);
+  return { error };
+}
+async function addToList(db, list, contactIds, userId) {
+  const rows = contactIds.map((contact_id) => ({
+    segment_id: list.id,
+    contact_id,
+    tenant_id: list.tenant_id,
+    added_by: userId
+  }));
+  const { error } = await db.from("segment_members").upsert(rows, { onConflict: "segment_id,contact_id", ignoreDuplicates: true });
+  return { error };
+}
+async function dropFromList(db, listId, contactIds) {
+  const { error } = await db.from("segment_members").delete().eq("segment_id", listId).in("contact_id", [...contactIds]);
+  return { error };
+}
+async function deleteList(db, id) {
+  const { error, count } = await db.from("segments").delete({ count: "exact" }).eq("id", id);
+  return { error, count };
+}
+
+// src/repositories/touches.ts
+var RUN_IDS_PER_QUERY = 200;
+async function touchesSince(db, tenantId, since) {
+  const runs = (await readAllRows(
+    "broadcasts",
+    (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
+  )).filter((b) => b.state !== "canceled" && b.state !== "failed");
+  const ofRun = new Map(runs.map((b) => [b.id, b]));
+  const ids = runs.map((b) => b.id);
+  const out = [];
+  const sinceMs = since.getTime();
+  for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
+    const rows = await readAllRows(
+      "broadcast_recipients",
+      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+    );
+    for (const r of rows) {
+      const run = ofRun.get(r.broadcast_id);
+      if (!run) continue;
+      const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
+      if (Date.parse(at) < sinceMs) continue;
+      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at });
+    }
+  }
+  return out;
+}
+function touchIndex(touches) {
+  const byThis = /* @__PURE__ */ new Map();
+  const byAny = /* @__PURE__ */ new Map();
+  for (const t of touches) {
+    const at = Date.parse(t.at);
+    if (t.playbook_id) {
+      const m = byThis.get(t.playbook_id) ?? /* @__PURE__ */ new Map();
+      m.set(t.contact_id, Math.max(m.get(t.contact_id) ?? 0, at));
+      byThis.set(t.playbook_id, m);
+    }
+    byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
+  }
+  return { byThis, byAny };
+}
+
 // src/realtime.ts
 var WATCHED = [
   { table: "messages", event: "INSERT" },
@@ -2173,47 +2319,39 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
     if (channel) void client.removeChannel(channel);
   };
 }
-
-// src/paged.ts
-var MAX_ROWS = 1e3;
-var DEFAULT_ROW_CAP = 2e4;
-async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
-  const out = [];
-  while (out.length < cap) {
-    const size = Math.min(MAX_ROWS, cap - out.length);
-    const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < size) return out;
-  }
-  onCapped(what, cap);
-  return out;
-}
 export {
   CALL_CONTROL_S,
   DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
   MAX_ROWS,
+  PEOPLE_PAGE,
+  addToList,
   assembleHistory,
   claimCallNotification,
   claimControl,
   countSentToday,
+  createList,
   createServiceClient,
+  deleteList,
   describeLead,
+  dropFromList,
   emitEvent,
+  everyoneIn,
   getTenantConfig,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   lastInboundEmail,
   linkCallMessage,
+  listMemberIds,
   listPolicies,
+  listRow,
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
   pauseConversation,
+  peoplePage,
   personReplyMode,
   putTenantConfig,
   readAllRows,
@@ -2225,9 +2363,12 @@ export {
   recordOutbound,
   recordStatusByExternalId,
   releaseControl,
+  renameList,
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
+  savedListFor,
+  savedListsFor,
   sentEmailWithMessageId,
   setCallRecording,
   setPersonReplyMode,
@@ -2236,5 +2377,7 @@ export {
   stampMailboxReceived,
   subscribeMessagesInserts,
   suppressEmailOf,
-  templatesFor
+  templatesFor,
+  touchIndex,
+  touchesSince
 };

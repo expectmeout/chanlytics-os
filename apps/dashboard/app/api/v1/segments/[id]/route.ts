@@ -1,4 +1,5 @@
 import { AppError } from "@chanlytics/contracts";
+import { addToList, deleteList, dropFromList, listMemberIds, renameList } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { listScope } from "@/server/verbs";
 import { jsonBody } from "@/server/request-guards";
@@ -31,30 +32,18 @@ export const PUT = write({
     if (!rename && !add.length && !remove.length) throw new AppError("validation", "Nothing to change.");
 
     if (rename && rename !== list.name) {
-      const { error } = await ctx.supabase.from("segments").update({ name: rename }).eq("id", id);
+      const { error } = await renameList(ctx.supabase, id, rename);
       if (error) {
         if (error.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);
         throw new Error(error.message);
       }
     }
     if (remove.length) {
-      const { error } = await ctx.supabase
-        .from("segment_members")
-        .delete()
-        .eq("segment_id", id)
-        .in("contact_id", remove);
+      const { error } = await dropFromList(ctx.supabase, id, remove);
       if (error) throw new Error(error.message);
     }
     if (add.length) {
-      const rows = add.map((contact_id) => ({
-        segment_id: id,
-        contact_id,
-        tenant_id: list.tenant_id,
-        added_by: ctx.userId,
-      }));
-      const { error } = await ctx.supabase
-        .from("segment_members")
-        .upsert(rows, { onConflict: "segment_id,contact_id", ignoreDuplicates: true });
+      const { error } = await addToList(ctx.supabase, list, add, ctx.userId);
       if (error) {
         // RLS's with-check is the refusal for a person of another workspace or
         // one who was erased; PostgREST reports it as a policy violation.
@@ -64,12 +53,8 @@ export const PUT = write({
       }
     }
 
-    const { data: members, error: mErr } = await ctx.supabase
-      .from("segment_members")
-      .select("contact_id")
-      .eq("segment_id", id);
-    if (mErr) throw new Error(mErr.message);
-    const out: SavedListDto = { id, name: rename ?? list.name, ids: (members ?? []).map((m) => m.contact_id) };
+    // Every id, not the first thousand: an Undo tells who an add really added from this answer.
+    const out: SavedListDto = { id, name: rename ?? list.name, ids: await listMemberIds(ctx.supabase, id) };
     return out;
   },
 });
@@ -80,7 +65,7 @@ export const DELETE = write({
   rate: "lists",
   handle: async ({ ctx, row: list }) => {
     const id = list.id;
-    const { error, count } = await ctx.supabase.from("segments").delete({ count: "exact" }).eq("id", id);
+    const { error, count } = await deleteList(ctx.supabase, id);
     if (error) throw new Error(error.message);
     if (!count) throw new AppError("not_found", "List not found.", 404);
     return { deleted: true, id };
