@@ -76,6 +76,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
   /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
   "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
