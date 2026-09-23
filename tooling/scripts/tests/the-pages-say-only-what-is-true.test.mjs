@@ -370,7 +370,7 @@ const mountToday = (vm) => {
   const hero = textOf(globalThis.window.HeroBrief());
   cells = [];
   frames.begin();
-  // The day's card sits under the work; the hero is the standing line above it.
+  // The day's card sits under the work; the hero is the line above it, drawn only while a line is down.
   const recap = textOf(globalThis.window.TodayCard());
   cells = [];
   frames.begin();
@@ -392,8 +392,7 @@ test("REGRESSION: while a line is down, Today never says nothing needs you -- th
 test("with every line up and nothing waiting, the reassurance stands", () => {
   const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
   // The reassurance is the queue's own, said once: a chip above it said it again, over the work it describes.
-  assert.ok(hero.includes("1 of 1 line connected"), hero);
-  assert.ok(!hero.includes("Queue clear"), `and the standing line does not say it too: ${hero}`);
+  assert.equal(hero, "", `nothing above the work says it too: ${hero}`);
   assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
 });
 

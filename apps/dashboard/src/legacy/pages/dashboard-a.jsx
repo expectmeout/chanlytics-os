@@ -2,7 +2,7 @@
 // Today. Three bands, in this order, and the order is the argument: the work first, then the day's own card, then
 // what is left over. Analysis never outranks a person who has been waiting eleven days.
 //
-//   the standing line
+//   a line that is down (dashboard-a-brief.jsx TodayAlert, only then)
 //   the three (today-face.jsx, on a phone only: wider, Ask's face is the top bar's button)
 //   the queue (8 of 12)          | the day (4 of 12)
 //   the day's card (12)

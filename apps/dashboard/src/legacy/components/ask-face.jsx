@@ -1,8 +1,9 @@
 /* global React */
 // The three, following Ask's mood (legacy-bridge/mascot mood.ts, window.__mascot.mood). The top bar's Ask button and
 // the palette's stage draw it; whoever runs a turn says the mood, so there is one AI with one face wherever it is.
-// Without `grow` the canvas's height holds the whole leap (UNITS squares), which is a button's icon. With it the
-// squares start at the button's size and grow to fill the stage they stand on (the driver eases a new size).
+// Without `grow` the squares are the largest that keep everything the three do inside the canvas (fitSide), which is
+// a button's icon. With it they start at the button's size and grow to fill the stage the same way (the driver eases
+// a new size).
 // `tone="accent"` draws them on a coral button (the phone's ✦) in the button's own foreground (colour.ts `Tone`). With
 // no bridge (a test, a harness without its bundle) it is an empty canvas.
 const useAfRef = React.useRef;
@@ -19,7 +20,7 @@ const AskFace = ({ className, grow = false, tone = "page", testId }) => {
     if (!M || !canvas) return undefined;
     const m = M.mount(canvas, grow ? { side: AF_BUTTON_SIDE, tone } : { tone });
     if (!m) return undefined;
-    if (grow) m.setSide((canvas.clientHeight || 80) / M.UNITS);
+    if (grow) m.setSide(M.fitSide(canvas.clientWidth || 400, canvas.clientHeight || 80));
     const stop = M.follow(m, M.mood);
     return () => {
       stop();

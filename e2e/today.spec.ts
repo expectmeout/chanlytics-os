@@ -16,13 +16,13 @@ test.describe("Today on a real workspace", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("the standing line, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({
+  test("nothing above the work, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({
     page,
   }) => {
-    await expect(page.getByTestId("today-standing")).toBeVisible();
-    await expect(page.getByTestId("today-standing")).toContainText(
-      /lines? connected|could not be counted|no lines connected yet/,
-    );
+    // Nothing above the work while every line is up; a line that is down is one red line that says so.
+    await expect(page.getByTestId("today-standing")).toHaveCount(0);
+    const alert = page.getByTestId("today-alert");
+    if (await alert.count()) await expect(alert).toContainText(/disconnected|paused/);
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
     const rows = queue.locator(".tq-list .cl-attn-row");
@@ -38,7 +38,7 @@ test.describe("Today on a real workspace", () => {
     await expect(page.getByText("Agent Command")).toHaveCount(0);
     await expect(page.getByText(/Good (morning|afternoon|evening)/)).toHaveCount(0);
     // Nothing invented: no dollar amounts anywhere on a page with no revenue column.
-    for (const cell of await page.locator(".today-standing, .today-card, .tsec").allInnerTexts())
+    for (const cell of await page.locator(".today-alert, .today-card, .tsec").allInnerTexts())
       expect(cell).not.toMatch(/\$\d/);
   });
 
@@ -140,15 +140,21 @@ test.describe("Today on a real workspace", () => {
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
   });
 
-  test("the three are the Ask button's face on a desktop: nothing stands between the standing line and the queue", async ({
-    page,
-  }) => {
+  test("the three are the Ask button's face on a desktop: nothing stands above the queue", async ({ page }) => {
     // Wider than a phone the band is not drawn; Ask's face is the top bar's button, and the palette's stage.
     await expect(page.getByTestId("today-face")).toBeHidden();
     await expect(page.getByTestId("tb-ask").getByTestId("tb-ask-face")).toBeVisible();
-    const standing = await page.getByTestId("today-standing").boundingBox();
-    const queue = await page.getByTestId("today-queue").boundingBox();
-    expect(queue!.y - (standing!.y + standing!.height), "the queue right under the standing line").toBeLessThan(40);
+    // The queue is the first thing on the page, or the second under a line that is down, and it has room under the
+    // bar: with the standing line gone nothing else gave it any, and the card's edge sat on the bar's rule.
+    const { first, gap } = await page.evaluate(() => {
+      const el = [...(document.querySelector(".dash-a-v2")?.children ?? [])].find(
+        (c) => c.getBoundingClientRect().height > 0,
+      );
+      const bar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
+      return { first: el?.className ?? "", gap: el ? el.getBoundingClientRect().top - bar : -1 };
+    });
+    expect(first, "nothing stands above the queue but a line that is down").toMatch(/dash-a-v2-core|today-alert/);
+    expect(gap, "the first band keeps the page's gap under the top bar").toBeGreaterThanOrEqual(8);
     // The local harness installs no Ask client, so its palette is the mockup's; only a workspace opens the real one.
     if (!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask))) return;
     await page.getByTestId("tb-ask").click();
