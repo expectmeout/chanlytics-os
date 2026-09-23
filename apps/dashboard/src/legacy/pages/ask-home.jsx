@@ -17,7 +17,11 @@ const ahAgo = (ms) => {
 const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => {
   const q = query.trim();
   const thread = (th) => ({ type: "thread", label: th.title, sub: ahAgo(th.lastAtMs), th });
-  if (view === "earlier") return [{ key: "earlier", label: t.earlier, items: threads.map(thread) }];
+  // Earlier: every conversation, or the ones whose question has the words typed.
+  if (view === "earlier") {
+    const list = q ? threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase())) : threads;
+    return [{ key: "earlier", label: t.earlier, items: list.map(thread) }];
+  }
   if (q) {
     const sections = [{ key: "ask", items: [{ type: "ask", label: q, q }] }];
     const jumps = A.jump(q);
@@ -46,9 +50,9 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => 
 // The flat list the keys walk, in the order the rows are drawn.
 const flatRows = (sections) => sections.flatMap((sec) => sec.items);
 
-const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t }) => {
+const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   const flat = flatRows(sections);
-  if (!flat.length) return <div className="ask-rows-empty">{t.nothing}</div>;
+  if (!flat.length) return <div className="ask-rows-empty">{empty || t.nothing}</div>;
   let at = 0;
   return (
     <div className="ask-rows" role="listbox" id="ask-rows" aria-label={t.rowsLabel}>

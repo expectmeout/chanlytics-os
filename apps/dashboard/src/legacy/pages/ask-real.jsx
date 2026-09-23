@@ -392,7 +392,8 @@ const AskReal = ({ open, onClose }) => {
     if (e.key === "Enter") {
       e.preventDefault();
       const q = query.trim();
-      if (showRows && rows[sel] && (!q || sel > 0)) activate(rows[sel]);
+      // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
+      if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
       else if (q) submit(q);
       else if (moves[move]) activate(moves[move]);
     }
@@ -458,7 +459,18 @@ const AskReal = ({ open, onClose }) => {
   ) : talkButton;
 
   let body = null;
-  if (showRows) body = <AskRows sections={sections} sel={sel} setSel={setSel} onActivate={activate} onDelete={askDelete} t={t} />;
+  if (showRows)
+    body = (
+      <AskRows
+        sections={sections}
+        sel={sel}
+        setSel={setSel}
+        onActivate={activate}
+        onDelete={askDelete}
+        t={t}
+        empty={view === "earlier" && !threads.length ? t.noEarlier : null}
+      />
+    );
   else if (live && live.text)
     body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
   else if (live || (quick && quick.pending)) {

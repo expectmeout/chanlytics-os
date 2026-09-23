@@ -32,6 +32,7 @@ const ASK_TEXT = {
         }[surface] || "this page"
       }`,
     earlier: "Earlier",
+    noEarlier: "No earlier conversations yet.",
     allEarlier: "All earlier conversations",
     earlierFolded: (n) => `+${n} earlier in this conversation`,
     kind: { person: "Person", thread: "Thread", call: "Call", page: "Page" },
@@ -100,6 +101,7 @@ const ASK_TEXT = {
         }[surface] || "esta página"
       }`,
     earlier: "Anteriores",
+    noEarlier: "Aún no hay conversaciones anteriores.",
     allEarlier: "Todas las conversaciones anteriores",
     earlierFolded: (n) => `+${n} anteriores en esta conversación`,
     kind: { person: "Persona", thread: "Hilo", call: "Llamada", page: "Página" },

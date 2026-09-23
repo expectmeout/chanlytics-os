@@ -742,6 +742,36 @@ test("REGRESSION (N5): Earlier holds every conversation, opened with ⌘J from a
   await closes();
 });
 
+test("Earlier finds a conversation by the words typed and Enter opens it; with none, it says there are none", async () => {
+  ask([]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  const cmdJ = () => inputOf(lastTree).props.onKeyDown({ ...pressOf("j"), metaKey: true });
+  cmdJ();
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byClass(tree, "ask-rows-empty")[0]), "No earlier conversations yet.");
+  await closes();
+
+  const calls = ask([TH(1), TH(2), TH(3)]);
+  render(Palette, OPEN);
+  tree = await later(Palette, OPEN);
+  cmdJ();
+  tree = await later(Palette, OPEN);
+  typed(tree, "question 3");
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(
+    byClass(tree, "ask-row-label").map(textOf),
+    ["Question 3"],
+    "only the conversation whose question has the words",
+  );
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.opened, [TH(3).id], "Enter opens it; the words are not asked");
+  assert.deepEqual(calls.sent, []);
+  assert.equal(textOf(byTestId(tree, "ask-say")), "The answer to Question 3.");
+  await closes();
+});
+
 /* ------------------------------ N18 ------------------------------ */
 
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
