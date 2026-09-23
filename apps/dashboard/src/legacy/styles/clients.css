@@ -112,16 +112,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.cl-rail-row.smart::before {
-  content: "";
-  position: absolute;
-  left: -1px; top: 8px; bottom: 8px;
-  width: 2px;
-  background: var(--accent);
-  border-radius: 2px;
-  opacity: 0.4;
-}
-.cl-rail-row.smart.active::before { opacity: 1; }
 .cl-rail-row .glyph { color: var(--ink-faint); flex-shrink: 0; }
 .cl-rail-row .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A count is read, so it takes the dim ink: --ink-faint is 2.1 to 2.7:1 in both themes (Leads' counts were dim,
@@ -132,7 +122,8 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.cl-rail-row.smart .count { color: var(--accent); font-weight: 500; }
+/* A list of people who need you counts in amber; every other count is a total, in the dim ink. */
+.cl-rail-row.asks .count { color: var(--warn-ink); font-weight: 500; }
 .cl-rail-row.active .count { color: var(--ink); }
 
 /* A row with acts of its own (RailRow `menu`: a search's …) is its pick and its acts side by side. The pick fills the

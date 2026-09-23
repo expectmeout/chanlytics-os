@@ -95,26 +95,10 @@
   text-transform: none;
 }
 
-/* Numeric counter pill on nav rows */
-.nav-badge {
-  margin-left: auto;
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--ink-dim);
-  background: transparent;
-  padding: 1px 6px;
-  border-radius: 999px;
-  min-width: 22px;
-  text-align: center;
-  line-height: 14px;
-}
-.nav-badge.urgent {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.nav-item.urgent .icon { color: var(--accent); }
+/* A nav row's count is the one tally (.tally): amber when it counts people who need you. The row's icon keeps its
+   own ink; the count already says it. */
+.nav-badge { margin-left: auto; }
 .nav-item.urgent.active { background: var(--bg-raised); }
-.nav-item.urgent.active .icon { color: var(--accent); }
 
 /* Sub nav rows are hover-only chrome */
 .nav-item.nav-sub {
@@ -297,13 +281,6 @@
   color: var(--ink-dim);
 }
 .nav-item.active .icon { color: var(--ink); }
-
-.nav-item .badge {
-  margin-left: auto;
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-}
 
 .sidebar-foot {
   margin-top: auto;
@@ -993,20 +970,8 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
 
 /* ---------- Bell badge ---------- */
 .tb-bell { position: relative; }
-.tb-bell-badge {
-  position: absolute;
-  top: -3px; right: -3px;
-  min-width: 14px; height: 14px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 14px;
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--bg);
-}
+/* Unread is not urgent: the quiet tally on the icon (.tally .tally-icon). The Inbox's count is the amber one. */
+.tb-bell-badge { position: absolute; top: -4px; right: -6px; }
 
 /* ---------- In-design landing ---------- */
 .soon {
@@ -1341,7 +1306,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: 52px; right: 12px; left: 12px; width: auto; } }
 .tbn-sec { position: sticky; top: 0; z-index: 1; padding: 7px 14px 5px; font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
 .tbn-title { flex: 1; }
-.tbn-count { font-size: 10px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; }
 .tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
 @keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
 .tb-bell.ping .tb-bell-badge { animation: badge-pop 0.5s var(--ease-out); }
@@ -1988,7 +1952,6 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .stabs-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px 9px; font-size: 12.5px; font-weight: 500; color: var(--ink-dim); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 110ms; }
 .stabs-tab:hover { color: var(--ink); }
 .stabs-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
-.stabs-badge { font-size: 10px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 0 6px; line-height: 15px; min-width: 17px; text-align: center; }
 /* Confidence as language, not dots */
 .conf-word { font-size: 9.5px; font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
 .conf-word.conf-high { color: var(--ok); background: var(--ok-soft); }
@@ -2243,7 +2206,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
 .sidebar.collapsed .sb-collapse { justify-content: center; padding: 8px 0; }
 .nav-dot { position: absolute; top: 7px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); }
-.nav-dot.urgent { background: var(--accent); }
+.nav-dot.urgent { background: var(--warn); }
 
 .sb-collapse {
   display: flex; align-items: center; gap: 8px; width: 100%;
@@ -2345,8 +2308,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .stabs-campaigns .stabs-tab { height: 34px; box-sizing: border-box; padding: 0 12px; gap: 7px; font-size: var(--text-sm); font-weight: 400; color: var(--ink-muted); }
 .stabs-campaigns .stabs-tab:hover { color: var(--ink); }
 .stabs-campaigns .stabs-tab.active { color: var(--ink); font-weight: var(--weight-semibold); border-bottom-color: var(--ink); }
-.stabs-campaigns .stabs-badge { min-width: 0; padding: 1px 6px; line-height: 1.35; font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 400; color: var(--ink-dim); background: var(--bg-active); }
-.stabs-campaigns .stabs-badge[data-tone="warn"] { color: var(--warn-ink); background: var(--warn-soft); }
 @media (max-width: 720px) {
   .rp-body.cm-page { padding: 16px 16px 32px; }
   .cm-head { flex-wrap: wrap; align-items: flex-start; row-gap: 12px; }
@@ -2917,7 +2878,6 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
    the message has more, and a press opens every language there is. */
 .lp-trigger { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 5px 0 7px; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); cursor: pointer; white-space: nowrap; transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
 .lp-words { font-weight: var(--weight-medium); letter-spacing: .02em; color: var(--ink); }
-.lp-more { padding: 0 5px; border-radius: var(--radius-full); background: var(--bg-active); font-size: 10.5px; line-height: 16px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .lp-caret { display: inline-grid; place-items: center; width: 12px; color: var(--ink-faint); transition: transform var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
 .lp-trigger:hover:not(:disabled) { background: var(--bg-active); border-color: var(--line); }
 .lp-trigger:hover:not(:disabled) .lp-more { background: var(--bg-raised); }

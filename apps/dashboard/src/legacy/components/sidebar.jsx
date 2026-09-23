@@ -103,7 +103,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
       {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
       {badge ? (collapsed
         ? <span className={`nav-dot ${item.urgent ? "urgent" : ""}`} aria-label={`${badge} ${item.label}`} />
-        : <span className={`nav-badge ${item.urgent ? "urgent" : ""} tabular`} data-tip={tip || undefined}>{badge}</span>) : null}
+        : <span className={`nav-badge tally${item.urgent ? " urgent tally-warn" : ""}`} data-tip={tip || undefined}>{badge}</span>) : null}
       {!collapsed && item.expandable && (
         <Icon name="chevron" size={11} style={{
           marginLeft: badge ? 4 : "auto",
@@ -121,7 +121,7 @@ const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expande
         onClick={() => onNavigate(c.id)}
       >
         <span>{c.label}</span>
-        {c.badge && <span className="nav-badge tabular">{c.badge}</span>}
+        {c.badge && <span className="nav-badge tally">{c.badge}</span>}
       </div>
     ))}
   </>

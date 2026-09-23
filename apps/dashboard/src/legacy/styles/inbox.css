@@ -64,8 +64,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.ix-bucket.accent .icon { color: var(--accent); }
-.ix-bucket.active.accent { background: var(--accent-soft); }
 
 .ix-bucket-label { flex: 1; }
 /* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
@@ -82,7 +80,8 @@
   min-width: 22px;
   text-align: right;
 }
-.ix-bucket.accent .ix-bucket-count { color: var(--accent); font-weight: 500; }
+/* The Needs you bucket counts people who need you: its number is amber, and the tab itself selects as every tab does. */
+.ix-bucket.accent .ix-bucket-count { color: var(--warn-ink); font-weight: 500; }
 
 /* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
 .ix-search-row {

@@ -93,7 +93,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
       <div className="tbn-pop" role="dialog" aria-label="Notifications">
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>
-          {fresh.length > 0 && <span className="tbn-count tabular">{fresh.length} new</span>}
+          {fresh.length > 0 && <span className="tbn-count tally">{fresh.length} new</span>}
           <button className="tbn-readall" onClick={onReadAll}>Mark all read</button>
         </header>
         <div className="tbn-list">
@@ -473,7 +473,7 @@ const Topbar = ({
           onClick={() => setOpenNotifs(v => !v)}
         >
           <Icon name="bell" />
-          {unread > 0 && <span className="tb-bell-badge tabular">{unread}</span>}
+          {unread > 0 && <span className="tb-bell-badge tally tally-icon">{unread}</span>}
         </button>
         {openNotifs && (
           <NotifPopover

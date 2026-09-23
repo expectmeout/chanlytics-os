@@ -1209,7 +1209,8 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, ev
         return (
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.map((l) => (
-              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} />
+              // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );

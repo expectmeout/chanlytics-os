@@ -383,20 +383,6 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
-.fleet-filter-count {
-  font-size: 10px;
-  color: var(--ink-dim);
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  padding: 0 5px;
-  border-radius: 999px;
-  line-height: 14px;
-  min-width: 18px;
-  text-align: center;
-}
-.fleet-filter-chip.active .fleet-filter-count {
-  background: var(--bg-sunken);
-}
 
 /* "Show all" card — slots into the grid as a peer of agent cards */
 .fleet-more {

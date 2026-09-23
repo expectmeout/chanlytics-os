@@ -291,7 +291,7 @@ const CmPicker = ({ value, choices = [], groups = {}, onPick, status, tag = null
           <>
             {display === "label" ? <Icon name="globe" size={13} /> : status !== undefined ? <CmLangGlyph status={status} size={12} /> : null}
             <span className="lp-words">{words}</span>
-            {more > 0 && <span className="lp-more" aria-hidden="true">+{more}</span>}
+            {more > 0 && <span className="lp-more tally" aria-hidden="true">+{more}</span>}
           </>
         )}
         <span className="lp-caret" aria-hidden="true"><Icon name="chevron-down" size={10} /></span>

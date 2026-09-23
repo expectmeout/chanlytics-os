@@ -321,7 +321,13 @@ const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefaul
 /** A language chip in its two parts: the letters of the language in view, and "+1" for the rest ("" for none). */
 const chipSays = (chip) => [
   textOf(find(chip, (n) => n.props?.className === "lp-words")).trim(),
-  textOf(find(chip, (n) => n.props?.className === "lp-more")).trim(),
+  textOf(
+    find(chip, (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("lp-more"),
+    ),
+  ).trim(),
 ];
 const settle = () => new Promise((r) => setImmediate(r));
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */

@@ -278,7 +278,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
                 onClick={() => window.CHANLY.nav(cvAddress(ch.id, null))}
               >
                 {ch.label}
-                <span className="fleet-filter-count tabular">{counts[ch.id]}</span>
+                <span className="fleet-filter-count tally">{counts[ch.id]}</span>
               </button>
             ))}
           </div>

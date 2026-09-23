@@ -218,7 +218,7 @@ const PaneActivity = () => {
             {opens[i] && (
               <div className="act-day">
                 {opens[i]}
-                <span className="act-day-n">{perDay[i]}</span>
+                <span className="act-day-n tally">{perDay[i]}</span>
               </div>
             )}
             <ActivityRow r={r} actors={st.actors} />
