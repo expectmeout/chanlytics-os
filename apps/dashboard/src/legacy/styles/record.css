@@ -21,7 +21,10 @@
 .rec-card-sub { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 
 /* ---------- A row: label, value, where it came from, one act ---------- */
-.rec-row { position: relative; display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); }
+/* 44px at the least, the height its inline editor keeps (below), so a row that becomes its editor moves nothing under
+   it; and the whole row is its act's press (record-row.jsx recRowPress), so the pointer says so. */
+.rec-row { position: relative; box-sizing: border-box; display: flex; align-items: baseline; gap: 16px; min-height: 44px; padding: 11px 0; border-top: 1px solid var(--line); }
+.rec-row[data-act="true"] { cursor: pointer; }
 .rec-row-top { align-items: flex-start; }
 .rec-row-key { flex: 0 0 var(--rec-key); font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-row-val { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--ink); }
@@ -39,12 +42,11 @@
 .rec-row[data-settled="true"] .rec-row-val { animation: rise-in var(--duration-base) var(--ease-out) backwards; }
 /* A sentence under the value takes a line of its own. */
 .rec-row-hint { flex: 1 1 100%; font-size: var(--text-sm); color: var(--ink-dim); }
-/* Latent at rest, drawn on approach: the spec's four controls at rest, and every other act drawn on hover or focus.
-   Hidden by opacity alone, never visibility or display, so each act stays in the tab order and :focus-within draws it. */
-.rec-row-act { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink); opacity: 0; border-radius: var(--radius-xs); transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
-/* Never hidden: the act on an empty row, since there is no value to point at. */
-.rec-row[data-empty="true"] .rec-row-act { opacity: 1; color: var(--ink-muted); }
-.rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { opacity: 1; color: var(--ink); font-weight: var(--weight-medium); }
+/* Drawn at rest, quietly: the dim ink, and the ink itself as the row is approached or its act holds focus. Only its
+   colour moves, never its weight, so the words keep their width and nothing beside them shifts. It was latent (opacity
+   0 until the row was hovered), which read as a page with nothing to press. */
+.rec-row-act { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-dim); border-radius: var(--radius-xs); transition: color var(--duration-fast) var(--ease-out); }
+.rec-row:hover .rec-row-act, .rec-row:focus-within .rec-row-act { color: var(--ink); }
 /* The chevron is the phone's; a desktop reads the act's words, and an act that goes to another page its arrow beside
    them. */
 .rec-row-chev { display: none; }
@@ -60,9 +62,8 @@
    takes the wash away. */
 .rec-row[data-state="warn"]::before, .rec-row[data-state="warn"]:hover::before { background: var(--warn-soft); }
 .rec-row[data-state="warn"] .rec-row-key { color: var(--warn-ink); }
-.rec-row[data-state="warn"] .rec-row-act { opacity: 1; }
 /* The wash is a surface of its own: --ink-dim reads 4.3:1 on it in dark, so a wrong row's dim words take the muted ink. */
-.rec-row[data-state="warn"] :is(.rec-row-empty, .rec-row-hint) { color: var(--ink-muted); }
+.rec-row[data-state="warn"] :is(.rec-row-empty, .rec-row-hint, .rec-row-act) { color: var(--ink-muted); }
 .rec-row-wrong { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 /* A second answer that disagrees, under the value, offered as a fill: the other value with its own source's pill, and
    the press that takes it. */
@@ -150,19 +151,42 @@
 .rec-foot-note { flex: 1; min-width: 0; text-align: right; font-size: var(--text-sm); color: var(--ink-dim); }
 .rec-foot-keys { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 
-/* A fold's row, drawn behind its sheet on a phone (record-fold.jsx `behind`): its box lays out as nothing, so the row
-   stands in its card exactly where it stood. */
+/* A fold's row, drawn behind its sheet (record-fold.jsx `behind`): its box lays out as nothing, so the row stands in
+   its card exactly where it stood. */
 .rec-fold-behind { display: contents; }
+/* A fold drawn as a sheet, at any width (record-fold.jsx `frame`): the sheet's body carries the gutter, so its fields
+   start at the sheet's edge, not past a label column the sheet has no rows to keep; and they keep the fold's 4px either
+   side for a focused box's ring. */
+.rec-fold-sheet .rec-fold-inner { padding: 16px 4px 20px; }
 
 /* ---------- An inline editor: one value, edited in the row that states it ---------- */
-/* The row itself becomes the field (spec §5): the label stays in the label column, and the box, what it will say,
-   and Save and Cancel take the value's place. Closed, it is hidden whole, as a closed fold is. */
-.rec-inline { display: flex; align-items: flex-start; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+/* The row itself becomes the field (spec §5), and keeps the row's line: the label stays in the label column, the box
+   takes the value's place, and ✓ and ✕ sit where the act was. A one-line row and its editor are both 44px (the row's
+   min-height; here 6px either side of the 32px box), so a value becoming its field moves nothing under it. What
+   there is to say under the box -- a disagreement, what it will say, an ask -- takes a second line of the grid, drawn
+   only when there is something (record-fold.jsx). Closed, it is hidden whole, as a closed fold is. */
+/* The grid names one row; the second exists only while something is drawn in it (an implicit row), so with nothing to
+   say there is no second row and no gap before it: a named empty row kept its gap, and the editor was 11px taller
+   than its row. */
+.rec-inline { box-sizing: border-box; display: grid; grid-template-columns: var(--rec-key) minmax(0, 1fr) auto; grid-template-areas: "key field acts"; align-items: center; column-gap: 16px; row-gap: 10px; min-height: 44px; padding: 6px 0; border-top: 1px solid var(--line); }
 .rec-inline[hidden] { display: none; }
-/* 12px down to sit on the box's middle: the page's field carries no label of its own over the box (the row's label
-   names it), and RecordField keeps its 5px gap under the label it leaves empty. */
-.rec-inline-key { flex: 0 0 var(--rec-key); padding-top: 12px; font-size: var(--text-sm); color: var(--ink-dim); }
-.rec-inline-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.rec-inline-key { grid-area: key; font-size: var(--text-sm); color: var(--ink-dim); }
+.rec-inline-body { grid-area: field; min-width: 0; }
+.rec-inline-more { grid-column: 2 / -1; grid-row: 2; display: flex; flex-direction: column; gap: 9px; min-width: 0; padding-bottom: 6px; }
+/* The page's field carries no label of its own over the box (the row's label names it): the label RecordField leaves
+   empty is not laid out, so its 5px gap is not either, and the box sits on the row's line. */
+.rec-inline .rec-field-label:empty { display: none; }
+/* The two presses, in the act's column: a glyph each, 28px square, the dim ink for Cancel and the ink for Save, the
+   hover ground as the row's act takes. Each reaches 44px for a finger from an ::after, as a fold's Close does (below),
+   so the row stays 44px tall on a touch screen too. Busy, Save says so and takes no press (record-fold.jsx). */
+.rec-inline-acts { grid-area: acts; display: inline-flex; align-items: center; gap: 2px; }
+.rec-inline-act { position: relative; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--radius-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+.rec-inline-act::after { content: ""; position: absolute; inset: -8px; }
+.rec-inline-act[data-act="save"] { color: var(--ink); }
+.rec-inline-act:hover, .rec-inline-act:focus-visible { color: var(--ink); background: var(--bg-hover); }
+.rec-inline-act[aria-disabled="true"] { color: var(--ink-faint); background: none; }
+.rec-inline-act[aria-busy="true"] { cursor: progress; }
+html.legacy-on .rec-inline-act { min-height: 0; }
 /* The value becomes its field (spec §9, item 2): the label holds its place on the row's line, and what stood beside it
    gives way to the box in a 120ms cross-fade, as the editor appears (a transition from @starting-style, no keyframe).
    The box's focus ring is drawn inside what fades, so it is not seen on the first frame, and arrives with the second;
@@ -324,10 +348,9 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-row-act { position: relative; }
   .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
 }
-/* Nothing hovers under a finger, so every act is drawn: told by the input, not the width, because a touch screen
-   wider than a phone has no hover either. And no wash lingers on the row a finger last touched. */
+/* Nothing hovers under a finger: no keys are said, and no wash lingers on the row a finger last touched. Told by the
+   input, not the width, because a touch screen wider than a phone has no hover either. */
 @media (hover: none), (pointer: coarse) {
-  .rec-row-act { opacity: 1; color: var(--ink-muted); }
   .rec-foot-keys { display: none; }
   .rec-row:hover::before { background: none; }
 }
@@ -338,9 +361,9 @@ html.legacy-on .rec-row-act { min-height: 0; }
   /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
      stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
      pressed sits above that. */
-  .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; min-height: 44px; }
+  .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; }
   .rec-row-key, .rec-row-val { grid-column: 1; }
-  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; opacity: 1; color: var(--ink-muted); }
+  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; }
   .rec-row-act::after { content: ""; position: absolute; inset: 0; }
   .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
   .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -361,9 +384,11 @@ html.legacy-on .rec-row-act { min-height: 0; }
   .rec-fold[data-wide="true"] .rec-says { margin-inline-start: 0; }
   .rec-fold[data-wide="true"] .rec-foot { padding-inline-start: 0; }
   /* No label column beside a phone's box: the label goes above it, as a phone's row puts its value under its label,
-     and what it will say stacks, as a fold's does. */
-  .rec-inline { flex-direction: column; gap: 6px; }
-  .rec-inline-key { flex: none; padding-top: 0; }
+     with ✓ and ✕ beside the box; and what it will say stacks, as a fold's does. The box is a finger's 44px here
+     (legacy.css's floor for every box on a touch screen), so the editor's own padding is all but gone and its label
+     sits 2px over the box: the editor is then 68px to the row's 65, and the rows under it hold still. */
+  .rec-inline { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key key" "field acts"; row-gap: 2px; padding: 1px 0; }
+  .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
   .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
   .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
   /* The sheet rises from the bottom, and its foot clears the home indicator. */
@@ -390,12 +415,10 @@ html.legacy-on .rec-row-act { min-height: 0; }
     .rec-sheet.rec-fold-sheet[data-leaving="true"] { transform: none; }
     .rec-sheet-backdrop[data-leaving="true"] { opacity: 1; }
   }
-  /* The sheet's body carries the gutter; the fields keep the fold's 4px either side for a focused box's ring. */
-  .rec-fold-sheet .rec-fold-inner { padding-block: 16px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rec-row::before, .rec-row-act, .rec-fold-close, .rec-fold-body,
+  .rec-row::before, .rec-row-act, .rec-inline-act, .rec-fold-close, .rec-fold-body,
   .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close,
   .rec-sheet.rec-fold-sheet, .rec-sheet-backdrop[data-fold="true"] { transition: none; }
   /* The kit puts no leaving copy on the page under reduced motion; were one there, it is not drawn. */

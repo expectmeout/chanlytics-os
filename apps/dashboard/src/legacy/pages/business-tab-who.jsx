@@ -11,14 +11,19 @@
 // window.BtWhoCard. Its top-level names are bt-prefixed and it holds no hook of its own (the rows hold theirs), and no
 // pattern in it holds an object rest, for the reasons business-tab-save.jsx gives.
 
-/** The box for a row whose value is one line of text. */
+/**
+ * The box for a row whose value is one line of text. Its hint says what the value is for, or what empty means, and
+ * is drawn under the box only while the box is empty: that is when it is the one thing to read (the phone's rule for
+ * a row's hint, record.css), and a filled row's editor keeps the row's one line, so nothing under it moves as the
+ * value becomes its field. A problem is drawn whenever there is one; RecordField gives it the hint's place.
+ */
 const btTextBox = (words) => ({ draft, set, problem, field }) => (
   <window.RecordField
     {...field}
     value={draft}
     onChange={set}
     problem={problem}
-    hint={words.hint || null}
+    hint={draft ? null : words.hint || null}
     placeholder={words.placeholder}
     inputMode={words.inputMode}
     autoComplete={words.autoComplete}

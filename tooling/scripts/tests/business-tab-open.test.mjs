@@ -191,12 +191,16 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   openFold(tree, "hours");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["hours"]);
-  assert.equal(byTestId(tree, "rec-row-hours"), null, "in the row's place");
+  // A sheet beside the page (RecordFold frame="sheet", at a desktop's width too): the row stays in its card behind
+  // it, never inside it.
   const fold = foldOf(tree, "hours");
+  assert.equal(fold.props.role, "dialog", "a sheet, not a fold under the row");
+  assert.equal(byTestId(fold, "rec-row-hours"), null, "the row is not inside the sheet");
+  assert.ok(byTestId(tree, "rec-row-hours"), "and still in its card behind it");
   assert.equal(fold.props["data-wide"], "true", "its own grid names each day");
   // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
   // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
-  assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-fold-hint"))), hoursZoneWords("America/New_York"));
+  assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-sheet-sub"))), hoursZoneWords("America/New_York"));
   assert.equal(hoursZoneWords("America/New_York"), "All times in New York time, as the receptionist states them.");
   assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save the week");
   assert.deepEqual(
@@ -229,6 +233,7 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   // The zone is the one the settings read resolved the prompt in.
   tree = drawTab({ zone: "America/Chicago" });
   assert.equal(
+    // Drawn afresh the fold is closed and hidden whole, in the row's frame: its hint is the head's, not a sheet's.
     textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
     hoursZoneWords("America/Chicago"),
   );
@@ -1935,7 +1940,7 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
       [true, true, true],
       "REGRESSION: the reopened editor was not busy",
     );
-    assert.equal(textOf(byTestId(tree, "rec-inline-save-timezone")), "Saving…");
+    assert.equal(byTestId(tree, "rec-inline-save-timezone").props["aria-label"], "Saving…");
     // Nothing can be picked under it, so nothing is there for its answer to throw away.
     box().props.onChange({ target: { value: "denver" } });
     tree = redrawTab(flash);
