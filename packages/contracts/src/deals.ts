@@ -458,7 +458,7 @@ export function isConsultationTitle(
 
 /**
  * Whether anything came back since a proposal went (0008): they wrote or called after it. `askedMs` is when the person
- * last did either. What "nothing back" is measured against, and what the Pipeline's "They wrote" says.
+ * last did either. What "nothing back" is measured against, and what the Pipeline's "Heard back" says.
  */
 export function heardSinceProposal(r: {
   deal: Pick<DealVM, "stage" | "sinceMs"> | null;

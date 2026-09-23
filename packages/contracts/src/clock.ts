@@ -167,7 +167,7 @@ function daysFromToday(atMs: number, tz: string, nowMs: number): number {
 /**
  * A day near the business's today, as a chip says it: "today", "yesterday", "tomorrow", its weekday within six days
  * either side ("Tue"), else its date ("Sep 12"). A week away is a date, because its weekday is today's. Lower case: the
- * words it sits in say where a sentence starts ("Held Tue", "They wrote today").
+ * words it sits in say where a sentence starts ("Held Tue", "Heard back today").
  */
 export function clockNear(atMs: number, tz: string, nowMs: number): string {
   const gap = daysFromToday(atMs, tz, nowMs);

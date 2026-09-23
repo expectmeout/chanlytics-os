@@ -18,6 +18,7 @@
  * a page only composes it. Pure.
  */
 import { clockDate, clockNear, clockNearWhen } from "./clock";
+import { DEAL_CARD_WORDS } from "./deal-sheet";
 import {
   DEAL_STAGE_WORDS,
   amountTotalsWords,
@@ -115,8 +116,6 @@ export const PIPELINE_WORDS = {
   hide: "Hide",
   /** Where there is nobody in any group. */
   empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
-  /** A proposal recorded with no link: an honest one (a PDF sent by email, a meeting), with nothing to send again. */
-  noLink: "No link",
 } as const;
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
@@ -131,7 +130,9 @@ const zoneOf = (r: PipelineSource, tz: string): string => r.calendarTz || tz;
  * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
  */
 function proposalChip(r: PipelineSource, d: DealVM, tz: string, nowMs: number): PipelineChip | null {
-  if (!d.proposal) return { words: PIPELINE_WORDS.noLink, tone: "warn" };
+  // Recorded with no link: an honest one (a PDF sent by email, a meeting), with nothing to send again; the deal card's
+  // own words for it.
+  if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "warn" };
   if (waitingOnProposal(r, nowMs)) return { words: `Nothing back in ${d.waitingDays ?? 0} d`, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };

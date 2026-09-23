@@ -390,15 +390,16 @@ test("the rules the Pipeline asks are deals.ts's: heard since a proposal, and th
   assert.equal(heardSinceProposal({ deal: null, askedMs: NOW }), false);
   const won = dealOf(deal(NOW, "won", { decided: 1 }), TZ, NOW);
   assert.equal(heardSinceProposal({ deal: won, askedMs: NOW }), false, "only a proposal out is waiting to hear");
-  // The amount as the deal holds it, beside its words, at every stage: what a total sums.
-  assert.deepEqual(out.money, { amount_cents: 120_000, per: "once", currency: "USD" });
+  // The amount as the deal holds it (the deal sheet's own fields), beside its words, at every stage: what a total sums.
+  const held = (d) => [d.amountCents, d.per, d.currency];
+  assert.deepEqual(held(out), [120_000, "once", "USD"]);
   assert.equal(out.amount, "$1,200");
-  assert.deepEqual(dealOf(deal(NOW, "won", { decided: 1, cents: 34_000, per: "month" }), TZ, NOW).money, {
-    amount_cents: 34_000,
-    per: "month",
-    currency: "USD",
-  });
-  assert.equal(dealOf(deal(NOW, "lost", { decided: 1 }), TZ, NOW).money, null, "no amount, nothing to sum");
+  assert.deepEqual(held(dealOf(deal(NOW, "won", { decided: 1, cents: 34_000, per: "month" }), TZ, NOW)), [
+    34_000,
+    "month",
+    "USD",
+  ]);
+  assert.equal(dealOf(deal(NOW, "lost", { decided: 1 }), TZ, NOW).amountCents, null, "no amount, nothing to sum");
 });
 
 test("a row knows when its next visit is a consultation, and whether it takes the day", () => {
