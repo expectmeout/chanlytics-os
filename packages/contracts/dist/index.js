@@ -6200,6 +6200,7 @@ function toDealVM(d, tz, nowMs) {
   const word = DEAL_STAGE_WORDS[d.stage];
   const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
   const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
   const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
   return {
     id: d.id ?? null,
@@ -6211,6 +6212,7 @@ function toDealVM(d, tz, nowMs) {
     since,
     said,
     line,
+    facts,
     brief,
     waitingDays,
     amount

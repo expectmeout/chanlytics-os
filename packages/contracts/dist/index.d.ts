@@ -4208,6 +4208,8 @@ interface DealVM {
     said: string;
     /** The service in front of `said`, for a line that stands alone. */
     line: string;
+    /** Everything but the stage's word: "Ad management · since Oct 1 · $2,500 a month", under `word` on the card's row. */
+    facts: string;
     /** The chip beside the wires and the row's second line: "Proposal out · 6 d", "Client · Ad management"; null where the visit says more. */
     brief: string | null;
     /** Days since the proposal went, for a proposal out; null otherwise. */

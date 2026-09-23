@@ -182,14 +182,17 @@ does not insist.
 
 **Where it shows, each thing once:**
 
-- **The person's page** — one rail section, after "Receptionist for <name>"
-  and before the two consent asks, in `ConsentAsk`'s family and no new CSS.
-  It says first and acts under it: _No proposal yet_ with the act _Proposal
-  sent_; _Proposal out · since Sep 12_ with _Became a client_ and _Passed_;
-  _Client · since Oct 1 · $2,500 a month_ with _Ended_; _Passed · Sep 20_ with
-  _Proposal sent again_. An act opens the how-row: a date defaulting to today,
+- **The person's page** — one line in the card's settings, last after the
+  receptionist and the two consent answers: the record kit's row at rest, its
+  moves in the row's fold under _Change_ (as built after #907 made each setting
+  one line; the first cut was a rail section of its own). The row says the
+  service and the stage; the fold acts on it: _No proposal yet_ with the act
+  _Proposal sent_; _Proposal out · since Sep 12_ with _Became a client_ and
+  _Passed_; _Client · since Oct 1 · $2,500 a month_ with _Ended_; _Passed · Sep
+  20_ with _Proposal sent again_. A recorded move closes the fold; a refused one
+  keeps it open with the reason. An act opens the how-row: a date defaulting to today,
   amount and per on _Became a client_ only, a service picker only when the
-  profile lists more than one service, and the optional evidence. The section
+  profile lists more than one service, and the optional evidence. The row
   is drawn only where deals are a thing here — the workspace lists a
   consult-first service or has recorded a deal — so a salon never sees it. The
   timeline gains a `deal` kind, one line per event, and its filter appears only
@@ -342,7 +345,7 @@ export function dealsAreAThing(rows: readonly PersonRowVM[], consultFirst: reado
 // "record_deal", { stage, from, by }). route-policy.json gains the row.
 
 // apps/dashboard/src/legacy-bridge/people-detail.ts — window.__recordDeal(id, body).
-// apps/dashboard/src/legacy/pages/client-profile.jsx — PersonDeal, a rail section.
+// apps/dashboard/src/legacy/pages/client-profile.jsx — PersonDeal, the card's Deal row and its fold.
 ```
 
 ## Steps

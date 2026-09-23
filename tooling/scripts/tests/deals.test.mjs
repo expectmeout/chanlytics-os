@@ -124,6 +124,7 @@ test("the row's columns become one view model: the line, the brief, the waiting 
   assert.equal(d.waitingDays, 11);
   assert.equal(d.said, "Proposal out · since Sep 12");
   assert.equal(d.line, "Ad management · Proposal out · since Sep 12");
+  assert.equal(d.facts, "Ad management · since Sep 12", "the card's row says the word, and this under it");
   assert.equal(d.brief, "Proposal out · 11 d");
   assert.equal(dealOf({ deal_stage: null }, TZ, NOW), null, "no columns, no deal");
   assert.equal(dealOf({ deal_stage: "banana" }, TZ, NOW), null, "an unknown stage is not a deal");
@@ -136,6 +137,7 @@ test("a client says its amount; a pass and an end say when; none says an amount 
     NOW,
   );
   assert.equal(won.said, "Client · since Sep 20 · $2,500 a month");
+  assert.equal(won.facts, "Ad management · since Sep 20 · $2,500 a month");
   assert.equal(won.brief, "Client · Ad management");
   assert.equal(won.waitingDays, null);
   const once = dealOf(

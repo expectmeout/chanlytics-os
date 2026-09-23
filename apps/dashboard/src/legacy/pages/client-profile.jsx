@@ -1000,7 +1000,9 @@ const centsOf = (text) => {
 };
 const DEAL_EMPTY = { busy: false, error: null, move: null, when: "", amount: "", per: "month", service: "", way: null, note: "" };
 
-const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or operator can change this." }) => {
+// `bare` is the card's fold (#907's record rows): the row at rest says where the deal stands, so inside the fold the
+// section draws what can be done next and the one line it would change, never its own label or a second rail box.
+const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or operator can change this.", bare = false }) => {
   const [st, setSt] = useStateP(DEAL_EMPTY);
   const kit = window.__deal;
   if (!p || !p.dealsOn || !kit) return null;
@@ -1029,19 +1031,25 @@ const PersonDeal = ({ p, canRecord, onRecord, lockedNote = "Only an owner or ope
   };
   const move = st.move;
   return (
-    <div className="cl-prof-rail-section" data-testid="person-deal">
-      <div className="cl-prof-rail-label">Deal</div>
-      <div className="cl-prof-attr-list">
-        <div className="cl-prof-attr">
-          <span className="cl-prof-attr-key">{d ? d.service || "Deal" : ""}</span>
-          <span className="cl-prof-attr-val" data-testid="person-deal-line">{d ? d.said : kit.none}</span>
-        </div>
-      </div>
+    <div className={bare ? undefined : "cl-prof-rail-section"} data-testid="person-deal">
+      {bare ? null : (
+        <>
+          <div className="cl-prof-rail-label">Deal</div>
+          <div className="cl-prof-attr-list">
+            <div className="cl-prof-attr">
+              <span className="cl-prof-attr-key">{d ? d.service || "Deal" : ""}</span>
+              <span className="cl-prof-attr-val" data-testid="person-deal-line">{d ? d.said : kit.none}</span>
+            </div>
+          </div>
+        </>
+      )}
       <div className="cl-prof-how-chips" role="group" aria-label="Record a deal">
         {moves.map((m) => (
           <button key={`${m.to}-${m.sameRow}`} type="button" className={`cl-prof-how-chip${same(move, m) ? " armed" : ""}`} disabled={!canRecord || st.busy} aria-pressed={same(move, m)} onClick={() => pick(m)} data-testid="person-deal-move">{m.label}</button>
         ))}
       </div>
+      {/* In the fold the row is hidden, so the line it said stays under the moves, as the other folds' hints do. */}
+      {bare && !move ? <div className="cl-prof-aut-hint" data-testid="person-deal-now">{d ? d.line : kit.none}</div> : null}
       {move && (
         <div className="cl-prof-how" data-testid="person-deal-how">
           <div className="cl-prof-note">
@@ -1245,11 +1253,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // What the timeline shows, and whether the fold is open; the timeline itself stays a plain function of its props.
   const [tlFilter, setTlFilter] = useStateP("all");
   const [tlAll, setTlAll] = useStateP(false);
-  // The card's three editors (the record kit's folds): one open at a time, anywhere in the app, and a sheet on a phone.
+  // The card's editors (the record kit's folds): one open at a time, anywhere in the app, and a sheet on a phone.
   const foldOf = (fid) => (window.useRecordFold ? window.useRecordFold(fid) : PERSON_NO_FOLD);
   const rmFold = foldOf("person-receptionist");
   const visitFold = foldOf("person-visit");
   const offersFold = foldOf("person-offers");
+  const dealFold = foldOf("person-deal");
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     // Held from the last time this tab opened them, so going back to the list
@@ -1361,6 +1370,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     if (!r.ok) return r;
     const w = window.__deal ? window.__deal.words[body.stage] : body.stage;
     ppFlash({ msg: <><b>{who}</b> · {w}</> });
+    dealFold.close();
     load();
     return r;
   };
@@ -1685,8 +1695,26 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   } : null}
                 />
               </window.RecordFold>
+              {/* Their deal (0004), where deals are a thing here: the stage's word at rest with the service, the day and
+                  the amount under it, as the answers above say theirs, and Change opens the moves under it. Last, because the three above are about the receptionist and their answers,
+                  and this is about the business's work with them. */}
+              {p.dealsOn && window.__deal ? (
+                <>
+                  {dealFold.open ? null : (
+                    <window.RecordRow
+                      id="person-deal"
+                      label="Deal"
+                      value={<span data-testid="person-deal-line">{p.deal ? p.deal.word : window.__deal.none}</span>}
+                      hint={p.deal && p.deal.facts ? <span data-testid="person-deal-facts">{p.deal.facts}</span> : null}
+                      act={canRecord ? { label: "Change", onClick: dealFold.request } : null}
+                    />
+                  )}
+                  <window.RecordFold wide id="person-deal" label="Deal" open={dealFold.open} onCancel={dealFold.close}>
+                    <PersonDeal bare p={p} canRecord={canRecord} onRecord={recordDeal} lockedNote={null} />
+                  </window.RecordFold>
+                </>
+              ) : null}
             </div>
-            <PersonDeal p={p} canRecord={canRecord} onRecord={recordDeal} lockedNote={null} />
             <div className="cl-prof-rail-section">
               <div className="cl-prof-rail-label">Notes for the receptionist</div>
               <PersonNotes p={p} canEdit={canRecord} flash={ppFlash} />
