@@ -1075,13 +1075,15 @@ export const broadcastsOverride: SurfaceOverride = {
     const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
+    // Who a run reached within the week, for the note on how many of an audience heard from one.
+    const touched = new Set(bc.touched ?? []);
     const previewFor = (
       kind: AudienceKind,
       id: string | null,
       ids: Set<string> | null,
     ): Record<SendPurpose, AudiencePreview> => ({
-      conversational: audiencePreview(rows, kind, id, ids, "conversational"),
-      marketing: audiencePreview(rows, kind, id, ids, "marketing"),
+      conversational: audiencePreview(rows, kind, id, ids, "conversational", 5, touched),
+      marketing: audiencePreview(rows, kind, id, ids, "marketing", 5, touched),
     });
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
       const preview = previewFor(kind, id, ids);

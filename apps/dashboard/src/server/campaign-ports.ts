@@ -5,7 +5,7 @@
  * these. The session role writes here: it may insert a broadcast and its
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
-import type { Json } from "@chanlytics/db";
+import { savedListFor, type Json } from "@chanlytics/db";
 import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
@@ -19,7 +19,6 @@ import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
 import { audiencePool } from "./audience";
-import { savedList } from "./lists";
 import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
@@ -102,7 +101,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
     people: async (now) => (await audiencePool(ctx, tenantId, await zone(), now)).rows,
     // Every member, not the first thousand (lists.ts savedList).
     savedList: async (id) => {
-      const seg = await savedList(ctx, tenantId, id);
+      const seg = await savedListFor(ctx.supabase, tenantId, id);
       return seg ? { name: seg.name, memberIds: seg.ids } : null;
     },
     number: async () => {

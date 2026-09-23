@@ -387,7 +387,7 @@ test("a broadcasts read that fails is an ERROR, never 'nobody has been touched'"
     new Date("2026-09-12T15:00:00Z"),
   );
   assert.ok("error" in bad, "returned as an error");
-  assert.match(bad.error, /broadcasts: broadcasts: statement timeout/);
+  assert.match(bad.error, /broadcasts: statement timeout/);
   assert.ok(!("touches" in bad));
 });
 

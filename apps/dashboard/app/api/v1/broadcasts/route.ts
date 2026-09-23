@@ -3,6 +3,7 @@ import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createBroadcastPorts } from "@/server/campaign-ports";
 import { listBroadcasts } from "@/server/broadcasts";
+import { recentTouches } from "@/server/playbooks";
 
 /**
  * Broadcasts: one approved template to the people who said yes.
@@ -23,8 +24,22 @@ import { listBroadcasts } from "@/server/broadcasts";
  */
 export const GET = read({
   scope: workspace,
-  // { broadcasts, more }: the recent fifty, and whether older ones exist beyond them.
-  handle: async ({ ctx, member }) => listBroadcasts(ctx, member.tenantId),
+  // { broadcasts, more, touched }: the recent fifty, whether older ones exist beyond them, and who a run of any kind
+  // reached within the week -- the composer says how many of an audience heard from one. Touches that cannot be read
+  // are null, and the composer says nothing, rather than a list of nobody.
+  handle: async ({ ctx, member }) => {
+    const [list, touched] = await Promise.all([
+      listBroadcasts(ctx, member.tenantId),
+      recentTouches(ctx, member.tenantId, new Date()).catch((e: unknown) => {
+        console.error(
+          "broadcast_touches_failed",
+          JSON.stringify({ tenant: member.tenantId, error: e instanceof Error ? e.message : String(e) }),
+        );
+        return null;
+      }),
+    ]);
+    return { ...list, touched: touched ? Object.keys(touched) : null };
+  },
 });
 
 export const POST = write({

@@ -43,11 +43,10 @@ import {
   triggerOf,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { listPolicies } from "@chanlytics/db";
+import { listPolicies, savedListFor } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
 import { audiencePoolOnce } from "../audience";
-import { savedList } from "../lists";
 import { checkPlaybookInput } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 
@@ -654,7 +653,7 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {
-    const seg = await savedList(t.ctx, t.tenantId, audienceId!);
+    const seg = await savedListFor(t.ctx.supabase, t.tenantId, audienceId!);
     if (!seg) return refuse("no such list; list_audiences names them");
     savedIds = new Set(seg.ids);
     label = seg.name;

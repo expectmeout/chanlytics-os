@@ -1,6 +1,7 @@
 import "server-only";
 import {
   parseParamSpecs,
+  PLAYBOOK_BREATH_MS,
   PLAYBOOK_TRIGGERS,
   playbookRunReach,
   toPersonRowVM,
@@ -10,6 +11,7 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
+import { touchesSince } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
@@ -56,56 +58,19 @@ export interface PlaybookTotals {
   history: RunSummary[];
 }
 
-/** How far back a touch counts for the week's breath: PLAYBOOK_BREATH_MS, as the sweep applies it. */
-const BREATH_MS = 7 * 86_400_000;
-
 /**
- * Who a broadcast of any kind reached, or is about to, within the week: the
- * touches the sweep applies as the breath, so the Playbooks page can say how
- * many of a trigger's people wait for it rather than counting them as due.
- * contact id → the ISO time of the touch.
+ * Who a broadcast of any kind reached, or is about to, within the week: the touches the sweep applies as the breath
+ * (packages/db touchesSince, the sweep's own reader), so the Playbooks page can say how many of a trigger's people wait
+ * for it rather than counting them as due. contact id -> the time of their latest touch, as the row keeps it.
  */
 export async function recentTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Record<string, string>> {
-  const since = new Date(now.getTime() - BREATH_MS).toISOString();
-  const { data: runs, error } = await ctx.supabase
-    .from("broadcasts")
-    .select("id, scheduled_for, created_at, state")
-    .eq("tenant_id", tenantId)
-    .in("state", ["scheduled", "pending_approval", "sending", "sent"])
-    .gte("created_at", since);
-  if (error) throw new Error(error.message);
-  if (!runs || runs.length === 0) return {};
-  const ids = runs.map((r) => r.id);
-  const ofRun = new Map(runs.map((r) => [r.id, r]));
   const touched: Record<string, string> = {};
-  for (let i = 0; i < ids.length; i += 200) {
-    // A page at a time, in a fixed order: PostgREST answers at most max_rows,
-    // and a touch cut off the end reads as a person nobody wrote to.
-    for (let from = 0; ; from += TOUCH_PAGE) {
-      const { data: people, error: pErr } = await ctx.supabase
-        .from("broadcast_recipients")
-        .select("broadcast_id, contact_id, state, sent_at")
-        .eq("tenant_id", tenantId)
-        .in("broadcast_id", ids.slice(i, i + 200))
-        .in("state", ["sent", "queued"])
-        .order("broadcast_id")
-        .order("contact_id")
-        .range(from, from + TOUCH_PAGE - 1);
-      if (pErr) throw new Error(pErr.message);
-      for (const r of people ?? []) {
-        const run = ofRun.get(r.broadcast_id);
-        if (!run) continue;
-        const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
-        if (at >= since && (!touched[r.contact_id] || at > touched[r.contact_id])) touched[r.contact_id] = at;
-      }
-      if ((people ?? []).length < TOUCH_PAGE) break;
-    }
+  for (const t of await touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS))) {
+    const was = touched[t.contact_id];
+    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
   }
   return touched;
 }
-
-/** Rows per page of the touches read: PostgREST's max_rows. */
-const TOUCH_PAGE = 1000;
 
 /** A cap no workspace reaches: the pool is counted, not capped. */
 export const PLAYBOOK_POOL = 100_000;

@@ -200,6 +200,59 @@ test("the broadcasts list is the workspace the tab named, newest first, with wha
   );
 });
 
+test("the broadcasts list carries who a run of any kind reached this week, for the send screen's note -- never a run canceled, never last month", async () => {
+  const hour = 3_600_000;
+  const ago = (ms) => new Date(Date.now() - ms).toISOString();
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    broadcasts: [
+      bc(B1, A, { created_at: ago(2 * hour), state: "sent" }),
+      bc(B2, A, { created_at: ago(2 * hour), state: "canceled" }),
+      bc(B3, A, { created_at: ago(40 * 24 * hour), state: "sent" }),
+    ],
+    broadcast_recipients: [
+      {
+        broadcast_id: B1,
+        tenant_id: A,
+        contact_id: "k1",
+        state: "sent",
+        reason: null,
+        sent_at: ago(hour),
+        messages: null,
+      },
+      {
+        broadcast_id: B1,
+        tenant_id: A,
+        contact_id: "k2",
+        state: "skipped",
+        reason: "opted_out",
+        sent_at: null,
+        messages: null,
+      },
+      {
+        broadcast_id: B2,
+        tenant_id: A,
+        contact_id: "k3",
+        state: "queued",
+        reason: null,
+        sent_at: null,
+        messages: null,
+      },
+      {
+        broadcast_id: B3,
+        tenant_id: A,
+        contact_id: "k4",
+        state: "sent",
+        reason: null,
+        sent_at: ago(40 * 24 * hour),
+        messages: null,
+      },
+    ],
+  };
+  const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
+  assert.deepEqual(out.touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+});
+
 test("a broadcast: the workspace must be named, a viewer is refused as a viewer, then the template, its values and the audience are judged in the person's words, before anything is written", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

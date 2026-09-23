@@ -48,7 +48,7 @@ import {
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
-import { listPolicies } from "@chanlytics/db";
+import { listPolicies, savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import {
   CALL_COLUMNS,
@@ -59,7 +59,6 @@ import {
   toConversationDto,
 } from "../dto";
 import { audiencePoolOnce } from "../audience";
-import { savedLists } from "../lists";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks } from "../playbooks";
@@ -916,7 +915,7 @@ export function newToolContext(
 async function listAudiences(t: ToolContext): Promise<unknown> {
   const [pool, lists, tpls, ch] = await Promise.all([
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
-    savedLists(t.ctx, t.tenantId),
+    savedListsFor(t.ctx.supabase, t.tenantId),
     t.ctx.supabase
       .from("templates")
       .select("id, name, language, category, variables, body_preview")
