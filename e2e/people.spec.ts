@@ -171,23 +171,25 @@ test.describe("People on a real workspace", () => {
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    const section = page.getByTestId("person-deal");
-    if ((await section.count()) === 0) {
-      // Deals are not a thing here (no consult-first service, no deal recorded): the section is not drawn.
+    // The deal is the last line of the card's settings; its moves open under Change.
+    const row = page.getByTestId("rec-row-person-deal");
+    if ((await row.count()) === 0) {
+      // Deals are not a thing here (no consult-first service, no deal recorded): the row is not drawn.
       test.skip(true, "deals are not a thing on this workspace");
       return;
     }
     const line = page.getByTestId("person-deal-line");
     const before = (await line.innerText()).trim();
     expect(before.length).toBeGreaterThan(0);
+    await page.getByTestId("rec-row-act-person-deal").click();
     const moves = page.getByTestId("person-deal-move");
-    expect(await moves.count()).toBeGreaterThan(0);
+    await expect(moves.first()).toBeVisible();
     await moves.first().click();
     await expect(page.getByTestId("person-deal-how")).toBeVisible();
     await page.getByTestId("person-deal-record").click();
-    // Production records it and the line moves on; a workspace that refuses the write says so under the row.
+    // Production records it, the fold closes and the row's line moves on; a refused write stays open and says why.
     await expect(async () => {
-      const moved = (await line.innerText()).trim() !== before;
+      const moved = (await line.count()) > 0 && (await line.innerText()).trim() !== before;
       const error = page.getByTestId("person-deal-error");
       const refused = (await error.count()) > 0 && (await error.innerText()).trim().length > 0;
       expect(moved || refused).toBe(true);

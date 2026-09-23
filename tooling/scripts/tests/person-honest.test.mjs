@@ -1711,7 +1711,8 @@ test("a proposal on file (00154): the About row is its control and the send sits
 
 /* ----------------------------------- the Deal section (0004) ----------------------------------- */
 
-test("the Deal section: drawn only where deals are a thing, says the stage first, offers its moves, and records through the courier", async () => {
+test("the Deal row: drawn only where deals are a thing, says the stage in the card's settings, opens its moves under Change, and records through the courier", async () => {
+  globalThis.window.__recordFolds.reset();
   globalThis.window.__deal = {
     words: contracts.DEAL_STAGE_WORDS,
     perWords: contracts.DEAL_PER_WORDS,
@@ -1727,15 +1728,32 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
 
   const none = await profile(toPersonVM(detail({ deals_on: false, deals: [], services: [] }), ZONE, new Date(NOW)));
   assert.equal(byTestId(none(), "person-deal"), null, "a salon never sees it");
+  assert.equal(byTestId(none(), "rec-row-person-deal"), null, "nor its row");
 
   const on = await profile(
     toPersonVM(detail({ deals_on: true, deals: [], services: ["Ad management", "SEO"] }), ZONE, new Date(NOW)),
   );
+  // The fold is a drawn component, so the walk meets what it holds twice (as its children and as what it drew): the
+  // moves are counted in the section's own box.
+  const moves = (t) => all(byTestId(t, "person-deal"), (n) => n.props?.["data-testid"] === "person-deal-move");
   let tree = on();
+  // One line in the card's settings, last, like the three answers above it: never a second box of chips on the rail.
+  const cls = (n) => String(n.props?.className || "");
+  const keys = (t) =>
+    all(byTestId(t, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
+      textOf(find(r, (n) => cls(n) === "rec-row-key")),
+    );
+  assert.deepEqual(keys(tree), ["Receptionist", "Visit messages", "Offers & news", "Deal"]);
   assert.equal(textOf(byTestId(tree, "person-deal-line")), "No proposal yet");
-  // The empty line stands alone: the key said "Deal" under the rail label "Deal".
-  assert.equal(textOf(find(byTestId(tree, "person-deal"), (n) => n.props?.className === "cl-prof-attr-key")), "");
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "person-deal-move").map(textOf), ["Proposal sent"]);
+  assert.equal(byTestId(tree, "person-deal-facts"), null, "nothing under a line that is all there is");
+  assert.equal(byTestId(tree, "rec-fold-person-deal").props.hidden, true, "closed, the moves are out of sight");
+  press(byTestId(tree, "rec-row-act-person-deal"));
+  tree = on();
+  assert.equal(byTestId(tree, "rec-fold-person-deal").props["data-open"], "true", "Change opens the moves");
+  assert.equal(byTestId(tree, "rec-row-person-deal"), null, "and the row gives them its place");
+  // The row is gone, so the line it said stays in the fold, under the moves.
+  assert.equal(textOf(byTestId(tree, "person-deal-now")), "No proposal yet");
+  assert.deepEqual(moves(tree).map(textOf), ["Proposal sent"]);
   press(byTestId(tree, "person-deal-move"));
   tree = on();
   assert.ok(byTestId(tree, "person-deal-service"), "two services: the picker shows");
@@ -1745,6 +1763,8 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   assert.equal(calls[0][0], "p1");
   assert.equal(calls[0][1].stage, "proposed");
   assert.ok(calls[0][1].when, "a date always goes, today by default");
+  tree = on();
+  assert.ok(byTestId(tree, "rec-row-person-deal"), "a recorded move closes the fold and puts the row back");
 
   const proposed = {
     id: "d1",
@@ -1784,11 +1804,12 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
     ),
   );
   tree = client();
-  assert.match(textOf(byTestId(tree, "person-deal-line")), /^Proposal out · since/);
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "person-deal-move").map(textOf), [
-    "Became a client",
-    "Passed",
-  ]);
+  // The row says the stage's word, as the answers above say theirs; the service and the day go under it, quieter.
+  assert.equal(textOf(byTestId(tree, "person-deal-line")), "Proposal out");
+  assert.match(textOf(byTestId(tree, "person-deal-facts")), /^Ad management · since \w{3} \d+$/);
+  press(byTestId(tree, "rec-row-act-person-deal"));
+  tree = client();
+  assert.deepEqual(moves(tree).map(textOf), ["Became a client", "Passed"]);
   press(byTestId(tree, "person-deal-move"));
   tree = client();
   const amount = byTestId(tree, "person-deal-amount");
@@ -1819,6 +1840,31 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   assert.equal(calls[1][1].version, 1, "the version the page saw goes with a move");
   assert.equal(calls[1][1].amount_cents, 250000);
   assert.equal(calls[1][1].per, "month");
+
+  // A refused move keeps the fold open with the reason in it: closing on a refusal would lose what was typed.
+  globalThis.window.__recordDeal = async () => ({ ok: false, message: "Someone changed this deal a moment ago." });
+  tree = client();
+  press(byTestId(tree, "rec-row-act-person-deal"));
+  tree = client();
+  press(moves(tree)[1]);
+  tree = client();
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  tree = client();
+  assert.equal(byTestId(tree, "rec-fold-person-deal").props["data-open"], "true");
+  assert.equal(textOf(byTestId(tree, "person-deal-error")), "Someone changed this deal a moment ago.");
+
+  // Someone who may only read sees the line and no Change.
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    globalThis.window.__recordFolds.reset();
+    tree = client();
+    assert.ok(byTestId(tree, "rec-row-person-deal"));
+    assert.equal(byTestId(tree, "rec-row-act-person-deal"), null);
+  } finally {
+    globalThis.window.__ME = me;
+  }
 });
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */
