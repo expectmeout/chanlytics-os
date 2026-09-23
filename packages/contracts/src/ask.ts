@@ -11,7 +11,7 @@
  */
 import type { SchemaSet } from "./schema-sets";
 import { z } from "zod";
-import type { NotificationItem } from "./notifications";
+import type { AskAnswer } from "./ask-answer";
 import { dayPlusInZone } from "./availability";
 
 /* ------------------------------------------------------------------ limits */
@@ -562,6 +562,8 @@ export interface AskMessageVM {
   rounds?: number | null;
   /** Set on a turn that could not be answered; the text says why. */
   failed: boolean;
+  /** The answer as the Line draws it: set by the server from plan 3; absent on every answer made before (answerFromV1). */
+  answer?: AskAnswer | null;
 }
 
 export interface AskThreadVM {
@@ -881,20 +883,6 @@ export interface FastCall {
   startedAtMs: number | null;
 }
 
-export interface FastContext {
-  feed: NotificationItem[];
-  calls: FastCall[];
-  now: number;
-  language: AskLanguage;
-  timezone?: string | null;
-}
-
-export type FastPath =
-  | { kind: "needs"; answer: string; links: Array<{ label: string; to: string }> }
-  | { kind: "calls"; answer: string; links: Array<{ label: string; to: string }> }
-  | { kind: "openings"; day: string | null; service: string }
-  | null;
-
 const NEEDS_RE =
   /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
 const CALLS_RE =
@@ -943,62 +931,36 @@ export function dayFromQuestion(q: string, now: number, tz?: string | null): str
   return null;
 }
 
+/** What a quick question asks for, answered without a model; ask-answer.ts words the answer. */
+export type AskIntent =
+  { kind: "needs" } | { kind: "calls" } | { kind: "openings"; day: string | null; service: string } | null;
+
 /**
  * The three questions an owner asks most, answered without a model: who
- * needs me, did anyone call, what is open. The first two come from what the
- * page already holds; the third names the day and the service so the palette
- * can ask the availability engine directly. Everything else is the model's.
+ * needs me, did anyone call, what is open. This only says which one a
+ * question is; the bridge reads Today's queue, the calls or the openings
+ * route, and ask-answer.ts says the answer. Everything else is the model's.
  */
-export function fastPath(question: string, ctx: FastContext): FastPath {
+export function askIntent(question: string, now: number, tz?: string | null): AskIntent {
   const q = question.trim();
   if (!q || q.length > 160) return null;
-  const es = ctx.language === "es";
-  if (NEEDS_RE.test(q)) {
-    const rows = ctx.feed.filter((i) => i.kind === "needs_you" || i.kind === "held_draft");
-    if (!rows.length) {
-      return {
-        kind: "needs",
-        answer: es
-          ? "Nadie te espera ahora mismo. La recepcionista está respondiendo sola."
-          : "Nobody is waiting on you right now. The receptionist is answering on its own.",
-        links: [{ label: es ? "Abrir Inbox" : "Open Inbox", to: "inbox" }],
-      };
-    }
-    const names = rows.slice(0, 4).map((r) => r.title.replace(/ needs you$/, "").replace(/ is waiting for you$/, ""));
-    const more = rows.length - names.length;
-    const answer = es
-      ? `${rows.length === 1 ? "Una persona" : `${rows.length} personas`} te esperan: ${names.join(", ")}${more > 0 ? ` y ${more} más` : ""}.`
-      : `${rows.length === 1 ? "One person needs" : `${rows.length} people need`} you: ${names.join(", ")}${more > 0 ? ` and ${more} more` : ""}.`;
-    return { kind: "needs", answer, links: rows.slice(0, 4).map((r) => ({ label: r.title, to: r.to })) };
-  }
-  if (CALLS_RE.test(q)) {
-    const today = dayKey(ctx.now, ctx.timezone);
-    const missed = ctx.calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, ctx.timezone) === today);
-    const live = ctx.calls.filter((c) => c.live);
-    if (!missed.length) {
-      const answer = live.length
-        ? es
-          ? `Ninguna llamada perdida hoy. Hay ${live.length === 1 ? "una llamada" : `${live.length} llamadas`} en curso.`
-          : `No missed calls today. ${live.length === 1 ? "One call is" : `${live.length} calls are`} on the line now.`
-        : es
-          ? "Ninguna llamada perdida hoy."
-          : "No missed calls today.";
-      return { kind: "calls", answer, links: [{ label: es ? "Ver llamadas" : "See calls", to: "live" }] };
-    }
-    const names = missed.slice(0, 4).map((c) => c.who);
-    const answer = es
-      ? `${missed.length === 1 ? "Una llamada perdida" : `${missed.length} llamadas perdidas`} hoy: ${names.join(", ")}.`
-      : `${missed.length === 1 ? "One missed call" : `${missed.length} missed calls`} today: ${names.join(", ")}.`;
-    return {
-      kind: "calls",
-      answer,
-      links: missed.slice(0, 4).map((c) => ({ label: c.who, to: `conversations/cv-${c.callId}` })),
-    };
-  }
-  if (OPEN_RE.test(q)) {
-    return { kind: "openings", day: dayFromQuestion(q, ctx.now, ctx.timezone), service: q };
-  }
+  if (NEEDS_RE.test(q)) return { kind: "needs" };
+  if (CALLS_RE.test(q)) return { kind: "calls" };
+  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
   return null;
+}
+
+/** Today's missed calls by the business's clock, and the calls on the line now. */
+export function callsToday(
+  calls: FastCall[],
+  now: number,
+  tz?: string | null,
+): { missed: FastCall[]; live: FastCall[] } {
+  const today = dayKey(now, tz);
+  return {
+    missed: calls.filter((c) => c.missed && c.startedAtMs && dayKey(c.startedAtMs, tz) === today),
+    live: calls.filter((c) => c.live),
+  };
 }
 
 /* ------------------------------------------------------- settings changes */
@@ -1135,7 +1097,8 @@ export function citationsToShow<C extends { to: string }>(citations: C[], nav: {
   });
 }
 
-const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
+/** A next question that points at a place already offered: its words, and the route it echoes. */
+export const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
   [/profile|perfil/i, /^clients\//],
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/],

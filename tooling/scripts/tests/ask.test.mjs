@@ -3,7 +3,7 @@
  *
  * The mockup's Ask answered from a seed world through regexes; on a real
  * workspace every entry point was a "Soon" tag. Now the palette reads the
- * workspace: jumps from the cache, the bell's rows as "Right now",
+ * workspace: jumps from the cache, Today's queue as "Right now",
  * suggestions from the data, three questions answered without a model, and
  * a model turn that reads through capped view-model tools as the signed-in
  * person, answers in a strict shape, and may cite only what it read.
@@ -32,7 +32,7 @@ import {
   describeSettingsChange,
   detectLanguage,
   emptyReadSet,
-  fastPath,
+  askIntent,
   groundCitations,
   isUngrounded,
   normalizeNavigate,
@@ -217,74 +217,21 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("the three fast paths: who needs me, did anyone call, what is open; everything else is the model's", () => {
-  const feed = [
-    {
-      key: "needs:t1",
-      kind: "needs_you",
-      at: NOW,
-      title: "Dani needs you",
-      message: "",
-      to: "inbox/t1",
-      icon: "inbox",
-      tone: "warn",
-      action: "",
-    },
-    {
-      key: "draft:m2",
-      kind: "held_draft",
-      at: NOW,
-      title: "Rosa is waiting for you",
-      message: "",
-      to: "inbox/t2",
-      icon: "clock",
-      tone: "",
-      action: "",
-    },
-    {
-      key: "invite:i1",
-      kind: "invite",
-      at: NOW,
-      title: "Invitation pending",
-      message: "",
-      to: "admin/workspace",
-      icon: "mail",
-      tone: "",
-      action: "",
-    },
-  ];
-  const calls = [
-    { callId: "k1", who: "+1 917 555 0100", missed: true, live: false, startedAtMs: NOW - 3_600_000 },
-    { callId: "k2", who: "Old", missed: true, live: false, startedAtMs: NOW - 3 * 86_400_000 },
-    { callId: "k3", who: "Live", missed: false, live: true, startedAtMs: NOW },
-  ];
-  const ctx = { feed, calls, now: NOW, language: "en", timezone: "America/New_York" };
-  const needs = fastPath("who needs me right now?", ctx);
-  assert.equal(needs.kind, "needs");
-  assert.equal(needs.answer, "2 people need you: Dani, Rosa.");
-  assert.deepEqual(
-    needs.links.map((l) => l.to),
-    ["inbox/t1", "inbox/t2"],
-  );
-  const es = fastPath("¿quién me necesita?", { ...ctx, language: "es" });
-  assert.equal(es.answer, "2 personas te esperan: Dani, Rosa.");
-  const nobody = fastPath("what's waiting on me", { ...ctx, feed: [] });
-  assert.equal(nobody.answer, "Nobody is waiting on you right now. The receptionist is answering on its own.");
-  const c = fastPath("did anyone call while I was busy?", ctx);
-  assert.equal(c.kind, "calls");
-  assert.equal(c.answer, "One missed call today: +1 917 555 0100.", "only today's, in the business's zone");
-  assert.deepEqual(
-    c.links.map((l) => l.to),
-    ["conversations/cv-k1"],
-  );
-  const quiet = fastPath("missed calls?", { ...ctx, calls: [calls[1], calls[2]] });
-  assert.equal(quiet.answer, "No missed calls today. One call is on the line now.");
-  const open = fastPath("what's open saturday for a balayage", ctx);
-  assert.deepEqual(open, { kind: "openings", day: "sat", service: "what's open saturday for a balayage" });
-  assert.equal(fastPath("qué hay libre mañana", { ...ctx, language: "es" }).day, "2026-09-06");
-  assert.equal(dayFromQuestion("any slots today", NOW, "America/New_York"), "2026-09-05");
-  assert.equal(fastPath("what did the receptionist tell Dani?", ctx), null, "the long tail is the model's");
-  assert.equal(fastPath("tell rosa we are running late", ctx), null);
+test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
+  const TZ = "America/New_York";
+  assert.deepEqual(askIntent("who needs me right now?", NOW, TZ), { kind: "needs" });
+  assert.deepEqual(askIntent("what's waiting on me", NOW, TZ), { kind: "needs" });
+  assert.deepEqual(askIntent("did anyone call while I was busy?", NOW, TZ), { kind: "calls" });
+  assert.deepEqual(askIntent("missed calls?", NOW, TZ), { kind: "calls" });
+  assert.deepEqual(askIntent("what's open saturday for a balayage", NOW, TZ), {
+    kind: "openings",
+    day: "sat",
+    service: "what's open saturday for a balayage",
+  });
+  assert.equal(askIntent("qué hay libre mañana", NOW, TZ).day, "2026-09-06");
+  assert.equal(dayFromQuestion("any slots today", NOW, TZ), "2026-09-05");
+  assert.equal(askIntent("what did the receptionist tell Dani?", NOW, TZ), null, "the long tail is the model's");
+  assert.equal(askIntent("tell rosa we are running late", NOW, TZ), null);
 });
 
 test("language, scope and settings changes", () => {
