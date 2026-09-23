@@ -9,19 +9,37 @@ const useAhRef = React.useRef;
 
 const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
+// A browser told No once never asks again: it blocks in silence. Where the Permissions API says so (Chrome, Android),
+// the press is told before the recogniser is started, so the toast can say where to allow it. Browsers without the
+// API (Safari, Firefox) answer "not blocked" and prompt on their own.
+const ahMicBlocked = async () => {
+  try {
+    if (!navigator.permissions || typeof navigator.permissions.query !== "function") return false;
+    const status = await navigator.permissions.query({ name: "microphone" });
+    return status.state === "denied";
+  } catch {
+    return false;
+  }
+};
+
 // Hold to talk, as the live whisper does it: press starts the browser's own
 // recogniser, release stops it, and what was heard is handed back on its own.
 // Interim words are handed back as they come, so the input shows them.
-// Nothing is recorded or uploaded.
+// Nothing is recorded or uploaded. A press released before the permission
+// check answered starts nothing (`wantRef`).
 const useAskTalk = ({ lang, onWords, onHeard, disabled }) => {
   const [listening, setListening] = useAhState(false);
   const recRef = useAhRef(null);
   const heardRef = useAhRef("");
+  const wantRef = useAhRef(false);
   const canTalk = !!ahRecognizer();
-  const start = (e) => {
+  const start = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     const SR = ahRecognizer();
     if (!SR || listening || disabled) return;
+    wantRef.current = true;
+    if (await ahMicBlocked()) { wantRef.current = false; onHeard(null, "blocked"); return; }
+    if (!wantRef.current || recRef.current) return;
     const rec = new SR();
     rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");
     rec.interimResults = true;

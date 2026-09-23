@@ -98,7 +98,8 @@ const AskReal = ({ open, onClose }) => {
     onWords: (words) => setQuery(words),
     onHeard: (heard, error) => {
       if (heard) { submit(heard); return; }
-      if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
+      if (error === "blocked") flash({ msg: <>{t.micBlocked}</> });
+      else if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
       else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
     },
   });
