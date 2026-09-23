@@ -2185,7 +2185,11 @@ test("A message says whether it may be sent to everyone, on the row: marketing i
       templateRow({ id: "t-n", name: "front_desk_note", language: "en_US", category: "UTILITY" }),
     ],
   });
-  const marks = all(tree, (n) => String(n.props?.className || "") === "msg-row-mark").map((m) => m.props["data-kind"]);
+  const marks = all(tree, (n) =>
+    String(n.props?.className || "")
+      .split(" ")
+      .includes("msg-row-mark"),
+  ).map((m) => m.props["data-kind"]);
   assert.ok(marks.includes("offer") && marks.includes("note"), marks.join(","));
   const offer = all(tree, (n) => n.props?.["data-kind"] === "offer")[0];
   assert.ok(String(offer.props["data-tip"]).includes("said yes to offers"), offer.props["data-tip"]);

@@ -190,7 +190,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
   return (
     <section id={`pb-${p.id}`} className={`pb-tile${warn ? " is-warn" : ""}${open ? " is-open" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
       <button type="button" className="pb-tile-head" onClick={onOpen} aria-expanded={open} data-testid="pb-open">
-        <span className="pb-tile-mark" data-tone={warn ? "warn" : "ok"} aria-hidden="true"><Icon name={pbIcon(p.trigger)} size={15} /></span>
+        <span className="mark pb-tile-mark" aria-hidden="true"><Icon name={pbIcon(p.trigger)} size={14} /></span>
         <span className="pb-tile-titles">
           <span className="pb-tile-name">{p.name}</span>
           <span className="pb-tile-hint">{p.triggerHint}</span>
@@ -243,7 +243,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
 const PlaybookSlot = ({ t, onStart }) => (
   <section className="pb-tile is-empty" data-testid="pb-slot" data-trigger={t.id}>
     <div className="pb-tile-head">
-      <span className="pb-tile-mark" data-tone="plain" aria-hidden="true"><Icon name={pbIcon(t.id)} size={15} /></span>
+      <span className="mark pb-tile-mark" aria-hidden="true"><Icon name={pbIcon(t.id)} size={14} /></span>
       <span className="pb-tile-titles">
         <span className="pb-tile-name">{t.label}</span>
         <span className="pb-tile-hint">{t.hint}</span>

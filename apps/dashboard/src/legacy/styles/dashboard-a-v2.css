@@ -1309,18 +1309,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
 
-/* The lines that are not numbers wear the canvas's glyph tile, not a bullet: at
-   this size a 4px dot carried no meaning, and the tile says which kind of line
-   it is before the sentence does. */
+/* The lines that are not numbers wear the one mark (.mark), not a bullet: at
+   this size a 4px dot carried no meaning, and the mark says which kind of line
+   it is before the sentence does. It is neutral; a warning's words say it. */
 .tc-beats .brief-beat { align-items: center; gap: 10px; }
-.brief-beat-glyph {
-  width: 24px; height: 24px; border-radius: 7px; flex: none;
-  display: grid; place-items: center;
-  background: var(--bg-sunken); color: var(--ink-muted);
-}
-.brief-beat-glyph.ok { color: var(--ok); }
-.brief-beat-glyph.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
-.brief-beat-glyph.danger { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
 
 /* ---- The canvas's finish ---------------------------------------------------
    The proportions landed in #699; this is the rest of what the canvas draws

@@ -90,7 +90,7 @@ const RptFacts = ({ facts }) => (
           const said = f.sub ? `${f.text}, ${f.sub}` : f.text;
           const body = (
             <>
-              <span className="rpt-fact-icon" aria-hidden="true"><Icon name={f.icon} size={14} /></span>
+              <span className="mark rpt-fact-icon" aria-hidden="true"><Icon name={f.icon} size={14} /></span>
               <span className="rpt-fact-copy">
                 <span className="rpt-fact-text">{f.text}</span>
                 {f.sub && <span className="rpt-fact-sub">{f.sub}</span>}

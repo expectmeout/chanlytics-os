@@ -64,12 +64,13 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
   const fresh = items.filter(n => n.unread);
   const earlier = items.filter(n => !n.unread);
   const row = (n) => (
-    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`}>
+    <div key={n.id} className={`tbn-item ${n.unread ? "unread" : ""}`} data-tone={n.tone}>
       <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => onDismiss(n.id)}>
         <Icon name="x" size={10} />
       </button>
       {n.unread && <span className="tbn-dot" />}
-      <span className={`tbn-icon ${n.tone}`}><Icon name={n.icon} size={13} /></span>
+      {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
+      <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
       <div className="tbn-body">
         <div className="tbn-line1">
           <span className="tbn-item-title">{n.title}</span>

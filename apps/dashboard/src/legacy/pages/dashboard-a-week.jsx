@@ -140,7 +140,7 @@ const TodayAway = () => {
             const act = n.actions && n.actions[0];
             return (
               <div key={n.id} className={`ta-row ${n.tone}`} data-testid="today-away-row" data-count={g.count}>
-                <span className={`tbn-icon ${n.tone}`}><Icon name={n.icon} size={13} /></span>
+                <span className="mark tbn-icon"><Icon name={n.icon} size={13} /></span>
                 <button className="ta-main" onClick={() => act && open(g, act.to)} title={act ? act.label : undefined}>
                   <span className="ta-line1">
                     <span className="ta-title">{g.title || n.title}</span>

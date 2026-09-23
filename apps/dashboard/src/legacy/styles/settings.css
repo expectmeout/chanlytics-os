@@ -274,7 +274,7 @@
 .act-row {
   position: relative;
   display: grid;
-  grid-template-columns: 22px 62px minmax(0, 1fr) auto;
+  grid-template-columns: 24px 62px minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 10px;
   /* The hover reaches the card's edge rather than stopping at the text. */
@@ -293,7 +293,7 @@
 .act-row::before {
   content: "";
   position: absolute;
-  left: calc(var(--set-row-y) * 0.5 + 11px);
+  left: calc(var(--set-row-y) * 0.5 + 12px);
   top: 0; bottom: 0;
   width: 1px;
   background: var(--line);
@@ -304,25 +304,13 @@
 .act-row:last-child::before { bottom: 50%; }
 /* ---- The kind, and what it means ---------------------------------------
    Every line the same grey is a log you read rather than scan, and the line
-   an owner opens it to find is the one that went wrong. The disc takes the
-   kind's tone (contracts activityTone), which says a tone only where the
-   product knows one -- most rows stay quiet, and the failures do not. */
-.act-glyph {
-  align-self: center;
-  position: relative;
-  display: grid; place-items: center;
-  width: 22px; height: 22px;
-  border-radius: var(--radius-full);
-  background: var(--bg-sunken);
-  color: var(--ink-dim);
-  flex: none;
-}
-.act-glyph[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
-.act-glyph[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
-.act-glyph[data-tone="info"] { background: var(--info-soft); color: var(--info-ink); }
-.act-glyph[data-tone="danger"] { background: var(--danger-soft); color: var(--danger-ink); }
-.act-glyph[data-tone="accent"] { background: var(--accent-soft); color: var(--accent-ink); }
-.act-glyph { z-index: 1; }
+   an owner opens it to find is the one that went wrong. The node on the spine
+   is the one mark (.mark), round and neutral; the kind's tone (contracts
+   activityTone) is said by the row's words where it is a warning or a failure,
+   so most rows stay quiet and the failures do not. */
+.act-glyph { align-self: center; position: relative; z-index: 1; border-radius: var(--radius-full); }
+.act-row[data-tone="warn"] .act-what { color: var(--warn-ink); }
+.act-row[data-tone="danger"] .act-what { color: var(--danger-ink); }
 .act-when { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .act-what { font-size: var(--set-label); color: var(--ink); line-height: 1.5; text-wrap: pretty; }
 .settings .act-row .act-open { justify-self: end; height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
@@ -331,7 +319,7 @@
      door share one line and the sentence takes the next. Every cell is placed:
      left to itself, the sentence spanned to the end and pushed the door onto a
      line of its own, outside the card. */
-  .act-row { grid-template-columns: 22px minmax(0, 1fr) auto; row-gap: 3px; }
+  .act-row { grid-template-columns: 24px minmax(0, 1fr) auto; row-gap: 3px; }
   .act-glyph { grid-row: 1; grid-column: 1; }
   .act-when { grid-row: 1; grid-column: 2; }
   .settings .act-row .act-open { grid-row: 1; grid-column: 3; }

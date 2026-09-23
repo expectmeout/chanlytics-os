@@ -53,7 +53,7 @@ const AgendaItem = ({
         {flag && <span className="ag-item-flag">{flag}</span>}
       </span>
       {glyph && (
-        <span className="ag-item-glyph">
+        <span className="mark ag-item-glyph">
           <Icon name={glyph} size={11} />
         </span>
       )}

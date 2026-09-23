@@ -1275,7 +1275,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-empty .icon { color: var(--ok); }
 .tbn-item {
   display: grid;
-  grid-template-columns: 26px 1fr;
+  grid-template-columns: 24px 1fr;
   gap: 10px;
   padding: 12px 14px 12px 18px;
   border-bottom: 1px solid var(--line);
@@ -1283,19 +1283,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-item:last-child { border-bottom: none; }
 .tbn-item.unread { background: oklch(from var(--accent) l c h / 0.03); }
 .tbn-dot { position: absolute; left: 7px; top: 18px; width: 5px; height: 5px; border-radius: 999px; background: var(--accent); }
-.tbn-icon {
-  width: 26px; height: 26px;
-  border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  color: var(--ink-muted);
-  margin-top: 1px;
-}
-.tbn-icon.accent { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-.tbn-icon.ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
-.tbn-icon.warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
-.tbn-icon.danger { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+/* The note's kind, as the one mark (.mark): neutral. A warning's or a failure's title carries its tone. */
+.tbn-icon { margin-top: 1px; }
+.tbn-item[data-tone="warn"] .tbn-item-title { color: var(--warn-ink); }
+.tbn-item[data-tone="danger"] .tbn-item-title { color: var(--danger-ink); }
 .tbn-body { min-width: 0; }
 .tbn-line1 { display: flex; align-items: baseline; gap: 8px; }
 .tbn-item-title { font-size: 12px; font-weight: 500; color: var(--ink); flex: 1; min-width: 0; }
@@ -2390,9 +2381,6 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .pb-tile-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
 button.pb-tile-head { cursor: pointer; }
 button.pb-tile-head:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-md); }
-.pb-tile-mark { width: 30px; height: 30px; flex: none; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
-.pb-tile-mark[data-tone="ok"] { background: var(--ok-soft); color: var(--ok-ink); }
-.pb-tile-mark[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
 .pb-tile-titles { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .pb-tile-name { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb-tile-hint { font-size: var(--text-xs); color: var(--ink-dim); }
@@ -2824,10 +2812,8 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 /* The press that opens a row covers the mark and the words, across the first two
    columns, so its mark sits in the mark's column and its words under "The message". */
 .msg-row-what { grid-column: span 2; display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; align-items: center; min-width: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; padding: 10px 0; cursor: pointer; }
-/* Marketing or utility, as a mark: a rule about who a message may reach, not a
-   label to read. Amber is the constraint, not a warning about this message. */
-.msg-row-mark { width: 28px; height: 28px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--bg-active); color: var(--ink-muted); }
-.msg-row-mark[data-kind="offer"] { background: var(--warn-soft); color: var(--warn-ink); }
+/* Marketing or utility, as a mark (.mark): the glyph says which (a gift, a bell) and the tip says what it means for who
+   it reaches. Neutral, as every mark is: amber says a person is needed, and a marketing message needs nobody. */
 .msg-row-said { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .msg-row-titles { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .msg-row-title { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3129,18 +3115,8 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   border-radius: 50%;
   background: var(--danger);
 }
-.ag-item-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg-sunken);
-  color: var(--ink-dim);
-}
+/* What kind of visit it is, as the one mark (.mark). */
+.ag-item-glyph { margin-top: 1px; }
 /* Against the clock, on today's list only. */
 .ag-item.past {
   opacity: 0.55;

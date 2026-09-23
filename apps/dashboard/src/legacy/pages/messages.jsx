@@ -218,7 +218,7 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
             row that is not already something you can press. The languages and
             what sends it are their own acts, in their own cells. */}
         <button type="button" className="msg-row-what" onClick={onOpen} aria-expanded={open} data-testid="template-open">
-          <span className="msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
+          <span className="mark msg-row-mark" data-kind={offer ? "offer" : "note"} data-tip={offer ? "An offer — WhatsApp calls this marketing, so it only reaches people who said yes to offers." : "A note — WhatsApp calls this utility, so it reaches anyone it is sent to."}>
             <Icon name={offer ? "gift" : "bell"} size={14} />
           </span>
           <span className="msg-row-said">
