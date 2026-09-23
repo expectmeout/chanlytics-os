@@ -527,3 +527,67 @@ test("a draft still waiting to go out is the thread's state: the bar says nothin
     "REGRESSION: 'no reply yet' over 'Auto-sends in 72s'",
   );
 });
+
+test("the chip beside the wires says the deal before the visit: a client, a proposal waiting, else the visit", () => {
+  // People's row carries the deal (0004): its brief is the chip where it says more than a visit ahead -- a client,
+  // a proposal waiting. A pass or an end has no brief, so the visit stands. One chip, never two.
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const rowWith = (person) => ({
+    id: "k1",
+    nextVisitDay: "Tue, Sep 8",
+    nextVisit: "Tue, Sep 8 · 2:00 PM · Call",
+    lastVisitDay: null,
+    deal: null,
+    ...person,
+  });
+  const drawWith = (row) => {
+    globalThis.window.__PEOPLE = { rows: [row] };
+    return draw(vm);
+  };
+  try {
+    let tree = drawWith(rowWith({}));
+    assert.equal(textOf(find(tree, byTestId("ix-th-visit"))).trim(), "Tue, Sep 8 · 2:00 PM");
+    assert.equal(find(tree, byTestId("ix-th-deal")), undefined, "no deal: the visit alone");
+    tree = drawWith(rowWith({ deal: { stage: "won", brief: "Client · Ad management" } }));
+    assert.equal(textOf(find(tree, byTestId("ix-th-deal"))).trim(), "Client · Ad management");
+    assert.ok(hasClass("ahead")(find(tree, byTestId("ix-th-deal"))), "a client is marked as a visit ahead is");
+    assert.equal(find(tree, byTestId("ix-th-visit")), undefined, "one chip: the deal took the visit's place");
+    tree = drawWith(rowWith({ deal: { stage: "proposed", brief: "Proposal out · 6 d" } }));
+    assert.equal(textOf(find(tree, byTestId("ix-th-deal"))).trim(), "Proposal out · 6 d");
+    assert.ok(!hasClass("ahead")(find(tree, byTestId("ix-th-deal"))), "a proposal waiting is quiet");
+    tree = drawWith(rowWith({ deal: { stage: "lost", brief: null } }));
+    assert.equal(
+      textOf(find(tree, byTestId("ix-th-visit"))).trim(),
+      "Tue, Sep 8 · 2:00 PM",
+      "a pass says nothing here",
+    );
+    assert.equal(find(tree, byTestId("ix-th-deal")), undefined);
+  } finally {
+    delete globalThis.window.__PEOPLE;
+  }
+});
+
+test("Actions can record a deal, after the receptionist's settings, only where deals are a thing here", () => {
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const labels = (tree) =>
+    find(tree, (n) => n.type === MoreMenu).props.items.map((it) => (it.divider ? "|" : it.label));
+  try {
+    globalThis.window.__PEOPLE = { rows: [], dealsOn: true };
+    const opened = [];
+    const items = find(draw(vm, { onOpenClient: (id) => opened.push(id) }), (n) => n.type === MoreMenu).props.items;
+    const at = items.findIndex((it) => it.label === "Record a deal…");
+    assert.ok(at > 0, "offered");
+    assert.equal(
+      items[at - 1].label,
+      "Receptionist settings",
+      "after the receptionist's settings, in the person's group",
+    );
+    assert.equal(items[at].icon, "deal");
+    items[at].onClick();
+    assert.deepEqual(opened, ["k1"], "the door is the person's page, where a deal is recorded");
+    globalThis.window.__PEOPLE = { rows: [], dealsOn: false };
+    assert.ok(!labels(draw(vm)).includes("Record a deal…"), "a salon never sees it");
+  } finally {
+    delete globalThis.window.__PEOPLE;
+  }
+});
