@@ -69,5 +69,6 @@ export * from "./tone";
 export * from "./erasure";
 export * from "./lead-search";
 export * from "./leads";
+export * from "./deals";
 export * from "./lead-judge";
 export * from "./csv";
