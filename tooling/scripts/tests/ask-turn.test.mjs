@@ -1872,7 +1872,7 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
   assert.deepEqual(
     [again.proposal.payload.deal_id, again.proposal.payload.version, again.proposal.payload.note],
     ["d2", 2, "Called back in September"],
-    "a passed proposal sent again moves its own row (DEAL_MOVES)",
+    "a passed proposal sent again moves its own row",
   );
   assert.equal(again.proposal.summary, "Proposal out · Ads");
 

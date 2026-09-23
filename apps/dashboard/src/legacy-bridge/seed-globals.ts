@@ -15,7 +15,6 @@ import {
   samePhone,
   whyNotAPhone,
   whyNotAnEmail,
-  whyNotALink,
   linkHost,
   proposalMessage,
   proposalLinkOf,
@@ -69,7 +68,6 @@ declare global {
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAnEmail: typeof whyNotAnEmail;
-    __whyNotALink: typeof whyNotALink;
     __linkHost: typeof linkHost;
     __proposalMessage: typeof proposalMessage;
     __proposalLinkOf: typeof proposalLinkOf;
@@ -144,8 +142,6 @@ if (typeof window !== "undefined") {
   window.__whyNotAPhone = whyNotAPhone;
   // The same for an address typed on a person's page: said under the field, before a round trip.
   window.__whyNotAnEmail = whyNotAnEmail;
-  // And for a proposal link typed there (contracts link.ts, 00154).
-  window.__whyNotALink = whyNotALink;
   // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
   // carries into the composer, once for the page and the thread.
   window.__linkHost = linkHost;

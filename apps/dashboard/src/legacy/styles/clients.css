@@ -1176,6 +1176,15 @@
   .cl-prof-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "up" "rail" "hist"; grid-template-rows: auto; }
   .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "rail" "hist"; }
 }
+/* Their deal (0008) comes first in the column, above what is coming, where deals are on: beside the card on a desk,
+   and first of everything on a phone. After the rules above, which it overrides where it is drawn. */
+.cl-prof-body > .cl-prof-deal { grid-area: deal; }
+.cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal rail" "up rail" "hist rail"; grid-template-rows: auto auto 1fr; }
+.cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal rail" "hist rail"; grid-template-rows: auto 1fr; }
+@container person (max-width: 880px) {
+  .cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal" "up" "rail" "hist"; grid-template-rows: auto; }
+  .cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal" "rail" "hist"; }
+}
 
 .cl-prof-rail {
   /* The record kit's measures for the rows the card holds (record.css reads them from what rows sit in). */
@@ -1422,6 +1431,56 @@
 .cl-prof-up-title { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-up-when { font-size: 12px; color: var(--ink-dim); }
 .cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
+
+/* Their deal (0008, pages/person-deal.jsx): a card per open deal in Coming up's family -- the raised ground, one
+   hairline, the middle radius, no shadow -- held to the prose measure, so its three steps read as steps rather than a
+   rule across a wide window. With none open, one slim line and its act. */
+.cl-prof-deal { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cl-prof-deal-list { display: flex; flex-direction: column; gap: 8px; }
+.cl-prof-deal-card {
+  box-sizing: border-box; max-width: var(--measure-prose); min-width: 0;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+.cl-prof-deal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.cl-prof-deal-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-value { flex: none; font-size: 13px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Three quiet steps, a 3px bar each with its word and its day: behind is a dim ink, where it stands the stage's own
+   tone (contracts tone.ts, deal), ahead the hairline. */
+.cl-prof-deal-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.cl-prof-deal-step { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cl-prof-deal-bar { height: 3px; border-radius: var(--radius-full); background: var(--line); }
+.cl-prof-deal-step[data-at="done"] .cl-prof-deal-bar,
+.cl-prof-deal-step[data-at="current"] .cl-prof-deal-bar { background: var(--ink-dim); }
+.cl-prof-deal-step[data-tone="info"] .cl-prof-deal-bar { background: var(--info); }
+.cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
+.cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
+.cl-prof-deal-step-day { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* The link, whether it went and the day it stands until: one line that breaks between its facts, after the dot. */
+.cl-prof-deal-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-link { color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
+.cl-prof-deal-link .icon { margin-right: 4px; vertical-align: -1px; color: var(--ink-dim); }
+.cl-prof-deal-link:hover .cl-prof-deal-host { text-decoration: underline; text-underline-offset: 2px; }
+.cl-prof-deal-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cl-prof-deal-fact { white-space: nowrap; }
+.cl-prof-deal-dot { color: var(--ink-faint); }
+/* What wants a look: the house's StatePill, each in its tone, never a badge of the card's own. */
+.cl-prof-deal-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The one next act is an outline button (the page's one filled button is the thread's); the other moves are words,
+   with no box of their own, so each lines up with the card's text wherever the row wraps. */
+.cl-prof-deal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 2px; }
+.cl-prof-deal-act {
+  display: inline-flex; align-items: center; height: 26px; padding: 0; border: 0; border-radius: var(--radius-xs);
+  background: none; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.cl-prof-deal-act:hover { color: var(--ink); }
+.cl-prof-deal-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* None open: the line and its act, and nothing around them. */
+.cl-prof-deal-none { max-width: var(--measure-prose); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
+.cl-prof-deal-said { margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-sub { color: var(--ink-dim); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
   display: flex;

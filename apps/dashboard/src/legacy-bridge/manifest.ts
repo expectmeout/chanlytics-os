@@ -25,6 +25,8 @@ import "@/legacy/components/record-row.jsx";
 import "@/legacy/components/record-field.jsx";
 import "@/legacy/components/record-fold.jsx";
 import "@/legacy/components/record-sheet.jsx";
+// The one deal sheet (0008): after the kit it is drawn with, before the pages that open it and the shell that holds it.
+import "@/legacy/components/deal-sheet.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
 import "@/legacy/components/campaign-bits.jsx";
@@ -73,6 +75,8 @@ import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 import "@/legacy/pages/clients-a.jsx";
+// A person's deal (0008): the card the profile draws first in its left column.
+import "@/legacy/pages/person-deal.jsx";
 import "@/legacy/pages/client-profile.jsx";
 import "@/legacy/pages/leads-scope.jsx";
 import "@/legacy/pages/leads-finder.jsx";

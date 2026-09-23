@@ -37,7 +37,9 @@ import {
 import { HELD_REASONS, isReplyTo } from "./run-words";
 import { leadsRoute } from "./leads";
 import {
+  DEAL_ACT_WORDS,
   DEAL_LOST_REASON_WORDS,
+  DEAL_STAGE_WORDS,
   amountWords,
   dealOf,
   isDealLostReason,
@@ -699,6 +701,16 @@ function proposalSent(conversations: ReadonlyArray<ConversationDto>, url: string
 }
 
 /**
+ * Whether a message carrying the proposal's address is still on its way: queued, in the seconds its send can be
+ * undone. The deal card says "Sending" and offers no second send until it has gone (0008).
+ */
+function proposalSending(conversations: ReadonlyArray<ConversationDto>, url: string): boolean {
+  return conversations.some((c) =>
+    c.messages.some((m) => m.direction === "outbound" && m.status === "queued" && !!m.body && m.body.includes(url)),
+  );
+}
+
+/**
  * Where a person first came from, as people_list decides it once (00138): the
  * door that added them (calendar, lead, manual), an imported history (import),
  * else their first call (call) or the wire of their first message (whatsapp,
@@ -1183,6 +1195,11 @@ export interface PersonRowVM {
   consultationVisit: boolean;
   /** When their last visit ended, when it was a consultation (0008): the next step is a proposal. Null otherwise. */
   consultedMs: number | null;
+  /**
+   * That consultation's title as the calendar wrote it: the last visit's when it was one, else the next's; null
+   * otherwise. The service it names says which of their deals it began (the deal card's Consultation step, 0008).
+   */
+  consultationTitle: string | null;
 }
 
 /**
@@ -1309,6 +1326,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     deal: dealOf(r, tz, nowMs),
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
+    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
   };
 }
 
@@ -1945,6 +1963,16 @@ export interface PersonActVM {
 }
 
 /**
+ * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
+ * whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where WhatsApp takes only an
+ * approved message, their thread offers one. Every send the page offers asks this one rule: the More menu's
+ * (personActs) and the deal card's (deal-sheet.ts dealSendOf).
+ */
+export function mayReach(p: { openThread: string | null; consent: { state: string; dnc: boolean } }): boolean {
+  return !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+}
+
+/**
  * What can be done for a person from their page, besides opening their thread (the page's one primary act).
  *
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
@@ -1955,7 +1983,7 @@ export interface PersonActVM {
  */
 export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
   const acts: PersonActVM[] = [];
-  const reach = !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  const reach = mayReach(p);
   const on =
     p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
   const ready = `Opens their thread with it ready to send${on}`;
@@ -1969,11 +1997,14 @@ export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
       group: "send",
       needs: "record",
     });
-  // A proposal is a deal's (0008): a workspace whose customers book is never offered one to send.
-  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready)
+  // A proposal is a deal's (0008): a workspace whose customers book is never offered one to send. Its first send is
+  // the deal card's next act (deal-sheet.ts dealNextAct), and no send is offered while one is on its way, so the menu
+  // offers only a send the card does not: the link again once it went, or a link left on someone with no deal.
+  const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
+  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
     acts.push({
       id: "proposal",
-      label: p.proposal.sent ? "Send proposal again" : "Send proposal",
+      label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
       hint: ready,
       group: "send",
       needs: "record",
@@ -2084,8 +2115,20 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // Whether deals are on here (dealsAreOn, 0008): where they are off, nothing on the page says a deal -- no fact, no
   // timeline line, no proposal -- whatever the database holds.
   const dealsOn = !!d.deals_on;
-  // Their deals as the page lists them (0004): each row through the one view model the People row uses.
-  const deals = dealsOn ? (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x): x is DealVM => !!x) : [];
+  // Their deals as the page lists them (0004): each row through the one view model the People row uses, and each
+  // proposal's link with whether it went (0008), read from the thread's own messages as the person's proposal is: the
+  // deal card says it for every proposal out, not only the one the page's head acts on.
+  const deals = dealsOn
+    ? (d.deals ?? [])
+        .map((x) => toDealVM(x, tz, nowMs))
+        .filter((x): x is DealVM => !!x)
+        .map((x) => {
+          if (!x.proposal) return x;
+          const url = x.proposal.url;
+          const sent = proposalSent(d.conversations, url);
+          return { ...x, proposal: { ...x.proposal, sent, sending: proposalSending(d.conversations, url) } };
+        })
+    : [];
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
   // carries the version a move is checked against, which the columns do not.
   const current = dealsOn ? (deals.find((x) => x.id === base.deal?.id) ?? base.deal) : null;
@@ -2286,7 +2329,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     };
     const value = amountWords(x.amount_cents, x.per, x.currency);
     const client = x.stage === "won" || x.stage === "ended";
-    put(`dl-${x.id}-p`, x.proposed_at, `Proposal sent${svc}${value && !client ? ` · ${value}` : ""}`);
+    put(`dl-${x.id}-p`, x.proposed_at, `${DEAL_STAGE_WORDS.proposed}${svc}${value && !client ? ` · ${value}` : ""}`);
     if (client) put(`dl-${x.id}-w`, x.decided_at, `Became a client${svc}${value ? ` · ${value}` : ""}`);
     const why = isDealLostReason(x.lost_reason) ? ` · ${DEAL_LOST_REASON_WORDS[x.lost_reason]}` : "";
     if (x.stage === "lost") put(`dl-${x.id}-l`, x.decided_at, `Passed${svc}${why}`);

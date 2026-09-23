@@ -1,6 +1,6 @@
 /**
  * A deal is a record (0004), and a proposal is part of it (0008): the words,
- * the moves, the line each page says, the proposal's link, value, day and
+ * the line each page says, the proposal's link, value, day and
  * reason, the switch the whole layer hangs on, the sentence the receptionist
  * hears, the leak's rule, the report's cohort. Executed, never read from source.
  */
@@ -11,9 +11,7 @@ import * as contracts from "@chanlytics/contracts";
 const {
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
-  DEAL_MOVES,
   DEAL_LINE_NONE,
-  dealMoves,
   dealOf,
   dealFactsOf,
   pickCurrentDeal,
@@ -99,41 +97,9 @@ const personRow = (over = {}) => ({
   ...over,
 });
 
-test("the four stages, their words, and the moves each offers", () => {
+test("the four stages and their words", () => {
   assert.deepEqual([...DEAL_STAGES], ["proposed", "won", "lost", "ended"]);
   assert.deepEqual(DEAL_STAGE_WORDS, { proposed: "Proposal out", won: "Client", lost: "Passed", ended: "Ended" });
-  assert.deepEqual(
-    DEAL_MOVES.none.map((m) => [m.to, m.label, m.sameRow]),
-    [["proposed", "Proposal sent", false]],
-  );
-  // Each move names the deal sheet's mode it opens (0008), beside the stage it goes to, so today's page keeps working.
-  assert.deepEqual(Object.fromEntries(Object.entries(DEAL_MOVES).map(([from, ms]) => [from, ms.map((m) => m.mode)])), {
-    none: ["propose"],
-    proposed: ["won", "lost"],
-    won: ["ended"],
-    lost: ["again"],
-    ended: ["propose"],
-  });
-  assert.deepEqual(
-    DEAL_MOVES.proposed.map((m) => [m.to, m.label]),
-    [
-      ["won", "Became a client"],
-      ["lost", "Passed"],
-    ],
-  );
-  assert.deepEqual(
-    DEAL_MOVES.won.map((m) => m.to),
-    ["ended"],
-  );
-  assert.deepEqual(
-    DEAL_MOVES.lost.map((m) => [m.to, m.sameRow]),
-    [["proposed", true]],
-  );
-  assert.deepEqual(
-    DEAL_MOVES.ended.map((m) => [m.to, m.sameRow]),
-    [["proposed", false]],
-  );
-  assert.equal(dealMoves(null), DEAL_MOVES.none);
   assert.equal(DEAL_LINE_NONE, "No proposal yet");
   assert.equal(stateOf("deal", "won").label, "Client", "the pill wears the same word");
   assert.equal(stateOf("deal", "proposed").tone, "info");
@@ -597,9 +563,9 @@ test("a person's page lists their deals, says the current one among its facts, a
     [
       "Became a client · Ad management · $2,500 a month",
       "Passed · SEO",
-      "Proposal sent · Ad management",
-      "Proposal sent · SEO",
-      "Proposal sent · Audit",
+      "Proposal out · Ad management",
+      "Proposal out · SEO",
+      "Proposal out · Audit",
       "Became a client · Audit · $500",
       "Ended · Audit",
     ].sort(),
@@ -635,19 +601,19 @@ test("the timeline says a proposal's value on the line it belongs to, and why so
       .timeline.filter((i) => i.kind === "deal")
       .map((i) => i.text)
       .sort();
-  assert.deepEqual(texts(deal({})), ["Proposal sent · Color correction · $1,200"]);
+  assert.deepEqual(texts(deal({})), ["Proposal out · Color correction · $1,200"]);
   assert.deepEqual(texts(deal({ stage: "lost", decided_at: daysAgo(2), lost_reason: "price" })), [
     "Passed · Color correction · Price",
-    "Proposal sent · Color correction · $1,200",
+    "Proposal out · Color correction · $1,200",
   ]);
   assert.deepEqual(texts(deal({ stage: "lost", decided_at: daysAgo(2), amount_cents: null })), [
     "Passed · Color correction",
-    "Proposal sent · Color correction",
+    "Proposal out · Color correction",
   ]);
   // Once they said yes the amount is the client's, said where they became one and not again on the proposal's line.
   assert.deepEqual(texts(deal({ stage: "won", decided_at: daysAgo(2), per: "month" })), [
     "Became a client · Color correction · $1,200 a month",
-    "Proposal sent · Color correction",
+    "Proposal out · Color correction",
   ]);
 });
 
@@ -693,6 +659,14 @@ test("a row knows when its next or last visit was a consultation", () => {
     "one ahead is not held yet",
   );
   assert.equal(toPersonRowVM(personRow({ visits: null }), TZ, new Date(NOW)).consultedMs, null);
+  // The consultation's own title, as the calendar wrote it: the one that ended, else the one ahead (0008): the service
+  // it names says which deal card draws it.
+  const titleOf = (vs) => toPersonRowVM(personRow({ visits: vs }), TZ, new Date(NOW)).consultationTitle;
+  assert.equal(titleOf(visits(null, held(true))), "Discovery call");
+  assert.equal(titleOf(visits(v("SEO consultation", true), held(true))), "Discovery call", "the one that ended first");
+  assert.equal(titleOf(visits(v("SEO consultation", true), held(false))), "SEO consultation");
+  assert.equal(titleOf(visits(v("Haircut", false), held(false))), null);
+  assert.equal(titleOf(null), null);
 });
 
 test("the Journey continues past the booking: four lists, each gated on deals being on", () => {
