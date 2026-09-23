@@ -366,17 +366,9 @@ test.describe("People on a real workspace", () => {
     test.skip(!detail.booking_link, "no booking link on file");
     await page.goto(`/#/clients/${withChat!.id}`);
     await expect(page.locator(".cl-prof-name")).toBeVisible();
-    // One send is a button; with the proposal too, the two are one Send menu beside the thread.
-    const menu = page.getByTestId("person-send");
-    if ((await menu.count()) > 0) {
-      await menu.click();
-      await page.getByRole("menuitem", { name: /booking link|booking-link/ }).click();
-    } else {
-      const btn = page.getByTestId("text-booking-link");
-      await expect(btn).toBeVisible();
-      await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
-      await btn.click();
-    }
+    // The send is in the page's More menu, in plain words, beside the one button to the thread.
+    await page.getByTestId("person-more").click();
+    await page.getByRole("menuitem", { name: /Send the booking link/ }).click();
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
   });
 

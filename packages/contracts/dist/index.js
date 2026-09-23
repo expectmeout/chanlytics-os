@@ -6655,10 +6655,17 @@ function receptionistOf(r, tz, nowMs) {
 function visitTitleFor(title, name) {
   const n = name.trim().toLowerCase();
   if (!n || isIdentifierName(name)) return title;
-  const t = title.trimEnd();
-  if (!t.toLowerCase().endsWith(n)) return title;
-  const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
-  return m ? m[1].trim() : title;
+  const t = title.trim();
+  const low = t.toLowerCase();
+  if (low.endsWith(n)) {
+    const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
+    if (m) return m[1].trim();
+  }
+  if (low.startsWith(n)) {
+    const m = t.slice(n.length).match(/^\s*[·•|:,\-–—]\s*(\S.*)$/);
+    if (m) return m[1].trim();
+  }
+  return title;
 }
 function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
@@ -7046,6 +7053,33 @@ function consentChangeWords(c) {
     sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
   }
   return { who: offers ? "Offers" : "Consent", text, sub };
+}
+function personActs(p) {
+  const acts = [];
+  const reach = !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  const on = p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
+  const ready = `Opens their thread with it ready to send${on}`;
+  if (reach && p.bookingLink)
+    acts.push({
+      id: "booking",
+      label: "Send the booking link",
+      hint: p.bookingLinkAction.ready ? ready : "Their reply window has closed, so their thread offers the approved message with it",
+      needs: "record"
+    });
+  if (reach && p.proposal && p.proposalAction.ready)
+    acts.push({
+      id: "proposal",
+      label: p.proposal.sent ? "Send the proposal again" : "Send the proposal",
+      hint: ready,
+      needs: "record"
+    });
+  if (p.phone && !p.consent.dnc) {
+    acts.push({ id: "call", label: "Call from your phone", hint: "Rings them from this device", needs: "any" });
+    acts.push({ id: "copy-phone", label: "Copy the number", hint: null, needs: "any" });
+  }
+  if (p.email) acts.push({ id: "copy-email", label: "Copy the email", hint: null, needs: "any" });
+  acts.push({ id: "delete", label: "Delete this person\u2026", hint: null, needs: "owner", danger: true });
+  return acts;
 }
 var OWN_MESSAGE_CHOICES = 10;
 var EVIDENCE_WORDS = 80;
@@ -7482,7 +7516,12 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     dealsOn: !!d.deals_on,
     services: d.services ?? []
   };
-  return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
+  const whole = {
+    ...vm,
+    proposal,
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords)
+  };
+  return { ...whole, acts: personActs(whole) };
 }
 function campaignsOf(d, tz, nowMs) {
   const threadOf2 = /* @__PURE__ */ new Map();
@@ -18147,6 +18186,7 @@ export {
   peopleAggregates,
   peopleFromItems,
   peopleListAction,
+  personActs,
   personInText,
   personInitials,
   personName,

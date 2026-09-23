@@ -37,7 +37,7 @@ const PL_FIRST_ROWS = 24;
 // React, which has no memo and draws every row every time; what it proves is that every prop here is a primitive
 // or the same object from one draw to the next (leads-honest.test.mjs).
 const PeopleRow = ({ p, columns, ctx, words, selectable, selected, focused, tabStop, onToggle, onCursor, onOpen, rowClass }) => (
-  <tr id={`${words.one}-${p.id}`} className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`} aria-selected={selectable ? selected : undefined} tabIndex={tabStop ? 0 : -1} onFocus={() => { if (!focused) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
+  <tr id={`${words.one}-${p.id}`} className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`} aria-selected={selectable ? selected : undefined} tabIndex={tabStop ? 0 : -1} onFocus={() => { if (ctx && ctx.onWarm) ctx.onWarm(p.id); if (!focused) onCursor(p.id); }} onPointerEnter={ctx && ctx.onWarm ? () => ctx.onWarm(p.id) : undefined} onClick={() => onOpen(p.id)}>
     {selectable && (
       <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
         <input type="checkbox" className="cl-check" checked={selected} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
