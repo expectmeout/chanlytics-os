@@ -1528,3 +1528,90 @@ test("get_person says where the proposal lives (00154), so a card can carry the 
   assert.equal(without.isError, false, without.result);
   assert.ok(!JSON.parse(without.result).about.some((a) => a.startsWith("Proposal:")), "none on file: no row");
 });
+
+test("propose_deal makes a card the route commits: a new proposal has no deal_id, a client's move carries the open row's id and version, a passed proposal sent again moves its own row, and a bad stage or an unknown person is refused", async () => {
+  const MARIA = "cccccccc-cccc-4ccc-8ccc-cccccccccc21";
+  const LUIS = "cccccccc-cccc-4ccc-8ccc-cccccccccc22";
+  const t = tables({
+    contacts: [
+      { ...contact, tenant_id: A, erased_at: null },
+      {
+        id: MARIA,
+        tenant_id: A,
+        display_name: "Maria",
+        wa_profile_name: null,
+        phone_e164: "+15555550121",
+        email: null,
+        erased_at: null,
+      },
+      {
+        id: LUIS,
+        tenant_id: A,
+        display_name: "Luis",
+        wa_profile_name: null,
+        phone_e164: "+15555550122",
+        email: null,
+        erased_at: null,
+      },
+    ],
+    deals: [
+      {
+        id: "d1",
+        tenant_id: A,
+        contact_id: MARIA,
+        stage: "proposed",
+        service: "SEO",
+        version: 3,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "d2",
+        tenant_id: A,
+        contact_id: LUIS,
+        stage: "lost",
+        service: "Ads",
+        version: 2,
+        created_at: "2026-08-01T00:00:00Z",
+      },
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const p = (name, input) => buildProposal(tc, name, input);
+
+  const fresh = await p("propose_deal", { contact_id: MARIA, stage: "proposed", service: "Ads" });
+  assert.equal(fresh.isError, false, fresh.result);
+  assert.equal(fresh.proposal.kind, "deal");
+  assert.equal(fresh.proposal.needs, "operator");
+  assert.equal(fresh.proposal.payload.deal_id, undefined, "a proposal beside an open one is a new engagement");
+  assert.equal(fresh.proposal.payload.service, "Ads");
+  assert.deepEqual(
+    [fresh.proposal.title, fresh.proposal.summary, fresh.proposal.undo],
+    ["Maria · Proposal out", "Proposal out · Ads", null],
+  );
+  assert.ok(tc.read.person.has(MARIA), "the person enters the read set, so a citation of them is kept");
+  assert.equal(JSON.parse(fresh.result).proposed, true);
+
+  const won = await p("propose_deal", { contact_id: MARIA, stage: "won", amount_cents: 250000, per: "month" });
+  assert.equal(won.proposal.payload.deal_id, "d1");
+  assert.equal(won.proposal.payload.version, 3);
+  assert.equal(won.proposal.payload.service, undefined, "a move keeps the row's own service");
+  assert.deepEqual([won.proposal.payload.amount_cents, won.proposal.payload.per], [250000, "month"]);
+  assert.equal(won.proposal.summary, "Client · SEO · $2,500 a month");
+
+  const again = await p("propose_deal", { contact_id: LUIS, stage: "proposed", note: "Called back in September" });
+  assert.deepEqual(
+    [again.proposal.payload.deal_id, again.proposal.payload.version, again.proposal.payload.note],
+    ["d2", 2, "Called back in September"],
+    "a passed proposal sent again moves its own row (DEAL_MOVES)",
+  );
+  assert.equal(again.proposal.summary, "Proposal out · Ads");
+
+  const bad = await p("propose_deal", { contact_id: MARIA, stage: "banana" });
+  assert.equal(bad.isError, true);
+  assert.match(bad.result, /stage must be proposed, won, lost or ended/);
+  assert.match((await p("propose_deal", { contact_id: C2, stage: "won" })).result, /no such person/);
+  assert.match(
+    (await p("propose_deal", { contact_id: "c1", stage: "won" })).result,
+    /contact_id must be an id a read returned/,
+  );
+});

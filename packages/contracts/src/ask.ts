@@ -458,7 +458,8 @@ export interface AskProposal {
     | "invite"
     | "broadcast"
     | "playbook"
-    | "lead_search";
+    | "lead_search"
+    | "deal";
   /** The lowest role that may commit it; the route re-checks on Approve. */
   needs: "operator" | "owner";
   title: string;
@@ -484,6 +485,7 @@ export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" |
   broadcast: "approve",
   playbook: "approve",
   lead_search: "find",
+  deal: "approve",
 };
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -709,6 +711,8 @@ export interface SuggestionInput {
   scope?: AskScope | null;
   /** Operators and owners may act; a viewer is never offered a card. */
   canAct?: boolean;
+  /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
+  dealsOn?: boolean;
 }
 
 const T = {
@@ -726,6 +730,7 @@ const T = {
     rules: "What can the receptionist do on its own?",
     hours: "What are our hours this week?",
     brief: "Brief me on today",
+    proposals: "Who has a proposal out?",
     actLate: "Tell {name} we're running late",
     actLateQ: "Tell {name} we're running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
@@ -759,6 +764,7 @@ const T = {
     rules: "¿Qué puede hacer la recepcionista sola?",
     hours: "¿Cuál es nuestro horario esta semana?",
     brief: "Resúmeme el día",
+    proposals: "¿Quién tiene una propuesta pendiente?",
     actLate: "Dile a {name} que vamos con retraso",
     actLateQ: "Dile a {name} que vamos con unos 15 minutos de retraso hoy",
     actDraft: "Redacta una respuesta a {name}",
@@ -828,6 +834,9 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
     default:
       break;
   }
+  // Deals are a thing here (0004): who has a proposal out, where people are looked at.
+  if (input.dealsOn && (input.surface === "people" || input.surface === "other"))
+    add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");

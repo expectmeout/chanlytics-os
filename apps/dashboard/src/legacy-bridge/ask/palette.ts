@@ -40,7 +40,7 @@ interface Call {
 export interface PaletteGlobals {
   INBOX_DATA?: { THREADS?: Array<{ id: string; real?: boolean; who: string; needsYou?: boolean }> };
   __LIVE?: { now?: Call[]; recent?: Call[] };
-  __PEOPLE?: { rows?: Array<{ id: string; name: string }> } | null;
+  __PEOPLE?: { rows?: Array<{ id: string; name: string }>; dealsOn?: boolean } | null;
   __SETTINGS?: { config?: { calendar?: { ical_url?: string } } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
@@ -154,6 +154,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
         canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
+        // People's surface says whether deals are a thing here (0004); until it does, the question is not offered.
+        dealsOn: !!w.__PEOPLE?.dealsOn,
       });
     },
     fast: (question: string): FastPath =>

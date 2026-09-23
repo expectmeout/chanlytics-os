@@ -2,6 +2,12 @@ import "server-only";
 import {
   AUDIENCE_KINDS,
   ASK_THREAD_VERBS,
+  DEAL_PERS,
+  DEAL_STAGES,
+  DEAL_STAGE_WORDS,
+  amountWords,
+  pickCurrentDeal,
+  type DealStage,
   AskSettingsChangeSchema,
   EVERYONE_LABEL,
   PEOPLE_LISTS,
@@ -117,6 +123,22 @@ export const ACT_TOOLS: ToolDef[] = [
     input_schema: obj(
       { contact_id: { type: "string" }, mode: { type: "string", enum: ["auto", "ask", "never", "inherit"] } },
       ["contact_id", "mode"],
+    ),
+  },
+  {
+    name: "propose_deal",
+    description:
+      "Propose recording a deal on a person (0004): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year), a note. This records what a person told you; it never decides money.",
+    input_schema: obj(
+      {
+        contact_id: { type: "string" },
+        stage: { type: "string", enum: [...DEAL_STAGES] },
+        service: { type: "string" },
+        amount_cents: { type: "number" },
+        per: { type: "string", enum: [...DEAL_PERS] },
+        note: { type: "string" },
+      },
+      ["contact_id", "stage"],
     ),
   },
   {
@@ -485,6 +507,64 @@ async function proposePersonMode(t: ToolContext, input: Record<string, unknown>)
     summary: `The receptionist ${LABEL[mode]}`,
     payload: { contact_id: id, mode, previous: pol?.mode ?? "inherit", who },
     undo: "Set it back",
+  });
+}
+
+async function proposeDeal(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
+  const id = str(input.contact_id, 40);
+  const stage = str(input.stage, 10);
+  if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
+  if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
+  const { data: c, error } = await t.ctx.supabase
+    .from("contacts")
+    .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!c || c.erased_at) return refuse("no such person in this workspace");
+  // Every deal of theirs: the current one may be the oldest, since a running engagement outlives newer proposals
+  // (pickCurrentDeal). A read that fails is a card that cannot be checked, never a move proposed against no row.
+  const { data: rows, error: dErr } = await t.ctx.supabase
+    .from("deals")
+    .select("id, stage, service, version, created_at")
+    .eq("tenant_id", t.tenantId)
+    .eq("contact_id", id)
+    .order("created_at", { ascending: false });
+  if (dErr) throw new Error(dErr.message);
+  const current = pickCurrentDeal(rows ?? []);
+  const who = c.display_name || c.wa_profile_name || c.phone_e164 || c.email || "this person";
+  const service = str(input.service, 80) || current?.service || null;
+  const amount =
+    typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
+  const per = (DEAL_PERS as readonly string[]).includes(str(input.per, 10)) ? str(input.per, 10) : null;
+  const note = str(input.note, 200);
+  // The row the person's page would move (DEAL_MOVES): an open row for any stage but a fresh proposal, a passed
+  // row proposed again. An ended engagement is re-signed as a new row, and a proposal beside an open one is new.
+  const sameRow =
+    current && current.stage !== "ended" && stage !== "proposed"
+      ? current
+      : current && current.stage === "lost" && stage === "proposed"
+        ? current
+        : null;
+  t.read.person.add(id);
+  const words = DEAL_STAGE_WORDS[stage as DealStage];
+  const money = amount !== null && stage === "won" ? amountWords(amount, per) : null;
+  return propose({
+    kind: "deal",
+    needs: "operator",
+    title: `${who} · ${words}`,
+    summary: [words, service, money].filter((x): x is string => !!x).join(" · "),
+    payload: {
+      contact_id: id,
+      stage,
+      ...(sameRow ? { deal_id: sameRow.id, version: sameRow.version } : {}),
+      ...(service && !sameRow ? { service } : {}),
+      ...(amount !== null ? { amount_cents: amount } : {}),
+      ...(per ? { per } : {}),
+      ...(note ? { note } : {}),
+      who,
+    },
+    undo: null,
   });
 }
 
@@ -906,6 +986,8 @@ export async function buildProposal(
         return await proposeThreadVerb(t, input);
       case "propose_person_mode":
         return await proposePersonMode(t, input);
+      case "propose_deal":
+        return await proposeDeal(t, input);
       case "propose_policy":
         return await proposePolicy(t, input);
       case "propose_settings":
@@ -937,6 +1019,7 @@ const PROPOSAL_LABELS: Record<string, string> = {
   propose_steer: "Preparing a rewrite",
   propose_thread_verb: "Preparing an Inbox action",
   propose_person_mode: "Preparing a receptionist change",
+  propose_deal: "Preparing a deal",
   propose_policy: "Preparing an autonomy change",
   propose_settings: "Preparing a settings change",
   propose_whisper: "Preparing a whisper",

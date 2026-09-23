@@ -65,7 +65,7 @@ const ASK_TEXT = {
     tryAgain: "Try again",
     priceNote: "This looks like a price. The receptionist never quotes one; you may.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
-    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "playbook", kLeads: "Leads",
+    kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "playbook", kLeads: "Leads", kDeal: "deal",
   },
   es: {
     placeholder: "Pregunta, o salta a una página, persona o hilo…",
@@ -127,7 +127,7 @@ const ASK_TEXT = {
     tryAgain: "Reintentar",
     priceNote: "Parece un precio. La recepcionista nunca los da; tú sí puedes.",
     windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
-    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "playbook", kLeads: "Leads",
+    kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "playbook", kLeads: "Leads", kDeal: "acuerdo",
   },
 };
 

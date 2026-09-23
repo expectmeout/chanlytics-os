@@ -34,6 +34,7 @@ const K1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc9";
 const B1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
 const PB1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
 const D = (n) => `dddddddd-dddd-4ddd-8ddd-ddddddddddd${n}`;
+const DEAL1 = "dddddddd-dddd-4ddd-8ddd-dddddddddd21";
 
 const envelope = (data) =>
   new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
@@ -67,6 +68,11 @@ const ANSWERS = {
   [`POST /api/v1/conversations/${C1}/archive`]: { state: "archived", decision_id: D(6) },
   [`POST /api/v1/escalations/${E1}/resolve`]: { state: "resolved", decision_id: D(7) },
   [`PUT /api/v1/contacts/${P1}/receptionist`]: { contact_id: P1, mode: "never", decision_id: D(8) },
+  [`POST /api/v1/contacts/${P1}/deal`]: {
+    deal: { id: DEAL1, stage: "won", version: 4 },
+    from: "proposed",
+    decision_id: "x",
+  },
   ["PUT /api/v1/policies"]: { policy: { class: "reply", mode: "ask", limits: {} } },
   ["PUT /api/v1/settings"]: { config: {}, version: 4 },
   [`POST /api/v1/calls/${K1}/whisper`]: { ok: true },
@@ -297,6 +303,41 @@ test("a person's mode: the owner's route, the people surface told, the previous 
     "inherit",
     "no previous mode on record: undo hands the person back to the workspace's rule",
   );
+});
+
+test("a deal: the card's body to the person's deal route without the card's own word or the id the route takes as its param, the people surface told, and no undo -- a mis-recorded stage is moved again on the person's page", async () => {
+  const t = tab();
+  const r = await commitProposal(
+    t.win,
+    card("deal", {
+      contact_id: P1,
+      stage: "won",
+      deal_id: DEAL1,
+      version: 3,
+      amount_cents: 250000,
+      per: "month",
+      who: "Maria",
+    }),
+    t.client,
+  );
+  assert.deepEqual(r, { ok: true, receipt: "Maria · Client", undo: null });
+  assert.deepEqual(one(t), {
+    key: `POST /api/v1/contacts/${P1}/deal`,
+    body: { stage: "won", deal_id: DEAL1, version: 3, amount_cents: 250000, per: "month" },
+    via: "ask",
+    undoOf: undefined,
+  });
+  assert.ok(t.events.includes("event:surface:clients"));
+  assert.deepEqual(
+    await undoProposal(
+      t.win,
+      card("deal", { contact_id: P1, stage: "won", who: "Maria" }),
+      { state: "done", receipt: "Maria · Client", atMs: 1, undo: null },
+      t.client,
+    ),
+    { ok: false, message: "This one has no undo." },
+  );
+  assert.equal(t.sent.length, 1, "an undo the card does not have reaches no route");
 });
 
 test("a policy: the class with the mode or the dial, whichever the card carries; undo holds the previous values, or says it cannot", async () => {

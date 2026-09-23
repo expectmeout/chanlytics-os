@@ -8166,7 +8166,7 @@ type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal";
     /** The lowest role that may commit it; the route re-checks on Approve. */
     needs: "operator" | "owner";
     title: string;
@@ -8304,6 +8304,8 @@ interface SuggestionInput {
     scope?: AskScope | null;
     /** Operators and owners may act; a viewer is never offered a card. */
     canAct?: boolean;
+    /** Deals are a thing here (People's surface says so): the question about proposals is offered. */
+    dealsOn?: boolean;
 }
 /**
  * Questions the workspace can answer today, for where the person is. Built
