@@ -13,12 +13,13 @@
  */
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
-import { resolveChannel } from "../lib/packages/db.js";
+import { readDealForPhone, resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/calendar/availability.js";
 import {
   describeOpenings,
   filterOpenings,
+  normalizePhone,
   offerFor,
   offerLead,
   policyAskClass,
@@ -55,14 +56,16 @@ type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
 
 /**
  * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
- * a consultation first -- sized by the consultation, never by the service's own length (C5b).
+ * a consultation first -- sized by the consultation, never by the service's own length (C5b). A client is offered the
+ * service itself (0004).
  */
 export function availabilityAnswer(
   data: Openings,
   profile: { services?: readonly ServiceLike[]; booking_rules?: ConsultRules | null } | undefined,
   args: { day?: unknown; service?: unknown },
+  opts: { client?: boolean } = {},
 ): { result: string; offer: ServiceOffer | null; day: string | null; days: number } {
-  const offer = offerFor(profile?.services, profile?.booking_rules, args.service);
+  const offer = offerFor(profile?.services, profile?.booking_rules, args.service, opts);
   const day = typeof args.day === "string" ? args.day : null;
   const picked = filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null });
   const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
@@ -78,7 +81,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!secret || request.headers.get("x-fn-secret") !== secret) {
     return json(401, { ok: false, error: "bad_secret" });
   }
-  let body: { call?: { call_id?: string; agent_id?: string }; args?: { day?: unknown; service?: unknown } } = {};
+  let body: {
+    call?: { call_id?: string; from_number?: string; agent_id?: string };
+    args?: { day?: unknown; service?: unknown };
+  } = {};
   try {
     body = JSON.parse(raw);
   } catch {
@@ -103,17 +109,22 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
     return json(200, { result: NO_CALENDAR });
   }
+  // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
+  // service itself, not a consultation (0004). Never fatal: no deal is the stranger's answer.
+  const caller = normalizePhone(call.from_number);
+  const deal = caller ? await readDealForPhone(db, routed.tenantId, caller).catch(() => null) : null;
   const data = await openingsData(rt);
   if (!data) {
     L.info("retell_availability_unavailable", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEE });
   }
-  const answer = availabilityAnswer(data, rt.brain?.profile, args);
+  const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won" });
   L.info("retell_availability", {
     tenant: routed.tenantId,
     day: answer.day,
     service: answer.offer?.service.name ?? null,
     consultation: answer.offer?.consultation ?? false,
+    client: deal?.stage === "won",
     days: answer.days,
   });
   return json(200, { result: answer.result });

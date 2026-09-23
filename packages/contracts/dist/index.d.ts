@@ -6068,9 +6068,12 @@ interface ServiceOffer<S extends ServiceLike = ServiceLike> {
  * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
  * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
  * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
- * its own length while the prompt said a consultation comes first (C5b).
+ * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
+ * offered the service itself (0004).
  */
-declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown): ServiceOffer<S> | null;
+declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
+    client?: boolean;
+}): ServiceOffer<S> | null;
 /**
  * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
  * consultation first and what is offered instead.

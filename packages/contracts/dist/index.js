@@ -1132,9 +1132,11 @@ function needsConsultation(name, rules) {
   const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
   return !!n && list2.some((c) => foldName(String(c).trim()) === n);
 }
-function offerFor(services, rules, asked) {
+function offerFor(services, rules, asked, opts = {}) {
   const service = matchService(services, asked);
   if (!service) return null;
+  if (opts.client)
+    return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   if (!needsConsultation(service.name, rules))
     return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
   const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
