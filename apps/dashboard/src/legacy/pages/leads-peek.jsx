@@ -66,18 +66,20 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
             that fails to load hides its own layer and uncovers the photo, and no state decides anything (D6). */}
         {vm.tile.image ? <img src={vm.tile.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
         {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
-        <button type="button" className="pk-band-expand" data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} />{W.expand}</button>
+        {/* On a phone Expand is its mark alone (leads.css): the words are its name for a screen reader. */}
+        <button type="button" className="pk-band-expand" aria-label={W.expand} data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} /><span className="pk-band-expand-words">{W.expand}</span></button>
         <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
+        {/* One lead at a time (D5), on a phone: where you are in the pile, and the two ways through it. A swipe does
+            the same, and both move the page's own cursor, so the rows behind the peek move with it. It sits on the
+            photo's bottom edge: a row of its own under it was 57px of a phone's 844, for three short words. */}
+        {deck ? (
+          <div className="pk-deck" data-testid="peek-deck">
+            <button type="button" className="pk-deck-btn prev" aria-label={W.deckPrev} data-testid="peek-deck-prev" disabled={deck.at <= 1} onClick={deck.onPrev}><Icon name="chevron" size={13} /></button>
+            <span className="pk-deck-n" data-testid="peek-deck-at">{W.deckOf(deck.at, deck.of)}</span>
+            <button type="button" className="pk-deck-btn" aria-label={W.deckNext} data-testid="peek-deck-next" disabled={deck.at >= deck.of} onClick={deck.onNext}><Icon name="chevron" size={13} /></button>
+          </div>
+        ) : null}
       </div>
-      {/* One lead at a time (D5), on a phone: where you are in the pile, and the two ways through it. A swipe does
-          the same, and both move the page's own cursor, so the rows behind the peek move with it. */}
-      {deck ? (
-        <div className="pk-deck" data-testid="peek-deck">
-          <button type="button" className="pk-deck-btn prev" aria-label={W.deckPrev} data-testid="peek-deck-prev" disabled={deck.at <= 1} onClick={deck.onPrev}><Icon name="chevron" size={13} /></button>
-          <span className="pk-deck-n" data-testid="peek-deck-at">{W.deckOf(deck.at, deck.of)}</span>
-          <button type="button" className="pk-deck-btn" aria-label={W.deckNext} data-testid="peek-deck-next" disabled={deck.at >= deck.of} onClick={deck.onNext}><Icon name="chevron" size={13} /></button>
-        </div>
-      ) : null}
       <div className="pk-identity" data-testid="peek-identity">
         <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
         <div className="pk-sub-line">
@@ -516,8 +518,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           {vm.links.instagram
             ? <a className="btn btn-ghost btn-sm" href={vm.links.instagram.href} target="_blank" rel="noopener noreferrer" data-testid="peek-instagram"><Icon name="instagram" size={12} />{W.instagram}</a>
             : null}
+          {/* The address above is already the link to the map: on a phone this one is not drawn again (leads.css). */}
           {[["facebook", "globe"], ["linkedin", "globe"], ["tiktok", "globe"], ["maps", "pin"]].map(([k, icon]) => (vm.links[k]
-            ? <a key={k} className="btn btn-ghost btn-sm" href={vm.links[k].href} target="_blank" rel="noopener noreferrer" data-testid={`peek-${k}`}><Icon name={icon} size={12} />{vm.links[k].label}</a>
+            ? <a key={k} className="btn btn-ghost btn-sm" href={vm.links[k].href} target="_blank" rel="noopener noreferrer" data-testid={`peek-${k}`} data-said={k === "maps" && vm.where && vm.where.href ? "address" : undefined}><Icon name={icon} size={12} />{vm.links[k].label}</a>
             : null))}
         </div>
       </div>
