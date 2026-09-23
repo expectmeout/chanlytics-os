@@ -221,8 +221,9 @@ does not insist.
   follow up, and hand over; passed means do not push. The phone availability
   door reads the caller's number the booking-link door already reads, looks up
   the deal, and `offerFor` takes a client flag that returns the service
-  itself. Ask's openings do the same when a person is named. WhatsApp's
-  openings are not filtered by length today, so there the sentence is the
+  itself. Ask's openings take no person, so they are unchanged: Ask reads the
+  deal through the person's facts instead. WhatsApp's openings are not
+  filtered by length today, so there the sentence is the
   whole change. Where a proposal link is on file for the person (PR #888's
   `contacts.proposal_url`), that link's own rule stands for a price question
   — send the address and state no figure — and the deal's sentence defers to
