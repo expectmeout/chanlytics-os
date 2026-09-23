@@ -1503,6 +1503,9 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
     sentence = oneLine(p.quote, 160);
     quoted = true;
   } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  // A proposal waiting says more than a visit ahead (0004): the row's brief, "Proposal out · 6 d". A client's row
+  // keeps the visit, which is the next thing about them; a pass or an end says nothing here.
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
   else if (p.calls > 0)

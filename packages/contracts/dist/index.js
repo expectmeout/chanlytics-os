@@ -6961,6 +6961,7 @@ function attentionRow(p, tz, nowMs) {
     sentence = oneLine(p.quote, 160);
     quoted = true;
   } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)

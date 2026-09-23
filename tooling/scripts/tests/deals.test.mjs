@@ -462,3 +462,33 @@ test("the Journey continues past the booking: four lists, each gated on deals be
   assert.equal(peopleListAction("clients", [client]), null, "a client list has no step to push");
   assert.equal(peopleListAction("proposal_out", [proposed]).cta, "Open the Inbox");
 });
+
+test("a row's second line says a waiting proposal after their words and before the visit; a client keeps the visit", () => {
+  const { attentionRow, toPersonRowVM } = contracts;
+  const vmOf = (over) => toPersonRowVM(personRow(over), TZ, new Date(NOW));
+  const visits = {
+    timezone: TZ,
+    source: "your calendar",
+    state: "ok",
+    next: { id: "v", start: daysAgo(-2), end: daysAgo(-2), title: "Call", all_day: false, via: "phone" },
+    last: null,
+  };
+  assert.equal(
+    attentionRow(vmOf({ ...cols(), last_inbound_text: null, visits }), TZ, NOW).sentence,
+    "Proposal out · 11 d",
+  );
+  assert.match(
+    attentionRow(vmOf({ ...cols(), last_inbound_text: "Sounds good", visits }), TZ, NOW).sentence,
+    /^Sounds good/,
+    "their words first",
+  );
+  assert.match(
+    attentionRow(
+      vmOf({ ...cols({ deal_stage: "won", deal_decided_at: daysAgo(1) }), last_inbound_text: null, visits }),
+      TZ,
+      NOW,
+    ).sentence,
+    /^Booked/,
+    "a client's row keeps the visit",
+  );
+});

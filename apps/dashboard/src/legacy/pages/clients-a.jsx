@@ -1493,6 +1493,9 @@ const PL_COLUMNS = [
   ) },
   { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
+  // The deal's stage as the one pill (0004), off until asked for, and offered only where deals are a thing here: a
+  // salon never sees "Deal" in the menu. The row's second line already says a proposal waiting.
+  { key: "deal", label: "Deal", sortable: false, on: false, needs: (x) => !!x.dealsOn, cell: (p) => <td key="deal" className="shrink cl-deal-cell" data-testid="row-deal">{p.deal ? <StatePill kind="deal" value={p.deal.stage} /> : ""}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
 // A person on a phone, in one cell (900px and under): the Inbox's row. Their face, their name and their state on the
@@ -2403,6 +2406,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const lists = people.lists;
   const agg = people.aggregates;
   const withCalendar = !!(people.calendar && people.calendar.state === "ok");
+  // Whether deals are a thing here (the surface's dealsOn, 0004): the Deal column is offered only then.
+  const dealsOn = !!people.dealsOn;
   const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
   const [listId, setListId] = useState(listFor(initialSegment));
   React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2411,7 +2416,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar }, people, sortFirst: { by: "last", dir: "desc" } });
+  const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
   const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, canExport, toastNode, plFlash, sel, setSel, toggleSel, clearSelection, sortBy, sortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
   // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
   // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
