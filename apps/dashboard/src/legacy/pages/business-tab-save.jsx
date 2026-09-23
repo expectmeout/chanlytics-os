@@ -222,8 +222,9 @@ const btSaver = () => {
 const btTabSaver = btSaver();
 
 /**
- * The workspace's own door, for the one row of this tab the settings save does not write: the timezone, which is the
- * workspace's (PATCH workspaces, window.__workspace.setTimezone) and no key of the config.
+ * The workspace's own doors, for what this tab states that the settings save does not write: the two fields of the
+ * tenant row its owner may change (PATCH workspaces, window.__workspace), which are no key of the config. The timezone
+ * is one (`zone`), and how customers buy (0008) the other (`sellsBy`); each is a door made here, once, by the one rule.
  *
  * It is here, beside the saver, for the saver's reason: it outlives the page. The row once kept "my save is out" in its
  * own state, so a pane left mid-save and come back to drew an editor that was not busy and told the rail nothing was
@@ -231,12 +232,13 @@ const btTabSaver = btSaver();
  * question. Held here, a page drawn again finds the save still out, its row busy and its box read-only, as a settings
  * row's is.
  *
- * save({ tz, done, flash }) sends one zone at a time (a press while one is out sends nothing). Taken, `done` runs (the
- * row closes) and the toast says the old row's words; refused, or failed before an answer, the server's words are said
- * in the danger tone and the editor stays open with the pick. pending() is whether one is out; a page subscribes while
- * it is on screen; reset() is for tests, as the saver's is.
+ * save(job) sends one at a time (a press while one is out sends nothing), and only while `ready()`: the workspace's
+ * courier is there to send it through (the standalone mockup has none). `send(job)` is the courier's call. Taken, the
+ * job's `done` runs (the editor closes) and the toast says `taken(r, job)`, from what the courier answered (`r`);
+ * refused, or failed before an answer, the server's words are said in the danger tone and the editor stays open with the
+ * pick. pending() is whether one is out; a page subscribes while it is on screen; reset() is for tests, as the saver's is.
  */
-const btZoneDoor = (() => {
+const btWorkspaceDoor = ({ ready, send, taken }) => {
   let out = null;
   let life = 0;
   const subs = new Set();
@@ -251,7 +253,7 @@ const btZoneDoor = (() => {
   };
   return {
     save(job) {
-      if (out || !window.__workspace || typeof window.__workspace.setTimezone !== "function") return;
+      if (out || !ready()) return;
       const mine = life;
       out = job;
       tell();
@@ -261,18 +263,33 @@ const btZoneDoor = (() => {
         tell();
         const ok = !!(r && r.ok);
         if (ok) safely(job.done);
-        const city = ok && window.__tz && window.__tz.city ? window.__tz.city(r.tz) : ok ? r.tz : null;
-        safely(job.flash, { tone: ok ? "ok" : "danger", msg: ok ? <>Your day is measured in <b>{city}</b> now.</> : <>{(r && r.message) || "That didn't go through."}</> });
+        safely(job.flash, { tone: ok ? "ok" : "danger", msg: ok ? taken(r, job) : <>{(r && r.message) || "That didn't go through."}</> });
       };
       let sent;
-      try { sent = window.__workspace.setTimezone(job.tz); } catch (e) { sent = Promise.reject(e); }
+      try { sent = send(job); } catch (e) { sent = Promise.reject(e); }
       Promise.resolve(sent).then(answered, (e) => answered({ ok: false, message: e && e.message }));
     },
     pending: () => !!out,
     subscribe(fn) { subs.add(fn); return () => { subs.delete(fn); }; },
     reset() { life += 1; out = null; tell(); },
   };
-})();
+};
+
+// The zone: save({ tz, done, flash }), through the courier's own call for it, and said in the old row's words.
+const btZoneDoor = btWorkspaceDoor({
+  ready: () => !!(window.__workspace && typeof window.__workspace.setTimezone === "function"),
+  send: (job) => window.__workspace.setTimezone(job.tz),
+  taken: (r) => <>Your day is measured in <b>{window.__tz && window.__tz.city ? window.__tz.city(r.tz) : r.tz}</b> now.</>,
+});
+
+// How customers buy: save({ answer, said, done, flash }), the answer alone in the patch, so the zone is never sent
+// again with it. `said` is the toast the fold worked out (contracts sellsBySaved), since what it says depends on the
+// answer this one replaces.
+const btSellsByDoor = btWorkspaceDoor({
+  ready: () => !!(window.__workspace && typeof window.__workspace.patch === "function"),
+  send: (job) => window.__workspace.patch({ sells_by: job.answer }),
+  taken: (r, job) => <>{job.said}</>,
+});
 
 /* ------------------------------------ what each row stores ------------------------------------ */
 
@@ -388,7 +405,8 @@ const BT_PATCH_OF = {
 };
 
 // window.__businessTabSave: the tab's one saver (`saver`: { save(job), pending(row), takenAt(row), base(), subscribe(fn), reset() }),
-// the workspace's own door for the timezone (`zone`: { save({ tz, done, flash }), pending(), subscribe(fn), reset() }),
+// the workspace's own doors for the timezone (`zone`: { save({ tz, done, flash }), pending(), subscribe(fn), reset() }) and
+// for how customers buy (`sellsBy`: the same, saving { answer, said, done, flash }),
 // how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
 // PATCH_OF by its id. business-tab-folds.jsx adds each fold's paths, keys and helpers to it as it loads.
@@ -399,6 +417,7 @@ Object.assign(window, {
   __businessTabSave: Object.assign(window.__businessTabSave || {}, {
     saver: btTabSaver,
     zone: btZoneDoor,
+    sellsBy: btSellsByDoor,
     patched: btPatched,
     refusal: btRefusal,
     same: btSame,

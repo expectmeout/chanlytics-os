@@ -68,6 +68,68 @@ export function dealsAreOn(sellsBy: string | null | undefined): boolean {
   return sellsBy === "proposal";
 }
 
+/** The answer a new workspace's create card has chosen before anyone presses (0008): most businesses book one. */
+export const SELLS_BY_FIRST: SellsBy = "booking";
+
+/** "Needs a consult first", where deals are on (0008): a consultation for one of those is where a deal starts. */
+export const CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+
+/** What Settings › Business says of the answer (0008): its row, the choice, and what the answer switches there. */
+export interface SellsByVM {
+  /** The row's label, and the choice's name. */
+  question: string;
+  /** The answer's label; null where it was never said. */
+  value: string | null;
+  /** What the row says with no answer. */
+  empty: string;
+  /** The row's act, and what a screen reader hears it as: its words with the question. */
+  act: string;
+  name: string;
+  /** The two answers, each with what choosing it means: the kit's RecordToggleGroup options. */
+  choices: { value: SellsBy; label: string; hint: string }[];
+  /** What stops a Save with neither chosen: the route's own refusal. */
+  refusal: string;
+  /** What the create card has chosen before anyone presses: the answer, or they book an appointment. */
+  first: SellsBy;
+  /** Deals are on here (dealsAreOn). */
+  dealsOn: boolean;
+  /** The hint the consult-first row carries where deals are on; null where they are off. */
+  consultHint: string | null;
+}
+
+/**
+ * The view model of the answer for the Business tab. `answer` is the workspace's `sells_by` as the workspace list
+ * carries it; anything but the two answers is never said. Pure.
+ */
+export function sellsByVM(answer: string | null | undefined): SellsByVM {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null,
+  };
+}
+
+/**
+ * The toast once an answer is saved (0008): what it switched. Turning deals off says that those on file are kept,
+ * since every surface hides them and answering "proposal" again brings them back.
+ */
+export function sellsBySaved(was: string | null | undefined, now: SellsBy): string {
+  if (dealsAreOn(now)) return "Saved — deals are on.";
+  return dealsAreOn(was)
+    ? "Saved — deals are off. Any already recorded are kept."
+    : "Saved — customers book an appointment.";
+}
+
 /** The word a stage wears; "Client" is a stage word, never a word for a person (docs/glossary.md). */
 export const DEAL_STAGE_WORDS: Record<DealStage, string> = {
   proposed: "Proposal out",

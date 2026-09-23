@@ -269,6 +269,11 @@ textarea.rec-input { height: auto; min-height: 64px; padding: 8px 10px; line-hei
 .rec-seg-btn { height: 26px; padding: 0 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-dim); transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
 .rec-seg-btn:hover { color: var(--ink); }
 .rec-seg-btn[aria-checked="true"] { background: var(--bg-raised); box-shadow: var(--shadow-sm); font-weight: var(--weight-medium); color: var(--ink); }
+/* With a sentence under each option (data-hints): the same track and the same raised choice, each option a card of its
+   label and what choosing it means, side by side where two fit and one above the other where they do not. */
+.rec-seg[data-hints="true"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); width: 100%; }
+.rec-seg[data-hints="true"] .rec-seg-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; height: auto; padding: 8px 12px; text-align: start; }
+.rec-seg-hint { font-size: var(--text-xs); line-height: var(--leading-snug); font-weight: var(--weight-regular); color: var(--ink-dim); }
 
 /* ---------- A combobox: a box over a list that narrows as you type ---------- */
 /* The list is part of the box and pushes what is under it, as a fold pushes the rows under it: nothing is covered,

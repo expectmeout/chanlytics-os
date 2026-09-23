@@ -27,6 +27,10 @@ const {
   SELLS_BY_QUESTION,
   SELLS_BY_WORDS,
   SELLS_BY_REFUSAL,
+  SELLS_BY_FIRST,
+  CONSULT_FIRST_DEAL_HINT,
+  sellsByVM,
+  sellsBySaved,
   DEAL_LOST_REASONS,
   DEAL_LOST_REASON_WORDS,
   DEAL_CLEARABLE,
@@ -433,6 +437,66 @@ test("deals are on exactly where the workspace says some customers get a proposa
     `${SELLS_BY_QUESTION}: ${SELLS_BY_WORDS.booking.label.toLowerCase()}, or ${SELLS_BY_WORDS.proposal.label.toLowerCase()}.`,
   );
   assert.equal(contracts.dealsAreAThing, undefined, "the old gate is gone, not kept beside the new one");
+});
+
+test("Settings › Business says the answer as a row, offers the two as a choice, and says what it switches", () => {
+  // Never asked: the row is empty, its act chooses, and nothing of a deal is said on the page.
+  const unsaid = sellsByVM(null);
+  assert.deepEqual(
+    [unsaid.question, unsaid.value, unsaid.empty, unsaid.act, unsaid.name],
+    ["How customers buy", null, "Not said yet", "Choose one", "Choose how customers buy"],
+  );
+  assert.equal(unsaid.question, SELLS_BY_QUESTION, "the row's label is the question, once");
+  assert.deepEqual([unsaid.dealsOn, unsaid.consultHint], [false, null]);
+  // The choice: both answers, in the set's order, each with its label and what choosing it means, and nothing else.
+  assert.deepEqual(unsaid.choices, [
+    { value: "booking", label: "They book an appointment", hint: "Bookings, reminders and the booking link." },
+    {
+      value: "proposal",
+      label: "Some get a proposal first",
+      hint: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports.",
+    },
+  ]);
+  assert.deepEqual(
+    unsaid.choices.map((c) => [c.value, c.label, c.hint]),
+    SELLS_BY.map((a) => [a, SELLS_BY_WORDS[a].label, SELLS_BY_WORDS[a].sentence]),
+    "the words are SELLS_BY_WORDS', not a copy of them",
+  );
+  assert.equal(unsaid.refusal, SELLS_BY_REFUSAL, "a Save with neither chosen is refused in the route's own words");
+  // What the create card has chosen before anyone presses: they book an appointment.
+  assert.equal(SELLS_BY_FIRST, "booking");
+  assert.equal(unsaid.first, SELLS_BY_FIRST);
+
+  // They book: the answer's label, an act that changes it, and still no deal.
+  const books = sellsByVM("booking");
+  assert.deepEqual(
+    [books.value, books.act, books.name, books.first, books.dealsOn, books.consultHint],
+    ["They book an appointment", "Change", "Change how customers buy", "booking", false, null],
+  );
+  // Some get a proposal first: deals are on, and a consult-first service is where a deal starts.
+  const proposes = sellsByVM("proposal");
+  assert.deepEqual(
+    [proposes.value, proposes.act, proposes.first, proposes.dealsOn, proposes.consultHint],
+    ["Some get a proposal first", "Change", "proposal", true, "A consultation for these is the first step of a deal."],
+  );
+  assert.equal(proposes.consultHint, CONSULT_FIRST_DEAL_HINT);
+  // Anything but the two answers is never said: the row is empty, and deals are off, as dealsAreOn reads it.
+  for (const odd of [undefined, "", "Proposal", "banana", 7]) {
+    const vm = sellsByVM(odd);
+    assert.deepEqual([vm.value, vm.act, vm.first, vm.dealsOn], [null, "Choose one", "booking", false], String(odd));
+  }
+});
+
+test("the toast once an answer is saved says what it switched, and that deals turned off are kept", () => {
+  assert.equal(sellsBySaved(null, "proposal"), "Saved — deals are on.");
+  assert.equal(sellsBySaved("booking", "proposal"), "Saved — deals are on.");
+  assert.equal(
+    sellsBySaved("proposal", "booking"),
+    "Saved — deals are off. Any already recorded are kept.",
+    "every surface hides them, and the other answer brings them back (0008)",
+  );
+  assert.equal(sellsBySaved(null, "booking"), "Saved — customers book an appointment.", "nothing was on to go off");
+  assert.equal(sellsBySaved(undefined, "booking"), "Saved — customers book an appointment.");
 });
 
 test("a visit is a consultation when its title says consult, or names a consult-first service", () => {

@@ -14,6 +14,12 @@
 // every page from the first day, so it can be set before a receptionist exists (S13). It is When you're open's own
 // row (window.BtZoneRow, business-tab-open.jsx), not a copy of it.
 //
+// And the fold asks how customers buy (docs/decisions/0008, "One switch"), with "They book an appointment" chosen
+// until someone chooses otherwise: What you offer's own choice (window.btSellsByChoice, business-tab-offer.jsx). The
+// answer is the workspace's too, so the create save never carries it; once the server has taken the receptionist, it
+// goes through the workspace's own door (business-tab-save.jsx `sellsBy`, PATCH workspaces), as What you offer's row
+// saves it.
+//
 // Loaded after business-tab-services.jsx and before business-tab.jsx (both load lists), and read by PaneWorkspace as
 // window.BtCreateCard. Its top-level names are btc-prefixed, it holds no hook of its own (the fold and the rows hold
 // theirs, drawn on every render), and no pattern in it holds an object rest, for the reasons business-tab-save.jsx
@@ -22,9 +28,11 @@
 /**
  * The create path's three fields, in the old form's order: the name, the number to give out, the booking link. Each
  * box is named by its visible label. The number is the Who you are row's own box (window.btPublishedBox), so the
- * choice between the line and a different number, and what each costs, are written once.
+ * choice between the line and a different number, and what each costs, are written once. Under them, how customers
+ * buy, named by its question and chosen as `buys.first` says until a choice is made (the draft's `sells_by`, which no
+ * write of the receptionist fold reads: business-tab-folds.jsx writes its own paths and nothing else).
  */
-const BtcFields = ({ draft, update, problems, readOnly, line, handoff }) => {
+const BtcFields = ({ draft, update, problems, readOnly, line, handoff, buys }) => {
   const d = draft || {};
   const number = window.btPublishedBox({ line, handoff, testid: "rec-create-number" });
   return (
@@ -67,8 +75,30 @@ const BtcFields = ({ draft, update, problems, readOnly, line, handoff }) => {
         readOnly={readOnly || undefined}
         testid="rec-create-link"
       />
+      {buys && window.btSellsByChoice ? window.btSellsByChoice({
+        id: "bt-create-sells-by",
+        vm: buys,
+        value: d.sells_by || buys.first,
+        set: (v) => update((was) => ({ ...was, sells_by: v }), ["sells_by"]),
+        readOnly,
+        label: true,
+        testid: "rec-create-sells-by",
+      }) : null}
     </>
   );
+};
+
+/**
+ * The workspace's answer to how its customers buy, sent once the receptionist is set up (BtFold's `after`), and only
+ * where it is not the one stored: through the workspace's own door, as What you offer's row sends it. Its toast is not
+ * said, since the receptionist's toast says the one act; a refusal is, in the server's words, and the answer can be
+ * given again on the Business tab's row.
+ */
+const btcSendAnswer = ({ draft, stored, buys, flash }) => {
+  const next = (draft && draft.sells_by) || buys.first;
+  const door = window.__businessTabSave.sellsBy;
+  if (next === stored || !door) return;
+  door.save({ answer: next, said: null, done: null, flash: (f) => { if (f && f.tone === "danger") flash(f); } });
 };
 
 /**
@@ -85,6 +115,10 @@ const BtCreateCard = ({ flash = () => {} }) => {
   const canEdit = !window.canDo || window.canDo("settings");
   const gate = window.gate("settings", "set up the receptionist");
   const Fold = window.BtFold;
+  // How customers buy, as the workspace list carries it, and its words (contracts sellsByVM); none without the bridge.
+  const tab = window.__businessTab || {};
+  const stored = window.btSellsByNow ? window.btSellsByNow() : null;
+  const buys = tab.sellsByVM ? tab.sellsByVM(stored) : null;
   return (
     <section className="rec-card" data-testid="rec-card-create" aria-labelledby="bt-create-title">
       <div className="rec-card-head">
@@ -116,7 +150,8 @@ const BtCreateCard = ({ flash = () => {} }) => {
             action={can ? { label: "Set up the receptionist", onClick: request, gate, recAct: "receptionist", testid: "rec-create-open" } : null}
           />
         )}
-        body={(f) => <BtcFields {...f} line={line} handoff={handoff} />}
+        body={(f) => <BtcFields {...f} line={line} handoff={handoff} buys={buys} />}
+        after={buys ? (draft) => btcSendAnswer({ draft, stored, buys, flash }) : null}
       />
       <window.BtZoneRow brain={{}} canEdit={canEdit} gate={window.gate("settings", "change the timezone")} flash={flash} />
     </section>
