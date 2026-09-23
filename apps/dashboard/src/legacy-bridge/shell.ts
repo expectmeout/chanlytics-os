@@ -15,6 +15,7 @@ import {
   isTypingTarget,
   workspaceHotkey,
   toastShape,
+  replyWaitsOnYou,
   stateOf,
   nextThemePref,
   themeButtonWords,
@@ -61,6 +62,8 @@ export interface ChromeWords {
   toast: typeof toastShape;
   /** A state's tone and words: decided in contracts, drawn by StatePill. */
   state: typeof stateOf;
+  /** Whether a reply counting down to send waits on you (contracts standing.ts). */
+  replyWaits: typeof replyWaitsOnYou;
   /** Whether a key press belongs to a field being typed in. */
   typing(target: EventTarget | null): boolean;
 }
@@ -139,6 +142,8 @@ export function installShell(win: Window = window): void {
     workspaceHotkey,
     toast: toastShape,
     state: stateOf,
+    // A reply counting down to send waits on you (contracts standing.ts): the Inbox's Needs you and People's, one rule.
+    replyWaits: replyWaitsOnYou,
     typing(target) {
       const el = target as { tagName?: string; isContentEditable?: boolean } | null;
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);

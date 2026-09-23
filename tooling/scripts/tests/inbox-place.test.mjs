@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
+import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -78,7 +78,7 @@ globalThis.window = {
   sessionStorage: globalThis.sessionStorage,
   __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
-  __chrome: { state: stateOf },
+  __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
   CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   __surfaceState: () => "live",

@@ -1,6 +1,6 @@
 import { agoWords } from "./time";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "./clock";
-import { standingOf, type StandingVerdict } from "./standing";
+import { replyWaitsOnYou, standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
  *
@@ -494,7 +494,8 @@ export function personStateFor(r: PersonRowDto, nowMs: number): PersonState {
   // One rule for the Inbox, People and Today (standing.ts): a thread someone
   // has taken over is theirs, a snoozed one is for later, and the
   // receptionist's own pause on a handoff is nobody's — it still needs you.
-  if (v.standing === "needs_you") return "needs_you";
+  // A reply counting down to send waits on you too, as the Inbox counts it (standing.ts replyWaitsOnYou).
+  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
   if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
@@ -916,7 +917,9 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     state === "needs_you"
       ? r.open_escalation_reason
         ? reasonShort(r.open_escalation_reason)
-        : "waiting for a person"
+        : r.queued_reply_at && personStanding(r, nowMs).standing !== "needs_you"
+          ? "a reply is about to send — you can still stop it"
+          : "waiting for a person"
       : state === "waiting_on_you"
         ? "you own the thread and they wrote last"
         : state === "opted_out"
