@@ -274,8 +274,8 @@ declare global {
 }
 
 /**
- * A person's name, the owner's notes and their email address:
- * `window.__setPersonDetails(id, { name?, notes?, email? })`.
+ * A person's name, the owner's notes, their email address and their proposal link:
+ * `window.__setPersonDetails(id, { name?, notes?, email?, proposal? })`.
  *
  * Owner or operator on the server; an empty string clears. The People list
  * is re-read because names show on every row, and the profile reloads on
@@ -285,6 +285,8 @@ export interface DetailsBody {
   name?: string;
   notes?: string;
   email?: string;
+  /** A web address (contracts normalizeLink); the receptionist sends it when they ask about price (00154). */
+  proposal?: string;
 }
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {

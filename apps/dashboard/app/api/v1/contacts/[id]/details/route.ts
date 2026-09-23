@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, normalizeEmail, whyNotAnEmail } from "@chanlytics/contracts";
+import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope } from "@/server/verbs";
 
@@ -9,25 +9,31 @@ const Body = z
     name: z.string().optional(),
     notes: z.string().optional(),
     email: z.string().max(320).optional(),
+    proposal: z.string().max(600).optional(),
   })
   .refine(
-    (b) => b.name !== undefined || b.notes !== undefined || b.email !== undefined,
-    "Send a name, notes or an email address.",
+    (b) => b.name !== undefined || b.notes !== undefined || b.email !== undefined || b.proposal !== undefined,
+    "Send a name, notes, an email address or a proposal link.",
   );
 
 /**
- * PUT /api/v1/contacts/:id/details — { name?, notes?, email? }
+ * PUT /api/v1/contacts/:id/details — { name?, notes?, email?, proposal? }
  *
  * The owner's own words about a person: what to call them, the notes the
- * receptionist reads before it answers them, and the address they can be
- * written to. Owner or operator, through three definer doors that each
- * record an event, so the profile can say who changed what. Nothing here is
- * ever sent to the customer.
+ * receptionist reads before it answers them, the address they can be
+ * written to, and the proposal the receptionist sends them when they ask
+ * about price (00154) — a web address, never a file, its figures never
+ * stated. Owner or operator, through four definer doors that each record an
+ * event, so the profile can say who changed what. Nothing here but the
+ * proposal's address is ever sent to the customer, and that only by a
+ * person's or the receptionist's own reply.
  *
  * The address is judged HERE, by the one normalizer (normalizeEmail), so the
  * refusal names which kind of not-an-address it was; the door (00125) holds
  * the stored shape and the one-per-workspace rule, and its refusal for a
- * second person with the same address is already in the owner's words.
+ * second person with the same address is already in the owner's words. The
+ * proposal link the same way (normalizeLink, whyNotALink; the door's CHECK
+ * holds the stored shape).
  *
  * The contact is the row (contactScope): a live person the caller can see
  * under RLS, the role judged where they live.
@@ -44,7 +50,13 @@ export const PUT = write({
     const name = input.name === undefined ? null : input.name.trim().slice(0, 80);
     const notes = input.notes === undefined ? null : input.notes.trim().slice(0, 600);
 
-    const out: { contact_id: string; name?: string | null; notes?: string | null; email?: string | null } = {
+    const out: {
+      contact_id: string;
+      name?: string | null;
+      notes?: string | null;
+      email?: string | null;
+      proposal_url?: string | null;
+    } = {
       contact_id: id,
     };
     if (hasName) {
@@ -74,6 +86,17 @@ export const PUT = write({
       // 23505 is the door's own word for "another person here already has that address".
       if (doorErr) throw new AppError(doorErr.code === "23505" ? "conflict" : "validation", doorErr.message);
       out.email = ((data ?? {}) as { email?: string | null }).email ?? null;
+    }
+    if (input.proposal !== undefined) {
+      const typed = input.proposal.trim();
+      const url = typed ? normalizeLink(typed) : null;
+      if (typed && !url) throw new AppError("validation", whyNotALink(typed) ?? "That is not a web address.");
+      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_proposal", {
+        p_contact_id: id,
+        p_url: url ?? "",
+      });
+      if (doorErr) throw new AppError("validation", doorErr.message);
+      out.proposal_url = ((data ?? {}) as { proposal_url?: string | null }).proposal_url ?? null;
     }
     return out;
   },

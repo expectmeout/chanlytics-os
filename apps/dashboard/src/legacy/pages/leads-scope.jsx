@@ -4,9 +4,9 @@
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
 // table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
 //
-// Hookless, every one of them: the page's one stub-React call order is ClientsAReal's, and this file's components
-// are drawn inside it (people-honest's harness keys hooks by call order). Every piece of state here is the page's
-// and arrives as a prop; every act goes out through the courier the bridge installed (legacy-bridge/leads.ts).
+// Hookless, every one of them: every piece of state here is LeadsReal's (clients-a.jsx), where its one keyboard
+// listener and the address can move it, and arrives as a prop; every act goes out through the courier the bridge
+// installed (legacy-bridge/leads.ts).
 //
 // Nothing here names the vendor: the owner sees Claude finding businesses, and where each fact came from.
 

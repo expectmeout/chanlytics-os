@@ -15,6 +15,7 @@ import {
   samePhone,
   whyNotAPhone,
   whyNotAnEmail,
+  whyNotALink,
   whyNotAHandoff,
   handoffE164,
   formatPhoneDisplay,
@@ -64,6 +65,7 @@ declare global {
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAnEmail: typeof whyNotAnEmail;
+    __whyNotALink: typeof whyNotALink;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -134,6 +136,8 @@ if (typeof window !== "undefined") {
   window.__whyNotAPhone = whyNotAPhone;
   // The same for an address typed on a person's page: said under the field, before a round trip.
   window.__whyNotAnEmail = whyNotAnEmail;
+  // And for a proposal link typed there (contracts link.ts, 00154).
+  window.__whyNotALink = whyNotALink;
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

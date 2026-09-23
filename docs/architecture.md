@@ -241,9 +241,9 @@ own workspace.
 
 ## What is decided and not yet built
 
-`docs/decisions/` holds the designs. The three that change the shape of the
+`docs/decisions/` holds the designs. The four that change the shape of the
 system: a channel-neutral inbound pipeline, an appointment as a first-class
-record, and assignment for a team. Smaller and known: the shell's hash routes
+record, assignment for a team, and a deal as a record. Smaller and known: the shell's hash routes
 and the five route names, `contracts` carrying view models that belong to the
 dashboard, and tests living in one directory rather than beside the code they
 prove.

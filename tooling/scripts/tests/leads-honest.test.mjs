@@ -1,11 +1,11 @@
 /**
  * The Leads scope of People: the same page, its other scope.
  *
- * Drawn the way people-honest.test.mjs draws People -- window.ClientsA on a stub React that keys hooks by call
- * order -- with scope="leads" and the address's view. The surface (window.__LEADS) and the courier
- * (window.__leadX) are faked here: release B's Task 3 writes the real ones, and leads-bridge.test.mjs proves
- * them over a fake wire. What this file proves is the PAGE: its rail, its standing line, its view, its one
- * keyboard listener, its bulk bar, and the three classes' acts.
+ * Drawn the way people-honest.test.mjs draws People -- window.ClientsA on a stub React that keeps each hook's state
+ * where its component sits, as React does (_hook-frames.mjs) -- with scope="leads" and the address's view. The
+ * surface (window.__LEADS) and the courier (window.__leadX) are faked here: release B's Task 3 writes the real ones,
+ * and leads-bridge.test.mjs proves them over a fake wire. What this file proves is the PAGE: its rail, its standing
+ * line, its view, its one keyboard listener, its bulk bar, and the three classes' acts.
  *
  * The view models are contracts' own (4.1 and 4.6, already on this branch): the rows are DTOs put through
  * toLeadRowVM, and the rail and the standing line are leadRail and leadsStanding. The page's view IS the
@@ -416,7 +416,7 @@ installTabMemory(globalThis.window);
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
-// Menus and questions as their props, hookless, so the page's own hook order is all the stub counts.
+// Menus and questions as their props, hookless: what the page hands them is what these tests press.
 const menus = [];
 const confirms = [];
 globalThis.MoreMenu = (p) => {
@@ -1354,14 +1354,30 @@ test("the People | Leads switch is a tablist in both scopes, and picking the oth
   assert.deepEqual(went, ["clients/leads"]);
 });
 
-test("drawing People then Leads keeps the page's hook order: every hook the Leads scope needs is declared in both", () => {
+test("People and Leads are two components: each keeps its own state, and People listens for nothing of Leads'", () => {
+  // They were one component, every hook of both scopes declared in both in one order: the order the stub kept hooks
+  // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
   fresh();
-  draw({ scope: "people", leadsRoute: null });
-  const asPeople = frames.called();
-  cells = [];
+  const peopleBox = (tree) =>
+    find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search by name or phone…");
+  const leadsBox = (tree) => find(tree, (n) => n.type === "input" && n.props?.placeholder === "Search leads");
+  peopleBox(draw({ scope: "people", leadsRoute: null })).props.onChange({ target: { value: "zilker" } });
+  assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
+  assert.equal(listeners["surface:leads"]?.size ?? 0, 0, "a Leads refresh does not draw People again");
+  assert.equal(listeners["surface:clients"]?.size, 1);
+  assert.equal(listeners.keydown?.size, 1, "one keyboard listener, People's");
+  // Leads drawn over the same cells: its words are its own, and People's are where they were.
+  assert.equal(leadsBox(draw()).props.value, "", "REGRESSION: one component, so one box for both scopes");
+  assert.equal(peopleBox(draw({ scope: "people", leadsRoute: null })).props.value, "zilker");
+  fresh();
   draw();
-  assert.equal(frames.called(), asPeople, "one call order, whichever scope is drawn");
-  assert.ok(asPeople > 20, `and it is the page's own hooks that were counted (${asPeople})`);
+  assert.equal(listeners["surface:leads"]?.size, 1, "Leads listens for its own surface");
+  assert.equal(
+    listeners["surface:clients"]?.size,
+    1,
+    "and for People's, which carries the workspace's copy of its view",
+  );
+  assert.equal(listeners.keydown?.size, 1, "one keyboard listener, Leads'");
 });
 
 test("the Leads view is saved with its list, sort and columns every time, through __saveView('leads', …), one save at a time", async () => {
