@@ -254,3 +254,50 @@ test("a proposal on file rides with who the person is: the address to send, the 
     "a reader without the column says nothing",
   );
 });
+
+test("the note says the deal's sentence after the owner's note, in the business's zone; the link's rule wins a price question; nothing without a deal", () => {
+  const base = {
+    contactId: "c1",
+    conversationId: null,
+    name: "Maria",
+    returning: true,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    notes: "Prefers mornings",
+  };
+  const NOW = new Date("2026-09-23T16:00:00Z");
+  assert.doesNotMatch(describeLead(base, NOW), /client|proposal/i);
+  const won = describeLead(
+    {
+      ...base,
+      deal: {
+        stage: "won",
+        service: "Ad management",
+        proposed_at: "2026-09-01T12:00:00Z",
+        decided_at: "2026-09-20T12:00:00Z",
+        ended_at: null,
+      },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(won, /Prefers mornings.*They are a client \(Ad management\), since Sep 20\./s);
+  assert.doesNotMatch(won, /2,500|\$/);
+  const proposedWithLink = describeLead(
+    {
+      ...base,
+      proposalUrl: "https://docs.example.com/p/1",
+      deal: { stage: "proposed", service: null, proposed_at: "2026-09-12T12:00:00Z", decided_at: null, ended_at: null },
+    },
+    NOW,
+    "America/New_York",
+  );
+  assert.match(proposedWithLink, /A proposal went out to them on Sep 12/);
+  assert.match(proposedWithLink, /send them the proposal link/);
+  assert.doesNotMatch(proposedWithLink, /will follow up/);
+  assert.ok(
+    proposedWithLink.indexOf("A proposal went out") < proposedWithLink.indexOf("The owner has a proposal ready"),
+    "the deal's sentence comes before the link's, which answers the price question last",
+  );
+});
