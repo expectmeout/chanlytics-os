@@ -1469,9 +1469,11 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   };
   const ACT_ICON = { booking: "calendar", proposal: "send", call: "phone", "copy-phone": "copy", "copy-email": "mail", delete: "x" };
   const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
+  // A few words each, a line between the groups, and what an act does on hover: a sentence beside every label was a
+  // block of wrapped words cut off at the menu's edge.
   const more = acts.flatMap((a, i) => [
-    ...(a.danger && i > 0 ? [{ divider: true }] : []),
-    { label: a.label, hint: a.hint || undefined, icon: ACT_ICON[a.id], danger: !!a.danger, onClick: doAct[a.id] },
+    ...(i > 0 && acts[i - 1].group !== a.group ? [{ divider: true }] : []),
+    { label: a.label, title: a.hint || undefined, icon: ACT_ICON[a.id], danger: !!a.danger, onClick: doAct[a.id] },
   ]);
   // Their visits ahead are Coming up, above what has happened: the calendar's future sat at the top of the timeline,
   // over the conversation it followed.

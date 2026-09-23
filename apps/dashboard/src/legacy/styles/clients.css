@@ -1143,8 +1143,9 @@
    PROFILE PAGE
    ==================================================================== */
 
-/* A person's page is one scroll: a column at the page's measure, the head, then what is coming and what has happened
-   beside what is known about them. It fills the shell's row as People and the Inbox do: a flex item with no width was
+/* A person's page is one scroll: a column at Today's measure and on the left, as Today and Reports are, the head,
+   then what is coming and what has happened beside what is known about them. It stood centred at --measure-page, so
+   it began somewhere else than every other page did. It fills the shell's row as People and the Inbox do: a flex item with no width was
    as wide as its content, 1,115px in a 1,419px pane at 1667, and it was two panes that scrolled apart, each with its
    own bar. */
 .cl-profile {
@@ -1157,9 +1158,9 @@
 }
 .cl-prof-page {
   box-sizing: border-box;
-  max-width: var(--measure-page);
-  margin: 0 auto;
-  padding: 20px var(--gutter-page) 48px;
+  max-width: var(--measure-wide);
+  margin: 0;
+  padding: var(--gutter-page) var(--gutter-page) 48px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1233,8 +1234,9 @@
   align-items: flex-start;
   gap: 14px;
 }
-/* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. */
-.cl-tl-filters, .cl-prof-timeline { max-width: var(--measure-prose); }
+/* What they said reads at a prose measure on a wide window: a sentence ran 1,100px at 1440. The words are held to it,
+   not the timeline, so each time stands at the column's edge, as the cards above it do. */
+.cl-prof-timeline .cl-tl-text { max-width: var(--measure-prose); }
 .cl-prof-avatar {
   flex: none;
   width: 44px; height: 44px;

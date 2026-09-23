@@ -6620,7 +6620,7 @@ declare function proposalMessage(url: string): string;
  * bookingLinkAction's twin. Nothing is sent from the button: it opens the
  * thread with the address ready in the composer. There is no template for a
  * proposal, so where WhatsApp's window has shut there is no button (`ready`
- * false) -- the About rail's Reply window row already says why. "again" once
+ * false) -- the About rail's Replies row already says why. "again" once
  * the address has gone out, so the page says what it knows without a second line.
  */
 declare function proposalAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
@@ -7177,13 +7177,15 @@ interface PersonVM extends PersonRowVM {
     acts: PersonActVM[];
 }
 /**
- * One act in a person's More menu: what it says, a line under it where the act needs explaining, and who may press it
- * ("any" reader, one who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
+ * One act in a person's More menu: a few words, the line said on hover where the act needs explaining, the group it
+ * sits in (a send, a way to reach them, the delete: a line between groups), and who may press it ("any" reader, one
+ * who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
  */
 interface PersonActVM {
     id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
     label: string;
     hint: string | null;
+    group: "send" | "reach" | "delete";
     needs: "any" | "record" | "owner";
     danger?: boolean;
 }
@@ -7191,8 +7193,9 @@ interface PersonActVM {
  * What can be done for a person from their page, besides opening their thread (the page's one primary act).
  *
  * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
- * on, and never names a template: where WhatsApp's window has shut the thread offers the approved message, which is
- * what the line under it says. No send reaches someone who said stop or is on do-not-contact, and no call reaches
+ * on, and never names a template or a window: where WhatsApp takes only an approved message the thread offers it,
+ * which is what its hover says. The labels are a few words each: with a sentence beside every one the menu was a
+ * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, and no call reaches
  * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
 declare function personActs(p: Omit<PersonVM, "acts">): PersonActVM[];

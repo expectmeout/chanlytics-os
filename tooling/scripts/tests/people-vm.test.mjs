@@ -307,10 +307,7 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
   assert.equal(open.bookingLinkAction.label, "Text the booking link");
   assert.equal(open.bookingLinkAction.ready, true);
   const shut = toPersonRowVM(row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(3 * D) }), ZONE, NOW);
-  assert.deepEqual(
-    [shut.bookingLinkAction.label, shut.bookingLinkAction.ready],
-    ["Send the booking-link template", false],
-  );
+  assert.deepEqual([shut.bookingLinkAction.label, shut.bookingLinkAction.ready], ["Send the booking link", false]);
 
   // A row that cannot tell which wire came last reads WhatsApp's window, the
   // strictest there is: it may say a reply is held when it is not, never the reverse.
@@ -616,7 +613,7 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
   assert.equal(vm.facts[3].value, 1);
   assert.equal(vm.openThread, "inbox/th-cv1");
   assert.ok(vm.about.some((a) => a.k === "Phone"));
-  assert.ok(vm.about.some((a) => a.k === "Reply window"));
+  assert.ok(vm.about.some((a) => a.k === "Replies"));
 
   const phoneOnly = toPersonVM(
     detail({ row: row({ has_chat: false, call_count: 1, latest_conversation_id: "cv1" }), conversations: [] }),
@@ -624,7 +621,7 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
     NOW,
   );
   assert.equal(phoneOnly.openThread, null);
-  assert.ok(!phoneOnly.about.some((a) => a.k === "Reply window"), "no WhatsApp thread, no reply window");
+  assert.ok(!phoneOnly.about.some((a) => a.k === "Replies"), "no WhatsApp thread, no reply window");
 });
 
 test("the view model never carries a number the schema does not hold", () => {
@@ -750,7 +747,7 @@ test("proposalAction: the send-the-proposal button's words by the wire, 'again' 
   });
   assert.deepEqual(f("WhatsApp", { open: true, hoursLeft: 5 }, null), {
     label: "Send the proposal",
-    title: "Opens the thread with the proposal link ready to send · 5h left in their reply window",
+    title: "Opens the thread with the proposal link ready to send · any message for 5h more",
     ready: true,
   });
   assert.equal(f("WhatsApp", { open: false, hoursLeft: 0 }, null).ready, false);
@@ -797,4 +794,28 @@ test("a person's proposal: the address, its host in About, and the newest messag
   assert.equal(fresh.proposal.sent, null, "a new address has not gone out");
   assert.equal(fresh.proposalAction.label, "Send the proposal");
   assert.equal(contracts.proposalMessage(url), `Here's the proposal we put together for you: ${url}`);
+});
+
+test("the Replies row says what a reply may be in the owner's words: no 'window', no 'template'", () => {
+  const at = (hoursAgo) =>
+    toPersonVM(
+      detail({
+        row: row({
+          has_chat: true,
+          latest_wa_inbound_at: new Date(NOW.getTime() - hoursAgo * 3_600_000).toISOString(),
+        }),
+      }),
+      ZONE,
+      NOW,
+    ).about.find((a) => a.k === "Replies");
+  const open = at(19);
+  assert.ok(
+    open && /^Any message, for \d+ more hours?$|^Any message, for less than an hour$/.test(open.v),
+    open && open.v,
+  );
+  assert.equal(
+    at(30).v,
+    "Approved messages only, until they write again",
+    "REGRESSION: it said Closed · template only",
+  );
 });
