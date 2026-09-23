@@ -1,9 +1,10 @@
 /**
- * The band above the queue, EXECUTED on the stub React: it draws with no data; the field sends through the palette's
- * client and the exchange shows what the stream says; a failed turn shows its sentence and Try again; a follow-up
- * goes on the same thread; Continue in Ask opens the thread in the palette; an answer with a proposal hands off to
- * the palette for review; and with no client the field seeds the palette. Today's composition, with the band in it,
- * is pinned where the rest of Today's is: today-page.test.mjs.
+ * The band above the queue, EXECUTED on the stub React: compact at rest (the mark alone, no field); a click opens
+ * it with the field; a press held on it listens (or says the browser cannot); Escape folds it and keeps the answer;
+ * Clear forgets and folds. Open, the field sends through the palette's client and the exchange shows what the
+ * stream says; a failed turn shows its sentence and Try again; a follow-up goes on the same thread; Continue in
+ * Ask opens the thread in the palette; an answer with a proposal hands off for review; and with no client the
+ * field seeds the palette. Today's composition, with the band in it, is pinned in today-page.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,24 +55,78 @@ const client = (script) => {
     },
   };
 };
-const draw = () => {
-  return W.React.createElement(W.TodayFace);
-};
+const draw = () => W.React.createElement(W.TodayFace);
 /** A new band: the cells forgotten, then drawn; `again(draw)` redraws over the cells as they are. */
 const start = () => {
   fresh();
   return draw();
 };
+const isOpen = (tree) => byTestId(tree, "today-face").props["data-open"] === "true";
+/** The keyboard's press on the stage (a click with no pointer, detail 0): open, drawn again. */
+const openBand = (tree) => {
+  byTestId(tree, "today-face-stage").props.onClick({ detail: 0 });
+  return again(draw);
+};
 const type = (tree, words) => byTestId(tree, "today-face-input").props.onChange({ target: { value: words } });
 const submit = (tree) => byTestId(tree, "today-face-form").props.onSubmit({ preventDefault() {} });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test("the band draws with no data, at rest, with an empty exchange and the field", () => {
-  const tree = start();
+test("at rest it is the mark alone: closed, no field, no exchange; a click opens it with the field", () => {
+  let tree = start();
   assert.ok(byTestId(tree, "today-face"));
   assert.equal(byTestId(tree, "today-face").props["data-phase"], "rest");
-  assert.equal(textOf(byTestId(tree, "today-face-exchange")), "");
+  assert.equal(isOpen(tree), false);
+  assert.equal(byTestId(tree, "today-face-stage").props["aria-expanded"], false);
+  assert.equal(byTestId(tree, "today-face-input"), null, "no field at rest");
+  assert.equal(byTestId(tree, "today-face-exchange"), null, "no exchange at rest");
+  tree = openBand(tree);
+  assert.equal(isOpen(tree), true);
+  assert.equal(byTestId(tree, "today-face-stage").props["aria-expanded"], true);
   assert.equal(byTestId(tree, "today-face-input").props.placeholder, "Ask about today…");
-  assert.ok(byTestId(tree, "today-face-stage"), "the stage the three stand on");
+  assert.equal(textOf(byTestId(tree, "today-face-exchange")), "");
+});
+
+test("a short press is a click that opens; a press held listens, or says the browser cannot", async () => {
+  let tree = start();
+  const stage = byTestId(tree, "today-face-stage");
+  stage.props.onPointerDown({ button: 0 });
+  stage.props.onPointerUp();
+  tree = again(draw);
+  assert.equal(isOpen(tree), true, "a click opened it");
+  tree = start();
+  flashes.length = 0;
+  byTestId(tree, "today-face-stage").props.onPointerDown({ button: 0 });
+  await wait(400);
+  assert.equal(flashes.length, 1, "held: this browser has no recogniser, so it says so");
+  byTestId(tree, "today-face-stage").props.onPointerUp();
+  tree = again(draw);
+  assert.equal(isOpen(tree), false, "a hold that could not listen did not open it");
+});
+
+test("Escape folds it and keeps the answer for the next opening; Clear forgets and folds", async () => {
+  const A = client([
+    { t: "thread", id: "th0", title: "who's waited longest?" },
+    { t: "final", message: msg() },
+  ]);
+  W.__ask = A;
+  let tree = openBand(start());
+  type(tree, "who's waited longest?");
+  tree = again(draw);
+  submit(tree);
+  await settle();
+  tree = again(draw);
+  assert.equal(byTestId(tree, "today-face").props["data-phase"], "settled");
+  W.dispatchEvent({ type: "keydown", key: "Escape" });
+  tree = again(draw);
+  assert.equal(isOpen(tree), false, "Escape folded it");
+  assert.equal(byTestId(tree, "today-face").props["data-phase"], "settled", "the turn is kept");
+  tree = openBand(tree);
+  assert.ok(textOf(byTestId(tree, "today-face-exchange")).includes("Nora has waited longest."), "and shown again");
+  press(byTestId(tree, "today-face-clear"));
+  tree = again(draw);
+  assert.equal(isOpen(tree), false, "Clear folded it");
+  assert.equal(byTestId(tree, "today-face").props["data-phase"], "rest", "and forgot the turn");
+  delete W.__ask;
 });
 
 test("a question: it reads, the answer streams, then the follow-ups and the doors; a follow-up stays on the thread", async () => {
@@ -83,7 +138,7 @@ test("a question: it reads, the answer streams, then the follow-ups and the door
     { t: "final", message: msg({ followups: ["Who else is waiting?"] }) },
   ]);
   W.__ask = A;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "who's waited longest?");
   tree = again(draw);
   submit(tree);
@@ -106,10 +161,6 @@ test("a question: it reads, the answer streams, then the follow-ups and the door
   assert.equal(textOf(byTestId(tree, "today-face-continue")), "Continue in Ask");
   press(byTestId(tree, "today-face-continue"));
   assert.deepEqual(asked.at(-1), { thread: "th1" });
-  press(byTestId(tree, "today-face-clear"));
-  tree = again(draw);
-  assert.equal(byTestId(tree, "today-face").props["data-phase"], "rest");
-  assert.equal(textOf(byTestId(tree, "today-face-exchange")), "");
   delete W.__ask;
 });
 
@@ -127,7 +178,7 @@ test("a failed turn shows its sentence and Try again asks the same question", as
         ],
   );
   W.__ask = A;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "x");
   tree = again(draw);
   submit(tree);
@@ -150,7 +201,7 @@ test("a stream that ends without a final is a cut-off, said in the palette's wor
     { t: "delta", text: "Half an" },
   ]);
   W.__ask = A;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "y");
   tree = again(draw);
   submit(tree);
@@ -169,7 +220,7 @@ test("a quick answer settles without a turn, with its doors", async () => {
     links: [{ label: "Open Inbox", to: "inbox" }],
   });
   W.__ask = A;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "who needs me?");
   tree = again(draw);
   submit(tree);
@@ -191,7 +242,7 @@ test("an answer that carries a proposal hands off to the palette for review", as
     { t: "final", message: msg({ proposals: [{ id: "p1", kind: "broadcast" }] }) },
   ]);
   W.__ask = A;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "send everyone a note");
   tree = again(draw);
   submit(tree);
@@ -204,7 +255,7 @@ test("an answer that carries a proposal hands off to the palette for review", as
 test("with no client the field seeds the palette and the band rests; Enter on the field is the send", () => {
   delete W.__ask;
   asked.length = 0;
-  let tree = start();
+  let tree = openBand(start());
   type(tree, "who needs me?");
   tree = again(draw);
   let prevented = 0;

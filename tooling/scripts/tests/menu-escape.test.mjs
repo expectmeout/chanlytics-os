@@ -9,6 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const listeners = [];
 globalThis.window = {
@@ -33,19 +34,20 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {}, contains: () => false } }),
 };
 
-let cells = [];
-let seq = 0;
+let cells = {};
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -55,7 +57,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -65,13 +67,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -213,13 +215,13 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
     { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick() {} },
   ];
   const open = (props) => {
-    cells = [];
-    seq = 0;
+    cells = {};
+    frames.begin();
     const first = MoreMenu({ items, ...props });
     find(first, (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").props.onClick({
       stopPropagation() {},
     });
-    seq = 0;
+    frames.begin();
     return MoreMenu({ items, ...props });
   };
   assert.deepEqual(classesOf(menuOf(open({ escape: true, align: "left" }))), ["more-menu", "align-left", "escape"]);
@@ -230,8 +232,8 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
   globalThis.window.innerHeight = 900;
   const b = boxes({ trigger: RAIL(300) });
   listeners.length = 0;
-  cells = [true, { current: b.wrap }];
-  seq = 0;
+  cells = { ":0": true, ":1": { current: b.wrap } }; // the menu's open state and its box, the first two hooks it calls at the root
+  frames.begin();
   MoreMenu({ items, escape: true, align: "left" });
   assert.ok(b.classes.has("placed"), "placed as it opens");
   const on = (type) => listeners.find((l) => l.type === type);
@@ -241,19 +243,19 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
     "a scroll anywhere reaches it: it listens in the capture phase, since scroll does not bubble",
   );
   on("scroll").fn({ target: INSIDE });
-  assert.equal(cells[0], true, "its own list scrolling (a menu taller than its room) keeps it open");
+  assert.equal(cells[":0"], true, "its own list scrolling (a menu taller than its room) keeps it open");
   on("scroll").fn({ target: THE_RAIL });
-  assert.equal(cells[0], false, "the page under it moving closes it, rather than leave it beside the wrong row");
-  cells[0] = true;
+  assert.equal(cells[":0"], false, "the page under it moving closes it, rather than leave it beside the wrong row");
+  cells[":0"] = true;
   // A resize's target is the window, which is not a node: asking whether the menu holds it threw, in a real browser,
   // before the menu could close (found on the probe page, 21 Sep).
   on("resize").fn({ target: THE_WINDOW });
-  assert.equal(cells[0], false, "and so does a resize");
+  assert.equal(cells[":0"], false, "and so does a resize");
 
   // A menu that does not escape moves with its trigger, so it listens for Escape alone, as before.
   listeners.length = 0;
-  cells = [true, { current: null }];
-  seq = 0;
+  cells = { ":0": true, ":1": { current: null } }; // the menu's open state and its box, the first two hooks it calls at the root
+  frames.begin();
   MoreMenu({ items });
   assert.deepEqual(
     listeners.map((l) => l.type),
@@ -269,8 +271,8 @@ test("an item with `checked` is one of a set: a menuitemradio, ticked when chose
     { label: "Export everyone", icon: "external", onClick() {} },
   ];
   // Drawn open, as the page holds it once its trigger is pressed.
-  cells = [true, { current: null }];
-  seq = 0;
+  cells = { ":0": true, ":1": { current: null } }; // the menu's open state and its box, the first two hooks it calls at the root
+  frames.begin();
   const open = MoreMenu({ items });
   const rows = [];
   walk(open, (n) => {

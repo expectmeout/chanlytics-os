@@ -17,6 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -204,18 +205,19 @@ test("a call's note names the thread it went to, never a channel the caller may 
 /* ------------------- the Conversations pill, mounted -------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -225,7 +227,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -235,7 +237,7 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
@@ -244,11 +246,11 @@ globalThis.React = {
   // a later draw (a message opened) the value another component had left in
   // that cell, which no real React would do.
   useMemo: (fn) => {
-    seq++;
+    frames.key();
     return fn();
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -364,14 +366,14 @@ const todayWith = (channels) =>
 const mountToday = (vm) => {
   globalThis.window.TODAY_DATA = vm;
   cells = [];
-  seq = 0;
+  frames.begin();
   const hero = textOf(globalThis.window.HeroBrief());
   cells = [];
-  seq = 0;
+  frames.begin();
   // The day's card sits under the work; the hero is the standing line above it.
   const recap = textOf(globalThis.window.TodayCard());
   cells = [];
-  seq = 0;
+  frames.begin();
   const queue = textOf(globalThis.window.AgentCommand());
   return { hero, recap, queue };
 };
@@ -462,7 +464,7 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
     THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
   const missing = (() => {
     let hit = null;
@@ -515,7 +517,7 @@ test("REGRESSION: the missing notice holds when the Inbox is read again -- on th
       THREADS: [emily],
     };
     const render = () => {
-      seq = 0;
+      frames.begin();
       return globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
     };
     const missingIn = (tree) => {
@@ -567,7 +569,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
     return out;
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   const real = globalThis.window.InboxComposer({
     thread: {
       id: "th-1",
@@ -586,7 +588,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
     "the send stays",
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   const seed = globalThis.window.InboxComposer({
     thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" },
     reply: "",
@@ -624,12 +626,12 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
     __POLICIES: { rows: [] },
   });
   cells = [];
-  seq = 0;
+  frames.begin();
   const real = PolicyChip({ cls: "reengage" });
   assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
   delete globalThis.window.__POLICIES;
   cells = [];
-  seq = 0;
+  frames.begin();
   const demo = PolicyChip({ cls: "reengage" });
   assert.ok(String(demo.props["data-tip"]).includes("128 auto-sent"), "the demo keeps its own figures");
 });
@@ -687,7 +689,7 @@ test("REGRESSION: approving a run the server moved to nine says so -- the toast 
     },
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   const tree = globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
   let approve = null;
   walk(tree, (n) => {
@@ -730,7 +732,7 @@ test("REGRESSION (C11): the schedule box reads and writes the business's clock, 
   inTokyo("2026-12-15T03:00:00Z", () => {
     let picked;
     cells = [];
-    seq = 0;
+    frames.begin();
     const box = globalThis.window.BcWhenBox({
       at: null,
       maxDays: 30,
@@ -788,7 +790,7 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     };
     globalThis.window.TODAY_DATA = todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]);
     cells = [];
-    seq = 0;
+    frames.begin();
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
     walk(globalThis.window.TodayCard(), (n) => {
@@ -821,7 +823,7 @@ const mountMessages = (over) => {
     over,
   );
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.MessagesPage();
 };
 const byId = (tree, id) => {
@@ -846,7 +848,7 @@ const mountMessagesOpen = (over, name) => {
   });
   assert.ok(row, `no row for ${name}`);
   byId(row, "template-open").props.onClick();
-  seq = 0;
+  frames.begin();
   return globalThis.window.MessagesPage();
 };
 
@@ -953,11 +955,11 @@ test("REGRESSION (D12): past fifty broadcasts the header says its numbers are th
       counts: { sent: 2, delivered: 1, replied: 1, skipped: 0, failed: 0 },
     });
     cells = [];
-    seq = 0;
+    frames.begin();
     const capped = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: true }));
     assert.ok(capped.includes("latest 50"), capped);
     cells = [];
-    seq = 0;
+    frames.begin();
     const whole = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: false }));
     assert.ok(!whole.includes("latest 50"), whole);
     assert.ok(whole.includes("4 messages"), whole);
@@ -1046,7 +1048,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     },
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   assert.ok(
     !buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some((b) =>
       textOf(b).includes("Cancel within"),
@@ -1070,13 +1072,13 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     },
   };
   cells = [];
-  seq = 0;
+  frames.begin();
   let tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
   const undoButton = buttons(tree).find((b) => textOf(b).includes("Delete it"));
   assert.ok(undoButton, "a fresh undo is offered");
   await undoButton.props.onClick();
   assert.deepEqual(undone, [], "REGRESSION: one click deleted the playbook");
-  seq = 0;
+  frames.begin();
   tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
   let yes = null;
   walk(tree, (n) => {

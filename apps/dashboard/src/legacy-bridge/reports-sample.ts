@@ -10,6 +10,7 @@ import {
   toReportVM,
   toCampaignReportVM,
   toBookingReportVM,
+  toDealReportVM,
   reportFacts,
   type ReportDto,
   type CampaignReportDto,
@@ -260,6 +261,8 @@ export function reportsSample(days: number, today: string = todayIn(ZONE)): Repo
     vm,
     campaigns,
     booking: toBookingReportVM(bookingDto(all, n)),
+    // The demo is a salon: no deal was ever recorded, so Reports draws no Deals section (0004).
+    deals: toDealReportVM(null, vm.rangeLabel),
     facts: reportFacts(vm, campaigns),
     days: n,
     fetchedAt: 0,

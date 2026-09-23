@@ -4800,6 +4800,41 @@ var PEOPLE_LISTS = [
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45
   },
+  // The journey past the booking (0004). Each exists only where deals are a thing here.
+  {
+    id: "consultation_booked",
+    label: "Consultation booked",
+    group: "journey",
+    needsCalendar: true,
+    needsConsultFirst: true,
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.consultationVisit && !v.deal
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "proposed"
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "won"
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "ended"
+  },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
   // A fact, not the state: someone who opted out AND needs you is in both lists.

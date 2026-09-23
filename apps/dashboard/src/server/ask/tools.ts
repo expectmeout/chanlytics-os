@@ -117,7 +117,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "search_people",
     description:
-      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out.",
+      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are a thing here).",
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
@@ -600,6 +600,19 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   const vmOf = new Map(pool.rows.map((v) => [v.id, v]));
   if (list?.needsCalendar && calendar.state !== "ok")
     return { error: "that list needs the calendar connected under Settings › Business", people: [] };
+  // The deal lists exist only where deals are a thing here (0004), as on the page and in list_audiences. The refusal
+  // names the condition that failed: Consultation booked needs the consult-first service itself, whatever was recorded.
+  if (list?.needsConsultFirst && !pool.consult_first)
+    return {
+      error: "that list exists only where the profile lists a consult-first service under Settings › Business",
+      people: [],
+    };
+  if (list?.needsDeals && !pool.deals_on)
+    return {
+      error:
+        "that list exists only where deals are a thing here: a consult-first service under Settings › Business, or a deal recorded on a person's page",
+      people: [],
+    };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
     if (list && !list.test(vmOf.get(r.id)!)) return false;
@@ -959,13 +972,16 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   };
   const audiences = [
     { kind: "everyone", audience_id: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
-    // The page's lists: a calendar's lists only when there is a calendar to read them from.
+    // The page's lists: a calendar's lists only when there is a calendar to read them from; the deal lists only
+    // where deals are a thing here (0004).
     ...PEOPLE_LISTS.filter(
       (l) =>
         l.id !== "opted_in" &&
         l.id !== "offers_ok" &&
         l.id !== "opted_out" &&
-        (!l.needsCalendar || pool.calendar.state === "ok"),
+        (!l.needsCalendar || pool.calendar.state === "ok") &&
+        (!l.needsConsultFirst || pool.consult_first) &&
+        (!l.needsDeals || pool.deals_on),
     ).map((l) => ({
       kind: "list",
       audience_id: l.id,

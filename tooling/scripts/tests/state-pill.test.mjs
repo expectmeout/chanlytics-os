@@ -28,6 +28,7 @@ import {
   LEAD_STAGE_WORDS,
   LEAD_LEFT_OUT_WORD,
 } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -229,7 +230,8 @@ test("the back office's verdicts speak the same six tones: waiting on an owner i
 /* ------------------------- the pill, mounted --------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
@@ -239,11 +241,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -253,7 +255,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -263,17 +265,17 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -395,7 +397,7 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
   assert.equal(vm.state, "escalated", "the state a real thread has");
   assert.ok(vm.waitingMin >= 39, `waited ${vm.waitingMin} minutes`);
   fresh();
-  seq = 0;
+  frames.begin();
   const tree = InboxList({
     threads: [vm],
     allThreads: [vm],

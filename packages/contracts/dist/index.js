@@ -6049,6 +6049,7 @@ function toLeadRowVM(r, tz, now, search = null) {
     reviewsTitle: r.reviews_dist ? `5\u2605 ${r.reviews_dist.five} \xB7 4\u2605 ${r.reviews_dist.four} \xB7 3\u2605 ${r.reviews_dist.three} \xB7 2\u2605 ${r.reviews_dist.two} \xB7 1\u2605 ${r.reviews_dist.one}` : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
+    contactId: r.contact_id ?? null,
     foundLabel: agoShort(foundMs, nowMs),
     foundLine: Number.isFinite(foundMs) ? `Found ${agoWords(foundMs, nowMs, { date: (at2) => clockDate(at2, tz, nowMs) })}` : "",
     foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
@@ -6710,7 +6711,8 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
-    deal: dealOf(r, tz, nowMs)
+    deal: dealOf(r, tz, nowMs),
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation)
   };
 }
 var PEOPLE_LIST_GROUPS = [
@@ -6750,6 +6752,41 @@ var PEOPLE_LISTS = [
     group: "journey",
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45
+  },
+  // The journey past the booking (0004). Each exists only where deals are a thing here.
+  {
+    id: "consultation_booked",
+    label: "Consultation booked",
+    group: "journey",
+    needsCalendar: true,
+    needsConsultFirst: true,
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.consultationVisit && !v.deal
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "proposed"
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "won"
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "ended"
   },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
@@ -6805,6 +6842,14 @@ var LIST_STEPS = {
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
   lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
+  consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
+  proposal_out: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "A word from you is the next step; nothing sends on its own."
+  },
+  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
@@ -6935,6 +6980,7 @@ function attentionRow(p, tz, nowMs) {
     sentence = oneLine(p.quote, 160);
     quoted = true;
   } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked \xB7 ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)
@@ -8569,9 +8615,9 @@ function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 var TODAY_LEAK_MAX = 2;
-var LEAK_ORDER = ["never-booked", "unanswered", "unreachable", "quiet"];
+var LEAK_ORDER = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
 var askWhy = (text, math) => `${text} ${capitalize2(math)}. Why is that?`;
-function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
+function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
   const found = /* @__PURE__ */ new Map();
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step = (id) => {
@@ -8612,6 +8658,27 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
       people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null
+    });
+  }
+  const dealRows = (people?.rows ?? []).filter(
+    (r) => "deal" in r && "askedMs" in r
+  );
+  const waiting = proposalsWaiting(dealRows, nowMs);
+  const po = list2("proposal_out");
+  if (people && waiting.length >= 1) {
+    const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const math = po ? `${po.count} on Proposal out \xB7 nothing heard since it went` : "nothing heard since it went";
+    found.set("proposals-waiting", {
+      id: "proposals-waiting",
+      tone: "warn",
+      tag: "Waiting",
+      icon: "clock",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null
     });
   }

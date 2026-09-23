@@ -341,8 +341,7 @@ for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill
 // Menus and questions as their props, drawn by hookless stand-ins.
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
-// The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
-// cleanup, so a no-op keeps the hook order the stub React counts on.
+// Leads' peek seams (leads-peek.jsx, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
@@ -1713,6 +1712,8 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   );
   let tree = on();
   assert.equal(textOf(byTestId(tree, "person-deal-line")), "No proposal yet");
+  // The empty line stands alone: the key said "Deal" under the rail label "Deal".
+  assert.equal(textOf(find(byTestId(tree, "person-deal"), (n) => n.props?.className === "cl-prof-attr-key")), "");
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "person-deal-move").map(textOf), ["Proposal sent"]);
   press(byTestId(tree, "person-deal-move"));
   tree = on();
@@ -1771,7 +1772,23 @@ test("the Deal section: drawn only where deals are a thing, says the stage first
   tree = client();
   const amount = byTestId(tree, "person-deal-amount");
   assert.ok(amount, "a client's move asks for the amount");
-  type(amount, "2,500");
+  // An amount that is not a number is refused at the field, and nothing goes: it was dropped without a word.
+  type(amount, "abc");
+  tree = client();
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  assert.equal(calls.length, 1, "nothing recorded for an amount that is not a number");
+  tree = client();
+  assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
+  // A negative amount is refused the same way: the minus survives the strip, so "-5" is not five dollars.
+  type(byTestId(tree, "person-deal-amount"), "-5");
+  tree = client();
+  press(byTestId(tree, "person-deal-record"));
+  await settle();
+  assert.equal(calls.length, 1, "REGRESSION: -5 went as 500 cents");
+  tree = client();
+  assert.equal(textOf(byTestId(tree, "person-deal-error")), "An amount is a number, like 2,500.");
+  type(byTestId(tree, "person-deal-amount"), "2,500");
   tree = client();
   press(byTestId(tree, "person-deal-record"));
   await settle();

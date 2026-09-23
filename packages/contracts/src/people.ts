@@ -987,6 +987,8 @@ export interface PersonRowVM {
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
   deal: DealVM | null;
+  /** The next or the last visit was a consultation (0004): the "Consultation booked" list. */
+  consultationVisit: boolean;
 }
 
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
@@ -1088,6 +1090,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
     deal: dealOf(r, tz, nowMs),
+    consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
   };
 }
 
@@ -1113,9 +1116,13 @@ export const PEOPLE_LISTS: readonly {
   label: string;
   group: PeopleListGroup;
   needsCalendar?: boolean;
+  /** Only where the profile lists a consult-first service. */
+  needsConsultFirst?: boolean;
+  /** Only where deals are a thing here: a consult-first service listed, or a deal ever recorded. */
+  needsDeals?: boolean;
   /**
    * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-   * say the two answers -- so their Lists section names only the lists it alone can.
+   * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
    */
   onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
@@ -1151,6 +1158,41 @@ export const PEOPLE_LISTS: readonly {
     group: "journey",
     needsCalendar: true,
     test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
+  },
+  // The journey past the booking (0004). Each exists only where deals are a thing here.
+  {
+    id: "consultation_booked",
+    label: "Consultation booked",
+    group: "journey",
+    needsCalendar: true,
+    needsConsultFirst: true,
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.consultationVisit && !v.deal,
+  },
+  {
+    id: "proposal_out",
+    label: "Proposal out",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "proposed",
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "won",
+  },
+  {
+    id: "deal_ended",
+    label: "Ended",
+    group: "journey",
+    needsDeals: true,
+    onProfile: false,
+    test: (v) => v.deal?.stage === "ended",
   },
   { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
   { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
@@ -1241,6 +1283,14 @@ const LIST_STEPS: Record<
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
   lapsed: { cta: "Bring them back", to: "broadcasts/lapsed", broadcast: true },
+  // The journey past the booking (0004). Clients has no step: an engagement running is not something to push.
+  consultation_booked: { cta: "See the week", to: "calendar", text: "Their consultations are on the Calendar." },
+  proposal_out: {
+    cta: "Open the Inbox",
+    to: "inbox",
+    text: "A word from you is the next step; nothing sends on its own.",
+  },
+  deal_ended: { cta: "Win them back", to: "broadcasts/deal_ended", broadcast: true },
   quiet: { cta: "Reach out", to: "broadcasts/quiet", broadcast: true },
   // The broadcast step belongs to the OFFERS list, not to this one: a person on
   // this list has said yes to hearing from the business, which is not a yes to a
@@ -1469,6 +1519,9 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
     sentence = oneLine(p.quote, 160);
     quoted = true;
   } else if (p.callSummary) sentence = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  // A proposal waiting says more than a visit ahead (0004): the row's brief, "Proposal out · 6 d". A client's row
+  // keeps the visit, which is the next thing about them; a pass or an end says nothing here.
+  else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
   else if (p.lastVisit) sentence = `Last visit · ${p.lastVisit}`;
   else if (p.calls > 0)

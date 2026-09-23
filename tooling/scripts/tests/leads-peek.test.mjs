@@ -21,9 +21,11 @@ import {
   leadDraftFooter,
   toLeadPeekVM,
 } from "../../../packages/contracts/src/leads.ts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const listeners = {};
 const flashes = [];
 const opened = [];
@@ -35,11 +37,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -49,14 +51,14 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -400,7 +402,7 @@ const page = (over = {}) => {
     },
   };
   const draw = () => {
-    seq = 0;
+    frames.begin();
     const acts = globalThis.LeadPeekActions(p);
     return { tree: globalThis.LeadPeek({ vm: p.vm, mode: st.mode, armed: st.armed, draft: st.draft, ...acts }), acts };
   };
@@ -409,7 +411,7 @@ const page = (over = {}) => {
 
 const reset = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
   flashes.length = 0;
   opened.length = 0;
   dialled.length = 0;
@@ -1679,7 +1681,7 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   const P = page();
   const acts = globalThis.LeadPeekActions(P.p);
   const withDeck = (over = {}) => {
-    seq = 0;
+    frames.begin();
     return globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over });
   };
   let tree = withDeck();
@@ -1695,8 +1697,8 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
 
   // A swipe is the same two presses under a thumb: 80px across, and a scroll is never a move.
   const el = { dataset: {} };
-  const swipe = (dx, dy) => {
-    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el });
+  const swipe = (dx, dy, target = null) => {
+    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el, target });
     tree.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
   };
   swipe(-120, 6);
@@ -1707,6 +1709,21 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   swipe(-40, 10);
   swipe(-120, 300);
   assert.equal(moved.length, before, "a short drag and a scroll move nothing");
+
+  // On a phone the peek is the whole screen: a pull down from the top of what it shows is its Close, as the X is;
+  // a pull through a scrolled body is a scroll, and beside a desktop's table nothing is pulled.
+  const closed = [];
+  tree = withDeck({ phone: true, onClose: () => closed.push(1) });
+  swipe(6, 120);
+  assert.deepEqual(closed, [1], "REGRESSION: the X in the corner was the only way out of a full screen");
+  swipe(6, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 140, parentElement: null });
+  assert.deepEqual(closed, [1], "through a scrolled body it is a scroll");
+  swipe(-120, 6);
+  assert.equal(moved.at(-1), "next", "and the pile still walks");
+  tree = withDeck({ phone: false, onClose: () => closed.push(1) });
+  swipe(6, 120);
+  assert.deepEqual(closed, [1], "beside the table, nothing is pulled");
+  tree = withDeck();
 
   // Back from the call: the six outcomes wear their dots, the sheet says what saving does, and one press saves and moves on.
   const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
@@ -1725,7 +1742,7 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   );
 
   // A desktop has no deck at all: no place line, no swipe.
-  seq = 0;
+  frames.begin();
   const desk = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
   assert.equal(byTestId(desk, "peek-deck"), null);
   assert.equal(desk.props.onTouchStart, undefined);

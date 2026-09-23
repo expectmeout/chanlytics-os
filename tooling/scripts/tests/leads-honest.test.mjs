@@ -3346,3 +3346,70 @@ test("a pop hangs above its row when the room is there, every hover asks where i
   assert.equal(menu.escape, true, "it escapes the rail, so the rail's edge cannot cut it off or squeeze it");
   assert.equal(menu.align, "left", "hung from its trigger's left edge, so it opens over the table");
 });
+
+/* ------------------------------ a lead that became a client ------------------------------ */
+
+test("a converted lead whose person became a client reads Client, on the desktop's row and on a phone's card; a proposal out or no deal keeps Converted", () => {
+  // Nothing stored on the lead (0004): the row reads People's row for the person it converted into, and only a deal
+  // won says Client, in the deal pill's own tone. A proposal still out, or no deal at all, is the lead's own word.
+  const vm = (over) => toLeadRowVM(leadRow(over), TZ, NOW);
+  const rows = [
+    vm({ id: "c1", place_id: "ChIJclient1", business_name: "Client Gym", stage: "converted", contact_id: "k1" }),
+    vm({ id: "c2", place_id: "ChIJclient2", business_name: "Proposal Gym", stage: "converted", contact_id: "k2" }),
+    vm({ id: "c3", place_id: "ChIJclient3", business_name: "Nobody Gym", stage: "converted", contact_id: null }),
+  ];
+  const people = [
+    { id: "k1", deal: { stage: "won", brief: "Client · Ad management" } },
+    { id: "k2", deal: { stage: "proposed", brief: "Proposal out · 3 d" } },
+  ];
+  const cls = (n) => String(n?.props?.className || "");
+  fresh({ leads: surface({ searches: [search()], rows }) });
+  globalThis.window.__PEOPLE.rows = people;
+  let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const tagOf = (id) => byTestId(rowOf(tree, id), "lead-state-tag");
+  assert.equal(textOf(tagOf("c1")), "Client", "the stage word of the deal, never a word for a person");
+  assert.equal(cls(tagOf("c1")), "pill pill-ok", "the deal pill's own tone");
+  assert.equal(textOf(tagOf("c2")), rows[1].stateTag, "a proposal still out is not a client: the lead's own word");
+  assert.equal(textOf(tagOf("c3")), rows[2].stateTag, "no person, no deal: the lead's own word");
+  // The rows reach the cell through its context, not the global. The page's rows are memoised (React.memo, which
+  // this stub React lacks, so every row is drawn each time here) and the context is what they compare: on a cold
+  // load of Leads the rows paint before the people land, and a cell that read window.__PEOPLE kept saying Converted
+  // until a sort or a search drew it again. So: the page hands People's rows to the context, and the cell reads them
+  // from there -- with the global emptied, a context carrying the rows still says Client, and one without them does not.
+  const rowNode = find(
+    tree,
+    (n) => n.type && (n.type.name === "PeopleRow" || (n.type.type && n.type.type.name === "PeopleRow")),
+  );
+  assert.ok(rowNode, "the table draws its rows as PeopleRow");
+  assert.equal(rowNode.props.ctx.peopleRows, people, "REGRESSION: the cell context carried nothing from People");
+  const business = globalThis.window.LEAD_COLUMNS.find((c) => c.key === "business");
+  const pillOf = (td, testid) => find(td, (n) => n.props?.testid === testid);
+  globalThis.window.__PEOPLE.rows = [];
+  const withRows = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }), "lead-state-tag");
+  assert.deepEqual([withRows.props.kind, withRows.props.value], ["deal", "won"], "the context's rows say Client");
+  const withCard = pillOf(
+    globalThis.window.LEAD_PHONE_COLUMNS[0].cell(rows[0], { ...rowNode.props.ctx, peopleRows: people }),
+    "lead-state",
+  );
+  assert.deepEqual([withCard.props.kind, withCard.props.value], ["deal", "won"], "and so does the phone's card");
+  globalThis.window.__PEOPLE.rows = people;
+  const without = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] }), "lead-state-tag");
+  assert.equal(
+    without.props.kind,
+    "lead_row_state",
+    "REGRESSION: the cell read the global, so a context without the rows said Client",
+  );
+
+  fresh({ leads: surface({ searches: [search()], rows }) });
+  globalThis.window.__PEOPLE.rows = people;
+  globalThis.__phone = true;
+  try {
+    tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-card");
+    assert.equal(textOf(byTestId(cardOf("c1"), "lead-state")), "Client");
+    assert.equal(cls(byTestId(cardOf("c1"), "lead-state")), "pill pill-ok");
+    assert.equal(textOf(byTestId(cardOf("c2"), "lead-state")), rows[1].stateTag);
+  } finally {
+    globalThis.__phone = false;
+  }
+});

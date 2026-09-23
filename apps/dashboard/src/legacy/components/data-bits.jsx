@@ -310,6 +310,55 @@ const trapTab = (e, box) => {
 };
 Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
+// ---- A swipe under a thumb ---------------------------------------------------------------------
+// One reader of a touch's travel, for what a thumb walks or lets go of: a lead's peek walks its pile across and is
+// pulled down to close; a sheet on a phone is pulled down to close. touchSwipe({ onLeft, onRight, onDown, min, when })
+// gives the handlers for the element the swipe is on. The touch's start is kept on that element (nothing between
+// draws), and at its end ONE way is called: `min` of travel (80px), along the axis it went further on, so a scroll is
+// never a move and a move never a scroll. `onDown` is a pull down from the top: it is called only when the scroller
+// under the finger (the first ancestor that scrolls, up to the element) was at its top as the touch began, so a
+// scroll back up through a list never closes it, and only where `when` says (a phone's width): a sheet from the
+// bottom is pulled down, the same sheet beside a desktop page is not. Across, `when` is the caller's: a peek has a
+// pile only on a phone.
+const swipeScrollerAtTop = (from, upTo) => {
+  for (let n = from; n && n !== upTo; n = n.parentElement) {
+    if (!(n.scrollHeight > n.clientHeight + 1)) continue;
+    const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "auto";
+    if (over === "auto" || over === "scroll") return n.scrollTop <= 0;
+  }
+  return true;
+};
+const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, min = 80, when = null }) => ({
+  onTouchStart: (e) => {
+    const t = e && e.touches && e.touches[0];
+    const el = e && e.currentTarget;
+    if (!t || !el || !el.dataset) return;
+    el.dataset.sx = String(t.clientX);
+    el.dataset.sy = String(t.clientY);
+    el.dataset.stop = swipeScrollerAtTop(e.target, el) ? "1" : "0";
+  },
+  onTouchEnd: (e) => {
+    const t = e && e.changedTouches && e.changedTouches[0];
+    const el = e && e.currentTarget;
+    if (!t || !el || !el.dataset) return;
+    const sx = Number(el.dataset.sx);
+    const sy = Number(el.dataset.sy);
+    if (Number.isNaN(sx) || Number.isNaN(sy)) return;
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (Math.abs(dx) < min) return;
+      const way = dx < 0 ? onLeft : onRight;
+      if (way) way();
+      return;
+    }
+    if (dy < min || el.dataset.stop !== "1" || !onDown) return;
+    if (when && !when()) return;
+    onDown();
+  },
+});
+Object.assign(window, { touchSwipe });
+
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its
 // handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab

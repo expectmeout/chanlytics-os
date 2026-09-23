@@ -4,7 +4,9 @@
 // A list you scroll gets room of its own, beside the page (from the bottom, on a phone): a head with its name, the
 // line under it and a Close; an optional strip of tools (a search, an Add); the rows, which scroll; and a foot that
 // holds still, with the page's act in it. The page behind stays readable under a wash, and takes no presses while
-// the sheet is open; a press on the wash keeps focus where it was. The kit knows nothing about what the sheet lists.
+// the sheet is open; a press on the wash is the sheet's Close (Cancel, where the page asks first about what was
+// typed), as the fold's is, and on a phone a pull down on the sheet from its top is the same (data-bits touchSwipe):
+// a full screen with one small X in its corner was the only way out. The kit knows nothing about what the sheet lists.
 //
 //   <RecordSheet id="services" title="…" sub="…" onClose={close} tools={<search/>} foot={<save/>}>…rows…</RecordSheet>
 //
@@ -46,6 +48,11 @@
 // column, and animates itself in with a transform that would pin a fixed sheet to the pane.
 
 const { useRef: useSheetRef, useEffect: useSheetEffect, useCallback: useSheetCallback } = React;
+
+// The sheet rises from the bottom at the kit's one phone width (record.css, record-fold.jsx recPhoneQuery): there a
+// pull down on it is its Close. Loaded alone, without the fold kit (the playbook composer's test), it is never from
+// the bottom.
+const recSheetFromBottom = () => { const q = window.recPhoneQuery ? window.recPhoneQuery() : null; return !!(q && q.matches); };
 
 const RecordSheet = ({
   id = null, title, sub = null, onClose, tools = null, foot = null, closeLabel = "Close", className = "", testid = null,
@@ -92,8 +99,9 @@ const RecordSheet = ({
   const node = (
     <>
       {/* A press on the wash keeps focus where it was: a mousedown's default would hand it to the page's body, where
-          Shift+Tab walks the page behind the modal. The wash still takes the press, so nothing behind it does. */}
-      <div className="rec-sheet-backdrop" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} />
+          Shift+Tab walks the page behind the modal. The press itself is the sheet's Close -- the head's, so a page
+          that asks first about what was typed asks here too -- and nothing while a save is out (closeRef). */}
+      <div className="rec-sheet-backdrop" aria-hidden="true" onMouseDown={(e) => e.preventDefault()} onClick={() => { if (closeRef.current) closeRef.current(); }} />
       <section
         ref={place}
         className={`rec-sheet${className ? ` ${className}` : ""}`}
@@ -104,6 +112,7 @@ const RecordSheet = ({
         aria-describedby={subId}
         aria-busy={saving || undefined}
         tabIndex={-1}
+        {...(window.touchSwipe ? window.touchSwipe({ onDown: () => { if (closeRef.current) closeRef.current(); }, when: recSheetFromBottom }) : {})}
         onFocus={hold ? hold.onFocus : undefined}
         onKeyDown={(e) => {
           if (e.key === "Tab") { window.trapTab(e, e.currentTarget); return; }

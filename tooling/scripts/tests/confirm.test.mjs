@@ -13,14 +13,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const fresh = () => {
   cells = [];
-  seq = 0;
+  frames.begin();
 };
 const calls = { flash: [], remove: [], cancel: [], arm: [], pbRemove: [], nav: [] };
 globalThis.Icon = "Icon";
@@ -32,11 +34,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -46,7 +48,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -56,18 +58,18 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = fn();
     return cells[k];
   },
   useCallback: (fn) => fn,
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -290,7 +292,7 @@ test("a typed name gates the Yes -- erasure only -- and the page may know a bett
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 const TeamSection = globalThis.window.TeamSection;
 const drawTeam = () => {
-  seq = 0;
+  frames.begin();
   return TeamSection({ flash });
 };
 /** The row menu that offers `label`, as the props the card handed the shared MoreMenu. */
@@ -367,7 +369,7 @@ const broadcast = (state) => ({
 test("a broadcast's stop is armed and named for what it does: Stop a send, Skip a run nobody approved, Cancel one still to come", async () => {
   fresh();
   const draw = (state, armed) => {
-    seq = 0;
+    frames.begin();
     return BcRunCard({
       row: broadcast(state),
       now: Date.now(),
@@ -449,7 +451,7 @@ const playbook = {
 test("a playbook's delete asks through the one Confirm -- it used to relabel its own button and fire on the second click", async () => {
   fresh();
   const draw = () => {
-    seq = 0;
+    frames.begin();
     return PlaybookCard({ p: playbook, canAct: true, onEdit() {}, flash });
   };
   let tree = draw();

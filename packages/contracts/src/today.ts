@@ -33,6 +33,7 @@ import {
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { NO_NUMBER_REACH, reasonShort, saidYesTo, type PersonRowVM } from "./people";
+import { proposalsWaiting, type DealVM } from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
@@ -1753,7 +1754,7 @@ export interface JourneyListLike {
  * is counted twice, and nothing here is a trend -- a period over a period is
  * noise at these counts (reports.ts dropped tile deltas for exactly that).
  */
-export type TodayLeakId = "never-booked" | "unanswered" | "unreachable" | "quiet";
+export type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | "unreachable" | "quiet";
 
 export interface TodayLeakVM {
   id: TodayLeakId;
@@ -1791,21 +1792,25 @@ export interface TodayLeaksVM {
 export interface PeopleListsLike {
   lists: JourneyListLike[];
   aggregates?: { total: number };
-  /** Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not. */
-  rows: ReadonlyArray<Pick<PersonRowVM, "consent">>;
+  /**
+   * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; and
+   * their deal and when they last wrote, for the proposals waiting (0004), where the surface carries them.
+   */
+  rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "deal" | "askedMs">>>;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
 export const TODAY_LEAK_MAX = 2;
 
 /**
- * In this order, and the order is the point: the first two both cost a
+ * In this order, and the order is the point: the first three all cost a
  * customer, and the one that costs more of them comes first. A person who
  * asked and never got onto the calendar is the business's whole purpose
- * missed; a message nobody answered is one conversation. Then the two that
+ * missed; a message nobody answered is one conversation; a proposal waiting
+ * past a week is a customer one step from yes (0004). Then the two that
  * cost a chance rather than a customer.
  */
-const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
+const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "proposals-waiting", "unreachable", "quiet"];
 
 // The arithmetic was written to sit under the sentence ("of 21 in the last 30 days"); as a sentence of its own it takes a capital.
 const askWhy = (text: string, math: string): string => `${text} ${capitalize(math)}. Why is that?`;
@@ -1816,6 +1821,7 @@ export function todayLeaks(
   /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
   noReply: readonly TodayNoReplyVM[] = [],
   max = TODAY_LEAK_MAX,
+  nowMs = Date.now(),
 ): TodayLeaksVM {
   const found = new Map<TodayLeakId, TodayLeakVM>();
   const list = (id: string) => (people ? (people.lists.find((l) => l.id === id) ?? null) : null);
@@ -1867,6 +1873,30 @@ export function todayLeaks(
       people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
       ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
+      also: null,
+    });
+  }
+
+  // A proposal out past a week with nothing back costs a customer who was one step from yes (0004). One is enough: an
+  // agency sends a few a month. The rule is contracts' proposalsWaiting; the count is over the rows People holds.
+  const dealRows = (people?.rows ?? []).filter(
+    (r): r is typeof r & { deal: DealVM | null; askedMs: number | null } => "deal" in r && "askedMs" in r,
+  );
+  const waiting = proposalsWaiting(dealRows, nowMs);
+  const po = list("proposal_out");
+  if (people && waiting.length >= 1) {
+    const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
+    const math = po ? `${po.count} on Proposal out · nothing heard since it went` : "nothing heard since it went";
+    found.set("proposals-waiting", {
+      id: "proposals-waiting",
+      tone: "warn",
+      tag: "Waiting",
+      icon: "clock",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
+      cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
       also: null,
     });
   }

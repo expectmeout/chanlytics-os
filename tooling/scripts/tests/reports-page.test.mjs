@@ -194,10 +194,20 @@ const campaignDto = () => ({
 });
 const CALENDAR = { calendar: "ok", days: 7, asked: 8, booked: 3 };
 
-const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR } = {}) => {
+/** Deals as the bridge publishes them where none was ever recorded (toDealReportVM(null)): the section is not drawn. */
+const NO_DEALS = { present: false, headline: "", parts: "", stock: "" };
+const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR, deals = NO_DEALS } = {}) => {
   const vm = toReportVM(reportDto(report));
   const cm = campaigns ? toCampaignReportVM(campaigns) : null;
-  return { vm, campaigns: cm, booking: toBookingReportVM(booking), facts: reportFacts(vm, cm), days: 7, fetchedAt: 1 };
+  return {
+    vm,
+    campaigns: cm,
+    booking: toBookingReportVM(booking),
+    deals,
+    facts: reportFacts(vm, cm),
+    days: 7,
+    fetchedAt: 1,
+  };
 };
 const draw = () => globalThis.ReportsPage();
 const page = (opts) => {
@@ -834,4 +844,29 @@ test("REGRESSION (C25): Reports says what the campaigns sent, not what offers ea
     "REGRESSION: offers over visit reminders",
   );
   assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
+});
+
+test("Reports draws a Deals section only where a deal was ever recorded, with the cohort and the stock", () => {
+  // The bridge publishes contracts' DealReportVM (0004): present only where a deal was ever recorded, so a salon's
+  // Reports never grows a section of zeros. The section says the period's cohort and the clients now, each once.
+  const none = page({ deals: NO_DEALS });
+  assert.equal(byTestId(none, "rpt-deals"), null, "nothing where no deal was ever recorded");
+  assert.equal(byTestId(none, "rpt-deals-headline"), null);
+  const some = page({
+    deals: {
+      present: true,
+      headline: "5 proposals went out in the last 30 days.",
+      parts: "3 became clients · 1 passed · 1 still waiting",
+      stock: "4 clients now · $7,500 a month.",
+    },
+  });
+  assert.ok(byTestId(some, "rpt-deals"), "its own section");
+  assert.equal(textOf(byTestId(some, "rpt-deals-headline")), "5 proposals went out in the last 30 days.");
+  assert.equal(textOf(byTestId(some, "rpt-deals-parts")), "3 became clients · 1 passed · 1 still waiting");
+  assert.equal(textOf(byTestId(some, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
+  const quiet = page({
+    deals: { present: true, headline: "No proposals went out in the last 7 days.", parts: "", stock: "2 clients now." },
+  });
+  assert.equal(byTestId(quiet, "rpt-deals-parts"), null, "no cohort: no parts line");
+  assert.equal(textOf(byTestId(quiet, "rpt-deals-stock")), "2 clients now.");
 });

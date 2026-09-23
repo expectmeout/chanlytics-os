@@ -184,6 +184,7 @@ const wire = ({
   calendar = "none",
   views = {},
   bookingLink = null,
+  dealsOn = false,
 } = {}) => {
   const seen = { offsets: [], queries: [], viewSaves: [] };
   const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
@@ -207,6 +208,7 @@ const wire = ({
             page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more },
             calendar: cal,
             booking_link: bookingLink,
+            deals_on: dealsOn,
           },
         });
       }
@@ -219,6 +221,7 @@ const wire = ({
           page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length },
           calendar: cal,
           booking_link: bookingLink,
+          deals_on: dealsOn,
         },
       });
     }
@@ -442,8 +445,9 @@ const freshPage = async ({
   calendar = "none",
   views = {},
   bookingLink = null,
+  dealsOn = false,
 } = {}) => {
-  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
+  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink, dealsOn });
   await quietly(() => peopleOverride.apply());
   cells = [];
   flashes.length = 0;
@@ -2049,6 +2053,45 @@ test("the Columns menu shows and hides columns and stays open while it does; Per
   assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
   assert.equal(press("Escape"), true);
   assert.equal(byTestId(draw(), "people-columns-menu"), null, "Esc closes it");
+});
+
+test("a Deal column waits in the Columns menu only where deals are a thing here, off until asked for, and wears the stage's pill", async () => {
+  // The menu above lists no "deal": that workspace has deals_on false (a salon). Here the read says deals are a
+  // thing (0004), so the column is offered, off, and picked it says each row's stage in the one pill.
+  await freshPage({
+    people: [
+      person(1, {
+        deal_id: "d1",
+        deal_stage: "proposed",
+        deal_service: "Ad management",
+        deal_proposed_at: iso(6 * 86_400_000),
+        deal_decided_at: null,
+        deal_ended_at: null,
+        deal_amount_cents: null,
+        deal_per: null,
+      }),
+      person(2),
+    ],
+    dealsOn: true,
+  });
+  let tree = draw();
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  assert.deepEqual(
+    menuItems(tree).find((c) => c.key === "deal"),
+    { key: "deal", on: false, locked: false },
+    "offered, off",
+  );
+  assert.ok(!headings(tree).includes("Deal"), "off until asked for");
+  click(byTestId(tree, "column-deal"));
+  tree = draw();
+  assert.ok(headings(tree).includes("Deal"));
+  assert.equal(
+    textOf(byTestId(rowOf(tree, "p1"), "row-deal")).trim(),
+    "Proposal out",
+    "the stage's word, the one pill",
+  );
+  assert.equal(textOf(byTestId(rowOf(tree, "p2"), "row-deal")).trim(), "", "nothing where no deal was recorded");
 });
 
 test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {

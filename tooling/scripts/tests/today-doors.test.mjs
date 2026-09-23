@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toLiveVM } from "@chanlytics/contracts";
+import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -137,7 +138,8 @@ const liveCall = () => ({
 /* -------------------------------- the pages, drawn -------------------------------- */
 
 let cells = [];
-let seq = 0;
+// Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
+const frames = hookFrames();
 const went = [];
 const flashes = [];
 globalThis.Icon = "Icon";
@@ -146,11 +148,11 @@ globalThis.React = {
   createElement: (type, p, ...kids) => {
     const props = { ...(p || {}), children: kids.flat(Infinity) };
     const node = { type, props };
-    if (typeof type === "function") node.rendered = type(props);
+    if (typeof type === "function") node.rendered = frames.render(type, props);
     return node;
   },
   useState: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init;
     return [
       cells[k],
@@ -160,7 +162,7 @@ globalThis.React = {
     ];
   },
   useReducer: (red, init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = init;
     return [
       cells[k],
@@ -170,13 +172,13 @@ globalThis.React = {
     ];
   },
   useRef: (init) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) cells[k] = { current: init };
     return cells[k];
   },
   useMemo: (fn) => fn(),
   useEffect: (fn) => {
-    const k = seq++;
+    const k = frames.key();
     if (!(k in cells)) {
       cells[k] = true;
       fn();
@@ -253,20 +255,20 @@ const buttonsSaying = (tree, words) => findAll(tree, (n) => n.type === "button" 
 const mountHero = (vm) => {
   globalThis.window.TODAY_DATA = vm;
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.HeroBrief();
 };
 // The day's lines (its receipts, the proof, a reply that failed) sit in the day's card under the work (TodayCard).
 const mountCard = (vm) => {
   globalThis.window.TODAY_DATA = vm;
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.TodayCard();
 };
 const mountQueue = (vm) => {
   globalThis.window.TODAY_DATA = vm;
   cells = [];
-  seq = 0;
+  frames.begin();
   return globalThis.window.AgentCommand();
 };
 const todayWith = (channels, over = {}) =>
