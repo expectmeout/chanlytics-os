@@ -342,10 +342,7 @@ test("a model that thinks: its thinking goes back with the tool results exactly 
   );
 });
 
-/** The tools a request marks strict: the API takes at most twenty ("Too many strict tools (26)", 23 Sep). */
-const strictOf = (request) => request.tools.filter((t) => t.strict === true).map((t) => t.name);
-
-test("a viewer is offered the read tools only; an operator the act tools too, which are strict, and never more strict tools than the API takes", async () => {
+test("a viewer is offered the read tools only; an operator the act tools too; no tool is strict", async () => {
   const viewer = scripted([ROUND([answer("Nothing waiting.")])]);
   await runAskTurn(turn(ctxFor(), { role: "viewer" }).input, ports(viewer.round));
   assert.deepEqual(
@@ -359,13 +356,10 @@ test("a viewer is offered the read tools only; an operator the act tools too, wh
     [...READ_TOOLS.map((t) => t.name), ...ACT_TOOLS.map((t) => t.name)],
     "no tool answers: the answer is the round's text",
   );
-  assert.deepEqual(
-    strictOf(op.requests[0]),
-    ACT_TOOLS.map((t) => t.name),
-    "the act tools are strict: their arguments are the card",
+  assert.ok(
+    [...op.requests[0].tools, ...viewer.requests[0].tools].every((t) => t.strict === undefined),
+    "REGRESSION: the API refused 26 strict tools, then the act tools' 31 optional parameters (it takes 20 and 24), on every operator turn",
   );
-  assert.ok(strictOf(op.requests[0]).length <= 20, "REGRESSION: 26 strict tools refused every operator's first round");
-  assert.deepEqual(strictOf(viewer.requests[0]), []);
 });
 
 test("an answer beside a read is set aside: it was written before its rows, so the model answers next round with them, and its Say is taken back", async () => {
@@ -540,7 +534,7 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
   }
 });
 
-test("a feature the API refuses is dropped and the same round asked again: strict tools first, the format when the refusal names it, and the words that come back without the format are prose", async () => {
+test("a format the API refuses is dropped and the same round asked again: words that come back are prose, JSON is read as JSON, and a second refusal is the turn's", async () => {
   const refusing = async (refusals, reply) => {
     const requests = [];
     const round = async (c) => {
@@ -555,18 +549,6 @@ test("a feature the API refuses is dropped and the same round asked again: stric
     );
     return { r: result, requests, formatRejected: lines.length };
   };
-  const strict = await refusing(["400 tools.2.strict: Extra inputs are not permitted"], answer("Nothing waiting."));
-  assert.deepEqual([strict.r.text, strict.r.failed, strict.r.rounds], ["Nothing waiting.", false, 1], "the same round");
-  assert.deepEqual(
-    strictOf(strict.requests[0]),
-    ACT_TOOLS.map((t) => t.name),
-  );
-  assert.ok(
-    strict.requests[1].tools.every((t) => t.strict === undefined),
-    "without strict the second time",
-  );
-  assert.ok(strict.requests[1].output_config.format, "the format stays");
-
   const named = await refusing(
     ["400 output_config.format.schema: too many properties"],
     prose("Nobody is waiting on you.\nSam called once."),
@@ -575,12 +557,8 @@ test("a feature the API refuses is dropped and the same round asked again: stric
     [named.r.answer.form, named.r.text, named.r.failed, named.formatRejected],
     ["prose", "Nobody is waiting on you.\nSam called once.", false, 1],
   );
-  assert.deepEqual(named.requests[1].output_config, { effort: "low" }, "without the format the second time");
-  assert.deepEqual(
-    strictOf(named.requests[1]),
-    ACT_TOOLS.map((t) => t.name),
-    "strict stays",
-  );
+  assert.deepEqual(named.requests[0].output_config.format, { type: "json_schema", schema: ASK_ANSWER_FORMAT });
+  assert.deepEqual(named.requests[1].output_config, { effort: "low" }, "the same round, without the format");
   const shaped = await refusing(["400 output_config.format: not supported"], answer("Nobody is waiting on you."));
   assert.deepEqual(
     [shaped.r.answer.form, shaped.r.text],
@@ -588,16 +566,17 @@ test("a feature the API refuses is dropped and the same round asked again: stric
     "the rules still ask for the shape: JSON written without the format is read as JSON, never shown raw",
   );
 
-  const both = await refusing(["400 schema too complex", "400 schema too complex"], prose("Nothing waiting."));
-  assert.deepEqual([both.requests.length, both.r.answer.form, both.r.failed], [3, "prose", false]);
-  assert.ok(both.requests[1].tools.every((t) => t.strict === undefined) && both.requests[1].output_config.format);
-  assert.equal(both.requests[2].output_config.format, undefined, "strict first, then the format");
-
-  const always = await refusing(["400 schema", "400 schema", "400 schema"], answer("Never read."));
+  const always = await refusing(["400 schema too complex", "400 schema too complex"], answer("Never read."));
   assert.deepEqual(
     [always.r.text, always.r.failed, always.r.failure, always.requests.length],
-    ["The model refused the question. Try it another way.", true, "bad_request", 3],
+    ["The model refused the question. Try it another way.", true, "bad_request", 2],
     "with nothing left to drop, the refusal is the turn's",
+  );
+  const other = await refusing(["400 messages: too long"], answer("Never read."));
+  assert.deepEqual(
+    [other.r.failure, other.requests.length],
+    ["bad_request", 1],
+    "a refusal of something else is not retried",
   );
 });
 

@@ -179,7 +179,9 @@ export function judge(c, r) {
   // The answer as the Line draws it, on every turn made since the Line.
   const a = m.answer;
   if (a && !m.failed) {
-    if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(a.say.headline))
+    // A message the headline quotes ("Yes! Pick a time here") is not a sentence of its own.
+    const own = a.say.headline.replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…");
+    if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(own))
       fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
     const cards = m.proposals ?? [];
     const { answer: drawn, cardOpen } = oneDoor(a, cards);

@@ -253,9 +253,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   ];
   const messages = foldHistory(input.history, input.text);
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
-  // The act tools are strict and the answer has its format, until the API
-  // refuses one: then that one is dropped and the same round is asked again.
-  let strict = true;
+  // The answer has its format until the API refuses it: then it is dropped and
+  // the same round is asked again. No tool is strict: the API takes twenty
+  // strict tools and twenty-four optional parameters across them (26 tools,
+  // then 31 parameters in the act tools alone, were refused on every operator
+  // turn, 23 Sep), and the tools ran as they always had without it.
   let format = true;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
@@ -391,15 +393,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         max_tokens: ASK_MAX_TOKENS,
         system,
         messages,
-        // The API takes at most twenty strict tools a request ("Too many strict
-        // tools (26)", 23 Sep), so the act tools are strict -- their arguments
-        // are the card -- and a read's filter or id is checked by the read.
-        tools: baseTools.map((d) => ({
-          name: d.name,
-          description: d.description,
-          input_schema: d.input_schema,
-          ...(strict && ACT_TOOL_NAMES.has(d.name) ? { strict: true } : {}),
-        })),
+        tools: baseTools.map((d) => ({ name: d.name, description: d.description, input_schema: d.input_schema })),
         // The last round may call no tool: all that is left is the answer.
         tool_choice: last ? { type: "none" } : { type: "auto" },
         output_config: format
@@ -420,18 +414,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         ));
       } catch (e) {
         if (e instanceof GatewayRefused) {
-          // A feature the API refuses is dropped and the same round asked
-          // again: the format when the refusal names it (the words that come
-          // back are prose, D15), else strict tools, then the format.
+          // The format refused: the same round is asked again without it, and
+          // what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          if (m && featureRejected(m) && (strict || format)) {
-            const drop = format && (/output_config|output_format/i.test(m) || !strict) ? "format" : "strict";
-            console.error(
-              drop === "format" ? "ask_format_rejected" : "ask_strict_rejected",
-              JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }),
-            );
-            if (drop === "format") format = false;
-            else strict = false;
+          if (m && format && featureRejected(m)) {
+            console.error("ask_format_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
+            format = false;
             round--;
             continue;
           }

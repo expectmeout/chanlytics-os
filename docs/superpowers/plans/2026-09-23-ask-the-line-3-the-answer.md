@@ -54,11 +54,11 @@
 | An answer set aside after its Say was sent | An empty `say` takes it back; the Line shows the reads again |
 | Only cards, all made | `answerForCards`, no second round |
 | A 400 naming `output_config`/`format` | Retries the round without the format (`ask_format_rejected`); words that come back are a `prose` answer, and JSON (the rules still ask for it) is read as JSON |
-| Any other 400 naming `strict` or a schema | Retries without strict (`ask_strict_rejected`), as today; a second one, without the format too |
+| A second refusal, or a 400 about anything else | The turn's own sentence; no tool is strict, so there is nothing else to drop |
 | JSON that does not normalise (the cap mid-answer, no headline) | `failedAnswer("I could not shape the answer. Ask again.")`; `ask_answer_unparsed` |
 | Nothing, a refusal, a timeout, a broken stream, rounds exhausted | Today's sentences, as `failedAnswer` |
 
-- **The request.** Every round has `tool_choice: {type: "auto"}`, and the last `{type: "none"}`. `output_config` is `{effort: "low", format: {type: "json_schema", schema: ASK_ANSWER_FORMAT}}`. Every tool is `strict` until the API refuses it.
+- **The request.** Every round has `tool_choice: {type: "auto"}`, and the last `{type: "none"}`. `output_config` is `{effort: "low", format: {type: "json_schema", schema: ASK_ANSWER_FORMAT}}`. No tool is `strict` (spec 7.1 said every tool): the API takes at most 20 strict tools and 24 optional parameters across them, and 26 tools, then the act tools' 31 parameters, were refused on every operator turn (23 Sep); the format is the one grammar.
 - **Time.** "Time is up" is appended to the newest user message: "Answer now with what you have." The next round is the last, so it is `none`.
 - **Streaming.** The text's `say` is read by `partialSay` and sent as `{t: "say", headline, detail}`, at most every 50ms. With the format refused, it is sent as `{t: "say", headline: "", detail: words}`. There is no `delta`. `ask_say_not_first` is logged once when the JSON's first key is not `say`.
 
