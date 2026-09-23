@@ -69,6 +69,13 @@ const SAMPLES = {
     globalName: "__BT",
     footer: "__BT.installBusinessTab();",
   },
+  // Not a sample either: the three (legacy-bridge/mascot), the character Today's band draws (pages/today-face.jsx),
+  // so the mockup's Today has its face. With no Ask behind the mockup, the band's field seeds the palette.
+  "/data/mascot.js": {
+    entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/mascot/index.ts"),
+    globalName: "__MS",
+    footer: "__MS.installMascot();",
+  },
 };
 const built = new Map();
 
@@ -97,6 +104,7 @@ async function sampleBundle(route) {
 export const reportsSampleBundle = () => sampleBundle("/data/reports-sample.js");
 export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
 export const businessTabBundle = () => sampleBundle("/data/business-tab.js");
+export const mascotBundle = () => sampleBundle("/data/mascot.js");
 
 export const send = (res, status, type, body) => {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });

@@ -144,7 +144,9 @@ const AskReal = ({ open, onClose }) => {
       if (d.fresh) newChat();
       else {
         if (d.about) setScope(typeof d.about === "object" ? d.about : null);
-        if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
+        // Today's band hands its thread over: the same conversation, continued here.
+        if (d.thread) openThread({ id: d.thread });
+        else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
         else submit(d.prompt);
       }
     }
