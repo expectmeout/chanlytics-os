@@ -190,6 +190,8 @@ export interface LeadContext {
   optedOut: boolean;
   /** The owner's notes on them — facts for the receptionist, never read aloud. */
   notes?: string | null;
+  /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+  proposalUrl?: string | null;
 }
 
 const EMPTY_LEAD: LeadContext = {
@@ -225,7 +227,7 @@ export async function readLeadContext(
 ): Promise<LeadContext> {
   const { data: contact, error: cErr } = await db
     .from("contacts")
-    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes")
+    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
@@ -266,6 +268,7 @@ export async function readLeadContext(
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     notes: contact.notes ?? null,
+    proposalUrl: contact.proposal_url ?? null,
   };
 }
 
@@ -301,5 +304,12 @@ export function describeLead(lead: LeadContext, now = new Date()): string {
   // The owner's own words about them: facts to use, never to recite.
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   if (notes) bits.push(`Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}`);
+  // The owner's priced answer for this person is a link (00154): the receptionist
+  // hands it over and prices nothing itself. A reader without the column says nothing.
+  const proposal = (lead.proposalUrl ?? "").trim();
+  if (proposal)
+    bits.push(
+      `The owner has a proposal ready for them at ${proposal}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.`,
+    );
   return bits.join(" ");
 }

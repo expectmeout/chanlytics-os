@@ -5398,6 +5398,8 @@ interface LeadContext {
     optedOut: boolean;
     /** The owner's notes on them — facts for the receptionist, never read aloud. */
     notes?: string | null;
+    /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
+    proposalUrl?: string | null;
 }
 /**
  * Everything both agents know about one lead, from the one place that knows it.
