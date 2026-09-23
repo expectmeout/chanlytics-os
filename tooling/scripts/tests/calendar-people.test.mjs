@@ -1095,7 +1095,18 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "journey").map((l) => l.id),
-    ["new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
+    // The journey continues past the booking (0004): the four deal lists, each drawn only where deals are a thing.
+    [
+      "new_week",
+      "booked_week",
+      "booked",
+      "asked_never_booked",
+      "lapsed",
+      "consultation_booked",
+      "proposal_out",
+      "clients",
+      "deal_ended",
+    ],
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id),
