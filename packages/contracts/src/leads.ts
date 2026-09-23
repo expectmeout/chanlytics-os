@@ -1044,7 +1044,16 @@ export interface LeadPeekVM {
    * on a tint the kind decides. The photograph has ONE home, here -- the band paints it under the mark and the
    * lightbox opens it on its own. While it rode beside the tile the two surfaces drifted over which one wins (D6).
    */
-  tile: { initials: string; tint: number; image: string | null; logo: string | null };
+  tile: {
+    initials: string;
+    tint: number;
+    /** The listing's photo as the row's tile draws it (leadTileSrc): already in the browser from the list, so the
+     *  band shows it at once, softened, while its own size arrives. */
+    image: string | null;
+    /** The whole photograph at the listing's own size: the band and the photo expanded draw it. */
+    band: string | null;
+    logo: string | null;
+  };
   /**
    * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
    * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
@@ -1388,7 +1397,8 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     tile: {
       initials: initialsOf(r.business_name),
       tint: leadTintOf(r.category),
-      image: r.image_url ?? null,
+      image: leadTileSrc(r.image_url),
+      band: r.image_url ?? null,
       logo: r.logo_url ?? null,
     },
     rated,
@@ -2124,7 +2134,14 @@ export interface LeadRowVM {
   /** The spread of reviews, one to five stars, or null when the listing did not say. */
   spread: [number, number, number, number, number] | null;
   /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
-  tile: { initials: string; tint: number; image: string | null; logo: string | null };
+  tile: {
+    initials: string;
+    tint: number;
+    image: string | null;
+    /** The whole photograph the peek's band draws, so the row can ask for it before it is opened. */
+    band: string | null;
+    logo: string | null;
+  };
   /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
   waitsOn: string | null;
   /** The row's state mark: Ready is silent; the rest wear an edge and a tag. */
@@ -2161,7 +2178,9 @@ const stageLabelOf = (stage: LeadStage, closedReason: string | null): string =>
  * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
  * scraper's URL asks for 408 wide, which every row downloaded for a 48px box. `s96-c` is a 96px square crop, which
  * the tile draws with object-fit anyway, and enough for a 2x screen. Any other host, or a URL with no size to
- * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph (toLeadPeekVM).
+ * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph at the listing's own
+ * size (`tile.band`), untouched: Google's place-photo service answered other sizes and WebP (`-rw`) unevenly when
+ * probed on 23 Sep, the same photo refusing one variant and serving the next, so no variant is asked of it.
  */
 export const LEAD_TILE_PX = 96;
 export function leadTileSrc(url: string | null | undefined, px: number = LEAD_TILE_PX): string | null {
@@ -2310,6 +2329,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       initials: initialsOf(r.business_name),
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
+      band: r.image_url ?? null,
       logo: r.logo_url ?? null,
     },
     waitsOn,

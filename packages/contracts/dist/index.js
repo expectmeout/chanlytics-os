@@ -5653,7 +5653,8 @@ function toLeadPeekVM(r, search, tz, now) {
     tile: {
       initials: initialsOf(r.business_name),
       tint: leadTintOf(r.category),
-      image: r.image_url ?? null,
+      image: leadTileSrc(r.image_url),
+      band: r.image_url ?? null,
       logo: r.logo_url ?? null
     },
     rated,
@@ -6076,6 +6077,7 @@ function toLeadRowVM(r, tz, now, search = null) {
       initials: initialsOf(r.business_name),
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
+      band: r.image_url ?? null,
       logo: r.logo_url ?? null
     },
     waitsOn,
