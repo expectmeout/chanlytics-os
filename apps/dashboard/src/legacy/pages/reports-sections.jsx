@@ -213,17 +213,33 @@ const ReportsSections = ({ R, pick }) => {
   const people = rptPeriods(vm, "total", !!peopleBefore);
   const before = vm.period.before.toLowerCase();
   const sentPct = (n) => (cm && cm.totals.sent ? Math.round((n / cm.totals.sent) * 100) : 0);
-  // Deals (0004): the proposals of the period and what became of them, then the clients now. Three sentences from
-  // contracts' DealReportVM, each said once, in the booked card's own shape: the cohort's two lines, and the stock
-  // under the one hairline. No chart, since a few proposals a month are a sentence, not a series. Drawn wherever a
-  // deal was ever recorded, whatever came in this period: an engagement is agreed in a call or a meeting as often as
-  // in a message, so a quiet month for the receptionist is not a month without clients.
-  const deals = R.deals && R.deals.present ? (
+  // Deals (0004, 0008): one cohort, the proposals of the period, and beside it the stock. The headline says how many
+  // went out; the card draws what became of them in the kit's bars, each outcome's count and its share of the cohort,
+  // which are the cohort's parts said once (no sentence repeats them); the lines beside it say what the bars cannot --
+  // how long a yes took, where the new clients came from, why people passed, what is still open -- each only when it
+  // has something; the clients now close the section under the one hairline. Every word is contracts' DealReportVM.
+  // Drawn wherever deals are on and a deal was ever recorded, whatever came in this period: an engagement is agreed
+  // in a call or a meeting as often as in a message, so a quiet month for the receptionist is not a month without
+  // clients.
+  const dl = R.deals && R.deals.present ? R.deals : null;
+  const dealLines = dl && dl.lines.length ? (
+    <ul className={`rpt-deals-lines${dl.outcomes ? " rpt-span-7" : ""}`} data-testid="rpt-deals-lines">
+      {dl.lines.map((l) => <li key={l.id} data-line={l.id}>{l.text}</li>)}
+    </ul>
+  ) : null;
+  const deals = dl ? (
     <RptSection title="Deals" testid="rpt-deals">
-      <div className="rpt-booked">
-        <p className="rpt-booked-copy" data-testid="rpt-deals-headline">{R.deals.headline}</p>
-        {R.deals.parts && <p className="rpt-booked-copy" data-testid="rpt-deals-parts">{R.deals.parts}</p>}
-        <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{R.deals.stock}</p>
+      <div className="rpt-deals">
+        <p className="rpt-deals-headline" data-testid="rpt-deals-headline">{dl.headline}</p>
+        {dl.outcomes ? (
+          <div className="rpt-grid">
+            <ChartCard className="rpt-span-5" title={dl.outcomes.title} testid="rpt-deals-outcomes">
+              <BarList max={dl.outcomes.max} rows={dl.outcomes.rows} />
+            </ChartCard>
+            {dealLines}
+          </div>
+        ) : dealLines}
+        <p className="rpt-booked-rest" data-testid="rpt-deals-stock">{dl.stock}</p>
       </div>
     </RptSection>
   ) : null;
@@ -302,7 +318,7 @@ const ReportsSections = ({ R, pick }) => {
             </div>
           </RptSection>
 
-          {/* Drawn only where a deal was ever recorded, so a salon's Reports never grows a section of zeros. */}
+          {/* Drawn only where deals are on and a deal was ever recorded, so a workspace whose customers book never grows a section of zeros. */}
           {deals}
 
           <RptSection title="Your customers">

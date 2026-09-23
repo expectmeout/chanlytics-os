@@ -9,7 +9,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
-import { toReportVM, toCampaignReportVM, toBookingReportVM, reportFacts, toGoogleVM } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toCampaignReportVM,
+  toBookingReportVM,
+  toDealReportVM,
+  reportFacts,
+  toGoogleVM,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -195,8 +202,42 @@ const campaignDto = () => ({
 });
 const CALENDAR = { calendar: "ok", days: 7, asked: 8, booked: 3 };
 
-/** Deals as the bridge publishes them where none was ever recorded (toDealReportVM(null)): the section is not drawn. */
-const NO_DEALS = { present: false, headline: "", parts: "", stock: "" };
+/** Deals as the bridge publishes them where deals are off or none was ever recorded: the section is not drawn. */
+const NO_DEALS = toDealReportVM(null, "7 days");
+/** A report as the route answers it (dealReport, 0008), for the bridge's own view model: the round trip. */
+const dealsDto = (over = {}) => ({
+  any: true,
+  sent: 0,
+  won: 0,
+  lost: 0,
+  waiting: 0,
+  clients: 0,
+  monthly_cents: 0,
+  median_days_to_yes: null,
+  open: { count: 0, amounts: [] },
+  sources: [],
+  reasons: [],
+  ...over,
+});
+/** A week with five proposals out, three yeses, one pass with its reason and one still waiting, and more open. */
+const DEALS = toDealReportVM(
+  dealsDto({
+    sent: 5,
+    won: 3,
+    lost: 1,
+    waiting: 1,
+    clients: 4,
+    monthly_cents: 750_000,
+    median_days_to_yes: 9,
+    open: { count: 3, amounts: [{ amount_cents: 425_000, per: "once", currency: "USD" }] },
+    sources: [
+      { came_from: "lead", count: 2 },
+      { came_from: "sms", count: 1 },
+    ],
+    reasons: [{ reason: "price", count: 1 }],
+  }),
+  "7 days",
+);
 const surface = ({ report = {}, campaigns = campaignDto(), booking = CALENDAR, deals = NO_DEALS } = {}) => {
   const vm = toReportVM(reportDto(report));
   const cm = campaigns ? toCampaignReportVM(campaigns) : null;
@@ -847,45 +888,83 @@ test("REGRESSION (C25): Reports says what the campaigns sent, not what offers ea
   assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
 });
 
-test("Reports draws a Deals section only where a deal was ever recorded, with the cohort and the stock", () => {
-  // The bridge publishes contracts' DealReportVM (0004): present only where a deal was ever recorded, so a salon's
-  // Reports never grows a section of zeros. The section says the period's cohort and the clients now, each once.
+test("Reports draws a Deals section where deals are on and a deal was recorded: the headline, what became of the cohort in the kit's bars, the lines beside them, the stock", () => {
+  // The bridge publishes contracts' DealReportVM (0004, 0008) from the route's report; nothing where deals are off or
+  // none was ever recorded, so a workspace whose customers book never grows a section of zeros.
   const none = page({ deals: NO_DEALS });
   assert.equal(byTestId(none, "rpt-deals"), null, "nothing where no deal was ever recorded");
-  assert.equal(byTestId(none, "rpt-deals-headline"), null);
-  const some = page({
-    deals: {
-      present: true,
-      headline: "5 proposals went out in the last 30 days.",
-      parts: "3 became clients · 1 passed · 1 still waiting",
-      stock: "4 clients now · $7,500 a month.",
-    },
-  });
-  assert.ok(byTestId(some, "rpt-deals"), "its own section");
-  assert.equal(textOf(byTestId(some, "rpt-deals-headline")), "5 proposals went out in the last 30 days.");
-  assert.equal(textOf(byTestId(some, "rpt-deals-parts")), "3 became clients · 1 passed · 1 still waiting");
-  assert.equal(textOf(byTestId(some, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
-  const quiet = page({
-    deals: { present: true, headline: "No proposals went out in the last 7 days.", parts: "", stock: "2 clients now." },
-  });
-  assert.equal(byTestId(quiet, "rpt-deals-parts"), null, "no cohort: no parts line");
-  assert.equal(textOf(byTestId(quiet, "rpt-deals-stock")), "2 clients now.");
+  assert.equal(byTestId(none, "rpt-deals-outcomes"), null);
+  const tree = page({ deals: DEALS });
+  const section = byTestId(tree, "rpt-deals");
+  assert.ok(section, "its own section");
+  assert.equal(textOf(byTestId(section, "rpt-deals-headline")), "5 proposals went out in the last 7 days.");
+  const bars = byTestId(section, "rpt-deals-outcomes");
+  assert.ok(classes(bars).includes("ck-card"), "the kit's card");
+  assert.equal(textOf(cls(bars, "ck-card-title")), "What became of the proposals");
+  const rows = all(bars, (n) => classes(n).includes("ck-barlist-row"));
+  assert.deepEqual(
+    rows.map((r) => [textOf(cls(r, "ck-barlist-label")), textOf(cls(r, "ck-barlist-value"))]),
+    [
+      ["Became clients", "3  60%"],
+      ["Still waiting", "1  20%"],
+      ["Passed", "1  20%"],
+    ],
+  );
+  const drawn = all(bars, (n) => classes(n).includes("ck-barlist-bar")).map((b) => b.props.style);
+  assert.deepEqual(
+    drawn.map((s) => s.width),
+    ["60%", "20%", "20%"],
+    "each bar out of the proposals sent, not out of the largest outcome",
+  );
+  assert.ok(
+    drawn.every((s) => s.background === "var(--chart-1)"),
+    "the kit's one data hue, no colour of its own",
+  );
+  assert.deepEqual(
+    all(byTestId(section, "rpt-deals-lines"), (n) => n.type === "li").map((l) => [l.props["data-line"], textOf(l)]),
+    [
+      ["median", "Median 9 days to a yes."],
+      ["sources", "2 of 3 new clients came from Leads."],
+      ["reasons", "Price was the reason given for passing."],
+      ["open", "$4,250 still open across 3 proposals."],
+    ],
+  );
+  assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
+  // Each count once: the bars are the cohort's parts, so the sentence that says them is not drawn beside them.
+  assert.ok(!textOf(section).includes(DEALS.parts), "the parts are drawn as bars, never as a sentence too");
+  // Inside the Deals section only: the five tiles stay five, and none of the copy the e2e holds Reports to appears.
+  assert.equal(all(byTestId(tree, "reports-tiles"), (n) => classes(n).includes("rpt-tile")).length, 5);
+  for (const s of ["Revenue", "Lead sources", "Where bookings come from"]) assert.ok(!textOf(tree).includes(s), s);
+});
+
+test("a period no proposal went out in draws no bars: the headline, what is still open in the column, and the stock", () => {
+  const tree = page({ deals: toDealReportVM(dealsDto({ clients: 2, open: { count: 2, amounts: [] } }), "7 days") });
+  const section = byTestId(tree, "rpt-deals");
+  assert.equal(textOf(byTestId(section, "rpt-deals-headline")), "No proposals went out in the last 7 days.");
+  assert.equal(byTestId(section, "rpt-deals-outcomes"), null, "no bars of nothing");
+  const lines = byTestId(section, "rpt-deals-lines");
+  assert.deepEqual(all(lines, (n) => n.type === "li").map(textOf), ["2 proposals still open."]);
+  assert.ok(!classes(lines).includes("rpt-span-7"), "no card to sit beside: the lines take the column");
+  assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "2 clients now.");
+  const bare = page({ deals: toDealReportVM(dealsDto({ clients: 1 }), "7 days") });
+  assert.equal(byTestId(bare, "rpt-deals-lines"), null, "nothing more to say: no lines");
+  assert.equal(textOf(byTestId(bare, "rpt-deals-stock")), "1 client now.");
 });
 
 test("REGRESSION: a period nobody wrote or called in still says its deals -- the section sat inside the branch for a period with messages, so a workspace whose deals are made in meetings saw none", () => {
   const tree = page({
     report: quiet(),
-    deals: {
-      present: true,
-      headline: "1 proposal went out in the last 7 days.",
-      parts: "0 became clients · 0 passed · 1 still waiting",
-      stock: "No clients right now.",
-    },
+    deals: toDealReportVM(dealsDto({ sent: 1, waiting: 1, open: { count: 1, amounts: [] } }), "7 days"),
   });
   assert.ok(card(tree, "reports-empty"), "the period is still said to be quiet");
   assert.ok(byTestId(tree, "rpt-deals"), "and the deals are there beside it");
   assert.equal(textOf(byTestId(tree, "rpt-deals-headline")), "1 proposal went out in the last 7 days.");
-  assert.equal(byTestId(page({ report: quiet(), deals: NO_DEALS }), "rpt-deals"), null, "a quiet salon grows nothing");
+  assert.ok(byTestId(tree, "rpt-deals-outcomes"), "with what became of it");
+  assert.equal(
+    byTestId(page({ report: quiet(), deals: NO_DEALS }), "rpt-deals"),
+    null,
+    "a quiet workspace whose customers book grows nothing",
+  );
 });
 
 test("REGRESSION: recording a deal re-reads Reports as well as People -- an open session kept the Deals section's old numbers until a reload", async () => {

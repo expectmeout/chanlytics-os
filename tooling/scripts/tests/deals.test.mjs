@@ -43,6 +43,7 @@ const {
   dealIsOpen,
   noProposalSince,
   toDealReportVM,
+  PERSON_CAME_FROM_WORDS,
   DEAL_REFUSALS,
   stateOf,
 } = contracts;
@@ -569,34 +570,176 @@ test("a deal is open while it is a proposal out or a client; the current deal an
   assert.equal(consultsHeldWords(1), "1 held in the last week, no proposal yet");
 });
 
+/** A report as the route answers it (dealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
+const report = (over = {}) => ({
+  any: true,
+  sent: 0,
+  won: 0,
+  lost: 0,
+  waiting: 0,
+  clients: 0,
+  monthly_cents: 0,
+  median_days_to_yes: null,
+  open: { count: 0, amounts: [] },
+  sources: [],
+  reasons: [],
+  ...over,
+});
+const linesOf = (over) => toDealReportVM(report(over), "30 days").lines.map((l) => l.text);
+const usd = (amount_cents, per) => ({ amount_cents, per, currency: "USD" });
+
 test("the report counts one cohort and the stock, and is absent where no deal was ever recorded", () => {
-  assert.equal(toDealReportVM(null, "30 days").present, false);
-  assert.equal(
-    toDealReportVM({ any: false, sent: 0, won: 0, lost: 0, waiting: 0, clients: 0, monthly_cents: 0 }, "30 days")
-      .present,
-    false,
-  );
+  const absent = { present: false, headline: "", parts: "", stock: "", outcomes: null, lines: [] };
+  assert.deepEqual(toDealReportVM(null, "30 days"), absent);
+  assert.deepEqual(toDealReportVM(report({ any: false }), "30 days"), absent);
   const vm = toDealReportVM(
-    { any: true, sent: 5, won: 3, lost: 1, waiting: 1, clients: 4, monthly_cents: 750_000 },
+    report({ sent: 5, won: 3, lost: 1, waiting: 1, clients: 4, monthly_cents: 750_000 }),
     "30 days",
   );
   assert.equal(vm.present, true);
   assert.equal(vm.headline, "5 proposals went out in the last 30 days.");
   assert.equal(vm.parts, "3 became clients · 1 passed · 1 still waiting");
   assert.equal(vm.stock, "4 clients now · $7,500 a month.");
-  const quiet = toDealReportVM(
-    { any: true, sent: 0, won: 0, lost: 0, waiting: 0, clients: 1, monthly_cents: 0 },
-    "7 days",
-  );
+  const quiet = toDealReportVM(report({ clients: 1 }), "7 days");
   assert.equal(quiet.headline, "No proposals went out in the last 7 days.");
   assert.equal(quiet.parts, "");
   assert.equal(quiet.stock, "1 client now.");
-  const one = toDealReportVM(
-    { any: true, sent: 1, won: 1, lost: 0, waiting: 0, clients: 1, monthly_cents: 0 },
-    "7 days",
-  );
+  const one = toDealReportVM(report({ sent: 1, won: 1, clients: 1 }), "7 days");
   assert.equal(one.headline, "1 proposal went out in the last 7 days.");
   assert.equal(one.parts, "1 became a client · 0 passed · 0 still waiting");
+});
+
+test("what became of the period's proposals, as bars out of the cohort's size: each outcome's count and share, a zero said, no bars where none went out", () => {
+  assert.deepEqual(toDealReportVM(report({ sent: 5, won: 3, lost: 1, waiting: 1 }), "30 days").outcomes, {
+    title: "What became of the proposals",
+    max: 5,
+    rows: [
+      { id: "won", label: "Became clients", value: 3, display: "3  60%" },
+      { id: "waiting", label: "Still waiting", value: 1, display: "1  20%" },
+      { id: "lost", label: "Passed", value: 1, display: "1  20%" },
+    ],
+  });
+  assert.deepEqual(
+    toDealReportVM(report({ sent: 3, won: 1, waiting: 2 }), "7 days").outcomes.rows.map((r) => r.display),
+    ["1  33%", "2  67%", "0  0%"],
+  );
+  assert.equal(toDealReportVM(report({ clients: 2 }), "30 days").outcomes, null, "none went out: no bars");
+});
+
+test("the lines, each only when it has something and in this order: how long a yes took, where the new clients came from, why people passed, what is still open", () => {
+  const vm = toDealReportVM(
+    report({
+      sent: 7,
+      won: 3,
+      lost: 3,
+      waiting: 1,
+      clients: 3,
+      median_days_to_yes: 9,
+      open: { count: 3, amounts: [usd(120_000, "once"), usd(305_000, "once")] },
+      sources: [
+        { came_from: "lead", count: 2 },
+        { came_from: "whatsapp", count: 1 },
+      ],
+      reasons: [
+        { reason: "price", count: 2 },
+        { reason: "timing", count: 1 },
+      ],
+    }),
+    "30 days",
+  );
+  assert.deepEqual(vm.lines, [
+    { id: "median", text: "Median 9 days to a yes." },
+    { id: "sources", text: "2 of 3 new clients came from Leads." },
+    { id: "reasons", text: "Price was the most common reason for passing, 2 of 3." },
+    { id: "open", text: "$4,250 still open across 3 proposals." },
+  ]);
+  assert.deepEqual(
+    toDealReportVM(report({ sent: 2, waiting: 2 }), "30 days").lines,
+    [],
+    "nothing more to say: no line",
+  );
+});
+
+test("how long a yes took: the median in whole days, under a day said so, and one client's own wait, which is no median", () => {
+  assert.deepEqual(linesOf({ won: 4, median_days_to_yes: 1 }), ["Median 1 day to a yes."]);
+  assert.deepEqual(linesOf({ won: 4, median_days_to_yes: 0 }), ["Median under a day to a yes."]);
+  assert.deepEqual(linesOf({ won: 1, median_days_to_yes: 12 }), ["12 days to a yes."]);
+  assert.deepEqual(linesOf({ won: 1, median_days_to_yes: 0 }), ["Under a day to a yes."]);
+  assert.deepEqual(linesOf({ won: 2, median_days_to_yes: null }), [], "no yes with a day: no line");
+});
+
+test("what is still open: every proposal out now, and what those carrying an amount add up to by how each recurs", () => {
+  assert.deepEqual(linesOf({ open: { count: 3, amounts: [] } }), ["3 proposals still open."]);
+  assert.deepEqual(linesOf({ open: { count: 1, amounts: [] } }), ["1 proposal still open."]);
+  assert.deepEqual(linesOf({ open: { count: 1, amounts: [usd(120_000, "once")] } }), [
+    "$1,200 still open in 1 proposal.",
+  ]);
+  // What was recorded is summed and the rest is not guessed at (0004): three open, two carrying an amount.
+  assert.deepEqual(linesOf({ open: { count: 3, amounts: [usd(425_000, null), usd(60_000, "month")] } }), [
+    "$4,250 + $600 a month still open across 3 proposals.",
+  ]);
+});
+
+test("where the new clients came from: the source most of them share, said as a sentence for every source People knows", () => {
+  const said = Object.keys(PERSON_CAME_FROM_WORDS).map(
+    (came_from) => linesOf({ won: 3, sources: [{ came_from, count: 2 }] })[0],
+  );
+  assert.deepEqual(said, [
+    "2 of 3 new clients came from WhatsApp.",
+    "2 of 3 new clients came by text.",
+    "2 of 3 new clients came by email.",
+    "2 of 3 new clients came by phone.",
+    "2 of 3 new clients came from your calendar.",
+    "2 of 3 new clients were added by hand.",
+    "2 of 3 new clients came from your imported history.",
+    "2 of 3 new clients came from Leads.",
+  ]);
+  assert.deepEqual(linesOf({ won: 3, sources: [{ came_from: "manual", count: 1 }] }), [
+    "1 of 3 new clients was added by hand.",
+  ]);
+  assert.deepEqual(linesOf({ won: 1, sources: [{ came_from: "call", count: 1 }] }), ["Your new client came by phone."]);
+  const most = [
+    { came_from: "sms", count: 1 },
+    { came_from: "lead", count: 3 },
+  ];
+  assert.deepEqual(
+    linesOf({ won: 5, sources: most }),
+    ["3 of 5 new clients came from Leads."],
+    "the most, whatever order",
+  );
+  assert.deepEqual(linesOf({ won: 2, sources: [{ came_from: "fax", count: 2 }] }), [], "a source it cannot say");
+  assert.deepEqual(linesOf({ won: 2, sources: [] }), [], "nobody's source known");
+});
+
+test("why people passed: the reason most gave; no reason is not one, and those who gave none are said only where they could change the answer", () => {
+  const passed = (lost, ...given) => linesOf({ lost, reasons: given.map(([reason, count]) => ({ reason, count })) });
+  assert.deepEqual(passed(3, ["price", 2], ["timing", 1]), ["Price was the most common reason for passing, 2 of 3."]);
+  // One who gave none cannot make timing's one reach price's three: not said.
+  assert.deepEqual(passed(5, ["price", 3], ["timing", 1]), ["Price was the most common reason for passing, 3 of 5."]);
+  // One who gave none could tie it, two could overturn it: said.
+  assert.deepEqual(passed(4, ["price", 2], ["timing", 1]), [
+    "Price was the most common reason for passing, 2 of 4; 1 gave no reason.",
+  ]);
+  assert.deepEqual(passed(5, ["price", 2], ["timing", 1]), [
+    "Price was the most common reason for passing, 2 of 5; 2 gave no reason.",
+  ]);
+  // A tie at the top names every reason in it.
+  assert.deepEqual(passed(2, ["price", 1], ["timing", 1]), [
+    "Price and timing were the most common reasons for passing, 1 each of 2.",
+  ]);
+  assert.deepEqual(passed(3, ["price", 1], ["timing", 1]), [
+    "Price and timing were the most common reasons for passing, 1 each of 3; 1 gave no reason.",
+  ]);
+  // One reason given: the only one, the one every pass gave, or one person's.
+  assert.deepEqual(passed(3, ["elsewhere", 1]), ["Going elsewhere was the only reason given for passing, 1 of 3."]);
+  assert.deepEqual(passed(2, ["not_a_fit", 2]), ["Not being a fit was the reason given for passing, 2 of 2."]);
+  assert.deepEqual(passed(1, ["no_reply", 1]), ["No reply was the reason given for passing."]);
+  assert.deepEqual(passed(3, ["other", 2], ["price", 1]), [
+    "Something else was the most common reason for passing, 2 of 3.",
+  ]);
+  // Nobody gave one, or only a reason this build does not know: no line.
+  assert.deepEqual(passed(3), []);
+  assert.deepEqual(passed(2, ["moved", 2]), []);
 });
 
 test("every refusal the door can answer has a sentence", () => {
