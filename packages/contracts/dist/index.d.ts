@@ -8945,6 +8945,16 @@ declare const ASK_MAX_CHARS = 1000;
  * grounding. One name: the loop sends it, and the edge gateway defaults to
  * it when a request names none, so the two cannot drift apart. The eval set
  * decides if this stays.
+ *
+ * The Line's gate (2026-09-23, spec 8.3: three runs each, the same build but
+ * for this line, low effort on both). Sonnet 5 passed 27 of 28 every run
+ * (hours has nothing seeded). Opus 5.5 passed 24, 23 and 22: it wrote its
+ * first words a second sooner (2.3 s against 3.2 s median) and answered in
+ * one round far more often (25 of 28 against 14), at $0.012 a turn against
+ * $0.010; but it never opened the profile it said it was opening (the person
+ * was not read first, so the route was dropped), twice said it had proposed
+ * a closure it had not, and ran a two-sentence headline in six answers of
+ * 84. It replaces Sonnet 5 only by passing everything Sonnet 5 passes.
  */
 declare const ASK_MODEL = "claude-sonnet-5";
 declare const ASK_MAX_ROUNDS = 4;
