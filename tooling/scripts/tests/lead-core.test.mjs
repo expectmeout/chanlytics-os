@@ -21,7 +21,7 @@ import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packag
 import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
 import { afterProbe } from "../../../packages/core/src/leads/question.ts";
 import { discoveryEnding, termsShortOf, runStateOf } from "../../../packages/core/src/leads/endings.ts";
-import { leadMarkFrom } from "../../../packages/core/src/leads/mark.ts";
+import { leadMarkFrom, leadMarksFrom } from "../../../packages/core/src/leads/mark.ts";
 import { runIdFor, sha256Hex } from "../../../packages/core/src/leads/ids.ts";
 import { PLAN, mapsItem, fakeJudge } from "./_lead-fixtures.mjs";
 
@@ -669,4 +669,32 @@ test("the mark a site declares: a reference into the page's own graph is not an 
   );
   // A fragment hanging off a real path is still a real path: the server ignores what follows the hash.
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/mark.svg#a">`), O), `${O}/mark.svg#a`);
+});
+
+// 00161: the collect keeps a copy of the first mark whose bytes pass, so it needs every candidate, in the order the
+// single answer always chose: a wordmark too wide for a square tile gives way to the site's own home-screen icon.
+test("every mark a site declares, best first: the said logo, then its icons by how good they are, each once", () => {
+  const O = "https://zilkerstrength.example";
+  const head = (inner) => `<!doctype html><html><head>${inner}</head><body></body></html>`;
+  const page = head(
+    `<link rel="icon" href="/favicon.ico">` +
+      `<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">` +
+      `<link rel="apple-touch-icon" sizes="180x180" href="/touch.png">` +
+      `<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">` +
+      `<link rel="shortcut icon" href="/touch.png">` +
+      `<script type="application/ld+json">{"@type":"Organization","logo":"https://cdn.example/wordmark.png"}</script>`,
+  );
+  assert.deepEqual(
+    leadMarksFrom(page, O),
+    ["https://cdn.example/wordmark.png", `${O}/touch.png`, `${O}/icon-192.png`, `${O}/icon-32.png`, `${O}/favicon.ico`],
+    "the said logo, the home-screen icon, the bigger icon, the smaller, the favicon; an address named twice once",
+  );
+  assert.equal(leadMarkFrom(page, O), leadMarksFrom(page, O)[0], "the one answer is the list's first");
+  assert.deepEqual(
+    leadMarksFrom(head(`<link rel="icon" href="/a.png"><link rel="icon" href="/b.png">`), O),
+    [`${O}/a.png`, `${O}/b.png`],
+    "between two that score the same, the one the page wrote first",
+  );
+  assert.deepEqual(leadMarksFrom(head(`<meta charset="utf-8">`), O), [], "a page that declares none has none");
+  assert.deepEqual(leadMarksFrom("", O), [], "and nothing read is nothing");
 });

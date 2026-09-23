@@ -22,6 +22,8 @@ import { ApifyRefused, ApifyRetryable } from "../../../packages/channels/src/api
 import { leadDb } from "../../../apps/edge/lib/leads/lead-db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "./_lead-world.mjs";
 import { PLAN, actorRun, mapsItem } from "./_lead-fixtures.mjs";
+import { MARK_MAX_BYTES } from "../../../packages/core/src/leads/mark-image.ts";
+import { notAnImage, png } from "./_mark-images.mjs";
 
 const OWNER = "job-1";
 function world(over = {}) {
@@ -694,4 +696,101 @@ test("the mark: a page that does not answer, or answers something that is not a 
     [null, null],
     "neither a page with nothing in it nor a site that refused us leaves a mark",
   );
+});
+
+// 00161: the mark the site declares never drew (the content policy blocks every site), so the collect keeps a copy.
+test("the mark we keep: the first candidate whose bytes pass is stored, a wordmark gives way to the icon, and a copy that cannot be kept leaves only the address", async () => {
+  const { w, p } = await probed();
+  const O1 = "https://place0001.example";
+  w.pages[O1] =
+    `<head><script type="application/ld+json">{"@type":"Organization","logo":"https://cdn.example/wordmark.png"}</script>` +
+    `<link rel="apple-touch-icon" sizes="180x180" href="/touch.png"></head>`;
+  w.pages["https://place0002.example"] = `<head><link rel="icon" type="image/png" href="/icon.png"></head>`;
+  w.pages["https://place0004.example"] = `<head><link rel="apple-touch-icon" href="/t.png"></head>`;
+  w.pages["https://place0005.example"] = `<head><link rel="apple-touch-icon" href="/t.png"></head>`;
+  // An SVG icon outranks the home-screen icon as an address to record, and is never asked for as bytes to keep.
+  w.pages["https://place0006.example"] =
+    `<head><link rel="icon" type="image/svg+xml" href="/i.svg"><link rel="apple-touch-icon" sizes="180x180" href="/t.png"></head>`;
+  const refused = png(180, 180);
+  const images = {
+    "https://cdn.example/wordmark.png": png(400, 100), // four times as wide as tall
+    [`${O1}/touch.png`]: png(180, 180),
+    "https://place0002.example/icon.png": notAnImage, // the site's error page where its icon should be
+    "https://place0004.example/t.png": refused,
+    "https://place0005.example/t.png": png(192, 192),
+    "https://place0006.example/t.png": png(180, 180),
+  };
+  const asked = [];
+  const kept = [];
+  const ports = {
+    ...p("c1"),
+    fetchBytes: async (url, ms, max) => {
+      asked.push({ url, max, ms });
+      return images[url] ?? null;
+    },
+    storeMark: async (bytes, image) => {
+      if (bytes === refused) return null; // storage said no
+      kept.push(image);
+      // Named by what it is, as the real store names it by its hash: the leads are marked side by side.
+      return `${(image.width === 180 ? "a" : "b").repeat(64)}.${image.kind}`;
+    },
+  };
+  const out = await collect(ports, w.runs()[0].id, "p0", "c1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const lead = (n) => w.T.leads.find((l) => l.place_id === `ChIJfixture000${n}`) || {};
+
+  assert.deepEqual(
+    asked.filter((a) => a.url.startsWith("https://cdn.example") || a.url.startsWith(O1)).map((a) => a.url),
+    ["https://cdn.example/wordmark.png", `${O1}/touch.png`],
+    "the said logo is asked for first, and the home-screen icon only when the logo will not do",
+  );
+  assert.ok(
+    asked.every((a) => a.max === MARK_MAX_BYTES && a.ms > 250),
+    "never more than a logo's bytes, and never without time to read them",
+  );
+  assert.deepEqual(
+    [lead(1).mark_path, lead(1).logo_url],
+    [`${"a".repeat(64)}.png`, `${O1}/touch.png`],
+    "the copy of the icon is kept, and the address it came from is the one stored beside it",
+  );
+  assert.deepEqual(
+    [lead(2).mark_path, lead(2).logo_url],
+    [null, "https://place0002.example/icon.png"],
+    "an error page is no copy; the address the site declared is still recorded",
+  );
+  assert.deepEqual(
+    [lead(4).mark_path, lead(4).logo_url],
+    [null, "https://place0004.example/t.png"],
+    "a copy storage would not take leaves the lead as it was before 00161",
+  );
+  assert.equal(lead(5).mark_path, `${"b".repeat(64)}.png`, "one refusal does not stop the next lead's copy");
+  assert.equal(
+    asked.some((a) => a.url.endsWith(".svg")),
+    false,
+    "an SVG is never asked for, so it spends none of the lead's tries",
+  );
+  assert.deepEqual(
+    [lead(6).mark_path, lead(6).logo_url],
+    [`${"a".repeat(64)}.png`, "https://place0006.example/t.png"],
+    "and the icon after it is the copy",
+  );
+  assert.deepEqual(
+    kept.map((i) => [i.kind, i.width, i.height]).sort((x, y) => x[1] - y[1]),
+    [
+      ["png", 180, 180],
+      ["png", 180, 180],
+      ["png", 192, 192],
+    ],
+    "only what passed the check reached storage",
+  );
+  assert.equal(lead(3).mark_path ?? null, null, "a site that declared nothing is not asked for bytes");
+});
+
+test("the mark we keep: without the image wires (a runtime that stores nothing) the address is still read, and no copy is claimed", async () => {
+  const { w, p } = await probed();
+  w.pages["https://place0001.example"] = `<head><link rel="apple-touch-icon" href="/t.png"></head>`;
+  const out = await collect(p("c1"), w.runs()[0].id, "p0", "c1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const one = w.T.leads.find((l) => l.place_id === "ChIJfixture0001");
+  assert.deepEqual([one.logo_url, one.mark_path], ["https://place0001.example/t.png", null]);
 });

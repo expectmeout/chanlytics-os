@@ -1399,7 +1399,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
       band: r.image_url ?? null,
-      logo: r.logo_url ?? null,
+      logo: r.mark_url ?? null,
     },
     rated,
     slots: leadSlots(r),
@@ -1579,8 +1579,11 @@ export interface LeadRowDto {
   neighborhood?: string | null;
   lat?: number | null;
   lng?: number | null;
-  /** D6 (00147): the business's own mark, from its home page. */
-  logo_url?: string | null;
+  /**
+   * D6 (00161): the business's own mark, as the copy we keep -- `leadMarkSrc` over the lead's `mark_path`. Never the
+   * address on its own site, which the dashboard's content policy blocks.
+   */
+  mark_url?: string | null;
   stage: LeadStage;
   closed_reason: string | null;
   contact_id: string | null;
@@ -2189,6 +2192,28 @@ export function leadTileSrc(url: string | null | undefined, px: number = LEAD_TI
   return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
 }
 
+/** 00161's public bucket: the copies of leads' marks we keep, each named by its own hash. */
+export const LEAD_MARKS_BUCKET = "lead-marks";
+/** The only names the bucket holds, and the only ones 00161's CHECK lets a lead keep. */
+export const LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
+
+/**
+ * Where a kept mark is served: the project's own storage, on the Supabase origin the dashboard's content policy
+ * already lets images in from (csp.ts reads the same variable). Null for no copy, for anything that is not a name we
+ * wrote, and without an https origin to serve it from.
+ */
+export function leadMarkSrc(supabaseUrl: string | null | undefined, path: string | null | undefined): string | null {
+  if (!path || !LEAD_MARK_PATH.test(path) || !supabaseUrl) return null;
+  let origin: string;
+  try {
+    origin = new URL(supabaseUrl).origin;
+  } catch {
+    return null;
+  }
+  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
+  return `${origin}/storage/v1/object/public/${LEAD_MARKS_BUCKET}/${path}`;
+}
+
 /**
  * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
  * row names what it waits on in the queue's words, and the name card names the term it was found for.
@@ -2330,7 +2355,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
       tint: leadTintOf(r.category),
       image: leadTileSrc(r.image_url),
       band: r.image_url ?? null,
-      logo: r.logo_url ?? null,
+      logo: r.mark_url ?? null,
     },
     waitsOn,
     state,

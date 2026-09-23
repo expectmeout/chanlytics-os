@@ -159,8 +159,10 @@ const leadRow = (over = {}) => ({
   member: member(),
   ...over,
 });
+// A lead's mark as the server hands it: the copy we keep, on our own storage (00161).
+const MARK_KEPT = `https://project.supabase.co/storage/v1/object/public/lead-marks/${"a".repeat(64)}.png`;
 const ROW_DTOS = [
-  leadRow({ lat: 30.2672, lng: -97.7431, logo_url: "https://zilkerstrength.example/mark.png" }),
+  leadRow({ lat: 30.2672, lng: -97.7431, mark_url: MARK_KEPT }),
   leadRow({
     id: "l2",
     lat: 30.3122,
@@ -875,7 +877,7 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   const tile = byTestId(rowOf(tree, "l1"), "lead-photo");
   assert.deepEqual(
     all(tile, (n) => n.type === "img").map((n) => [n.props.className, n.props.src]),
-    [["lg", "https://zilkerstrength.example/mark.png"]],
+    [["lg", MARK_KEPT]],
     "the mark, over the tint of its kind",
   );
   assert.equal(

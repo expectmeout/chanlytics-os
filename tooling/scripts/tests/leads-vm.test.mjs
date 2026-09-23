@@ -46,6 +46,7 @@ import {
   leadTodayLine,
   leadHoursShort,
   leadTileSrc,
+  leadMarkSrc,
 } from "../../../packages/contracts/src/leads.ts";
 import {
   LEAD_ROUND_ENDINGS,
@@ -1248,7 +1249,11 @@ test("today says whether they are open now, a night past midnight is the day it 
 // listing's photograph over initials on the kind's tint. They drifted apart once because each surface kept the
 // photo somewhere different, so the shape itself is the thing to hold: one tile, the same keys, the same values.
 test("the two surfaces wear one tile: the peek's is the row's, mark and photograph and all", () => {
-  const dto = row({ image_url: "https://lh3.example/p.jpg", logo_url: "https://zilkerstrength.example/logo.svg" });
+  const dto = row({
+    image_url: "https://lh3.example/p.jpg",
+    mark_url:
+      "https://project.supabase.co/storage/v1/object/public/lead-marks/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+  });
   const r = toLeadRowVM(dto, TZ, NOW).tile;
   const p = toLeadPeekVM(dto, SEARCH_DONE, TZ, NOW).tile;
   assert.deepEqual(
@@ -1259,7 +1264,10 @@ test("the two surfaces wear one tile: the peek's is the row's, mark and photogra
   assert.deepEqual(p, r, "and one set of values, so the mark and the photograph are the same on both");
   assert.deepEqual(
     [p.logo, p.image],
-    ["https://zilkerstrength.example/logo.svg", "https://lh3.example/p.jpg"],
+    [
+      "https://project.supabase.co/storage/v1/object/public/lead-marks/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+      "https://lh3.example/p.jpg",
+    ],
     "both reach the peek through the tile, not beside it",
   );
   assert.equal(
@@ -1350,4 +1358,36 @@ test("D5: the map plots every lead the door placed, and the area the search aske
   });
   assert.equal(anchored.tooWide, false, "the area is the anchor, so the square means something");
   assert.equal(leadMapNote(anchored, true), "The area this search asked for, and every lead it placed inside it.");
+});
+
+// 00161: a lead's mark draws from our own storage, on the Supabase origin the content policy already allows, and
+// only a name the collect wrote becomes an address: whatever else the column held could never reach an <img>.
+test("a kept mark is served from the project's own storage, and only a name we wrote is ever an address", () => {
+  const NAME = `${"0f".repeat(32)}.png`;
+  assert.equal(
+    leadMarkSrc("https://abcd.supabase.co", NAME),
+    `https://abcd.supabase.co/storage/v1/object/public/lead-marks/${NAME}`,
+  );
+  assert.equal(
+    leadMarkSrc("https://abcd.supabase.co/", NAME),
+    `https://abcd.supabase.co/storage/v1/object/public/lead-marks/${NAME}`,
+    "the origin, however the variable was written",
+  );
+  assert.equal(
+    leadMarkSrc("http://127.0.0.1:54321", NAME),
+    `http://127.0.0.1:54321/storage/v1/object/public/lead-marks/${NAME}`,
+    "the local stack serves over http",
+  );
+  for (const [base, name, why] of [
+    ["https://abcd.supabase.co", null, "no copy"],
+    ["https://abcd.supabase.co", "https://zilkerstrength.example/logo.png", "a site's own address"],
+    ["https://abcd.supabase.co", `../${NAME}`, "a name that climbs out of the bucket"],
+    ["https://abcd.supabase.co", `${"0f".repeat(32)}.svg`, "a kind we never keep"],
+    ["https://abcd.supabase.co", `${"0F".repeat(32)}.png`, "a hash not as we spell it"],
+    ["http://abcd.supabase.co", NAME, "an origin a page served over https could not draw from"],
+    ["", NAME, "no origin"],
+    [undefined, NAME, "an unset variable"],
+    ["not a url", NAME, "a variable that is not an address"],
+  ])
+    assert.equal(leadMarkSrc(base, name), null, why);
 });

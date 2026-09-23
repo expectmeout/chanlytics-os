@@ -1144,6 +1144,40 @@ interface CheckPlaybookPorts extends TemplateValuesPorts {
 declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
 /**
+ * The mark we keep (D6, 00161): the bytes of a business's logo, judged before we store a copy.
+ *
+ * mark.ts reads WHICH address a site calls its mark; this file reads what came back from it. A logo drawn straight off
+ * the business's own site never shows: the dashboard's content policy lets images in from three hosts, and a hundred
+ * shops' sites are a hundred more. So the collect asks for the bytes once, and a copy we hold is what every row draws.
+ *
+ * Before a copy is kept it has to be an image a browser draws, big enough to be sharp in a tile, and not a banner:
+ *   - PNG, JPEG, WebP, GIF or ICO, read from the bytes themselves and never from what the server called them. An SVG
+ *     can carry script and a HEIC draws in one browser, so neither is kept.
+ *   - Its shorter side at least MARK_MIN_SIDE: the peek draws the mark at 96px, and on a phone's screen that is 288
+ *     pixels of glass. A sixteen-pixel favicon blown up to that is mush, and the photograph under it is better.
+ *   - Its longer side at most MARK_MAX_RATIO times the shorter: a wordmark four times as wide as it is tall is a thin
+ *     line inside a square tile. The page's next candidate (a home-screen icon, which is square) is tried instead.
+ *   - No more than MARK_MAX_BYTES: a logo is a few kilobytes, and a megabyte "logo" is a photograph.
+ *
+ * Nothing here decodes an image. Each format says its size in its first few dozen bytes, and those are all we read.
+ */
+type MarkKind = "png" | "jpg" | "webp" | "gif" | "ico";
+interface MarkImage {
+    kind: MarkKind;
+    /** What the copy is served as: ours, from the bytes, never the site's header. */
+    contentType: string;
+    width: number;
+    height: number;
+}
+declare const MARK_MIN_SIDE = 64;
+declare const MARK_MAX_RATIO = 2;
+declare const MARK_MAX_BYTES: number;
+/** What the bytes are and how big they say they are, or null for anything that is not one of the five. */
+declare function imageHeaderOf(bytes: Uint8Array): MarkImage | null;
+/** The image worth keeping as this lead's mark, or null: the three rules above, over the bytes as they came. */
+declare function markImageFrom(bytes: Uint8Array): MarkImage | null;
+
+/**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
  * named for what each means. The database half is one method per service
  * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/lead-db.ts, service
@@ -1245,6 +1279,11 @@ interface LeadColumns {
     neighborhood: string | null;
     /** The business's own mark (D6, 00147): the logo its home page declares. Null without a site, or when it declared none. */
     logo_url: string | null;
+    /**
+     * The copy of that mark we keep (00161): `<sha256>.<ext>` in the public lead-marks bucket, stored once its bytes
+     * passed mark-image.ts. What every tile draws; the site's own address is only where it came from.
+     */
+    mark_path: string | null;
     /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
     about: string | null;
     hours: {
@@ -1428,6 +1467,16 @@ interface LeadPorts {
      * business fetching (a test world that models none): the collect then simply marks nothing.
      */
     fetchText?(url: string, timeoutMs: number): Promise<string | null>;
+    /**
+     * One GET of an image's bytes (00161): at most `maxBytes`, null on anything else -- a refusal, a timeout, a body
+     * that runs longer. What the bytes are is the engine's to judge (mark-image.ts), never the server's word for them.
+     */
+    fetchBytes?(url: string, timeoutMs: number, maxBytes: number): Promise<Uint8Array | null>;
+    /**
+     * Keep a copy of a mark that passed (00161): the bytes under their own hash, served as the type they were read as.
+     * Answers the stored path (`<sha256>.<ext>`), or null when it could not be kept; the same bytes twice are one copy.
+     */
+    storeMark?(bytes: Uint8Array, image: MarkImage): Promise<string | null>;
     /** Epoch ms: no provider or model call is started after this. */
     deadline: number;
 }
@@ -1927,14 +1976,22 @@ type CheckAgain = {
 declare const isAgainRun: (run: Pick<LeadRunRow, "purpose" | "term">) => boolean;
 /**
  * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
- * page, read for the logo it declares (mark.ts). It is the last thing the collect does and the first thing it gives
- * up: a page that does not answer inside the allowance, or a collect already short of time, simply commits leads
- * with no mark, and the next round's copy of that place fills it where it was empty.
+ * page, read for the logos it declares (mark.ts), then the first of those whose bytes are a mark worth keeping
+ * (mark-image.ts), stored as our own copy (00161) -- the site's address never draws past the dashboard's content
+ * policy, and our copy does. It is the last thing the collect does and the first thing it gives up: a page that does
+ * not answer inside the allowance, or a collect already short of time, simply commits leads with no mark, and the
+ * next round's copy of that place fills it where it was empty.
  *
  * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
+ * Answers how many places were given a kept copy.
  */
-declare const MARK_ALLOWANCE_MS = 5000;
+declare const MARK_ALLOWANCE_MS = 8000;
 declare const MARK_AT_ONCE = 6;
+/**
+ * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
+ * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
+ */
+declare const MARK_TRIES = 2;
 declare function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number>;
 /** The members whose picked address still waits for its check, in one fixed order. */
 declare function checkable(members: LeadMemberRow[]): LeadMemberRow[];
@@ -2510,4 +2567,4 @@ interface InboundInput {
 }
 declare function answerInbound(input: InboundInput, ports: InboundPorts): Promise<void>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyPosture, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

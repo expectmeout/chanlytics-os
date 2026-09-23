@@ -7,8 +7,8 @@
  * always has one: the business's own site.
  *
  * This file is the reading, and nothing else: given the text of a home page
- * and the origin it came from, it answers the one address most likely to be
- * that company's mark, or nothing. It makes no request, keeps no state and
+ * and the origin it came from, it answers the addresses most likely to be
+ * that company's mark, best first, or none. It makes no request, keeps no state and
  * knows no lead -- the runner does the fetching, inside its own time.
  *
  * What it prefers, and why:
@@ -151,19 +151,22 @@ function scoreOf(rel: string, type: string, href: string, side: number): number 
 }
 
 /**
- * The best mark this page declares, as an absolute address, or null. `origin` is the site the text came from
- * ("https://example.com"), used to resolve what the page wrote relatively.
+ * Every mark this page declares, best first, as absolute addresses: what the collect asks for in turn until one is an
+ * image worth keeping (mark-image.ts). A said logo is often a wordmark too wide for a square tile, and the page's own
+ * home-screen icon is then the mark. `origin` is the site the text came from ("https://example.com"), used to resolve
+ * what the page wrote relatively.
  */
-export function leadMarkFrom(html: string, origin: string): string | null {
-  if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return null;
+export function leadMarksFrom(html: string, origin: string): string[] {
+  if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return [];
   const head = headOf(html);
-  // A logo the site says is its logo wins outright: schema.org "logo", as a string or as an image object.
+  const out: string[] = [];
+  // A logo the site says is its logo comes first: schema.org "logo", as a string or as an image object.
   const said = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
   if (said) {
     const url = absolute(said[1].replace(/\\\//g, "/"), origin);
-    if (url) return url;
+    if (url) out.push(url);
   }
-  let best: { url: string; score: number } | null = null;
+  const linked: { url: string; score: number; at: number }[] = [];
   const tags = head.match(/<link\b[^>]*>/gi) ?? [];
   for (const tag of tags) {
     const a = attrsOf(tag);
@@ -171,7 +174,15 @@ export function leadMarkFrom(html: string, origin: string): string | null {
     const score = scoreOf(a.rel, a.type ?? "", a.href, sideOf(a.sizes));
     if (!score) continue;
     const url = absolute(a.href, origin);
-    if (url && (!best || score > best.score)) best = { url, score };
+    if (url) linked.push({ url, score, at: linked.length });
   }
-  return best?.url ?? null;
+  // The higher score first, and between equals the one the page wrote first, as the single answer always chose.
+  linked.sort((x, y) => y.score - x.score || x.at - y.at);
+  for (const l of linked) if (!out.includes(l.url)) out.push(l.url);
+  return out;
+}
+
+/** The best mark this page declares, as an absolute address, or null. */
+export function leadMarkFrom(html: string, origin: string): string | null {
+  return leadMarksFrom(html, origin)[0] ?? null;
 }

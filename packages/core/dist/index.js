@@ -42882,15 +42882,16 @@ function scoreOf(rel, type, href, side) {
   if (!tier) return 0;
   return tier * 1e3 + Math.min(side || (svg ? 512 : 32), 999);
 }
-function leadMarkFrom(html, origin) {
-  if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return null;
+function leadMarksFrom(html, origin) {
+  if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return [];
   const head = headOf(html);
+  const out = [];
   const said2 = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
   if (said2) {
     const url = absolute(said2[1].replace(/\\\//g, "/"), origin);
-    if (url) return url;
+    if (url) out.push(url);
   }
-  let best = null;
+  const linked = [];
   const tags = head.match(/<link\b[^>]*>/gi) ?? [];
   for (const tag of tags) {
     const a = attrsOf(tag);
@@ -42898,9 +42899,112 @@ function leadMarkFrom(html, origin) {
     const score = scoreOf(a.rel, a.type ?? "", a.href, sideOf(a.sizes));
     if (!score) continue;
     const url = absolute(a.href, origin);
-    if (url && (!best || score > best.score)) best = { url, score };
+    if (url) linked.push({ url, score, at: linked.length });
   }
-  return best?.url ?? null;
+  linked.sort((x, y) => y.score - x.score || x.at - y.at);
+  for (const l of linked) if (!out.includes(l.url)) out.push(l.url);
+  return out;
+}
+
+// src/leads/mark-image.ts
+var MARK_MIN_SIDE = 64;
+var MARK_MAX_RATIO = 2;
+var MARK_MAX_BYTES = 512 * 1024;
+var CONTENT_TYPE = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  ico: "image/x-icon"
+};
+var u16be = (b, i) => b[i] << 8 | b[i + 1];
+var u16le = (b, i) => b[i] | b[i + 1] << 8;
+var u24le = (b, i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16;
+var u32be = (b, i) => (b[i] << 24 >>> 0) + (b[i + 1] << 16 | b[i + 2] << 8 | b[i + 3]);
+var u32le = (b, i) => (b[i + 3] << 24 >>> 0) + (b[i + 2] << 16 | b[i + 1] << 8 | b[i]);
+var ascii = (b, i, n) => String.fromCharCode(...b.subarray(i, i + n));
+function png(b) {
+  const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (b.length < 24 || sig.some((x, i) => b[i] !== x) || ascii(b, 12, 4) !== "IHDR") return null;
+  return [u32be(b, 16), u32be(b, 20)];
+}
+function gif(b) {
+  if (b.length < 10 || !/^GIF8[79]a$/.test(ascii(b, 0, 6))) return null;
+  return [u16le(b, 6), u16le(b, 8)];
+}
+function webp(b) {
+  if (b.length < 30 || ascii(b, 0, 4) !== "RIFF" || ascii(b, 8, 4) !== "WEBP") return null;
+  const chunk = ascii(b, 12, 4);
+  if (chunk === "VP8 ") {
+    if (b[23] !== 157 || b[24] !== 1 || b[25] !== 42) return null;
+    return [u16le(b, 26) & 16383, u16le(b, 28) & 16383];
+  }
+  if (chunk === "VP8L") {
+    if (b[20] !== 47) return null;
+    const bits = u32le(b, 21);
+    return [(bits & 16383) + 1, (bits >>> 14 & 16383) + 1];
+  }
+  if (chunk === "VP8X") return [u24le(b, 24) + 1, u24le(b, 27) + 1];
+  return null;
+}
+function jpg(b) {
+  if (b.length < 4 || b[0] !== 255 || b[1] !== 216) return null;
+  let i = 2;
+  while (i + 3 < b.length) {
+    if (b[i] !== 255) return null;
+    const marker = b[i + 1];
+    if (marker === 255) {
+      i += 1;
+      continue;
+    }
+    if (marker >= 208 && marker <= 215 || marker === 1) {
+      i += 2;
+      continue;
+    }
+    if (marker === 217 || marker === 218) return null;
+    const len = u16be(b, i + 2);
+    if (len < 2) return null;
+    const frame = marker >= 192 && marker <= 207 && marker !== 196 && marker !== 200 && marker !== 204;
+    if (frame) return i + 8 < b.length ? [u16be(b, i + 7), u16be(b, i + 5)] : null;
+    i += 2 + len;
+  }
+  return null;
+}
+function ico(b) {
+  if (b.length < 22 || b[0] !== 0 || b[1] !== 0 || b[2] !== 1 || b[3] !== 0) return null;
+  const count = u16le(b, 4);
+  if (count < 1 || count > 64 || 6 + count * 16 > b.length) return null;
+  let best = null;
+  for (let n = 0; n < count; n += 1) {
+    const at = 6 + n * 16;
+    const w = b[at] || 256;
+    const h = b[at + 1] || 256;
+    if (!best || Math.min(w, h) > Math.min(...best)) best = [w, h];
+  }
+  return best;
+}
+var READERS = [
+  ["png", png],
+  ["jpg", jpg],
+  ["webp", webp],
+  ["gif", gif],
+  ["ico", ico]
+];
+function imageHeaderOf(bytes) {
+  for (const [kind, read] of READERS) {
+    const size = read(bytes);
+    if (size) return { kind, contentType: CONTENT_TYPE[kind], width: size[0], height: size[1] };
+  }
+  return null;
+}
+function markImageFrom(bytes) {
+  if (!bytes || bytes.length === 0 || bytes.length > MARK_MAX_BYTES) return null;
+  const image = imageHeaderOf(bytes);
+  if (!image) return null;
+  const short = Math.min(image.width, image.height);
+  const long = Math.max(image.width, image.height);
+  if (short < MARK_MIN_SIDE || long > short * MARK_MAX_RATIO) return null;
+  return image;
 }
 
 // src/leads/runner.ts
@@ -43113,8 +43217,10 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       claimed: excluded ? null : c.raw.claimed,
       maps_url: excluded ? null : c.raw.mapsUrl,
       rank: excluded ? null : c.raw.rank,
-      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below.
-      logo_url: null
+      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below,
+      // with the copy of it we keep (00161).
+      logo_url: null,
+      mark_path: null
     },
     member: {
       judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
@@ -43422,31 +43528,44 @@ async function stopRun(p, round, run, owner) {
   }
 }
 var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
-var MARK_ALLOWANCE_MS = 5e3;
+var MARK_ALLOWANCE_MS = 8e3;
 var MARK_AT_ONCE = 6;
+var MARK_TRIES = 2;
+var SAYS_SVG = /\.svg(?:[?#]|$)/i;
 async function markPlaces(p, places) {
-  const fetchText = p.fetchText;
+  const { fetchText, fetchBytes, storeMark } = p;
   if (!fetchText) return 0;
   const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
   const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
-  let marked = 0;
-  for (let i = 0; i < want.length; i += MARK_AT_ONCE) {
-    const left = until - p.now().getTime();
-    if (left <= 250) break;
-    await Promise.all(
-      want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
-        const origin = `https://${x.place.website_host}`;
-        const html = await fetchText(origin, left).catch(() => null);
-        if (!html) return;
-        const mark = leadMarkFrom(html, origin);
-        if (mark) {
-          x.place.logo_url = mark;
-          marked += 1;
-        }
-      })
-    );
-  }
-  return marked;
+  const left = () => until - p.now().getTime();
+  let kept = 0;
+  const markOne = async (x) => {
+    const origin = `https://${x.place.website_host}`;
+    const html = await fetchText(origin, left()).catch(() => null);
+    if (!html) return;
+    const marks = leadMarksFrom(html, origin);
+    if (marks.length === 0) return;
+    x.place.logo_url = marks[0];
+    if (!fetchBytes || !storeMark) return;
+    for (const url of marks.filter((u) => !SAYS_SVG.test(u)).slice(0, MARK_TRIES)) {
+      if (left() <= 250) return;
+      const bytes = await fetchBytes(url, left(), MARK_MAX_BYTES).catch(() => null);
+      const image = bytes ? markImageFrom(bytes) : null;
+      if (!bytes || !image) continue;
+      const path = await storeMark(bytes, image).catch(() => null);
+      if (!path) return;
+      x.place.logo_url = url;
+      x.place.mark_path = path;
+      kept += 1;
+      return;
+    }
+  };
+  let next = 0;
+  const worker = async () => {
+    while (next < want.length && left() > 250) await markOne(want[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(MARK_AT_ONCE, want.length) }, worker));
+  return kept;
 }
 function checkable(members) {
   return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
@@ -44283,6 +44402,10 @@ export {
   MAPS_RUN_TIMEOUT_SECS,
   MARK_ALLOWANCE_MS,
   MARK_AT_ONCE,
+  MARK_MAX_BYTES,
+  MARK_MAX_RATIO,
+  MARK_MIN_SIDE,
+  MARK_TRIES,
   MAX_REPLIES_PER_DAY,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
@@ -44333,6 +44456,7 @@ export {
   holdCopy,
   holdPlan,
   identityOf,
+  imageHeaderOf,
   inArea,
   ingestEmail,
   isAgainRun,
@@ -44342,6 +44466,7 @@ export {
   judgeBatch,
   layerTwo,
   mainAsk,
+  markImageFrom,
   markPlaces,
   medianCenter,
   memberOf,

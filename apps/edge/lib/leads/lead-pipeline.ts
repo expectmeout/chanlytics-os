@@ -14,6 +14,7 @@ import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/j
 import type { Json } from "../packages/db.js";
 import { leadDb } from "./lead-db.js";
 import { leadWires, type LeadWires } from "./lead-wires.js";
+import { storeLeadMark } from "./lead-marks.js";
 import { logger } from "../log.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,6 +35,8 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     apify: wires.apify,
     judge: wires.judge,
     fetchText: wires.fetchText,
+    fetchBytes: wires.fetchBytes,
+    storeMark: (bytes, image) => storeLeadMark(ctx.db, bytes, image),
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
