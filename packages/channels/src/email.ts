@@ -109,17 +109,35 @@ export function replySubject(parentSubject: string | null | undefined): string {
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+/** A web address in the words, read AFTER escaping, so `"` and `<` are already entities and cannot end it early. */
+const LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
+
+/**
+ * An address in the words becomes a link; the punctuation that closed the
+ * sentence around it stays outside. Only http and https, and only from
+ * escaped text: `&` inside an address is already `&amp;`, which a browser
+ * reads back as `&`, and nothing else in the words can reach the markup.
+ */
+const linkify = (escaped: string): string =>
+  escaped.replace(LINK_IN_TEXT, (m) => {
+    const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
+    const href = m.slice(0, m.length - trail.length);
+    return `<a href="${href}">${href}</a>${trail}`;
+  });
+
 /**
  * The HTML twin of plain words: paragraphs and line breaks, escaped, nothing
- * else. It exists because mail clients render plain text worse than they
- * should, not to carry design; no markup from the words survives into it.
+ * else -- except that a web address in the words is a link, so a proposal or
+ * a booking link opens where the client does not link plain text itself. It
+ * exists because mail clients render plain text worse than they should, not
+ * to carry design; no markup from the words survives into it.
  */
 export function emailHtml(text: string): string {
   return text
     .split(/\n{2,}/)
     .map((p) => p.trim())
     .filter(Boolean)
-    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`)
     .join("\n");
 }
 

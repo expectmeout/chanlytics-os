@@ -137,6 +137,14 @@ test("nothing a customer or a model wrote becomes a header or markup", () => {
     emailHtml('Hi <script>alert("x")</script>\n\n& bye'),
     "<p>Hi &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;</p>\n<p>&amp; bye</p>",
   );
+  // An address in the words is a link (00154's proposal, the booking link): escaped first, the sentence's own
+  // punctuation left outside it, and nothing that is not http(s) linked.
+  assert.equal(
+    emailHtml(
+      'See https://docs.example.com/p?a=1&b=2, then write back. Not this: javascript:alert("x") or "<a href=x>".',
+    ),
+    '<p>See <a href="https://docs.example.com/p?a=1&amp;b=2">https://docs.example.com/p?a=1&amp;b=2</a>, then write back. Not this: javascript:alert(&quot;x&quot;) or &quot;&lt;a href=x&gt;&quot;.</p>',
+  );
 });
 
 test("a long chain keeps its root and its newest, so the customer's client still threads it", () => {
