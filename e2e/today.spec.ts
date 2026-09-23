@@ -140,6 +140,29 @@ test.describe("Today on a real workspace", () => {
     await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
   });
 
+  test("the three: the band above the queue takes a question; a quick one settles without a model turn", async ({
+    page,
+  }) => {
+    const band = page.getByTestId("today-face");
+    await expect(band).toBeVisible();
+    const bandBox = await band.boundingBox();
+    const queueBox = await page.getByTestId("today-queue").boundingBox();
+    expect(bandBox!.y, "the band stands above the queue").toBeLessThan(queueBox!.y);
+    await expect(band).toHaveAttribute("data-phase", "rest");
+    expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
+    // The local harness installs no Ask client (there the field seeds the palette); only a workspace answers.
+    test.skip(!(await page.evaluate(() => !!(window as { __ask?: unknown }).__ask)), "no Ask on this harness");
+    // The palette's own quick question (contracts fastPath, kind "needs"): no model turn, no cost.
+    await band.getByTestId("today-face-input").fill("who needs me?");
+    await band.getByTestId("today-face-input").press("Enter");
+    await expect(band).toHaveAttribute("data-phase", "settled", { timeout: 10_000 });
+    await expect(band.getByTestId("today-face-exchange")).toContainText(/need|waiting/i);
+    await expect(band.getByTestId("today-face-continue")).toHaveCount(0);
+    await band.getByTestId("today-face-clear").click();
+    await expect(band).toHaveAttribute("data-phase", "rest");
+    expect((await band.getByTestId("today-face-exchange").innerText()).trim()).toBe("");
+  });
+
   test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({
     page,
   }) => {
@@ -162,6 +185,9 @@ test.describe("Today on a phone", () => {
     await page.waitForLoadState("networkidle");
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
+    // The three stand above the queue and never widen the page.
+    await expect(page.getByTestId("today-face")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     const box = await queue.boundingBox();
     expect(box!.y, "the queue's head is on the first screen").toBeLessThan(844 - 120);
     // The line an owner decides from wraps; nothing is cut from its right.

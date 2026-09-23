@@ -10,6 +10,16 @@
 
 **Worktree and branch:** `Claude Video/cm-face`, branch `design/the-three-on-today`, off `origin/main` at `a4005880`. One PR at the end. Never `cd` into the shared checkout.
 
+> **As built (23 Sep):** executed inline in `cm-face`, one commit per task. Where the code differs from the blocks
+> below: test imports are `../../../apps/...` (three levels up from `tooling/scripts/tests/`); the turn's
+> `mic-failed` became `released` with a `before` phase, dispatched from an effect on the talk hook's `listening`
+> flag, because the hook says nothing when a press ends with no words; the band's doors row is `.tf-doors`, since the
+> palette's `.ask-msg-links` is scoped to `.ask-real`; the driver's first test counts frames by `clearRect`, because
+> the three grow in from nothing at birth; the character test keeps a size as a number, because `frame()` hands back
+> live objects; the band's test helper draws over the cells as they are (`start()` forgets them first); the harness
+> server (`e2e-harness/server.mjs`) got its own `/data/mascot.js` route beside the mockup's; and a commit chain never
+> ends in `| grep -v`, which exits 1 when it filters every line and stops the chain.
+
 ---
 
 ### Task 0: The worktree can run the gates

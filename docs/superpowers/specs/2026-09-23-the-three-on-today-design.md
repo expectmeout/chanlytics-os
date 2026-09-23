@@ -1,7 +1,7 @@
 # The three, on Today: design spec
 
-**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** draft for Ruben's review · **Plan:** `docs/superpowers/plans/2026-09-23-the-three-on-today.md` (to write once this is approved)
-**Prototype:** `Claude Video/chanlytics-mascot-prototype/index.html` (22 Sep). Its `Character` script is the character below, to the number; its page is throwaway. It goes onto a throwaway branch (section 8.6).
+**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved (Ruben, 23 Sep) · **Plan:** `docs/superpowers/plans/2026-09-23-the-three-on-today.md`
+**Prototype:** `Claude Video/chanlytics-mascot-prototype/index.html` (22 Sep). Its `Character` script is the character below, to the number; its page is throwaway. It is kept on branch `prototype/the-three` as `tooling/prototypes/the-three/` (section 8.6).
 **Analysis:** the Today page, the Ask client, the two Ask hooks, the answer renderer, the legacy manifest, the page tests, the harness, the e2e and the role gates were read on `origin/main` at `a4005880` (#874). Every claim about existing code below names its file and line.
 
 ## 1. Goal
@@ -234,7 +234,7 @@ Before the PR merges: Today at 390px and 1280px in Ruben's signed-in pane, light
 
 ### 8.6 The prototype, kept
 
-`Claude Video/chanlytics-mascot-prototype/` is committed as `tooling/prototypes/the-three/` on a throwaway branch `prototype/the-three` in this repo, never on main, and this spec points at it. The question it answered: yes, the three work as the face; the read move is the one Ruben loves; App colours; no docking; one size.
+`Claude Video/chanlytics-mascot-prototype/` is committed as `tooling/prototypes/the-three/` on the throwaway branch `prototype/the-three` (069223a3, pushed 23 Sep), never on main; the app runs it with `node tooling/prototypes/the-three/serve.mjs`. The question it answered: yes, the three work as the face; the read move is the one Ruben loves; App colours; no docking; one size.
 
 ## 9. Risks and what is out of scope
 
