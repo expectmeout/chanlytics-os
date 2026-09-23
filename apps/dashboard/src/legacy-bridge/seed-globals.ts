@@ -16,6 +16,7 @@ import {
   whyNotAPhone,
   whyNotAnEmail,
   whyNotALink,
+  proposalMessage,
   whyNotAHandoff,
   handoffE164,
   formatPhoneDisplay,
@@ -66,6 +67,7 @@ declare global {
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAnEmail: typeof whyNotAnEmail;
     __whyNotALink: typeof whyNotALink;
+    __proposalMessage: typeof proposalMessage;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -138,6 +140,8 @@ if (typeof window !== "undefined") {
   window.__whyNotAnEmail = whyNotAnEmail;
   // And for a proposal link typed there (contracts link.ts, 00154).
   window.__whyNotALink = whyNotALink;
+  // The words a one-step send of the proposal carries into the composer, once for the page and the thread.
+  window.__proposalMessage = proposalMessage;
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

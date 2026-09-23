@@ -1,5 +1,6 @@
 import { agoWords } from "./time";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "./clock";
+import { linkHost } from "./link";
 import { replyWaitsOnYou, standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
@@ -148,6 +149,8 @@ export interface PersonDetailDto {
   added?: { at: string; source: string; title: string | null };
   /** The owner's notes on this person — the receptionist reads them. */
   notes?: string | null;
+  /** The owner's proposal link for this person (00154): the About row and the one-step send. */
+  proposal_url?: string | null;
   /** The workspace's booking link, for the profile's one-step send. */
   booking_link?: string | null;
   /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
@@ -415,6 +418,59 @@ export function bookingLinkAction(
   };
 }
 
+/** The owner's proposal for a person (00154), for the page: the address, where it lives, and whether it went out. */
+export interface PersonProposalVM {
+  url: string;
+  host: string;
+  /** The newest message that carried the address and went out: when, and on which wire. */
+  sent: { at: string; via: string | null } | null;
+}
+
+/** The words the one-step send carries into the composer — once, for the page and the thread. */
+export function proposalMessage(url: string): string {
+  return `Here's the proposal we put together for you: ${url}`;
+}
+
+/**
+ * What the send-the-proposal button says, by the wire a reply goes out on:
+ * bookingLinkAction's twin. Nothing is sent from the button: it opens the
+ * thread with the address ready in the composer. There is no template for a
+ * proposal, so where WhatsApp's window has shut there is no button (`ready`
+ * false) -- the About rail's Reply window row already says why. "again" once
+ * the address has gone out, so the page says what it knows without a second line.
+ */
+export function proposalAction(
+  replyVia: "WhatsApp" | "Text" | "Email" | null,
+  win: { open: boolean; hoursLeft: number } | null,
+  sentWords: string | null,
+): { label: string; title: string; ready: boolean } {
+  const again = sentWords ? " again" : "";
+  const sent = sentWords ? ` · sent ${sentWords}` : "";
+  if (replyVia === "Email")
+    return {
+      label: `Email the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send by email${sent}`,
+      ready: true,
+    };
+  if (replyVia === "Text")
+    return {
+      label: `Text the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send as a text${sent}`,
+      ready: true,
+    };
+  if (win && win.open)
+    return {
+      label: `Send the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send · ${win.hoursLeft}h left in their reply window${sent}`,
+      ready: true,
+    };
+  return {
+    label: "Send the proposal",
+    title: "Their reply window is closed — the link can go by WhatsApp once they write again",
+    ready: false,
+  };
+}
+
 /** How a reply goes, in the words the page uses for the wire. */
 const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
   whatsapp: "WhatsApp",
@@ -429,6 +485,29 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
   voice: "Phone",
   email: "Email",
 };
+
+/**
+ * The newest message that carried the proposal's address and went out -- a
+ * status that is not queued, canceled or failed, the rule people_list calls
+ * spoken. Derived from the messages the page already reads, so "sent" is never
+ * a stored flag that can disagree with the thread.
+ */
+function proposalSent(conversations: ReadonlyArray<ConversationDto>, url: string): PersonProposalVM["sent"] {
+  let best: { at: number; iso: string; channel: string | null } | null = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "outbound" || !m.body || !m.body.includes(url)) continue;
+      if (m.status && ["queued", "canceled", "failed"].includes(m.status)) continue;
+      const iso = m.channel_ts ?? m.created_at;
+      const at = Date.parse(iso);
+      if (Number.isFinite(at) && (!best || at > best.at)) best = { at, iso, channel: m.channel ?? null };
+    }
+  }
+  if (!best) return null;
+  const via =
+    best.channel && best.channel in PERSON_CHANNEL_WORDS ? PERSON_CHANNEL_WORDS[best.channel as PersonChannel] : null;
+  return { at: best.iso, via };
+}
 
 /**
  * Where a person first came from, as people_list decides it once (00138): the
@@ -1501,6 +1580,10 @@ export interface PersonVM extends PersonRowVM {
   notes: string | null;
   /** The workspace's booking link, or null when none is on file. */
   bookingLink: string | null;
+  /** The owner's proposal for them (00154), or null when none is on file. */
+  proposal: PersonProposalVM | null;
+  /** The send-the-proposal button's words for the wire a reply goes out on (proposalAction); `ready` false hides it. */
+  proposalAction: { label: string; title: string; ready: boolean };
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -1981,10 +2064,22 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     },
   ];
 
+  // The owner's proposal for them (00154): the address, its host for the row, and whether it went out.
+  const proposalUrl = d.proposal_url?.trim() || null;
+  const proposal: PersonProposalVM | null = proposalUrl
+    ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) }
+    : null;
+  const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
+  const sentWords =
+    proposal?.sent && sentAt !== null
+      ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` · ${proposal.sent.via}` : ""}`
+      : null;
+
   // About rail.
   const about: { k: string; v: string }[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
   if (base.email) about.push({ k: "Email", v: base.email });
+  if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",
@@ -2048,7 +2143,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "—"} · from a lead you found` });
   }
 
-  return {
+  const vm: Omit<PersonVM, "proposal" | "proposalAction"> = {
     ...base,
     ...(via && exactWindow
       ? (() => {
@@ -2098,6 +2193,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         }
       : null,
   };
+  // The send's words follow the wire the page has settled on, exact window included.
+  return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
 }
 
 /**

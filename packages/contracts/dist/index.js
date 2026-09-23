@@ -6249,6 +6249,36 @@ function bookingLinkAction(replyVia, win) {
     ready: false
   };
 }
+function proposalMessage(url) {
+  return `Here's the proposal we put together for you: ${url}`;
+}
+function proposalAction(replyVia, win, sentWords) {
+  const again = sentWords ? " again" : "";
+  const sent = sentWords ? ` \xB7 sent ${sentWords}` : "";
+  if (replyVia === "Email")
+    return {
+      label: `Email the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send by email${sent}`,
+      ready: true
+    };
+  if (replyVia === "Text")
+    return {
+      label: `Text the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send as a text${sent}`,
+      ready: true
+    };
+  if (win && win.open)
+    return {
+      label: `Send the proposal${again}`,
+      title: `Opens the thread with the proposal link ready to send \xB7 ${win.hoursLeft}h left in their reply window${sent}`,
+      ready: true
+    };
+  return {
+    label: "Send the proposal",
+    title: "Their reply window is closed \u2014 the link can go by WhatsApp once they write again",
+    ready: false
+  };
+}
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
   sms: "Text",
@@ -6260,6 +6290,21 @@ var PERSON_CHANNEL_WORDS = {
   voice: "Phone",
   email: "Email"
 };
+function proposalSent(conversations, url) {
+  let best = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "outbound" || !m.body || !m.body.includes(url)) continue;
+      if (m.status && ["queued", "canceled", "failed"].includes(m.status)) continue;
+      const iso = m.channel_ts ?? m.created_at;
+      const at2 = Date.parse(iso);
+      if (Number.isFinite(at2) && (!best || at2 > best.at)) best = { at: at2, iso, channel: m.channel ?? null };
+    }
+  }
+  if (!best) return null;
+  const via = best.channel && best.channel in PERSON_CHANNEL_WORDS ? PERSON_CHANNEL_WORDS[best.channel] : null;
+  return { at: best.iso, via };
+}
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
@@ -7070,9 +7115,14 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label)
     }
   ];
+  const proposalUrl = d.proposal_url?.trim() || null;
+  const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
+  const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
+  const sentWords = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
   if (base.email) about.push({ k: "Email", v: base.email });
+  if (proposal) about.push({ k: "Proposal", v: proposal.host });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",
@@ -7108,7 +7158,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     const found = ts(d.lead.found_at);
     about.push({ k: "Added", v: `${found !== null ? clockDateYear(found, tz) : "\u2014"} \xB7 from a lead you found` });
   }
-  return {
+  const vm = {
     ...base,
     ...via && exactWindow ? (() => {
       const win = {
@@ -7147,6 +7197,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       to: leadsRoute({ peek: d.lead.id })
     } : null
   };
+  return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
 }
 function campaignsOf(d, tz, nowMs) {
   const threadOf2 = /* @__PURE__ */ new Map();
@@ -17617,6 +17668,8 @@ export {
   promptBlocks,
   promptCostWords,
   promptTotalWords,
+  proposalAction,
+  proposalMessage,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
