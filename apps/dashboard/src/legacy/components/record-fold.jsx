@@ -658,7 +658,8 @@ const RecordFold = ({
       <>
         {/* A mousedown keeps focus where it was, as the sheet's wash does. The press is the fold's Cancel: a person
             reaching past the sheet for another row is asked about what they typed, and one who typed nothing is back
-            on the page. */}
+            on the page. A pull down on the sheet from its top is the same Cancel (data-bits touchSwipe): the sheet
+            rose from the bottom, and goes back the way it came. */}
         <div className="rec-sheet-backdrop" data-fold="true" aria-hidden="true" ref={leaving.wash} onMouseDown={(e) => e.preventDefault()} onClick={cancel} />
         <section
           ref={box}
@@ -670,6 +671,7 @@ const RecordFold = ({
           aria-busy={saving || undefined}
           data-open="true"
           data-testid={`rec-fold-${id}`}
+          {...(window.touchSwipe ? window.touchSwipe({ onDown: cancel, when: () => { const q = recPhoneQuery(); return !!(q && q.matches); } }) : {})}
           onFocus={onFocus}
           onKeyDown={(e) => { if (e.key === "Tab") { window.trapTab(e, e.currentTarget); return; } keys(e); }}
         >
@@ -875,6 +877,7 @@ const UnsavedAsk = ({ onYes, onNo, busy = false, what = "sent", testid = null })
 );
 
 Object.assign(window, {
+  recPhoneQuery,
   RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, recKeys,
   useUnsavedWork, UnsavedAsk, tabDraft, __recordFolds: recFolds,
 });

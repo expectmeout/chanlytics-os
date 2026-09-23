@@ -33,6 +33,9 @@ export interface MountOptions {
 export interface Mounted {
   readonly state: CharacterState;
   set(next: CharacterState): void;
+  /** one square, in CSS pixels: the drawing eases toward it, so a stage that grows grows its squares with it */
+  setSide(px: number): void;
+  side(): number;
   /** a word heard: the level jumps to `v` and falls on its own */
   hear(v: number): void;
   level(): number;
@@ -119,6 +122,10 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
   let w = 0;
   let h = 0;
   let heardLevel = 0;
+  // the square's size in CSS px: the target the page sets, and the one drawn, which follows it in about a tenth of a
+  // second so the squares grow with the stage instead of jumping ahead of it
+  let sideTarget = opts.side ?? 0;
+  let sideNow = sideTarget;
   let raf = 0;
   let last = 0;
   let visible = !env.hidden();
@@ -147,8 +154,10 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     character.hear(heardLevel);
     if (!env.reduced) character.tick(dt);
     easePalette(pal, palTarget, env.reduced ? 1e6 : dt);
+    if (sideTarget > 0)
+      sideNow = env.reduced ? sideTarget : sideNow + (sideTarget - sideNow) * (1 - Math.exp(-dt / 0.1));
     if (!fit()) return;
-    const side = opts.side != null ? opts.side * env.dpr() : Math.min(w, h) / UNITS;
+    const side = sideTarget > 0 ? sideNow * env.dpr() : Math.min(w, h) / UNITS;
     drawCharacter(ctx as CanvasRenderingContext2D, w, h, character.frame(), pal, side);
   }
   function loop(ms: number): void {
@@ -182,7 +191,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     }
     const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
     if (!r || !r.width) return;
-    const unit = opts.side ?? Math.min(r.width, r.height) / UNITS;
+    const unit = sideTarget > 0 ? sideNow : Math.min(r.width, r.height) / UNITS;
     const dx = (e.clientX - (r.left + r.width / 2)) / unit;
     const dy = (e.clientY - (r.top + r.height / 2)) / unit;
     character.look(dx / 4, dy / 4, Math.hypot(dx, dy) < 2.3);
@@ -225,6 +234,12 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       character.set(next);
       stillFrame();
     },
+    setSide(px) {
+      sideTarget = Math.max(1, px);
+      if (env.reduced) sideNow = sideTarget;
+      if (!raf) frame(0);
+    },
+    side: () => sideNow,
     hear(v) {
       heardLevel = Math.max(heardLevel, Math.min(1, Math.max(0, v)));
     },

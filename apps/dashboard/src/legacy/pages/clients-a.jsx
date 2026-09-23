@@ -2035,7 +2035,7 @@ const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [
 // "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so LeadsReal keeps
 // one hook order either way and the finder simply offers no mic.
 const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
-const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); return PL_NO_TALK; };
+const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); React.useRef(false); return PL_NO_TALK; };
 
 const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
 
