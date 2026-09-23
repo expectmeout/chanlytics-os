@@ -204,6 +204,11 @@ export const EVENT_KINDS = [
   "lead.call",
   "lead.converted",
   "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 
@@ -414,6 +419,7 @@ export const DECISION_VERBS = [
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
+  "record_deal",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
@@ -434,6 +440,7 @@ export const DECISION_SUBJECTS = [
   "review",
   /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
   "workspace",
+  "deal",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

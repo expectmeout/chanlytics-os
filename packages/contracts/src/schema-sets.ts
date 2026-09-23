@@ -41,6 +41,7 @@ import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
 import type { BROADCAST_STATES, RECIPIENT_STATES } from "./broadcasts";
 import type { CALL_OUTCOMES } from "./call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "./config";
+import type { DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "./deals";
 import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
@@ -152,4 +153,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof LEAD_PREFERENCE_KINDS>, SchemaSet<"lead_preferences.kind">>>,
   Holds<Exactly<Of<typeof LEAD_SUPPRESSION_KINDS>, SchemaSet<"lead_suppressions.kind">>>,
   Holds<Exactly<Of<typeof LEAD_SUPPRESSION_WHATS>, SchemaSet<"lead_suppressions.what">>>,
+
+  // A deal is a record (00155): its stage, how an amount recurs, and who wrote it.
+  Holds<Exactly<Of<typeof DEAL_STAGES>, SchemaSet<"deals.stage">>>,
+  Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
+  Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
 ];

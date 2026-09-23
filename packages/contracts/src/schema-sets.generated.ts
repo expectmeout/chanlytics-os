@@ -29,15 +29,19 @@ export const SCHEMA_SETS = {
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
+  "deals.per": ["once", "month", "year"],
+  "deals.source": ["person", "payment"],
+  "deals.stage": ["proposed", "won", "lost", "ended"],
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
-    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace",
+    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
     "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role",
     "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast",
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
+    "record_deal",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

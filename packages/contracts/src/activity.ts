@@ -76,6 +76,7 @@ const WORDS: Record<string, string> = {
   reply_review: "Replied to a Google review",
   export: "Exported data",
   end_call: "Ended a call",
+  record_deal: "Recorded a deal",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",

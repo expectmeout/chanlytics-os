@@ -378,7 +378,12 @@ var EVENT_KINDS = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -509,7 +514,8 @@ var DECISION_VERBS = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -527,7 +533,8 @@ var DECISION_SUBJECTS = [
   "playbook",
   "review",
   /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
-  "workspace"
+  "workspace",
+  "deal"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -663,7 +670,7 @@ function clockInZone(tz, atMs) {
 }
 function dayInZone(tz, atMs) {
   const p = zoneParts(tz, new Date(atMs));
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (n2) => String(n2).padStart(2, "0");
   return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
 }
 var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
@@ -672,7 +679,7 @@ function dayPlusInZone(tz, atMs, days) {
   const from = dayInZone(tz, atMs);
   if (days === 0) return from;
   const at2 = new Date((dayNumber(from.y, from.m, from.d) + days) * 864e5);
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (n2) => String(n2).padStart(2, "0");
   const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
   return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at2.getUTCDay()], y, m, d };
 }
@@ -814,12 +821,12 @@ function occurrences(start, durMs, rule, exdates, horizon) {
   const firstWeek = Math.floor((first - (firstDate.getUTCDay() + 6) % 7) / 7);
   const wanted = rule.byday ?? [firstDate.getUTCDay()];
   let produced = 0;
-  for (let n = 0; n < 2e4; n++) {
-    const day = first + n;
+  for (let n2 = 0; n2 < 2e4; n2++) {
+    const day = first + n2;
     const at2 = new Date(day * 864e5);
     const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
     let hit = false;
-    if (rule.freq === "DAILY") hit = n % rule.interval === 0;
+    if (rule.freq === "DAILY") hit = n2 % rule.interval === 0;
     else if (rule.freq === "WEEKLY") {
       const week = Math.floor((day - (at2.getUTCDay() + 6) % 7) / 7);
       hit = wanted.includes(at2.getUTCDay()) && (week - firstWeek) % rule.interval === 0;
@@ -1110,8 +1117,8 @@ function matchService(services, asked) {
   const asks = wordsOf(q).filter((w) => w.length >= 4);
   let best = null;
   let bestScore = 0;
-  for (const { s, n } of named) {
-    const own = wordsOf(n);
+  for (const { s, n: n2 } of named) {
+    const own = wordsOf(n2);
     const score = asks.filter((w) => own.includes(w)).length;
     if (score > bestScore) {
       best = s;
@@ -1121,9 +1128,9 @@ function matchService(services, asked) {
   return best;
 }
 function needsConsultation(name, rules) {
-  const n = foldName(name.trim());
+  const n2 = foldName(name.trim());
   const list2 = Array.isArray(rules?.consult_first) ? rules.consult_first : [];
-  return !!n && list2.some((c) => foldName(String(c).trim()) === n);
+  return !!n2 && list2.some((c) => foldName(String(c).trim()) === n2);
 }
 function offerFor(services, rules, asked) {
   const service = matchService(services, asked);
@@ -1134,9 +1141,9 @@ function offerFor(services, rules, asked) {
   let consultationService = null;
   let best = -1;
   for (const s of services ?? []) {
-    const n = foldName(s.name);
-    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
-    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    const n2 = foldName(s.name);
+    if (s === service || !n2.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n2).filter((w) => own.includes(w)).length;
     if (score > best) {
       consultationService = s;
       best = score;
@@ -1255,7 +1262,7 @@ function wallClockAt(tz, dayKey2, hh, mm) {
 function tomorrowAtIn(tz, nowMs, hh, mm = 0) {
   return wallClockAt(tz, shiftDay(zoneDayKey(nowMs, tz), 1), hh, mm);
 }
-var two = (n) => String(n).padStart(2, "0");
+var two = (n2) => String(n2).padStart(2, "0");
 function zonedInputValue(atMs, tz) {
   const w = wall(atMs, tz);
   return `${w.key}T${two(w.hh)}:${two(w.mm)}`;
@@ -1386,7 +1393,7 @@ var BrainOutputSchema = z2.object({
   intent: z2.enum(BRAIN_INTENTS).catch("other"),
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  confidence: z2.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
   facts_used: z2.array(z2.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
@@ -1448,12 +1455,12 @@ function violatesNoPrices(text) {
 }
 function spokenBreach(turns) {
   if (!turns?.length) return null;
-  let n = 0;
+  let n2 = 0;
   for (const t of turns) {
     if (t?.role !== "agent") continue;
-    n += 1;
+    n2 += 1;
     const said = (t.content ?? "").trim();
-    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n2 };
   }
   return null;
 }
@@ -1500,8 +1507,8 @@ var REPLY_CAP_DEFAULT = 20;
 var PAUSE_HOURS_DEFAULT = 24;
 function hardLimitsWords(limits) {
   const stored = (v) => {
-    const n = Number(v);
-    return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+    const n2 = Number(v);
+    return v !== void 0 && v !== null && v !== "" && Number.isFinite(n2) && n2 > 0 ? n2 : null;
   };
   return {
     sub: "The first two never change; the last two are yours to set",
@@ -1654,7 +1661,7 @@ function emailLeftOutOf(meta) {
   if (!email) return null;
   const files = Array.isArray(email.attachments) ? email.attachments : [];
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
-  const names = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
+  const names = files.map((f) => f?.filename).filter((n2) => typeof n2 === "string" && n2.trim().length > 0);
   const total = files.length + unnamed;
   const said = [];
   if (total) {
@@ -2581,7 +2588,7 @@ var PolicyLimitsSchema = z3.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema = z3.object({ open: TIME, close: TIME });
@@ -2808,28 +2815,28 @@ function checkDay(h, day, ctx) {
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
   }
-  iv.forEach((x, n) => {
+  iv.forEach((x, n2) => {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
+        path: at2("intervals", n2, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
+  for (let n2 = 1; n2 < sorted.length; n2++) {
+    if (sorted[n2].open < sorted[n2 - 1].close) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
+        path: at2("intervals", n2, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
-function checkClosure(c, n, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+function checkClosure(c, n2, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -2870,7 +2877,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: `At most ${MAX_CLOSURES} closures.`
     });
   }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.closures ?? []).forEach((c, n2) => checkClosure(c, n2, ctx));
 });
 function parseTenantConfigResult(raw) {
   const r = TenantConfigSchema.safeParse(raw ?? {});
@@ -3074,7 +3081,7 @@ ${lines.join("\n")}`);
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
-${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+${profile.notes.map((n2) => `- ${n2.title}: ${n2.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
@@ -3090,7 +3097,7 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
       );
-    for (const n of br.notes ?? []) lines.push(n);
+    for (const n2 of br.notes ?? []) lines.push(n2);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
@@ -3258,9 +3265,9 @@ function keyParts(key) {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
 }
-function shiftKey(key, n) {
+function shiftKey(key, n2) {
   const { y, m, d } = keyParts(key);
-  const at2 = new Date(Date.UTC(y, m - 1, d + n));
+  const at2 = new Date(Date.UTC(y, m - 1, d + n2));
   return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
 }
 function mondayOf(key) {
@@ -3274,9 +3281,9 @@ function isDayKey(s) {
 function monthSpan(key) {
   return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
 }
-function shiftMonth(key, n) {
+function shiftMonth(key, n2) {
   const { y, m } = keyParts(key);
-  const at2 = new Date(Date.UTC(y, m - 1 + n, 1));
+  const at2 = new Date(Date.UTC(y, m - 1 + n2, 1));
   return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 function monthLabelOf(key) {
@@ -3830,17 +3837,17 @@ function extractContacts(item, own) {
   for (const a of item.attendees ?? []) {
     if (organizer && a.email?.toLowerCase() === organizer) continue;
     if (a.email && own.has(a.email.toLowerCase())) continue;
-    const n = (a.name ?? "").trim();
-    if (n && !EMAIL_RE.test(n)) names.add(n);
+    const n2 = (a.name ?? "").trim();
+    if (n2 && !EMAIL_RE.test(n2)) names.add(n2);
     EMAIL_RE.lastIndex = 0;
   }
   return { phones: [...phones], emails: [...emails], names: [...names] };
 }
 var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function nameMatcher(name) {
-  const n = name.trim();
-  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
+  const n2 = name.trim();
+  if (n2.length < 4 || /^[+\d(]/.test(n2)) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n2)}(?=$|[^\\p{L}\\p{N}])`, "iu");
 }
 function personInText(text, people) {
   let best = null;
@@ -3974,9 +3981,9 @@ function visitLine(v, tz, nowMs) {
 function describeVisits(visits, tz, nowMs) {
   const out = [];
   if (visits.next) {
-    const n = visits.next;
+    const n2 = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`
+      `Their next appointment on the calendar: ${visitLine(n2, tz, nowMs)} (${n2.title}).${n2.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`
     );
   }
   if (visits.last) {
@@ -4021,7 +4028,7 @@ var CAPITAL = /^\p{Lu}/u;
 function guessName(item, services = []) {
   const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
   const organizer = item.organizer?.toLowerCase() || null;
-  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n2) => n2 && !n2.includes("@"));
   if (guest) return guest.slice(0, 80);
   const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
@@ -4498,7 +4505,7 @@ var cardOf = (plan) => {
   if (!c) throw new Error(`no card ${plan.card}`);
   return c;
 };
-var round4 = (n) => Math.round(n * 1e4) / 1e4;
+var round4 = (n2) => Math.round(n2 * 1e4) / 1e4;
 function estimateRoundUsd(plan, purpose, placesToAsk2) {
   const c = cardOf(plan);
   const places = Math.max(0, Math.floor(placesToAsk2));
@@ -4506,24 +4513,24 @@ function estimateRoundUsd(plan, purpose, placesToAsk2) {
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
   return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
 }
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
-  const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+function spread(total, n2, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n2));
+  const rest = Math.min(total - each * n2, n2);
+  return Array.from({ length: n2 }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
 }
 function placesToAsk(plan, remaining, yieldSoFar) {
-  const n = Math.max(1, plan.terms.length);
+  const n2 = Math.max(1, plan.terms.length);
   const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (remaining <= 0) return { total: 0, perTerm: Array(n2).fill(0) };
   if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n2, cap2);
     return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
   }
   const left = Math.max(1, Math.ceil(remaining));
   const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
   const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
+  const total = Math.min(LEAD_MAX_PLACES, cap2 * n2, Math.ceil(clamped));
+  const perTerm = spread(total, n2, cap2);
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 var LEAD_EMAIL_REASON = /^email:/;
@@ -4574,10 +4581,10 @@ function classify(plan, answer, facts, emailState, inArea) {
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
 }
 function questionAfterProbe(plan, members) {
-  const n = members.length;
-  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const n2 = members.length;
+  if (n2 < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
   const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  if (excluded / n2 <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
   const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
   const tally2 = /* @__PURE__ */ new Map();
   for (const m of members)
@@ -4588,7 +4595,7 @@ function questionAfterProbe(plan, members) {
   const textOf2 = (key) => lowerFirst(
     plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
   );
-  const namedShare = top[1] / n;
+  const namedShare = top[1] / n2;
   const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
   const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
   let dropTerm = null;
@@ -4618,7 +4625,7 @@ function questionAfterProbe(plan, members) {
   const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
   return {
     ask: true,
-    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    sentence: `${lead} of the first ${n2} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
     criterionKey: top[0],
     dropTerm
   };
@@ -5089,7 +5096,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural = (n2, one, many) => `${n2} ${n2 === 1 ? one : many}`;
 function leadAnd(items) {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -5299,8 +5306,8 @@ function placeOf(input) {
 function planKey(text, fallback, taken) {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
   let key = /^[a-z]/.test(base) ? base : fallback;
-  let n = 2;
-  while (taken.has(key)) key = `${fallback}_${n++}`;
+  let n2 = 2;
+  while (taken.has(key)) key = `${fallback}_${n2++}`;
   taken.add(key);
   return key;
 }
@@ -5504,10 +5511,10 @@ function leadWeekSummary(week) {
   for (const d of open) tally2.set(d.short, (tally2.get(d.short) ?? 0) + 1);
   let best = "";
   let most = 0;
-  for (const [hours, n] of tally2)
-    if (n > most) {
+  for (const [hours, n2] of tally2)
+    if (n2 > most) {
       best = hours;
-      most = n;
+      most = n2;
     }
   const days = open.length === 7 ? "Open every day" : `Open ${open.length} day${open.length === 1 ? "" : "s"}`;
   if (most === open.length) return `${days} \xB7 ${best}`;
@@ -5801,16 +5808,16 @@ var LEAD_REVIEW_GROUP_WHY = {
   out_of_area: "They sit outside the area you asked for, so they were not counted."
 };
 var LEAD_CHECK_CENTS_EACH = 0.089;
-var leadCheckAgainCents = (n) => Math.max(1, Math.round(n * LEAD_CHECK_CENTS_EACH));
-function leadReviewCosts(acts, n, month) {
+var leadCheckAgainCents = (n2) => Math.max(1, Math.round(n2 * LEAD_CHECK_CENTS_EACH));
+function leadReviewCosts(acts, n2, month) {
   const line = (a) => {
     switch (a) {
       case "keep":
-        return month ? `They join Ready and count against this month. ${n} of your ${month.left} left.` : "They join Ready and count against this month.";
+        return month ? `They join Ready and count against this month. ${n2} of your ${month.left} left.` : "They join Ready and count against this month.";
       case "exclude":
         return "They don't count, and nothing is charged.";
       case "check_again":
-        return `About ${leadCheckAgainCents(n)}\xA2. Their answer lands here in a few minutes.`;
+        return `About ${leadCheckAgainCents(n2)}\xA2. Their answer lands here in a few minutes.`;
       case "find_email":
         return "Claude reads their pages again for an address.";
     }
@@ -6619,9 +6626,9 @@ function noNumberWords(who, purpose) {
 }
 function saidYesWords(who, purpose, sending, saidYes) {
   const noNumber = sending === 0 && saidYes > 0;
-  const n = noNumber ? saidYes : sending;
-  const words2 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words2}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words2;
+  const n2 = noNumber ? saidYes : sending;
+  const words2 = `${n2} ${n2 === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words2}, ${n2 === 1 ? "with no number" : "none with a number"} to send to` : words2;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
@@ -6797,8 +6804,8 @@ var DECISION_LABELS = {
   pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
   resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" }
 };
-function plural2(n, one, many = `${one}s`) {
-  return `${n} ${n === 1 ? one : many}`;
+function plural2(n2, one, many = `${one}s`) {
+  return `${n2} ${n2 === 1 ? one : many}`;
 }
 function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
@@ -7351,21 +7358,21 @@ function callOfKey(key) {
 function serverNotificationRows(dto) {
   if (!dto) return [];
   const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
-  return dto.notifications.filter((n) => !n.dismissed).map((n) => {
-    const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
-    const at2 = Date.parse(n.created_at);
+  return dto.notifications.filter((n2) => !n2.dismissed).map((n2) => {
+    const look = SERVER_LOOK[n2.kind] ?? SERVER_LOOK.alert;
+    const at2 = Date.parse(n2.created_at);
     return {
-      key: `${SERVER_KEY_PREFIX}${n.id}`,
-      kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
+      key: `${SERVER_KEY_PREFIX}${n2.id}`,
+      kind: SERVER_NOTIFICATION_KINDS.includes(n2.kind) ? n2.kind : "alert",
       at: at2,
-      title: n.title,
-      message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
-      to: n.route ?? look.to,
+      title: n2.title,
+      message: n2.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+      to: n2.route ?? look.to,
       icon: look.icon,
       tone: look.tone,
-      action: verbForRoute(n.route) ?? look.action,
-      unread: at2 > seen && !n.read,
-      about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
+      action: verbForRoute(n2.route) ?? look.action,
+      unread: at2 > seen && !n2.read,
+      about: n2.subject_type && n2.subject_id ? { type: n2.subject_type, id: n2.subject_id } : null
     };
   });
 }
@@ -7573,8 +7580,8 @@ var COUNT_WORDS = {
   8: "eight",
   9: "nine"
 };
-var countWord = (n) => COUNT_WORDS[n] ?? String(n);
-var timesWords = (n) => n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`;
+var countWord = (n2) => COUNT_WORDS[n2] ?? String(n2);
+var timesWords = (n2) => n2 === 1 ? "once" : n2 === 2 ? "twice" : `${countWord(n2)} times`;
 var REASON_WHY = {
   human_token: "because a customer asked for a person",
   non_text: "for something it can't read",
@@ -7593,10 +7600,10 @@ var REASON_WHY = {
   callback: "because they need a call back"
 };
 var reasonWhy = (r) => REASON_WHY[r] ?? reasonShort(r) ?? r;
-var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural3 = (n2, one, many = `${one}s`) => `${n2} ${n2 === 1 ? one : many}`;
 var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var wireWord = (w) => w === "WhatsApp" ? w : w.toLowerCase();
-var counted = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+var counted = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n2]) => n2 > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 var tally = (xs) => counted(xs.reduce((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
 var UNNAMED_CALLER = /* @__PURE__ */ new Set(["Caller ID withheld", "Unknown caller", "Unknown"]);
 function replyGapSeconds(live) {
@@ -7624,8 +7631,8 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
       (c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))
     )
   );
-  const held = wires.reduce((s, [, n]) => s + n, 0);
-  const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
+  const held = wires.reduce((s, [, n2]) => s + n2, 0);
+  const split = andList(wires.map(([w, n2]) => `${n2} by ${wireWord(w)}`));
   const messages = {
     id: "messages",
     label: "customer messages",
@@ -7651,10 +7658,10 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     if (!reasons.length) {
       handovers = `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
     } else if (reasons.length === 1 && reasons[0][1] === handedOver) {
-      const [r, n] = reasons[0];
-      handovers = `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
+      const [r, n2] = reasons[0];
+      handovers = `${lead}, ${n2 === 1 ? "" : n2 === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
     } else {
-      const parts2 = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
+      const parts2 = reasons.map(([r, n2]) => `${timesWords(n2)} ${reasonWhy(r)}`).join(", ");
       const done = resolved ? ` ${capitalize2(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.` : "";
       handovers = `${lead}: ${parts2}.${done}`;
     }
@@ -7671,7 +7678,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     receipt: answeredWhy.length ? { text: answeredWhy.join(" "), door: p.escalations_new ? { label: "See the handovers", to: "inbox" } : null } : null
   };
   const moods = counted(p.call_sentiments);
-  const moodOf = ([mood, n]) => n === p.calls ? p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}` : `${n} as ${mood.toLowerCase()}`;
+  const moodOf = ([mood, n2]) => n2 === p.calls ? p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}` : `${n2} as ${mood.toLowerCase()}`;
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
     ...new Map(
@@ -8316,11 +8323,11 @@ function todayRunWords(r) {
     done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" }
   };
 }
-function todayRunsSub(n) {
-  return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
+function todayRunsSub(n2) {
+  return n2 ? `${n2} run${n2 === 1 ? "" : "s"} waiting` : null;
 }
-function todayRunApproved(label, n, when) {
-  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
+function todayRunApproved(label, n2, when) {
+  return { lead: label, rest: `approved: ${n2} ${n2 === 1 ? "person" : "people"}, ${when}` };
 }
 var TODAY_LEAK_MAX = 2;
 var LEAK_ORDER = ["never-booked", "unanswered", "unreachable", "quiet"];
@@ -8490,7 +8497,7 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const rank = (g) => AWAY_TONE_RANK[g.row.tone] ?? 1;
   const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
   const shown = sorted.slice(0, max);
-  const stoodFor = shown.reduce((n, g) => n + g.count, 0);
+  const stoodFor = shown.reduce((n2, g) => n2 + g.count, 0);
   const total = unreadCount(rows);
   const queued = total - fresh.length;
   const more = Math.max(0, total - stoodFor);
@@ -8557,7 +8564,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   required: ["answer", "citations", "followups", "navigate", "language"],
   additionalProperties: false
 };
-var clip = (n) => (s) => s.trim().slice(0, n);
+var clip = (n2) => (s) => s.trim().slice(0, n2);
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
@@ -8610,10 +8617,10 @@ var AskFinishSchema = z6.object({
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
   ),
   navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
     } : null
   ),
   language: z6.enum(ASK_LANGUAGES).catch("other")
@@ -8748,16 +8755,16 @@ function partialString(prefix, key) {
     const c = prefix[i];
     if (c === '"') break;
     if (c === "\\") {
-      const n = prefix[i + 1];
-      if (n === void 0) break;
-      if (n === "n") out += "\n";
-      else if (n === "t") out += "	";
-      else if (n === "u") {
+      const n2 = prefix[i + 1];
+      if (n2 === void 0) break;
+      if (n2 === "n") out += "\n";
+      else if (n2 === "t") out += "	";
+      else if (n2 === "u") {
         const hex = prefix.slice(i + 2, i + 6);
         if (hex.length < 4) break;
         out += String.fromCharCode(parseInt(hex, 16) || 32);
         i += 4;
-      } else out += n;
+      } else out += n2;
       i += 2;
       continue;
     }
@@ -9377,7 +9384,7 @@ function placeholdersOf(body) {
   return [...set].sort((a, b) => a - b);
 }
 function placeholdersSequential(positions) {
-  return positions.every((n, i) => n === i + 1);
+  return positions.every((n2, i) => n2 === i + 1);
 }
 function validateTemplateDraft(d) {
   const name = slugTemplateName(d.name);
@@ -9499,7 +9506,7 @@ function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
 function playbooksStillSending(names) {
-  const quoted = names.map((n) => `\u201C${n}\u201D`);
+  const quoted = names.map((n2) => `\u201C${n2}\u201D`);
   if (quoted.length <= 1)
     return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
@@ -9856,7 +9863,7 @@ function starterDraft(s, language) {
   };
 }
 function fill(body, values) {
-  return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
+  return body.replace(/\{\{(\d+)\}\}/g, (m, n2) => values[Number(n2) - 1] ?? m);
 }
 var OWN_SLOT_LABEL = /* @__PURE__ */ new Map([
   ["business_name", "Business name"],
@@ -9970,7 +9977,7 @@ var COUNT_WORDS2 = ["", "one", "two", "three", "four", "five"];
 function blockedWords(reasons) {
   const seen = /* @__PURE__ */ new Map();
   for (const r of reasons) seen.set(r, (seen.get(r) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS2[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  const parts2 = [...seen].map(([reason, n2]) => `${COUNT_WORDS2[n2] ?? n2} ${n2 === 1 ? "has" : "have"} ${reason}`);
   return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
 }
 function sendableTemplates(list2) {
@@ -9978,15 +9985,15 @@ function sendableTemplates(list2) {
   const blocked = [];
   for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
   if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
+  const n2 = blocked.length;
   const reasons = blocked.map((t) => templateBlocked(t));
-  const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS2[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  const words2 = n2 === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS2[n2] ?? String(n2);
+  const lead = n2 === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,
     blocked,
-    why: `${lead} can't go out from here \u2014 ${words2}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+    why: `${lead} can't go out from here \u2014 ${words2}. ${n2 === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
   };
 }
 var TEMPLATE_TITLE_MAX = 60;
@@ -10187,8 +10194,8 @@ function slotLabels(t) {
   }
   return vars.map((v, i) => {
     const label = typeof v?.label === "string" ? v.label.trim() : "";
-    const n = typeof v?.position === "number" ? v.position : i + 1;
-    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+    const n2 = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n2}`;
   });
 }
 function inboxSlots(t) {
@@ -10230,9 +10237,9 @@ function audienceMembers(rows, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
   return rows;
 }
-function heardWords(n) {
-  if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a playbook or a broadcast this week.`;
+function heardWords(n2) {
+  if (n2 <= 0) return null;
+  return `${n2 === 1 ? "One" : n2} of them heard from a playbook or a broadcast this week.`;
 }
 function previewPerson(r, refusal) {
   return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
@@ -10263,8 +10270,8 @@ function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5, touched =
   };
 }
 function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
-    const v = params[Number(n) - 1];
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
+    const v = params[Number(n2) - 1];
     return typeof v === "string" && v !== "" ? v : m;
   });
 }
@@ -10292,9 +10299,9 @@ var BROADCAST_FAILURE_FIX = {
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
 };
 var BROADCAST_FAILURE_FIX_AFTER = {
-  paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
-  wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+  paused: (n2) => `Unpause it under Settings. Sending it again reaches the whole list, ${n2 === 1 ? "the one" : `the ${n2}`} who got it included.`,
+  wire_unavailable: (n2) => `The first ${n2 === 1 ? "one" : n2} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n2 === 1 ? "that one" : `those ${n2}`} included.`,
+  run_interrupted: (n2) => `${n2 === 1 ? "One" : n2} got it and the rest did not. Sending it again reaches the whole list, ${n2 === 1 ? "that one" : `those ${n2}`} included.`
 };
 function broadcastFailureFix(failure, reached = 0) {
   if (!failure) return null;
@@ -10338,13 +10345,13 @@ var LIMIT_TIERS = {
 };
 function dailyLimit(tier) {
   if (!tier) return null;
-  const n = LIMIT_TIERS[String(tier).toUpperCase()];
-  return typeof n === "number" ? n : null;
+  const n2 = LIMIT_TIERS[String(tier).toUpperCase()];
+  return typeof n2 === "number" ? n2 : null;
 }
-function numberHealth(n) {
-  const q = String(n.quality ?? "").toUpperCase();
-  const ev = String(n.event ?? "").toUpperCase();
-  const limit = dailyLimit(n.limit);
+function numberHealth(n2) {
+  const q = String(n2.quality ?? "").toUpperCase();
+  const ev = String(n2.event ?? "").toUpperCase();
+  const limit = dailyLimit(n2.limit);
   const limitWords = limit === null ? "daily limit not reported yet" : limit === Number.POSITIVE_INFINITY ? "no daily limit" : `up to ${limit.toLocaleString("en-US")} new conversations a day`;
   if (q === "RED" || ev === "FLAGGED") {
     return {
@@ -10452,7 +10459,7 @@ function toRunReportVM(d, opts) {
     }
     return out;
   };
-  const pct2 = (n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+  const pct2 = (n2) => sent > 0 && n2 > 0 ? Math.round(n2 / sent * 100) : null;
   const never = sent - delivered.length;
   const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
   const state = d.broadcast?.state;
@@ -10735,7 +10742,7 @@ function runDueNow(p, tz, now) {
   const { date, hour } = parts(tz, now);
   return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
 }
-var two2 = (n) => String(n).padStart(2, "0");
+var two2 = (n2) => String(n2).padStart(2, "0");
 function scheduleLine(p) {
   const at2 = `${two2(p.run_hour)}:00`;
   if (triggerOf(p.trigger)?.kind === "visit")
@@ -10819,7 +10826,7 @@ function reachLines(reach, p) {
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural8) => n === 1 ? singular : plural8;
+  const one = (n2, singular, plural8) => n2 === 1 ? singular : plural8;
   const reasons = [
     {
       n: reach.noYes,
@@ -10858,7 +10865,7 @@ function reachLines(reach, p) {
       door: null
     }
   ];
-  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words2, tone, door }) => ({ n, words: `${n} ${words2}`, tone, door }));
+  const lines = reasons.map((r, rank) => ({ ...r, rank })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n: n2, words: words2, tone, door }) => ({ n: n2, words: `${n2} ${words2}`, tone, door }));
   return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
 }
 function toApprovalVM(d, opts) {
@@ -11135,9 +11142,9 @@ function bars(entries) {
 }
 var sum = (xs) => xs.reduce((a, b) => a + b, 0);
 var capitalize3 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function priorOf(n, previous, pick) {
-  return Array.from({ length: n }, (_, i) => {
-    const j = previous.length - n + i;
+function priorOf(n2, previous, pick) {
+  return Array.from({ length: n2 }, (_, i) => {
+    const j = previous.length - n2 + i;
     return j >= 0 ? pick(previous[j]) : null;
   });
 }
@@ -11361,10 +11368,10 @@ function toReportVM(dto) {
     }
   ];
   const reasons = bars(
-    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, capitalize3(reasonShort(r)) || r, n])
+    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r, n2]) => [r, capitalize3(reasonShort(r)) || r, n2])
   );
   const sentiments = bars(
-    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n2]) => [s, s, n2])
   ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
   const weekNow = weekOf(current);
   const weekBefore = weekOf(previous);
@@ -11463,7 +11470,7 @@ function toReportVM(dto) {
 
 // src/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
-var pct = (n, d) => d ? Math.round(n / d * 100) : null;
+var pct = (n2, d) => d ? Math.round(n2 / d * 100) : null;
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function toCampaignReportVM(dto) {
   const days = dto.days;
@@ -11586,7 +11593,7 @@ function toCampaignReportVM(dto) {
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/report-facts.ts
-var plural4 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural4 = (n2, one, many = `${one}s`) => `${n2} ${n2 === 1 ? one : many}`;
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 function reportFacts(vm, campaigns) {
   const out = [];
@@ -11828,13 +11835,13 @@ var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var plural5 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural5 = (n2, one, many = `${one}s`) => `${n2} ${n2 === 1 ? one : many}`;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
 function starsOf(rating) {
-  const n = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
-  return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
+  const n2 = typeof rating === "number" && Number.isFinite(rating) ? Math.max(0, Math.min(5, Math.round(rating))) : 0;
+  return "\u2605".repeat(n2) + "\u2606".repeat(5 - n2);
 }
 function reviewsWords(count2) {
   return typeof count2 === "number" ? plural5(count2, "review") : "reviews not counted yet";
@@ -11872,9 +11879,9 @@ function whenWords(iso, nowMs) {
   if (Number.isNaN(at2)) return "";
   return agoWords(at2, nowMs, { dateAfterMs: WEEK_MS3, date: (ms2) => DATE_FMT3.format(new Date(ms2)) });
 }
-function shiftDay2(day, n) {
+function shiftDay2(day, n2) {
   const d = dayDate(day);
-  d.setDate(d.getDate() + n);
+  d.setDate(d.getDate() + n2);
   const p = (x) => String(x).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
@@ -12326,8 +12333,8 @@ var SOLE_PROP_LIMITS = {
   emailUsesEver: 10,
   addressUsesEver: 10
 };
-function grouped(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+function grouped(n2) {
+  return String(n2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 function soleProprietorLimits() {
   const L2 = SOLE_PROP_LIMITS;
@@ -12526,7 +12533,7 @@ function textingWords(l) {
   }
 }
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
-var plural6 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural6 = (n2, one, many = `${one}s`) => `${n2} ${n2 === 1 ? one : many}`;
 function activationWords(cap2, nowMs) {
   if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
   if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
@@ -13272,8 +13279,8 @@ var ROLE_WORDS = {
   viewer: "Viewer"
 };
 function personInitials(name, email) {
-  const n = (name ?? "").trim();
-  if (n) return initialsOf(n);
+  const n2 = (name ?? "").trim();
+  if (n2) return initialsOf(n2);
   const e = (email ?? "").trim();
   return e ? e[0].toUpperCase() : "?";
 }
@@ -13592,8 +13599,8 @@ function isTypingTarget(tagName, contentEditable) {
 function pageTitle(crumbs, needs) {
   const words2 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
   const where = [...words2, "Chanlytics"].join(" \xB7 ");
-  const n = Math.floor(Number(needs));
-  return n > 0 ? `(${n}) ${where}` : where;
+  const n2 = Math.floor(Number(needs));
+  return n2 > 0 ? `(${n2}) ${where}` : where;
 }
 function notFoundPageMetadata() {
   return { title: pageTitle(["Not found"]), robots: { index: false, follow: false } };
@@ -14627,6 +14634,7 @@ var WORDS = {
   reply_review: "Replied to a Google review",
   export: "Exported data",
   end_call: "Ended a call",
+  record_deal: "Recorded a deal",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -14737,8 +14745,8 @@ function activityWords(kind, payload) {
     case "send_broadcast": {
       const name = str(p, "name");
       if (name) bits2.push(name);
-      const n = num(p, "recipients");
-      if (n !== null) bits2.push(`${n} people`);
+      const n2 = num(p, "recipients");
+      if (n2 !== null) bits2.push(`${n2} people`);
       if (p.approved === true) bits2.push("approved by hand");
       break;
     }
@@ -14775,8 +14783,8 @@ function activityWords(kind, payload) {
     case "playbook.run": {
       const outcome = str(p, "outcome");
       if (outcome) bits2.push(outcome);
-      const n = num(p, "recipients") ?? num(p, "count");
-      if (n !== null) bits2.push(`${n} people`);
+      const n2 = num(p, "recipients") ?? num(p, "count");
+      if (n2 !== null) bits2.push(`${n2} people`);
       break;
     }
     case "lead.round": {
@@ -15123,7 +15131,7 @@ function businessRecordProblems(r, path, facts = {}) {
   if (has3("country") && !REGISTERABLE_COUNTRIES.includes(String(r.country).trim().toUpperCase())) {
     out.country = "The carriers register US and Canadian businesses only. Ours is not a door we can open.";
   }
-  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n) => digits(String(n)) === digits(String(r.contact_phone)))) {
+  if (path === "sole_proprietor" && has3("contact_phone") && (facts.ourNumbers ?? []).some((n2) => digits(String(n2)) === digits(String(r.contact_phone)))) {
     out.contact_phone = "This is the number Chanlytics answers for you. The carriers need YOUR handset \u2014 they text a code to it and you reply from the phone in your hand.";
   }
   return out;
@@ -15442,10 +15450,10 @@ function closuresAheadWords(closures, tz, now) {
   const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
-var count = (n) => n.toLocaleString("en-US");
+var count = (n2) => n2.toLocaleString("en-US");
 var CHIPS_SHOWN = 4;
-function chipsMoreWords(n) {
-  return `+${count(n)} more`;
+function chipsMoreWords(n2) {
+  return `+${count(n2)} more`;
 }
 var SERVICE_CHIPS = CHIPS_SHOWN;
 var CONSULT = /\bconsult/i;
@@ -15454,23 +15462,23 @@ function servicesWords(services) {
   const list2 = (Array.isArray(services) ? services : []).filter(
     (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
   );
-  const n = list2.length;
-  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
+  const n2 = list2.length;
+  if (!n2) return { count: 0, line: null, priced: null, chips: [], more: null };
   const notes = list2.map((s) => typeof s.price_note === "string" ? s.price_note.trim() : "");
   const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
   const first = notes[0] ?? "";
   const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
-  const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
+  const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n2 === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
   const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
     takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
   }));
   return {
-    count: n,
-    line: `${count(n)} on record`,
+    count: n2,
+    line: `${count(n2)} on record`,
     priced,
     chips,
-    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
+    more: n2 > SERVICE_CHIPS ? chipsMoreWords(n2 - SERVICE_CHIPS) : null
   };
 }
 function blockShareWords(chars, total) {
@@ -15516,27 +15524,27 @@ var PROMPT_NOW = {
   }
 };
 function servicesToldWords(i) {
-  const n = i.count;
-  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
+  const n2 = i.count;
+  if (!n2) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
   const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
-  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+  return `${count(n2)} ${n2 === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
 }
 function serviceUndoName(name) {
-  const n = typeof name === "string" ? name.trim() : "";
-  return n ? `Undo removing ${n}` : "Undo removing a service";
+  const n2 = typeof name === "string" ? name.trim() : "";
+  return n2 ? `Undo removing ${n2}` : "Undo removing a service";
 }
 function servicesFoundWords(shown, total) {
   if (!total) return "No services yet.";
   if (!shown) return "No service is called that.";
   return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
 }
-function servicesSaveWords(n) {
-  if (!n) return "Save with no services";
-  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+function servicesSaveWords(n2) {
+  if (!n2) return "Save with no services";
+  return `Save ${count(n2)} ${n2 === 1 ? "service" : "services"}`;
 }
 var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
-var plural7 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+var plural7 = (n2, one, many) => `${count(n2)} ${n2 === 1 ? one : many}`;
 function bookingRulesWords(rules) {
   const r = rules ?? {};
   const parts2 = [];
@@ -15629,21 +15637,21 @@ function handoffCallWords(i) {
 var HANDOFF_REASONS_SHOWN = 64;
 function handoffWords(reasons, transfer) {
   const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
-  const n = list2.length;
+  const n2 = list2.length;
   const number = typeof transfer === "string" ? transfer.trim() : "";
   return {
-    chat: n ? `on ${plural7(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
+    chat: n2 ? `on ${plural7(n2, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
     phone: number ? `transfers to ${number}` : "takes a message"
   };
 }
 var NOTE_CHIPS = CHIPS_SHOWN;
 function notesWords(notes) {
-  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
-  const n = titles.length;
+  const titles = (Array.isArray(notes) ? notes : []).map((n3) => n3 && typeof n3.title === "string" ? n3.title.trim() : "").filter((t) => t !== "");
+  const n2 = titles.length;
   return {
-    count: n,
+    count: n2,
     chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
+    more: n2 > NOTE_CHIPS ? chipsMoreWords(n2 - NOTE_CHIPS) : null
   };
 }
 var OPENING_SHOWN = 72;
@@ -15996,16 +16004,16 @@ function promptBlocks(text, channel, from) {
   const lines = text.split("\n");
   const whose = whoseWords(from);
   const own = ownWordsSpan(lines, whose.text);
-  const insideOwn = (n) => !!own && n >= own.from && n < own.to;
+  const insideOwn = (n2) => !!own && n2 >= own.from && n2 < own.to;
   const marks = BLOCK_MARKS.filter((m) => !m.channel || m.channel === channel);
   const found = [];
   let passed = -1;
-  lines.forEach((line, n) => {
-    if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
+  lines.forEach((line, n2) => {
+    if (insideOwn(n2) || n2 === 0 || lines[n2 - 1].trim() !== "") return;
     const at2 = marks.findIndex((m) => line.trim().startsWith(m.startsWith));
     if (at2 <= passed) return;
     passed = at2;
-    found.push({ at: n, mark: marks[at2] });
+    found.push({ at: n2, mark: marks[at2] });
   });
   let starts;
   let head;
@@ -16021,13 +16029,13 @@ function promptBlocks(text, channel, from) {
   const segments = [];
   const first = starts[0]?.at ?? lines.length;
   if (first > 0) segments.push({ from: 0, to: first, mark: head });
-  starts.forEach((s, n) => segments.push({ from: s.at, to: starts[n + 1]?.at ?? lines.length, mark: s.mark }));
+  starts.forEach((s, n2) => segments.push({ from: s.at, to: starts[n2 + 1]?.at ?? lines.length, mark: s.mark }));
   const ranges = segments.filter((s) => s.from < s.to);
   const out = [];
   let carry = 0;
-  ranges.forEach((seg, n) => {
+  ranges.forEach((seg, n2) => {
     const body = lines.slice(seg.from, seg.to).join("\n");
-    const chars = body.length + (n < ranges.length - 1 ? 1 : 0);
+    const chars = body.length + (n2 < ranges.length - 1 ? 1 : 0);
     const prev = out[out.length - 1];
     if (!body.trim()) {
       if (prev) prev.chars += chars;
@@ -16051,10 +16059,10 @@ function promptBlocks(text, channel, from) {
   });
   const times = /* @__PURE__ */ new Map();
   return out.map(({ from: a, to: b, ...block }) => {
-    const n = (times.get(block.row) ?? 0) + 1;
-    times.set(block.row, n);
+    const n2 = (times.get(block.row) ?? 0) + 1;
+    times.set(block.row, n2);
     return {
-      id: n === 1 ? block.row : `${block.row}-${n}`,
+      id: n2 === 1 ? block.row : `${block.row}-${n2}`,
       ...block,
       share: block.chars / text.length,
       text: lines.slice(a, b).join("\n").trim()
@@ -16134,6 +16142,9 @@ var SCHEMA_SETS = {
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
+  "deals.per": ["once", "month", "year"],
+  "deals.source": ["person", "payment"],
+  "deals.stage": ["proposed", "won", "lost", "ended"],
   "decisions.subject_type": [
     "conversation",
     "escalation",
@@ -16149,7 +16160,8 @@ var SCHEMA_SETS = {
     "broadcast",
     "playbook",
     "review",
-    "workspace"
+    "workspace",
+    "deal"
   ],
   "decisions.verb": [
     "approve",
@@ -16179,7 +16191,8 @@ var SCHEMA_SETS = {
     "pause_playbook",
     "reply_review",
     "export",
-    "end_call"
+    "end_call",
+    "record_deal"
   ],
   "escalations.reason": [
     "human_token",
@@ -16341,6 +16354,164 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 
+// src/deals.ts
+var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+var DEAL_PERS = ["once", "month", "year"];
+var DEAL_SOURCES = ["person", "payment"];
+var DEAL_STAGE_WORDS = {
+  proposed: "Proposal out",
+  won: "Client",
+  lost: "Passed",
+  ended: "Ended"
+};
+var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
+var DEAL_LINE_NONE = "No proposal yet";
+var WAITING_AFTER_DAYS = 7;
+var DAY_MS7 = 864e5;
+function isDealStage(s) {
+  return typeof s === "string" && DEAL_STAGES.includes(s);
+}
+function dealFactsOf(r) {
+  if (!r || !isDealStage(r.deal_stage)) return null;
+  return {
+    stage: r.deal_stage,
+    service: r.deal_service ?? null,
+    proposed_at: r.deal_proposed_at ?? null,
+    decided_at: r.deal_decided_at ?? null,
+    ended_at: r.deal_ended_at ?? null,
+    amount_cents: r.deal_amount_cents ?? null,
+    per: r.deal_per ?? null
+  };
+}
+function pickCurrentDeal(rows) {
+  const open = (d) => d.stage === "proposed" || d.stage === "won";
+  const sorted = [...rows].sort(
+    (a, b) => Number(open(b)) - Number(open(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function amountWords(cents, per, currency = "USD") {
+  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
+  const whole = cents % 100 === 0;
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
+  return p && per !== "once" ? `${money} ${p}` : money;
+}
+function dealSinceMs(d) {
+  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at2 ? Date.parse(at2) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function toDealVM(d, tz, nowMs) {
+  if (!isDealStage(d.stage)) return null;
+  const sinceMs = dealSinceMs(d);
+  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const waitingDays = d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS7)) : null;
+  const amount = d.stage === "won" ? amountWords(d.amount_cents, d.per, d.currency ?? "USD") : null;
+  const word = DEAL_STAGE_WORDS[d.stage];
+  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  return {
+    id: d.id ?? null,
+    version: d.version ?? null,
+    stage: d.stage,
+    word,
+    service: d.service,
+    sinceMs,
+    since,
+    said,
+    line,
+    brief,
+    waitingDays,
+    amount
+  };
+}
+function dealOf(r, tz, nowMs) {
+  const f = dealFactsOf(r);
+  return f ? toDealVM({ ...f, id: r?.deal_id ?? null }, tz, nowMs) : null;
+}
+var DEAL_MOVES = {
+  none: [{ to: "proposed", label: "Proposal sent", sameRow: false }],
+  proposed: [
+    { to: "won", label: "Became a client", sameRow: true },
+    { to: "lost", label: "Passed", sameRow: true }
+  ],
+  won: [{ to: "ended", label: "Ended", sameRow: true }],
+  lost: [{ to: "proposed", label: "Proposal sent again", sameRow: true }],
+  ended: [{ to: "proposed", label: "Proposal sent", sameRow: false }]
+};
+function dealMoves(d) {
+  return DEAL_MOVES[d ? d.stage : "none"];
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
+function isConsultationTitle(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return false;
+  if (t.includes("consult")) return true;
+  return (services ?? []).some((s) => {
+    const n2 = foldName(String(s.name ?? "").trim());
+    return !!n2 && t.includes(n2) && needsConsultation(s.name, rules);
+  });
+}
+function dealsAreAThing(consultFirst, anyDeal) {
+  return anyDeal || Array.isArray(consultFirst) && consultFirst.length > 0;
+}
+function proposalsWaiting(rows, nowMs) {
+  return rows.filter((r) => {
+    const d = r.deal;
+    if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+    if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS7) return false;
+    return r.askedMs === null || r.askedMs < d.sinceMs;
+  });
+}
+var DEAL_REFUSALS = {
+  not_found: "Person not found.",
+  bad_stage: "That is not a stage a deal can be in.",
+  bad_per: "An amount is once, a month or a year.",
+  bad_amount: "An amount cannot be negative.",
+  note_too_long: "A note is at most 200 characters.",
+  service_too_long: "A service name is at most 80 characters.",
+  bad_move: "A new deal starts with a proposal.",
+  already_open: "They already have a proposal out or an engagement running for this service.",
+  moved: "Someone changed this deal since you opened it. Reload and try again.",
+  ended: "An ended engagement is not reopened: record a new proposal."
+};
+var n = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
+function toDealReportVM(dto, rangeLabel) {
+  if (!dto || !dto.any) return { present: false, headline: "", parts: "", stock: "" };
+  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${n(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+  const parts2 = dto.sent === 0 ? "" : [
+    `${n(dto.won, "became a client", "became clients")}`,
+    `${dto.lost} passed`,
+    `${dto.waiting} still waiting`
+  ].join(" \xB7 ");
+  const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
+  const stock = dto.clients === 0 ? "No clients right now." : `${n(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
+  return { present: true, headline, parts: parts2, stock };
+}
+
 // src/tone.ts
 var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
 var FACT_SOURCE_TONE = {
@@ -16408,7 +16579,9 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   lead_call_outcome: LEAD_CALL_OUTCOME_TONES,
   // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
   // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
-  lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" }
+  lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" },
+  // A proposal out is waiting on someone else; a client is a good outcome; passed and ended are quiet.
+  deal: { proposed: "info", won: "ok", lost: "plain", ended: "plain" }
 }))();
 var LABEL_OF = /* @__PURE__ */ (() => ({
   thread: {
@@ -16464,6 +16637,7 @@ var LABEL_OF = /* @__PURE__ */ (() => ({
   escalation: { open: "Open", resolved: "Resolved" },
   lead_class: LEAD_CLASS_WORDS,
   lead_stage: LEAD_STAGE_WORDS,
+  deal: DEAL_STAGE_WORDS,
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS
@@ -16753,7 +16927,7 @@ function sha256Hex(text) {
     1541459225
   ]);
   const w = new Uint32Array(64);
-  const rotr = (x, n) => x >>> n | x << 32 - n;
+  const rotr = (x, n2) => x >>> n2 | x << 32 - n2;
   for (let off = 0; off < padded.length; off += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4);
     for (let i = 16; i < 64; i++) {
@@ -16884,6 +17058,14 @@ export {
   CalendarConfigSchema,
   ClosureSchema,
   DAYS,
+  DEAL_LINE_NONE,
+  DEAL_MOVES,
+  DEAL_PERS,
+  DEAL_PER_WORDS,
+  DEAL_REFUSALS,
+  DEAL_SOURCES,
+  DEAL_STAGES,
+  DEAL_STAGE_WORDS,
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DEFAULT_BUSINESS_TYPE,
@@ -17215,6 +17397,7 @@ export {
   TenantConfigWriteSchema,
   VISION_STRENGTH,
   WABA_FIELDS,
+  WAITING_AFTER_DAYS,
   WA_WINDOW_MS,
   WHATSAPP_LANGUAGES,
   abandonedCall,
@@ -17229,6 +17412,7 @@ export {
   agoShort,
   agoWords,
   allVisitsIn,
+  amountWords,
   applyReadState,
   applySettingsChange,
   asPersonMode,
@@ -17327,6 +17511,12 @@ export {
   dayIntervals,
   dayPlusInZone,
   dayWords,
+  dealFactsOf,
+  dealMoves,
+  dealOf,
+  dealSentence,
+  dealSinceMs,
+  dealsAreAThing,
   dedupeFeed,
   defaultParamSpecs,
   defaultSlotKinds,
@@ -17425,7 +17615,9 @@ export {
   isActivityNoise,
   isBaselinePrompt,
   isCarrier,
+  isConsultationTitle,
   isDayKey,
+  isDealStage,
   isForwardingMode,
   isHeldDraft,
   isIdentifierName,
@@ -17574,6 +17766,7 @@ export {
   personStanding,
   personStateFor,
   phoneTail,
+  pickCurrentDeal,
   placeholdersOf,
   placeholdersSequential,
   placesToAsk,
@@ -17617,6 +17810,7 @@ export {
   promptBlocks,
   promptCostWords,
   promptTotalWords,
+  proposalsWaiting,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
@@ -17768,6 +17962,8 @@ export {
   toCampaignReportVM,
   toChannelVM,
   toConversationVM,
+  toDealReportVM,
+  toDealVM,
   toGoogleReviewVM,
   toGoogleVM,
   toInboxThreadVM,

@@ -119,7 +119,12 @@ var EVENT_KINDS = [
   "lead.emailed",
   "lead.call",
   "lead.converted",
-  "lead.not_a_fit"
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -203,7 +208,8 @@ var DECISION_VERBS = [
    */
   "export",
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call"
+  "end_call",
+  "record_deal"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -261,7 +267,7 @@ var BrainOutputSchema = z2.object({
   intent: z2.enum(BRAIN_INTENTS).catch("other"),
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  confidence: z2.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
   facts_used: z2.array(z2.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
@@ -387,7 +393,7 @@ var PolicyLimitsSchema = z3.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema = z3.object({ open: TIME, close: TIME });
@@ -582,28 +588,28 @@ function checkDay(h, day, ctx) {
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
   }
-  iv.forEach((x, n) => {
+  iv.forEach((x, n2) => {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
+        path: at2("intervals", n2, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
+  for (let n2 = 1; n2 < sorted.length; n2++) {
+    if (sorted[n2].open < sorted[n2 - 1].close) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
+        path: at2("intervals", n2, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
-function checkClosure(c, n, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+function checkClosure(c, n2, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -644,7 +650,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: `At most ${MAX_CLOSURES} closures.`
     });
   }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.closures ?? []).forEach((c, n2) => checkClosure(c, n2, ctx));
 });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
@@ -1101,7 +1107,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   required: ["answer", "citations", "followups", "navigate", "language"],
   additionalProperties: false
 };
-var clip = (n) => (s) => s.trim().slice(0, n);
+var clip = (n2) => (s) => s.trim().slice(0, n2);
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
@@ -1122,10 +1128,10 @@ var AskFinishSchema = z6.object({
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
   ),
   navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n) => n.to.trim() ? {
-      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n.label.trim().slice(0, 60) || "Open",
-      now: n.now === true
+    (n2) => n2.to.trim() ? {
+      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n2.label.trim().slice(0, 60) || "Open",
+      now: n2.now === true
     } : null
   ),
   language: z6.enum(ASK_LANGUAGES).catch("other")

@@ -35,6 +35,7 @@ import {
   LEAD_FIT_WORDS,
   LEAD_STAGE_WORDS,
 } from "./leads";
+import { DEAL_STAGE_WORDS } from "./deals";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -68,7 +69,8 @@ export type StateKind =
   | "lead_call_outcome"
   // The row's own state, which its left edge, its tag and its pin on the map all say. The map kept a sixth
   // private family for exactly this, in CSS, keyed by words no tone vocabulary knows.
-  | "lead_row_state";
+  | "lead_row_state"
+  | "deal"; // a deal's stage on a person (0004): proposed, won, lost, ended
 
 /**
  * The tone of each source a fact can have, typed by `FactSource` itself.
@@ -156,6 +158,8 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   // `contacted` and `talking` are `nurture` and `converted` in the owner's words, so they take those tones.
   // Review is the one state that wants a person. Ready and left-out are both silent, for opposite reasons.
   lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" },
+  // A proposal out is waiting on someone else; a client is a good outcome; passed and ended are quiet.
+  deal: { proposed: "info", won: "ok", lost: "plain", ended: "plain" },
 }))();
 
 /** The words a pill says when the page has none better. Marked pure for the reason `TONE_OF` is. */
@@ -213,6 +217,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   escalation: { open: "Open", resolved: "Resolved" },
   lead_class: LEAD_CLASS_WORDS,
   lead_stage: LEAD_STAGE_WORDS,
+  deal: DEAL_STAGE_WORDS,
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
