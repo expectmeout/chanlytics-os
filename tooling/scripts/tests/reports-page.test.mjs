@@ -8,6 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { importSrc } from "./_source.mjs";
 import { toReportVM, toCampaignReportVM, toBookingReportVM, reportFacts, toGoogleVM } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -869,4 +870,28 @@ test("Reports draws a Deals section only where a deal was ever recorded, with th
   });
   assert.equal(byTestId(quiet, "rpt-deals-parts"), null, "no cohort: no parts line");
   assert.equal(textOf(byTestId(quiet, "rpt-deals-stock")), "2 clients now.");
+});
+
+test("REGRESSION: a period nobody wrote or called in still says its deals -- the section sat inside the branch for a period with messages, so a workspace whose deals are made in meetings saw none", () => {
+  const tree = page({
+    report: quiet(),
+    deals: {
+      present: true,
+      headline: "1 proposal went out in the last 7 days.",
+      parts: "0 became clients · 0 passed · 1 still waiting",
+      stock: "No clients right now.",
+    },
+  });
+  assert.ok(card(tree, "reports-empty"), "the period is still said to be quiet");
+  assert.ok(byTestId(tree, "rpt-deals"), "and the deals are there beside it");
+  assert.equal(textOf(byTestId(tree, "rpt-deals-headline")), "1 proposal went out in the last 7 days.");
+  assert.equal(byTestId(page({ report: quiet(), deals: NO_DEALS }), "rpt-deals"), null, "a quiet salon grows nothing");
+});
+
+test("REGRESSION: recording a deal re-reads Reports as well as People -- an open session kept the Deals section's old numbers until a reload", async () => {
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  assert.deepEqual(
+    AFTER["POST contacts/[id]/deal"]().map((o) => o.key),
+    ["people", "reports"],
+  );
 });

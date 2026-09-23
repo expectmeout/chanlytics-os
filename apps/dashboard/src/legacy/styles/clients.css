@@ -1702,7 +1702,8 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
 .cl-prof-msg-meta { font-size: 10.5px; color: var(--ink-dim); }
 /* A sign-up form's note: which form, or where they wrote. */
 .cl-prof-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
-.cl-prof-note input {
+/* A deal's how-row (0004) holds two choices beside its fields: they take the fields' look, not the browser's. */
+.cl-prof-note :is(input, select) {
   flex: 1 1 160px;
   min-width: 0;
   font: inherit;
@@ -1714,8 +1715,9 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-t
   padding: 5px 8px;
   outline: none;
 }
-.cl-prof-note input:focus { border-color: var(--accent); }
-@media (pointer: coarse) { .cl-prof-msg { padding: 10px 12px; } .cl-prof-note input { padding: 9px 10px; } }
+.cl-prof-note select { flex: 0 1 auto; cursor: pointer; }
+.cl-prof-note :is(input, select):focus { border-color: var(--accent); }
+@media (pointer: coarse) { .cl-prof-msg { padding: 10px 12px; } .cl-prof-note :is(input, select) { padding: 9px 10px; } }
 /* The explanation a reader may want and never needs in the way. */
 .cl-prof-why { margin-top: 6px; }
 .cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: 11px; color: var(--ink-muted); cursor: pointer; }
