@@ -79,6 +79,11 @@
 .dash-a-v2-core {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  /* The band's row takes the band's height and nothing more: the day spans both rows, and a day taller than the
+     band and the queue together would otherwise share its extra height with the band's row and push the queue down
+     (production, 23 Sep: 208px of nothing under the mark). A flexible second row keeps a spanning item out of the
+     first row's sizing. */
+  grid-template-rows: auto 1fr;
   gap: 12px;
   align-items: start;
 }
