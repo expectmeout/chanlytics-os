@@ -59,6 +59,8 @@ Last changed by Ruben, just now
 [ Your data           ]  2 rows
 ```
 
+> **Amended 22 Sep, in execution (Task 5.1).** *Read what it's told* is not in the head. It is the door of a small section of its own after *What it can do*, "What your receptionist is told": its title, one muted phrase saying who reads it (contracts' `PROMPT_READERS`, for the channel last chosen) and the door, "Read it", which opens the prompt sheet (§5). It stands where `PromptPreview`'s card stood, which the sheet replaces, and at rest it carries nothing else -- no count, no text, no toggle.
+
 ### 4.1 The standing line
 
 Three clauses, not a meter: what it can answer, what it deliberately will not, and what is missing — the last one a link to the row that fixes it. Derived from which fields are filled against `BRAIN_INTENTS` (booking, pricing, hours, services, location, complaint, smalltalk, other). A percentage would be a number nobody can act on.
@@ -159,6 +161,8 @@ And what it cannot: book, move or cancel an appointment (structural); call a cus
 
 **Sheet.** Right-hand panel for the services list and the prompt. Head, search, rows, sticky footer. The page behind stays readable.
 
+> **Amended 22 Sep, in execution (Task 5.1).** The prompt's sheet has no search and nothing to save. Its head is the title and who reads it (no count); its tools the channel, WhatsApp or Phone; its body the contents ("Written by", an entry per block with ONE thin bar as long as the block's share, the exact count only in the entry's accessible description and tip) beside the blocks (each its row's label, its door back to that row, its text in the page's face, its note), then what is sent beside the prompt under a dashed rule with the reason it is apart. On a phone the contents are not drawn, each block's head says its share in words, and the foot is one Close; on a desktop it has no foot. Both sheets go through one slot, drawn last on the page, which draws one of them or neither.
+
 `window.__settingsUnsaved` narrows from the whole form to the open fold.
 
 ## 6. The record kit
@@ -249,11 +253,15 @@ Sentence case throughout; no colons in a label; the label names the thing and th
 >
 > The told section's head keeps its title, its Show and "every WhatsApp message, word for word"; its character count is inside, beside the text it counts.
 
+> **Amended again 22 Sep, in execution (Task 5.1).** The told section has no Show: its door is **Read it**, which opens the prompt sheet, and its phrase follows the channel last chosen ("every phone call, composed when the call starts" on Phone). The character count is on no glass at all -- a block's cost is its share, a thin bar, or "a quarter of everything it reads" on a phone, and the count is the accessible description of the entry that draws it. What is sent beside the prompt is "Sent alongside it, rebuilt for every message", and "... for every call" on Phone, where it said "every message" on both.
+
 ## 11. What is on screen
 
 At rest: **four** controls — *Read what it's told*, the standing line's one link, *Download*, and the one act under the pointer. Twenty more are in the tab order at all times and draw themselves on hover or focus.
 
 Four things are never hidden: anything wrong or missing; the act on an empty row; everything on a touch screen (no hover on a phone — the whole row is the act and the chevron is always drawn); and the keyboard path.
+
+> **Amended 22 Sep, in execution (Task 5.1).** The first of the four is **Read it**, the door of the told section after *What it can do* (§4's amendment), not a *Read what it's told* in the head. Inside the prompt sheet, each block's door back to its row follows the same rule: drawn when its block is hovered or holds focus, and always on a touch screen and at a phone's width.
 
 ## 12. Tests
 

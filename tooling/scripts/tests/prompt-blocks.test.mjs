@@ -389,6 +389,19 @@ test("every character belongs to exactly one block", () => {
   }
 });
 
+test("each block carries its share of the whole, and the shares make the whole", () => {
+  // The prompt sheet draws a block's cost as a share, never a count (the owner's 22 Sep rule): the page divides
+  // nothing, so the share is the cut's own, over the prompt it cut.
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, everything, channel, tz, NOW, ASK);
+    const blocks = promptBlocks(text, channel, { profile: everything });
+    for (const b of blocks) assert.equal(b.share, b.chars / text.length, `${channel}: ${b.id}`);
+    const whole = blocks.reduce((n, b) => n + b.share, 0);
+    assert.ok(Math.abs(whole - 1) < 1e-9, `${channel}: the shares add up to everything it reads (${whole})`);
+  }
+  assert.deepEqual(promptBlocks("", "whatsapp", null), [], "nothing to cut, nothing to share");
+});
+
 test("every block has an id of its own, and a row keeps its meaning", () => {
   // On a call the platform speaks on both sides of the owner's words, so a row can
   // recur, and a key or a test id built from the row collides there.
@@ -547,6 +560,70 @@ test("a heading repeated inside a later block does not start a second block", ()
       blocks.find((b) => b.row === "notes").text,
       /^Services: we also do lashes on Fridays\.$/m,
       `${channel}: the note keeps its own line`,
+    );
+  }
+});
+
+test("a note's own line that reads like a section the record does not have is still the note's (M-5)", () => {
+  // Found in the Phase 1 re-review: "each opening is taken once" guards only a heading the composer HAS written. On a
+  // record with no services, a note whose second line opened "Services:" was the first such line, so it became a
+  // Services block of its own, charged to a row the record does not fill. The composer writes every opening after a
+  // blank line (`\n${heading}`), and a note's second line never follows one.
+  const noted = {
+    ...profile,
+    services: undefined,
+    notes: [
+      { title: "Parking", text: "Street parking only.\nServices: we also do lashes on Fridays." },
+      { title: "Cards", text: "We take cards.\nBooking rules: none, walk in any time." },
+    ],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, noted, channel, tz, NOW);
+    const blocks = promptBlocks(text, channel, { profile: noted });
+    assert.deepEqual(
+      blocks.filter((b) => b.row === "services" || b.row === "booking_rules").map((b) => b.id),
+      [],
+      `${channel}: no block for a row the record does not fill`,
+    );
+    const notes = blocks.find((b) => b.row === "notes").text;
+    assert.match(notes, /^Services: we also do lashes on Fridays\.$/m, `${channel}: the note keeps its line`);
+    assert.match(notes, /^Booking rules: none, walk in any time\.$/m, `${channel}: and its other one`);
+    assert.equal(
+      blocks.reduce((n, b) => n + b.chars, 0),
+      text.length,
+      `${channel}: every character still belongs to one block`,
+    );
+  }
+});
+
+test("a note with a blank line in it still cannot open a section that comes before the notes (M-5, the review's case)", () => {
+  // A blank line inside a note satisfies "after a blank line", so that rule alone let "Park at the back.\n\nServices:
+  // ask us." cut a Services block on a record with no services. The composer writes its openings in one fixed order,
+  // so an opening the prompt view has already passed the place of cannot be the composer's.
+  const noted = {
+    ...profile,
+    services: undefined,
+    hours: undefined,
+    notes: [
+      { title: "Parking", text: "Park at the back.\n\nServices: ask us." },
+      { title: "Evenings", text: "Late on Fridays.\n\nOpening hours: see the door." },
+    ],
+  };
+  for (const channel of ["whatsapp", "voice"]) {
+    const text = composeSystemPrompt(brain, noted, channel, tz, NOW);
+    const blocks = promptBlocks(text, channel, { profile: noted });
+    assert.deepEqual(
+      blocks.filter((b) => b.row === "services" || b.row === "hours").map((b) => b.id),
+      [],
+      `${channel}: no block for a row the record does not fill`,
+    );
+    const notes = blocks.find((b) => b.row === "notes").text;
+    assert.match(notes, /^Services: ask us\.$/m, `${channel}: the note keeps its line`);
+    assert.match(notes, /^Opening hours: see the door\.$/m, `${channel}: and its other one`);
+    assert.equal(
+      blocks.reduce((n, b) => n + b.chars, 0),
+      text.length,
+      `${channel}: every character still belongs to one block`,
     );
   }
 });

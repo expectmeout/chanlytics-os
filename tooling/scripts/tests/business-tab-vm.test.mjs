@@ -38,6 +38,10 @@ import {
   serviceUndoName,
   servicesFoundWords,
   blockShareWords,
+  promptCostWords,
+  promptTotalWords,
+  PROMPT_READERS,
+  PROMPT_NOW,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   bookingRuleRefusal,
@@ -1044,6 +1048,38 @@ test("a block's share of the prompt is a rough fraction in words, never a percen
     [Number.NaN, 10],
   ])
     assert.equal(blockShareWords(chars, total), null);
+});
+
+/* ---- The prompt sheet (Phase 5) ---- */
+
+test("a block's cost is its share on screen, and its exact size only where a screen reader or a tip asks", () => {
+  // The owner named "4,345 characters" as technical data (22 Sep): the sheet draws a share, and the count is the
+  // accessible description of the entry that draws it. One sentence says both, so they cannot disagree.
+  assert.equal(promptCostWords(1190, 4345), "1,190 characters — a quarter of everything it reads.");
+  assert.equal(promptCostWords(40, 4345), "40 characters — less than a tenth of everything it reads.");
+  assert.equal(promptCostWords(1190, 0), "1,190 characters.", "no whole to measure against, no share");
+  // The whole, for the contents' own description.
+  assert.equal(promptTotalWords(4345), "4,345 characters in all.");
+  assert.equal(promptTotalWords(1), "1 character in all.");
+});
+
+test("who reads the prompt is one phrase per channel, and the clock beside it says why it is apart", () => {
+  assert.deepEqual(PROMPT_READERS, {
+    whatsapp: "every WhatsApp message, word for word",
+    voice: "every phone call, composed when the call starts",
+  });
+  // What is sent beside the prompt is rebuilt each time, which is the whole reason it is drawn apart; the sentence
+  // PromptPreview kept for it, word for word.
+  assert.match(PROMPT_NOW.label.whatsapp, /rebuilt for every message/);
+  assert.match(PROMPT_NOW.label.voice, /rebuilt for every call/);
+  // One sentence per channel, word for word but for its last word: a call's clock is composed when the call starts,
+  // so on Phone it is the prompt cache of every call it would throw away, not of every message.
+  assert.deepEqual(PROMPT_NOW.why, {
+    whatsapp:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice:
+      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.",
+  });
 });
 
 test("the services sheet's foot says how many it will be told of, how long they are, and what share of the prompt", () => {

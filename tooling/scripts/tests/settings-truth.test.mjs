@@ -64,14 +64,11 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   );
 });
 
-test("F33: the prompt card says which channel reads it", () => {
-  assert.ok(pane.includes('"every WhatsApp message, word for word"'));
-  assert.ok(
-    pane.includes("every phone call, composed when the call starts"),
-    "the phone line reads the composed prompt at call start",
-  );
-  assert.ok(!pane.includes("<span>every message, word for word</span>"));
-});
+// F33, the prompt card says which channel reads it: the card is the Business tab's prompt sheet since Phase 5, and the
+// phrase per channel is contracts' PROMPT_READERS (business-tab-vm.test.mjs pins both spellings). Drawn, not read: the
+// sheet's head says the channel shown, and the told section at rest the channel last chosen, in
+// business-tab-prompt.test.mjs ("the head says what it is and who reads it, and counts nothing", and "what the
+// receptionist is told says who reads it at rest, with one door, and counts nothing").
 
 test("F35: every pause reads the workspace's own pause_hours, not a hard-coded day", () => {
   const verbs = readCode("apps/dashboard/src/server/verbs.ts");
