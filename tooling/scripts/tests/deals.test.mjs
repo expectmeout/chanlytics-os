@@ -37,7 +37,7 @@ const {
   consultServiceOf,
   consultsHeldWords,
   dealIsOpen,
-  DEAL_START_LABEL,
+  noProposalSince,
   toDealReportVM,
   DEAL_REFUSALS,
   stateOf,
@@ -377,8 +377,37 @@ test("consultations with no proposal after them: ended in the last week, and not
     ],
     NOW,
   ).map((r) => r.id);
-  assert.deepEqual(picked, ["yesterday", "a-week", "passed-before", "ended-before"]);
+  // The oldest first: the order the Pipeline lists them in, and Today names the first two of.
+  assert.deepEqual(picked, ["a-week", "ended-before", "passed-before", "yesterday"]);
   assert.equal(CONSULT_FOLLOW_DAYS, 7);
+  // A tie goes by name, then id; a row without a number for its consultation has none to follow, and never throws.
+  const tied = consultationsWithoutProposal(
+    [
+      { id: "b2", name: "Bea", consultedMs: at(2), deal: null },
+      { id: "c1", name: "Cora", consultedMs: at(2), deal: null },
+      { id: "b1", name: "Bea", consultedMs: at(2), deal: null },
+      { id: "u", name: "Una", consultedMs: undefined, deal: null },
+      { id: "n", name: "Nan", consultedMs: Number.NaN, deal: null },
+      { id: "s", name: "Sal", consultedMs: String(at(2)), deal: null },
+    ],
+    NOW,
+  ).map((r) => r.id);
+  assert.deepEqual(tied, ["b1", "b2", "c1"]);
+});
+
+test("the step not taken is one rule: nothing on file, or a pass or an end before the consultation ended", () => {
+  const END = NOW - 2 * 86_400_000;
+  const deal = (stage, sinceMs) => ({ stage, sinceMs });
+  assert.equal(noProposalSince(null, END), true, "nothing on file");
+  assert.equal(noProposalSince(undefined, END), true);
+  assert.equal(noProposalSince(deal("proposed", END - 1), END), false, "an open proposal has had one");
+  assert.equal(noProposalSince(deal("won", END - 1), END), false, "and so has a client");
+  assert.equal(noProposalSince(deal("lost", END - 1), END), true, "passed before it: the consultation began again");
+  assert.equal(noProposalSince(deal("ended", END - 1), END), true);
+  assert.equal(noProposalSince(deal("lost", END), END), false, "a pass as it ended answered it");
+  assert.equal(noProposalSince(deal("lost", END + 1), END), false, "and so did one after it");
+  assert.equal(noProposalSince(deal("ended", END + 1), END), false);
+  assert.equal(noProposalSince(deal("lost", null), END), false, "a close with no day says nothing it can count");
 });
 
 test("deals are on exactly where the workspace says some customers get a proposal first, and nothing else switches them", () => {
@@ -471,9 +500,9 @@ test("a deal is open while it is a proposal out or a client; the current deal an
     { id: "new-lost", stage: "lost", created_at: daysAgo(2) },
   ];
   assert.equal(pickCurrentDeal(rows).id, "old-won");
-  assert.equal(DEAL_START_LABEL, "Start a proposal");
-  assert.equal(consultsHeldWords(2), "2 held, no proposal yet");
-  assert.equal(consultsHeldWords(1), "1 held, no proposal yet");
+  // The Pipeline's Consultations and Today's row say the count in this one sentence.
+  assert.equal(consultsHeldWords(2), "2 held in the last week, no proposal yet");
+  assert.equal(consultsHeldWords(1), "1 held in the last week, no proposal yet");
 });
 
 test("the report counts one cohort and the stock, and is absent where no deal was ever recorded", () => {

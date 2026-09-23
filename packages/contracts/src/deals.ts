@@ -78,8 +78,6 @@ export const DEAL_STAGE_WORDS: Record<DealStage, string> = {
 export const DEAL_PER_WORDS: Record<DealPer, string> = { once: "once", month: "a month", year: "a year" };
 /** The line the person's page says where no deal was ever recorded. */
 export const DEAL_LINE_NONE = "No proposal yet";
-/** The act that starts a proposal for someone with nothing open (0008), where a consultation is over. */
-export const DEAL_START_LABEL = "Start a proposal";
 /** A proposal out this long with nothing back is Today's leak. */
 export const WAITING_AFTER_DAYS = 7;
 /** A consultation this recent with no proposal after it is the next step to take. */
@@ -516,71 +514,53 @@ export function proposalsWaiting<T extends { deal: DealVM | null; askedMs: numbe
 }
 
 /**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days, and no
- * proposal since. A person with an open deal has had one; a passed or ended deal counts only when it closed before the
- * consultation, which then began something new. `consultedMs` is when their last visit, a consultation, ended.
+ * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
+ * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
+ * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
+ * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
  */
-export function consultationsWithoutProposal<
-  T extends { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
->(rows: readonly T[], nowMs: number): T[] {
-  return rows.filter((r) => {
-    const at = r.consultedMs;
-    if (at === null || at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
-    const d = r.deal;
-    if (!d) return true;
-    if (dealIsOpen(d)) return false;
-    return d.sinceMs !== null && d.sinceMs < at;
-  });
-}
-
-/** Their count, as the Pipeline's Consultations say it and Today re-prints it: "2 held, no proposal yet". */
-export function consultsHeldWords(n: number): string {
-  return `${n} held, no proposal yet`;
+export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
 }
 
 /**
- * What an appointment's peek on the Calendar says of its person's deal (0008), from the People row the page holds: the
- * deal's stage beside their name, and the act that starts a proposal once a consultation is over and nothing is open.
- * Nothing where deals are off (the People surface's `dealsOn`, dealsAreOn), where the appointment matched nobody, or
- * where People does not hold them: a deal the page has not read is not one it can say is missing.
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
+ * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
+ * a number there has no consultation to follow.
  */
-export interface CalendarPeekDealVM {
-  /** Their deal's stage, for the one pill beside their name; null without a deal. */
-  stage: DealStage | null;
-  /** Once a consultation is over and nothing is open: the act's words, whose it is, and the service its title named. */
-  start: { label: string; personId: string; service: string | null } | null;
+export function consultationsWithoutProposal<
+  T extends {
+    id?: string;
+    name?: string;
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+  },
+>(rows: readonly T[], nowMs: number): T[] {
+  const endOf = (r: T): number => r.consultedMs as number;
+  return rows
+    .filter((r) => {
+      const at = r.consultedMs;
+      if (typeof at !== "number" || !Number.isFinite(at)) return false;
+      if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+      return noProposalSince(r.deal, at);
+    })
+    .sort(
+      (a, b) =>
+        endOf(a) - endOf(b) ||
+        String(a.name ?? "").localeCompare(String(b.name ?? "")) ||
+        String(a.id ?? "").localeCompare(String(b.id ?? "")),
+    );
 }
 
-/** The appointment as the Calendar's view model carries it (CalendarBlockVM): who, a consultation or not, its end. */
-interface PeekBlock {
-  person: { id: string } | null;
-  consultation: boolean;
-  consultService: string | null;
-  end: string;
-}
-
-/** The People surface, as far as the peek reads it: whether deals are on here, and each person's deal. */
-interface PeekPeople {
-  dealsOn?: boolean;
-  rows?: ReadonlyArray<{ id: string; deal?: Pick<DealVM, "stage"> | null }>;
-}
-
-export function calendarPeekDeal(
-  block: PeekBlock,
-  people: PeekPeople | null | undefined,
-  nowMs: number,
-): CalendarPeekDealVM {
-  const who = block.person;
-  const row = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
-  if (!who || !row) return { stage: null, start: null };
-  const deal = row.deal ?? null;
-  const endMs = Date.parse(block.end);
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
-  return {
-    stage: deal ? deal.stage : null,
-    start:
-      over && !dealIsOpen(deal) ? { label: DEAL_START_LABEL, personId: who.id, service: block.consultService } : null,
-  };
+/**
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
+ * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ */
+export function consultsHeldWords(n: number): string {
+  return `${n} held in the last week, no proposal yet`;
 }
 
 /** What the door can answer, in a sentence the page shows at the control. */

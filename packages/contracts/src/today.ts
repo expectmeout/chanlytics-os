@@ -1812,6 +1812,11 @@ export interface PeopleListsLike {
   >;
   /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
   dealsOn?: boolean;
+  /**
+   * When People was read and its rows worked out: the deal rows are counted at that moment, as the Pipeline counts
+   * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
+   */
+  fetchedAt?: number;
 }
 
 /** At most this many; the rest is not an insight, it is a list. */
@@ -1905,25 +1910,28 @@ export function todayLeaks(
     });
   }
 
+  // The deal rows are counted at the moment People's rows were worked out, as the Pipeline counts the same rows: one
+  // clock, so the two pages say one number.
+  const dealsAt = (people && people.fetchedAt) || nowMs;
+
   // A consultation that ended in the last week with no proposal after it is the next step nobody has taken (0008). One
   // is enough, as a proposal waiting is. The rule is contracts' consultationsWithoutProposal over the rows People
-  // holds, the rows and the rule the Pipeline counts its "held, no proposal yet" from, so the number is the Pipeline's.
-  // The names are the count's own people, oldest first as the Pipeline lists them, each to their page. Only where
-  // deals are on (0008).
+  // holds, the rows, the rule and the clock the Pipeline counts its Consultations by, so the number is the Pipeline's,
+  // re-printed in its own sentence (consultsHeldWords). The names are the count's own people, the first two the rule
+  // gives, as the Pipeline lists them, each to their page. Amber, as a person should look (#928). Only where deals are
+  // on (0008).
   const consultRows = (people?.rows ?? []).filter(
-    (r): r is typeof r & Pick<PersonRowVM, "id" | "name" | "deal"> & { consultedMs: number } =>
-      typeof r.id === "string" && typeof r.name === "string" && typeof r.consultedMs === "number" && "deal" in r,
+    (r): r is typeof r & Pick<PersonRowVM, "id" | "name" | "deal" | "consultedMs"> =>
+      typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r,
   );
-  const held = consultationsWithoutProposal(consultRows, nowMs).sort(
-    (a, b) => a.consultedMs - b.consultedMs || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
-  );
+  const held = consultationsWithoutProposal(consultRows, dealsAt);
   if (people && people.dealsOn && held.length >= 1) {
     const n = held.length;
     const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
     const math = `${consultsHeldWords(n)} · on Pipeline`;
     found.set("consults-waiting", {
       id: "consults-waiting",
-      tone: "info",
+      tone: "warn",
       tag: "Next step",
       icon: "calendar",
       text,
@@ -1944,7 +1952,7 @@ export function todayLeaks(
   const dealRows = (people?.rows ?? []).filter(
     (r): r is typeof r & { deal: DealVM | null; askedMs: number | null } => "deal" in r && "askedMs" in r,
   );
-  const waiting = proposalsWaiting(dealRows, nowMs);
+  const waiting = proposalsWaiting(dealRows, dealsAt);
   const po = list("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;

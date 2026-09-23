@@ -6205,7 +6205,6 @@ var DEAL_STAGE_WORDS = {
 };
 var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
 var DEAL_LINE_NONE = "No proposal yet";
-var DEAL_START_LABEL = "Start a proposal";
 var WAITING_AFTER_DAYS = 7;
 var CONSULT_FOLLOW_DAYS = 7;
 var DAY_MS3 = 864e5;
@@ -6393,30 +6392,24 @@ function waitingOnProposal(r, nowMs) {
 function proposalsWaiting(rows, nowMs) {
   return rows.filter((r) => waitingOnProposal(r, nowMs));
 }
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
 function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r) => r.consultedMs;
   return rows.filter((r) => {
     const at2 = r.consultedMs;
-    if (at2 === null || at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
-    const d = r.deal;
-    if (!d) return true;
-    if (dealIsOpen(d)) return false;
-    return d.sinceMs !== null && d.sinceMs < at2;
-  });
+    if (typeof at2 !== "number" || !Number.isFinite(at2)) return false;
+    if (at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
+    return noProposalSince(r.deal, at2);
+  }).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
 }
 function consultsHeldWords(n) {
-  return `${n} held, no proposal yet`;
-}
-function calendarPeekDeal(block, people, nowMs) {
-  const who = block.person;
-  const row2 = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
-  if (!who || !row2) return { stage: null, start: null };
-  const deal = row2.deal ?? null;
-  const endMs = Date.parse(block.end);
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
-  return {
-    stage: deal ? deal.stage : null,
-    start: over && !dealIsOpen(deal) ? { label: DEAL_START_LABEL, personId: who.id, service: block.consultService } : null
-  };
+  return `${n} held in the last week, no proposal yet`;
 }
 var DEAL_REFUSALS = {
   not_found: "Person not found.",
@@ -9004,19 +8997,18 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       also: null
     });
   }
+  const dealsAt = people && people.fetchedAt || nowMs;
   const consultRows = (people?.rows ?? []).filter(
-    (r) => typeof r.id === "string" && typeof r.name === "string" && typeof r.consultedMs === "number" && "deal" in r
+    (r) => typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r
   );
-  const held = consultationsWithoutProposal(consultRows, nowMs).sort(
-    (a2, b2) => a2.consultedMs - b2.consultedMs || a2.name.localeCompare(b2.name) || a2.id.localeCompare(b2.id)
-  );
+  const held = consultationsWithoutProposal(consultRows, dealsAt);
   if (people && people.dealsOn && held.length >= 1) {
     const n = held.length;
     const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
     const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
     found.set("consults-waiting", {
       id: "consults-waiting",
-      tone: "info",
+      tone: "warn",
       tag: "Next step",
       icon: "calendar",
       text,
@@ -9031,7 +9023,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
   const dealRows = (people?.rows ?? []).filter(
     (r) => "deal" in r && "askedMs" in r
   );
-  const waiting = proposalsWaiting(dealRows, nowMs);
+  const waiting = proposalsWaiting(dealRows, dealsAt);
   const po = list2("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const text = `${waiting.length} proposal${waiting.length === 1 ? "" : "s"} went out more than a week ago with nothing back.`;
@@ -17818,6 +17810,18 @@ function dealMenuActs(deal) {
   if (deal.stage === "won") return [act("ended")];
   return [act("again")];
 }
+function calendarPeekDeal(block, people, nowMs) {
+  const who = block.person;
+  const row2 = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
+  if (!who || !row2) return { stage: null, start: null };
+  const deal = row2.deal ?? null;
+  const endMs = Date.parse(block.end);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  return {
+    stage: deal ? deal.stage : null,
+    start: over && noProposalSince(deal, endMs) ? { act: act("propose"), personId: who.id, service: block.consultService } : null
+  };
+}
 var DEAL_CARD_WORDS = {
   title: "Deal",
   proposal: "Proposal",
@@ -18322,18 +18326,17 @@ function inOrder(xs, at2, latest = false) {
 }
 var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
 function pipelineOf(rows, nowMs, tz) {
-  const held = new Set(consultationsWithoutProposal(rows, nowMs));
-  const consults = [];
+  const held = consultationsWithoutProposal(rows, nowMs);
+  const heldSet = new Set(held);
   const ahead = [];
   const proposals = [];
   const clients = [];
   const closed = [];
   for (const r of rows) {
+    if (heldSet.has(r)) continue;
     const d = r.deal;
     if (d && d.stage === "proposed") proposals.push({ r, d });
     else if (d && d.stage === "won") clients.push({ r, d });
-    else if (held.has(r) && r.consultedMs !== null && Number.isFinite(r.consultedMs))
-      consults.push({ r, at: r.consultedMs });
     else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
     else if (d) closed.push({ r, d });
   }
@@ -18349,11 +18352,11 @@ function pipelineOf(rows, nowMs, tz) {
     group(
       "consultations",
       [
-        ...inOrder(consults, (x) => x.at).map((x) => heldRow(x.r, x.at, tz, nowMs)),
+        ...held.map((r) => heldRow(r, r.consultedMs, tz, nowMs)),
         ...inOrder(ahead, (x) => x.c.startMs).map((x) => aheadRow(x.r, x.c, tz, nowMs))
       ],
-      // The rule's own week (CONSULT_FOLLOW_DAYS), said as Today's row that re-prints this number says it.
-      consults.length ? `${consults.length} held in the last week, no proposal yet` : null
+      // One sentence, which Today's row re-prints word for word (consultsHeldWords).
+      held.length ? consultsHeldWords(held.length) : null
     ),
     group(
       "proposals",
@@ -18780,7 +18783,6 @@ export {
   DEAL_SOURCES,
   DEAL_STAGES,
   DEAL_STAGE_WORDS,
-  DEAL_START_LABEL,
   DECISION_SUBJECTS,
   DECISION_VERBS,
   DEFAULT_BUSINESS_TYPE,
@@ -19490,6 +19492,7 @@ export {
   nextRunLabel,
   nextThemePref,
   noNumberWords,
+  noProposalSince,
   normalizeEmail,
   normalizeLink,
   normalizeLocalPart,
