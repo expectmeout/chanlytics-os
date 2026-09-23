@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-23-one-badge-system-design.md`. **Review page:** https://claude.ai/artifact/7gHvLSThQ8mnmm3xttY7D5. **Worktree:** `cm-badges`, branch `design/one-badge-system` off `18c79973` (#918).
 
-**Run one test file:** `node --test --conditions=react-server tooling/scripts/tests/<file>.test.mjs` from the worktree root.
+**Run one test file:** `node --conditions=react-server --import tsx --test tooling/scripts/tests/<file>.test.mjs` from the worktree root.
 
 **See a page:** the dev server `cm-badges-next` (the parent folder's `.claude/launch.json`, port 3291), signed in, at `http://localhost:3291/w/melanys-beauty-salon/#/<route>`. CSS is proved there, never by reading the stylesheet: the source-scan ratchet refuses a new `readCode`/`readRaw`.
 
@@ -116,7 +116,7 @@ In `today-page.test.mjs`, inside the test `"worth a look: …"`, directly after 
 
 - [ ] **Step 2: Run them and see them fail.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/state-pill.test.mjs tooling/scripts/tests/today-page.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/state-pill.test.mjs tooling/scripts/tests/today-page.test.mjs`
 Expected: FAIL. `owner` is `"info"`; `never-booked is danger`.
 
 - [ ] **Step 3: Implement.** In `tone.ts`:
@@ -137,7 +137,7 @@ and in `todayLeaks`, change `tone: "danger"` to `tone: "warn"` on the `never-boo
 - [ ] **Step 4: Rebuild contracts and run the tests.**
 
 Run: `cd packages/contracts && corepack pnpm run build && cd ../..` then the command from Step 2.
-Expected: PASS. Then `node --test --conditions=react-server tooling/scripts/tests/today-leaks.test.mjs`: PASS.
+Expected: PASS. Then `node --conditions=react-server --import tsx --test tooling/scripts/tests/today-leaks.test.mjs`: PASS.
 
 - [ ] **Step 5: Commit, then check the dists.**
 
@@ -346,7 +346,7 @@ and in `.ix-thread-meta > .ix-name-pill` (`inbox.css:329-335`) change `line-heig
 
 - [ ] **Step 6: Run the pill tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/state-pill.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/state-pill.test.mjs`
 Expected: PASS. The REGRESSION test finds `ix-wait` by class and `"warn"` inside `pill-warn`.
 
 - [ ] **Step 7: Measure on the real app.** Start `cm-badges-next`; open `#/clients` at 1440×900, light; paste the probe; run `__bp()`.
@@ -385,7 +385,7 @@ In `broadcasts-honest.test.mjs:324`, change `n.props?.className === "lp-more"` t
 
 - [ ] **Step 2: Run it and see it fail.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/one-inbox.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/one-inbox.test.mjs`
 Expected: FAIL. The class is `stabs-badge tabular`.
 
 - [ ] **Step 3: Markup.**
@@ -432,7 +432,7 @@ Expected: FAIL. The class is `stabs-badge tabular`.
 
 - [ ] **Step 5: Run the tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/one-inbox.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/one-inbox.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 6: Measure.** In the pane, `#/today` then `#/inbox`, `#/conversations`, `#/outbound`, `#/messages`, `#/admin/activity`: every count is `tally` h16, 11px, w500, p0px/5px; the sidebar's and the Needs you tab's are the amber ground; the bell's is the grey ground with a ring; no count is coral. At 390×844 the phone tab bar's Inbox count is amber with a ring.
@@ -473,7 +473,7 @@ test("a person's lists are chips: a list is a name, at the pill's size and in no
 
 - [ ] **Step 2: Run it and see it fail.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/people-honest.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/people-honest.test.mjs`
 Expected: FAIL, the class is `seg-chip`.
 
 - [ ] **Step 3: Markup.**
@@ -529,7 +529,7 @@ const RolePill = ({ role }) => <span className="chip" data-role={role}>{window._
 
 - [ ] **Step 5: Run the tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/people-honest.test.mjs tooling/scripts/tests/settings-doors.test.mjs tooling/scripts/tests/business-tab-answers.test.mjs tooling/scripts/tests/business-tab-offer.test.mjs tooling/scripts/tests/record-kit.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/state-pill.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/people-honest.test.mjs tooling/scripts/tests/settings-doors.test.mjs tooling/scripts/tests/business-tab-answers.test.mjs tooling/scripts/tests/business-tab-offer.test.mjs tooling/scripts/tests/record-kit.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/state-pill.test.mjs`
 Expected: PASS. If `settings-doors` pinned a role pill by `"pill"`, it now reads the role chip by `"chip"`: update that one assertion's class name, not its meaning.
 
 - [ ] **Step 6: Measure.** A person's page (`#/clients`, open Ruben): the Lists chips are `span.chip` h20, 11px, w400, hairline, no fill, `--ink-muted`. `#/admin/team`: Owner, Operator, Viewer and You are chips. `#/admin/workspace`: services are chips. `#/broadcasts`: policy chips are chips.
@@ -612,7 +612,7 @@ git commit -m "Every name is a chip: a list, a person, a role, a service, a sour
 
 - [ ] **Step 4: Run the tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/today-page.test.mjs tooling/scripts/tests/today-away-page.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/today-page.test.mjs tooling/scripts/tests/today-away-page.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 5: Measure.** `#/today`: every mark in the day card and While you were away is `mark` h24, radius 6px, `--bg-sunken`, glyph `--ink-muted`; the warn titles are `--warn-ink`. `#/outbound`, `#/messages`, `#/reports`: marks the same. `#/admin/activity`: round marks h24 on the spine, the spine through their centres.
@@ -657,7 +657,7 @@ and after `const waiting = …` add
 
 - [ ] **Step 2: Run it and see it fail.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/today-page.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/today-page.test.mjs`
 Expected: FAIL at "the tone is the row's one pill".
 
 - [ ] **Step 3: Markup.** `dashboard-a-week.jsx:1`: `/* global React, Icon, FailedRead, StatePill */`. In `TodayLeaks`, the row becomes:
@@ -702,7 +702,7 @@ Expected: FAIL at "the tone is the row's one pill".
 
 - [ ] **Step 5: Run the tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/today-page.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/today-page.test.mjs`
 Expected: PASS. `e2e/today.spec.ts:133` reads `.tl-tag` text, which the pill keeps.
 
 - [ ] **Step 6: Measure.** `#/today` at 1440: each Worth a look row starts with `span.pill.pill-warn` (or `pill-info` for "Gone quiet") h20, then the sentence; no `tl-glyph`; "Priya Nair" and "Marcus Bell" are `button.chip` h20, 11px, w400, no fill. At 390×844 the sentence is the door under its pill, and each chip is h20 (its target grows invisibly).
@@ -778,7 +778,7 @@ const CmFlag = ({ tone = "warn", children, testid = null }) => (
 
 - [ ] **Step 7: Run the node suite for the pages touched.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/today-page.test.mjs tooling/scripts/tests/people-honest.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/thread-controls.test.mjs tooling/scripts/tests/leads-peek.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/today-page.test.mjs tooling/scripts/tests/people-honest.test.mjs tooling/scripts/tests/broadcasts-honest.test.mjs tooling/scripts/tests/thread-controls.test.mjs tooling/scripts/tests/leads-peek.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 8: Measure.** Run `__tp()` (the words probe) on `#/today`, `#/clients`, `#/broadcasts`, `#/admin/platform`: no `red needs-you` line, and no `raw` line except the accent on the live and "now" marks (the agenda's current time, a live call). The flag is `pill pill-warn` h20 in `__bp()`.
@@ -813,7 +813,7 @@ git commit -m "Needs you is amber in every sentence, good news is said in the qu
 
 - [ ] **Step 2: Run it and see it fail.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/leads-honest.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/leads-honest.test.mjs`
 Expected: FAIL, the tag is drawn with the column on.
 
 - [ ] **Step 3: Leads.**
@@ -849,7 +849,7 @@ Expected: FAIL, the tag is drawn with the column on.
 
 - [ ] **Step 7: Run the tests.**
 
-Run: `node --test --conditions=react-server tooling/scripts/tests/leads-honest.test.mjs tooling/scripts/tests/leads-peek.test.mjs tooling/scripts/tests/one-inbox.test.mjs tooling/scripts/tests/inbox-decision.test.mjs tooling/scripts/tests/inbox-true.test.mjs tooling/scripts/tests/thread-controls.test.mjs`
+Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/leads-honest.test.mjs tooling/scripts/tests/leads-peek.test.mjs tooling/scripts/tests/one-inbox.test.mjs tooling/scripts/tests/inbox-decision.test.mjs tooling/scripts/tests/inbox-true.test.mjs tooling/scripts/tests/thread-controls.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 8: Measure.** `#/clients/leads` with Stage turned on in Columns: a row that is not a fit says so once, in Stage. `#/inbox`, `#/conversations`, `#/live`: no `agent-avatar` element in any row. `#/calendar` (Week and Agenda): no TODAY chip; today's date is `--accent-ink`.

@@ -7916,7 +7916,8 @@ interface JourneyListLike {
 type TodayLeakId = "never-booked" | "unanswered" | "proposals-waiting" | "unreachable" | "quiet";
 interface TodayLeakVM {
     id: TodayLeakId;
-    tone: "danger" | "warn" | "info";
+    /** A look, never a failure: amber where a person should look, blue for what waits on someone else. */
+    tone: "warn" | "info";
     /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
     tag: string;
     /** The tone's icon (the legacy Icon set). */

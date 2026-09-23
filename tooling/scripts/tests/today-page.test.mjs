@@ -960,6 +960,8 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   const band = byTestId(tree, "today-leaks");
   const { rows, moreLine } = todayLeaks(reports(), people(), vm.noReply);
   assert.equal(rows.length, 2);
+  // Worth a look asks for a look; a failure is red on every other badge, and these rows are not failures.
+  for (const l of rows) assert.ok(["warn", "info"].includes(l.tone), `${l.id} is ${l.tone}`);
   for (const l of rows) {
     const row = byTestId(band, `today-leak-${l.id}`);
     assert.ok(row, l.id);
