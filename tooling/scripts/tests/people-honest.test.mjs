@@ -984,6 +984,42 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
     assert.deepEqual(idsShown(tree), ["person-p1"]);
   }));
 
+test("where deals are on, the switch has a third tab, the Pipeline, on a desktop and in a phone's bar, and it goes to clients/pipeline", async () => {
+  await freshPage({ people: [person(1)], dealsOn: true });
+  went.length = 0;
+  let tree = draw();
+  assert.deepEqual(
+    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
+      textOf(n),
+      n.props["aria-selected"],
+    ]),
+    [
+      ["People", true],
+      ["Leads", false],
+      ["Pipeline", false],
+    ],
+  );
+  click(byTestId(tree, "scope-pipeline"));
+  assert.deepEqual(went, ["clients/pipeline"]);
+  await onPhone(async () => {
+    await freshPage({ people: [person(1)], dealsOn: true });
+    went.length = 0;
+    tree = draw();
+    const tabs = all(byTestId(tree, "people-phone-bar"), (n) => n.props?.role === "tab");
+    assert.deepEqual(
+      tabs.map((n) => [textOf(n), n.props["aria-selected"]]),
+      [
+        ["People", true],
+        ["Leads", false],
+        ["Pipeline", false],
+      ],
+    );
+    click(tabs[2]);
+    assert.deepEqual(went, ["clients/pipeline"]);
+    assert.ok(byTestId(tree, "people-phone-lists"), "People keeps its list to pick beside three tabs");
+  });
+});
+
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
   await freshPage({ people: [person(1)] });
   const tree = draw();

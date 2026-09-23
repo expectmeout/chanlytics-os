@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
+import { LEAD_WORDS, PIPELINE_WORDS, ROLE_PERMS, pipelineOf, roleGate, toPersonRowVM } from "@chanlytics/contracts";
 import {
   leadEndingLine,
   leadReviewGroups,
@@ -444,6 +444,8 @@ for (const k of [
   "PL_FIRST_ROWS",
 ])
   globalThis[k] = globalThis.window[k];
+// People › Pipeline, the third view over the same table, in the order both lists load it: before the page that draws it.
+await import("../../../apps/dashboard/src/legacy/pages/pipeline-scope.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs", "RailSection", "RailRow"])
   globalThis[k] = globalThis.window[k];
@@ -1354,6 +1356,32 @@ test("the People | Leads switch is a tablist in both scopes, and picking the oth
   assert.deepEqual(went, ["clients/leads"]);
 });
 
+test("where deals are on, the switch has the Pipeline in both scopes, and it goes to clients/pipeline", () => {
+  // People's surface says so (dealsAreOn, 0008); on a cold load of Leads it lands after Leads', and the switch gains its
+  // third tab then. The two-tab pins above stay: where deals are off, nothing changes.
+  fresh();
+  globalThis.window.__PEOPLE.dealsOn = true;
+  let tree = draw();
+  assert.deepEqual(
+    all(byTestId(tree, "people-scope"), (n) => n.props?.role === "tab").map((n) => [
+      textOf(n),
+      n.props["aria-selected"],
+    ]),
+    [
+      ["People", false],
+      ["Leads", true],
+      ["Pipeline", false],
+    ],
+  );
+  click(byTestId(tree, "scope-pipeline"));
+  assert.deepEqual(went, ["clients/pipeline"]);
+  went.length = 0;
+  cells = [];
+  tree = draw({ scope: "people", leadsRoute: null });
+  click(byTestId(tree, "scope-pipeline"));
+  assert.deepEqual(went, ["clients/pipeline"], "and People's rail carries the same switch");
+});
+
 test("People and Leads are two components: each keeps its own state, and People listens for nothing of Leads'", () => {
   // They were one component, every hook of both scopes declared in both in one order: the order the stub kept hooks
   // by. Each is its own now (PeopleReal, LeadsReal, over the same two hooks), and the shell mounts them apart.
@@ -2081,19 +2109,24 @@ test("typing in the box keeps the selection: leads the words hide are still sele
   assert.equal(byTestId(tree, "leads-bulk-hidden"), null, "with nothing hidden, nothing is said about it");
 });
 
+/** The table's rows as drawn (people-table.jsx PeopleRow, or its memo). */
+const tableRowsOf = (tree) =>
+  all(
+    tree,
+    (n) => (n.type && n.type.name === "PeopleRow") || (n.type && n.type.type && n.type.type.name === "PeopleRow"),
+  );
+/** What a row is handed that is not its own: each the same object from one draw to the next, or every row draws again. */
+const ROW_HELD = ["columns", "ctx", "onToggle", "onCursor", "onOpen", "rowClass", "words"];
+
 test("a row is drawn from what is its own, so a draw that changed nothing of a row can leave it alone: every prop is a primitive or the same object as last time", () => {
   fresh();
-  const rowsOf = (tree) =>
-    all(
-      tree,
-      (n) => (n.type && n.type.name === "PeopleRow") || (n.type && n.type.type && n.type.type.name === "PeopleRow"),
-    );
+  const rowsOf = tableRowsOf;
   let tree = draw();
   const a = rowsOf(tree);
   assert.ok(a.length >= 5, "the table draws its rows as PeopleRow");
   tree = draw();
   const b = rowsOf(tree);
-  const stable = ["columns", "ctx", "onToggle", "onCursor", "onOpen", "rowClass", "words"];
+  const stable = ROW_HELD;
   for (const k of stable)
     assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
   for (const k of ["selected", "focused", "tabStop", "selectable"])
@@ -2119,6 +2152,59 @@ test("a row is drawn from what is its own, so a draw that changed nothing of a r
     [true, false, false, false, false],
   );
   for (const k of stable) assert.ok(Object.is(d[1].props[k], b[1].props[k]), `${k} held through a tick`);
+});
+
+test("REGRESSION: the Pipeline's rows too -- a draw that changed nothing of a row hands it the same objects, the table's own default for a door the page does not pass among them", () => {
+  // The Pipeline selects nobody, so it passes no onToggle, and the table's default was written in its parameter list:
+  // a new function on every draw, which every memoised row compared and drew again for, on each key, fold and toast.
+  fresh();
+  const day = 86_400_000;
+  const at = (days) => new Date(NOW.getTime() - days * day).toISOString();
+  const person = (id, name, deal) => ({
+    id,
+    display_name: name,
+    phone_e164: `+1512555${id.length}${name.length}00`,
+    consent: "opted_in",
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    latest_conversation_id: `cv-${id}`,
+    last_message_at: at(30),
+    last_inbound_at: at(30),
+    first_contact_at: at(60),
+    has_chat: true,
+    ...deal,
+  });
+  const proposed = (days) => ({ deal_id: `d${days}`, deal_stage: "proposed", deal_proposed_at: at(days) });
+  const rows = [
+    person("k1", "Ana", proposed(9)),
+    person("k2", "Ben", proposed(3)),
+    person("k3", "Cy", proposed(1)),
+  ].map((r) => toPersonRowVM(r, TZ, NOW));
+  Object.assign(globalThis.window.__PEOPLE, { rows, dealsOn: true, fetchedAt: NOW.getTime() });
+  globalThis.window.__pipeline = { of: pipelineOf, words: PIPELINE_WORDS };
+  const drawPipeline = () => draw({ scope: "pipeline", leadsRoute: null });
+  try {
+    const a = tableRowsOf(drawPipeline());
+    assert.deepEqual(
+      a.map((r) => r.props.p.name),
+      ["Ana", "Ben", "Cy"],
+      "the Pipeline draws People's table",
+    );
+    const b = tableRowsOf(drawPipeline());
+    for (const k of ROW_HELD)
+      assert.ok(Object.is(a[0].props[k], b[0].props[k]), `${k} is the same object on a draw that changed nothing`);
+    assert.ok(Object.is(a[0].props.p, b[0].props.p), "and the row's own view model: one clock, the surface's");
+    press("j");
+    const c = tableRowsOf(drawPipeline());
+    assert.deepEqual(
+      c.map((r) => r.props.focused),
+      [true, false, false],
+    );
+    for (const k of ROW_HELD) assert.ok(Object.is(c[1].props[k], b[1].props[k]), `${k} held through a key`);
+    assert.ok(Object.is(c[1].props.p, b[1].props.p), "a row the key did not touch keeps its view model");
+  } finally {
+    delete globalThis.window.__pipeline;
+  }
 });
 
 /** The finder as drawn by `fn`, or null when `fn` drew none: the recorder's last entry may be an older draw's. */
@@ -2695,6 +2781,21 @@ test("on a phone the switch, the list, search and Find are one bar; search is a 
   const kept = byTestId(bar({ q: "pilates" }), "leads-phone-search");
   assert.equal(kept.props.value, "pilates", "a view's own words keep the field open");
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
+});
+
+test("where deals are on, a phone's bar has the Pipeline beside People and Leads, and Leads keeps its list and its count", () => {
+  fresh();
+  const t = bar({ dealsOn: true });
+  assert.deepEqual(
+    all(t, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props["aria-selected"]]),
+    [
+      ["People", false],
+      ["Leads", true],
+      ["Pipeline", false],
+    ],
+  );
+  assert.equal(textOf(byTestId(byTestId(t, "leads-phone-lists"), "leads-phone-lists-count")), "322");
+  assert.ok(byTestId(t, "leads-phone-find"));
 });
 
 test("Find on a phone is the gate's for anyone who may not find", () => {

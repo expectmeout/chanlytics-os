@@ -265,3 +265,141 @@ test("a budget draws that many rows and no more; a budget past the rows, or none
   assert.match(textOf(table({ rows: many, total: 25, budget: 24 })), /25 people/, "the foot counts every row");
   assert.equal(T.PL_FIRST_ROWS, 24, "the first draw's budget, published for the page");
 });
+
+/* ------------------------------------------------------------------------------------------------ in sections */
+
+const SECTIONED = [
+  { id: "c1", name: "Cy Example", state: "new" },
+  { id: "c2", name: "Cam Example", state: "quiet" },
+  { id: "d1", name: "Di Example", state: "quiet" },
+];
+const bodies = (tree) => all(tree, (n) => n.type === "tbody");
+const heads = (tree) => all(tree, (n) => n.type === "tr" && /\bpl-sec-head\b/.test(String(n.props?.className || "")));
+const idsIn = (tree) => all(tree, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+
+test("without sections the table is one body, as it always was: no head rows, every row in it", () => {
+  const t = table();
+  assert.equal(bodies(t).length, 1);
+  assert.equal(heads(t).length, 0);
+  assert.equal(bodies(t)[0].props["data-dims"], true, "what a view on its way dims");
+  assert.deepEqual(idsIn(t), ["person-a1", "person-b2"]);
+  const none = table({ rows: [], total: 0 });
+  assert.equal(bodies(none).length, 1);
+  assert.match(textOf(bodies(none)[0]), /Nobody has written or phoned yet\./);
+});
+
+test("sections: one body each, under a head row with no id that names it, counts it and says its meta across every column", () => {
+  let toggled = 0;
+  const t = table({
+    selectable: true,
+    rows: SECTIONED.slice(0, 2),
+    total: 3,
+    sections: [
+      {
+        key: "one",
+        label: "Consultations",
+        meta: "1 held in the last week, no proposal yet",
+        rows: SECTIONED.slice(0, 2),
+        collapsed: false,
+      },
+      {
+        key: "two",
+        label: "Passed or ended",
+        meta: null,
+        rows: SECTIONED.slice(2),
+        collapsed: true,
+        onToggle: () => {
+          toggled += 1;
+        },
+        toggle: "Show",
+      },
+    ],
+  });
+  const b = bodies(t);
+  assert.deepEqual(
+    b.map((x) => x.props["data-section"]),
+    ["one", "two"],
+  );
+  for (const x of b) assert.equal(x.props["data-dims"], true);
+  const [h1, h2] = heads(t);
+  assert.equal(h1.props.id, undefined, "the cursor and select-all go by ids: a head has none");
+  const th = find(h1, (n) => n.type === "th");
+  assert.deepEqual(
+    [th.props.scope, th.props.colSpan],
+    ["rowgroup", 5],
+    "every column the table draws (four here), the checkbox's included",
+  );
+  assert.equal(textOf(find(h1, (n) => n.props?.className === "pl-sec-label")), "Consultations");
+  assert.equal(textOf(find(h1, (n) => n.props?.className === "tally")), "2", "the count is the one count, a tally");
+  assert.equal(textOf(byTestId(h1, "table-section-meta")), "1 held in the last week, no proposal yet");
+  assert.equal(byTestId(h1, "table-section-toggle"), null, "a section that does not fold has nothing to press");
+  // A collapsed section is its head alone, whose toggle says what opens it and presses the page's fold.
+  assert.deepEqual(idsIn(t), ["person-c1", "person-c2"]);
+  assert.equal(byTestId(h2, "table-section-meta"), null);
+  assert.match(h2.props.className, /\bis-folded\b/);
+  const toggle = byTestId(h2, "table-section-toggle");
+  assert.deepEqual([textOf(toggle), toggle.props["aria-expanded"]], ["Show", false]);
+  toggle.props.onClick();
+  assert.equal(toggled, 1);
+  // Select-all takes the rows shown, and the foot counts every row the page has.
+  assert.equal(byTestId(t, "select-all").props.checked, false);
+  assert.match(textOf(find(t, (n) => n.props?.className === "cl-table-foot")), /^3 people/);
+});
+
+test("in sections the first row drawn is the tab stop, and a first draw's budget runs across them in turn", () => {
+  const many = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}`, name: `${p} ${i}`, state: "new" }));
+  const s = (key, rows, collapsed = false) => ({ key, label: key, meta: null, rows, collapsed });
+  const first = many("a", 20);
+  const second = many("b", 10);
+  const third = many("c", 5);
+  const drawn = (tree) => idsIn(tree).length;
+  const t = table({
+    rows: [...first, ...second, ...third],
+    total: 35,
+    budget: 24,
+    sections: [s("a", first), s("b", second), s("c", third)],
+  });
+  assert.equal(drawn(t), 24, "twenty from the first, four from the second");
+  assert.deepEqual(
+    bodies(t).map((x) => x.props["data-section"]),
+    ["a", "b"],
+    "a section the budget cannot reach waits for the next draw, head and all",
+  );
+  const all35 = table({
+    rows: [...first, ...second, ...third],
+    total: 35,
+    sections: [s("a", first), s("b", second), s("c", third)],
+  });
+  assert.equal(drawn(all35), 35);
+  const stops = all(all35, (n) => n.type === "tr" && n.props?.tabIndex === 0).map((n) => n.props.id);
+  assert.deepEqual(stops, ["person-a0"], "one tab stop: the first row, until there is a cursor");
+  const cursorOn = table({
+    rows: [...first, ...second],
+    total: 30,
+    cursor: "b3",
+    sections: [s("a", first), s("b", second)],
+  });
+  assert.deepEqual(
+    all(cursorOn, (n) => n.type === "tr" && n.props?.tabIndex === 0).map((n) => n.props.id),
+    ["person-b3"],
+  );
+  // A folded section costs nothing but its head, even past the budget's reach.
+  const folded = table({ rows: first, total: 30, budget: 24, sections: [s("a", first), s("b", second, true)] });
+  assert.deepEqual(
+    bodies(folded).map((x) => x.props["data-section"]),
+    ["a", "b"],
+  );
+  assert.equal(drawn(folded), 20);
+});
+
+test("sections with nobody in them are the one body with the page's empty words", () => {
+  const t = table({
+    rows: [],
+    total: 0,
+    empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
+    sections: [],
+  });
+  assert.equal(bodies(t).length, 1);
+  assert.equal(heads(t).length, 0);
+  assert.match(textOf(t), /No deals yet\.Start a proposal from someone's page\./);
+});

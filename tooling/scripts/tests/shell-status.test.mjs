@@ -1506,3 +1506,47 @@ test("a move that stays on the page -- People to Leads and back -- draws without
     delete win.__surfaceGate;
   }
 });
+
+test("People › Pipeline is the page's third scope at clients/pipeline: its crumbs, a mount of its own, no fade beside People and Leads -- and People where deals are off", () => {
+  shell.installShell(win);
+  const keepPeople = win.__PEOPLE;
+  const view = (t) =>
+    find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
+  const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");
+  const go = (hash) => {
+    win.location.hash = hash;
+    fire("hashchange");
+    deep = false;
+    frames.begin();
+    const t = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+    deep = true;
+    return t;
+  };
+  const page = (t) => find(t, (n) => n.type === "ClientsA");
+  const crumbs = (t) => find(t, (n) => n.type === "Topbar").props.crumbs;
+  const mountKey = (t) => find(t, (n) => String(n.props?.className || "").includes("main-scroll")).props.key;
+  try {
+    win.__PEOPLE = { rows: [], lists: [], saved: [], dealsOn: true };
+    const { tree } = mount("#/clients/pipeline");
+    assert.deepEqual([page(tree).props.scope, page(tree).props.key], ["pipeline", "pipeline"]);
+    assert.deepEqual(crumbs(tree), [{ label: "People", to: "clients" }, "Pipeline"]);
+    page(tree).props.onOpenProfile("p-1");
+    assert.equal(win.location.hash, "/clients/p-1", "a row opens its person");
+    const people = mount("#/clients");
+    assert.notEqual(mountKey(tree), mountKey(people.tree), "the Pipeline and People are two mounts, as Leads is");
+    // One page, three scopes: moving between them draws at once, as People and Leads do.
+    assert.equal(stays(go("#/clients")), false, "a page opened cold fades in");
+    assert.equal(stays(go("#/clients/pipeline")), true, "the Pipeline beside People is the same page: no fade");
+    assert.equal(stays(go("#/clients/leads")), true, "and beside Leads");
+    assert.equal(stays(go("#/clients/pipeline")), true);
+    assert.equal(stays(go("#/clients")), true, "and back");
+    assert.equal(stays(go("#/clients/c-aisha")), false, "a person is somewhere else");
+    // Where deals are off the address draws People, and says People.
+    win.__PEOPLE = { rows: [], lists: [], saved: [], dealsOn: false };
+    const off = mount("#/clients/pipeline");
+    assert.deepEqual([page(off.tree).props.scope, page(off.tree).props.key], ["people", "people"]);
+    assert.deepEqual(crumbs(off.tree), ["People"]);
+  } finally {
+    win.__PEOPLE = keepPeople;
+  }
+});

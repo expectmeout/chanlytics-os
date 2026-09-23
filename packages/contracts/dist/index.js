@@ -1187,6 +1187,7 @@ function formatsFor(tz) {
     time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
     date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
     dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
     parts: new Intl.DateTimeFormat("en-US", {
       timeZone: zone,
       hourCycle: "h23",
@@ -1248,6 +1249,25 @@ function clockWhen(atMs, tz, nowMs) {
   if (day === today) return `today ${time}`;
   if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
   return `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
+}
+function daysBetween(fromKey, toKey) {
+  const at2 = (key) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
+  return Math.round((at2(toKey) - at2(fromKey)) / 864e5);
+}
+function daysFromToday(atMs, tz, nowMs) {
+  return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
+}
+function clockNear(atMs, tz, nowMs) {
+  const gap = daysFromToday(atMs, tz, nowMs);
+  if (gap === 0) return "today";
+  if (gap === -1) return "yesterday";
+  if (gap === 1) return "tomorrow";
+  if (Math.abs(gap) <= 6) return formatsFor(tz).weekday.format(new Date(atMs));
+  return clockDate(atMs, tz, nowMs);
+}
+function clockNearWhen(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  return Math.abs(daysFromToday(atMs, tz, nowMs)) <= 6 ? `${clockNear(atMs, tz, nowMs)} ${time}` : `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
 }
 function clockDayLabel(atMs, tz, nowMs) {
   const day = zoneDayKey(atMs, tz);
@@ -6255,6 +6275,9 @@ function amountTotalsWords(items) {
   if (!sums.size) return null;
   return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
 }
+function wholeDaysSince(atMs, nowMs) {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS3));
+}
 function dealSinceMs(d) {
   const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
   const ms2 = at2 ? Date.parse(at2) : NaN;
@@ -6271,7 +6294,7 @@ function toDealVM(d, tz, nowMs) {
   if (!isDealStage(d.stage)) return null;
   const sinceMs = dealSinceMs(d);
   const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays = d.stage === "proposed" && sinceMs !== null ? Math.max(0, Math.floor((nowMs - sinceMs) / DAY_MS3)) : null;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
   const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
   const url = d.proposal_url?.trim() || null;
   const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
@@ -6343,11 +6366,15 @@ function isConsultationTitle(title, services, rules) {
     return !!n && t.includes(n) && needsConsultation(s.name, rules);
   });
 }
+function heardSinceProposal(r) {
+  const d = r.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r.askedMs !== null && r.askedMs >= d.sinceMs;
+}
 function waitingOnProposal(r, nowMs) {
   const d = r.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
   if (nowMs - d.sinceMs < WAITING_AFTER_DAYS * DAY_MS3) return false;
-  return r.askedMs === null || r.askedMs < d.sinceMs;
+  return !heardSinceProposal(r);
 }
 function proposalsWaiting(rows, nowMs) {
   return rows.filter((r) => waitingOnProposal(r, nowMs));
@@ -6917,7 +6944,8 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     deal: dealOf(r, tz, nowMs),
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
-    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null
+    consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
+    consultAhead: v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs) ? { startMs: nextVisitMs, allDay: !!v.next.all_day } : null
   };
 }
 var PEOPLE_LIST_GROUPS = [
@@ -11927,7 +11955,7 @@ function reachLines(reach, p) {
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days : null;
-  const one = (n, singular, plural10) => n === 1 ? singular : plural10;
+  const one = (n, singular, plural11) => n === 1 ? singular : plural11;
   const reasons = [
     {
       n: reach.noYes,
@@ -18142,6 +18170,156 @@ function dealSheetRefusal(message) {
   return { field: code2 && REFUSAL_FIELD[code2] || null, words: words3 };
 }
 
+// src/pipeline.ts
+var PIPELINE_GROUPS = ["consultations", "proposals", "clients", "closed"];
+var GROUP_WORDS = /* @__PURE__ */ (() => ({
+  consultations: "Consultations",
+  proposals: DEAL_STAGE_WORDS.proposed,
+  clients: "Clients",
+  closed: `${DEAL_STAGE_WORDS.lost} or ${DEAL_STAGE_WORDS.ended.toLowerCase()}`
+}))();
+var PIPELINE_WORDS = {
+  groups: GROUP_WORDS,
+  /**
+   * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
+   * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
+   */
+  columns: { person: "Person", service: "Service", value: "Value", stage: "In stage", chip: "Where it stands" },
+  /** What opens a folded group, whose head counts its rows already, and what folds it again. */
+  show: "Show",
+  hide: "Hide",
+  /** Where there is nobody in any group. */
+  empty: { title: "No deals yet.", body: "Start a proposal from someone's page." }
+};
+var plural10 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var upper = (s) => s ? `${s[0].toUpperCase()}${s.slice(1)}` : s;
+var daysWords = (days) => days === null ? "" : `${days} d`;
+var zoneOf = (r, tz) => r.calendarTz || tz;
+function proposalChip(r, d, tz, nowMs) {
+  if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "warn" };
+  if (waitingOnProposal(r, nowMs)) return { words: `Nothing back in ${d.waitingDays ?? 0} d`, tone: "warn" };
+  if (heardSinceProposal(r) && r.askedMs !== null)
+    return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
+  if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
+  return null;
+}
+var clientChip = (d) => d.since ? { words: upper(d.since), tone: "plain" } : null;
+function closedChip(d, tz, nowMs) {
+  const what = d.reason ? d.reason.words : d.word;
+  return { words: d.sinceMs === null ? what : `${what} \xB7 ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
+}
+function dealRow(r, d, chip, nowMs) {
+  return {
+    id: r.id,
+    name: r.name,
+    person: r,
+    service: d.service,
+    value: d.amount,
+    // A proposal's time in stage IS its wait, the number its chip says: the deal's own count, never a second one.
+    inStage: daysWords(d.stage === "proposed" ? d.waitingDays : wholeDaysSince(d.sinceMs, nowMs)),
+    chip
+  };
+}
+function heldRow(r, endMs, tz, nowMs) {
+  const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
+  return {
+    id: r.id,
+    name: r.name,
+    person: r,
+    service: null,
+    value: null,
+    inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
+    chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} \xB7 no proposal yet`, tone: "warn" }
+  };
+}
+function aheadRow(r, c, tz, nowMs) {
+  const zone = zoneOf(r, tz);
+  const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
+  return {
+    id: r.id,
+    name: r.name,
+    person: r,
+    service: null,
+    value: null,
+    inStage: "",
+    chip: { words: upper(when), tone: "info" }
+  };
+}
+function inOrder(xs, at2, latest = false) {
+  return [...xs].sort((a, b) => {
+    const x = at2(a);
+    const y = at2(b);
+    if (x === y) return a.r.name.localeCompare(b.r.name) || a.r.id.localeCompare(b.r.id);
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return latest ? y - x : x - y;
+  });
+}
+var worth = (xs) => amountTotalsWords(xs.map((x) => ({ amount_cents: x.d.amountCents, per: x.d.per, currency: x.d.currency })));
+function pipelineOf(rows, nowMs, tz) {
+  const held = new Set(consultationsWithoutProposal(rows, nowMs));
+  const consults = [];
+  const ahead = [];
+  const proposals = [];
+  const clients = [];
+  const closed = [];
+  for (const r of rows) {
+    const d = r.deal;
+    if (d && d.stage === "proposed") proposals.push({ r, d });
+    else if (d && d.stage === "won") clients.push({ r, d });
+    else if (held.has(r) && r.consultedMs !== null && Number.isFinite(r.consultedMs))
+      consults.push({ r, at: r.consultedMs });
+    else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
+    else if (d) closed.push({ r, d });
+  }
+  const group = (key, rs, meta) => ({
+    key,
+    label: GROUP_WORDS[key],
+    count: rs.length,
+    meta,
+    collapsed: key === "closed",
+    rows: rs
+  });
+  const groups = [
+    group(
+      "consultations",
+      [
+        ...inOrder(consults, (x) => x.at).map((x) => heldRow(x.r, x.at, tz, nowMs)),
+        ...inOrder(ahead, (x) => x.c.startMs).map((x) => aheadRow(x.r, x.c, tz, nowMs))
+      ],
+      // The rule's own week (CONSULT_FOLLOW_DAYS), said as Today's row that re-prints this number says it.
+      consults.length ? `${consults.length} held in the last week, no proposal yet` : null
+    ),
+    group(
+      "proposals",
+      inOrder(proposals, (x) => x.d.sinceMs).map((x) => dealRow(x.r, x.d, proposalChip(x.r, x.d, tz, nowMs), nowMs)),
+      worth(proposals)
+    ),
+    group(
+      "clients",
+      inOrder(clients, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, clientChip(x.d), nowMs)),
+      worth(clients)
+    ),
+    group(
+      "closed",
+      inOrder(closed, (x) => x.d.sinceMs, true).map((x) => dealRow(x.r, x.d, closedChip(x.d, tz, nowMs), nowMs)),
+      null
+    )
+  ].filter((g) => g.count > 0);
+  const waiting = proposalsWaiting(
+    proposals.map((x) => x.r),
+    nowMs
+  ).length;
+  const summary = [
+    proposals.length ? `${plural10(proposals.length, "proposal", "proposals")} out` : null,
+    proposals.length ? worth(proposals) : null,
+    waiting ? `${waiting} waiting over a week` : null,
+    clients.length ? plural10(clients.length, "client", "clients") : null,
+    clients.length ? worth(clients) : null
+  ].filter((x) => !!x);
+  return { summary, groups, empty: groups.length === 0 };
+}
+
 // src/lead-judge.ts
 import { z as z9 } from "zod";
 var JUDGE_FACT_KEYS = [
@@ -18758,6 +18936,8 @@ export {
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
+  PIPELINE_GROUPS,
+  PIPELINE_WORDS,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
@@ -18973,6 +19153,8 @@ export {
   clockDayLabel,
   clockInZone,
   clockLabel,
+  clockNear,
+  clockNearWhen,
   clockShort,
   clockStamp,
   clockTime,
@@ -19102,6 +19284,7 @@ export {
   handoffWords,
   hardLimitsWords,
   hasProfile,
+  heardSinceProposal,
   heardWords,
   hoursLines2 as hoursLines,
   hoursOf2 as hoursOf,
@@ -19291,6 +19474,7 @@ export {
   personStateFor,
   phoneTail,
   pickCurrentDeal,
+  pipelineOf,
   placeholdersOf,
   placeholdersSequential,
   placesToAsk,
@@ -19548,6 +19732,7 @@ export {
   weekOf,
   whenLabel,
   whisperText,
+  wholeDaysSince,
   whoseWords,
   whyCannotSpend,
   whyNotAFromName,
