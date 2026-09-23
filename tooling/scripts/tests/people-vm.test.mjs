@@ -735,3 +735,66 @@ test("where a person came from, in the words People says it: one per stored valu
   );
   assert.equal(toPersonRowVM(row(), ZONE, NOW).cameFrom, null);
 });
+
+test("proposalAction: the send-the-proposal button's words by the wire, 'again' once it went out, and no button where a closed window would make it a lie", () => {
+  const f = contracts.proposalAction;
+  assert.deepEqual(f("Email", { open: true, hoursLeft: 0 }, null), {
+    label: "Email the proposal",
+    title: "Opens the thread with the proposal link ready to send by email",
+    ready: true,
+  });
+  assert.deepEqual(f("Text", { open: true, hoursLeft: 0 }, "Sep 22, 2026 · Text"), {
+    label: "Text the proposal again",
+    title: "Opens the thread with the proposal link ready to send as a text · sent Sep 22, 2026 · Text",
+    ready: true,
+  });
+  assert.deepEqual(f("WhatsApp", { open: true, hoursLeft: 5 }, null), {
+    label: "Send the proposal",
+    title: "Opens the thread with the proposal link ready to send · 5h left in their reply window",
+    ready: true,
+  });
+  assert.equal(f("WhatsApp", { open: false, hoursLeft: 0 }, null).ready, false);
+  assert.equal(f(null, null, null).ready, false);
+});
+
+test("a person's proposal: the address, its host in About, and the newest message that carried it and went out", () => {
+  const url = "https://www.docs.example.com/p/dani";
+  const d = detail({ proposal_url: url });
+  d.conversations[0].messages.push(
+    msg({
+      id: "m-q",
+      at: iso(2 * H),
+      body: contracts.proposalMessage(url),
+      direction: "outbound",
+      sender: "human",
+      status: "queued",
+      channel: "whatsapp",
+    }),
+    msg({
+      id: "m-s",
+      at: iso(5 * H),
+      body: contracts.proposalMessage(url),
+      direction: "outbound",
+      sender: "human",
+      status: "sent",
+      channel: "whatsapp",
+    }),
+  );
+  const vm = toPersonVM(d, ZONE, NOW);
+  assert.equal(vm.proposal.url, url);
+  assert.equal(vm.proposal.host, "docs.example.com");
+  assert.equal(vm.proposal.sent.via, "WhatsApp");
+  assert.equal(vm.proposal.sent.at, iso(5 * H), "the one that went out, not the one still in its cancel window");
+  assert.ok(vm.about.some((a) => a.k === "Proposal" && a.v === "docs.example.com"));
+  assert.match(vm.proposalAction.label, /again$/);
+  assert.match(vm.proposalAction.title, /sent .* · WhatsApp$/);
+  assert.equal(toPersonVM(detail(), ZONE, NOW).proposal, null);
+  assert.equal(
+    toPersonVM(detail(), ZONE, NOW).about.some((a) => a.k === "Proposal"),
+    false,
+  );
+  const fresh = toPersonVM(detail({ proposal_url: "https://docs.example.com/p/new" }), ZONE, NOW);
+  assert.equal(fresh.proposal.sent, null, "a new address has not gone out");
+  assert.equal(fresh.proposalAction.label, "Send the proposal");
+  assert.equal(contracts.proposalMessage(url), `Here's the proposal we put together for you: ${url}`);
+});

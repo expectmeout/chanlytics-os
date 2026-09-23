@@ -1014,7 +1014,7 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   );
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(
-    detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') &&
+    detail.includes('sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle()') &&
       detail.includes("notes: own.data?.notes ?? null,"),
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");

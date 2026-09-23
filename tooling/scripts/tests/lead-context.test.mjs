@@ -225,7 +225,32 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
   assert.ok(
-    src.includes('.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes")'),
+    src.includes('.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url")'),
     "read with the rest of who they are",
+  );
+});
+
+test("a proposal on file rides with who the person is: the address to send, the rule to state no figure, and never to read it out on a call", () => {
+  const lead = {
+    contactId: "c1",
+    name: "Maria Lopez",
+    returning: true,
+    lastSeenAt: null,
+    history: [{ role: "user", content: "hi" }],
+    optedOut: false,
+    notes: null,
+    proposalUrl: " https://docs.example.com/p/maria ",
+  };
+  const d = describeLead(lead, NOW);
+  assert.ok(
+    d.includes(
+      "The owner has a proposal ready for them at https://docs.example.com/p/maria. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out — say it is being sent to them in writing.",
+    ),
+    d,
+  );
+  assert.ok(!describeLead({ ...lead, proposalUrl: null }, NOW).includes("proposal"), "no sentence without one");
+  assert.ok(
+    !describeLead({ ...lead, proposalUrl: undefined }, NOW).includes("proposal"),
+    "a reader without the column says nothing",
   );
 });

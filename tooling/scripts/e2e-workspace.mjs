@@ -638,6 +638,7 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
       dnc: false,
       notes: null,
       email: null,
+      proposal_url: null,
       marketing_consent: SAID_YES_TO_OFFERS,
       marketing_consent_source: null,
       marketing_consent_updated_at: null,

@@ -1506,3 +1506,94 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
     "nothing queued, nothing waiting",
   );
 });
+
+test("a proposal on file (00154): the About row is its control and the send sits beside the booking link in Right now, 'again' once it went out; nothing to press for a viewer or for someone who said stop", async () => {
+  const cls = (n) => String(n.props?.className || "");
+  const url = "https://docs.example.com/p/dani";
+  const outbound = (at, status) => ({
+    id: `m-${status}`,
+    conversation_id: "cv1",
+    direction: "outbound",
+    sender: "human",
+    type: "text",
+    body: contracts.proposalMessage(url),
+    media: null,
+    meta: null,
+    status,
+    channel: "whatsapp",
+    created_at: at,
+  });
+  const vm = toPersonVM(detail({ proposal_url: url, booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
+  let tree = (await profile(vm))();
+  const rowEl = byTestId(tree, "person-proposal");
+  assert.ok(rowEl, "the About row");
+  const link = byTestId(rowEl, "person-proposal-link");
+  assert.equal(link.props.href, url);
+  assert.equal(textOf(link), "docs.example.com", "the host, not the whole address");
+  assert.equal(byTestId(rowEl, "person-proposal-edit").props["aria-label"], "Change the proposal link");
+  const keys = all(tree, (n) => cls(n) === "cl-prof-attr-key").map((k) => textOf(k));
+  assert.equal(keys.indexOf("Proposal"), keys.indexOf("Email") + 1, `under the address: ${keys}`);
+  const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
+  const send = byTestId(actions, "send-proposal");
+  assert.ok(send, "the send lives in Right now");
+  assert.equal(textOf(send).trim(), vm.proposalAction.label);
+  assert.equal(send.props.title, vm.proposalAction.title);
+  assert.ok(byTestId(actions, "text-booking-link"), "beside the booking link, which keeps its button");
+
+  // The press carries the contract's words into the thread's composer and opens the thread; nothing is sent.
+  const carried = [];
+  globalThis.sessionStorage = { setItem: (k, v) => carried.push([k, v]), getItem: () => null, removeItem: () => {} };
+  globalThis.window.__proposalMessage = contracts.proposalMessage;
+  try {
+    went.length = 0;
+    press(send);
+    assert.deepEqual(went, [vm.openThread], "it opens the thread");
+    assert.equal(carried.length, 1);
+    assert.equal(carried[0][0], "chanlytics-compose");
+    assert.deepEqual(JSON.parse(carried[0][1]), {
+      threadId: vm.openThread.replace(/^inbox\//, ""),
+      text: contracts.proposalMessage(url),
+    });
+  } finally {
+    delete globalThis.sessionStorage;
+    delete globalThis.window.__proposalMessage;
+  }
+
+  // Once the address went out the label says so; a message still in its cancel window does not count.
+  const d = detail({ proposal_url: url });
+  d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
+  tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
+  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal");
+  d.conversations[0].messages.push(outbound(iso(H), "sent"));
+  tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
+  assert.equal(textOf(byTestId(tree, "send-proposal")).trim(), "Send the proposal again");
+
+  // None on file: the row invites, the send is absent.
+  tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+  assert.equal(byTestId(tree, "person-proposal-edit").props["aria-label"], "Add a proposal link");
+  assert.equal(byTestId(tree, "person-proposal-link"), null);
+  assert.equal(byTestId(tree, "send-proposal"), null);
+
+  // A viewer sees where it lives and changes nothing; no row at all when there is none.
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    tree = (await profile(vm))();
+    assert.ok(byTestId(tree, "person-proposal-link"));
+    assert.equal(byTestId(tree, "person-proposal-edit"), null);
+    assert.equal(byTestId(tree, "send-proposal"), null);
+    tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
+    assert.equal(byTestId(tree, "person-proposal"), null);
+  } finally {
+    globalThis.window.__ME = { role: "owner" };
+  }
+
+  // Someone who said stop: the row, never the send.
+  const quiet = toPersonVM(
+    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url }),
+    ZONE,
+    new Date(NOW),
+  );
+  tree = (await profile(quiet))();
+  assert.ok(byTestId(tree, "person-proposal"));
+  assert.equal(byTestId(tree, "send-proposal"), null);
+});

@@ -351,8 +351,8 @@ export const GET = read({
         .order("created_at")
         .limit(1)
         .maybeSingle(),
-      // The owner's notes: the one column people_list does not carry.
-      sb.from("contacts").select("notes").eq("id", id).maybeSingle(),
+      // The owner's notes and their proposal link (00154): the two columns people_list does not carry.
+      sb.from("contacts").select("notes, proposal_url").eq("id", id).maybeSingle(),
       // The booking link, so the profile can text it in one step.
       sb.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
       // Every change to either answer: the ledger rows the doors write, which
@@ -441,6 +441,7 @@ export const GET = read({
       workspace_reply_mode: wsPol.data?.mode ?? null,
       visits: visits ?? undefined,
       notes: own.data?.notes ?? null,
+      proposal_url: own.data?.proposal_url ?? null,
       booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
       consent_history: (history.data ?? []).map(consentChangeOf),
       campaigns: runs,
