@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createList, savedListsFor } from "@chanlytics/db";
-import { cleanListName, type SavedListDto } from "@/server/lists";
+import { cleanListName, cleanListRule, type SavedListDto } from "@/server/lists";
 
 /**
  * Saved lists: a name and the people on it.
@@ -22,20 +22,24 @@ export const GET = read({
   handle: async ({ ctx, member }) => ({ lists: await savedListsFor(ctx.supabase, member.tenantId) }),
 });
 
-/** The name is the only thing a person types, and cleanListName refuses it in the words the edit route uses too. */
+/**
+ * { name, rule? }: a list kept by hand, or a smart list with its rule (00155). The name is refused by cleanListName in
+ * the words the edit route uses too, and a rule the vocabulary cannot read by cleanListRule.
+ */
 export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "lists",
   handle: async ({ ctx, req, member }) => {
-    const body = (await jsonBody(req)) as { name?: unknown } | null;
+    const body = (await jsonBody(req)) as { name?: unknown; rule?: unknown } | null;
     const name = cleanListName(body?.name);
-    const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId);
+    const rule = cleanListRule(body?.rule);
+    const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId, rule);
     if (error || !list) {
       if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);
       throw new Error(error?.message ?? "The list was not made.");
     }
-    const made: SavedListDto = { id: list.id, name: list.name, ids: [] };
+    const made: SavedListDto = { id: list.id, name: list.name, ids: [], rule };
     return made;
   },
 });

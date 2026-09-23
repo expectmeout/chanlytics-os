@@ -190,6 +190,9 @@ import {
   toPersonRowVM,
   peopleAggregates,
   PEOPLE_LISTS,
+  asListRule,
+  listRuleParts,
+  savedListIds,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
   savedListAction,
@@ -773,7 +776,7 @@ let peopleLoaded: {
   people: PersonRowDto[];
   page: PeopleSurface["page"];
   /** Null when the read of them failed. */
-  saved: { id: string; name: string; ids: string[] }[] | null;
+  saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
   views: Record<string, unknown>;
@@ -804,11 +807,23 @@ function publishPeople(): void {
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     saved: (peopleLoaded.saved ?? []).map((l) => {
-      const idSet = new Set(l.ids);
+      // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (savedListIds), over the rows
+      // on the page, so an erased person never counts.
+      const idSet = savedListIds(l, rows, now.getTime(), calendar.state === "ok");
       const members = rows.filter((r) => idSet.has(r.id));
       const ids = members.map((r) => r.id);
-      // The list's own step, the way a smart list carries its: a broadcast to those on it who said yes.
-      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids, action: savedListAction(l.id, members) };
+      const rule = asListRule(l.rule);
+      // The list's own step, the way a built-in list carries its: a broadcast to those on it who said yes.
+      return {
+        id: l.id,
+        name: l.name,
+        count: ids.length,
+        ids,
+        members: l.ids,
+        action: savedListAction(l.id, members),
+        // A smart list's rule, as the chips its page shows; null for a list kept by hand.
+        rule: rule ? listRuleParts(rule) : null,
+      };
     }),
     savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.
@@ -1123,7 +1138,7 @@ export const broadcastsOverride: SurfaceOverride = {
             kind: "saved" as const,
             id: s.id,
             label: s.name,
-            ...optionFor("saved", null, new Set(s.ids)),
+            ...optionFor("saved", null, savedListIds(s, rows, now.getTime(), people.calendar?.state === "ok")),
             hint: "A list kept by hand — of those whose yes covers this message",
           }))),
     ];
@@ -1254,6 +1269,15 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
+  /** The lists a playbook may run on, each with its own count; empty when there are none or they were not read. */
+  lists: {
+    id: string;
+    name: string;
+    smart: boolean;
+    candidates: number | null;
+    held: number | null;
+    named: PlaybookNamed | null;
+  }[];
   /** The approved WhatsApp templates, with their variables. */
   /** Null: the templates read failed -- its own state, never "no template yet". */
   templates: TemplateDto[] | null;
@@ -1313,22 +1337,34 @@ export const playbooksOverride: SurfaceOverride = {
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
+    // A playbook on one of the workspace's lists is counted by its list ("list:<id>"), and named for it.
+    const listsKept = pb.lists ?? [];
+    const keyOf = (p: { trigger: string; list_id?: string | null }) =>
+      p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
+        const kept = p.trigger === "saved_list" ? listsKept.find((l) => l.id === p.list_id) : undefined;
         return {
           ...p,
-          triggerLabel: t?.label ?? p.trigger,
+          triggerLabel:
+            p.trigger === "saved_list" ? (kept?.name ?? "A list that was deleted") : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
-          candidates: pool(p.trigger),
-          held: held(p.trigger),
-          named: named(p.trigger),
+          candidates: pool(keyOf(p)),
+          held: held(keyOf(p)),
+          named: named(keyOf(p)),
         };
       }),
       timezone: tz,
-      countsRead: PLAYBOOK_TRIGGERS.every((t) => !!pb.pools?.[t.id]),
+      countsRead: PLAYBOOK_TRIGGERS.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
+      lists: listsKept.map((l) => ({
+        ...l,
+        candidates: pool(`list:${l.id}`),
+        held: held(`list:${l.id}`),
+        named: named(`list:${l.id}`),
+      })),
       calendar: pb.calendar ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({
         id: t.id,

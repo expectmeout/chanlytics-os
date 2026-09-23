@@ -108,7 +108,8 @@ export const SCHEMA_SETS = {
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
   "playbooks.trigger": [
-    "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited",
+    "quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed",
+    "saved_list",
   ],
   "policies.class": ["reply", "booking", "faq", "reengage", "campaign", "money", "reviews"],
   "policies.mode": ["auto", "veto", "ask", "never"],

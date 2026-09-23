@@ -163,12 +163,15 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   assert.equal(pools.everyone_monthly.held, 2, "the two wait for the week's breath: held, not hidden");
   assert.deepEqual(Object.keys(pools).sort(), [
     "everyone_monthly",
+    "lapsed",
     "new_week",
     "phoned_only",
     "quiet_30",
+    "saved_list",
     "visit_tomorrow",
     "visited",
   ]);
+  assert.equal(pools.saved_list, null, "a playbook on a list is counted by its list, never by the trigger");
   assert.equal(pools.visit_tomorrow.candidates, 0, "no calendar, nobody has a visit tomorrow");
   // And everyone the moment names, with who of them no run reaches whatever the
   // week: the card's grey. The chips counted only who said yes, so the one who
@@ -217,7 +220,16 @@ test("REGRESSION: the pools say how many each moment names said the yes it needs
 });
 
 test("REGRESSION: a moment that could not be counted is not a zero -- a People read that failed answered empty pools, and the page drew '0 of 0' and 'nobody to send to'", async () => {
-  const ids = ["everyone_monthly", "new_week", "phoned_only", "quiet_30", "visit_tomorrow", "visited"];
+  const ids = [
+    "everyone_monthly",
+    "lapsed",
+    "new_week",
+    "phoned_only",
+    "quiet_30",
+    "saved_list",
+    "visit_tomorrow",
+    "visited",
+  ];
   // The People read fails: no moment is counted, each says so, and the route still answers with the playbooks.
   const refusing = ctxFor(tables(null), {
     people_list: () => {
@@ -523,4 +535,27 @@ test("the booking report: asked, then booked, over the rows given and the feed's
   ];
   const report = await bookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
   assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1 });
+});
+
+test("each list a playbook may run on is counted as a run on it would count it, under list:<id>, and named for the composer", async () => {
+  const all = [person(1), person(2), person(3)];
+  const texters = { all: [{ field: "offers_yes", op: "is", yes: true }] };
+  const t = tables(null, "owner", {
+    segments: [
+      { id: "l-hand", tenant_id: T, name: "Regulars", rule: null },
+      { id: "l-smart", tenant_id: T, name: "Said yes", rule: texters },
+    ],
+    segment_members: [{ segment_id: "l-hand", contact_id: "p2", tenant_id: T }],
+  });
+  const { pools, lists } = await triggerPools(ctxFor(t, { people_list: pagedList(all) }), T, {}, TZ, NOW);
+  assert.deepEqual(lists, [
+    { id: "l-hand", name: "Regulars", smart: false },
+    { id: "l-smart", name: "Said yes", smart: true },
+  ]);
+  assert.deepEqual([pools["list:l-hand"].pool, pools["list:l-hand"].candidates], [1, 1], "the one kept on it");
+  assert.deepEqual(
+    [pools["list:l-smart"].pool, pools["list:l-smart"].candidates],
+    [3, 3],
+    "everyone its rule holds for",
+  );
 });

@@ -4,9 +4,10 @@
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
 // every number is a run's. Nothing here scores, estimates or invents.
 //
-// Four triggers, each a People list that keeps itself current: win-back
-// (quiet 30 days), welcome (new this week), save our number (phoned only),
-// the month's offer (everyone who said yes, on a cadence). Each runs under
+// Its moments: People lists that keep themselves current -- win-back (quiet
+// 30 days), welcome (new this week), save our number (phoned only), lapsed --
+// the month's offer (everyone who said yes, on a cadence), a visit tomorrow or
+// yesterday, and one of the workspace's own lists (00155). Each runs under
 // one of the two Autonomy rows — auto sends, veto sends after a stop window,
 // ask leaves the run waiting here and on Today, never does nothing. Every
 // verb goes through window.__playbooks and the surface is re-fetched, so the
@@ -96,7 +97,7 @@ const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.b
 // Each of the six moments has its glyph: the arrow that comes back, a wave
 // hello, the phone that only ever rang, the gift, the calendar, the clock of
 // the day after. A playbook on a trigger this list does not know gets a bolt.
-const PB_ICONS = { quiet_30: "undo", new_week: "wave", phoned_only: "phone", everyone_monthly: "gift", visit_tomorrow: "calendar", visited: "clock" };
+const PB_ICONS = { quiet_30: "undo", new_week: "wave", phoned_only: "phone", everyone_monthly: "gift", visit_tomorrow: "calendar", visited: "clock", lapsed: "undo", saved_list: "filter" };
 const pbIcon = (trigger) => PB_ICONS[trigger] || "bolt";
 // What a moment is for, said once on its empty card: who it reaches and why it
 // is worth a message. The count of who it would reach today follows it.
@@ -107,6 +108,8 @@ const PB_BLURBS = {
   everyone_monthly: "Everyone who said yes to offers, once a month — this month's offer, on a clock.",
   visit_tomorrow: "Everyone with a visit tomorrow — the reminder that keeps the chair from sitting empty.",
   visited: "Everyone who came in yesterday and has nothing on the calendar — the shortest path from a visit to the next booking.",
+  lapsed: "Everyone whose last visit was 45 days ago or more, with nothing ahead on the calendar — the regulars drifting away.",
+  saved_list: "Everyone on one of your lists — kept by hand, or kept current by a rule you described.",
 };
 // The languages a playbook's message exists in, each with its state at WhatsApp:
 // a starter's are the starter set's, a message written elsewhere its own. Read off
@@ -341,6 +344,8 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     cap: editing ? editing.cap_per_run : 25,
     gap: editing ? editing.gap_days : 90,
     cadence: editing ? editing.cadence_days : 30,
+    // The list a playbook on one of the workspace's lists runs on: its own, or the first list kept.
+    listId: editing ? editing.list_id || null : ((data.lists || PB_NONE)[0] || {}).id || null,
     fills: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
     typed: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
   }), [editing, initialTrigger]); // eslint-disable-line react-hooks/exhaustive-deps -- what it opened as, read once
@@ -362,8 +367,9 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   // Per message: what fills each slot, and the words typed into it.
   const [fills, setFills] = React.useState(start.fills);
   const [typed, setTyped] = React.useState(start.typed);
+  const [listId, setListId] = React.useState(start.listId === undefined ? null : start.listId);
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
-  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, fills, typed };
+  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, fills, typed };
   const work = window.useUnsavedWork("playbook", draftKey, { value: held, dirty: JSON.stringify(held) !== JSON.stringify(opened), onLeave: onCancel });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
@@ -372,6 +378,10 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
 
   const trig = triggers.find((t) => t.id === trigger) || null;
   const visits = !!(trig && trig.kind === "visit");
+  // A playbook on one of the workspace's lists: which one, with the list's own count (the route's "list:<id>" pool).
+  const onList = !!(trig && trig.kind === "saved");
+  const lists = data.lists || PB_NONE;
+  const list = onList ? lists.find((l) => l.id === listId) || null : null;
   const link = !!data.bookingLink;
   // What each slot of a message may take on a moment, or null when one of them can take nothing there.
   const slotsOf = (t, v = visits) => (S && S.slots ? S.slots(t, { visits: v, bookingLink: link }) : (Array.isArray(t.variables) ? t.variables : PB_NONE).map(() => PB_TEXT));
@@ -415,7 +425,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const shown = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() || `[${labels[i]}]` : pbExample(srcOf(i), data.businessName)));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() : { kind: srcOf(i) }));
   const missing = vars.findIndex((v, i) => srcOf(i) === "text" && !textOf(i).trim());
-  const ready = !!trig && !!tpl && missing < 0 && !busy;
+  const ready = !!trig && !!tpl && missing < 0 && !busy && (!onList || !!list);
 
   // The name the route gives it when it is given none, said before it is saved.
   const auto = trig && tpl && window.__playbookName ? window.__playbookName(trig, tpl) : trig ? trig.label : "New playbook";
@@ -425,10 +435,12 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   // keeps its moment, with the cap as it is set here -- the cards' bar and the
   // approval sheet's reasons (contracts reachLines), before anything is saved.
   const monthly = trigger === "everyone_monthly";
-  const base = editing && editing.trigger === trigger ? { candidates: editing.candidates || 0, held: editing.held || 0 } : { candidates: trig ? trig.candidates || 0 : 0, held: trig ? trig.held || 0 : 0 };
-  const named = (editing && editing.trigger === trigger && editing.named) || (trig && trig.named) || null;
+  const base = onList
+    ? { candidates: list ? list.candidates || 0 : 0, held: list ? list.held || 0 : 0 }
+    : editing && editing.trigger === trigger ? { candidates: editing.candidates || 0, held: editing.held || 0 } : { candidates: trig ? trig.candidates || 0 : 0, held: trig ? trig.held || 0 : 0 };
+  const named = onList ? (list && list.named) || null : (editing && editing.trigger === trigger && editing.named) || (trig && trig.named) || null;
   // Who the moment reaches could not be counted (the server's read failed): no count is drawn, as on the cards.
-  const counted = named !== null && (editing && editing.trigger === trigger ? editing.candidates !== null : !!trig && trig.candidates !== null);
+  const counted = named !== null && (onList ? !!list && list.candidates !== null : editing && editing.trigger === trigger ? editing.candidates !== null : !!trig && trig.candidates !== null);
   const capN = Math.max(1, Number(cap) || 1);
   const overCap = visits ? 0 : Math.max(0, base.candidates - capN);
   const will = base.candidates - overCap;
@@ -462,7 +474,7 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     if (!window.__playbooks || !ready) return;
     setBusy(true);
     setError(null);
-    const body = { name: name === null || !name.trim() ? null : name.trim(), trigger, template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) };
+    const body = { name: name === null || !name.trim() ? null : name.trim(), trigger, ...(onList ? { list_id: listId } : {}), template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) };
     const r = editing ? await window.__playbooks.update(editing.id, body) : await window.__playbooks.create(body);
     setBusy(false);
     if (!r.ok) { setError(r.message || "It could not be saved."); return; }
@@ -539,6 +551,25 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
             ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a moment</span></span>}
             testid="pb-moment"
           />
+          {/* Which of the workspace's lists it runs on: kept by hand, or kept current by a rule. */}
+          {onList && (lists.length ? (
+            <window.CmPicker
+              value={listId}
+              choices={lists.map((l) => ({ id: l.id, label: l.name, sub: l.smart ? "Keeps itself current" : "Kept by hand", icon: l.smart ? "sparkle" : "filter", hint: l.candidates === null || l.candidates === undefined ? null : l.candidates > 0 ? `${l.candidates} today` : "nobody today" }))}
+              onPick={setListId}
+              label="The list it runs on"
+              search={lists.length > 8}
+              fit="trigger"
+              triggerClass="pb-pick"
+              face={list ? (
+                <>
+                  <span className="pb-pick-mark" aria-hidden="true"><Icon name={list.smart ? "sparkle" : "filter"} size={15} /></span>
+                  <span className="pb-pick-text"><span className="pb-pick-title">{list.name}</span><span className="pb-pick-sub">{list.smart ? "Keeps itself current" : "Kept by hand"}</span></span>
+                </>
+              ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a list</span></span>}
+              testid="pb-list"
+            />
+          ) : <p className="pb-warn" data-testid="pb-no-lists">Keep a list on People first — by hand, or describe who and it keeps itself current.</p>)}
           {trig && counted && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
           {visits && data.calendar !== "ok" && <p className="pb-warn" data-testid="pb-calendar">A visit moment reads the calendar: connect it in Settings › Business before a run can send.</p>}
         </section>
@@ -677,7 +708,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const status = pbStatus(p);
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
   // The trigger's list, on People (a smart list's own view); `segments/<id>` would land there too, one hop later.
-  const listRoute = trig && trig.list ? `clients/seg:${trig.list}` : "clients/seg:opted_in";
+  const listRoute = p.trigger === "saved_list" && p.list_id ? `clients/list:${p.list_id}` : trig && trig.list ? `clients/seg:${trig.list}` : "clients/seg:opted_in";
   // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;

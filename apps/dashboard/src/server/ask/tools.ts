@@ -5,6 +5,7 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   PEOPLE_LISTS,
+  savedListIds,
   audiencePreview,
   type AudienceKind,
   numberHealth,
@@ -975,7 +976,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       kind: "saved",
       audience_id: s.id,
       label: s.name,
-      ...sizes("saved", null, new Set(s.ids)),
+      ...sizes("saved", null, savedListIds(s, rows, t.now.getTime(), pool.calendar.state === "ok")),
     })),
   ];
   const cfg = (

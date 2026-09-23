@@ -860,21 +860,37 @@ const PeopleReceptionist = ({ r }) => (
 // here; people join from their profile. The POST answers before the rail
 // re-reads the surface, so the new row is the server's. `openSignal` opens the
 // box from outside: the shell's and a profile's "New list" (segments:new).
+// A new list: a name kept by hand, or -- "Describe who" -- a smart list whose rule the assistant drafts from the owner's
+// own words (window.__lists.draft) and the page shows back as chips with who it holds for today, before anything is
+// saved. The mockup's plain-English composer (segments.jsx), on real data: a rule in a vocabulary the row can answer.
 const NewListRow = ({ onCreate, openSignal = 0 }) => {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [smart, setSmart] = React.useState(false);
+  const [words, setWords] = React.useState("");
+  const [draft, setDraft] = React.useState(null);
   React.useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
-  const close = () => { setOpen(false); setName(""); setError(null); };
+  const close = () => { setOpen(false); setName(""); setError(null); setSmart(false); setWords(""); setDraft(null); };
   const submit = async () => {
     const n = name.trim();
     if (!n || busy) return;
     setBusy(true); setError(null);
-    const r = await onCreate(n);
+    const r = await onCreate(n, draft ? draft.rule : null);
     setBusy(false);
     if (!r.ok) { setError(r.message || "Could not make the list."); return; }
     close();
+  };
+  const build = async () => {
+    const w = words.trim();
+    if (!w || busy || !window.__lists || !window.__lists.draft) return;
+    setBusy(true); setError(null);
+    const r = await window.__lists.draft(w);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not draft the list."); return; }
+    setDraft(r.data);
+    setName(r.data.name);
   };
   if (!open) {
     return (
@@ -886,8 +902,41 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
       </div>
     );
   }
+  if (smart && !draft) {
+    return (
+      <div className="cl-rail-foot">
+        <div className="cl-rail-newlist">
+          <input
+            autoFocus
+            value={words}
+            placeholder="Describe who — “haven’t visited in two months”"
+            maxLength={300}
+            disabled={busy}
+            aria-label="Describe who is on the list"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "new-list-error" : undefined}
+            data-testid="new-list-words"
+            onChange={(e) => setWords(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") build(); if (e.key === "Escape") close(); }}
+          />
+          <button className="btn btn-sm btn-primary" disabled={busy || !words.trim()} onClick={build} data-testid="new-list-build">{busy ? "Building…" : "Build"}</button>
+        </div>
+        <window.FieldError id="new-list-error" message={error} testid="new-list-error" />
+        <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setSmart(false); setError(null); }} data-testid="new-list-hand">Keep one by hand instead</button>
+      </div>
+    );
+  }
+  // Who a drafted rule holds for today, over the people the page has read (contracts savedListIds, via the courier).
+  const holds = draft && window.__lists && window.__lists.count ? window.__lists.count(draft.rule) : null;
   return (
     <div className="cl-rail-foot">
+      {draft && (
+        <div className="cl-rail-draft" data-testid="new-list-draft">
+          <div className="cl-tag-stack">{window.__lists.parts(draft.rule).map((part) => <span key={part} className="seg-chip" data-testid="new-list-rule">{part}</span>)}</div>
+          {holds !== null && <div className="cl-rail-hint" data-testid="new-list-holds">{holds === 1 ? "1 person" : `${holds} people`} on it today, and it keeps itself current.</div>}
+          {draft.cannot && <div className="cl-rail-hint" data-testid="new-list-cannot">Left out: {draft.cannot}</div>}
+        </div>
+      )}
       <div className="cl-rail-newlist">
         <input
           autoFocus
@@ -901,9 +950,12 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }}
         />
-        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="new-list-add">Add</button>
+        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="new-list-add">{draft ? "Save" : "Add"}</button>
       </div>
       <window.FieldError id="new-list-error" message={error} testid="new-list-error" />
+      {draft
+        ? <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setDraft(null); setError(null); }} data-testid="new-list-redescribe">Describe it again</button>
+        : window.__lists && window.__lists.draft && <button type="button" className="cl-bucket-link cl-rail-newlist-mode" onClick={() => { setSmart(true); setError(null); }} data-testid="new-list-smart">Or describe who, and it keeps itself current</button>}
     </div>
   );
 };
@@ -988,8 +1040,10 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
   if (!editing) {
     return (
       <span className="cl-section-title" data-testid="saved-filter">
-        <Icon name="filter" size={12} />
+        <Icon name={list.rule ? "sparkle" : "filter"} size={12} />
         {list.name}
+        {/* A smart list says its rule once, quietly, beside its name: who is on it and why. */}
+        {list.rule && <span className="cl-list-rule" data-testid="list-rule">{list.rule.join(" · ")}</span>}
         {canEdit && (
           <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
             <Icon name="edit" size={11} />
@@ -1156,10 +1210,10 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, ev
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
       {saved.map((s) => (
-        <RailRow key={s.id} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip="A list kept by hand — add people from their profile" />
+        <RailRow key={s.id} smart={!!s.rule} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.rule ? `Keeps itself current: ${s.rule.join(" · ")}` : "A list kept by hand — add people from their profile"} testid={s.rule ? "saved-smart" : undefined} />
       ))}
       {savedRead && saved.length === 0 && (
-        <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
+        <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
       )}
     </RailSection>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
@@ -1644,7 +1698,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
             {canEdit && isOwner && window.__setPersonReceptionistMany ? <PhoneSheetRow icon="agents" label="Receptionist" next disabled={busy} onClick={() => onSheet("receptionist")} testid="bulk-receptionist" /> : null}
             {canEdit && window.__appendPersonNotesMany ? <PhoneSheetRow icon="edit" label="Add a note" next disabled={busy} onClick={() => { setNote(""); onSheet("note"); }} testid="bulk-note" /> : null}
             {canExport ? <PhoneSheetRow icon="external" label="Export" meta="CSV" disabled={busy} onClick={() => { onSheet(null); exportCsv(); }} testid="bulk-export" /> : null}
-            {canEdit && window.__lists && activeSaved ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
+            {canEdit && window.__lists && activeSaved && !activeSaved.rule ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
             {!canEdit ? <p className="pp-sheet-hint pp-sheet-rows-note">Only an owner or operator can add to lists or record a yes.</p> : null}
           </div>
         ),
@@ -1720,7 +1774,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
               gated={busy ? "One moment — the last change is still saving" : null}
               items={savedRead ? [
                 { header: "Add to" },
-                ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+                ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
                 { label: "New list…", icon: "plus", onClick: newList },
               ] : [
                 // Lists that could not be read are not offered; a new one can still be made.
@@ -1751,7 +1805,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           gated={busy ? "One moment — the last change is still saving" : null}
           items={savedRead ? [
             { header: "Add to" },
-            ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+            ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
             { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
           ] : [
             // Lists that could not be read are not offered; a new one can still be made.
@@ -1766,8 +1820,9 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={createAndAdd}>Make it</button>
         </span>
       )}
-      {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them. */}
-      {canEdit && window.__lists && activeSaved && !naming && (
+      {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them.
+          A smart list's rule says who is on it: nobody is taken off one by hand. */}
+      {canEdit && window.__lists && activeSaved && !activeSaved.rule && !naming && (
         <button className="btn btn-sm" disabled={busy} onClick={dropFromList} data-testid="bulk-drop-list">
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
@@ -2378,10 +2433,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // A list made on the rail says so and is the one shown: the rail used to close
   // with no word, the new list somewhere down it. The answer goes back to the
   // rail, which shows a refusal where the name was typed.
-  const createList = async (name) => {
-    const r = await window.__lists.create(name);
+  const createList = async (name, rule = null) => {
+    const r = await window.__lists.create(name, rule);
     if (r.ok) {
-      plFlash({ msg: <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
+      plFlash({ msg: rule ? <><b>{name}</b> made. It keeps itself current.</> : <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
       if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
       setListsOpen(false);
     }
@@ -2519,7 +2574,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         bookingLink: people.bookingLink || null,
         attention: people.attention,
         onOpen: (id) => cellOpenRef.current(id),
-        drop: activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
+        drop: activeSaved && !activeSaved.rule && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
         listsOf,
         shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
       },

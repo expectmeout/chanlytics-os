@@ -97,14 +97,14 @@ const withVisits = (id, next, last, over = {}) =>
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
 
-test("six triggers: four lists and cadences, two the calendar makes possible, each under one of the three autonomy rows", () => {
+test("the triggers: People's lists and a cadence, two the calendar makes possible, Lapsed and the workspace's own lists, each under one of the three autonomy rows", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.map((t) => t.id),
-    ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited"],
+    ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"],
   );
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.map((t) => t.kind),
-    ["list", "list", "list", "cadence", "visit", "visit"],
+    ["list", "list", "list", "cadence", "visit", "visit", "list", "saved"],
   );
   assert.equal(
     triggerOf("visit_tomorrow").cls,
