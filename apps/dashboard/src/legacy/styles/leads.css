@@ -846,6 +846,12 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    their own head, the act pinned at the foot. Each rule a token or a measure. */
 .pk-band { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; height: 176px; flex: none; overflow: hidden; background: var(--tint); color: var(--tint-ink); display: grid; place-items: center; }
 .pk-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The row's tile under the band's photo (leads-peek.jsx): there at once from the list, softened so its 96 pixels do
+   not show, and the band's own size fades in over it as it lands. */
+.pk-band-thumb { filter: blur(10px); transform: scale(1.12); }
+.pk-band-photo { opacity: 0; transition: opacity 180ms var(--ease-out); }
+.pk-band-photo.in { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pk-band-photo { transition: none; } }
 /* A photograph that fails to load takes its own layer down, never the mark painted over it. */
 .pk-band.no-img img:not(.pk-band-mark) { display: none; }
 .pk-band-initials { font-family: var(--font-mono); font-size: 40px; font-weight: 500; letter-spacing: .04em; opacity: .9; }

@@ -1782,3 +1782,59 @@ test("one lead on one screen: the pile rides on the photo, Expand keeps its name
   if (plain)
     assert.equal(plain.props["data-said"], undefined, "with no address to press, the map link is the only way there");
 });
+
+test("the band's photo is there as the peek opens: the row's tile under it at once, its own size eager and first in line, each lead's its own", () => {
+  reset();
+  const P = page({ vm: vmOf({ image_url: "https://lh3.googleusercontent.com/p/AF1QipM=w408-h268-k-no" }) });
+  const acts = globalThis.LeadPeekActions(P.p);
+  frames.begin();
+  const tree = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
+  const band = byTestId(tree, "peek-photo-band");
+  const photo = byTestId(band, "peek-photo");
+  assert.equal(
+    photo.props.src,
+    "https://lh3.googleusercontent.com/p/AF1QipM=w408-h268-k-no",
+    "the listing's own photograph",
+  );
+  assert.equal(photo.props.loading, "eager", "REGRESSION: lazy, asked for at 1000ms after the peek drew at 37ms");
+  assert.equal(photo.props.fetchPriority, "high");
+  assert.equal(
+    photo.props.key,
+    photo.props.src,
+    "each lead's photo its own element: never the last lead's under a new name",
+  );
+  const thumb = find(band, (n) => n.props?.className === "pk-band-thumb");
+  assert.equal(
+    thumb.props.src,
+    "https://lh3.googleusercontent.com/p/AF1QipM=s96-c",
+    "the row's own tile, in the browser already",
+  );
+  const fades = [];
+  photo.props.onLoad({ currentTarget: { classList: { add: (c) => fades.push(c) } } });
+  assert.deepEqual(fades, ["in"], "and the band's size fades in over it as it lands");
+  const hidden = { style: {} };
+  photo.props.onError({ currentTarget: hidden });
+  assert.equal(hidden.style.display, "none", "a photo that fails hides itself, and what is under it shows");
+});
+
+test("a lead's photo is asked for once, before it is needed, and last in line", () => {
+  const made = [];
+  const kept = globalThis.Image;
+  globalThis.Image = class {
+    constructor() {
+      made.push(this);
+    }
+  };
+  try {
+    globalThis.window.leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
+    globalThis.window.leadPhotoWarm("https://lh3.googleusercontent.com/p/warm=w408-h268-k-no");
+    globalThis.window.leadPhotoWarm(null);
+    assert.equal(made.length, 1, "once a page");
+    assert.deepEqual(
+      [made[0].src, made[0].fetchPriority],
+      ["https://lh3.googleusercontent.com/p/warm=w408-h268-k-no", "low"],
+    );
+  } finally {
+    globalThis.Image = kept;
+  }
+});

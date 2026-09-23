@@ -61,10 +61,19 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
     <>
       <div className={`pk-band tint-${vm.tile.tint}`} data-testid="peek-photo-band">
         <span className="pk-band-initials" aria-hidden="true">{vm.tile.initials}</span>
+        {/* The photo is there as the peek opens. The row's own tile -- the same photo, already in the browser from
+            the list -- is drawn at once, softened, and the band's size fades in over it when it lands. It was lazy,
+            which a browser defers until it has laid the page out and looked: measured on production, 23 Sep, the
+            peek drew at 37ms and asked for its photo at 1000ms, so the initials stood there first. Now eager and
+            first in line (fetchpriority), and the rows ask for it before a press (leadPhotoWarm). Each photo is its
+            lead's own element (the key): walking the pile kept the one image and drew the last lead's photo under the
+            new name until its own arrived, and a photo that failed hid the band's for every lead after it. One that
+            fails now hides itself, and what is under it shows. */}
+        {vm.tile.image ? <img key={vm.tile.image} className="pk-band-thumb" src={vm.tile.image} alt="" aria-hidden="true" decoding="async" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         {/* Who the company is comes first, so the mark paints LAST and covers the photograph, exactly as it does on
             the row's tile. The photograph is what Expand is for. The two are stacked rather than chosen, so a mark
             that fails to load hides its own layer and uncovers the photo, and no state decides anything (D6). */}
-        {vm.tile.image ? <img src={vm.tile.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
+        {vm.tile.band ? <img key={vm.tile.band} className="pk-band-photo" src={vm.tile.band} alt="" loading="eager" fetchPriority="high" decoding="async" data-testid="peek-photo" onLoad={(e) => { const t = e && e.currentTarget; if (t && t.classList) t.classList.add("in"); }} onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         {vm.tile.logo ? <img className="pk-band-mark" src={vm.tile.logo} alt="" loading="lazy" data-testid="peek-mark" onError={(e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; }} /> : null}
         {/* On a phone Expand is its mark alone (leads.css): the words are its name for a screen reader. */}
         <button type="button" className="pk-band-expand" aria-label={W.expand} data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} /><span className="pk-band-expand-words">{W.expand}</span></button>
@@ -223,7 +232,7 @@ const LeadLightbox = ({ vm, onClose }) => {
         <div className="ld-lb-body">
           <div className={`ld-lb-photo tint-${vm.tile.tint}`} data-testid="lightbox-photo">
             <span className="ld-lb-initials" aria-hidden="true">{vm.tile.initials}</span>
-            {vm.tile.image ? <img src={vm.tile.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
+            {vm.tile.band ? <img src={vm.tile.band} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
           </div>
           <div className="ld-lb-side">
             {vm.where ? (
@@ -661,4 +670,20 @@ const leadArmOnReturn = (armed, setArmed) => {
 
 // LeadNotFitWhy is published because the bulk bar asks the same five whys for a selection (Task 15): one list,
 // declared here where it is drawn first, never a second copy in leads-scope.jsx.
-Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, LeadLightbox, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, pkPlaceTip, pkScrolling });
+/**
+ * A lead's photo, asked for before it is needed: the row under a pointer or a finger (a touch enters as it presses),
+ * or reached by Tab, and the leads either side of the one open, so the band is there as it opens. Asked once a page,
+ * last in line (fetchpriority low), and never drawn from here: the browser keeps it, and the band's own request is
+ * answered from it.
+ */
+const pkWarmed = new Set();
+const leadPhotoWarm = (url) => {
+  if (!url || pkWarmed.has(url) || typeof Image === "undefined") return;
+  pkWarmed.add(url);
+  const img = new Image();
+  img.decoding = "async";
+  img.fetchPriority = "low";
+  img.src = url;
+};
+
+Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, LeadLightbox, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, pkPlaceTip, pkScrolling, leadPhotoWarm });

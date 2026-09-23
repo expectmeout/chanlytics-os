@@ -13732,7 +13732,11 @@ interface LeadPeekVM {
     tile: {
         initials: string;
         tint: number;
+        /** The listing's photo as the row's tile draws it (leadTileSrc): already in the browser from the list, so the
+         *  band shows it at once, softened, while its own size arrives. */
         image: string | null;
+        /** The whole photograph at the listing's own size: the band and the photo expanded draw it. */
+        band: string | null;
         logo: string | null;
     };
     /**
@@ -14344,6 +14348,8 @@ interface LeadRowVM {
         initials: string;
         tint: number;
         image: string | null;
+        /** The whole photograph the peek's band draws, so the row can ask for it before it is opened. */
+        band: string | null;
         logo: string | null;
     };
     /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
@@ -14363,7 +14369,9 @@ interface LeadRowVM {
  * The listing's photo at the size a row's tile draws it: Google's photo service takes a size after `=`, and the
  * scraper's URL asks for 408 wide, which every row downloaded for a 48px box. `s96-c` is a 96px square crop, which
  * the tile draws with object-fit anyway, and enough for a 2x screen. Any other host, or a URL with no size to
- * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph (toLeadPeekVM).
+ * replace, is left as it is. The peek's band and the photo expanded keep the whole photograph at the listing's own
+ * size (`tile.band`), untouched: Google's place-photo service answered other sizes and WebP (`-rw`) unevenly when
+ * probed on 23 Sep, the same photo refusing one variant and serving the next, so no variant is asked of it.
  */
 declare const LEAD_TILE_PX = 96;
 declare function leadTileSrc(url: string | null | undefined, px?: number): string | null;

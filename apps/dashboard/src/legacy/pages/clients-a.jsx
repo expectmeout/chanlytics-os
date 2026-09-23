@@ -720,6 +720,8 @@ const leadCellCtxFor = (acts, kept, values, mixedFits, hasCenter, canFind, peopl
     onOpen: door("onOpen"), onExpand: door("onExpand"),
     values, mixedFits, hasCenter, canFind, peopleRows, stageShown,
     onCall: door("onCall"), onCopy: door("onCopy"), onCopyPhone: door("onCopyPhone"), onLogCall: door("onLogCall"),
+    // The row under a pointer or a finger, or reached by Tab (people-table.jsx): its photo is asked for before a press.
+    onWarm: door("onWarm"),
     onKeep: door("onKeep"), onExclude: door("onExclude"), onPutBack: door("onPutBack"),
   };
   kept.current = { values, mixedFits, hasCenter, canFind, peopleRows, stageShown, ctx };
@@ -3014,6 +3016,16 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     setCursor(to);
     setPeekId(to);
   };
+  // The photos either side of the lead open are asked for now, so the deck, a swipe, and J and K find them there.
+  React.useEffect(() => {
+    if (!peekId || !window.leadPhotoWarm) return;
+    const i = shownIds.indexOf(peekId);
+    if (i < 0) return;
+    for (const j of [i + 1, i - 1]) {
+      const r = leadShown[j];
+      if (r && r.tile) window.leadPhotoWarm(r.tile.band);
+    }
+  }, [peekId, shownIds.length]);
   // The peek follows the row cursor while it is open, so J and K walk the leads behind it -- unless it is asking
   // a question or holding a draft, which keeps it on its own lead (leadPeekFollows, leads-peek.jsx, Task 12).
   React.useEffect(() => {
@@ -3286,7 +3298,20 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
   // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
   // changes, and a memoised row is left alone otherwise.
-  leadCellActs.current = { onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
+  // A lead's band photo, asked for as its row is rested on, touched or reached by Tab (leads-peek.jsx leadPhotoWarm).
+  // After a beat and only the last row: a pointer swept down the list passes over every row, and asking for each
+  // photo it crossed would be a burst Google's photo service answers with refusals.
+  const warmRest = React.useRef(null);
+  const warmLeadPhoto = (id) => {
+    if (warmRest.current) clearTimeout(warmRest.current);
+    warmRest.current = setTimeout(() => {
+      warmRest.current = null;
+      const r = window.leadPhotoWarm ? leadShown.find((x) => x.id === id) : null;
+      if (r && r.tile) window.leadPhotoWarm(r.tile.band);
+    }, 120);
+  };
+  React.useEffect(() => () => { if (warmRest.current) clearTimeout(warmRest.current); }, []);
+  leadCellActs.current = { onWarm: warmLeadPhoto, onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
   // Whether the Stage column is drawn: then it says each lead's state, and the name's tag does not say it again.
   const stageShown = columns.some((c) => c.key === "stage");
   const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
