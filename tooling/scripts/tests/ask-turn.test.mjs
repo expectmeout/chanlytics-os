@@ -14,7 +14,14 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { ASK_MAX_ROUNDS, ASK_MODEL, EVERYONE_LABEL, NO_NUMBER_REACH, noNumberWords } from "@chanlytics/contracts";
+import {
+  ASK_MAX_ROUNDS,
+  ASK_MAX_TOKENS,
+  ASK_MODEL,
+  EVERYONE_LABEL,
+  NO_NUMBER_REACH,
+  noNumberWords,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -266,6 +273,36 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
   assert.ok(
     events.some((e) => e.t === "trace"),
     "the palette is told a read is running",
+  );
+});
+
+test("a model that thinks: its thinking goes back with the tool results exactly as it came, never padded into text, and every round asks for ASK_MAX_TOKENS", async () => {
+  const ctx = ctxFor();
+  const thought = (signature) => ({ type: "thinking", id: "", name: "", text: "", json: "", thinking: "", signature });
+  const hidden = { type: "redacted_thinking", id: "", name: "", text: "", json: "", data: "EmwKAhgB" };
+  const s = scripted([
+    ROUND([thought("sig-round-1"), hidden, tool("list_threads", { filter: "recent" })]),
+    ROUND([thought("sig-round-2"), finish("Nobody is waiting on you.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(r.answer, "Nobody is waiting on you.");
+  assert.deepEqual(
+    s.requests.map((q) => q.max_tokens),
+    [ASK_MAX_TOKENS, ASK_MAX_TOKENS],
+    "one ceiling, the edge's",
+  );
+  const replayed = s.requests[1].messages.at(-2);
+  assert.equal(replayed.role, "assistant");
+  assert.deepEqual(
+    replayed.content,
+    [
+      { type: "thinking", thinking: "", signature: "sig-round-1" },
+      { type: "redacted_thinking", data: "EmwKAhgB" },
+      { type: "tool_use", id: "t-list_threads", name: "list_threads", input: { filter: "recent" } },
+    ],
+    "the thinking block keeps its empty words and its signature (Opus 5.5 always thinks and refuses a turn whose thinking was changed)",
   );
 });
 
