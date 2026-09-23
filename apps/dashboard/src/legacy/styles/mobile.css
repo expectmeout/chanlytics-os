@@ -363,9 +363,8 @@
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
      share it, and the ⋯ keeps a thumb's width at its end. */
   .cl-prof-hero > .cl-prof-queue-actions { margin-left: 12px; justify-content: stretch; }
-  .cl-prof-hero > .cl-prof-queue-actions > * { flex: 1 1 0; }
-  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap > .btn { width: 100%; }
-  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap:has(> [data-testid="person-more"]) { flex: 0 0 44px; }
+  .cl-prof-hero > .cl-prof-queue-actions > .btn { flex: 1 1 auto; }
+  .cl-prof-hero > .cl-prof-queue-actions > .more-wrap { flex: none; }
   .cl-prof-hero > .cl-prof-danger { margin-left: 12px; }
   /* The crumb names the person, and the name is the first thing under it: the crumb says People, once. */
   .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }

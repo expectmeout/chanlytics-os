@@ -1013,16 +1013,24 @@ export interface PersonRowVM {
 /**
  * A visit's title as a calendar wrote it, without the person's own name at its end: a booking app titles an
  * appointment "Consultation · Tom Baker", and on Tom's page and his row the name is said already. Only the whole name,
- * after a separator, goes; a title that is the name alone, or says anything else, is the calendar's and stays.
+ * next to a separator, at either end, goes; a title that is the name alone, or says anything else, is the calendar's.
  */
 export function visitTitleFor(title: string, name: string): string {
   const n = name.trim().toLowerCase();
   if (!n || isIdentifierName(name)) return title;
-  const t = title.trimEnd();
-  if (!t.toLowerCase().endsWith(n)) return title;
-  // What comes before the name must end in a separator: the name is a part of its own, not the end of a word.
-  const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
-  return m ? m[1].trim() : title;
+  const t = title.trim();
+  const low = t.toLowerCase();
+  // At its end: what comes before the name ends in a separator, so the name is a part of its own.
+  if (low.endsWith(n)) {
+    const m = t.slice(0, t.length - n.length).match(/^(.*\S)\s*[·•|:,\-–—]\s*$/);
+    if (m) return m[1].trim();
+  }
+  // Or at its start ("Maria Lopez - Balayage"), with a separator after it.
+  if (low.startsWith(n)) {
+    const m = t.slice(n.length).match(/^\s*[·•|:,\-–—]\s*(\S.*)$/);
+    if (m) return m[1].trim();
+  }
+  return title;
 }
 
 export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
@@ -1736,6 +1744,59 @@ export interface PersonVM extends PersonRowVM {
   campaigns: PersonCampaignVM[];
   /** The lead they were found as, with the door to it on Leads; null when they were never one. */
   lead: { id: string; name: string; found: string; to: string } | null;
+  /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
+  acts: PersonActVM[];
+}
+
+/**
+ * One act in a person's More menu: what it says, a line under it where the act needs explaining, and who may press it
+ * ("any" reader, one who may "record", or the "owner"). The page draws them; which exist, and their words, are here.
+ */
+export interface PersonActVM {
+  id: "booking" | "proposal" | "call" | "copy-phone" | "copy-email" | "delete";
+  label: string;
+  hint: string | null;
+  needs: "any" | "record" | "owner";
+  danger?: boolean;
+}
+
+/**
+ * What can be done for a person from their page, besides opening their thread (the page's one primary act).
+ *
+ * A send opens their thread with the words ready; nothing is sent from the page. So it says so, in the wire it goes
+ * on, and never names a template: where WhatsApp's window has shut the thread offers the approved message, which is
+ * what the line under it says. No send reaches someone who said stop or is on do-not-contact, and no call reaches
+ * someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
+ */
+export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
+  const acts: PersonActVM[] = [];
+  const reach = !!p.openThread && p.consent.state !== "opted_out" && !p.consent.dnc;
+  const on =
+    p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
+  const ready = `Opens their thread with it ready to send${on}`;
+  if (reach && p.bookingLink)
+    acts.push({
+      id: "booking",
+      label: "Send the booking link",
+      hint: p.bookingLinkAction.ready
+        ? ready
+        : "Their reply window has closed, so their thread offers the approved message with it",
+      needs: "record",
+    });
+  if (reach && p.proposal && p.proposalAction.ready)
+    acts.push({
+      id: "proposal",
+      label: p.proposal.sent ? "Send the proposal again" : "Send the proposal",
+      hint: ready,
+      needs: "record",
+    });
+  if (p.phone && !p.consent.dnc) {
+    acts.push({ id: "call", label: "Call from your phone", hint: "Rings them from this device", needs: "any" });
+    acts.push({ id: "copy-phone", label: "Copy the number", hint: null, needs: "any" });
+  }
+  if (p.email) acts.push({ id: "copy-email", label: "Copy the email", hint: null, needs: "any" });
+  acts.push({ id: "delete", label: "Delete this person…", hint: null, needs: "owner", danger: true });
+  return acts;
 }
 
 /** One message a person wrote to the business, as the desk chooses it for an answer given in it. */
@@ -2316,7 +2377,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     });
   }
 
-  const vm: Omit<PersonVM, "proposal" | "proposalAction"> = {
+  const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts"> = {
     ...base,
     ...(via && exactWindow
       ? (() => {
@@ -2374,7 +2435,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     services: d.services ?? [],
   };
   // The send's words follow the wire the page has settled on, exact window included.
-  return { ...vm, proposal, proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords) };
+  const whole = {
+    ...vm,
+    proposal,
+    proposalAction: proposalAction(vm.replyVia ?? null, vm.replyWindow ?? null, sentWords),
+  };
+  return { ...whole, acts: personActs(whole) };
 }
 
 /**

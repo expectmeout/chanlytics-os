@@ -1386,9 +1386,18 @@
 /* Where they stand, under their name: the standing's own word (the one their People row wears) and the sentence of
    what happens next. It was a card of its own, 188px tall on a phone for a word and a sentence. The pill is a word here,
    not a control, so it takes back the 36px touch floor legacy.css puts on every pill. */
-.cl-prof-now { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
-html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding-top: 1px; padding-bottom: 1px; }
-.cl-prof-now-words { min-width: 0; }
+.cl-prof-name-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.cl-prof-now { display: inline-flex; }
+/* The standing beside the name is a dot and its word in the standing's own ink, not a filled pill: a word, not a
+   control, so it also takes back the 36px touch floor legacy.css puts on every pill. */
+html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 0; border: 0; background: transparent; gap: 6px; font-size: var(--text-sm); font-weight: 400; }
+.cl-prof-now .pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cl-prof-now .pill .live-dot { display: none; }
+/* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
+.cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
+/* A person the page has not read yet, drawn from their People row while the rest is read. */
+.cl-prof-known { display: flex; flex-direction: column; gap: 4px; }
+.cl-prof-known .route-reading { padding-left: 0; padding-right: 0; }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }

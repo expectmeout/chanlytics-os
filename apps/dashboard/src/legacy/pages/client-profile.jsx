@@ -1282,13 +1282,31 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
       <EmptyState kind="page" glyph="user" title="This person is not in your workspace" body="They may have been deleted." />
     </PersonProfileFrame>
   );
-  if (!vm) return (
-    <PersonProfileFrame onBack={onBack}>
-      {loading
-        ? <div className="cl-prof-loading" aria-busy="true"><span className="cl-prof-avatar cl-prof-avatar-ghost" /><span className="cl-prof-loading-words">Loading…</span></div>
-        : <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />}
-    </PersonProfileFrame>
-  );
+  if (!vm) {
+    const known = loading && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((r) => r.id === id) : null;
+    return (
+      <PersonProfileFrame onBack={onBack}>
+        {!loading
+          ? <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />
+          : known
+            ? (
+              <div className="cl-prof-known" aria-busy="true" data-testid="person-known">
+                <div className="cl-prof-id">
+                  <div className="cl-prof-avatar" aria-hidden="true">{known.initials}</div>
+                  <div className="cl-prof-titles">
+                    <div className="cl-prof-name-line"><h1 className="cl-prof-name">{known.name}</h1></div>
+                    <div className="cl-prof-meta cl-prof-idline">
+                      <div className="cl-prof-idline-run">{[known.channelWords, known.phone].filter(Boolean).map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="route-reading" role="status">Reading…</div>
+              </div>
+            )
+            : <div className="cl-prof-loading route-reading" aria-busy="true" role="status">Reading…</div>}
+      </PersonProfileFrame>
+    );
+  }
 
   const p = vm;
   const tone = p.rightNow.tone;
@@ -1428,32 +1446,33 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const aboutRows = [history, ...aboutFacts];
   // The role, said once for the rail: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
-  // What the page can send them, each by opening their thread with the words ready: the booking link and the owner's
-  // proposal. Never for someone who said stop or is on do-not-contact: the button sat under "Silent, they opted out".
-  // One is a button; two are one Send menu, so the head keeps one row on a phone.
-  const mayReach = !!p.openThread && canRecord && p.consent.state !== "opted_out" && !p.consent.dnc;
+  // The page's one primary act is their thread. Everything else it can do for them is the More menu: which acts, their
+  // words and who may press them are contracts' (personActs); the page keeps what its reader's role allows and does them.
+  // A send opens their thread with the words ready; nothing is sent from here. It was a button of its own, "Send the
+  // booking-link template", beside a thread button that went to the same place.
   const openWith = (text) => {
     try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text })); } catch { /* nothing to carry */ }
     window.CHANLY.nav(p.openThread);
   };
-  const sends = [
-    // Inside the 24-hour window a plain reply is allowed: the composer opens with the link ready. Outside it the thread
-    // offers the approved template; nothing is sent from here.
-    mayReach && p.bookingLink ? {
-      id: "text-booking-link", icon: "calendar", label: p.bookingLinkAction.label, title: p.bookingLinkAction.title,
-      go: () => (p.bookingLinkAction.ready ? openWith(`Here's the link to book your appointment: ${p.bookingLink}`) : window.CHANLY.nav(p.openThread)),
-    } : null,
-    // The owner's priced answer for this person, sent the way the booking link is: the composer opens with the words the
-    // contract keeps (proposalMessage). Only where free text can go (proposalAction.ready): a closed WhatsApp window has
-    // no proposal template to fall back on, and the Reply window row already says so.
-    mayReach && p.proposal && p.proposalAction && p.proposalAction.ready ? {
-      id: "send-proposal", icon: "external", label: p.proposalAction.label, title: p.proposalAction.title,
-      go: () => openWith(window.__proposalMessage(p.proposal.url)),
-    } : null,
-  ].filter(Boolean);
-  // What is theirs to do rarely: the page's own ⋯. Deleting a person is here, not on the rail beside what is changed
-  // every day, and it still asks for their name typed.
-  const more = isOwner ? [{ label: "Delete this person…", icon: "x", danger: true, onClick: () => setDel({ open: true, typed: "", busy: false, error: null }) }] : [];
+  const copyOut = (text, what) => {
+    try { if (navigator.clipboard) navigator.clipboard.writeText(text); } catch { /* a browser that will not */ }
+    ppFlash({ msg: <>Copied {what} <b>{text}</b></> });
+  };
+  const doAct = {
+    booking: () => (p.bookingLinkAction.ready ? openWith(`Here's the link to book your appointment: ${p.bookingLink}`) : window.CHANLY.nav(p.openThread)),
+    proposal: () => openWith(window.__proposalMessage(p.proposal.url)),
+    // The member's own phone rings them, as a lead is called; never the receptionist.
+    call: () => { window.location.href = `tel:${String(p.phone || "").replace(/[^\d+]/g, "")}`; },
+    "copy-phone": () => copyOut(p.phone, "the number"),
+    "copy-email": () => copyOut(p.email, "the email"),
+    delete: () => setDel({ open: true, typed: "", busy: false, error: null }),
+  };
+  const ACT_ICON = { booking: "calendar", proposal: "send", call: "phone", "copy-phone": "copy", "copy-email": "mail", delete: "x" };
+  const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
+  const more = acts.flatMap((a, i) => [
+    ...(a.danger && i > 0 ? [{ divider: true }] : []),
+    { label: a.label, hint: a.hint || undefined, icon: ACT_ICON[a.id], danger: !!a.danger, onClick: doAct[a.id] },
+  ]);
   // Their visits ahead are Coming up, above what has happened: the calendar's future sat at the top of the timeline,
   // over the conversation it followed.
   const comingUp = p.comingUp || [];
@@ -1473,33 +1492,31 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           <div className="cl-prof-id">
             <div className="cl-prof-avatar" aria-hidden="true">{p.initials}</div>
             <div className="cl-prof-titles">
-              <PersonName p={p} canEdit={canRecord} flash={ppFlash} />
+              {/* The name, and beside it where they stand: a dot and the standing's word, its sentence on hover. The
+                  sentence is said under the line only when it asks for something: "New messages are answered
+                  automatically" under every answered person said nothing. */}
+              <div className="cl-prof-name-line">
+                <PersonName p={p} canEdit={canRecord} flash={ppFlash} />
+                <span className="cl-prof-now" data-tone={tone} data-testid="person-now" title={p.rightNow.detail}>
+                  <StatePill kind="standing" value={tone} testid="person-standing" />
+                </span>
+              </div>
               {idLine.length > 0 && (
                 <div className="cl-prof-meta cl-prof-idline" data-testid="person-id-line">
                   <div className="cl-prof-idline-run">{idLine.map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
                 </div>
               )}
-              <div className="cl-prof-now" data-tone={tone} data-testid="person-now">
-                <StatePill kind="standing" value={tone} testid="person-standing" />
-                <span className="cl-prof-now-words">{p.rightNow.detail}</span>
-              </div>
+              {tone !== "answering" && <div className="cl-prof-now-why" data-testid="person-now-why">{p.rightNow.detail}</div>}
             </div>
           </div>
           <div className="cl-prof-queue-actions">
               {threadCta && (
-                <button type="button" className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : "cl-prof-act-main"}`} onClick={() => window.CHANLY.nav(threadCta.to)} data-testid="person-open-thread">
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => window.CHANLY.nav(threadCta.to)} data-testid="person-open-thread">
                   {threadCta.label}
                 </button>
               )}
-              {sends.length === 1 && (
-                <button type="button" className="btn btn-sm" data-testid={sends[0].id} title={sends[0].title} onClick={sends[0].go}>
-                  <Icon name={sends[0].icon} size={12} /> {sends[0].label}
-                </button>
-              )}
-              {sends.length > 1 && (
-                <MoreMenu label="Send" title="Send them a link" btnClass="btn btn-sm" testid="person-send" items={sends.map((s) => ({ label: s.label, icon: s.icon, onClick: s.go }))} />
-              )}
-              {more.length > 0 && <MoreMenu title={`More for ${who}`} btnClass="btn btn-sm btn-icon" items={more} testid="person-more" />}
+              {/* Words, not three dots: a ⋯ was too quiet to be found, and it held one thing. */}
+              {more.length > 0 && <MoreMenu label="More" title={`More for ${who}`} btnClass="btn btn-sm" items={more} testid="person-more" />}
           </div>
           {del.open && (
             <div className="cl-prof-danger">
