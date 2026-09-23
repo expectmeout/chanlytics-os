@@ -1088,6 +1088,18 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -1670,8 +1682,8 @@ function judgeSystemPrompt(plan) {
   lines.push("Answer every place given, by its ref, once each. Use exactly the criterion keys above.");
   return lines.join("\n");
 }
-var CONTROL = /[\p{Cc}\p{Cf}]/gu;
-var cap = (s) => s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, LEAD_FACT_MAX);
+var CONTROL2 = /[\p{Cc}\p{Cf}]/gu;
+var cap = (s) => s.replace(CONTROL2, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, LEAD_FACT_MAX);
 function judgeUserContent(places) {
   const quoted = places.map((p) => ({
     ref: p.ref,

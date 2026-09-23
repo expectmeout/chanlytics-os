@@ -102,6 +102,10 @@ export const env = {
   get ANTHROPIC_API_KEY() {
     return read(process.env.ANTHROPIC_API_KEY);
   },
+  /** The receptionist's note suggestions (0007 phase 2): on unless 'off'. */
+  get NOTE_SUGGESTIONS() {
+    return read(process.env.NOTE_SUGGESTIONS);
+  },
 
   // The lead finder
   get APIFY_TOKEN() {
