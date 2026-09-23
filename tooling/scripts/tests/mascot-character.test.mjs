@@ -5,7 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCharacter, UNITS, STATES } from "../../../apps/dashboard/src/legacy-bridge/mascot/character.ts";
+import {
+  createCharacter,
+  UNITS,
+  STATES,
+  FIT,
+  fitSide,
+} from "../../../apps/dashboard/src/legacy-bridge/mascot/character.ts";
 
 const DT = 1 / 120;
 const run = (ch, seconds, each) => {
@@ -182,4 +188,38 @@ test("everything stays inside the band on Today: 358 by 232, squares sized for 2
   run(ch, 30, watch);
   assert.ok(worstX <= halfW, `${worstX} across of ${halfW}`);
   assert.ok(worstY <= halfH, `${worstY} up or down of ${halfH}`);
+});
+
+test("a canvas that sizes its squares with fitSide holds everything the three do: the leap's apex, the row's ends", () => {
+  const ch = createCharacter({ seed: 5, enter: false, fidgets: true });
+  let top = 0,
+    bottom = 0,
+    left = 0,
+    right = 0;
+  const watch = (f) => {
+    for (const s of f.squares) {
+      const h = (s.size / 2) * (1 + s.stretch);
+      const e = h * (Math.abs(Math.cos(s.rot)) + Math.abs(Math.sin(s.rot)));
+      top = Math.min(top, s.y - e);
+      bottom = Math.max(bottom, s.y + e);
+      left = Math.min(left, s.x - e);
+      right = Math.max(right, s.x + e);
+    }
+  };
+  run(ch, 4, watch);
+  ch.set("listening");
+  ch.hear(0.9);
+  run(ch, 3, watch);
+  ch.set("thinking");
+  run(ch, 10, watch);
+  ch.set("speaking");
+  run(ch, 4, watch);
+  ch.set("idle");
+  run(ch, 30, watch);
+  assert.ok(-top <= FIT.h / 2 && bottom <= FIT.h / 2, `up ${-top}, down ${bottom}, of ${FIT.h / 2}`);
+  assert.ok(-left <= FIT.w / 2 && right <= FIT.w / 2, `left ${-left}, right ${right}, of ${FIT.w / 2}`);
+  assert.ok(-top > UNITS / 2, "the leap's apex is taller than UNITS alone allowed: why FIT exists");
+  // the button's icon, 30 by 24, and the palette's stage, 80 high
+  assert.ok(Math.abs(fitSide(30, 24) - 24 / FIT.h) < 1e-9, "a short, wide canvas is sized by its height");
+  assert.equal(fitSide(28, 24), 28 / FIT.w, "a narrow one by its width");
 });

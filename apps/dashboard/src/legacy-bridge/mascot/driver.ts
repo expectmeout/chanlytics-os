@@ -5,7 +5,7 @@
  * reduced motion. Every browser API comes in through `env`, with defaults read from window and document, so the
  * tests run it on node with a fake canvas and a fake clock.
  */
-import { createCharacter, UNITS, type Character, type CharacterState, type Reaction } from "./character";
+import { createCharacter, fitSide, type Character, type CharacterState, type Reaction } from "./character";
 import {
   clonePalette,
   easePalette,
@@ -33,7 +33,7 @@ export interface DriverEnv {
   onTheme: (fn: () => void) => () => void;
 }
 export interface MountOptions {
-  /** one square, in CSS pixels; by default the canvas's shorter side holds UNITS squares */
+  /** one square, in CSS pixels; by default the largest that fits the whole character in the canvas (fitSide) */
   side?: number;
   seed?: number;
   /** drawn on the page (the default) or on a coral button (colour.ts `Tone`) */
@@ -168,7 +168,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     if (sideTarget > 0)
       sideNow = env.reduced ? sideTarget : sideNow + (sideTarget - sideNow) * (1 - Math.exp(-dt / 0.1));
     if (!fit()) return;
-    const side = sideTarget > 0 ? sideNow * env.dpr() : Math.min(w, h) / UNITS;
+    const side = sideTarget > 0 ? sideNow * env.dpr() : fitSide(w, h);
     drawCharacter(ctx as CanvasRenderingContext2D, w, h, character.frame(), pal, side);
   }
   function loop(ms: number): void {
@@ -202,7 +202,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     }
     const r = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : null;
     if (!r || !r.width) return;
-    const unit = sideTarget > 0 ? sideNow : Math.min(r.width, r.height) / UNITS;
+    const unit = sideTarget > 0 ? sideNow : fitSide(r.width, r.height);
     const dx = (e.clientX - (r.left + r.width / 2)) / unit;
     const dy = (e.clientY - (r.top + r.height / 2)) / unit;
     character.look(dx / 4, dy / 4, Math.hypot(dx, dy) < 2.3);
