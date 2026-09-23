@@ -1868,3 +1868,44 @@ test("the card's settings are one line each, and Change opens the editor under i
     globalThis.window.__ME = me;
   }
 });
+
+test("History names who added a person, by the door that did: the calendar, the lead finder, or you -- every one read Calendar, and a lead read Added by hand", async () => {
+  const added = (source, title = null) =>
+    toPersonVM(detail({ added: { at: iso(8 * D), source, title } }), ZONE, new Date(NOW));
+  const entry = (vm) => {
+    const e = vm.timeline.find((i) => i.id === "added");
+    return e && [e.who, e.text];
+  };
+  assert.deepEqual(entry(added("calendar", "Balayage")), ["Calendar", "Added from your calendar (Balayage)"]);
+  assert.deepEqual(entry(added("calendar")), ["Calendar", "Added from your calendar"]);
+  assert.deepEqual(
+    entry(added("lead")),
+    ["Leads", "Added from a lead you found"],
+    "REGRESSION: Calendar · Added by hand, for a lead the finder found",
+  );
+  assert.deepEqual(entry(added("manual")), ["You", "Added by hand"], "REGRESSION: Calendar · Added by hand");
+  // Any other source POST contacts was given is a hand, as people_list's came_from reads it (00138).
+  assert.deepEqual(entry(added("walk_in")), ["You", "Added by hand"]);
+  // About says the same door in the same words.
+  for (const [source, how] of [
+    ["calendar", "from your calendar"],
+    ["lead", "from a lead you found"],
+    ["manual", "by hand"],
+  ])
+    assert.ok(
+      added(source)
+        .about.find((a) => a.k === "Added")
+        .v.endsWith(`· ${how}`),
+      source,
+    );
+  // The page draws who above what: "You", then "Added by hand".
+  const draw = await profile(added("manual"));
+  const row = find(
+    draw(),
+    (n) =>
+      String(n.props?.className || "").includes("cl-tl-row") &&
+      textOf(find(n, (m) => String(m.props?.className || "").startsWith("cl-tl-text"))) === "Added by hand",
+  );
+  assert.ok(row, "the added row is on the page");
+  assert.equal(textOf(find(row, (m) => m.props?.className === "cl-tl-who")), "You", "REGRESSION: Calendar");
+});
