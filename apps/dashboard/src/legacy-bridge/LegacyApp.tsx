@@ -71,6 +71,7 @@ import { installBroadcasts } from "./broadcast-verbs";
 import { installPlaybooks } from "./playbooks";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
+import { installMascot } from "./mascot";
 import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
@@ -112,6 +113,8 @@ installBroadcasts();
 installPlaybooks();
 installCalendar();
 installToday();
+// The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
+installMascot();
 installBusinessTab();
 installSetup();
 installGoogle();
