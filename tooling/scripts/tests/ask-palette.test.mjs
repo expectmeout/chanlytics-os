@@ -517,6 +517,45 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   await closes();
 });
 
+test("open, show or see: the Line goes there as the answer lands, and the place is offered once", async () => {
+  const calls = ask([]);
+  const went = [];
+  const chanly = globalThis.window.CHANLY;
+  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const CV = "bbbbbbbb-bbbb-4bbb-8bbb-000000000001";
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(6).id, title: input.text });
+    on({
+      t: "final",
+      message: {
+        ...said("m-open", "Opening the 3:34 AM call."),
+        citations: [{ kind: "call", id: CV, label: "3:34 AM call", to: `conversations/cv-${CV}` }],
+        navigate: { to: `conversations/cv-${CV}`, label: "Open", now: true },
+      },
+    });
+  };
+  let closed = 0;
+  const props = { open: true, onClose: () => (closed += 1) };
+  try {
+    render(Palette, props);
+    let tree = await later(Palette, props);
+    typed(tree, "open the transcript of the most recent call");
+    tree = await later(Palette, props);
+    keyed(tree, "Enter");
+    tree = await later(Palette, props);
+    assert.deepEqual(calls.sent, ["open the transcript of the most recent call"]);
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-item").length, 1, "the call is its own door");
+    assert.equal(byTestId(tree, "ask-open"), null, "and an Open to the same call is not drawn beside it");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(went, [`conversations/cv-${CV}`], "the Line went there as the answer landed");
+    assert.equal(closed, 1, "and closed on the way");
+  } finally {
+    globalThis.window.CHANLY = chanly;
+  }
+  await closes();
+});
+
 test("Space held on an empty line talks; a tap does nothing; after words, Space is a space", async () => {
   const started = [];
   const talk = { start: () => started.push("start"), stop: () => started.push("stop") };

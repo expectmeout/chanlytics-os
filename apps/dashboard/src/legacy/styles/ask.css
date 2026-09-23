@@ -11,7 +11,7 @@
   padding: 96px 24px 48px; align-items: flex-start;
 }
 .ask-modal.ask-line {
-  max-width: 720px; max-height: calc(100vh - 144px);
+  max-width: var(--measure-prose); max-height: calc(100vh - 144px);
   display: flex; flex-direction: column; overflow: hidden;
   border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }

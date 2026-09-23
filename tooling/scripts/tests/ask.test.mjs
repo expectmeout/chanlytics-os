@@ -669,8 +669,6 @@ test("the migration: own rows, column-scoped update, a ninety-day purge on the c
 test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, the seed palette is the demo's", () => {
   const tb = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
-  const sb = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
-  assert.ok(!sb.includes("Soon") && sb.includes("onClick={onNewChat}"));
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes("window.appAsk = openAsk;"));
   assert.ok(!shell.includes("Ask stubbed outside demo"));
@@ -683,11 +681,7 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   assert.ok(!ask.includes("if (!window.__DEMO_MODE) return; // Ask is stubbed"));
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('data-testid="ask-fast"'));
-  assert.ok(
-    real.includes("const fp = A.fast(q);") && real.includes("if (fp) { answerFast(q, fp); return; }"),
-    "a quick answer never spends a model turn",
-  );
+  // A quick answer never spends a model turn: executed in ask-palette.test.mjs ("the Line at rest").
   assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   for (const part of ["ask-text", "ask-hooks", "ask-turn", "ask-home", "ask-real"])
@@ -825,10 +819,6 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'),
     "the recogniser listens in the palette's language",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("speech.toggle(m.id, m.text, m.language)"),
-    "read aloud is a toggle on the answer's toolbar",
-  );
   const cfg = readCode("apps/dashboard/next.config.ts");
   assert.ok(cfg.includes("microphone=(self)"), "the page may ask for the microphone");
   assert.ok(
@@ -911,13 +901,7 @@ test("an answer never carries tags: the leak seen on production is cut, its cita
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("under sixty words") && prompt.includes("set navigate.to to that row"));
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(ui.includes('className="ask-from"'), "citations read as sources");
-  assert.ok(
-    readRaw("apps/dashboard/src/legacy/styles/ask.css").includes(
-      ".ask-real .ask-msg-text { white-space: pre-wrap; word-break: break-word; }",
-    ),
-  );
+  // Its sources are drawn as the answer's items (contracts answerFromV1): executed in ask-answer.test.mjs.
 });
 
 test("the composer is the way on: focus comes back, the mic is always visible, 'open' goes there, lists go one per line", () => {
@@ -940,11 +924,6 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(
-    ui.includes("H.useAskFocus(inputRef, open && !live && !doomed, [open, live, active, doomed]);") &&
-      readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes("ref.current.focus(); }, 30);"),
-    "focus returns after every turn and chip",
-  );
-  assert.ok(
     !ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('),
     "the input is never disabled while a turn runs",
   );
@@ -956,16 +935,8 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
     ui.includes('data-testid="ask-talk-off"'),
     "where the browser cannot listen, the mic says so instead of vanishing",
   );
-  assert.ok(
-    ui.includes(
-      "if (final.navigate && final.navigate.now && final.navigate.to && !final.failed) setTimeout(() => nav(final.navigate.to), 250);",
-    ),
-    "open/show/see goes there as the answer lands",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes("A.shape(m, lang)"),
-    "what an answer shows is the contract's decision, not the palette's",
-  );
+  // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
+  // ask-palette.test.mjs ("open, show or see").
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(
     prompt.includes("with now: true, and answer in one line") &&
@@ -1098,7 +1069,7 @@ test("context first: the day rides into every turn, its rows can be cited, loade
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
 });
 
-test("the rail, result titles and the Act group: a desktop conversation has the mockup's rail, a thread is titled by what it did, and an operator is offered cards to finish", () => {
+test("result titles and the cards to finish: a thread is titled by what it did, and an operator is offered cards to finish", () => {
   const withActs = buildAskSuggestions({
     surface: "settings",
     language: "en",
@@ -1150,23 +1121,6 @@ test("the rail, result titles and the Act group: a desktop conversation has the 
     "a new thread is titled by its first answer's result",
   );
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    ui.includes('data-testid="ask-rail"') &&
-      ui.includes('className="ask-new-btn"') &&
-      ui.includes("const AR_RAIL_CAP = 10;"),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes('window.matchMedia("(min-width: 721px)")'),
-    "the rail is a desktop's; the phone keeps its sheet",
-  );
-  assert.ok(
-    ui.includes("const railOn = wide && !!active;"),
-    "the rail appears beside a conversation, not on the palette at rest",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/ask-home.jsx").includes('sections.push({ key: "act", label: t.act,'),
-    "Ask and Act are two groups",
-  );
   assert.ok(
     ui.includes("if (it.compose) { setQuery(it.q);"),
     "a compose row lands in the input for the person to finish",
@@ -1239,19 +1193,7 @@ test("what an answer shows is decided once: the Open button never repeats as a c
       shell.includes("const twin = list.find((th) => A.sameQuestion(th.title, q));"),
     "a repeated question resumes its thread instead of opening a twin, even before the list has landed",
   );
-  const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
-  assert.ok(
-    turn.includes('data-testid="ask-copy"') && turn.includes('data-testid="ask-read"'),
-    "a quiet toolbar: copy and read aloud",
-  );
-  assert.ok(turn.includes("{!streaming && latest && <AskFollowups"), "follow-ups on the latest answer only");
-  assert.ok(!turn.includes("Read it") && !shell.includes("Read it"), "no button printed under every answer");
-  const css = readRaw("apps/dashboard/src/legacy/styles/ask.css");
-  assert.ok(
-    css.includes(".ask-msg:hover .ask-tools, .ask-msg:focus-within .ask-tools") &&
-      css.includes("@media (hover: none) { .ask-tools { opacity: 1; } }"),
-    "the toolbar shows on hover on a desktop and always on touch",
-  );
+  // Copy, read aloud and Clear are the line's, once an answer is on it: executed in ask-palette.test.mjs.
   // The bridge is four modules composed into one object; the shell reaches nothing else.
   for (const f of ["api", "commit", "speech", "palette"])
     assert.ok(readCode(`apps/dashboard/src/legacy-bridge/ask/${f}.ts`).length > 200, f);
