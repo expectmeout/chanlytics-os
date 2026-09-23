@@ -320,19 +320,19 @@ export interface DealReportVM {
   stock: string;
 }
 
-const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM {
   if (!dto || !dto.any) return { present: false, headline: "", parts: "", stock: "" };
   const headline =
     dto.sent === 0
       ? `No proposals went out in the last ${rangeLabel}.`
-      : `${n(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+      : `${plural(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
   const parts =
     dto.sent === 0
       ? ""
       : [
-          `${n(dto.won, "became a client", "became clients")}`,
+          `${plural(dto.won, "became a client", "became clients")}`,
           `${dto.lost} passed`,
           `${dto.waiting} still waiting`,
         ].join(" · ");
@@ -340,6 +340,6 @@ export function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel
   const stock =
     dto.clients === 0
       ? "No clients right now."
-      : `${n(dto.clients, "client", "clients")} now${monthly ? ` · ${monthly}` : ""}.`;
+      : `${plural(dto.clients, "client", "clients")} now${monthly ? ` · ${monthly}` : ""}.`;
   return { present: true, headline, parts, stock };
 }

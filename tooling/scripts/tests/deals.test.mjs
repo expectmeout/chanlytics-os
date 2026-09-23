@@ -14,7 +14,6 @@ const {
   DEAL_LINE_NONE,
   dealMoves,
   dealOf,
-  toDealVM,
   dealFactsOf,
   pickCurrentDeal,
   amountWords,
@@ -232,10 +231,10 @@ test("proposals waiting: out past a week with nothing back since", () => {
   });
   const waiting = proposalsWaiting(
     [
-      row("old-quiet", 11, 20),
-      row("old-answered", 11, 2),
-      row("fresh", 3, 20),
-      row("never-asked", 9, null),
+      row("old-quiet", 11, 20), // asked before the proposal: waiting
+      row("old-answered", 11, 2), // wrote back after it: not waiting
+      row("fresh", 3, 20), // under a week
+      row("never-asked", 9, null), // nothing back at all: waiting
       { id: "client", deal: dealOf(cols({ deal_stage: "won", deal_decided_at: daysAgo(1) }), TZ, NOW), askedMs: null },
       { id: "none", deal: null, askedMs: null },
     ],

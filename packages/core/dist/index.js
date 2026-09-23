@@ -1199,7 +1199,7 @@ var BrainOutputSchema = z2.object({
   intent: z2.enum(BRAIN_INTENTS).catch("other"),
   escalate: z2.boolean().catch(false),
   reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z2.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
   facts_used: z2.array(z2.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
@@ -1333,7 +1333,7 @@ var PolicyLimitsSchema = z3.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema = z3.object({ open: TIME, close: TIME });
@@ -1528,28 +1528,28 @@ function checkDay(h, day, ctx) {
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
   }
-  iv.forEach((x, n2) => {
+  iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n2 = 1; n2 < sorted.length; n2++) {
-    if (sorted[n2].open < sorted[n2 - 1].close) {
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
-function checkClosure(c, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+function checkClosure(c, n, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -1590,7 +1590,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: `At most ${MAX_CLOSURES} closures.`
     });
   }
-  (p.closures ?? []).forEach((c, n2) => checkClosure(c, n2, ctx));
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
@@ -2047,7 +2047,7 @@ var ASK_FINISH_JSON_SCHEMA = {
   required: ["answer", "citations", "followups", "navigate", "language"],
   additionalProperties: false
 };
-var clip = (n2) => (s) => s.trim().slice(0, n2);
+var clip = (n) => (s) => s.trim().slice(0, n);
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
@@ -2068,10 +2068,10 @@ var AskFinishSchema = z6.object({
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))
   ),
   navigate: z6.object({ to: z6.string().catch(""), label: z6.string().catch(""), now: z6.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n2) => n2.to.trim() ? {
-      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n2.label.trim().slice(0, 60) || "Open",
-      now: n2.now === true
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
     } : null
   ),
   language: z6.enum(ASK_LANGUAGES).catch("other")
@@ -3054,7 +3054,7 @@ var BrainOutputSchema2 = z22.object({
   intent: z22.enum(BRAIN_INTENTS2).catch("other"),
   escalate: z22.boolean().catch(false),
   reason: z22.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z22.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  confidence: z22.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
   facts_used: z22.array(z22.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
@@ -3301,7 +3301,7 @@ var PolicyLimitsSchema2 = z32.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z32.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z32.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME2 = z32.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema2 = z32.object({ open: TIME2, close: TIME2 });
@@ -3504,28 +3504,28 @@ function checkDay2(h, day, ctx) {
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
     });
   }
-  iv.forEach((x, n2) => {
+  iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n2 = 1; n2 < sorted.length; n2++) {
-    if (sorted[n2].open < sorted[n2 - 1].close) {
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: z32.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
-function checkClosure2(c, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+function checkClosure2(c, n, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate2(c.date)) {
     ctx.addIssue({
       code: z32.ZodIssueCode.custom,
@@ -3566,7 +3566,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
       message: `At most ${MAX_CLOSURES2} closures.`
     });
   }
-  (p.closures ?? []).forEach((c, n2) => checkClosure2(c, n2, ctx));
+  (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
 var DAY_LABEL = {
   mon: "Monday",
@@ -3757,7 +3757,7 @@ ${lines.join("\n")}`);
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
-${profile.notes.map((n2) => `- ${n2.title}: ${n2.text}`).join("\n")}`);
+${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
@@ -3773,7 +3773,7 @@ ${profile.notes.map((n2) => `- ${n2.title}: ${n2.text}`).join("\n")}`);
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
       );
-    for (const n2 of br.notes ?? []) lines.push(n2);
+    for (const n of br.notes ?? []) lines.push(n);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
@@ -3911,9 +3911,9 @@ function keyParts(key) {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
 }
-function shiftKey(key, n2) {
+function shiftKey(key, n) {
   const { y, m, d } = keyParts(key);
-  const at2 = new Date(Date.UTC(y, m - 1, d + n2));
+  const at2 = new Date(Date.UTC(y, m - 1, d + n));
   return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
 }
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -4117,7 +4117,7 @@ var cardOf = (plan) => {
   if (!c) throw new Error(`no card ${plan.card}`);
   return c;
 };
-var round4 = (n2) => Math.round(n2 * 1e4) / 1e4;
+var round4 = (n) => Math.round(n * 1e4) / 1e4;
 function estimateRoundUsd(plan, purpose, placesToAsk2) {
   const c = cardOf(plan);
   const places = Math.max(0, Math.floor(placesToAsk2));
@@ -4125,24 +4125,24 @@ function estimateRoundUsd(plan, purpose, placesToAsk2) {
   const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
   return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
 }
-function spread(total, n2, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n2));
-  const rest = Math.min(total - each * n2, n2);
-  return Array.from({ length: n2 }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+function spread(total, n, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n));
+  const rest = Math.min(total - each * n, n);
+  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
 }
 function placesToAsk(plan, remaining, yieldSoFar) {
-  const n2 = Math.max(1, plan.terms.length);
+  const n = Math.max(1, plan.terms.length);
   const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n2).fill(0) };
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
   if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n2, cap2);
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
     return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
   }
   const left = Math.max(1, Math.ceil(remaining));
   const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
   const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n2, Math.ceil(clamped));
-  const perTerm = spread(total, n2, cap2);
+  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap2);
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 function classify(plan, answer, facts, emailState, inArea2) {
@@ -4192,10 +4192,10 @@ function classify(plan, answer, facts, emailState, inArea2) {
   return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
 }
 function questionAfterProbe(plan, members) {
-  const n2 = members.length;
-  if (n2 < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const n = members.length;
+  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
   const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n2 <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
   const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
   const tally2 = /* @__PURE__ */ new Map();
   for (const m of members)
@@ -4206,7 +4206,7 @@ function questionAfterProbe(plan, members) {
   const textOf2 = (key) => lowerFirst(
     plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
   );
-  const namedShare = top[1] / n2;
+  const namedShare = top[1] / n;
   const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
   const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
   let dropTerm = null;
@@ -4236,7 +4236,7 @@ function questionAfterProbe(plan, members) {
   const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
   return {
     ask: true,
-    sentence: `${lead} of the first ${n2} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
     criterionKey: top[0],
     dropTerm
   };
@@ -4841,7 +4841,7 @@ var ASK_FINISH_JSON_SCHEMA2 = {
   required: ["answer", "citations", "followups", "navigate", "language"],
   additionalProperties: false
 };
-var clip2 = (n2) => (s) => s.trim().slice(0, n2);
+var clip2 = (n) => (s) => s.trim().slice(0, n);
 var TAG_CUT2 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer2(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
@@ -4862,10 +4862,10 @@ var AskFinishSchema2 = z62.object({
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))
   ),
   navigate: z62.object({ to: z62.string().catch(""), label: z62.string().catch(""), now: z62.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n2) => n2.to.trim() ? {
-      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n2.label.trim().slice(0, 60) || "Open",
-      now: n2.now === true
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
     } : null
   ),
   language: z62.enum(ASK_LANGUAGES2).catch("other")
@@ -5334,8 +5334,8 @@ function slotLabels(t) {
   }
   return vars.map((v, i) => {
     const label = typeof v?.label === "string" ? v.label.trim() : "";
-    const n2 = typeof v?.position === "number" ? v.position : i + 1;
-    return label && !/^Value \d+$/.test(label) ? label : `Value ${n2}`;
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
   });
 }
 function inboxSlots(t) {
@@ -5366,8 +5366,8 @@ function audienceMembers(rows, kind, id, savedIds) {
   return rows;
 }
 function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
-    const v = params[Number(n2) - 1];
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
+    const v = params[Number(n) - 1];
     return typeof v === "string" && v !== "" ? v : m;
   });
 }
@@ -5826,7 +5826,7 @@ function sha256Hex(text) {
     1541459225
   ]);
   const w = new Uint32Array(64);
-  const rotr = (x, n2) => x >>> n2 | x << 32 - n2;
+  const rotr = (x, n) => x >>> n | x << 32 - n;
   for (let off = 0; off < padded.length; off += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4);
     for (let i = 16; i < 64; i++) {
@@ -6119,7 +6119,7 @@ var BrainOutputSchema3 = z23.object({
   intent: z23.enum(BRAIN_INTENTS3).catch("other"),
   escalate: z23.boolean().catch(false),
   reason: z23.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z23.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  confidence: z23.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
   facts_used: z23.array(z23.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
@@ -6245,7 +6245,7 @@ var PolicyLimitsSchema3 = z33.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z33.number().int().min(0).max(5e6).refine((n2) => n2 === 0 || n2 >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z33.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 var TIME3 = z33.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 var IntervalSchema3 = z33.object({ open: TIME3, close: TIME3 });
@@ -6440,28 +6440,28 @@ function checkDay3(h, day, ctx) {
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.`
     });
   }
-  iv.forEach((x, n2) => {
+  iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
         code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n2, "close"),
+        path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n2 = 1; n2 < sorted.length; n2++) {
-    if (sorted[n2].open < sorted[n2 - 1].close) {
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
         code: z33.ZodIssueCode.custom,
-        path: at2("intervals", n2, "open"),
+        path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
     }
   }
 }
-function checkClosure3(c, n2, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n2, ...rest];
+function checkClosure3(c, n, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate3(c.date)) {
     ctx.addIssue({
       code: z33.ZodIssueCode.custom,
@@ -6502,7 +6502,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
       message: `At most ${MAX_CLOSURES3} closures.`
     });
   }
-  (p.closures ?? []).forEach((c, n2) => checkClosure3(c, n2, ctx));
+  (p.closures ?? []).forEach((c, n) => checkClosure3(c, n, ctx));
 });
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
@@ -6959,7 +6959,7 @@ var ASK_FINISH_JSON_SCHEMA3 = {
   required: ["answer", "citations", "followups", "navigate", "language"],
   additionalProperties: false
 };
-var clip3 = (n2) => (s) => s.trim().slice(0, n2);
+var clip3 = (n) => (s) => s.trim().slice(0, n);
 var TAG_CUT3 = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
 function cleanAnswer3(raw) {
   let s = raw.replace(/^\s*<answer>\s*/i, "");
@@ -6980,10 +6980,10 @@ var AskFinishSchema3 = z63.object({
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))
   ),
   navigate: z63.object({ to: z63.string().catch(""), label: z63.string().catch(""), now: z63.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform(
-    (n2) => n2.to.trim() ? {
-      to: n2.to.trim().replace(/^#?\/+/, "").slice(0, 200),
-      label: n2.label.trim().slice(0, 60) || "Open",
-      now: n2.now === true
+    (n) => n.to.trim() ? {
+      to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200),
+      label: n.label.trim().slice(0, 60) || "Open",
+      now: n.now === true
     } : null
   ),
   language: z63.enum(ASK_LANGUAGES3).catch("other")
