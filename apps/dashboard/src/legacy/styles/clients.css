@@ -1597,6 +1597,9 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
   color: var(--ink-dim);
 }
 .cl-prof-rail-section:last-child { border-bottom: none; }
+/* A person's lists: the chips, then the quiet link that adds one, on its own line under them. */
+.cl-prof-lists { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.cl-prof-list-add .icon:last-child { display: none; }
 .cl-prof-rail-label {
   font-size: var(--text-sm);
   font-weight: 500;
@@ -1875,12 +1878,40 @@ html.legacy-on .cl-prof-now .pill, .cl-prof-now .pill { min-height: 0; padding: 
 .cl-prof-email-input[aria-invalid="true"] { border-color: var(--danger); }
 .cl-prof-email-problem { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
 .cl-prof-email.editing .cl-prof-name-acts { justify-content: flex-end; }
-.cl-prof-notes { display: flex; flex-direction: column; gap: 6px; }
-.cl-prof-notes textarea { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; resize: vertical; min-height: 78px; outline: none; }
-.cl-prof-notes textarea:focus { border-color: var(--accent); }
-.cl-prof-notes textarea::placeholder { color: var(--ink-faint); }
-.cl-prof-notes-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
-.cl-prof-notes-read { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; }
+/* A person's notes (0007): the composer, the receptionist's suggestions, then the notes, newest first. Each note is its
+   words and one quiet line under them (who, when, who it is for, team only); the note's own acts wait behind a ⋯ that
+   shows on hover, and always under a thumb. */
+.cl-prof-notes { display: flex; flex-direction: column; gap: 10px; }
+.cl-prof-note-compose { display: flex; flex-direction: column; gap: 6px; }
+.cl-prof-note-input { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; resize: none; outline: none; width: 100%; box-sizing: border-box; }
+.cl-prof-note-compose.is-open .cl-prof-note-input, .cl-pnote.is-editing .cl-prof-note-input { resize: vertical; min-height: 64px; }
+.cl-prof-note-input:focus { border-color: var(--accent); }
+.cl-prof-note-input::placeholder { color: var(--ink-faint); }
+.cl-prof-note-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cl-prof-note-aud { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; max-width: 150px; }
+.cl-prof-note-team { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-muted); cursor: pointer; }
+.cl-prof-note-team input { margin: 0; accent-color: var(--ink); }
+.cl-prof-note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cl-pnote { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
+.cl-prof-note-list > .cl-pnote:first-child { border-top: none; padding-top: 2px; }
+.cl-prof-note-body { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cl-prof-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; font-size: 11px; color: var(--ink-dim); min-height: 22px; }
+.cl-prof-note-meta > span + span:not(.cl-prof-note-more)::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
+.cl-prof-note-who { color: var(--ink-muted); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.cl-prof-note-for-who { color: var(--ink-muted); }
+.cl-pnote.is-for-me .cl-prof-note-for-who { color: var(--accent); font-weight: 500; }
+.cl-prof-note-lock { display: inline-flex; align-items: center; gap: 3px; }
+.cl-prof-note-more { margin-left: auto; opacity: 0; transition: opacity 120ms ease; }
+.cl-prof-note-more .btn { width: 22px; height: 22px; min-height: 0; padding: 0; }
+.cl-pnote:hover .cl-prof-note-more, .cl-prof-note-more:focus-within { opacity: 1; }
+@media (hover: none) { .cl-prof-note-more { opacity: 1; } }
+.cl-prof-note-ask { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink); padding-top: 4px; }
+/* The receptionist's suggestion: set apart by a hairline at its left, not a colour block, until someone decides. */
+.cl-pnote.is-suggested { border-top: none; padding: 6px 0 6px 10px; margin-bottom: 4px; box-shadow: inset 2px 0 0 var(--line-strong); }
+.cl-prof-note-decide { display: flex; gap: 6px; padding-top: 4px; }
+.cl-prof-note-all { align-self: flex-start; }
+.cl-prof-note-rule { font-size: 11px; }
 
 /* ---- The rail in three groups; the next step under a list; the next visit on the row ---- */
 .cl-rail-group + .cl-rail-group { margin-top: 10px; }

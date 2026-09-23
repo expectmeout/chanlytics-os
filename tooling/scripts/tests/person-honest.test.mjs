@@ -597,6 +597,31 @@ test("REGRESSION (B18): a list chip on a profile opens its list -- the name was 
   assert.deepEqual(went, ["clients/list:s1"], "the list, picked, on People -- the Lists page folded into it");
 });
 
+test("REGRESSION: a profile's Add to a list opens over the card -- the card clipped it at its foot, under a header that said the button again", async () => {
+  await peoplePage(
+    [row()],
+    [
+      { id: "s1", name: "Regulars", ids: ["p1"] },
+      { id: "s2", name: "Best buyers", ids: [] },
+    ],
+  );
+  cells = [];
+  frames.begin();
+  const lists = globalThis.window.PersonLists({ personId: "p1", canEdit: true, first: "Daniela", flash: () => {} });
+  const add = find(lists, (n) => n.type === globalThis.MoreMenu);
+  assert.equal(add.props.testid, "person-list-add");
+  assert.equal(add.props.escape, true, "placed against the window, so the card's rounded clip cannot cut it off");
+  assert.deepEqual(
+    add.props.items.map((i) => i.header || i.label),
+    ["Best buyers"],
+    "the lists they are not on, and no header saying Add to under a link that says it",
+  );
+  assert.ok(
+    add.props.btnClass.split(" ").includes("is-plain"),
+    "a quiet link under the chips, as Add an email is, not a button among them",
+  );
+});
+
 test("REGRESSION: a person's page says who they are once -- the header held two buttons to one thread and two pills, a card quoted the timeline's first two messages, and six cells said the rail again", async () => {
   const vm = toPersonVM(detail({ booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
   const draw = await profile(vm);
@@ -2013,4 +2038,160 @@ test("a person not read yet opens on their People row, with Reading… after the
   assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
   resolve(null);
   await settle();
+});
+
+/* ----------------------------------- notes (0007) ----------------------------------- */
+
+const noteDto = (id, body, hoursAgo, over = {}) => ({
+  id,
+  body,
+  author_kind: "member",
+  author_name: "Maria",
+  mine: false,
+  for_user_id: null,
+  for_name: null,
+  for_me: false,
+  team_only: false,
+  state: "kept",
+  source: "page",
+  version: 1,
+  created_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
+  updated_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
+  ...over,
+});
+const NOTE_TEAM = [
+  { id: "u-me", name: "Ruben", me: true },
+  { id: "u-sam", name: "Sam", me: false },
+];
+const withNotes = () =>
+  detail({
+    person_notes: [
+      noteDto("n-mine", "Allergic to ammonia.", 2, { author_name: "Ruben", mine: true, version: 2 }),
+      noteDto("n-for-me", "Call her back about the bridal party.", 30, {
+        for_user_id: "u-me",
+        for_name: "Ruben",
+        for_me: true,
+        team_only: true,
+      }),
+      noteDto("n-sug", "Prefers early mornings.", 1, {
+        author_kind: "receptionist",
+        author_name: null,
+        state: "suggested",
+        source: "call",
+      }),
+      noteDto("n-gone", "Sees Sofia.", 400, { author_name: null }),
+    ],
+    note_team: NOTE_TEAM,
+  });
+
+test("a person's notes are a log (0007): the receptionist's suggestion first, then newest first, each signed and dated, who it is for and whether the receptionist reads it", () => {
+  const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
+  assert.deepEqual(
+    vm.noteList.map((n) => [n.body, n.who, n.forWho, n.teamOnly, n.suggested, n.from]),
+    [
+      ["Prefers early mornings.", "The receptionist", null, false, true, "After a call"],
+      ["Allergic to ammonia.", "You", null, false, false, null],
+      ["Call her back about the bridal party.", "Maria", "For you", true, false, null],
+      ["Sees Sofia.", "A former teammate", null, false, false, null],
+    ],
+  );
+  assert.equal(vm.noteList[1].edited, true, "changed after it was written");
+  assert.equal(vm.noteList[1].mine, true);
+  assert.ok(
+    vm.noteList.every((n) => n.when && n.whenFull),
+    "every note says when",
+  );
+  assert.deepEqual(vm.noteTeam, NOTE_TEAM);
+});
+
+test("REGRESSION: the notes card was one box the receptionist read whole, overwritten by every save -- now a note is added, kept or dismissed, and said with who wrote it and when", async () => {
+  const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
+  const sent = [];
+  const saved = globalThis.window.__personNotes;
+  const ok = { ok: true, data: {} };
+  globalThis.window.__personNotes = {
+    write: async (id, body) => (sent.push(["write", id, body]), ok),
+    remove: async (id, noteId) => (sent.push(["remove", id, noteId]), ok),
+    decide: async (id, body) => (sent.push(["decide", id, body]), ok),
+    words: contracts.NOTE_WORDS,
+    max: contracts.NOTE_MAX,
+  };
+  try {
+    const draw = await profile(vm);
+    let tree = draw();
+    const card = byTestId(tree, "person-notes");
+    assert.ok(card, "the card");
+    const suggested = byTestId(card, "person-note-suggested");
+    assert.match(textOf(suggested), /Suggested by the receptionist/);
+    assert.match(textOf(suggested), /After a call/);
+    const rows = all(card, (n) => n.props?.["data-testid"] === "person-note");
+    assert.ok(
+      rows.every((r) => !String(r.props.className).split(" ").includes("cl-prof-note")),
+      "REGRESSION: the row wore .cl-prof-note, the consent form's class, whose align-items: center pushed every note off the card's edge",
+    );
+    assert.deepEqual(
+      rows.map((r) => textOf(find(r, (n) => n.props?.className === "cl-prof-note-body"))),
+      ["Allergic to ammonia.", "Call her back about the bridal party.", "Sees Sofia."],
+    );
+    assert.match(textOf(rows[1]), /Maria/);
+    assert.match(textOf(rows[1]), /For you/);
+    assert.match(textOf(rows[1]), /Team only/);
+    assert.equal(byTestId(tree, "person-notes-save"), null, "nothing to add until something is written");
+
+    press(byTestId(suggested, "person-note-keep"));
+    await settle();
+    assert.deepEqual(sent.at(-1), ["decide", vm.id, { note_id: "n-sug", keep: true }]);
+
+    type(byTestId(draw(), "person-notes-input"), "  Likes tea.  ");
+    tree = draw();
+    byTestId(tree, "person-note-for").props.onChange({ target: { value: "u-sam" } });
+    tree = draw();
+    byTestId(tree, "person-note-team-only").props.onChange({ target: { checked: true } });
+    tree = draw();
+    press(byTestId(tree, "person-notes-save"));
+    await settle();
+    assert.deepEqual(sent.at(-1), ["write", vm.id, { body: "Likes tea.", for_user_id: "u-sam", team_only: true }]);
+    assert.equal(byTestId(draw(), "person-notes-input").props.value, "", "the box empties once the note is added");
+  } finally {
+    globalThis.window.__personNotes = saved;
+  }
+});
+
+test("who may do what to a note: its author changes it, an owner or its author deletes it, a viewer only reads", async () => {
+  const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
+  const saved = globalThis.window.__personNotes;
+  globalThis.window.__personNotes = {
+    write: async () => ({ ok: true }),
+    remove: async () => ({ ok: true }),
+    decide: async () => ({ ok: true }),
+    words: contracts.NOTE_WORDS,
+    max: contracts.NOTE_MAX,
+  };
+  const me = globalThis.window.__ME;
+  try {
+    const actsOf = (tree) =>
+      all(tree, (n) => n.props?.["data-testid"] === "person-note").map((r) => {
+        const m = find(r, (n) => n.type === globalThis.MoreMenu);
+        return m ? m.props.items.map((i) => i.label) : [];
+      });
+    globalThis.window.__ME = { role: "owner" };
+    let draw = await profile(vm);
+    assert.deepEqual(
+      actsOf(draw()),
+      [["Edit", "Delete"], ["Delete"], ["Delete"]],
+      "an owner deletes any; edits only their own",
+    );
+    globalThis.window.__ME = { role: "operator" };
+    draw = await profile(vm);
+    assert.deepEqual(actsOf(draw()), [["Edit", "Delete"], [], []], "an operator only their own");
+    globalThis.window.__ME = { role: "viewer" };
+    draw = await profile(vm);
+    const tree = draw();
+    assert.equal(byTestId(tree, "person-notes-input"), null, "a viewer writes nothing");
+    assert.deepEqual(actsOf(tree), [[], [], []]);
+    assert.equal(byTestId(tree, "person-note-keep"), null, "nor keeps a suggestion");
+  } finally {
+    globalThis.window.__ME = me;
+    globalThis.window.__personNotes = saved;
+  }
 });

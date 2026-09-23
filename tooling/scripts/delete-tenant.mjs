@@ -109,6 +109,7 @@ const TABLES = [
   "messages",
   "notification_reads",
   "notifications",
+  "person_notes",
   "playbooks",
   "policies",
   "segment_members",

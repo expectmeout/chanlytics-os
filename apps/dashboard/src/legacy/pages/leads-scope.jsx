@@ -711,6 +711,11 @@ const useLeadMapFit = () => {
       const room = (sc ? sc.clientHeight : window.innerHeight) - top - under;
       el.style.setProperty("--map-h", `${Math.max(320, Math.round(room))}px`);
       el.classList.add("fit");
+      // Whatever still scrolls below it (the page's own padding under the column) comes off the map too, so the
+      // map view never scrolls to empty space.
+      const view = sc || document.scrollingElement;
+      const spill = view ? view.scrollHeight - view.clientHeight - view.scrollTop : 0;
+      if (spill > 0) el.style.setProperty("--map-h", `${Math.max(320, Math.round(room - spill))}px`);
     };
     fit();
     window.addEventListener("resize", fit);

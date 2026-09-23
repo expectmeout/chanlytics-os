@@ -716,50 +716,209 @@ const PersonProposal = ({ p, canEdit, flash }) => {
   );
 };
 
-// The owner's notes: facts the receptionist uses when this person writes or
-// calls — who they see, what they like, what not to bring up. Never sent, never
-// read aloud. The section's label says who reads them; the foot says only the count
-// and the one rule that is not obvious.
-const PersonNotes = ({ p, canEdit, flash }) => {
-  const [value, setValue] = useStateP(p.notes || "");
+// A person's notes (0007): each one dated and signed, newest first, the receptionist's suggestions above them until
+// someone keeps or dismisses them. A member writes one, optionally for a teammate ("For Maria") and optionally for the
+// team only (the receptionist never reads it); its author changes it; its author or an owner deletes it. Every word
+// is contracts' (NOTE_WORDS, personNotesVM, through window.__personNotes); the page re-reads the person after a write.
+const NOTE_FALLBACK_WORDS = {
+  placeholder: "Add a note…", add: "Add note", save: "Save", cancel: "Cancel", edit: "Edit", remove: "Delete",
+  askRemove: "Delete this note?", more: "More for this note", edited: "edited",
+  forAnyone: "For anyone", forLabel: "For", teamOnly: "Team only", teamOnlyHint: "The receptionist won't read it",
+  readsHint: "The receptionist uses notes as facts and never reads them aloud.", none: "No notes yet.",
+  suggested: "Suggested by the receptionist", keep: "Keep", dismiss: "Dismiss", added: "Note added",
+  saved: "Note saved", removed: "Note deleted", kept: "Kept", dismissed: "Dismissed",
+  showAll: (n) => `Show all ${n}`, showFewer: "Show fewer", left: (n) => `${n} left`,
+};
+const NOTES_SHOWN = 3;
+
+// Who a note is for and whether the receptionist reads it: the composer's and the editor's two controls, one shape.
+const NoteAudience = ({ team, forId, teamOnly, onFor, onTeamOnly, disabled, W }) => (
+  <span className="cl-prof-note-aud">
+    {team.length > 1 && (
+      <select
+        className="cl-prof-note-for"
+        value={forId || ""}
+        disabled={disabled}
+        aria-label={W.forLabel}
+        data-testid="person-note-for"
+        onChange={(e) => onFor(e.target.value || null)}
+      >
+        <option value="">{W.forAnyone}</option>
+        {team.map((m) => <option key={m.id} value={m.id}>{`${W.forLabel} ${m.me ? "me" : m.name}`}</option>)}
+      </select>
+    )}
+    <label className="cl-prof-note-team" title={W.teamOnlyHint}>
+      <input type="checkbox" checked={!!teamOnly} disabled={disabled} onChange={(e) => onTeamOnly(e.target.checked)} data-testid="person-note-team-only" />
+      <span>{W.teamOnly}</span>
+    </label>
+  </span>
+);
+
+const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
+  const N = window.__personNotes || null;
+  const W = (N && N.words) || NOTE_FALLBACK_WORDS;
+  const MAX = (N && N.max) || 600;
+  const notes = p.noteList || [];
+  const team = p.noteTeam || [];
+  const [draft, setDraft] = useStateP({ text: "", forId: null, teamOnly: false });
+  const [editing, setEditing] = useStateP(null);
+  const [asking, setAsking] = useStateP(null);
   const [busy, setBusy] = useStateP(false);
-  useEffectP(() => { setValue(p.notes || ""); }, [p.id, p.notes]);
-  const dirty = value.trim() !== (p.notes || "");
-  const save = async () => {
-    if (!window.__setPersonDetails || busy || !dirty) return;
+  const [all, setAll] = useStateP(false);
+  useEffectP(() => { setDraft({ text: "", forId: null, teamOnly: false }); setEditing(null); setAsking(null); }, [p.id]);
+
+  const run = async (fn, done) => {
+    if (!N || busy) return false;
     setBusy(true);
-    const r = await window.__setPersonDetails(p.id, { notes: value.trim() });
+    const r = await fn();
     setBusy(false);
-    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not save the notes."}</> }); return; }
-    flash({ msg: value.trim() ? <>Notes saved — the receptionist reads them from now on</> : <>Notes cleared</> });
+    if (!r || !r.ok) { flash({ tone: "danger", msg: <>{(r && r.message) || "Could not save this note."}</> }); return false; }
+    flash({ msg: <>{done}</> });
+    onChanged();
+    return true;
   };
-  if (!canEdit) {
-    return p.notes
-      ? <div className="cl-prof-notes-read" data-testid="person-notes">{p.notes}</div>
-      : <div className="cl-prof-aut-hint" data-testid="person-notes">No notes yet.</div>;
-  }
+  const add = async () => {
+    const text = draft.text.trim();
+    if (!text) return;
+    const ok = await run(() => N.write(p.id, { body: text, for_user_id: draft.forId, team_only: draft.teamOnly }), W.added);
+    if (ok) setDraft({ text: "", forId: null, teamOnly: false });
+  };
+  const saveEdit = async () => {
+    const text = editing.text.trim();
+    if (!text) return;
+    const ok = await run(
+      () => N.write(p.id, { body: text, for_user_id: editing.forId, team_only: editing.teamOnly, note_id: editing.id, version: editing.version }),
+      W.saved,
+    );
+    if (ok) setEditing(null);
+  };
+  const remove = async (n) => {
+    const ok = await run(() => N.remove(p.id, n.id), W.removed);
+    if (ok) setAsking(null);
+  };
+  const decide = (n, keep) => run(() => N.decide(p.id, { note_id: n.id, keep }), keep ? W.kept : W.dismissed);
+
+  const waiting = notes.filter((n) => n.suggested);
+  const kept = notes.filter((n) => !n.suggested);
+  const shown = all ? kept : kept.slice(0, NOTES_SHOWN);
+  const left = MAX - draft.text.length;
+
+  const noteRow = (n) => {
+    if (editing && editing.id === n.id) {
+      return (
+        <li key={n.id} className="cl-pnote is-editing" data-testid="person-note">
+          <textarea
+            className="cl-prof-note-input"
+            value={editing.text}
+            rows={3}
+            maxLength={MAX}
+            disabled={busy}
+            aria-label={W.edit}
+            data-testid="person-note-edit-input"
+            onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }}
+          />
+          <div className="cl-prof-note-bar">
+            <NoteAudience team={team} forId={editing.forId} teamOnly={editing.teamOnly} disabled={busy} W={W}
+              onFor={(forId) => setEditing({ ...editing, forId })} onTeamOnly={(teamOnly) => setEditing({ ...editing, teamOnly })} />
+            <span className="cl-prof-name-acts">
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(null)}>{W.cancel}</button>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy || !editing.text.trim()} onClick={saveEdit} data-testid="person-note-save">{W.save}</button>
+            </span>
+          </div>
+        </li>
+      );
+    }
+    const mayRemove = canEdit && (n.mine || isOwner);
+    const acts = [
+      ...(canEdit && n.mine ? [{ label: W.edit, icon: "edit", onClick: () => setEditing({ id: n.id, text: n.body, forId: n.forUserId, teamOnly: n.teamOnly, version: n.version }) }] : []),
+      ...(mayRemove ? [{ label: W.remove, icon: "x", danger: true, onClick: () => setAsking(n.id) }] : []),
+    ];
+    return (
+      <li key={n.id} className={`cl-pnote${n.forMe ? " is-for-me" : ""}`} data-testid="person-note">
+        <div className="cl-prof-note-body">{n.body}</div>
+        <div className="cl-prof-note-meta">
+          <span className="cl-prof-note-who">{n.who}</span>
+          <span title={n.whenFull}>{n.when}</span>
+          {n.edited && <span>{W.edited}</span>}
+          {n.forWho && <span className="cl-prof-note-for-who">{n.forWho}</span>}
+          {n.teamOnly && <span className="cl-prof-note-lock" title={W.teamOnlyHint}><Icon name="lock" size={10} /> {W.teamOnly}</span>}
+          {acts.length > 0 && asking !== n.id && (
+            <span className="cl-prof-note-more">
+              <MoreMenu items={acts} title={W.more} size={12} escape btnClass="btn btn-ghost btn-icon btn-sm" />
+            </span>
+          )}
+        </div>
+        {asking === n.id && (
+          <div className="cl-prof-note-ask" role="alert">
+            <span>{W.askRemove}</span>
+            <span className="cl-prof-name-acts">
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setAsking(null)}>{W.cancel}</button>
+              <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove(n)} data-testid="person-note-remove">{W.remove}</button>
+            </span>
+          </div>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="cl-prof-notes" data-testid="person-notes">
-      <textarea
-        value={value}
-        rows={4}
-        maxLength={600}
-        disabled={busy}
-        placeholder="Who they see, what they like, what not to bring up…"
-        aria-label="Notes for the receptionist"
-        data-testid="person-notes-input"
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
-      />
-      <div className="cl-prof-notes-foot">
-        <span className="cl-prof-aut-hint">{value.length}/600 · used as facts, never read aloud</span>
-        {dirty && (
-          <span className="cl-prof-name-acts">
-            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setValue(p.notes || "")}>Cancel</button>
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-notes-save">{busy ? "Saving…" : "Save"}</button>
-          </span>
-        )}
-      </div>
+      {canEdit && N && (
+        <div className={`cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
+          <textarea
+            className="cl-prof-note-input"
+            value={draft.text}
+            rows={draft.text ? 3 : 1}
+            maxLength={MAX}
+            disabled={busy}
+            placeholder={W.placeholder}
+            aria-label={W.placeholder}
+            data-testid="person-notes-input"
+            onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") add(); }}
+          />
+          {draft.text && (
+            <div className="cl-prof-note-bar">
+              <NoteAudience team={team} forId={draft.forId} teamOnly={draft.teamOnly} disabled={busy} W={W}
+                onFor={(forId) => setDraft({ ...draft, forId })} onTeamOnly={(teamOnly) => setDraft({ ...draft, teamOnly })} />
+              <span className="cl-prof-name-acts">
+                {left < 60 && <span className="cl-prof-aut-hint">{W.left(left)}</span>}
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy || !draft.text.trim()} onClick={add} data-testid="person-notes-save">{W.add}</button>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {waiting.length > 0 && (
+        <ul className="cl-prof-note-list">
+          {waiting.map((n) => (
+            <li key={n.id} className="cl-pnote is-suggested" data-testid="person-note-suggested">
+              <div className="cl-prof-note-meta">
+                <span className="cl-prof-note-who"><Icon name="sparkle" size={10} /> {W.suggested}</span>
+                {n.from && <span>{n.from}</span>}
+                <span title={n.whenFull}>{n.when}</span>
+              </div>
+              <div className="cl-prof-note-body">{n.body}</div>
+              {canEdit && (
+                <div className="cl-prof-note-decide">
+                  <button type="button" className="btn btn-sm" disabled={busy} onClick={() => decide(n, true)} data-testid="person-note-keep">{W.keep}</button>
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => decide(n, false)} data-testid="person-note-dismiss">{W.dismiss}</button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {kept.length > 0
+        ? <ul className="cl-prof-note-list">{shown.map(noteRow)}</ul>
+        : waiting.length === 0 && !canEdit && <div className="cl-prof-aut-hint">{W.none}</div>}
+      {kept.length > NOTES_SHOWN && (
+        <button type="button" className="cl-bucket-link cl-prof-note-all" onClick={() => setAll(!all)} data-testid="person-notes-all">
+          {all ? W.showFewer : W.showAll(kept.length)}
+        </button>
+      )}
+      <div className="cl-prof-aut-hint cl-prof-note-rule">{W.readsHint}</div>
     </div>
   );
 };
@@ -834,15 +993,18 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
         ))}
         {on.length === 0 && smartChips.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
       </div>
-      {/* Left-aligned: the button sits at the rail's left edge, and a menu anchored to its right edge opened 96px off a phone's screen and under the rail's clip on a desktop. */}
+      {/* A quiet link under the chips, as "Add an email" is, not a button among them. Its menu escapes the card
+          (MoreMenu escape): the card clips what crosses its rounded edge, and the menu opened cut off at its foot. It
+          hangs from the link's left edge, and above it where the window has more room there. */}
       {canEdit && off.length > 0 && (
         <MoreMenu
-          btnClass="btn btn-sm"
-          label="Add to…"
+          btnClass="cl-prof-rename is-plain cl-prof-list-add"
+          label={<><Icon name="plus" size={11} /> Add to a list</>}
           title="Add to a list"
           align="left"
+          escape
+          testid="person-list-add"
           items={[
-            { header: "Add to" },
             ...off.map((s) => ({
               label: s.name,
               icon: "filter",
@@ -1735,8 +1897,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               ) : null}
             </div>
             <div className="cl-prof-rail-section">
-              <div className="cl-prof-rail-label">Notes for the receptionist</div>
-              <PersonNotes p={p} canEdit={canRecord} flash={ppFlash} />
+              <div className="cl-prof-rail-label">{window.__personNotes ? window.__personNotes.words.title : "Notes"}</div>
+              <PersonNotes p={p} canEdit={canRecord} isOwner={isOwner} flash={ppFlash} onChanged={load} />
             </div>
             <div className="cl-prof-rail-section" data-testid="person-lists">
               <div className="cl-prof-rail-label">Lists</div>
@@ -1777,3 +1939,4 @@ window.ClientProfile = ClientProfile;
 window.ConsentAsk = ConsentAsk;
 // Drawn on its own by people-honest.test.mjs.
 window.PersonLists = PersonLists;
+window.PersonNotes = PersonNotes;

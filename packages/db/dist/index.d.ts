@@ -3263,6 +3263,78 @@ type Database = {
                 };
                 Relationships: [];
             };
+            person_notes: {
+                Row: {
+                    author_kind: string;
+                    author_user_id: string | null;
+                    body: string;
+                    contact_id: string;
+                    created_at: string;
+                    for_user_id: string | null;
+                    id: string;
+                    kept_at: string | null;
+                    kept_by: string | null;
+                    source: string;
+                    source_id: string | null;
+                    state: string;
+                    team_only: boolean;
+                    tenant_id: string;
+                    updated_at: string;
+                    version: number;
+                };
+                Insert: {
+                    author_kind?: string;
+                    author_user_id?: string | null;
+                    body: string;
+                    contact_id: string;
+                    created_at?: string;
+                    for_user_id?: string | null;
+                    id?: string;
+                    kept_at?: string | null;
+                    kept_by?: string | null;
+                    source?: string;
+                    source_id?: string | null;
+                    state?: string;
+                    team_only?: boolean;
+                    tenant_id: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Update: {
+                    author_kind?: string;
+                    author_user_id?: string | null;
+                    body?: string;
+                    contact_id?: string;
+                    created_at?: string;
+                    for_user_id?: string | null;
+                    id?: string;
+                    kept_at?: string | null;
+                    kept_by?: string | null;
+                    source?: string;
+                    source_id?: string | null;
+                    state?: string;
+                    team_only?: boolean;
+                    tenant_id?: string;
+                    updated_at?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "person_notes_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "person_notes_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             platform_admins: {
                 Row: {
                     created_at: string;
@@ -4667,6 +4739,51 @@ type Database = {
                     wa_profile_name: string;
                 }[];
             };
+            person_note_add: {
+                Args: {
+                    p_body: string;
+                    p_contact_id: string;
+                    p_for_user_id?: string;
+                    p_source?: string;
+                    p_team_only?: boolean;
+                };
+                Returns: Json;
+            };
+            person_note_decide: {
+                Args: {
+                    p_body?: string;
+                    p_keep: boolean;
+                    p_note_id: string;
+                    p_team_only?: boolean;
+                };
+                Returns: Json;
+            };
+            person_note_edit: {
+                Args: {
+                    p_body: string;
+                    p_for_user_id?: string;
+                    p_note_id: string;
+                    p_team_only?: boolean;
+                    p_version?: number;
+                };
+                Returns: Json;
+            };
+            person_note_remove: {
+                Args: {
+                    p_note_id: string;
+                };
+                Returns: Json;
+            };
+            person_note_suggest: {
+                Args: {
+                    p_body: string;
+                    p_contact_id: string;
+                    p_source: string;
+                    p_source_id?: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             platform_admin_add: {
                 Args: {
                     p_email: string;
@@ -5520,8 +5637,15 @@ interface LeadContext {
     history: ThreadTurn[];
     /** They asked us to stop. Carried so no caller has to look it up separately. */
     optedOut: boolean;
-    /** The owner's notes on them — facts for the receptionist, never read aloud. */
+    /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
+     *  where the notes themselves could not be read (`noteList` null or absent). */
     notes?: string | null;
+    /** The notes the receptionist reads (0007): kept, not for the team only, newest first. Null where they could not
+     *  be read. Optional so every fake still compiles. */
+    noteList?: {
+        body: string;
+        at: string;
+    }[] | null;
     /** The owner's proposal for them, as a web address (00154): sent when they ask about price, its figures never stated. */
     proposalUrl?: string | null;
     /** Their deal (0004), the newest open or current one: the sentence the receptionist hears. Optional so every fake still compiles. */
@@ -5549,13 +5673,10 @@ declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, 
  */
 declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
 /**
- * The lead, described for a model in a few plain lines.
- *
- * Shared so both agents introduce the same person the same way. Facts only —
- * a name we were given, whether we have spoken, when. Nothing inferred, and
- * nothing said at all when we know nothing, because "New caller" is itself a
- * useful and honest thing to tell an agent.
+ * The team's notes as the receptionist hears them (0007): newest first, each dated, as many as fit the budget -- the
+ * newest always, however long. Where the notes could not be read, the field they moved from (00054), as it was said.
  */
+declare function notesForReceptionist(lead: LeadContext, now?: Date, tz?: string): string | null;
 declare function describeLead(lead: LeadContext, now?: Date, tz?: string): string;
 
 /**
@@ -5934,4 +6055,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };

@@ -3265,6 +3265,78 @@ export type Database = {
         }
         Relationships: []
       }
+      person_notes: {
+        Row: {
+          author_kind: string
+          author_user_id: string | null
+          body: string
+          contact_id: string
+          created_at: string
+          for_user_id: string | null
+          id: string
+          kept_at: string | null
+          kept_by: string | null
+          source: string
+          source_id: string | null
+          state: string
+          team_only: boolean
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          author_kind?: string
+          author_user_id?: string | null
+          body: string
+          contact_id: string
+          created_at?: string
+          for_user_id?: string | null
+          id?: string
+          kept_at?: string | null
+          kept_by?: string | null
+          source?: string
+          source_id?: string | null
+          state?: string
+          team_only?: boolean
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          author_kind?: string
+          author_user_id?: string | null
+          body?: string
+          contact_id?: string
+          created_at?: string
+          for_user_id?: string | null
+          id?: string
+          kept_at?: string | null
+          kept_by?: string | null
+          source?: string
+          source_id?: string | null
+          state?: string
+          team_only?: boolean
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_notes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           created_at: string
@@ -4431,6 +4503,46 @@ export type Database = {
           queued_reply_at: string
           wa_profile_name: string
         }[]
+      }
+      person_note_add: {
+        Args: {
+          p_body: string
+          p_contact_id: string
+          p_for_user_id?: string
+          p_source?: string
+          p_team_only?: boolean
+        }
+        Returns: Json
+      }
+      person_note_decide: {
+        Args: {
+          p_body?: string
+          p_keep: boolean
+          p_note_id: string
+          p_team_only?: boolean
+        }
+        Returns: Json
+      }
+      person_note_edit: {
+        Args: {
+          p_body: string
+          p_for_user_id?: string
+          p_note_id: string
+          p_team_only?: boolean
+          p_version?: number
+        }
+        Returns: Json
+      }
+      person_note_remove: { Args: { p_note_id: string }; Returns: Json }
+      person_note_suggest: {
+        Args: {
+          p_body: string
+          p_contact_id: string
+          p_source: string
+          p_source_id?: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       platform_admin_add: { Args: { p_email: string }; Returns: string }
       platform_overview: {
