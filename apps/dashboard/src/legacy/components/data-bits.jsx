@@ -556,15 +556,14 @@ Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 // ---- A switch holds still ---------------------------------------------------------------------------------------
 // A tab, a filter or a fold changes what is drawn beside it, and on a phone the page moved under the thumb that pressed
 // it: the person's History tabs went 328px down the screen for Consent and 439px for Visits (23 Sep), because a shorter
-// list made the page shorter and the browser pulled the scroll back to fit. `holdStill(control, change)` runs the change
-// and keeps the control where it was on the screen:
-// - before it, the region the control changes (the nearest `[data-holds]` around it, else its section, never wider
-//   than what scrolls) is held at least as tall as the screen below the region's top, so the page cannot get shorter
-//   than what is on the screen. A region with more to say than that is simply taller. The hold is an inline
-//   min-height that gives itself back as the page is scrolled up, never more than keeps what is on the screen where
-//   it is, and is gone once the region is below the screen or taller than it on its own: no blank stays at the foot.
-// - after it, drawn at once, a control that moved anyway (what changed was above it: a list shrinking over its "Show
-//   fewer") is scrolled back to where it was.
+// list made the page shorter and the browser pulled the scroll back to fit. `holdStill(control, change)` runs the change,
+// drawn at once, and keeps the control where it was on the screen:
+// - where the page came out too short to stay where it stood, what scrolls is given the difference as room at its foot
+//   (padding, under everything on it, never between two things) and put back where it was. The room gives itself back
+//   as the page is scrolled up, never more than keeps what is on the screen where it is, and is gone once none is
+//   needed, so no blank stays at the foot;
+// - a control that moved anyway (what changed was above it: a list shrinking over its "Show fewer") is scrolled back to
+//   where it was.
 // Where nothing scrolls, or the control is gone after the change, the change just runs.
 const holdScroller = (from) => {
   for (let n = from && from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
@@ -573,59 +572,49 @@ const holdScroller = (from) => {
   }
   return null;
 };
-// The region a switch changes, inside what scrolls: a section that holds the scroller itself would hold nothing.
-const holdRegion = (control, box) => {
-  const named = control.closest("[data-holds]") || control.closest("section") || control.parentElement;
-  if (!named || !box.contains(named) || named === box) {
-    let n = control;
-    while (n.parentElement && n.parentElement !== box) n = n.parentElement;
-    return n;
+// The room a scroller was given, and the padding it had of its own: one per scroller, grown by each switch.
+const holdRooms = new WeakMap();
+const holdRoom = (box, more) => {
+  let room = holdRooms.get(box);
+  if (!room) {
+    room = { extra: 0, own: parseFloat(window.getComputedStyle(box).paddingBottom) || 0, inline: box.style.paddingBottom || "" };
+    const release = () => {
+      box.style.paddingBottom = room.inline;
+      box.removeEventListener("scroll", room.onScroll);
+      holdRooms.delete(box);
+    };
+    // Scrolled up, the page needs less of it: what keeps the screen where it is, and nothing once that is none.
+    room.onScroll = () => {
+      if (!box.isConnected) { release(); return; }
+      const need = Math.ceil(box.scrollTop + box.clientHeight - (box.scrollHeight - room.extra));
+      if (need <= 0) { release(); return; }
+      if (need < room.extra) {
+        room.extra = need;
+        box.style.paddingBottom = `${room.own + need}px`;
+      }
+    };
+    box.addEventListener("scroll", room.onScroll, { passive: true });
+    holdRooms.set(box, room);
   }
-  return named;
+  room.extra += more;
+  box.style.paddingBottom = `${room.own + room.extra}px`;
 };
-const holds = new WeakMap();
 const holdStill = (control, change) => {
   const run = () => { if (typeof change === "function") change(); };
   if (!control || !control.isConnected || !control.getBoundingClientRect) { run(); return; }
   const box = holdScroller(control);
   const was = control.getBoundingClientRect().top;
-  if (box) {
-    const region = holdRegion(control, box);
-    const floor = () => box.getBoundingClientRect().bottom;
-    // Measured with any earlier hold still in place: let go of first, the region could shrink and pull the scroll back
-    // before the new hold is set.
-    let held = Math.round(floor() - region.getBoundingClientRect().top);
-    const earlier = holds.get(region);
-    if (earlier) earlier(held > 0);
-    if (held > 0 && region.style) {
-      // A min-height is the content's, unless the region sizes its border box: its padding and border are on top.
-      const cs = window.getComputedStyle(region);
-      const edges = cs.boxSizing === "border-box" ? 0
-        : ["paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth"].reduce((sum, k) => sum + (parseFloat(cs[k]) || 0), 0);
-      held = Math.max(0, held - edges);
-      region.style.minHeight = `${held}px`;
-      // `keep`: a newer hold takes the region over, and its height is already set.
-      const release = (keep = false) => {
-        if (!keep) region.style.minHeight = "";
-        box.removeEventListener("scroll", onScroll);
-        holds.delete(region);
-      };
-      // Scrolled up, the hold gives back what the screen no longer needs; once the region is under the screen, or taller
-      // than the hold on its own, it is let go of.
-      const onScroll = () => {
-        if (!region.isConnected) { release(); return; }
-        const need = Math.round(floor() - region.getBoundingClientRect().top) - edges;
-        if (need <= 0 || region.offsetHeight > held + edges + 1) { release(); return; }
-        if (need < held) { held = need; region.style.minHeight = `${need}px`; }
-      };
-      box.addEventListener("scroll", onScroll, { passive: true });
-      holds.set(region, release);
-    }
-  }
-  // Drawn now, so where the control landed is read before anything is painted.
+  const at = box ? box.scrollTop : 0;
+  // Drawn now, so where the page and the control landed are read before anything is painted.
   const flush = window.ReactDOM && window.ReactDOM.flushSync;
   if (flush) flush(run); else run();
   if (!box || !control.isConnected) return;
+  // Pulled back: the page came out shorter than where it stood. The difference goes under everything, and the page back.
+  const pulled = Math.ceil(at - box.scrollTop);
+  if (pulled >= 1) {
+    holdRoom(box, pulled);
+    box.scrollTop = at;
+  }
   const moved = control.getBoundingClientRect().top - was;
   if (Math.abs(moved) >= 1) box.scrollTop += moved;
 };
