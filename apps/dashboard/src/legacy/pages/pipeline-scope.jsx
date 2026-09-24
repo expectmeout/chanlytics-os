@@ -120,15 +120,21 @@ const pipeComposeIn = (person, text, nav) => {
 
 // The rail's rows, by section (contracts pipelineRail), each a pick of People's rail kit. What waits on the owner counts
 // in the warn ink (the kit's `asks`). Drawn on a desk's rail and in a phone's lists sheet alike.
-const PipelineRailRows = ({ sections, view, onPick }) => (
+// `compact` is the phone's sheet (People's RailEmpty): a view with no deal in it is said in a line, not drawn -- all
+// deals and the one picked always are.
+const PipelineRailRows = ({ sections, view, onPick, compact = false }) => (
   <>
-    {sections.map((s) => (
-      <window.RailSection key={s.key} label={s.label} testid={`pipeline-rail-${s.key}`}>
-        {s.rows.map((r) => (
-          <window.RailRow key={r.view} label={r.label} count={r.count} active={view === r.view} onPick={() => onPick(r.view)} className={r.tone === "warn" ? "asks" : ""} testid={`pipeline-rail-row-${r.view}`} />
-        ))}
-      </window.RailSection>
-    ))}
+    {sections.map((s) => {
+      const quiet = compact ? window.railQuiet(s.rows, (r) => r.view === "all" || view === r.view) : [];
+      return (
+        <window.RailSection key={s.key} label={s.label} testid={`pipeline-rail-${s.key}`}>
+          {s.rows.filter((r) => !quiet.includes(r)).map((r) => (
+            <window.RailRow key={r.view} label={r.label} count={r.count} active={view === r.view} onPick={() => onPick(r.view)} className={r.tone === "warn" ? "asks" : ""} testid={`pipeline-rail-row-${r.view}`} />
+          ))}
+          <window.RailEmpty labels={quiet.map((r) => r.label)} testid={`pipeline-rail-empty-${s.key}`} />
+        </window.RailSection>
+      );
+    })}
   </>
 );
 
@@ -545,7 +551,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
         {phone && listsOpen && window.PeopleListsSheet ? (
           <window.PeopleListsSheet title={words.rail.sheet} onClose={() => setListsOpen(false)}>
             <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
-              <PipelineRailRows sections={rail} view={view} onPick={pickView} />
+              <PipelineRailRows compact sections={rail} view={view} onPick={pickView} />
             </aside>
           </window.PeopleListsSheet>
         ) : null}
@@ -586,4 +592,4 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   );
 };
 
-Object.assign(window, { PipelineScope });
+Object.assign(window, { PipelineScope, PipelineRailRows });

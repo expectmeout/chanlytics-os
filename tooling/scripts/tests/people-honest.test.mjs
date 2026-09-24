@@ -1588,6 +1588,95 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
     assert.ok(byTestId(byTestId(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
   }));
 
+// Ruben, 24 Sep: the Lists sheet "looks too cluttered, takes most of the screen". On a phone it is compact: one level
+// of heading (the groups), no paragraph about lists nobody kept, and a list with nobody in it said in its group's one
+// quiet line rather than drawn as a row -- the one picked is drawn even when empty. A desktop's rail is unchanged.
+test("on a phone the Lists sheet is compact: the groups name its blocks, an empty list is said in a line, and the one picked is drawn even when empty", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1), person(2)] });
+    const lists = globalThis.window.__PEOPLE.lists;
+    const empty = lists.filter((l) => l.count === 0);
+    const full = lists.filter((l) => l.count > 0);
+    assert.ok(empty.length > 0 && full.length > 0, "the fixture has lists of both kinds");
+    const rowsIn = (tree) => [
+      ...new Set(
+        all(
+          tree,
+          (n) =>
+            n.type === "button" &&
+            String(n.props?.className || "")
+              .split(" ")
+              .includes("smart"),
+        ),
+      ),
+    ];
+    const sheetOf = (props = {}) => {
+      let tree = draw(props);
+      click(byTestId(tree, "people-phone-lists"));
+      tree = draw(props);
+      return byTestId(tree, "people-lists-sheet");
+    };
+    let sheet = sheetOf();
+    assert.equal(
+      find(sheet, (n) => n.props?.className === "cl-rail-label" && /Smart lists/.test(textOf(n))),
+      null,
+      "one level of heading: the groups",
+    );
+    assert.equal(
+      find(sheet, (n) => n.props?.className === "cl-rail-hint"),
+      null,
+      "no paragraph about lists nobody kept",
+    );
+    assert.deepEqual(
+      rowsIn(sheet)
+        .map((b) => textOf(b.props.children))
+        .sort(),
+      full.map((l) => `${l.label}${l.count}`).sort(),
+      "a row for each list with somebody in it",
+    );
+    const lines = [...new Set(all(sheet, (n) => n.props?.className === "cl-rail-empty"))];
+    assert.equal(lines.length, 1, "one quiet line for the sheet, not one a group");
+    const said = textOf(lines[0]);
+    for (const l of empty)
+      assert.match(said, new RegExp(l.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `${l.label} is said`);
+    assert.match(said, /^Empty now: /);
+    // The one picked is drawn, empty or not.
+    const picked = empty[0];
+    sheet = sheetOf({ initialSegment: picked.id });
+    const row = rowsIn(sheet).find((b) => b.props["aria-current"] === "true");
+    assert.ok(row && textOf(row.props.children).startsWith(picked.label), "the picked list keeps its row");
+    assert.doesNotMatch(
+      all(sheet, (n) => n.props?.className === "cl-rail-empty")
+        .map(textOf)
+        .join(" "),
+      new RegExp(`\\b${picked.label}\\b`),
+      "and is not said twice",
+    );
+  }));
+
+test("a desktop's rail keeps every list and its heading: compact is the phone's sheet", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  const tree = draw();
+  const rows = [
+    ...new Set(
+      all(
+        tree,
+        (n) =>
+          n.type === "button" &&
+          String(n.props?.className || "")
+            .split(" ")
+            .includes("smart"),
+      ),
+    ),
+  ];
+  assert.equal(rows.length, globalThis.window.__PEOPLE.lists.length, "an empty list has its row on a desktop");
+  assert.equal(
+    find(tree, (n) => n.props?.className === "cl-rail-empty"),
+    null,
+  );
+  assert.ok(find(tree, (n) => n.props?.className === "cl-rail-label" && /Smart lists/.test(textOf(n))));
+});
+
 test("a list's own route lands on People with that list picked -- Playbooks' list, an answer's jump and a kept address still arrive", async () => {
   await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
   const route = globalThis.window.__listRoute;

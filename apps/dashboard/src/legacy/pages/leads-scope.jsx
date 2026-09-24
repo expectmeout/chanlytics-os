@@ -365,13 +365,18 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
 // is: one row at a time, a list or a search. The lists, then the searches, each with its count, a live dot while it
 // runs and a "?" in the accent while it waits on the owner. Renaming and removing are asked where the search is, so
 // the rail never loses the row that is being named.
-const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, onWarmList = () => {}, onWarmSearch = () => {}, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew }) => (
+// `compact` is the phone's sheet (People's RailEmpty): a list with no lead in it is said in a line, not drawn -- all
+// leads and the one picked always are. Searches are always drawn: each is a thing kept, with its own menu.
+const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, onWarmList = () => {}, onWarmSearch = () => {}, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew, compact = false }) => {
+  const quiet = compact ? window.railQuiet(rail.lists, (l) => l.id === "all" || (!searchId && list === l.id)) : [];
+  return (
   <>
     {/* "Lists", not "Leads": the switch right above already says which scope this is. */}
     <RailSection label="Lists" testid="leads-lists">
-      {rail.lists.map((l) => (
+      {rail.lists.filter((l) => !quiet.includes(l)).map((l) => (
         <RailRow key={l.id} label={l.label} count={l.count} active={!searchId && list === l.id} onPick={() => onPickList(l.id)} onWarm={() => onWarmList(l.id)} testid={`leads-list-${l.id}`} />
       ))}
+      <window.RailEmpty labels={quiet.map((l) => l.label)} testid="leads-lists-empty" />
     </RailSection>
     <RailSection label="Searches" testid="leads-searches">
       {rail.searches.map((s) => (
@@ -408,7 +413,8 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
       </button>
     </div>
   </>
-);
+  );
+};
 
 /* ------------------------------------------------- the three classes (§8.7) */
 
@@ -998,6 +1004,7 @@ const LeadsScope = (p) => {
   const phone = !!p.phone;
   const railRows = (
     <LeadsRailRows
+          compact={phone}
           rail={rail}
           list={p.view.list}
           searchId={p.view.searchId}
