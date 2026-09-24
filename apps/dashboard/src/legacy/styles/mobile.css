@@ -196,7 +196,8 @@
   .rp-agents .tbl { min-width: 680px; }
 
   /* ---------- Settings ---------- */
-  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  /* The leading tile at the phone row's face size (tokens.css --row-face). */
+  .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
   /* The rail is one strip of tabs: no scrollbar drawn under it, and its two
      groups are a hairline between Profile and the workspace's tabs rather than
      two words in capitals scrolling by with them. The open tab is brought into

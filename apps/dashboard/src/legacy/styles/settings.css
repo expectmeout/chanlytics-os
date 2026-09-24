@@ -419,7 +419,10 @@
 /* On a phone a row's words keep the width; its state and acts take the next line, under the words. */
 @media (max-width: 640px) {
   .set-conn { grid-template-columns: var(--set-lead) minmax(0, 1fr); }
-  .set-conn > .set-int-row { row-gap: 10px; align-items: start; }
+  .set-conn > .set-int-row { row-gap: 8px; align-items: start; }
+  /* A connected row on a phone is its name, its state and its acts: the sentence under it (last message 3d ago) is
+     a desktop's. A row that wants something keeps its sentence, which says what. */
+  .set-conn > .set-int-row[data-state="connected"] .set-team-mail { display: none; }
   .set-conn > .set-int-row > .pill { grid-column: 2; grid-row: 2; align-self: center; }
   .set-conn > .set-int-row > .set-int-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; }
   .set-conn > .set-row-stack { padding-left: 0; }
@@ -689,6 +692,13 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    modes side by side, each named. As a table it was 520px wide inside a card that
    scrolled sideways with nothing to say so: a phone showed the Auto column alone,
    and a class set to Veto looked like a class with nothing set. */
+/* The matrix on a phone (pages/settings.jsx PolPhoneRows): one line per class, its mode as a word with a menu. The
+   rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
+.pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
+.pol-phone-row { min-height: 44px; }
+.pol-phone-mode { font-size: var(--set-label); white-space: nowrap; }
+.pol-phone-locked { display: inline-flex; align-items: center; gap: 6px; }
+.pol-phone-locked .icon { color: var(--warn-ink); flex: none; }
 @media (max-width: 640px) {
   .settings .pol-table { display: block; min-width: 0; }
   .pol-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -835,10 +845,14 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    row People and Today share (attention-bits.jsx); the head carries the
    readiness sentence and the one next verb. A row put off for later fades. */
 .setup { display: grid; gap: 20px; }
-.setup-sentence { margin: 0 0 4px; font-size: var(--text-lg); font-weight: 500; line-height: 1.4; color: var(--ink); text-wrap: balance; }
+/* The body size (24 Sep): the largest type on the page was a sentence that said which lines answer. */
+.setup-sentence { margin: 0 0 4px; font-size: var(--set-label); font-weight: 500; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
 .setup-next { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-bottom: 6px; flex-wrap: wrap; }
-.setup-next-label { font-size: var(--text-xs); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-dim); }
+.setup-next-label { font-size: var(--set-hint); color: var(--ink-dim); }
 .setup-try-rows { display: grid; gap: 4px; padding-bottom: 8px; }
+/* The page is its rows: the meter, then the work, and on a phone the Try card after the rows rather than a screen
+   of it before them (feedback: a phone shows the work first). */
+@media (max-width: 640px) { .setup-try { order: 3; } }
 /* The number, then what to do with it. On a phone the acts take the next line
    rather than each wrapping alone: at 390px the row broke into four lines, one
    of them a lone arrow. */
@@ -905,8 +919,11 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .settings .set-team-row.pending .set-team-face { opacity: 1; }
 @media (max-width: 640px) {
   /* The words keep the width; the acts take the next line, at the end of it. */
-  .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 8px; padding-left: 18px; padding-right: 18px; }
+  .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 6px; padding-left: 15px; padding-right: 15px; }
   .setup-rows .cl-attn-acts { grid-column: 2; justify-self: end; }
+  /* A row that is ready is its name and its state on a phone: its sentence and its details are a desktop's. The rows
+     that want a person keep every word. */
+  .setup-rows .cl-attn-row.tone-ok .cl-attn-sentence, .setup-rows .cl-attn-row.tone-ok .cl-attn-note { display: none; }
 }
 
 /* The line chooser under the line row: three paths, then the area code, the
@@ -920,7 +937,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-path.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .setup-new, .setup-ask { display: grid; gap: 10px; }
 .setup-find { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.setup-find-label { font-size: var(--text-xs); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-dim); }
+.setup-find-label { font-size: var(--set-hint); color: var(--ink-dim); }
 .setup-area { width: 72px; min-height: 36px; padding: 6px 10px; font: inherit; font-size: var(--set-label); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .setup-area:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .setup-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
