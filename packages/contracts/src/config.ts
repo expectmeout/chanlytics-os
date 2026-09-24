@@ -884,6 +884,30 @@ export function parseTenantConfig(raw: unknown): TenantConfig | null {
   return r.ok ? r.config : null;
 }
 
+/**
+ * A new workspace's first alert address: its creator's. Without one, the edge's
+ * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
+ * platform, redacted, and the owner is never told.
+ *
+ * Returns the config to save, or null when there is nothing to do: a config that
+ * already names its addresses, one that will not parse, or an address the write
+ * schema refuses -- saved, a refused address would make the whole config
+ * unreadable, and the receptionist silent.
+ */
+export function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = String(email ?? "")
+    .trim()
+    .toLowerCase();
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] },
+  });
+  return next.success ? next.data : null;
+}
+
 /* ---------------------------------------------------------------- compose */
 
 const DAY_LABEL: Record<string, string> = {

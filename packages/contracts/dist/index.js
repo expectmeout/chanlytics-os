@@ -2939,6 +2939,14 @@ function parseTenantConfig(raw) {
   const r = parseTenantConfigResult(raw);
   return r.ok ? r.config : null;
 }
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = String(email ?? "").trim().toLowerCase();
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({ ...current.config, notifications: { escalation_emails: [address] } });
+  return next.success ? next.data : null;
+}
 var DAY_LABEL = {
   mon: "Monday",
   tue: "Tuesday",
@@ -20139,6 +20147,7 @@ export {
   whyNotLook,
   whyNotReceive,
   windowFor,
+  withFirstAlertAddress,
   workspaceHotkey,
   writtenChannelOf,
   writtenOutDetail,
