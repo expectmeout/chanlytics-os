@@ -2944,7 +2944,10 @@ function withFirstAlertAddress(config, email) {
   if (!current.ok || current.config.notifications) return null;
   const address = String(email ?? "").trim().toLowerCase();
   if (!address) return null;
-  const next = TenantConfigWriteSchema.safeParse({ ...current.config, notifications: { escalation_emails: [address] } });
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
   return next.success ? next.data : null;
 }
 var DAY_LABEL = {
@@ -13743,6 +13746,11 @@ function invoiceStatusWords(status) {
   if (!status) return "\u2014";
   return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] : status;
 }
+var CHECKOUT_RETURNS = ["billing", "start"];
+var CHECKOUT_RETURN_ROUTE = { billing: "admin/billing", start: "start" };
+function isCheckoutReturn(v) {
+  return typeof v === "string" && CHECKOUT_RETURNS.includes(v);
+}
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -19068,6 +19076,8 @@ export {
   CHANNEL_KINDS,
   CHANNEL_KIND_WORDS,
   CHECKOUT_OUTCOME_WORDS,
+  CHECKOUT_RETURNS,
+  CHECKOUT_RETURN_ROUTE,
   CHIPS_SHOWN,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -19701,6 +19711,7 @@ export {
   isActivityNoise,
   isBaselinePrompt,
   isCarrier,
+  isCheckoutReturn,
   isConsultationTitle,
   isDayKey,
   isDealLostReason,

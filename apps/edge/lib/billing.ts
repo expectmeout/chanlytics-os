@@ -13,8 +13,10 @@ import { emitEvent } from "./packages/db.js";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
+  CHECKOUT_RETURN_ROUTE,
   billingAccountDto,
   planBilling,
+  type CheckoutReturn,
   type BillingAccountDto,
   type BillingInvoiceDto,
   type BillingPriceDto,
@@ -37,10 +39,18 @@ export function dashboardOrigin(): string {
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_DASHBOARD_ORIGIN;
 }
 
-/** Settings › Billing on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the pane reads once; the home when the slug is unknown. */
-export function billingReturnUrl(slug: string | null, outcome: "success" | "cancel" | "portal"): string {
+/**
+ * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›
+ * Billing, or the first run that asked for the card (contracts CHECKOUT_RETURNS, a closed list); the home when the
+ * slug is unknown.
+ */
+export function billingReturnUrl(
+  slug: string | null,
+  outcome: "success" | "cancel" | "portal",
+  back: CheckoutReturn = "billing",
+): string {
   const page = slug ? `/w/${encodeURIComponent(slug)}` : "/";
-  return `${dashboardOrigin()}${page}?billing=${outcome}#/admin/billing`;
+  return `${dashboardOrigin()}${page}?billing=${outcome}#/${CHECKOUT_RETURN_ROUTE[back]}`;
 }
 
 let client: Stripe | null = null;
@@ -285,13 +295,14 @@ export type BillingFailure =
   | "not_paused"
   | "stripe_refused";
 
-/** The way to Checkout: a card, the trial, and back to Billing with the outcome. */
+/** The way to Checkout: a card, the trial, and back to Billing (or the first run that asked) with the outcome. */
 export async function checkoutFor(
   db: Db,
   tenantId: string,
   tenantName: string,
   email: string | null,
   slug: string | null = null,
+  back: CheckoutReturn = "billing",
 ): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
   const s = stripe();
   const price = priceId();
@@ -318,8 +329,8 @@ export async function checkoutFor(
       line_items: [{ price, quantity: 1 }],
       subscription_data: { metadata: { tenant_id: tenantId }, ...(trial > 0 ? { trial_period_days: trial } : {}) },
       allow_promotion_codes: true,
-      success_url: billingReturnUrl(slug, "success"),
-      cancel_url: billingReturnUrl(slug, "cancel"),
+      success_url: billingReturnUrl(slug, "success", back),
+      cancel_url: billingReturnUrl(slug, "cancel", back),
       metadata: { tenant_id: tenantId },
     });
     if (!session.url) return { ok: false, error: "stripe_refused", detail: "no url on the session" };
