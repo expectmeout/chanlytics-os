@@ -15092,6 +15092,23 @@ function themeBootScript() {
     "}catch(e){}"
   ].join("");
 }
+var IN_APP_UA_RE = /ChanlyticsApp\/(\S+)(?:\s*\((ios|android)\))?/i;
+function inAppFrom(userAgent) {
+  const m = IN_APP_UA_RE.exec(userAgent ?? "");
+  if (!m) return null;
+  const platform = (m[2] ?? "").toLowerCase();
+  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+}
+var IN_APP_CLASS = "in-app";
+function inAppBootScript() {
+  return [
+    "try{",
+    `var m=new RegExp(${JSON.stringify(IN_APP_UA_RE.source)},"i").exec(navigator.userAgent||"");`,
+    `if(m){document.documentElement.classList.add(${JSON.stringify(IN_APP_CLASS)});`,
+    'window.__IN_APP={version:m[1],platform:(m[2]||"unknown").toLowerCase()}}',
+    "}catch(e){}"
+  ].join("");
+}
 var isSidebarPref = (v) => v === "open" || v === "rail";
 function workspaceHotkey(index) {
   return Number.isInteger(index) && index >= 0 && index < 9 ? `\u2318${index + 1}` : null;
@@ -19313,6 +19330,8 @@ export {
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
+  IN_APP_CLASS,
+  IN_APP_UA_RE,
   IntervalSchema,
   JOB_KINDS,
   JOB_STATES,
@@ -19864,6 +19883,8 @@ export {
   hoursRuns,
   hoursZoneWords,
   identityWords,
+  inAppBootScript,
+  inAppFrom,
   inboxSlots,
   inboxTemplates,
   indexFeed,

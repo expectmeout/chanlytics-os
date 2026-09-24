@@ -98,6 +98,35 @@ export function themeBootScript(): string {
   ].join("");
 }
 
+/**
+ * The native shell says who it is in its WebView's User-Agent, once: "ChanlyticsApp/1.2.0 (ios)". One regex reads
+ * it, here and in the script the document inlines beside the theme's (inAppBootScript), so the two cannot disagree.
+ */
+export const IN_APP_UA_RE = /ChanlyticsApp\/(\S+)(?:\s*\((ios|android)\))?/i;
+export type InAppPlatform = "ios" | "android" | "unknown";
+export interface InApp {
+  version: string;
+  platform: InAppPlatform;
+}
+export function inAppFrom(userAgent: string | null | undefined): InApp | null {
+  const m = IN_APP_UA_RE.exec(userAgent ?? "");
+  if (!m) return null;
+  const platform = (m[2] ?? "").toLowerCase();
+  return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
+}
+/** The class on <html> that in-app rules hang from; the legacy shell reads window.__IN_APP for the same fact. */
+export const IN_APP_CLASS = "in-app";
+/** Inline in the document head, before anything paints: the tab bar must never appear for a frame under the native one. */
+export function inAppBootScript(): string {
+  return [
+    "try{",
+    `var m=new RegExp(${JSON.stringify(IN_APP_UA_RE.source)},"i").exec(navigator.userAgent||"");`,
+    `if(m){document.documentElement.classList.add(${JSON.stringify(IN_APP_CLASS)});`,
+    'window.__IN_APP={version:m[1],platform:(m[2]||"unknown").toLowerCase()}}',
+    "}catch(e){}",
+  ].join("");
+}
+
 export type SidebarPref = "open" | "rail";
 export const isSidebarPref = (v: unknown): v is SidebarPref => v === "open" || v === "rail";
 
