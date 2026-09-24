@@ -135,11 +135,24 @@ const CallPane = ({ c, onBack = null }) => {
               <span aria-hidden="true">&larr;</span>
             </button>
           )}
-          <div className="ix-th-avatar">{c.initials.slice(0, 2)}</div>
-          <div className="ix-th-id">
-            <div className="ix-th-name">{c.who}</div>
-            <div className="ix-th-meta">Phone</div>
-          </div>
+          {/* Who the call was with opens their page, as the thread's header does (inbox-thread.jsx IxWho). */}
+          {window.IxWho ? (
+            <window.IxWho to={c.clientId ? `clients/${c.clientId}` : null} who={c.who} avatar={c.initials.slice(0, 2)}>
+              <div className="ix-th-name">
+                <span className="ix-th-name-words">{c.who}</span>
+                {c.clientId && <span className="ix-th-go" aria-hidden="true"><Icon name="chevron" size={10} /></span>}
+              </div>
+              <div className="ix-th-meta">Phone</div>
+            </window.IxWho>
+          ) : (
+            <>
+              <div className="ix-th-avatar">{c.initials.slice(0, 2)}</div>
+              <div className="ix-th-id">
+                <div className="ix-th-name">{c.who}</div>
+                <div className="ix-th-meta">Phone</div>
+              </div>
+            </>
+          )}
         </div>
         {c.clientId && (
           <div className="ix-th-actions">

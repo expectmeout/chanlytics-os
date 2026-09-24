@@ -838,7 +838,7 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
         ? <ul className="cl-prof-note-list">{shown.map(noteRow)}</ul>
         : waiting.length === 0 && !canEdit && <div className="cl-prof-aut-hint">{W.none}</div>}
       {kept.length > NOTES_SHOWN && (
-        <button type="button" className="cl-bucket-link cl-prof-note-all" onClick={() => setAll(!all)} data-testid="person-notes-all">
+        <button type="button" className="cl-bucket-link cl-prof-note-all" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAll(!all)) : setAll(!all))} data-testid="person-notes-all">
           {all ? W.showFewer : W.showAll(kept.length)}
         </button>
       )}
@@ -953,7 +953,8 @@ const TL_CAP = 20;
 
 // The timeline narrows by kind (contracts TIMELINE_FILTERS, through the bridge's window.__timeline): All, then
 // only the kinds this person's record holds. The choice is the page's, so this stays a plain function of its
-// props. A row that has somewhere to go IS the door -- the whole row, as a link, with the time as plain text.
+// props. A filter holds still (data-bits holdStill): on a phone, where History ends the page, a shorter list made
+// the page shorter and the strip jumped from under the thumb, 439px for Visits. A row that has somewhere to go IS the door -- the whole row, as a link, with the time as plain text.
 // Every message row used to hide its door in the time itself (a button that looked like a timestamp, underlined
 // on hover only), and on a touch screen the 44px floor on every button made each of those timestamps a 44px
 // line, so every row wore 27px of air.
@@ -965,16 +966,15 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
   // A fold of three rows is not worth a press.
   const visible = showAll || shown.length <= TL_CAP + 3 ? shown : shown.slice(0, TL_CAP);
   const older = shown.length - visible.length;
-  // The app's routes are hashes (`/#/inbox/th-…`). NOT window.__href: that is the bridge's API URL builder
+  // A row's door is the app's one link (data-bits routeDoor): its hash route in the href, so a new tab or a long press
+  // opens it, and the app's own way there on a plain press. NOT window.__href: that is the bridge's API URL builder
   // ("GET contacts/export" → a route table → `.path`), and handed a route it threw, and the whole pane with it.
-  const href = (to) => `#/${to}`;
-  const go = (to) => (e) => { if (e && e.preventDefault) e.preventDefault(); window.CHANLY.nav(to); };
   return (
     <>
       {offered.length > 2 && (
         <div className="cl-tabs cl-tl-filters" role="group" aria-label="Show on the timeline">
           {offered.map((f) => (
-            <button key={f.id} type="button" className={`cl-tab ${filter === f.id ? "active" : ""}`} aria-pressed={filter === f.id} onClick={() => onFilter(f.id)} data-testid={`timeline-filter-${f.id}`}>{f.label}</button>
+            <button key={f.id} type="button" className={`cl-tab ${filter === f.id ? "active" : ""}`} aria-pressed={filter === f.id} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => onFilter(f.id)) : onFilter(f.id))} data-testid={`timeline-filter-${f.id}`}>{f.label}</button>
           ))}
         </div>
       )}
@@ -1015,7 +1015,7 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
               <React.Fragment key={e.id}>
                 {dayHead}
                 {e.link ? (
-                  <a className="cl-tl-row cl-tl-row-door" href={href(e.link.to)} onClick={go(e.link.to)} title={e.link.label} data-testid="timeline-open">{body}</a>
+                  <a className="cl-tl-row cl-tl-row-door" {...window.routeDoor(e.link.to)} title={e.link.label} data-testid="timeline-open">{body}</a>
                 ) : (
                   <div className="cl-tl-row">{body}</div>
                 )}
@@ -1434,6 +1434,32 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // over the conversation it followed.
   const comingUp = p.comingUp || [];
   const past = p.timeline.filter((t) => !t.ahead);
+  // The card's three rows, each drawn at rest and, while its editor is a sheet on a phone, behind it.
+  const rmRow = window.RecordRow ? (
+    <window.RecordRow
+      id="person-receptionist"
+      label="Receptionist"
+      value={rmWord(rmEffective)}
+      source={rmPerson ? null : "workspace"}
+      act={isOwner ? { label: "Change", onClick: rmFold.request } : null}
+    />
+  ) : null;
+  const visitRow = window.RecordRow ? (
+    <window.RecordRow
+      id="person-visit"
+      label="Visit messages"
+      value={p.consent.answerLabel}
+      act={canRecord ? { label: "Change", onClick: visitFold.request } : null}
+    />
+  ) : null;
+  const offersRow = window.RecordRow ? (
+    <window.RecordRow
+      id="person-offers"
+      label="Offers & news"
+      value={p.consent.marketingLabel}
+      act={canRecord && p.consent.state !== "opted_out" ? { label: "Change", onClick: offersFold.request } : null}
+    />
+  ) : null;
   return (
     <div className="cl-profile">
       <div className="cl-prof-page">
@@ -1560,17 +1586,11 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 editor under the row (a sheet on a phone). The three were stacked controls with a paragraph under each,
                 1,249px of rail. The record kit's row and fold, as Settings › Business draws them; these save as they are
                 chosen, so their folds carry no Save, only Close. */}
+            {/* Each row stays in the card behind its sheet on a phone (`behind`), as Settings › Business keeps its rows:
+                taken out, the card was a row shorter under the wash, and everything under it moved up and back down. */}
             <div className="cl-prof-rec" data-testid="person-settings">
-              {rmFold.open ? null : (
-                <window.RecordRow
-                  id="person-receptionist"
-                  label="Receptionist"
-                  value={rmWord(rmEffective)}
-                  source={rmPerson ? null : "workspace"}
-                  act={isOwner ? { label: "Change", onClick: rmFold.request } : null}
-                />
-              )}
-              <window.RecordFold wide id="person-receptionist" label="Receptionist" open={rmFold.open} onCancel={rmFold.close}>
+              {rmFold.open ? null : rmRow}
+              <window.RecordFold wide id="person-receptionist" label="Receptionist" open={rmFold.open} onCancel={rmFold.close} behind={rmRow}>
                 <div data-testid="receptionist-mode">
                   <div className="cl-prof-autonomy" role="group" aria-label={`Receptionist for ${first === "them" ? "this person" : first}`}>
                     {["auto", "ask", "never"].map((m) => (
@@ -1608,15 +1628,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 made a signed marketing consent impossible to record: the profile then
                 claimed offers could go out, and the composer refused every one of them.
               */}
-              {visitFold.open ? null : (
-                <window.RecordRow
-                  id="person-visit"
-                  label="Visit messages"
-                  value={p.consent.answerLabel}
-                  act={canRecord ? { label: "Change", onClick: visitFold.request } : null}
-                />
-              )}
-              <window.RecordFold wide id="person-visit" label="Visit messages" open={visitFold.open} onCancel={visitFold.close}>
+              {visitFold.open ? null : visitRow}
+              <window.RecordFold wide id="person-visit" label="Visit messages" open={visitFold.open} onCancel={visitFold.close} behind={visitRow}>
                 <ConsentAsk
                   bare
                   testid="consent-control"
@@ -1639,15 +1652,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   }
                 />
               </window.RecordFold>
-              {offersFold.open ? null : (
-                <window.RecordRow
-                  id="person-offers"
-                  label="Offers & news"
-                  value={p.consent.marketingLabel}
-                  act={canRecord && p.consent.state !== "opted_out" ? { label: "Change", onClick: offersFold.request } : null}
-                />
-              )}
-              <window.RecordFold wide id="person-offers" label="Offers & news" open={offersFold.open} onCancel={offersFold.close}>
+              {offersFold.open ? null : offersRow}
+              <window.RecordFold wide id="person-offers" label="Offers & news" open={offersFold.open} onCancel={offersFold.close} behind={offersRow}>
                 <ConsentAsk
                   bare
                   testid="consent-marketing"

@@ -337,6 +337,31 @@ test("beside the wires, the person's next visit from People -- or their last -- 
   assert.ok(heard.includes("surface:clients"), "the header redraws when People lands");
 });
 
+test("REGRESSION: who the thread is with opens their page -- the face, the name and the line under it are one link; Actions › Open profile was the only way there", () => {
+  const went = [];
+  const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
+  const link = find(draw(vm, { onOpenClient: (id) => went.push(id) }), byTestId("ix-th-person"));
+  assert.ok(link, "a link to the person");
+  assert.equal(link.type, "a");
+  assert.equal(link.props.href, "#/clients/k1", "their page's address, so a long press or a new tab opens it too");
+  assert.ok(
+    find(link, hasClass("ix-th-avatar")) && find(link, hasClass("ix-th-name")) && find(link, hasClass("ix-th-meta")),
+    "the face, the name and the wires' line are one door, a thumb tall",
+  );
+  assert.equal(textOf(find(link, hasClass("ix-th-name-words"))), "Rosa Díaz");
+  let prevented = false;
+  link.props.onClick({ button: 0, preventDefault: () => (prevented = true) });
+  assert.deepEqual(went, ["k1"], "a press opens them the Inbox's own way");
+  assert.ok(prevented, "the app navigates, not the browser");
+  went.length = 0;
+  link.props.onClick({ button: 0, metaKey: true, preventDefault: () => (prevented = false) });
+  assert.deepEqual(went, [], "a new tab is the browser's");
+  // Someone with no person behind them (a caller never added) has no page: the same block, not a link.
+  const none = draw({ ...vm, clientId: null });
+  assert.equal(find(none, byTestId("ix-th-person")), undefined);
+  assert.ok(find(none, hasClass("ix-th-who")), "the face and the name stand as they did");
+});
+
 test("the header's menu says what it is -- Actions, with the chevron -- and stays a ghost beside the name", () => {
   // A ⋯ alone, in the dim ink, was too faint to find on a phone (Ruben, 22 Sep 2026). A word says it opens something.
   const menu = find(draw(toInboxThreadVM(conv(), asked, ZONE, NOW)), (n) => n.type === MoreMenu);

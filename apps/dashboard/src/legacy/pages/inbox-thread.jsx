@@ -415,6 +415,21 @@ const ixWires = (thread, labels) => {
 // A menu's groups, a divider between each two that have anything in them.
 const ixMenu = (groups) => groups.filter((g) => g.length).flatMap((g, i) => (i ? [{ divider: true }, ...g] : g));
 
+// Who a conversation is with: their face beside their name and the line under it (`children`). Where they have a page
+// (`to`), the three are one link to it, as a messaging app's header opens the contact: the whole block is the press, a
+// thumb tall on a phone, and the name underlines under a pointer. The call's own header (conversations.jsx) and Live's
+// name are the same door.
+const IxWho = ({ to = null, go = null, who, avatar, priority = null, children }) => {
+  const face = <div className="ix-th-avatar" data-priority={priority || undefined} aria-hidden={to ? "true" : undefined}>{avatar}</div>;
+  if (!to || !window.routeDoor) return <div className="ix-th-who">{face}<div className="ix-th-id">{children}</div></div>;
+  return (
+    <a className="ix-th-who" {...window.routeDoor(to, go)} title={`Open ${who} in People`} data-testid="ix-th-person">
+      {face}
+      <div className="ix-th-id">{children}</div>
+    </a>
+  );
+};
+
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
@@ -476,6 +491,20 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
       }))
     : [];
 
+  // Who this is opens their page: the face, the name and the line under it are one link (IxWho), as a messaging app's
+  // header is. The page was a press away only through Actions › Open profile. A caller with no person has no page.
+  const personTo = thread.clientId ? `clients/${thread.clientId}` : null;
+  // The seeded "Also in Leads" chip is a button of its own, so it stands beside the link, never inside it.
+  const alsoInLeads = thread.leadId ? (() => {
+    const ld = (window.LEADS || []).find((l) => l.id === thread.leadId);
+    const label = ld ? ({ ready: "Ready", qualifying: "Qualifying", new: "New", nurture: "Nurturing", converted: "Converted", archived: "Archived" }[ld.stage] || ld.stage) : null;
+    return (
+      <button className="ix-xlink" title="This decision also sits in your Leads queue" onClick={() => window.CHANLY.nav(window.CHANLY.R.lead(thread.leadId))}>
+        <Icon name="bolt" size={9} /> Also in Leads{label ? ` · ${label}` : ""}
+      </button>
+    );
+  })() : null;
+
   return (
     <header className="ix-th-head">
       <div className="ix-th-head-main">
@@ -486,25 +515,16 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             <span aria-hidden="true">&larr;</span>
           </button>
         )}
-        <div className="ix-th-avatar" data-priority={thread.priority}>{thread.avatar}</div>
-        <div className="ix-th-id">
+        <IxWho to={personTo} go={() => onOpenClient(thread.clientId)} who={thread.who} avatar={thread.avatar} priority={thread.priority}>
           <div className="ix-th-name">
-            {thread.who}
+            <span className="ix-th-name-words">{thread.who}</span>
             {thread.pinned && <Icon name="pin" size={11} style={{ color: "var(--ink-faint)" }} />}
             {thread.hasHumanContact && (
               <span className="ix-th-relation" title="Has spoken with a human before">
                 <Icon name="users" size={10} />
               </span>
             )}
-            {thread.leadId && (() => {
-              const ld = (window.LEADS || []).find((l) => l.id === thread.leadId);
-              const label = ld ? ({ ready: "Ready", qualifying: "Qualifying", new: "New", nurture: "Nurturing", converted: "Converted", archived: "Archived" }[ld.stage] || ld.stage) : null;
-              return (
-                <button className="ix-xlink" title="This decision also sits in your Leads queue" onClick={() => window.CHANLY.nav(window.CHANLY.R.lead(thread.leadId))}>
-                  <Icon name="bolt" size={9} /> Also in Leads{label ? ` · ${label}` : ""}
-                </button>
-              );
-            })()}
+            {personTo && <span className="ix-th-go" aria-hidden="true"><Icon name="chevron" size={10} /></span>}
           </div>
           <div className="ix-th-sub">
             <div className="ix-th-meta">{thread.real ? ixWires(thread, channelLabels || {}) : thread.whoMeta}</div>
@@ -524,7 +544,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
               </span>
             )}
           </div>
-        </div>
+        </IxWho>
+        {alsoInLeads}
       </div>
       <div className="ix-th-actions">
         {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
@@ -1677,8 +1698,9 @@ const InboxEmpty = () => (
 );
 
 window.InboxThread = InboxThread;
-// Conversations' call pane goes back the way the thread does.
+// Conversations' call pane goes back the way the thread does, and names who it is with as the thread does.
 window.ixSwipeBack = ixSwipeBack;
+window.IxWho = IxWho;
 // Conversations draws a call no thread holds as the thread draws one; where a thread opens is published for its test.
 window.ThreadCall = ThreadCall;
 window.ixOpensAt = ixOpensAt;
