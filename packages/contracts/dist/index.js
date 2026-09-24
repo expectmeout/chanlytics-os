@@ -17229,6 +17229,8 @@ function cardOpenRoute(p) {
     case "playbook":
       return "outbound";
     case "lead_search": {
+      const am = pl.amends ?? null;
+      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
       const undo = p.outcome?.undo ?? {};
       const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
       return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";

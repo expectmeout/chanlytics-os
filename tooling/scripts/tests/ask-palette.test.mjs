@@ -29,6 +29,7 @@ import {
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
+  leadQuestionRoute,
   leadsRoute,
   planArea,
   planCeiling,
@@ -1762,6 +1763,75 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     );
     assert.deepEqual(went, ["clients/leads:s-s1"], "the Line went to the new search");
     assert.equal(went[0], leadsRoute({ searchId: "s1", list: "all", cls: null }), "which is contracts' route for it");
+  } finally {
+    await closes();
+    globalThis.window.location.hash = hash;
+    globalThis.window.CHANLY = chanly;
+    delete globalThis.window.__LEADS;
+    delete globalThis.window.__LEAD_VM;
+  }
+});
+
+test("on Leads a card that answers a search commits through Ask's door with no undo, and the Line goes to the search's question", async () => {
+  const hash = globalThis.window.location.hash;
+  const chanly = globalThis.window.CHANLY;
+  const went = [];
+  globalThis.window.location.hash = "#/clients/leads";
+  globalThis.window.__LEADS = { suggestions: { items: [] }, searches: [] };
+  globalThis.window.__LEAD_VM = LEAD_VM;
+  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const answering = {
+    ...LEAD_CARD,
+    id: "p2",
+    summary: `Answers “Most of the first 25 are chain gyms. Include them?”: ${planSentence(LEAD_PLAN)}`,
+    payload: {
+      ...LEAD_CARD.payload,
+      plan: { ...LEAD_PLAN, version: 2 },
+      amends: {
+        search_id: "s1",
+        name: "personal trainers",
+        question: "Most of the first 25 are chain gyms. Include them?",
+      },
+    },
+    undo: null,
+  };
+  try {
+    ask([]);
+    const committed = [];
+    Object.assign(globalThis.window.__ask, {
+      commit: async (p) => {
+        committed.push(p.payload.amends);
+        return {
+          ok: true,
+          receipt: "Answered. personal trainers carries on with your answer; Leads shows it.",
+          undo: null,
+        };
+      },
+      outcome: async () => true,
+      undoOpen: () => false,
+      send: async (input, on) => {
+        on({ t: "thread", id: TH(9).id, title: input.text });
+        on({ t: "final", message: { ...said("m-lead", "Here is the plan."), proposals: [answering] } });
+      },
+    });
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "include them");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "lead_search");
+    typed(tree, "");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "plan-approve"));
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(committed, [answering.payload.amends], "the card commits as it came, its amends intact");
+    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."), "the receipt stays in the thread");
+    assert.deepEqual(
+      went,
+      [leadQuestionRoute("s1")],
+      "the Line went to the search that asked, on the pile it asked about",
+    );
   } finally {
     await closes();
     globalThis.window.location.hash = hash;

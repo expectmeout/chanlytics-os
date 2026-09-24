@@ -434,3 +434,44 @@ test("the card commits to POST lead-searches marked as Ask's, and its undo stops
     [true, "Stopping. Whatever it found is kept, and the emails already found are still checked."],
   );
 });
+
+test("a card that amends posts the answer to the search that asked, with no undo and opening on its question", async () => {
+  const { client, calls } = fakeClient({
+    [`POST /api/v1/lead-searches/${SEARCH3}/answer`]: { round_id: ROUND, answered: "include" },
+  });
+  const done = await commitProposal(
+    win,
+    {
+      id: "p2",
+      kind: "lead_search",
+      needs: "owner",
+      title: "Find 200 personal trainers",
+      summary: "…",
+      payload: {
+        plan: { ...PLAN, version: 2 },
+        amends: {
+          search_id: SEARCH3,
+          name: "Personal trainers in Austin",
+          question: "Most of the first 25 are chain gyms. Include them?",
+        },
+      },
+      undo: null,
+    },
+    client,
+  );
+  assert.deepEqual(
+    [done.ok, done.receipt, done.undo],
+    [true, "Answered. Personal trainers in Austin carries on with your answer; Leads shows it.", null],
+  );
+  assert.equal(calls[0].headers["x-via"], "ask");
+  assert.deepEqual(
+    calls[0].body,
+    { answer: "include", plan: { ...PLAN, version: 2 } },
+    "the plan the owner approved goes as the answer; the route sets its version and count",
+  );
+  assert.equal(
+    calls.some((c) => c.key === "POST /api/v1/lead-searches"),
+    false,
+    "REGRESSION: an answer started a new search",
+  );
+});

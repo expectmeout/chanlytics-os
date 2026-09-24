@@ -22,7 +22,7 @@ import {
   type AskReadSet,
   type FastCall,
 } from "./ask";
-import { leadsRoute } from "./leads";
+import { leadQuestionRoute, leadsRoute } from "./leads";
 
 /* ------------------------------------------------------------------ the shape */
 
@@ -138,6 +138,10 @@ export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome
     case "playbook":
       return "outbound";
     case "lead_search": {
+      // A card that answers a search opens on that search, on the pile it asked about; a card approved opens on the
+      // search it made.
+      const am = (pl.amends ?? null) as { search_id?: unknown } | null;
+      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
       // Approved, the outcome carries the search the commit made (commit.ts's undo), and Open lands on that search
       // rather than on All leads.
       const undo = (p.outcome?.undo ?? {}) as Record<string, unknown>;

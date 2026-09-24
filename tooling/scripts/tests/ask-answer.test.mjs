@@ -19,6 +19,7 @@ import {
   callsToday,
   cardOpenRoute,
   failedAnswer,
+  leadQuestionRoute,
   needsAnswer,
   normalizeAnswer,
   oneDoor,
@@ -163,6 +164,20 @@ test("a card's Open is the contract's: its page, the person's, or none, never a 
     cardOpenRoute({ kind: "lead_search", payload: {}, outcome: done({ search_id: "" }) }),
     "clients/leads",
     "never a route with a hole in it",
+  );
+  assert.equal(
+    cardOpenRoute({ kind: "lead_search", payload: { plan: {}, amends: { search_id: "s9" } } }),
+    leadQuestionRoute("s9"),
+    "a card that answers a search opens on that search, on the pile it asked about",
+  );
+  assert.equal(
+    cardOpenRoute({
+      kind: "lead_search",
+      payload: { plan: {}, amends: { search_id: "s9" } },
+      outcome: done({ search_id: ID }),
+    }),
+    leadQuestionRoute("s9"),
+    "and the amended search wins over the outcome's",
   );
   assert.equal(cardOpenRoute({ kind: "thread_verb", payload: { conversation_id: ID } }), `inbox/th-${ID}`);
   for (const k of ["reply", "steer", "whisper", "invite"])
