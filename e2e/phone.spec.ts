@@ -36,7 +36,7 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({
+  test("the ✦ in the tab bar opens Ask as the takeover and hides while the takeover is open, and the top bar says neither Ask nor the theme again", async ({
     page,
   }) => {
     await page.goto("/#/today");
@@ -64,7 +64,7 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(pal).toBeVisible();
     await expect(fab).toBeHidden();
     await expect(page.getByTestId("ask-input")).toBeVisible();
-    // The line is at the thumb: docked at the foot of the sheet, what it answers rising above it (the Line, 6.7).
+    // The line is at the thumb: docked at the foot of the takeover, what it answers rising above it (the Line, 6.7).
     const line = (await page.getByTestId("ask-line").boundingBox())!;
     expect(line.y + line.height, "the line sits at the foot").toBeGreaterThan(page.viewportSize()!.height - 120);
     await page.screenshot({ path: "test-results/phone-ask.png" });
@@ -80,7 +80,7 @@ test.describe("Phone shell on a real workspace", () => {
     // colour for as long as the element that gave it is still rendered (WebKit, Page::updateFixedContainerEdges).
     // A drawer parked at translateX(-102%) is rendered, so the scrim's grey outlived the drawer until a reload; one
     // that is display: none is not. The scrim carries a backdrop-filter, which that sampler reads as glass and leaves
-    // the strip alone, as it does for the Ask sheet. Safari's bar itself is Ruben's to look at; this proves the shape
+    // the strip alone, as it does for Ask's takeover. Safari's bar itself is Ruben's to look at; this proves the shape
     // the bar reads.
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");

@@ -10077,6 +10077,9 @@ function rightNowLine(w, language) {
   const s = [people, runs].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
+function rightNowCounts(w) {
+  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+}
 function needsAnswer(w, language) {
   const es = language === "es";
   const a = structured(rightNowLine(w, language), language);
@@ -10099,7 +10102,7 @@ function needsAnswer(w, language) {
     }))
   ];
   a.show.items = all.slice(0, ASK_ANSWER_CAPS.items);
-  const total = w.people.length + w.more;
+  const total = rightNowCounts(w).people;
   const shownPeople = a.show.items.filter((i) => i.source.kind !== "page").length;
   if (total > shownPeople)
     a.do.open = {
@@ -20140,6 +20143,7 @@ export {
   reviewReplyWords,
   reviewSnippet,
   reviewsWords,
+  rightNowCounts,
   rightNowLine,
   roleGate,
   ruleNeedsCalendar,

@@ -61,10 +61,6 @@ await import(`${L}/pages/dashboard-a-brief.jsx`);
 await import(`${L}/pages/dashboard-a-command.jsx`);
 await import(`${L}/pages/dashboard-a-day.jsx`);
 await import(`${L}/pages/dashboard-a-week.jsx`);
-// The band above the queue reads the palette's words and hooks.
-await import(`${L}/pages/ask-text.jsx`);
-await import(`${L}/pages/ask-hooks.jsx`);
-await import(`${L}/pages/today-face.jsx`);
 await import(`${L}/pages/dashboard-a.jsx`);
 const W = globalThis.window;
 
@@ -1402,8 +1398,8 @@ test("the page is three bands and nothing seeded: the standing line, the queue w
   const page = find(tree, (n) => classes(n).includes("dash-a-v2"));
   assert.deepEqual(
     page.props.children.map((c) => (typeof c.type === "function" ? c.type.name : String(c.props.className))),
-    // The three (today-face.jsx) between the standing line and the queue; its stylesheet draws them on a phone only.
-    ["HeroBrief", "TodayFace", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
+    // No band above the queue: on a phone Ask is the ✦'s full-screen takeover (ask-real.jsx), not a part of Today.
+    ["HeroBrief", "dash-a-v2-core", "TodayCard", "dash-a-v2-foot"],
   );
   const core = find(tree, (n) => classes(n).includes("dash-a-v2-core"));
   assert.deepEqual(

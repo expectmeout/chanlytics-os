@@ -6,12 +6,10 @@
 import { createCharacter, fitSide, STATES, UNITS } from "./character";
 import { mountCharacter } from "./driver";
 import { createMood, follow } from "./mood";
-import { initialTurn, turnReducer } from "./turn";
 
 export const MASCOT = {
   mount: mountCharacter,
   create: createCharacter,
-  turn: { initial: initialTurn, reduce: turnReducer },
   mood: createMood(),
   follow,
   fitSide,

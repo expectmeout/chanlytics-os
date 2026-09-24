@@ -1,12 +1,12 @@
 /* global React */
-// Ask's words, in the person's language. One table, read by every part of the
-// Line and by Today's band through window.askText(lang). Nothing else in them
+// Ask's words, in the person's language. One table, read by every part of Ask
+// through window.askText(lang). Nothing else in them
 // carries a user-facing string, but the answers' own sentences, which are
 // contracts' (ask-answer.ts). No key symbol is drawn (the Line, D17).
 
 const ASK_TEXT = {
   en: {
-    placeholder: "Ask, or jump to a page, person or thread…",
+    placeholder: "Ask anything",
     follow: "Follow up…",
     jump: "Jump to",
     nothing: "Nothing matches. Ask it as a question.",
@@ -55,10 +55,12 @@ const ASK_TEXT = {
     micFailed: "Couldn't hear you — try again or type it.",
     micBlocked: "The microphone is blocked for this site. Allow it in the browser’s site settings — the lock beside the address, or on iPhone the aA menu, Website Settings — then press again.",
     noVoice: "Voice needs Chrome, Edge or Safari; this browser can't listen. Type instead.",
-    // Today's band (today-face.jsx): the three, asking on the page.
-    todayPlaceholder: "Ask about today…",
-    continueInAsk: "Continue in Ask",
-    reviewInAsk: "Review in Ask",
+    askSend: "Ask",
+    briefMe: "Brief me",
+    letGo: "Let go to ask",
+    typeInstead: "Type instead",
+    needYou: (n) => (n === 1 ? "1 needs you" : `${n} need you`),
+    runsWaiting: (n) => (n === 1 ? "1 run waiting" : `${n} runs waiting`),
     clear: "Clear",
     noSpeech: "This browser can't read aloud.",
     cutOff: "The answer was cut off. Try again.",
@@ -75,7 +77,7 @@ const ASK_TEXT = {
     kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "playbook", kLeads: "Leads", kDeal: "deal",
   },
   es: {
-    placeholder: "Pregunta, o salta a una página, persona o hilo…",
+    placeholder: "Pregunta lo que quieras",
     follow: "Sigue preguntando…",
     jump: "Ir a",
     nothing: "Nada coincide. Pregúntalo.",
@@ -124,9 +126,12 @@ const ASK_TEXT = {
     micFailed: "No te oí — inténtalo de nuevo o escríbelo.",
     micBlocked: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del sitio del navegador — el candado junto a la dirección, o en iPhone el menú aA, Ajustes del sitio web — y vuelve a pulsar.",
     noVoice: "La voz necesita Chrome, Edge o Safari; este navegador no puede escuchar. Escríbelo.",
-    todayPlaceholder: "Pregunta sobre hoy…",
-    continueInAsk: "Seguir en Ask",
-    reviewInAsk: "Revisar en Ask",
+    askSend: "Preguntar",
+    briefMe: "Resúmeme",
+    letGo: "Suelta para preguntar",
+    typeInstead: "Escribir",
+    needYou: (n) => (n === 1 ? "1 te necesita" : `${n} te necesitan`),
+    runsWaiting: (n) => (n === 1 ? "1 envío en espera" : `${n} envíos en espera`),
     clear: "Borrar",
     noSpeech: "Este navegador no puede leer en voz alta.",
     cutOff: "Se cortó la respuesta. Inténtalo de nuevo.",
