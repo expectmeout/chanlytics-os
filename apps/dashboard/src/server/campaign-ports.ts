@@ -6,10 +6,7 @@
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
 import type { Json } from "@chanlytics/db";
-import {
-  numberHealth,
-  parseTenantConfig,
-} from "@chanlytics/contracts";
+import { numberHealth, parseTenantConfig } from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
