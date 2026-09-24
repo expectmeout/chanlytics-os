@@ -1217,13 +1217,13 @@ test("the call_summary row IS the note: the call lands on the thread, and nothin
 
 test("a price spoken aloud: the owner is told (policy_block), and the live call is corrected once through the provider -- worked into the next answer, never read out", async () => {
   const w = world();
-  // A receptionist with a booking link, so the correction offers it: the webhook reads this workspace's own answer.
+  // A receptionist with no booking link (one that quotes each job), so the correction takes the details: the webhook
+  // reads this workspace's own answer, where no config at all, or a hard-coded answer, would offer the link.
   w.tables.tenant_config.push({
     tenant_id: w.T,
     config: {
       brain: {
         business_name: "Harbor Moving",
-        booking_link: "https://book.example/harbor",
         system_prompt: "Answer as the front desk of Harbor Moving: brief and warm, and never guess a price.",
         fallbacks: { greeting: "g", error: "e", non_text: "n" },
       },
@@ -1262,7 +1262,7 @@ test("a price spoken aloud: the owner is told (policy_block), and the live call 
       ["PATCH", "Bearer api-key-for-this-file"],
     );
     assert.deepEqual(JSON.parse(patched[0].init.body), {
-      call_control: { additional_context: frameGuardrail("price", true), trigger_response: false },
+      call_control: { additional_context: frameGuardrail("price", { hasBookingLink: false }), trigger_response: false },
     });
 
     // The next turn still carries the breach: the receptionist is told once

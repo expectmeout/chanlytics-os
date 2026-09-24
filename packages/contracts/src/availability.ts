@@ -757,16 +757,16 @@ export function describeOpenings(
 ): string {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  const link = opts.hasBookingLink;
+  const hasLink = opts.hasBookingLink;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${link ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
   }
   const lines = openings
     .slice(0, maxDays)
     .map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return (
     `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
-    (link
+    (hasLink
       ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
       : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
   );

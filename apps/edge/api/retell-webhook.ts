@@ -462,7 +462,7 @@ export async function POST(request: Request): Promise<Response> {
           // What the correction offers is what this receptionist offers: the link, or the details for a business with none.
           const { brain } = await loadTenantRuntime(db, routed);
           const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, n.retellCallId, {
-            additionalContext: frameGuardrail(guard.breach.rule, offersBookingLink(brain)),
+            additionalContext: frameGuardrail(guard.breach.rule, { hasBookingLink: offersBookingLink(brain) }),
             // Never by decree. Every whisper this product sends is worked
             // into the next answer rather than spoken on command, and a
             // correction the caller hears being read out is a second mistake

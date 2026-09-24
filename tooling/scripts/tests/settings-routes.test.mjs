@@ -440,7 +440,7 @@ test("a receptionist with no booking link (one that quotes each job) is read as 
     settings.PUT.run(send("PUT", { config: { brain }, version: 4 }, inA), ctxFor(tables)),
     "validation",
     400,
-    "Config rejected — brain.booking_link: The receptionist needs a booking link before it can answer anyone.",
+    "Config rejected — brain.booking_link: The receptionist needs a booking link to send anyone who wants to book.",
   );
   assert.equal(tables.tenant_config[0].version, 4, "and nothing is saved");
 });

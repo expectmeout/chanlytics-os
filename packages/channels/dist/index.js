@@ -656,13 +656,10 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
   }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({

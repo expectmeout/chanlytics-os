@@ -661,6 +661,9 @@ var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
 }
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
 
 // src/availability.ts
 function zoneParts(tz, at2) {
@@ -1128,14 +1131,14 @@ function span(tz, start, end) {
 function describeOpenings(openings, tz, opts) {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  const link = opts.hasBookingLink;
+  const hasLink = opts.hasBookingLink;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${link ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
-` + (link ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+` + (hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -1351,11 +1354,11 @@ function frameWhisper(text) {
 ${OPEN}${text.trim()}"
 Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
 }
-function frameGuardrail(rule, hasBookingLink) {
+function frameGuardrail(rule, opts) {
   const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
   return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
 ${what}
-Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}. Do not repeat the figure, and never read this out.`;
+Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
 }
 function frameSteer(text) {
   return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
@@ -2946,13 +2949,10 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
   }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -3134,12 +3134,15 @@ var PROMPT_OPENINGS = {
   /** Above the owner's own words on a call, alone or after the line above. */
   ownWordsOnACall: "Some of it was written for text conversations"
 };
+function noLinkBooking(channel) {
+  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+}
 function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const s = [];
-  const link = base.booking_link || null;
+  const link = offersBookingLink(base) ? base.booking_link : null;
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -3230,7 +3233,7 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.
+` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `${noLinkBooking("voice")}
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
@@ -3253,7 +3256,7 @@ ${text}` : `
 ${text}`);
   }
   const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
-  const chatMedium = link ? "Send the booking link rather than describing how to book." : `There is no booking link to send. When someone wants to book or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice" ? `
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
@@ -3267,7 +3270,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   const rules = [];
   if (g.never_quote_prices) {
     rules.push(
-      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${link ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}.`
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`
     );
   }
   if (g.never_confirm_booking) {
@@ -3296,7 +3299,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}`);
 }
 function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
   if (!hasProfile(brain.profile)) {
-    const rules = policyRules(policy, channel);
+    const rules = [...offersBookingLink(brain) ? [] : [noLinkBooking(channel)], ...policyRules(policy, channel)];
     return rules.length ? `${brain.system_prompt}
 
 ${PROMPT_OPENINGS.rules}
@@ -4090,12 +4093,12 @@ function visitStartTime(v, tz) {
 function visitLine(v, tz, nowMs) {
   return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
 }
-function describeVisits(visits, tz, nowMs, hasBookingLink) {
+function describeVisits(visits, tz, nowMs, opts) {
   const out = [];
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
     );
   }
   if (visits.last) {
@@ -20229,6 +20232,7 @@ export {
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
   BOOKING_DEFAULTS,
+  BOOKING_LINK_NEEDED,
   BOOKING_RULE_HINTS,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
@@ -21193,6 +21197,7 @@ export {
   policyRules,
   poolWords,
   previewHorizon,
+  priceNextStep,
   priceWords,
   priorOf,
   profileRefusal,

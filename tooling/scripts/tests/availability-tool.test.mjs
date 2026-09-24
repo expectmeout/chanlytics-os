@@ -547,60 +547,63 @@ test("a workspace that confirms its own bookings is not given times to read out"
   }
 });
 
-test("a business with no booking link (one that quotes each job): no calendar is the caller's details taken, and the times it does read end in them", async () => {
-  const T = "cccccccc-0000-4000-8000-00000000b3b2";
-  const AGENT = "agent_availability_no_link";
-  setPg(
-    fakeDb(
-      {
-        tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
-        tenant_channels: [
-          {
-            id: "voice-nl",
-            tenant_id: T,
-            kind: "voice",
-            external_id: AGENT,
-            number_e164: "+13055550100",
-            status: "active",
-            credentials_ref: null,
-            config: {},
-          },
-        ],
-        tenant_config: [
-          {
-            tenant_id: T,
-            config: {
-              brain: {
-                business_name: "Harbor Moving",
-                system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
-                fallbacks: { greeting: "g", error: "e", non_text: "n" },
-              },
+test("a business with no booking link (one that quotes each job): no calendar is the caller's details taken, one it cannot read a call back, and the times it does read end in the details", async () => {
+  const brain = {
+    business_name: "Harbor Moving",
+    system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  /** The door's answer for a workspace of its own holding `config`: one world each, so no runtime is carried over. */
+  const ask = async (n, config) => {
+    const T = `cccccccc-0000-4000-8000-00000000b3b${n}`;
+    const AGENT = `agent_availability_no_link_${n}`;
+    setPg(
+      fakeDb(
+        {
+          tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
+          tenant_channels: [
+            {
+              id: `voice-nl-${n}`,
+              tenant_id: T,
+              kind: "voice",
+              external_id: AGENT,
+              number_e164: "+13055550100",
+              status: "active",
+              credentials_ref: null,
+              config: {},
             },
-          },
-        ],
-        policies: [],
-        google_listings: [],
-      },
-      {},
-      { runtime_stamp: () => "stamp-no-link" },
-    ),
+          ],
+          tenant_config: [{ tenant_id: T, config }],
+          policies: [],
+          google_listings: [],
+        },
+        {},
+        { runtime_stamp: () => `stamp-no-link-${n}` },
+      ),
+    );
+    try {
+      const res = await door.POST(
+        new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+          body: JSON.stringify({ call: { call_id: `call_no_link_${n}`, agent_id: AGENT }, args: {} }),
+        }),
+      );
+      assert.equal(res.status, 200);
+      return (await res.json()).result;
+    } finally {
+      setPg(null);
+    }
+  };
+  assert.equal(
+    await ask(2, { brain }),
+    "There is no calendar to check. Take their name, what they need, and where and when, and say the team will follow up.",
   );
-  try {
-    const res = await door.POST(
-      new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
-        body: JSON.stringify({ call: { call_id: "call_no_link", agent_id: AGENT }, args: {} }),
-      }),
-    );
-    assert.equal(res.status, 200);
-    assert.equal(
-      (await res.json()).result,
-      "There is no calendar to check. Take their name, what they need, and where and when, and say the team will follow up.",
-    );
-  } finally {
-    setPg(null);
-  }
+  // A feed it cannot read the openings from: here, no hours to read them against, so nothing is fetched.
+  assert.equal(
+    await ask(3, { brain, calendar: { ical_url: "https://calendar.example.com/harbor.ics" } }),
+    "I can't see the calendar right now. Offer to have someone call back.",
+  );
   const now = new Date(ny(2026, 9, 9, 8));
   const openings = freeWindows({
     hours: { wed: { open: "09:00", close: "18:00" } },

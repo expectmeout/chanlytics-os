@@ -59,6 +59,10 @@ both apps, so this ships alone and writes nothing.
 - **The shared voice shell.** Its tool descriptions still name the booking link, because changing them is an agent
   update for every workspace. The per-call prompt tells a workspace with no link not to use the tool, and the tool
   answers with the details if it is used anyway.
+- **A deal from the details.** Decision 2 has the receptionist take a customer's details "for a deal". Here it
+  takes them, and the team is told the way a handoff is told today: in chat by escalating, on a call by the call's
+  analysis asking for a call back. Opening the deal stays the team's, as on any Pipeline workspace today. Whether
+  the receptionist should open one itself is not decided by this PR or by 3c.
 
 ## Files
 
@@ -415,7 +419,7 @@ test("the openings, a caller's appointment and a correction on a call each end i
   `` `... that the team confirms it, and ${hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}. ` ``.
   Import `NO_LINK_DETAILS`.
 
-- [ ] **Step 6: The callers.** Each passes the workspace's own answer: `!!<brain>?.booking_link`.
+- [ ] **Step 6: The callers.** Each passes the workspace's own answer: `offersBookingLink(<brain>)` (as built; see the note at the end).
   - `apps/edge/lib/calendar/availability.ts`:
     - `openingsFor`: `{ daysAhead: data.daysAhead, hasBookingLink: !!rt.brain?.booking_link }`.
     - `visitsFor`: add `!!rt.brain?.booking_link` as the fourth argument.
@@ -507,7 +511,7 @@ const NO_CALENDAR_NO_LINK = `There is no calendar to check. Take ${NO_LINK_DETAI
 
   - `availabilityAnswer`'s `opts` becomes `{ client?: boolean; hasBookingLink: boolean }` (required), and its
     `describeOpenings` passes `hasBookingLink: opts.hasBookingLink`.
-  - In `POST`, after the booking-held answer, add `const hasBookingLink = !!rt.brain?.booking_link;`.
+  - In `POST`, after the booking-held answer, add `const hasBookingLink = offersBookingLink(rt.brain);`.
   - The no-calendar answer becomes `hasBookingLink ? NO_CALENDAR : NO_CALENDAR_NO_LINK`, and the could-not-read one
     `hasBookingLink ? CANNOT_SEE : CANNOT_SEE_NO_LINK`. An unrouted call keeps `CANNOT_SEE`: with no workspace, there
     is no link to ask about.
@@ -622,3 +626,45 @@ test("the facts port answers with the business name alone: no link is null, and 
   - nothing to set;
   - either deploy order.
 - [ ] Watch CI, squash-merge on green, and check main's run.
+
+## As built (24 September 2026)
+
+Tasks 0 to 6 as planned, then one whole-branch review (standards and spec) and one fix round.
+
+**Before the review, from the whole suite.** A workspace with no receptionist config at all is not one with no link.
+Nothing is known about it, and a call is then told `FACTS_UNAVAILABLE`, which offers the link. So the rule "does this
+receptionist offer the link?" is one predicate, `offersBookingLink(brain)` in `no-booking-link.ts`: yes unless the
+config is known to hold none. Every reader uses it. `voice-booking-link.test.mjs` caught the difference.
+
+**Fixed in the review round.**
+- **A stored prompt.** A receptionist answered from its own stored prompt (no details to compose from) is told there
+  is no link too, first among the rules after it. It was told nothing, and on a call could reach for the shell's
+  tool. With a link, a stored prompt is byte for byte what it was.
+- **Changes and cancellations.** The no-link line covers changing or cancelling a booking as well as booking and a
+  quote, on both channels. In chat, a caller's appointment says "the team will follow up", and only an escalation
+  tells the team.
+- **One sentence per refusal.** A save with no link is refused in one sentence, `BOOKING_LINK_NEEDED`: "The
+  receptionist needs a booking link to send anyone who wants to book." Its old words ("before it can answer anyone")
+  stopped being true once a receptionist with no link is answered. The Business tab's own check says the same, and
+  `business-tab-create.test.mjs` holds the two equal.
+- **The price offer.** The phrase that follows a price declined ("offer the booking link", or the details) is
+  `priceNextStep`, shared by the prompt's rule and the call's correction.
+- **Named flags.** `describeVisits` and `frameGuardrail` take `{ hasBookingLink }`, not a bare boolean.
+- **Tests that run the code.**
+  - `visitsFor` without a link is run over a served feed, and its source pin no longer pins the new argument.
+  - The webhook's correction is proven with a receptionist with no link. With a link, a hard-coded answer would
+    have passed too.
+  - The calendar tool's could-not-read answer is covered.
+
+**Kept on purpose.**
+- **A withheld number, then no link.** A caller whose number cannot be read is asked to read it back before the
+  workspace is known, even when that workspace has no link. That check runs before anything is read, by design, and
+  a door test pins it. The prompt already tells a workspace with no link never to use the tool.
+- **The Inbox's refusal with no facts** still says "Add the business name and booking link". A workspace with no
+  receptionist needs both to save one until 3c.
+- **Two questions about a template's link.** The Inbox's refusal asks the slots the Inbox fills (`inboxSlots`).
+  `bookingTemplate` asks the default kinds the voice send picks by. They differ on a template whose slots were never
+  recorded, which the Inbox sends with its two (I6).
+- **The Business tab's words for a stored prompt.** "Followed only by any rules your Autonomy tab adds"
+  (`RULES_WITHOUT_FIELDS_WORDS`) is not true of a receptionist with no link and no composed details. Nothing can
+  save one until 3c, and those words may be on a live workspace's tab, so 3c changes them with how customers buy.

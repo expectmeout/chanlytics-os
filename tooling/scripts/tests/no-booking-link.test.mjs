@@ -54,7 +54,7 @@ test("the read takes a receptionist with no booking link; the save still refuses
   assert.equal(saved.success, false, "nothing saves one until the first run's Check asks how customers buy");
   assert.deepEqual(
     saved.error.issues.map((i) => [i.path.join("."), i.message]),
-    [["brain.booking_link", "The receptionist needs a booking link before it can answer anyone."]],
+    [["brain.booking_link", "The receptionist needs a booking link to send anyone who wants to book."]],
   );
   assert.equal(TenantConfigWriteSchema.safeParse({ brain: BOOKS }).success, true, "one with a link saves as before");
   assert.equal(TenantConfigWriteSchema.safeParse({}).success, true, "and a config with no receptionist yet");
@@ -104,13 +104,13 @@ test("the prompt says what it does instead, on both channels, wherever it would 
   }
   assert.ok(
     chat.includes(
-      `There is no booking link to send. When someone wants to book or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`,
+      `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`,
     ),
     "in chat, escalating is what tells the team",
   );
   assert.ok(
     call.includes(
-      `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.`,
+      `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.`,
     ),
     "the tool is on the shell every workspace shares, so it is named to be left alone",
   );
@@ -118,6 +118,23 @@ test("the prompt says what it does instead, on both channels, wherever it would 
   const resolved = resolveSystemPrompt({ ...QUOTES, profile: PROFILE }, "voice");
   assert.ok(resolved.includes("Booking: there is no booking link, so never use send_booking_link."));
   assert.doesNotMatch(resolved, /Booking link:|undefined|null/, "the resolver hands the composer no link, not a hole");
+  // Booking held on the Autonomy tab as well: both say the team follows up, and neither offers a link.
+  const held = composeSystemPrompt(base, PROFILE, "voice", null, new Date(), { booking: { mode: "ask" } });
+  assert.ok(held.includes("Booking: there is no booking link, so never use send_booking_link."));
+  assert.ok(held.includes("Say a member of the team will call or text them to confirm, and take their name."));
+});
+
+test("a receptionist answered from its own stored prompt is told there is no link too, first among the rules after it; one with a link keeps its prompt byte for byte", () => {
+  for (const channel of ["whatsapp", "voice"]) {
+    const told = resolveSystemPrompt(QUOTES, channel);
+    assert.ok(told.startsWith(`${QUOTES.system_prompt}\n\nRules you must follow:\n- `), told);
+    assert.ok(told.includes("no booking link"), channel);
+    assert.equal(resolveSystemPrompt(BOOKS, channel), BOOKS.system_prompt, channel);
+  }
+  assert.ok(
+    resolveSystemPrompt(QUOTES, "voice").includes("never use send_booking_link"),
+    "the shell's tool, named to be left alone on a stored prompt as on a composed one",
+  );
 });
 
 test("the messages sent in its name leave out the link's sentence, and nothing else", () => {
@@ -151,10 +168,10 @@ test("the openings, a caller's appointment and a correction on a call each end i
     next: { id: "v1", start: monday, end: monday + 3_600_000, title: "Estimate visit", allDay: false, via: "phone" },
     last: null,
   };
-  const said = describeVisits(visits, TZ, monday - 86_400_000, false);
+  const said = describeVisits(visits, TZ, monday - 86_400_000, { hasBookingLink: false });
   assert.ok(said.includes("to change or cancel it, say the team will follow up — nothing is changed from here."));
   assert.doesNotMatch(said, /booking link/);
-  const corrected = frameGuardrail("price", false);
+  const corrected = frameGuardrail("price", { hasBookingLink: false });
   assert.ok(
     corrected.includes(
       `say you cannot confirm pricing yourself, that the team confirms it, and take ${NO_LINK_DETAILS}.`,

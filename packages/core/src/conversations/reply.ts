@@ -317,7 +317,9 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
       );
     const slots = inboxSlots(tpl);
     // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still
-    // go; one that sends the link is refused here, in words, rather than sent with the slot empty.
+    // go; one that sends the link is refused here, in words, rather than sent with the slot empty. Asked of the slots
+    // the Inbox fills, not bookingTemplate's default kinds: a template whose slots were never recorded is sent with
+    // the Inbox's two, the business name and the link (I6), so here it takes the link.
     if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
       throw new AppError(
         "validation",

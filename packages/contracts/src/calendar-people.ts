@@ -428,12 +428,17 @@ export function visitLine(
  * reads details back. With no booking link to send (the first run's
  * decision 2), a change goes to the team.
  */
-export function describeVisits(visits: Visits, tz: string, nowMs: number, hasBookingLink: boolean): string | null {
+export function describeVisits(
+  visits: Visits,
+  tz: string,
+  nowMs: number,
+  opts: { hasBookingLink: boolean },
+): string | null {
   const out: string[] = [];
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
     );
   }
   if (visits.last) {

@@ -305,7 +305,7 @@ test("an address is read after the number and before the name, so a customer boo
   );
 
   assert.ok(
-    !describeVisits(v, TZ, NOW, true).includes("Matched by name only"),
+    !describeVisits(v, TZ, NOW, { hasBookingLink: true }).includes("Matched by name only"),
     "an address is exact: it needs no are-you-sure, no more than a number does",
   );
 });
@@ -392,7 +392,7 @@ test("their visits: the next one that has not ended, the latest one that has; th
 
 test("the receptionist's lines: the next appointment, the last visit, the rule that nothing changes here, and a name-only match flagged", () => {
   const f = feed();
-  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW, true);
+  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(
     words,
     "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.",
@@ -401,13 +401,13 @@ test("the receptionist's lines: the next appointment, the last visit, the rule t
     visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN),
     TZ,
     NOW,
-    true,
+    { hasBookingLink: true },
   );
   assert.ok(byName.includes("Matched by name only — make sure it is them before confirming details."));
-  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, true);
+  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
   assert.equal(
-    describeVisits({ next: null, last: null }, TZ, NOW, true),
+    describeVisits({ next: null, last: null }, TZ, NOW, { hasBookingLink: true }),
     null,
     "nothing to say is null, never a sentence",
   );
@@ -567,7 +567,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
-      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),\s*offersBookingLink\(rt\.brain\),?\s*\);/.test(
+      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -1745,4 +1745,37 @@ test("a visit's title drops the person's own name at its end, and nothing else: 
   );
   assert.equal(visitTitleFor("Maria Lopez - Balayage", "Maria Lopez"), "Balayage", "or at its start");
   assert.equal(visitTitleFor("Maria Lopezz - Balayage", "Maria Lopez"), "Maria Lopezz - Balayage", "not a longer word");
+});
+
+test("a caller's appointment, told to a receptionist with no booking link, is changed through the team; with a link, or with no config to know by, by the link", async () => {
+  const { visitsFor, forgetFeeds } = await import("../../../apps/edge/lib/calendar/availability.ts");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  const quotes = {
+    business_name: "Luna Studio",
+    system_prompt: "Answer as the front desk of Luna Studio, warmly and briefly, and never a price.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const rt = (brain) => ({
+    tenantId: "t-visits-no-link",
+    calendar: { ical_url: "https://calendar.example.com/luna.ics" },
+    timezone: TZ,
+    notifications: null,
+    brain,
+  });
+  const maria = { phone: PEOPLE[0].phone, name: null };
+  try {
+    const noLink = await visitsFor(rt(quotes), maria, new Date(NOW));
+    assert.ok(
+      noLink.includes("to change or cancel it, say the team will follow up — nothing is changed from here."),
+      noLink,
+    );
+    const linked = await visitsFor(rt({ ...quotes, booking_link: "https://book.example/luna" }), maria, new Date(NOW));
+    assert.ok(linked.includes("to change or cancel it, send the booking link"), linked);
+    const unknown = await visitsFor(rt(null), maria, new Date(NOW));
+    assert.ok(unknown.includes("send the booking link"), "nothing known: the link, as the call itself is told");
+  } finally {
+    globalThis.fetch = realFetch;
+    forgetFeeds();
+  }
 });

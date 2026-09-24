@@ -786,13 +786,10 @@ function checkClosure(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
   }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -7494,13 +7491,10 @@ function checkClosure2(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED2 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z32.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED2 });
   }
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -10268,13 +10262,10 @@ function checkClosure3(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED3 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z33.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED3 });
   }
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -12071,13 +12062,10 @@ function checkClosure22(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED22 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z322.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z322.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED22 });
   }
   if (cfg.calendar && !feedUrlOk22(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -13847,13 +13835,10 @@ function checkClosure32(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED32 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z332.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z332.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED32 });
   }
   if (cfg.calendar && !feedUrlOk32(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -16143,13 +16128,10 @@ function checkClosure4(c2, n2, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED4 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({
-      code: z34.ZodIssueCode.custom,
-      path: ["brain", "booking_link"],
-      message: "The receptionist needs a booking link before it can answer anyone."
-    });
+    ctx.addIssue({ code: z34.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED4 });
   }
   if (cfg.calendar && !feedUrlOk4(cfg.calendar.ical_url)) {
     ctx.addIssue({

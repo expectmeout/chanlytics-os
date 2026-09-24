@@ -45,6 +45,7 @@ import {
   inboxSlots,
   NO_LINK_DETAILS,
   normalizePhone,
+  offersBookingLink,
   policyAskClass,
   purposeOfTemplate,
   renderTemplate,
@@ -177,7 +178,7 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_fn_no_persona", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEND });
   }
-  if (!brain.booking_link) {
+  if (!offersBookingLink(brain)) {
     L.info("retell_fn_no_link", { tenant: routed.tenantId });
     return json(200, { result: NO_LINK });
   }
@@ -312,7 +313,7 @@ export async function POST(request: Request): Promise<Response> {
       // resolveParams writes "there", which is true, rather than a gap.
       firstName: null,
       businessName: brain.business_name,
-      bookingLink: brain.booking_link.replace(/^https?:[/][/]/, ""),
+      bookingLink: brain.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
     });
     // The door every send leaves through. It re-reads consent, the pause and
     // the workspace's status at the wire, sends on the TENANT's credentials

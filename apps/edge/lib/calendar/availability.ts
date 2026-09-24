@@ -233,7 +233,7 @@ export async function visitsFor(
       visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
-      offersBookingLink(rt.brain),
+      { hasBookingLink: offersBookingLink(rt.brain) },
     );
   } catch (e) {
     L.error("availability_visits_failed", { error: errField(e) });
