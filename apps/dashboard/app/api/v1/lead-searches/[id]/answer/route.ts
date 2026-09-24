@@ -3,11 +3,11 @@ import { AppError, LeadSearchPlanSchema } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, refusalOf, searchRow } from "@/server/leads";
+import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads";
 
 const Body = z.object({
   answer: z.enum(["keep", "include", "stop"]),
-  /** The amended plan, for "include": a new version the owner approved (PRD §7.2). */
+  /** The amended plan, for "include": the plan the owner approved (PRD §7.2); its version and count are the route's. */
   plan: LeadSearchPlanSchema.optional(),
 });
 
@@ -15,7 +15,9 @@ const Body = z.object({
  * POST /api/v1/lead-searches/:id/answer: the owner answers the question after
  * 25. Keep goes on; Include amends the plan and re-judges what that criterion
  * left out; Stop ends the round. The door (lead_round_answer) takes the
- * search's latest round and refuses when it is not waiting.
+ * search's latest round and refuses when it is not waiting. Include amends
+ * the plan: the route sets its version (the round's + 1) and count (the
+ * round's reservation), so a client never computes them.
  */
 export const POST = write({
   scope: workspace,
@@ -29,7 +31,7 @@ export const POST = write({
     const { data, error } = await ctx.supabase.rpc("lead_round_answer", {
       p_round_id: search.round_id,
       p_answer: input.answer,
-      ...(input.plan ? { p_plan: input.plan as unknown as Json } : {}),
+      ...(input.plan ? { p_plan: answerPlanOf(search, input.plan) as unknown as Json } : {}),
     });
     if (error) throw new Error(`lead_round_answer: ${error.message}`);
     const refused = refusalOf(answerOf(data));

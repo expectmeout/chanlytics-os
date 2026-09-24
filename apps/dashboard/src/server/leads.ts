@@ -298,6 +298,23 @@ export async function searchRow(
   return data as unknown as SearchViewRow;
 }
 
+/**
+ * The plan an answer carries, as the door takes it (lead_round_answer, 00140): the version after the round's, at the
+ * count the round reserved. A client may send any version and count; this is the one place that sets them, for the
+ * route and for a proposal that amends (server/ask/proposals.ts).
+ */
+export function answerPlanOf(
+  search: Pick<SearchViewRow, "plan" | "plan_version">,
+  plan: LeadSearchPlan,
+): LeadSearchPlan {
+  const reserved = (search.plan as LeadSearchPlan | null)?.count;
+  return {
+    ...plan,
+    version: (search.plan_version ?? 1) + 1,
+    count: typeof reserved === "number" ? reserved : plan.count,
+  };
+}
+
 export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
   const { data, error } = await ctx.supabase
     .from("lead_searches_view")

@@ -299,7 +299,7 @@ test("the answer takes the search's latest round: keep and stop as words, includ
     400,
   );
   await answerRoute.POST.run(
-    send({ answer: "include", plan: { ...PLAN, version: 2, exclusions: [] } }),
+    send({ answer: "include", plan: { ...PLAN, version: 7, count: 500, exclusions: [] } }),
     ctxFor("owner", rpcs, { id: S1 }),
   );
   assert.deepEqual(
@@ -308,7 +308,10 @@ test("the answer takes the search's latest round: keep and stop as words, includ
       [R1, "keep", undefined],
       [R1, "include", 2],
     ],
+    "the route sets the version (the round's + 1); what the client sent is not trusted",
   );
+  assert.equal(seen[1].p_plan.count, PLAN.count, "the route sets the count (the round's reservation), not the client");
+  assert.deepEqual(seen[1].p_plan.exclusions, [], "the rest of the plan is the client's, as sent");
   await refused(answerRoute.POST.run(send({ answer: "keep" }), ctxFor("operator", rpcs, { id: S1 })), "forbidden", 403);
   assert.deepEqual(await stop.POST.run(send(undefined), ctxFor("operator", rpcs, { id: S1 })), {
     search_id: S1,
