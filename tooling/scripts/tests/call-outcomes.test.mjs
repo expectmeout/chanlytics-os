@@ -24,6 +24,7 @@ import {
   getAgent,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
+import { toCallDto } from "../../../apps/dashboard/src/server/dto.ts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -108,7 +109,7 @@ test("the analysis rides the normalised call when it is an object, and the threa
   assert.equal(callSummaryLine(vm), "Inbound call — Reached voicemail.");
 });
 
-test("the call card: the request is the headline, the outcome, the to-do and the given name are bullets; an old summary's opening is folded", () => {
+test("the call card: the request is the headline, the outcome, the to-do, the given name and the spelled email are bullets; an old summary's opening is folded", () => {
   const dto = {
     id: "k1",
     retell_call_id: "c1",
@@ -142,6 +143,20 @@ test("the call card: the request is the headline, the outcome, the to-do and the
   assert.ok(vm.summary.bullets.includes("Booking link sent"));
   assert.ok(vm.summary.bullets.includes("To do: Call back to confirm the slot."));
   assert.ok(vm.summary.bullets.includes("Gave their name as Ana"));
+  // The address they spelled out rides the analysis jsonb into the DTO (toCallDto), where it is
+  // normalised or dropped: a suggestion for the person's page, never applied by itself, like the name.
+  const bullets = (analysis) =>
+    toCallVM(toCallDto({ ...dto, contacts: dto.contact, analysis }), ZONE, NOW).summary.bullets;
+  assert.ok(
+    bullets({ caller_email: "Ana@Example.com" }).includes("Gave their email as ana@example.com"),
+    "the address in its stored spelling, a suggestion for the person's page",
+  );
+  for (const analysis of [{ caller_email: "not an address" }, { caller_email: 7 }, null]) {
+    assert.ok(
+      !bullets(analysis).some((b) => b.startsWith("Gave their email")),
+      `a spelled address that is not one is not offered: ${JSON.stringify(analysis)}`,
+    );
+  }
   assert.match(vm.snippet, /Asked for a gel manicure this Saturday around 10\./);
   const old = toCallVM({ ...dto, wanted: null, outcome: null, follow_up: null, caller_name: null }, ZONE, NOW);
   assert.equal(
@@ -216,7 +231,7 @@ test("the strip reads the same words: what they wanted from the people door, an 
 test("the agent's analysis fields: each has a type, a name and a description; the enum's choices are the six; the planner adds them, keeps a stranger's field, and re-sends one that changed", () => {
   assert.deepEqual(
     CALL_ANALYSIS_FIELDS.map((f) => f.name),
-    ["caller_wanted", "outcome", "follow_up", "caller_name"],
+    ["caller_wanted", "outcome", "follow_up", "caller_name", "caller_email"],
   );
   for (const f of CALL_ANALYSIS_FIELDS) {
     assert.ok(["string", "enum"].includes(f.type) && f.name && f.description.length > 20, f.name);
@@ -284,7 +299,7 @@ test("the wiring: the door files the four columns and keeps them across retries,
   );
   const dto = readCode("apps/dashboard/src/server/dto.ts");
   assert.ok(
-    dto.includes("summary, wanted, outcome, follow_up, caller_name, transcript_object") &&
+    dto.includes("summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object") &&
       dto.includes("wanted: c.wanted ?? null,"),
   );
 });

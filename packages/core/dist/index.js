@@ -3159,6 +3159,12 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_name",
     description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
     examples: ["Ana", "Daniela R."]
+  },
+  {
+    type: "string",
+    name: "caller_email",
+    description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
+    examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
   }
 ];
 var API2 = "https://api.twilio.com/2010-04-01";

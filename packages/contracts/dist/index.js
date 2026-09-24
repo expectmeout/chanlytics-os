@@ -2269,6 +2269,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   if (outcomeWords) bullets.push(outcomeWords);
   if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
   if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
+  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
   const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(

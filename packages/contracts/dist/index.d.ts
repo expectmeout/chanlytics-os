@@ -1104,6 +1104,10 @@ interface CallDto {
     outcome?: string | null;
     follow_up?: string | null;
     caller_name?: string | null;
+    /** The address they spelled out (analysis.caller_email), as normalizeEmail
+     *  stores it, or absent: a suggestion for the person's page, never applied
+     *  to the contact by itself, like the name beside it. */
+    caller_email?: string | null;
     /** Turns. `start`/`end` (seconds) are the turn's first and last word; `words` is
      *  the raw provider shape and is stripped by the list route (F15). */
     transcript_object: Array<{
