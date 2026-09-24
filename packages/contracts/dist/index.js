@@ -5208,12 +5208,12 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
+  const [share2, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
 }
 function promptCostWords(chars, total) {
-  const share = blockShareWords(chars, total);
-  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
+  const share2 = blockShareWords(chars, total);
+  return `${count(chars)} characters${share2 ? ` \u2014 ${share2}` : ""}.`;
 }
 function promptTotalWords(total) {
   return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
@@ -5235,9 +5235,9 @@ var PROMPT_NOW = {
 function servicesToldWords(i) {
   const n = i.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
-  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const share2 = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
-  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share2 ? ` \u2014 ${share2}` : ""}.`;
 }
 function serviceUndoName(name) {
   const n = typeof name === "string" ? name.trim() : "";
@@ -5988,9 +5988,9 @@ function leadLowShare(dist) {
   if (!dist) return null;
   const total = dist.one + dist.two + dist.three + dist.four + dist.five;
   if (total <= 0) return null;
-  const share = (dist.one + dist.two) / total;
-  if (share < LEAD_LOW_SHARE_FLOOR) return null;
-  return `${Math.round(share * 100)}% at 1\u20132 stars`;
+  const share2 = (dist.one + dist.two) / total;
+  if (share2 < LEAD_LOW_SHARE_FLOOR) return null;
+  return `${Math.round(share2 * 100)}% at 1\u20132 stars`;
 }
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
@@ -7175,9 +7175,9 @@ function leadPlanLikely(plan, facts) {
   if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
     return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
   }
-  const share = Math.min(1, p.with_email / p.matched);
-  const emailPct = Math.round(share * 100);
-  const withEmail = Math.round(plan.count * share);
+  const share2 = Math.min(1, p.with_email / p.matched);
+  const emailPct = Math.round(share2 * 100);
+  const withEmail = Math.round(plan.count * share2);
   const of = facts.priorOf ? ` \xB7 from past searches for ${facts.priorOf}` : "";
   return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
 }
@@ -20682,6 +20682,131 @@ function csvCell(v) {
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+function delimiterOf(text) {
+  const first = text.split(/\r?\n/, 1)[0] ?? "";
+  return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
+}
+function parseCsv(text) {
+  const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
+  const sep = delimiterOf(s);
+  const rows = [];
+  let row2 = [];
+  let cell = "";
+  let quoted = false;
+  let lineNo = 1;
+  let rowStartLine = 1;
+  const pushRow = () => {
+    Object.defineProperty(row2, "line", { value: rowStartLine, enumerable: false });
+    rows.push(row2);
+  };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
+      } else {
+        if (ch === "\n") lineNo++;
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+      continue;
+    }
+    if (ch === sep) {
+      row2.push(cell);
+      cell = "";
+      continue;
+    }
+    if (ch === "\r") continue;
+    if (ch === "\n") {
+      row2.push(cell);
+      pushRow();
+      row2 = [];
+      cell = "";
+      lineNo++;
+      rowStartLine = lineNo;
+      continue;
+    }
+    cell += ch;
+  }
+  if (cell !== "" || row2.length) {
+    row2.push(cell);
+    pushRow();
+  }
+  return rows.filter((r2) => r2.some((c) => c.trim() !== ""));
+}
+var NAME_WORDS = /^(name|full ?name|client|client ?name|customer|customer ?name|first ?name|given ?name|nombre)$/i;
+var LAST_WORDS = /^(last ?name|surname|family ?name|apellidos?)$/i;
+var PHONE_WORDS = /^(phone|mobile|cell|cell ?phone|tel|telephone|phone ?number|mobile ?number|number|tel[eé]fono|m[oó]vil|celular)$/i;
+var EMAIL_WORDS = /^(e-?mail|email ?address|e-?mail ?address|correo|correo electr[oó]nico)$/i;
+function share(rows, col, is) {
+  let seen = 0;
+  let hit = 0;
+  for (const r2 of rows) {
+    const v = (r2[col] ?? "").trim();
+    if (!v) continue;
+    seen += 1;
+    if (is(v)) hit += 1;
+  }
+  return seen ? hit / seen : 0;
+}
+function matchColumns(rows) {
+  const first = rows[0] ?? [];
+  const width = Math.max(0, ...rows.map((r2) => r2.length));
+  const header = first.length > 0 && !first.some((c) => normalizePhone(c) !== null || normalizeEmail(c) !== null);
+  const body = header ? rows.slice(1) : rows;
+  const columns = { name: null, last: null, phone: null, email: null };
+  if (header) {
+    first.forEach((h, i) => {
+      const w = h.trim();
+      if (columns.email === null && EMAIL_WORDS.test(w)) columns.email = i;
+      else if (columns.phone === null && PHONE_WORDS.test(w)) columns.phone = i;
+      else if (columns.last === null && LAST_WORDS.test(w)) columns.last = i;
+      else if (columns.name === null && NAME_WORDS.test(w)) columns.name = i;
+    });
+  }
+  for (let i = 0; i < width; i++) {
+    if (Object.values(columns).includes(i)) continue;
+    if (columns.email === null && share(body, i, (v) => normalizeEmail(v) !== null) >= 0.6) columns.email = i;
+    else if (columns.phone === null && share(body, i, (v) => normalizePhone(v) !== null) >= 0.6) columns.phone = i;
+  }
+  if (columns.name === null) {
+    for (let i = 0; i < width; i++) {
+      if (Object.values(columns).includes(i)) continue;
+      if (share(body, i, (v) => /\p{L}/u.test(v) && normalizeEmail(v) === null && normalizePhone(v) === null) >= 0.6) {
+        columns.name = i;
+        break;
+      }
+    }
+  }
+  return { columns, header };
+}
+function importRowsOf(rows, columns, header) {
+  const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
+  return (header ? rows.slice(1) : rows).map((r2, n) => {
+    const name = [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ").slice(0, 80);
+    const carried = r2.line;
+    return {
+      line: carried ?? n + (header ? 2 : 1),
+      name: name || null,
+      phone: normalizePhone(cell(r2, columns.phone)),
+      email: normalizeEmail(cell(r2, columns.email))
+    };
+  });
+}
+function importCounts(rows) {
+  return {
+    rows: rows.length,
+    withPhone: rows.filter((r2) => r2.phone).length,
+    withEmail: rows.filter((r2) => r2.email).length,
+    unreadable: rows.filter((r2) => !r2.phone && !r2.email).length
+  };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -21441,6 +21566,8 @@ export {
   hoursRuns,
   hoursZoneWords,
   identityWords,
+  importCounts,
+  importRowsOf,
   inAppBootScript,
   inAppFrom,
   inLocalWeek,
@@ -21565,6 +21692,7 @@ export {
   localDaysBetween,
   localHour,
   localToUtcMs,
+  matchColumns,
   matchPerson,
   matchService,
   mayMessageFor,
@@ -21627,6 +21755,7 @@ export {
   paramLabel,
   parseAmount,
   parseBrainOutput,
+  parseCsv,
   parseDevice,
   parseIcs,
   parseJudgeAnswer,
