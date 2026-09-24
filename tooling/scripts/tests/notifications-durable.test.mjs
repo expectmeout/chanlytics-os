@@ -101,7 +101,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const notify = readCode("apps/edge/lib/ops/notify.ts");
   assert.ok(
     notify.includes("export async function recordNotification(") &&
-      /await recordNotification\(\s*target\.tenantId,\s*\{ kind: msg\.kind, title: msg\.subject, body: msg\.body, route: msg\.route, about: msg\.about \},\s*ports\.db === undefined \? pg\(\) : ports\.db,?\s*\);/.test(
+      /const kept = await recordNotification\(\s*target\.tenantId,\s*\{ kind: msg\.kind, title: msg\.subject, body: msg\.body, route: msg\.route, about: msg\.about \},\s*db,?\s*\);/.test(
         notify,
       ),
     "the row first, addressed or not",

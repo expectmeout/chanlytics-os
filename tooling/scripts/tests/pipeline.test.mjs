@@ -14,31 +14,46 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   CONSENT_SOURCES,
+  DEAL_ACT_WORDS,
   DEAL_CARD_WORDS,
   DEAL_STAGE_WORDS,
+  DEAL_LOST_REASON_WORDS,
+  DEAL_REFUSALS,
+  PIPELINE_BOARD_CAP,
+  PIPELINE_PASS_MAX,
   PIPELINE_GROUPS,
+  PIPELINE_SORTS,
   PIPELINE_WORDS,
   clockNear,
   clockNearWhen,
   csvCell,
   dealCardsOf,
+  dealMenuActs,
+  dealNextAct,
   dealOf,
   heardSinceProposal,
   mayReceive,
   offersYesRefusal,
   isPipelineView,
   parsePipelineRoute,
+  pipelineBoardMore,
   pipelineMove,
   pipelineOf,
+  pipelinePassDone,
+  pipelinePassMany,
+  pipelinePeekDetail,
   pipelinePeekOf,
   pipelineRail,
   pipelineRoute,
+  pipelineSorted,
   pipelineViewLabel,
   PIPELINE_RAIL_SERVICES,
+  repliesWords,
   stateOf,
   toPersonRowVM,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
+import { pipelineHelpers } from "../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 
 const TZ = "America/New_York";
 const H = 3_600_000;
@@ -342,8 +357,11 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
     person: "Person",
     service: "Service",
     value: "Value",
-    stage: "In stage",
+    stage: "Stage",
+    came: "Came from",
+    valid: "Valid until",
     chip: "Where it stands",
+    acts: "More",
   });
 });
 
@@ -628,6 +646,8 @@ globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // The record kit's sheet, which New proposal is drawn in on a desk.
 await import("../../../apps/dashboard/src/legacy/components/record-sheet.jsx");
+// The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
+await import("../../../apps/dashboard/src/legacy/components/record-field.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
 // Menus, questions and glyphs as their props: nothing here presses them.
@@ -646,19 +666,12 @@ Object.assign(globalThis.window, {
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
-  // What seed-globals.ts publishes for the page: contracts' own, never a stand-in that could say a word differently.
-  __pipeline: {
-    of: pipelineOf,
-    move: pipelineMove,
-    peek: pipelinePeekOf,
-    rail: pipelineRail,
-    route: pipelineRoute,
-    parse: parsePipelineRoute,
-    viewLabel: pipelineViewLabel,
-    words: PIPELINE_WORDS,
-  },
-  // What people-detail.ts publishes of the deal for the card the peek draws (installPeopleCourier): contracts' own.
-  __deal: { cards: dealCardsOf, cardWords: DEAL_CARD_WORDS },
+  // What seed-globals.ts publishes for the page (pipeline-helpers.ts): contracts' own, never a stand-in that could
+  // say a word differently.
+  __pipeline: pipelineHelpers(),
+  // What people-detail.ts publishes of the deal for the card the peek draws (installPeopleCourier): contracts' own,
+  // with the thread's Deal group (the row's menu) and the card's next act (a phone peek's pinned act).
+  __deal: { cards: dealCardsOf, cardWords: DEAL_CARD_WORDS, menu: dealMenuActs, next: dealNextAct },
 });
 await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 for (const k of [
@@ -677,6 +690,7 @@ for (const k of [
   globalThis[k] = globalThis.window[k];
 // In the order both lists load them (manifest.ts, Chanlytics.html): the peek and the board before the Pipeline, the
 // Pipeline before the page that draws it, and the person's deal card, which the peek draws, after.
+await import("../../../apps/dashboard/src/legacy/pages/pipeline-row.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-peek.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-board.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/pipeline-new.jsx");
@@ -856,29 +870,30 @@ test("the Pipeline has its own rail with People's switch at its head, the line, 
   const head = find(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-sec-head"));
   assert.equal(head.props.id, undefined);
   const th = find(head, (n) => n.type === "th");
-  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 5]);
-  // The headings are contracts', People's person cell first; nothing sorts.
+  assert.deepEqual([th.props.scope, th.props.colSpan], ["rowgroup", 7]);
+  // The headings are contracts', after the selection's box, People's person cell first; Stage is the order it
+  // opens in. Came from and Valid until are the member's to show (Columns).
   assert.deepEqual(
     all(
       find(tree, (n) => n.type === "thead"),
       (n) => n.type === "th",
     ).map((n) => textOf(n)),
-    ["Person", "Service", "Value", "In stage", "Where it stands"],
+    ["", "Person", "Service", "Value", "Stage▲", "Where it stands", "More"],
   );
   // The chip's column says its name to a screen reader only: no one word is right above every chip.
   const chipHead = all(
     find(tree, (n) => n.type === "thead"),
     (n) => n.type === "th",
-  ).at(-1);
+  ).find((n) => textOf(n) === "Where it stands");
   assert.deepEqual(
     chipHead.props.children.map((k) => [k.type, k.props.className, textOf(k)]),
     [["span", "rec-sr", "Where it stands"]],
     "the house's visually hidden words, and nothing seen",
   );
-  assert.equal(
-    find(tree, (n) => n.props?.className === "cl-th-sort"),
-    null,
-    "the order is the Pipeline's",
+  assert.deepEqual(
+    all(tree, (n) => n.props?.className === "cl-th-sort").map(textOf),
+    ["Person", "Value", "Stage▲"],
+    "the headings that sort are buttons, and Stage is the order it opens in",
   );
   // Each row: People's own person cell, the service, the value, the time in stage, and the chip in its tone.
   const wes = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
@@ -955,7 +970,10 @@ test("the keys are People's: J walks the rows shown, Enter opens the peek, Esc c
   assert.equal(press("Escape"), true);
   tree = draw();
   assert.equal(byTestId(tree, "pipeline-peek"), null, "Esc closes the peek");
-  assert.equal(press("x"), false, "nothing here selects");
+  // x selects the row under the cursor, as on People: a selection is what Mark as passed and the lists act on.
+  assert.equal(press("x"), true);
+  tree = draw();
+  assert.ok(byTestId(tree, "bulk-bar"), "and the bar says what is selected");
 });
 
 test("the words in the box find people in every group, the folded one opened, and the line stays the whole Pipeline's", async () => {
@@ -1280,6 +1298,207 @@ test("on a phone: one bar with the switch, the view's list button, search and Ne
     assert.equal(byTestId(picker, "pipeline-new-search").props.autoFocus, true);
   }));
 
+/* ------------------------------------------------------------------------------ the row carries the deal */
+
+test("each row wears its deal's steps: a consultation where one was held or is coming, the proposal, the client; a pass has none", () => {
+  const vm = pipelineOf(fixture(), NOW, TZ);
+  const track = (id) => rowOf(vm, id).track.map((s) => `${s.key}:${s.at}${s.tone === "plain" ? "" : `:${s.tone}`}`);
+  // Held, no proposal since: the proposal is the step now, waiting on the owner, as the chip says.
+  assert.deepEqual(track("hana"), ["consultation:done", "proposal:current:warn", "client:ahead"]);
+  // Coming up: the consultation is where it stands.
+  assert.deepEqual(track("sara"), ["consultation:current:info", "proposal:ahead", "client:ahead"]);
+  // A proposal out: waiting on the owner in warn, heard back in info; no consultation held, no step for one.
+  assert.deepEqual(track("wes"), ["proposal:current:warn", "client:ahead"]);
+  assert.deepEqual(track("will"), ["proposal:current:info", "client:ahead"]);
+  assert.deepEqual(
+    track("val"),
+    ["proposal:current:info", "client:ahead"],
+    "a consultation ahead of a proposal is not a step behind it",
+  );
+  // A client has come through both.
+  assert.deepEqual(track("cat"), ["proposal:done", "client:current:ok"]);
+  // A pass or an end: the chip says it, and there is no track.
+  for (const id of ["ed", "dan", "eve"]) assert.deepEqual(rowOf(vm, id).track, [], id);
+  // A proposal after a consultation held: three steps, the first done.
+  const consulted = pipelineOf(
+    [
+      toPersonRowVM(
+        personRow(NOW, "ivy", "Ivy", {
+          ...deal(NOW, "proposed", { proposed: 2 }),
+          visits: visits(null, visit(ny("09-18", 10))),
+        }),
+        TZ,
+        new Date(NOW),
+      ),
+    ],
+    NOW,
+    TZ,
+  );
+  assert.deepEqual(
+    consulted.groups[0].rows[0].track.map((s) => `${s.key}:${s.at}`),
+    ["consultation:done", "proposal:current", "client:ahead"],
+  );
+});
+
+test("the rows order by the member's pick within each group: value over a year with none last, name, or the Pipeline's own reversed", () => {
+  const vm = pipelineOf(fixture(), NOW, TZ);
+  const order = (v, key) => byKey(v)[key].rows.map((r) => r.id);
+  assert.deepEqual(PIPELINE_SORTS, ["stage", "value", "name"]);
+  // The Pipeline's own order is the table as it opens, and an order it does not know is that one.
+  assert.equal(pipelineSorted(vm, "stage", "asc"), vm);
+  assert.deepEqual(order(pipelineSorted(vm, "nonsense", "asc"), "proposals"), order(vm, "proposals"));
+  assert.deepEqual(order(pipelineSorted(vm, "stage", "desc"), "proposals"), [...order(vm, "proposals")].reverse());
+  // Value: Nia's $3,050 over Wes's $1,200; the ones with no amount last, in the Pipeline's order, either way.
+  const none = order(vm, "proposals").filter((id) => !["wes", "nia"].includes(id));
+  assert.deepEqual(order(pipelineSorted(vm, "value", "desc"), "proposals"), ["nia", "wes", ...none]);
+  assert.deepEqual(order(pipelineSorted(vm, "value", "asc"), "proposals"), ["wes", "nia", ...none]);
+  // A month counts twelve times over a year: Cat's $1,000 a month over Cy's $340 a month.
+  assert.deepEqual(order(pipelineSorted(vm, "value", "desc"), "clients").slice(0, 2), ["cat", "cy"]);
+  // Name, either way; the groups themselves never move.
+  assert.deepEqual(order(pipelineSorted(vm, "name", "asc"), "proposals"), ["fay", "lars", "nia", "val", "wes", "will"]);
+  assert.deepEqual(order(pipelineSorted(vm, "name", "desc"), "proposals"), [
+    "will",
+    "wes",
+    "val",
+    "nia",
+    "lars",
+    "fay",
+  ]);
+  assert.deepEqual(
+    pipelineSorted(vm, "name", "asc").groups.map((g) => g.key),
+    vm.groups.map((g) => g.key),
+  );
+  // Bea passed on $9,000 and came back for a consultation: her row shows no value, and sorts with those that have none.
+  const bea = pipelineOf(
+    [
+      ...fixture(),
+      toPersonRowVM(
+        personRow(NOW, "bea2", "Bea", {
+          ...deal(NOW, "lost", { proposed: 40, decided: 30, cents: 900_000, per: "once" }),
+          visits: visits(null, visit(ny("09-22", 10))),
+        }),
+        TZ,
+        new Date(NOW),
+      ),
+    ],
+    NOW,
+    TZ,
+  );
+  const held = (v) => byKey(v).consultations.rows.map((r) => r.id);
+  assert.equal(rowOf(bea, "bea2").value, null);
+  assert.deepEqual(held(pipelineSorted(bea, "value", "desc")), held(bea), "no value, the Pipeline's own order");
+  assert.deepEqual(held(pipelineSorted(bea, "value", "asc")), held(bea));
+});
+
+test("Mark as passed for a selection: only the proposals out pass, the rest are said and left, and why is asked once", () => {
+  const rows = fixture();
+  const pick = (...want) => rows.filter((r) => want.includes(r.id));
+  const vm = pipelinePassMany(pick("wes", "nia", "cat"));
+  assert.deepEqual(
+    vm.deals.map((d) => d.personId),
+    ["wes", "nia"],
+  );
+  assert.ok(vm.deals.every((d) => typeof d.dealId === "string" && d.dealId));
+  assert.deepEqual(
+    [vm.button, vm.words, vm.rest, vm.more],
+    ["Mark as passed · 2", "Mark 2 as passed", "1 is not a proposal out and stays as it is", null],
+  );
+  assert.deepEqual(
+    vm.reasons.map((r) => r.words),
+    Object.values(DEAL_LOST_REASON_WORDS),
+    "the deal sheet's own reasons, in its order",
+  );
+  assert.deepEqual(
+    [pipelinePassMany(pick("wes")).words, pipelinePassMany(pick("wes")).rest],
+    ["Mark 1 as passed", null],
+  );
+  const none = pipelinePassMany(pick("cat", "hana"));
+  assert.deepEqual([none.deals, none.words, none.rest], [[], null, "2 are not proposals out and stay as they are"]);
+  // What it came to.
+  assert.deepEqual(pipelinePassDone(2, 0), { words: "2 marked as passed", tone: "ok" });
+  assert.deepEqual(pipelinePassDone(1, 1), {
+    words: "1 marked as passed · 1 had changed, and was left as it is",
+    tone: "warn",
+  });
+  assert.deepEqual(pipelinePassDone(0, 2), { words: "2 had changed, and were left as they are", tone: "warn" });
+  // One that could not be recorded at all (offline, a refusal of another kind) is not one that had changed.
+  assert.deepEqual(pipelinePassDone(1, 0, 1), { words: "1 marked as passed · 1 could not be marked", tone: "warn" });
+  assert.deepEqual(pipelinePassDone(0, 0, 2), { words: "2 could not be marked", tone: "danger" });
+  // Fifty at a press, as People's bar writes: the rest stay selected, and say so.
+  const many = Array.from({ length: PIPELINE_PASS_MAX + 3 }, (_, i) =>
+    toPersonRowVM(
+      personRow(NOW, `m${i}`, `M${i}`, deal(NOW, "proposed", { proposed: 2 + (i % 5) })),
+      TZ,
+      new Date(NOW),
+    ),
+  );
+  const capped = pipelinePassMany(many);
+  assert.deepEqual(
+    [capped.deals.length, capped.button, capped.more],
+    [50, "Mark as passed · 50", "3 more stay selected, fifty at a time"],
+  );
+});
+
+test("the peek's reach and history, once the person is read: the person page's own words, three moves at most", () => {
+  const t = (id, kind, tsMs, text, ahead = false) => ({
+    id,
+    ts: tsMs,
+    time: "",
+    day: `d${id}`,
+    kind,
+    who: "You",
+    text,
+    ...(ahead ? { ahead } : {}),
+  });
+  const person = {
+    phone: "+1 786-555-0181",
+    email: "wes@example.com",
+    hasChat: true,
+    replyVia: "WhatsApp",
+    replyWindow: { open: true, hoursLeft: 20 },
+    timeline: [
+      t("1", "deal", 1, "Proposal out · SEO · $800"),
+      t("2", "customer", 5, "Thanks"),
+      t("3", "deal", 3, "Passed · Ads · Price"),
+      t("4", "deal", 4, "Proposal out · Ads"),
+      t("5", "deal", 2, "Became a client · Web"),
+      t("6", "visit", 6, "Consultation"),
+    ],
+  };
+  const d = pipelinePeekDetail(person);
+  assert.deepEqual(d.reach, [
+    { id: "phone", label: "Phone", words: "+1 786-555-0181", call: "tel:+17865550181", copy: "+1 786-555-0181" },
+    { id: "email", label: "Email", words: "wes@example.com", call: null, copy: "wes@example.com" },
+    { id: "replies", label: "Replies", words: "Any message, for 20 more hours", call: null, copy: null },
+  ]);
+  assert.deepEqual(
+    d.history.map((h) => h.words),
+    ["Proposal out · Ads", "Passed · Ads · Price", "Became a client · Web"],
+  );
+  // Do-not-contact: the person page's own menu offers no call and no copy of the number, and neither does the peek.
+  assert.deepEqual(
+    pipelinePeekDetail({ ...person, consent: { state: "opted_in", dnc: true } }).reach.map((r) => r.id),
+    ["email", "replies"],
+  );
+  // Nothing to reach them by, and no conversation: nothing said.
+  assert.deepEqual(pipelinePeekDetail({ ...person, phone: null, email: null, hasChat: false, timeline: [] }), {
+    reach: [],
+    history: [],
+  });
+  // What a reply may be, one sentence for the person page and the peek.
+  assert.equal(repliesWords("Email", null), "Any time, by email");
+  assert.equal(repliesWords("Text", null), "Any time, by text");
+  assert.equal(
+    repliesWords("WhatsApp", { open: false, hoursLeft: 0 }),
+    "Approved messages only, until they write again",
+  );
+  assert.equal(repliesWords("WhatsApp", { open: true, hoursLeft: 1 }), "Any message, for 1 more hour");
+  assert.equal(repliesWords("WhatsApp", { open: true, hoursLeft: 0 }), "Any message, for less than an hour");
+  assert.equal(repliesWords(null, null), null);
+  // A board column holds twenty, then says how many more.
+  assert.deepEqual([PIPELINE_BOARD_CAP, pipelineBoardMore(4)], [20, "Show 4 more"]);
+});
+
 /* ------------------------------------------------------------------------------ the Pipeline as a workspace */
 
 test("a card dropped in another column asks for the sheet in the mode the move needs, and nothing else moves", () => {
@@ -1348,6 +1567,17 @@ test("the peek's head and facts are the row's: who, the group and the service, w
     thread: "Open the thread",
     reading: "Reading…",
     what: "this person",
+    reach: {
+      phone: "Phone",
+      email: "Email",
+      replies: "Replies",
+      call: "Call",
+      copy: "Copy",
+      copied: "Copied",
+      copyPhone: "Copy the number",
+      copyEmail: "Copy the address",
+    },
+    history: "History",
   });
 });
 
@@ -2028,5 +2258,464 @@ test("a viewer sees New proposal and why they may not press it, and a press open
     assert.equal(byTestId(tree, "pipeline-new"), null, "nothing opened");
   } finally {
     globalThis.window.ST_STORE = keep;
+  }
+});
+
+/* ------------------------------------------------------------------------------ the page: the row carries the deal */
+
+const rowNode = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
+
+test("the headings sort within each group, kept in the member's view: Value, then Person; the groups never move", async () => {
+  const seen = await fresh();
+  let tree = draw();
+  assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Value")));
+  tree = draw();
+  assert.deepEqual(
+    rowIds(tree),
+    ["hana", "sara", "nia", "wes", "cat"],
+    "Nia's $3,050 over Wes's $1,200, in their own group",
+  );
+  await tick();
+  assert.deepEqual([seen.viewSaves.at(-1).view.sortBy, seen.viewSaves.at(-1).view.sortDir], ["value", "desc"]);
+  // Person: by name, A first, then the other way on a second press.
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
+  tree = draw();
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Person")));
+  tree = draw();
+  assert.deepEqual(rowIds(tree), ["sara", "hana", "wes", "nia", "cat"]);
+  // Stage again: the Pipeline's own order, the way it opened, on the first press.
+  click(find(tree, (n) => n.props?.className === "cl-th-sort" && textOf(n).startsWith("Stage")));
+  tree = draw();
+  assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
+});
+
+test("Columns shows where they came from and the day a proposal stands until, as the member asks; the row's menu is not theirs to hide", async () => {
+  const now = Date.now();
+  const day = (d) => new Date(now + d * DAY).toISOString().slice(0, 10);
+  await fresh({
+    people: [
+      ...peopleNow(),
+      personRow(now, "val", "Val", deal(now, "proposed", { proposed: 3, validUntil: day(8) })),
+      personRow(now, "lars", "Lars", deal(now, "proposed", { proposed: 7, validUntil: day(-9) })),
+    ],
+  });
+  let tree = draw();
+  const menu = find(tree, (n) => n.type === globalThis.window.PeopleColumnsMenu);
+  assert.deepEqual(
+    menu.props.options.map((o) => [o.key, o.on]),
+    [
+      ["name", true],
+      ["service", true],
+      ["value", true],
+      ["stage", true],
+      ["came", false],
+      ["valid", false],
+    ],
+  );
+  menu.props.onPick("valid");
+  tree = draw();
+  const valid = (id) => byTestId(rowNode(tree, id), "pipe-valid");
+  assert.ok(textOf(valid("val")).trim(), "the day alone, under its heading");
+  assert.equal(valid("val").props.className.includes("is-lapsed"), false);
+  assert.equal(valid("lars").props.className.includes("is-lapsed"), true, "a day that has passed, in the warn ink");
+  assert.match(textOf(valid("lars")), /^Lapsed /, "and in words, not by its colour alone");
+  assert.equal(textOf(valid("cat")), "", "a client's deal stands until no day");
+});
+
+test("each row and card wears its deal's steps beside the time in stage, hidden from a screen reader that hears the head and the chip", async () => {
+  await fresh();
+  const tree = draw();
+  const steps = (id) =>
+    all(rowNode(tree, id), (n) => n.props?.className === "pipe-step").map(
+      (n) => `${n.props["data-key"]}:${n.props["data-at"]}:${n.props["data-tone"]}`,
+    );
+  assert.deepEqual(
+    steps("wes"),
+    ["proposal:current:warn", "client:ahead:plain"],
+    "waiting on the owner, as its chip says",
+  );
+  assert.deepEqual(steps("cat"), ["proposal:done:plain", "client:current:ok"]);
+  assert.deepEqual(steps("hana"), ["consultation:done:plain", "proposal:current:warn", "client:ahead:plain"]);
+  assert.deepEqual(steps("sara"), ["consultation:current:info", "proposal:ahead:plain", "client:ahead:plain"]);
+  assert.equal(byTestId(rowNode(tree, "wes"), "pipe-track").props["aria-hidden"], "true");
+  assert.equal(
+    textOf(byTestId(rowNode(tree, "wes"), "pipe-in-stage")),
+    "11 d",
+    "the time in stage beside it, as before",
+  );
+  await onPhone(async () => {
+    await fresh();
+    const card = rowNode(draw(), "wes");
+    assert.ok(byTestId(card, "pipe-track"), "a phone's card says the steps in its facts line");
+  });
+});
+
+test("a row's menu: the deal's own acts where the member may record one, then their thread and their page; an act asks the one sheet", async () => {
+  await fresh();
+  const asked = [];
+  globalThis.window.openDealSheet = (a) => asked.push(a);
+  const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === globalThis.window.MoreMenu);
+  let items = menuOf(draw(), "wes").props.items;
+  assert.deepEqual(
+    items.map((it) => (it.divider ? "—" : it.label)),
+    [DEAL_ACT_WORDS.won, DEAL_ACT_WORDS.lost, DEAL_ACT_WORDS.edit, "—", "Open the thread", "Open their page"],
+    "the thread's Deal group but its send, which is the peek's",
+  );
+  items[0].onClick();
+  const wes = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes");
+  assert.deepEqual(asked, [{ personId: "wes", mode: "won", dealId: wes.deal.id }]);
+  items.at(-1).onClick();
+  assert.deepEqual(opened, ["wes"], "their page");
+  items.at(-2).onClick();
+  assert.equal(went.at(-1), `inbox/${wes.threadId}`, "their thread");
+  // A consultation held: start one, with nothing to name a deal by.
+  items = menuOf(draw(), "hana").props.items;
+  items[0].onClick();
+  assert.deepEqual(asked.at(-1), { personId: "hana", mode: "propose", dealId: null });
+  // Someone who passed before and came back for a consultation: a new proposal, as dragging their card asks, never
+  // the old passed deal's Propose again.
+  const now = Date.now();
+  await fresh({
+    people: [
+      ...peopleNow(),
+      personRow(now, "bea", "Bea", {
+        ...deal(now, "lost", { proposed: 40, decided: 30, reason: "timing" }),
+        visits: visits(null, visit(now - 2 * DAY)),
+      }),
+    ],
+  });
+  items = menuOf(draw(), "bea").props.items;
+  assert.equal(items[0].label, DEAL_ACT_WORDS.propose);
+  items[0].onClick();
+  assert.deepEqual(asked.at(-1), { personId: "bea", mode: "propose", dealId: null });
+  // A viewer keeps the door and sees no act it may not press.
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    assert.deepEqual(
+      menuOf(draw(), "wes").props.items.map((it) => it.label),
+      ["Open the thread", "Open their page"],
+    );
+  } finally {
+    globalThis.window.__ME = { role: "owner" };
+  }
+});
+
+test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
+  await fresh();
+  const flashes = [];
+  const keepToast = globalThis.window.usePPToast;
+  const keepPass = globalThis.window.__passDeals;
+  globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+  const dealOfRow = (id) => globalThis.window.__PEOPLE.rows.find((r) => r.id === id).deal;
+  const asked = [];
+  globalThis.window.__passDeals = async (items, reason) => {
+    asked.push({ items, reason });
+    return { passed: ["wes"], changed: ["nia"], failed: [] };
+  };
+  try {
+    let tree = draw();
+    const table = find(tree, (n) => n.type === globalThis.window.PeopleTable);
+    assert.equal(table.props.selectable, true);
+    for (const id of ["wes", "nia", "cat"]) table.props.onToggle(id);
+    tree = draw();
+    const bar = byTestId(tree, "bulk-bar");
+    assert.ok(bar, "People's own bar");
+    assert.equal(textOf(byTestId(bar, "pipe-pass-open")).trim(), "Mark as passed · 2", "a client does not pass");
+    click(byTestId(bar, "pipe-pass-open"));
+    tree = draw();
+    const ask = byTestId(tree, "pipe-pass");
+    assert.equal(ask.props["aria-labelledby"], "pipe-pass-ask", "the question names itself once");
+    assert.equal(textOf(byTestId(ask, "pipe-pass-rest")), "1 is not a proposal out and stays as it is");
+    assert.equal(byTestId(ask, "pipe-pass-go").props.disabled, true, "why comes first");
+    // Esc in the question cancels the question, not the selection.
+    let prevented = false;
+    ask.props.onKeyDown({
+      key: "Escape",
+      preventDefault() {
+        prevented = true;
+      },
+    });
+    tree = draw();
+    assert.deepEqual([prevented, byTestId(tree, "pipe-pass"), !!byTestId(tree, "bulk-bar")], [true, null, true]);
+    click(byTestId(tree, "pipe-pass-open"));
+    tree = draw();
+    find(byTestId(tree, "pipe-pass"), (n) => n.type === globalThis.window.RecordToggleGroup).props.onChange("price");
+    tree = draw();
+    await byTestId(tree, "pipe-pass-go").props.onClick();
+    assert.deepEqual(asked, [
+      {
+        items: [
+          { personId: "wes", dealId: dealOfRow("wes").id },
+          { personId: "nia", dealId: dealOfRow("nia").id },
+        ],
+        reason: "price",
+      },
+    ]);
+    assert.deepEqual(flashes.at(-1), {
+      tone: "warn",
+      msg: "1 marked as passed · 1 had changed, and was left as it is",
+    });
+    tree = draw();
+    assert.deepEqual(
+      [...find(tree, (n) => n.type === globalThis.window.PeopleTable).props.sel].sort(),
+      ["cat", "nia"],
+      "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
+    );
+  } finally {
+    globalThis.window.usePPToast = keepToast;
+    globalThis.window.__passDeals = keepPass;
+  }
+});
+
+test("beside an open peek on a desk the table keeps who and where they stand; the peek says the rest", async () => {
+  await fresh();
+  let tree = draw();
+  rowNode(tree, "wes").props.onClick();
+  tree = draw();
+  assert.ok(peekOf(tree));
+  assert.deepEqual(
+    all(
+      find(tree, (n) => n.type === "thead"),
+      (n) => n.type === "th",
+    ).map(textOf),
+    ["", "Person", "Where it stands"],
+  );
+  // Closed again, the table has all its columns back.
+  press("Escape");
+  tree = draw();
+  assert.equal(
+    all(
+      find(tree, (n) => n.type === "thead"),
+      (n) => n.type === "th",
+    ).length,
+    7,
+  );
+});
+
+test("the peek says how to reach them and what happened, once they are read; on a phone the next act and Call are pinned under it", async () => {
+  await fresh();
+  const keepPeek = globalThis.window.__peekPerson;
+  const keepDetail = globalThis.window.__personDetail;
+  const wesPerson = () =>
+    personFor("wes", {
+      phone: "+1 555-000-1114",
+      email: "wes@example.com",
+      hasChat: true,
+      timeline: [
+        {
+          id: "t1",
+          ts: 1,
+          time: "",
+          day: "Sep 12",
+          kind: "deal",
+          who: "You",
+          text: "Proposal out · Color correction · $1,200",
+        },
+        { id: "t2", ts: 2, time: "", day: "Mon", kind: "customer", who: "Wes", text: "Thanks" },
+      ],
+    });
+  globalThis.window.__peekPerson = () => wesPerson();
+  globalThis.window.__personDetail = () => Promise.resolve(wesPerson());
+  try {
+    let tree = draw();
+    rowNode(tree, "wes").props.onClick();
+    tree = draw();
+    const reach = byTestId(peekOf(tree), "pipeline-peek-reach");
+    assert.deepEqual(
+      all(reach, (n) => /^pipeline-peek-reach-(phone|email|replies)$/.test(n.props?.["data-testid"] || "")).map((n) =>
+        textOf(n),
+      ),
+      ["Phone+1 555-000-1114CallCopy", "Emailwes@example.comCopy", "RepliesAny message, for 20 more hours"],
+    );
+    assert.equal(byTestId(reach, "pipeline-peek-call").props.href, "tel:+15550001114");
+    assert.deepEqual(
+      all(byTestId(peekOf(tree), "pipeline-peek-history"), (n) => n.props?.className === "pipe-peek-history-row").map(
+        textOf,
+      ),
+      ["Proposal out · Color correction · $1,200Sep 12"],
+    );
+    assert.equal(
+      byTestId(peekOf(tree), "pipeline-peek-bar"),
+      null,
+      "a desk has no pinned bar: the card's act is beside the rows",
+    );
+  } finally {
+    globalThis.window.__peekPerson = keepPeek;
+    globalThis.window.__personDetail = keepDetail;
+  }
+  await onPhone(async () => {
+    await fresh();
+    globalThis.window.__peekPerson = () => wesPerson();
+    globalThis.window.__personDetail = () => Promise.resolve(wesPerson());
+    try {
+      let tree = draw();
+      rowNode(tree, "wes").props.onClick();
+      tree = draw();
+      const bar = byTestId(peekOf(tree), "pipeline-peek-bar");
+      assert.equal(
+        textOf(byTestId(bar, "pipeline-peek-bar-act")),
+        dealNextAct(wesPerson(), Date.now()).label,
+        "the card's own next act",
+      );
+      assert.equal(byTestId(bar, "pipeline-peek-bar-call").props.href, "tel:+15550001114");
+    } finally {
+      globalThis.window.__peekPerson = keepPeek;
+      globalThis.window.__personDetail = keepDetail;
+    }
+  });
+});
+
+test("on the board a card wears its steps and a Move to menu of the columns it may go to, and a column shows twenty, then Show N more", async () => {
+  const now = Date.now();
+  const many = Array.from({ length: 25 }, (_, i) =>
+    personRow(
+      now,
+      `p${String(i).padStart(2, "0")}`,
+      `P${String(i).padStart(2, "0")}`,
+      deal(now, "proposed", { proposed: 30 - i }),
+    ),
+  );
+  await fresh({ people: [...peopleNow(), ...many] });
+  const asked = [];
+  globalThis.window.openDealSheet = (a) => asked.push(a);
+  let tree = draw();
+  click(byTestId(tree, "pipeline-view-board"));
+  tree = draw();
+  const col = byTestId(tree, "pipeline-col-proposals");
+  const cards = () =>
+    all(byTestId(draw(), "pipeline-col-proposals"), (n) => n.props?.["data-testid"] === "pipeline-card");
+  assert.equal(cards().length, 20, "the first twenty");
+  assert.equal(textOf(byTestId(col, "pipeline-col-more")), "Show 7 more", "of twenty-seven proposals out");
+  // A card's steps, and its Move to: the columns a proposal out may go to, each asking the one sheet.
+  const first = find(col, (n) => n.props?.["data-testid"] === "pipeline-card");
+  assert.ok(byTestId(first, "pipe-track"));
+  const menu = find(col, (n) => n.type === globalThis.window.MoreMenu);
+  assert.deepEqual(
+    menu.props.items.map((it) => it.header || it.label),
+    ["Move to", "Clients", "Passed or ended"],
+  );
+  menu.props.items[1].onClick();
+  assert.equal(asked.at(-1).mode, "won");
+  click(byTestId(col, "pipeline-col-more"));
+  assert.equal(cards().length, 27, "and all of them, asked");
+  // A viewer's cards neither drag nor move by menu.
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    assert.equal(
+      find(byTestId(draw(), "pipeline-col-proposals"), (n) => n.type === globalThis.window.MoreMenu),
+      null,
+    );
+  } finally {
+    globalThis.window.__ME = { role: "owner" };
+  }
+});
+
+test("the bridge's pass reads each person afresh, records only a deal still a proposal out, tells a change from a failure, and reads People again once after the last whatever it answered", async () => {
+  await fresh();
+  const { passDeals } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const now = Date.now();
+  const dealDto = (id, contact, stage, version) => ({
+    id,
+    contact_id: contact,
+    service: "Color correction",
+    stage,
+    proposed_at: iso(now - 9 * DAY),
+    decided_at: stage === "proposed" ? null : iso(now - DAY),
+    ended_at: null,
+    amount_cents: 120_000,
+    per: "once",
+    currency: "USD",
+    note: null,
+    version,
+    created_at: iso(now - 9 * DAY),
+    proposal_url: null,
+    valid_until: null,
+    lost_reason: null,
+  });
+  // As the person read answers: Ann still a proposal out, Bo a client since the rows were drawn, Cy's deal moved by a
+  // teammate (the door refuses it), Di's read fails, Ed's write fails another way.
+  const people = {
+    ann: dealDto("d-ann", "ann", "proposed", 4),
+    bo: dealDto("d-bo", "bo", "won", 7),
+    cy: dealDto("d-cy", "cy", "proposed", 2),
+    di: null,
+    ed: dealDto("d-ed", "ed", "proposed", 5),
+  };
+  const detail = (id) => ({
+    row: personRow(now, id, id.toUpperCase(), {}),
+    identities: [],
+    conversations: [],
+    calls: [],
+    escalations: [],
+    decisions: [],
+    receptionist_mode: null,
+    workspace_reply_mode: "auto",
+    deals: people[id] ? [people[id]] : [],
+    deals_on: true,
+    services: ["Color correction"],
+  });
+  const old = globalThis.window.fetch;
+  const asked = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const method = init.method || "GET";
+    asked.push(`${method} ${u.pathname}`);
+    const one = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)$/);
+    if (one && method === "GET") {
+      if (one[1] === "di") return json(503, { ok: false, error: { code: "unavailable", message: "down" } });
+      return json(200, { ok: true, data: { person: detail(one[1]) } });
+    }
+    const write = u.pathname.match(/^\/api\/v1\/contacts\/([^/]+)\/deal$/);
+    if (write && method === "POST") {
+      const body = JSON.parse(init.body);
+      if (write[1] === "cy")
+        return json(400, { ok: false, error: { code: "validation", message: DEAL_REFUSALS.moved } });
+      if (write[1] === "ed") return json(403, { ok: false, error: { code: "forbidden", message: "No." } });
+      const d = { ...people[write[1]], stage: "lost", version: body.version + 1, lost_reason: body.lost_reason };
+      return json(200, { ok: true, data: { deal: d, from: "proposed", decision_id: "dec", current: d } });
+    }
+    // The one re-read after the pass (People's list, then Reports): answered, since the pass waits for it.
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
+  const stop = startSurfaces([], () => () => {});
+  try {
+    const out = await passDeals(
+      ["ann", "bo", "cy", "di", "ed"].map((id) => ({ personId: id, dealId: `d-${id}` })),
+      "price",
+    );
+    assert.deepEqual(out, { passed: ["ann"], changed: ["bo", "cy"], failed: ["di", "ed"] });
+    const posts = asked.filter((a) => a.startsWith("POST"));
+    assert.deepEqual(
+      posts,
+      ["POST /api/v1/contacts/ann/deal", "POST /api/v1/contacts/cy/deal", "POST /api/v1/contacts/ed/deal"],
+      "Bo became a client since: nothing is written over him; Di could not be read: nothing is sent for her",
+    );
+    assert.equal(
+      asked.filter((a) => a === "GET /api/v1/contacts").length,
+      1,
+      "People is read again once, after the last, though the last was refused",
+    );
+  } finally {
+    stop();
+    await new Promise((r) => setTimeout(r, 20));
+    globalThis.window.fetch = old;
+  }
+});
+
+test("the bridge publishes the deal kit the pages read, the card's next act with it", async () => {
+  const { installPeopleCourier } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const keep = {};
+  const names = ["__deal", "__recordDeal", "__passDeals", "__personDetail", "__peekPerson", "__warmPerson"];
+  for (const k of names) keep[k] = globalThis.window[k];
+  try {
+    installPeopleCourier();
+    // The bridge's own contracts, by name: this file and the bridge load the package as two module instances.
+    assert.equal(globalThis.window.__deal.next.name, dealNextAct.name, "a phone's peek pins the card's own next act");
+    assert.equal(globalThis.window.__deal.menu.name, dealMenuActs.name);
+    assert.equal(typeof globalThis.window.__passDeals, "function");
+  } finally {
+    for (const k of names) globalThis.window[k] = keep[k];
   }
 });

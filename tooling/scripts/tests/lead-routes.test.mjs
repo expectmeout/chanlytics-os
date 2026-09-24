@@ -1307,7 +1307,7 @@ test("the mailto encodes each part once, keeps a quote and an ampersand, and bre
     m,
     "mailto:hello%40zilkerstrength.example?subject=Coffee%20%26%20a%20question&body=Hi%20Dana%2C%0D%0AOne%20idea%20%22for%20you%22.",
   );
-  const foot = leadDraftFooter("Melany's Beauty Salon", "1 Main St, Austin, TX 78701");
+  const foot = leadDraftFooter("Marisa's Beauty Salon", "1 Main St, Austin, TX 78701");
   const once = leadMailto("a@b.example", "s", `Hi.${foot}`);
   assert.equal(
     once,

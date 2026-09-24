@@ -67,7 +67,7 @@ const W = globalThis.window;
 /* ------------------------------------ a working day ------------------------------------ */
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
   channels: [
     { kind: "whatsapp", status: "active", number: "+1 305" },
     { kind: "voice", status: "active", number: "+1 786" },

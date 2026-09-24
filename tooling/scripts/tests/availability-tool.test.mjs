@@ -335,7 +335,7 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   );
   const brain = {
     business_name: "S",
-    phone_display: "(646) 932-5775",
+    phone_display: "(212) 555-0142",
     booking_link: "https://booksy.com/x",
     system_prompt: "x".repeat(50),
     fallbacks: { greeting: "g", error: "e", non_text: "n" },

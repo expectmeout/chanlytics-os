@@ -8,10 +8,10 @@ import { toTodayVM } from "@chanlytics/contracts";
 const NOW = new Date("2026-08-27T15:00:00Z"); // 11:00 America/New_York
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [
-    { kind: "whatsapp", status: "active", number: "+19177724072" },
-    { kind: "voice", status: "active", number: "+13083368109" },
+    { kind: "whatsapp", status: "active", number: "+13055550188" },
+    { kind: "voice", status: "active", number: "+13055550123" },
   ],
   window: {
     days: 1,
@@ -316,7 +316,7 @@ test("the clock comes from the TENANT's timezone, not the reader's", () => {
   m.window.now_local = "2026-08-27T19:30:00"; // evening at the salon
   const vm = toTodayVM(m, [], [], [], NOW);
   assert.match(vm.standing.eyebrow, /7:30 PM/);
-  assert.match(vm.standing.eyebrow, /Melany's Beauty Salon/);
+  assert.match(vm.standing.eyebrow, /Marisa's Beauty Salon/);
 });
 
 test("receipts quote the outbound message verbatim, not a summary of it", () => {
@@ -514,8 +514,8 @@ test("the count above the work sees every wire, and calls each one what the owne
   const all = toTodayVM(
     metrics({
       channels: [
-        { kind: "whatsapp", status: "active", number: "+19177724072" },
-        { kind: "sms", status: "active", number: "+13083368109" },
+        { kind: "whatsapp", status: "active", number: "+13055550188" },
+        { kind: "sms", status: "active", number: "+13055550123" },
         EMAIL,
       ],
     }),
@@ -535,8 +535,8 @@ test("the count above the work sees every wire, and calls each one what the owne
   const smsOff = toTodayVM(
     metrics({
       channels: [
-        { kind: "whatsapp", status: "active", number: "+19177724072" },
-        { kind: "sms", status: "disabled", number: "+13083368109" },
+        { kind: "whatsapp", status: "active", number: "+13055550188" },
+        { kind: "sms", status: "disabled", number: "+13055550123" },
         EMAIL,
       ],
     }),

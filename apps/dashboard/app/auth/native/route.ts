@@ -1,0 +1,53 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { nativeSignInPlan, NATIVE_FAILED } from "@/server/native-sign-in";
+import { takeRate } from "@/server/rate-limit";
+import { ipOf, hashKey } from "@/server/request-ip";
+
+/**
+ * POST /auth/native -- where the native app hands in the identity token it got from Apple or Google.
+ *
+ * Signs it in through the same cookie-backed server client every route uses, so the cookie it writes is the one the
+ * proxy reads, and lands the WebView where the app asked, on this site only (native-sign-in.ts). Public by an exact
+ * entry in the proxy's PUBLIC_PATHS: nobody has a session yet, that is the point. Rate-limited per network like
+ * sign-up: a token that does not verify costs a Supabase call each time.
+ *
+ * The body is JSON or a form: the app posts either. A refusal is the sign-in page saying so once, never a JSON error
+ * the WebView would render as text.
+ */
+export async function POST(request: Request): Promise<Response> {
+  await takeRate(`ip:${hashKey(ipOf(request))}`, "native_sign_in");
+  const body = await readBody(request);
+  const plan = nativeSignInPlan(body);
+  let to = plan.to;
+  if (plan.signIn) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: plan.signIn.provider,
+      token: plan.signIn.token,
+      ...(plan.signIn.nonce ? { nonce: plan.signIn.nonce } : {}),
+    });
+    if (error) {
+      console.warn(
+        "native_sign_in_failed",
+        JSON.stringify({ provider: plan.signIn.provider, message: error.message.slice(0, 120) }),
+      );
+      to = NATIVE_FAILED;
+    }
+  } else {
+    console.warn("native_sign_in_refused", JSON.stringify({ why: plan.refused }));
+  }
+  // Relative, like the callback's: safeNext() guarantees a path on this site. 303 so the WebView's POST becomes a GET.
+  return new NextResponse(null, { status: 303, headers: { location: to, "cache-control": "private, no-store" } });
+}
+
+async function readBody(request: Request): Promise<unknown> {
+  const type = request.headers.get("content-type") ?? "";
+  try {
+    if (type.includes("application/json")) return await request.json();
+    if (type.includes("form")) return Object.fromEntries((await request.formData()).entries());
+  } catch {
+    /* an unreadable body is a refusal below */
+  }
+  return null;
+}

@@ -24,7 +24,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const X = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export.ts")).href);
 
 const TZ = "America/New_York";
-const OPTS = { business: "Melany's Beauty Salon", tz: TZ, exportedAt: new Date("2026-09-05T15:04:00Z") };
+const OPTS = { business: "Marisa's Beauty Salon", tz: TZ, exportedAt: new Date("2026-09-05T15:04:00Z") };
 const contact = {
   id: "p1",
   display_name: null,
@@ -110,7 +110,7 @@ test("a thread exports oldest first in CHANNEL time, with who said it and what s
   assert.equal(lines[0], "Conversation with Dani 💅 (+19175550100)");
   assert.equal(
     lines[1],
-    "Melany's Beauty Salon · WhatsApp · 6 messages · exported 2026-09-05 11:04 · times in America/New_York",
+    "Marisa's Beauty Salon · WhatsApp · 6 messages · exported 2026-09-05 11:04 · times in America/New_York",
   );
   assert.equal(lines[2], "");
   assert.equal(lines[3], "[2026-09-01 09:59] Dani 💅: hola", "channel time, and the customer by their WhatsApp name");
@@ -161,7 +161,7 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   assert.equal(lines[0], "Phone call with Daniela Ruiz (+19175550100)");
   assert.equal(
     lines[1],
-    "Melany's Beauty Salon · Inbound call · 2026-09-04 23:00 · 1:30 · exported 2026-09-05 11:04 · times in America/New_York",
+    "Marisa's Beauty Salon · Inbound call · 2026-09-04 23:00 · 1:30 · exported 2026-09-05 11:04 · times in America/New_York",
   );
   assert.equal(lines[3], "Marked successful · Caller sentiment: Positive");
   assert.equal(lines[5], "Summary");
@@ -260,14 +260,14 @@ test("the export carries the consent a carrier audit asks about", () => {
 });
 
 test("a download is an attachment, private, with a safe name and the real one", () => {
-  const res = X.attachment("people-Melany's Salón-20260905.csv", "﻿a,b\r\n", "text/csv");
+  const res = X.attachment("people-Marisa's Salón-20260905.csv", "﻿a,b\r\n", "text/csv");
   assert.ok(res instanceof Response);
   assert.equal(res.headers.get("content-type"), "text/csv; charset=utf-8");
   assert.equal(res.headers.get("cache-control"), "private, no-store");
   const cd = res.headers.get("content-disposition");
-  assert.ok(cd.startsWith('attachment; filename="people-Melany\'s Sal_n-20260905.csv"'), cd);
-  assert.ok(cd.includes("filename*=UTF-8''people-Melany's%20Sal%C3%B3n-20260905.csv"));
-  assert.equal(X.safeName("Melany's Beauty Salón!"), "Melany-s-Beauty-Salon");
+  assert.ok(cd.startsWith('attachment; filename="people-Marisa\'s Sal_n-20260905.csv"'), cd);
+  assert.ok(cd.includes("filename*=UTF-8''people-Marisa's%20Sal%C3%B3n-20260905.csv"));
+  assert.equal(X.safeName("Marisa's Beauty Salón!"), "Marisa-s-Beauty-Salon");
   assert.equal(X.safeName("   "), "export");
   assert.equal(X.dateTag(new Date("2026-09-05T03:30:00Z"), TZ), "20260904", "the day in the business's zone");
 });
@@ -434,7 +434,7 @@ test("the bundle is one JSON document: every section, every page, in order, neve
   const chunks = [];
   for await (const c of B.workspaceBundle(readers, {
     workspaceId: "t1",
-    business: "Melany's Beauty Salon",
+    business: "Marisa's Beauty Salon",
     tz: TZ,
     exportedAt: new Date("2026-09-12T03:00:00Z"),
     page: 2,
@@ -446,7 +446,7 @@ test("the bundle is one JSON document: every section, every page, in order, neve
   assert.equal(doc.version, 1);
   assert.deepEqual(doc.workspace, {
     id: "t1",
-    name: "Melany's Beauty Salon",
+    name: "Marisa's Beauty Salon",
     timezone: TZ,
     exported_at: "2026-09-12T03:00:00.000Z",
   });
@@ -602,9 +602,9 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const tables = (role) => ({
     memberships: [
-      { user_id: "u1", tenant_id: T, role, tenants: { slug: "melanys" }, created_at: "2026-01-01T00:00:00Z" },
+      { user_id: "u1", tenant_id: T, role, tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
     ],
-    tenants: [{ id: T, slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: TZ }],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
     policies: [],
     conversations: [
       {
@@ -725,12 +725,12 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
   assert.ok(res instanceof Response, "a file, not a JSON envelope");
   assert.match(
     res.headers.get("content-disposition") ?? "",
-    /^attachment; filename="workspace-Melany-s-Beauty-Salon-2026\d{4}\.json"/,
+    /^attachment; filename="workspace-Marisa-s-Beauty-Salon-2026\d{4}\.json"/,
   );
   assert.equal(res.headers.get("cache-control"), "private, no-store");
   assert.match(res.headers.get("content-type") ?? "", /^application\/json/);
   const doc = JSON.parse(await res.text());
-  assert.equal(doc.workspace.name, "Melany's Beauty Salon");
+  assert.equal(doc.workspace.name, "Marisa's Beauty Salon");
   // On the ledger, as erasure is: who took a copy of everything, and when.
   assert.deepEqual(
     (ownerTables.decisions ?? []).map((x) => [x.subject_type, x.subject_id, x.verb, x.payload.what, x.actor_user_id]),
@@ -864,9 +864,9 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const tables = (role) => ({
     memberships: [
-      { user_id: "u1", tenant_id: T, role, tenants: { slug: "melanys" }, created_at: "2026-01-01T00:00:00Z" },
+      { user_id: "u1", tenant_id: T, role, tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
     ],
-    tenants: [{ id: T, slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: TZ }],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
     policies: [],
     decisions: [],
   });
@@ -897,7 +897,7 @@ test("everyone as a CSV: owners only, the file, and the ledger row that says who
   assert.ok(res instanceof Response);
   assert.match(
     res.headers.get("content-disposition") ?? "",
-    /^attachment; filename="people-Melany-s-Beauty-Salon-2026\d{4}\.csv"/,
+    /^attachment; filename="people-Marisa-s-Beauty-Salon-2026\d{4}\.csv"/,
   );
   // The bytes, not text(): the Fetch API strips a leading BOM when it decodes,
   // and the BOM is the point (a spreadsheet opens accents right).

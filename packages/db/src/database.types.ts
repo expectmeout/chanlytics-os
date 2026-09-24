@@ -3523,6 +3523,36 @@ export type Database = {
         }
         Relationships: []
       }
+      push_devices: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          id: string
+          last_seen_at: string
+          platform: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          platform: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rate_hits: {
         Row: {
           actor: string
@@ -4673,6 +4703,11 @@ export type Database = {
       purge_events: { Args: { p_keep?: string }; Returns: number }
       purge_leads: { Args: never; Returns: number }
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
+      push_device_forget: { Args: { p_token: string }; Returns: Json }
+      push_device_register: {
+        Args: { p_app_version?: string; p_platform: string; p_token: string }
+        Returns: Json
+      }
       put_channel_credentials: {
         Args: { p_channel_id: string; p_secret: Json }
         Returns: string

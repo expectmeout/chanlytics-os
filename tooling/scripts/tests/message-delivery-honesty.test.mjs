@@ -56,7 +56,7 @@ const dto = (messages) => ({
 
 test("the same words, canceled and delivered, do not render the same", () => {
   // The literal case from the live account.
-  const text = "Hi! Thanks for calling Melany's Beauty Salon.";
+  const text = "Hi! Thanks for calling Marisa's Beauty Salon.";
   const vm = toConversationVM(dto([msg("canceled", text), msg("delivered", text)]), ZONE);
   const [a, b] = vm.messages;
   assert.equal(a.text, b.text, "the fixture is only interesting if the text matches");

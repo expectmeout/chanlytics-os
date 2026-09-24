@@ -62,9 +62,9 @@ test("the rules, per channel: auto says nothing; ask hands the matter to a perso
 
 test("the prompt carries the rows on both channels — a composed profile and a hand-written prompt alike", () => {
   const brain = {
-    business_name: "Melany's",
+    business_name: "Marisa's",
     phone_display: "+1 (305) 555-0100",
-    booking_link: "https://booksy.com/melanys",
+    booking_link: "https://book.example.com/marisas",
     system_prompt: "You are the receptionist.",
     fallbacks: { greeting: "hi", error: "sorry" },
     profile: null,

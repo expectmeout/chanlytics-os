@@ -35,7 +35,7 @@ const A = {
   reply_token: "a".repeat(24),
   reply_token_prev: "p".repeat(24),
 };
-const B = { id: "mb-b", tenant_id: "t-b", local_part: "melanys", reply_token: "b".repeat(24), reply_token_prev: null };
+const B = { id: "mb-b", tenant_id: "t-b", local_part: "marisas", reply_token: "b".repeat(24), reply_token_prev: null };
 
 function world(faults = {}) {
   const tables = { mailboxes: [{ ...A }, { ...B }], jobs: [], events: [] };
@@ -92,7 +92,7 @@ test("an email addressed to two workspaces is two intakes; named twice to one, i
   assert.equal(
     await post(
       received(["bestmovers@mail.chanlytics.com", "someone@else.example"], {
-        cc: ["melanys@mail.chanlytics.com"],
+        cc: ["marisas@mail.chanlytics.com"],
         bcc: [`r+${"a".repeat(24)}@mail.chanlytics.com`],
       }),
     ),

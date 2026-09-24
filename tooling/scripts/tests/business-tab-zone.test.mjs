@@ -25,9 +25,9 @@ const { installBusinessTab } = await import(`${SRC}/legacy-bridge/business-tab.t
 const { composePromptPreview } = await import(`${SRC}/server/prompt-preview.ts`);
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
-  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Answer warmly and briefly.",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
+  system_prompt: "You are the WhatsApp assistant for Marisa's Beauty Salon. Answer warmly and briefly.",
   fallbacks: {
     greeting: "Hi! Someone will be with you shortly.",
     error: "Sorry, something went wrong on our side.",
@@ -51,9 +51,9 @@ const server = (zone) => {
     const method = init.method || "GET";
     state.asked.push(`${method} ${path}`);
     const row = {
-      id: "t-melany",
+      id: "t-marisa",
       slug: "studio",
-      name: "Melany's Beauty Salon",
+      name: "Marisa's Beauty Salon",
       status: "active",
       timezone: state.zone,
     };
@@ -114,8 +114,8 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   const srv = server("America/New_York");
   Object.assign(W, {
     fetch: srv.fetch,
-    __WORKSPACES: [{ id: "t-melany", timezone: "America/New_York" }],
-    __ACTIVE_WORKSPACE: "t-melany",
+    __WORKSPACES: [{ id: "t-marisa", timezone: "America/New_York" }],
+    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   installBusinessTab();
@@ -164,10 +164,10 @@ test("how customers buy is saved through the workspace's own route: only what wa
   Object.assign(W, {
     fetch: srv.fetch,
     __WORKSPACES: [
-      { id: "t-melany", timezone: "America/New_York", sells_by: null },
+      { id: "t-marisa", timezone: "America/New_York", sells_by: null },
       { id: "t-other", timezone: "Europe/London", sells_by: null },
     ],
-    __ACTIVE_WORKSPACE: "t-melany",
+    __ACTIVE_WORKSPACE: "t-marisa",
   });
   installIdentity(W);
   const heard = [];
@@ -184,7 +184,7 @@ test("how customers buy is saved through the workspace's own route: only what wa
       assert.deepEqual(
         W.__WORKSPACES.map((t) => [t.id, t.timezone, t.sells_by]),
         [
-          ["t-melany", "America/New_York", "proposal"],
+          ["t-marisa", "America/New_York", "proposal"],
           ["t-other", "Europe/London", null],
         ],
         "the active workspace's answer, and no other's; the zone as it was",

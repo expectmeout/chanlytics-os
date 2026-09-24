@@ -25,30 +25,30 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
-const DEST = "+13083368109";
+const DEST = "+13055550123";
 
 test("the codes: every carrier and mode dials the receptionist's line; each card says how to dial and what breaks it", () => {
   const v = forwardingCodes("verizon", "unanswered", DEST);
-  assert.deepEqual(v.on, { code: "*713083368109", tel: "tel:*713083368109" });
+  assert.deepEqual(v.on, { code: "*713055550123", tel: "tel:*713055550123" });
   assert.deepEqual(v.off, { code: "*73", tel: "tel:*73" });
-  assert.equal(forwardingCodes("verizon", "always", DEST).on.code, "*723083368109");
+  assert.equal(forwardingCodes("verizon", "always", DEST).on.code, "*723055550123");
   const a = forwardingCodes("att", "always", DEST);
-  assert.deepEqual(a.on, { code: "*21*3083368109#", tel: "tel:*21*3083368109%23" });
+  assert.deepEqual(a.on, { code: "*21*3055550123#", tel: "tel:*21*3055550123%23" });
   assert.equal(a.off.code, "#21#");
   const ac = forwardingCodes("att", "unanswered", DEST);
-  assert.equal(ac.on.code, "*61*3083368109#");
+  assert.equal(ac.on.code, "*61*3055550123#");
   assert.equal(ac.off.code, "#61#");
   assert.ok(
-    ac.notes.some((n) => n.includes("*67*3083368109#") && n.includes("*92") && n.includes("*90")),
+    ac.notes.some((n) => n.includes("*67*3055550123#") && n.includes("*92") && n.includes("*90")),
     "busy, and the fallback codes when a phone refuses these",
   );
   const t = forwardingCodes("tmobile", "always", DEST);
-  assert.deepEqual(t.on, { code: "**21*+13083368109#", tel: "tel:**21*%2B13083368109%23" });
+  assert.deepEqual(t.on, { code: "**21*+13055550123#", tel: "tel:**21*%2B13055550123%23" });
   assert.equal(t.off.code, "##21#");
-  assert.equal(forwardingCodes("tmobile", "unanswered", DEST).on.code, "**004*+13083368109#");
+  assert.equal(forwardingCodes("tmobile", "unanswered", DEST).on.code, "**004*+13055550123#");
   assert.equal(forwardingCodes("tmobile", "unanswered", DEST).off.code, "##004#");
   const o = forwardingCodes("other", "unanswered", DEST);
-  assert.equal(o.on.code, "*923083368109");
+  assert.equal(o.on.code, "*923055550123");
   assert.equal(o.off.code, "*93");
   assert.ok(o.notes.some((n) => /ask your carrier/i.test(n)));
   for (const c of CARRIERS)
@@ -63,7 +63,7 @@ test("the codes: every carrier and mode dials the receptionist's line; each card
           codes.notes.some((n) => n.includes("If voicemail picks up first")),
           `${c}: the voicemail timer is the one thing that breaks it`,
         );
-      assert.ok(!codes.on.code.includes("+1308") || c === "tmobile", `${c}: ten digits unless the carrier wants +1`);
+      assert.ok(!codes.on.code.includes("+1305") || c === "tmobile", `${c}: ten digits unless the carrier wants +1`);
     }
   assert.equal(telHref("**21*+1#"), "tel:**21*%2B1%23");
   assert.deepEqual([...CARRIERS], ["verizon", "att", "tmobile", "other"]);
@@ -88,7 +88,7 @@ test("the verification rule: inside the window, on the receptionist's line, from
     test_until: "2026-09-07T15:30:00Z",
   };
   const call = (over = {}) => ({
-    fromE164: "+16469325775",
+    fromE164: "+12125550142",
     toE164: DEST,
     startedAtIso: "2026-09-07T15:05:00Z",
     ...over,
@@ -112,19 +112,19 @@ test("the verification rule: inside the window, on the receptionist's line, from
     true,
     "no to_number from the provider: the tenant's line is assumed",
   );
-  assert.equal(forwardingMatch({ ...facts, test_from: "+16469325775" }, call()), true);
+  assert.equal(forwardingMatch({ ...facts, test_from: "+12125550142" }, call()), true);
   assert.equal(
-    forwardingMatch({ ...facts, test_from: "(646) 932-5775" }, call()),
+    forwardingMatch({ ...facts, test_from: "(212) 555-0142" }, call()),
     true,
     "the owner typed it their way",
   );
   assert.equal(
-    forwardingMatch({ ...facts, test_from: "+16469325775" }, call({ fromE164: "+12125550000" })),
+    forwardingMatch({ ...facts, test_from: "+12125550142" }, call({ fromE164: "+12125550000" })),
     false,
     "a customer's call inside the window is not the proof",
   );
   assert.equal(
-    forwardingMatch({ ...facts, test_from: "+16469325775" }, call({ fromE164: null })),
+    forwardingMatch({ ...facts, test_from: "+12125550142" }, call({ fromE164: null })),
     false,
     "withheld caller id cannot be the named phone",
   );
@@ -134,7 +134,7 @@ test("the verification rule: inside the window, on the receptionist's line, from
 });
 
 const NOW = Date.parse("2026-09-07T15:10:00Z");
-const VOICE = "+13083368109";
+const VOICE = "+13055550123";
 const base = () => ({
   business: {
     name: "Northside Movers",
@@ -158,7 +158,7 @@ const base = () => ({
 });
 const fwLine = (over = {}, facts = {}) => ({
   id: "0f3c2a1e-1111-4222-8333-444455556666",
-  e164: "+16469325775",
+  e164: "+12125550142",
   kind: "forwarded",
   provider: "carrier",
   area_code: null,
@@ -213,7 +213,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.equal(row(dial, "keep").state, "waiting_you");
   assert.equal(
     row(dial, "keep").sentence,
-    `Dial the code on the phone with ${formatPhoneDisplay("+16469325775")}, then test it.`,
+    `Dial the code on the phone with ${formatPhoneDisplay("+12125550142")}, then test it.`,
   );
   assert.deepEqual(row(dial, "keep").details, ["Only calls you don't answer · Verizon"]);
   assert.deepEqual(row(dial, "keep").verb, {
@@ -222,7 +222,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   });
   const testing = setupSteps({ ...base(), lines: lines([fwLine({}, { test_until: "2026-09-07T15:30:00Z" })]) }, NOW);
   assert.equal(row(testing, "keep").state, "waiting_you");
-  assert.match(row(testing, "keep").sentence, /^Testing — call \+1 \(646\) 932-5775 from another phone/);
+  assert.match(row(testing, "keep").sentence, /^Testing — call \+1 \(212\) 555-0142 from another phone/);
   assert.deepEqual(row(testing, "keep").details, ["Window open for 20m"]);
   assert.deepEqual(row(testing, "keep").verb, { label: "Show the code", to: "verb:forwarding" });
   const done = setupSteps(
@@ -230,7 +230,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
     NOW,
   );
   assert.equal(row(done, "keep").state, "ready");
-  assert.equal(row(done, "keep").sentence, `Calls to ${formatPhoneDisplay("+16469325775")} reach your receptionist.`);
+  assert.equal(row(done, "keep").sentence, `Calls to ${formatPhoneDisplay("+12125550142")} reach your receptionist.`);
   assert.deepEqual(row(done, "keep").details, [
     `Verified ${agoWords(Date.parse("2026-09-07T15:08:00Z"), NOW)}`,
     "Only calls you don't answer · Verizon",

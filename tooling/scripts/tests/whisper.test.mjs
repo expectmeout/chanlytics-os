@@ -34,7 +34,7 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
   };
   try {
     const r = await updateLiveCall({ apiKey: "k" }, "call_abc123def456", {
-      additionalContext: "Melany can see them at 4:30.",
+      additionalContext: "Marisa can see them at 4:30.",
       triggerResponse: true,
     });
     assert.deepEqual(r, { ok: false, status: 404 }, "a call that just ended is a status, not an exception in a route");
@@ -42,7 +42,7 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
     assert.equal(captured.init.method, "PATCH");
     assert.equal(captured.init.headers.Authorization, "Bearer k");
     assert.deepEqual(JSON.parse(captured.init.body), {
-      call_control: { additional_context: "Melany can see them at 4:30.", trigger_response: true },
+      call_control: { additional_context: "Marisa can see them at 4:30.", trigger_response: true },
     });
   } finally {
     globalThis.fetch = realFetch;

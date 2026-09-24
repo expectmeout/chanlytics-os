@@ -187,8 +187,8 @@ test("the words: a few days, the windows on each, and the rule that the calendar
 /* --------------------------------- config, composer, runtime, settings -- */
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "(212) 555-0142",
   booking_link: "https://booksy.com/x",
   system_prompt: "x".repeat(50),
   fallbacks: { greeting: "g", error: "e", non_text: "n" },

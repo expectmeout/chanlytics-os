@@ -577,7 +577,7 @@ export interface PlatformQueue {
 export interface WaitingRowVM {
   id: string;
   email: string;
-  /** "Melany's Beauty Salon · from the pricing page", or whichever half they gave. */
+  /** "Marisa's Beauty Salon · from the pricing page", or whichever half they gave. */
   detail: string | null;
   /** "asked 3d ago" */
   waited: string;

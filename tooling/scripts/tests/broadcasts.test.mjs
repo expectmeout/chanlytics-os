@@ -201,8 +201,8 @@ test("an audience is a People list, a list kept by hand, or everyone — each cr
 
 test("the words a person will read, and the values Meta will accept", () => {
   assert.equal(
-    renderTemplate("Hi {{1}}, {{2}} is 20% off at {{3}}.", ["Dani", "Balayage", "Melany's"]),
-    "Hi Dani, Balayage is 20% off at Melany's.",
+    renderTemplate("Hi {{1}}, {{2}} is 20% off at {{3}}.", ["Dani", "Balayage", "Marisa's"]),
+    "Hi Dani, Balayage is 20% off at Marisa's.",
   );
   assert.equal(
     renderTemplate("Hi {{1}}, see {{2}}.", ["Dani"]),
@@ -318,7 +318,7 @@ const world = () => ({
       failure: null,
     },
   ],
-  tenants: [{ id: TID, name: "Melany's", status: "active" }],
+  tenants: [{ id: TID, name: "Marisa's", status: "active" }],
   tenant_config: [{ tenant_id: TID, config: {} }],
   templates: [
     {
@@ -555,8 +555,8 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
     assert.ok(OPT_IN_PATTERN.test(w), w);
   for (const w of ["yes", "offers", "yes offers please", "yes to offers"])
     assert.ok(!OPT_IN_PATTERN.test(w), `"${w}" must not opt in`);
-  assert.equal(optInLink("+1 (917) 772-4072"), "https://wa.me/19177724072?text=YES%20OFFERS");
-  assert.equal(optInLink("+19177724072", OFFERS_OPT_IN_PHRASES.es), "https://wa.me/19177724072?text=SI%20OFERTAS");
+  assert.equal(optInLink("+1 (305) 555-0188"), "https://wa.me/13055550188?text=YES%20OFFERS");
+  assert.equal(optInLink("+13055550188", OFFERS_OPT_IN_PHRASES.es), "https://wa.me/13055550188?text=SI%20OFERTAS");
   assert.equal(optInLink(null), null);
   assert.equal(optInLink("12"), null);
   assert.ok(

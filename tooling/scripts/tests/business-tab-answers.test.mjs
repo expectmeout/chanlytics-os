@@ -39,7 +39,7 @@ import {
   drawTab,
   foldOf,
   labelled,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,
@@ -95,8 +95,8 @@ const notesOf = (n) =>
 /* ------------------------------------ the plan's three ------------------------------------ */
 
 test("the voice's box is the first row of How it answers, reading Not set on a record with no tone", () => {
-  // Melany's real record, with no tone on it.
-  const tree = drawTab({ profile: without(melany, "tone") });
+  // Marisa's record, with no tone on it.
+  const tree = drawTab({ profile: without(marisa, "tone") });
   const card = cardOf(tree);
   const rows = all(card, (n) => classes(n).includes("rec-row"));
   assert.match(textOf(rows[0]), /Its voice/);
@@ -134,7 +134,7 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   const sent = saving();
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  let tree = drawTab({ profile: without(melany, "tone"), flash });
+  let tree = drawTab({ profile: without(marisa, "tone"), flash });
   const stored = structuredClone(W.__SETTINGS.config);
   openFold(tree, "tone");
   tree = redrawTab(flash);
@@ -164,31 +164,31 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   assert.deepEqual([openFolds(tree), said(flashes.at(-1))], [[], SAVED], "taken, the fold closes and says so");
 
   // Over a voice that is stored, what goes is said beside what comes.
-  tree = drawTab({ profile: melany });
+  tree = drawTab({ profile: marisa });
   openFold(tree, "tone");
   tree = redrawTab();
-  assert.equal(boxIn(tree, "tone").props.value, melany.tone, "it opens with the voice as stored");
+  assert.equal(boxIn(tree, "tone").props.value, marisa.tone, "it opens with the voice as stored");
   typeIn(tree, "tone", "Calm and kind.");
   tree = redrawTab();
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [
     ["It will be told", "Tone: Calm and kind."],
-    ["It will no longer be told", `Tone: ${melany.tone}`],
+    ["It will no longer be told", `Tone: ${marisa.tone}`],
   ]);
 });
 
 test("hand-off is one row, one line: the reasons counted and what a call does", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-escalate_when");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-escalate_when");
   // The line is contracts' (handoffWords), and the number is the resolved fact, written for people as the Who you are
   // row writes it. The reasons themselves are the fold's: quoted on the row they were two lines and an ellipsis.
-  const words = handoffWords(melany.escalate_when, "+1 (646) 932-5775");
+  const words = handoffWords(marisa.escalate_when, "+1 (212) 555-0142");
   assert.equal(textOf(byTestId(row, "rec-handoff-line")), words.line);
-  assert.equal(words.line, "For 2 reasons · on a call, transfers to +1 (646) 932-5775");
+  assert.equal(words.line, "For 2 reasons · on a call, transfers to +1 (212) 555-0142");
   assert.doesNotMatch(textOf(row), /They ask for a person|WhatsApp|Phone/);
   assert.equal(all(row, (n) => classes(n).includes("rec-row-hint")).length, 0, "the row states its fact and stops");
   // No number: it takes a message, as the Who you are row says.
   const none = byTestId(
     drawTab({
-      profile: without(melany, "handoff_number"),
+      profile: without(marisa, "handoff_number"),
       facts: { handoff_number: { value: null, source: "absent" } },
     }),
     "rec-row-escalate_when",
@@ -208,7 +208,7 @@ test("hand-off is one row, one line: the reasons counted and what a call does", 
 
 test("a starting point fills the voice with its sentence, which is contracts', and saves as typed", () => {
   const sent = saving();
-  let tree = drawTab({ profile: without(melany, "tone") });
+  let tree = drawTab({ profile: without(marisa, "tone") });
   openFold(tree, "tone");
   tree = redrawTab();
   // One small menu where three boxes stood (23 Sep): its items are the starting points, in contracts' order.
@@ -235,7 +235,7 @@ test("a starting point fills the voice with its sentence, which is contracts', a
 
 test("a voice past what the profile keeps is refused under its box, and nothing is sent", () => {
   const sent = saving();
-  let tree = drawTab({ profile: without(melany, "tone") });
+  let tree = drawTab({ profile: without(marisa, "tone") });
   openFold(tree, "tone");
   tree = redrawTab();
   typeIn(tree, "tone", "x".repeat(201));
@@ -249,7 +249,7 @@ test("a voice past what the profile keeps is refused under its box, and nothing 
 });
 
 test("the standing line's tone door opens the voice's fold, with its box in it", () => {
-  let tree = drawTab({ profile: without(melany, "tone") });
+  let tree = drawTab({ profile: without(marisa, "tone") });
   const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "tone");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
@@ -377,7 +377,7 @@ test("the languages stop at what the profile keeps, through Add and through an U
   const eight = ["English", "Spanish", "Portuguese", "French", "Mandarin", "Arabic", "Russian", "Polish"];
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  let tree = drawTab({ profile: { ...melany, languages: eight }, flash });
+  let tree = drawTab({ profile: { ...marisa, languages: eight }, flash });
   openFold(tree, "languages");
   tree = redrawTab(flash);
   const hidden = (t) => find(foldOf(t, "languages"), (n) => classes(n).includes("bt-languages-add")).props.hidden;
@@ -411,7 +411,7 @@ test("the languages stop at what the profile keeps, through Add and through an U
 test("the rules at rest are a chip for each rule in force and one for photos, and each is a row of one element in the fold", () => {
   let tree = drawTab({
     profile: {
-      ...melany,
+      ...marisa,
       guardrails: {
         never_quote_prices: true,
         never_confirm_booking: false,
@@ -531,7 +531,7 @@ test("each switch saves only its own key, and the photos switch writes features.
 
 test("absent means on: a record that stores no rules opens with three on, and a Save that changes nothing sends nothing", () => {
   const sent = saving();
-  let tree = drawTab({ profile: without(melany, "guardrails") });
+  let tree = drawTab({ profile: without(marisa, "guardrails") });
   assert.deepEqual(all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf), [
     "Never quotes a price",
     "Never confirms a booking",
@@ -567,7 +567,7 @@ test("the rules fold says the rules block it will be told, with the Autonomy tab
   const policy = { booking: { mode: "ask" } };
   W.__SETTINGS = {
     ...W.__SETTINGS,
-    prompt: composePromptPreview(brainOf(melany), { tz: "America/New_York", policy, known: KNOWN, openings: null }),
+    prompt: composePromptPreview(brainOf(marisa), { tz: "America/New_York", policy, known: KNOWN, openings: null }),
   };
   openFold(tree, "guardrails");
   tree = redrawTab();
@@ -590,7 +590,7 @@ test("the rules fold says the rules block it will be told, with the Autonomy tab
 test("on a record whose details compose nothing, the rules fold says why once, and draws no empty block", () => {
   const profile = {
     guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: false },
-    handoff_number: "+16469325775",
+    handoff_number: "+12125550142",
   };
   assert.equal(hasProfile(profile), false, "the fixture composes nothing");
   let tree = drawTab({ profile });
@@ -616,7 +616,7 @@ test("at rest the rules are ONE row: the words are contracts', and no strength i
   const row = byTestId(tree, "rec-row-guardrails");
   assert.deepEqual(
     all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf),
-    rulesKept({ rules: guardrailsInForce(melany.guardrails), vision: false, composes: true })
+    rulesKept({ rules: guardrailsInForce(marisa.guardrails), vision: false, composes: true })
       .slice(0, 3)
       .concat(chipsMoreWords(2)),
     "the words are contracts', capped by the kit",
@@ -634,7 +634,7 @@ test("M-2: on a record that composes nothing, the row names only what holds, in 
   // The fold says once that the four switches change nothing it is told (RULES_WITHOUT_FIELDS_WORDS). At rest the row
   // must not then list those four as if they were lines it reads: what is left is the detector and the appointments
   // table that does not exist.
-  const profile = { guardrails: melany.guardrails, handoff_number: "+16469325775" };
+  const profile = { guardrails: marisa.guardrails, handoff_number: "+12125550142" };
   assert.equal(hasProfile(profile), false, "the fixture composes nothing");
   const tree = drawTab({ profile });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
@@ -653,12 +653,12 @@ test("M-2: on a record that composes nothing, the row names only what holds, in 
 test("at rest the price rule keeps its word with the switch off, and the booking rule changes its words", () => {
   // Task 3.5's review: a row that dropped "Never quotes a price" with the switch off would read as if prices went
   // through. They do not -- the detector runs either way (the owner's decision, 20 Sep 2026).
-  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
   const chips = (t) => all(byTestId(t, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
   assert.ok(chips(drawTab({ profile: off })).includes("Never quotes a price"));
   // The structural one is different: the switch decides only whether it is told not to CLAIM it booked, so the fact
   // that stays is what it cannot do.
-  const noBooking = { ...melany, guardrails: { ...melany.guardrails, never_confirm_booking: false } };
+  const noBooking = { ...marisa, guardrails: { ...marisa.guardrails, never_confirm_booking: false } };
   const said = chips(drawTab({ profile: noBooking }));
   assert.ok(said.includes("Cannot book anything"));
   assert.ok(!said.includes("Never confirms a booking"));
@@ -726,7 +726,7 @@ test("the checked rule draws both channels, because they differ, and no other ru
 test("the price rule still says it is checked with the switch off", () => {
   // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
   // whether the switch is on or off; the switch changes one prompt line, and the row says so.
-  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
   const tree = rulesOpen({ profile: off });
   const row = ruleRow(tree, "never_quote_prices");
   assert.equal(switchOf(tree, "never_quote_prices").props["aria-checked"], false, "the switch really is off");
@@ -768,11 +768,11 @@ test("the transfer number is shown in the hand-off fold, never edited there, and
   openFold(tree, "escalate_when");
   tree = redrawTab();
   const fold = foldOf(tree, "escalate_when");
-  assert.equal(textOf(byTestId(fold, "rec-handoff-number")), "transfers to +1 (646) 932-5775");
+  assert.equal(textOf(byTestId(fold, "rec-handoff-number")), "transfers to +1 (212) 555-0142");
   const boxes = all(fold, (n) => n.type === "input" || n.type === "textarea");
   assert.equal(boxes.length, 1, "one box, the reasons'");
   assert.ok(
-    boxes.every((b) => !/646|5775/.test(String(b.props.value))),
+    boxes.every((b) => !/212|0142/.test(String(b.props.value))),
     "and no box holds the number",
   );
   // The door is the Who you are row's act, by that row's id, guarded as its own act would be.
@@ -797,7 +797,7 @@ test("the transfer number is shown in the hand-off fold, never edited there, and
   tree = redrawTab();
   saveFoldOf(tree, "escalate_when");
   assert.deepEqual(sent.at(-1).config.brain.profile.escalate_when, ["Refunds"]);
-  assert.equal(sent.at(-1).config.brain.profile.handoff_number, melany.handoff_number);
+  assert.equal(sent.at(-1).config.brain.profile.handoff_number, marisa.handoff_number);
 });
 
 test("the hand-off fold says what each channel does in contracts' words, and the chat block it will be told with its note", () => {
@@ -841,7 +841,7 @@ test("the hand-off fold says what each channel does in contracts' words, and the
 
 test("with no transfer number, the fold's call sentence says it takes a message, and its door adds one", () => {
   let tree = drawTab({
-    profile: without(melany, "handoff_number"),
+    profile: without(marisa, "handoff_number"),
     facts: { handoff_number: { value: null, source: "absent" } },
   });
   openFold(tree, "escalate_when");
@@ -863,7 +863,7 @@ test("a workspace that takes no calls is told nothing a call does: no call sente
   // Who you are's rule (its transfer row): no sentence is shown that no receptionist of the workspace receives. The
   // row at rest still says it takes a message, as that row says so too.
   const tree0 = drawTab({
-    profile: without(melany, "handoff_number"),
+    profile: without(marisa, "handoff_number"),
     facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
   });
   assert.match(textOf(byTestId(tree0, "rec-handoff-line")), /takes a message$/);
@@ -917,11 +917,11 @@ test("more reasons than the profile keeps are refused under the reasons' box", (
 /* ------------------------------------ the things it should know ------------------------------------ */
 
 test("the notes at rest are their titles as chips, three and how many more, and None with an act to add one", () => {
-  let row = byTestId(drawTab({ profile: { ...melany, notes: notesOf(6) } }), "rec-row-notes");
+  let row = byTestId(drawTab({ profile: { ...marisa, notes: notesOf(6) } }), "rec-row-notes");
   const vm = notesWords(notesOf(6));
   assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), [...vm.chips, vm.more]);
   assert.equal(vm.more, "+3");
-  row = byTestId(drawTab({ profile: without(melany, "notes") }), "rec-row-notes");
+  row = byTestId(drawTab({ profile: without(marisa, "notes") }), "rec-row-notes");
   assert.match(textOf(row), /None/);
   assert.equal(textOf(byTestId(row, "rec-row-act-notes")).trim(), "Add one");
 });
@@ -930,7 +930,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
   const sent = saving();
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  let tree = drawTab({ profile: { ...melany, notes: notesOf(3) }, flash });
+  let tree = drawTab({ profile: { ...marisa, notes: notesOf(3) }, flash });
   const stored = structuredClone(W.__SETTINGS.config);
   openFold(tree, "notes");
   tree = redrawTab(flash);
@@ -980,7 +980,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
 test("the notes stop at ten through Add and through an Undo, and half a note is refused under its row", () => {
   const flashes = [];
   const flash = (f) => flashes.push(f);
-  let tree = drawTab({ profile: { ...melany, notes: notesOf(10) }, flash });
+  let tree = drawTab({ profile: { ...marisa, notes: notesOf(10) }, flash });
   openFold(tree, "notes");
   tree = redrawTab(flash);
   assert.equal(byTestId(tree, "rec-notes-add"), null, "no Add past ten");
@@ -1010,7 +1010,7 @@ test("a note's sentence goes when that note is changed or a note before it is ta
   // Each note's sentence is under its own field key (note-<i>): a change to note i answers its own, and a removal moves
   // every later note up a place, so it answers theirs too (BtFold's rows, keysOf).
   const sent = saving();
-  let tree = drawTab({ profile: { ...melany, notes: notesOf(3) } });
+  let tree = drawTab({ profile: { ...marisa, notes: notesOf(3) } });
   openFold(tree, "notes");
   tree = redrawTab();
   const half = () => {
@@ -1074,7 +1074,7 @@ test("own words carried from the prompt before the form say so, and the save wri
     "and the product's own lines as the prompt (S4)",
   );
   // An owner's own words open as theirs, with nothing said of where they came from.
-  tree = drawTab({ profile: { ...melany, extra_instructions: "Cash only." } });
+  tree = drawTab({ profile: { ...marisa, extra_instructions: "Cash only." } });
   openFold(tree, "extra_instructions");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-own-carried"), null);
@@ -1114,8 +1114,8 @@ test("emptying the only words a record composes from says it stops composing, an
   // With nothing written, the row says None.
   const none = byTestId(
     drawTab({
-      profile: without(melany, "extra_instructions"),
-      brain: { system_prompt: newReceptionistDefaults("Melany's Beauty Salon").system_prompt },
+      profile: without(marisa, "extra_instructions"),
+      brain: { system_prompt: newReceptionistDefaults("Marisa's Beauty Salon").system_prompt },
     }),
     "rec-row-extra_instructions",
   );
@@ -1155,7 +1155,7 @@ test("a fold nobody typed in promises no crossing: on a record that composes not
 
 test("the three messages at rest are one line: how many there are, and whose words they are in", () => {
   const row = byTestId(drawTab(), "rec-row-fallbacks");
-  const vm = fallbacksWords(brainOf(melany).fallbacks);
+  const vm = fallbacksWords(brainOf(marisa).fallbacks);
   assert.equal(textOf(byTestId(row, "rec-fallbacks-words")), vm.line);
   assert.equal(vm.line, "3 messages, in your words");
   const defaults = byTestId(drawTab({ brain: { fallbacks: FALLBACK_DEFAULTS } }), "rec-row-fallbacks");
@@ -1188,20 +1188,20 @@ test("each message shows what a customer reads, points at a link or a number wri
         error: "Thanks for writing to {business}! Book: {booking link}",
       },
     },
-    { channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }] },
+    { channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }] },
   ).error;
   assert.equal(textOf(byTestId(tree, "rec-fallback-error-reads")), `A customer reads: ${reads}`);
-  assert.match(reads, /Melany's Beauty Salon! Book: https:\/\/booksy\.com/);
+  assert.match(reads, /Marisa's Beauty Salon! Book: https:\/\/book\.example\.com/);
   // A link or a number written out stays as written: said.
   labelled(tree, "If it gets something it can't read").props.onChange({
-    target: { value: "Book at https://booksy.com/en-us/1817434 or call (646) 932-5775." },
+    target: { value: "Book at https://book.example.com/en-us/4471902 or call (212) 555-0142." },
   });
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
     /^Your booking link is written out here — \{booking link\} keeps it current\./,
   );
-  labelled(tree, "If it gets something it can't read").props.onChange({ target: { value: "Call (646) 932-5775." } });
+  labelled(tree, "If it gets something it can't read").props.onChange({ target: { value: "Call (212) 555-0142." } });
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
@@ -1222,7 +1222,7 @@ test("each message shows what a customer reads, points at a link or a number wri
   expected.brain.fallbacks = {
     greeting: FALLBACK_DEFAULTS.greeting,
     error: "Thanks for writing to {business}! Book: {booking link}",
-    non_text: "Call (646) 932-5775.",
+    non_text: "Call (212) 555-0142.",
   };
   assert.deepEqual(
     sent.map((s) => s.config),
@@ -1268,7 +1268,7 @@ test("a viewer reads How it answers and is offered no act on any of it, and noth
       "no row offers a change",
     );
     assert.match(textOf(card), /English, Spanish/, "and everything is there to read");
-    assert.match(textOf(card), /transfers to \+1 \(646\) 932-5775/);
+    assert.match(textOf(card), /transfers to \+1 \(212\) 555-0142/);
     const why = roleGate("viewer", "settings", "change the business").reason;
     assert.equal(
       all(tree, (n) => ownWords(n).includes(why)).length,
@@ -1294,7 +1294,7 @@ test("every act of How it answers is gated as a change to the settings, and name
     return {};
   };
   try {
-    const tree = drawTab({ profile: without(melany, "tone") });
+    const tree = drawTab({ profile: without(marisa, "tone") });
     const mine = asked.filter(([, doing]) =>
       /voice|languages|rules it always|hands you|should know|own words|can't answer/.test(doing),
     );

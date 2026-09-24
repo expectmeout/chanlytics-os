@@ -1196,6 +1196,11 @@ test("on a phone the mic keeps the finger: the lift asks what was heard, and Typ
     assert.equal(inputOf(tree).props.value, "how did the week go", "the words are the field's, to finish");
     assert.equal(focused, 1, "and the field takes focus");
     assert.equal(byTestId(tree, "ask-letgo"), null);
+    // With words in the field the one button is Send; cleared, it is the mic again (S12).
+    assert.equal(byTestId(tree, "ask-talk"), null, "with words, the button is Send");
+    assert.equal(byTestId(tree, "ask-send").props.disabled, false);
+    typed(tree, "");
+    tree = await later(Palette, OPEN);
 
     byTestId(tree, "ask-talk").props.onPointerDown(down());
     hears(recs[1], "how did the weekend go");
@@ -1207,6 +1212,99 @@ test("on a phone the mic keeps the finger: the lift asks what was heard, and Typ
     await closes();
     delete globalThis.window.SpeechRecognition;
     ph.restore();
+  }
+});
+
+test("one button at the field's end: the mic with no words, Send with words, and Send alone where the browser cannot listen (S12)", async () => {
+  // Where the browser listens: the mic at rest, Send once there are words, the mic again once they are cleared.
+  globalThis.window.SpeechRecognition = class {
+    start() {}
+    stop() {}
+  };
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    const mic = byTestId(tree, "ask-talk");
+    assert.ok(mic, "the mic, with no words");
+    assert.equal(mic.props.className, "ask-send talk", "the same circle Send is");
+    assert.equal(mic.props["aria-pressed"], false);
+    assert.equal(byTestId(tree, "ask-send"), null, "and no second button");
+    typed(tree, "who wrote today?");
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-talk"), null, "with words, the mic gives way");
+    assert.equal(byTestId(tree, "ask-send").props.disabled, false, "to Send, filled");
+    typed(tree, "   ");
+    tree = await later(Palette, OPEN);
+    assert.ok(byTestId(tree, "ask-talk"), "spaces are no words: the mic again");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
+  }
+  // Where it cannot: Send alone, faint until there are words; no mic that only says it cannot listen.
+  ask([]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-talk"), null, "no mic where the browser cannot listen");
+  assert.equal(byTestId(tree, "ask-talk-off"), null, "and none that only says so");
+  assert.equal(byTestId(tree, "ask-send").props.disabled, true, "Send, faint");
+  typed(tree, "who wrote today?");
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-send").props.disabled, false);
+  await closes();
+});
+
+test("a hold whose recogniser ends on its own asks the words heard, and the lift's click does not press the Stop the button has become", async () => {
+  const recs = [];
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const tick = () => new Promise((r) => setImmediate(r));
+  try {
+    const calls = ask([]);
+    let release;
+    // A turn held open, so the button is Stop while the finger is still down.
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(1).id, title: input.text });
+      await new Promise((r) => {
+        release = r;
+      });
+      on({ t: "final", message: said("m-h", "Nobody yet.") });
+    };
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown({ ...pressOf(), pointerId: 3, currentTarget: {} });
+    hears(recs[0], "who wrote today");
+    // A pause ended it (Android Chrome, iOS Safari), the finger still down: the words are asked at once.
+    recs[0].onend();
+    await tick();
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["who wrote today"], "the words heard are asked");
+    assert.ok(byTestId(tree, "ask-stop"), "and the held button is Stop now");
+    // The lift: the browser's click lands on what the button has become.
+    press(byTestId(tree, "ask-stop"));
+    tree = await later(Palette, OPEN);
+    assert.ok(byTestId(tree, "ask-stop"), "REGRESSION: the lift's click stopped the turn just asked");
+    // A press after the lift is a press.
+    press(byTestId(tree, "ask-stop"));
+    tree = await later(Palette, OPEN);
+    assert.equal(byTestId(tree, "ask-stop"), null, "Stop stops it");
+    release();
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
   }
 });
 

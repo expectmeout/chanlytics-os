@@ -36,7 +36,7 @@ const call = (over = {}) => ({
   status: "ended",
   from_e164: "+19175746416",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: ago(3_600_000),
   ended_at: ago(3_594_000),
   duration_ms: 6_000,
@@ -61,8 +61,8 @@ const call = (over = {}) => ({
 });
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
-  channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "voice", status: "active", number: "+13055550123" }],
   window: {
     days: 1,
     since: "2026-09-04T04:00:00+00:00",

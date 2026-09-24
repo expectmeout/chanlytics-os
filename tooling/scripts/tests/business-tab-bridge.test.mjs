@@ -77,15 +77,15 @@ const CHANNELS = ["whatsapp", "voice"];
 const profile = (brain, over) => ({ ...brain, profile: { ...brain.profile, ...over } });
 
 /**
- * Melany's record as stored: a prompt written before the workspace had fields, not the product's baseline; no
+ * Marisa's record as stored: a prompt written before the workspace had fields, not the product's baseline; no
  * number of its own to give out; its own box empty, so that prompt is carried into it; a closure long past and one
  * to come.
  */
 const STORED = {
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
   system_prompt:
-    "You are the WhatsApp assistant for Melany's Beauty Salon. Lashes, brows and nails; end with [[HUMAN]] if unsure.",
+    "You are the WhatsApp assistant for Marisa's Beauty Salon. Lashes, brows and nails; end with [[HUMAN]] if unsure.",
   fallbacks: {
     greeting: "Hi! Someone will be with you shortly.",
     error: "Sorry, something went wrong on our side.",
@@ -94,8 +94,8 @@ const STORED = {
   profile: {
     tone: "Warm and unhurried.",
     languages: ["English", "Spanish"],
-    address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-    website: "https://melanysbeautysalon.com",
+    address: "1200 Maple Ave, Brooklyn, NY 11208",
+    website: "https://marisasbeautysalon.example.com",
     hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
     closures: [
       { date: "2020-01-01", note: "Long gone" },
@@ -103,16 +103,16 @@ const STORED = {
     ],
     services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
     notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }],
-    escalate_when: ["They ask for Melany"],
+    escalate_when: ["They ask for Marisa"],
     booking_rules: { lead_hours: 2, party_max: 4, consult_first: ["Color correction"] },
     guardrails: { never_quote_prices: true },
-    handoff_number: "+16469325775",
+    handoff_number: "+12125550142",
   },
 };
 /** What the platform knows: the voice line it provisioned, and the workspace's zone. */
 const KNOWN = {
-  workspace: { name: "Melany's", timezone: TZ },
-  channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }],
+  workspace: { name: "Marisa's", timezone: TZ },
+  channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }],
   listing: null,
 };
 /** The Autonomy tab holds bookings for a person to confirm. */
@@ -228,8 +228,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
       assert.deepEqual(tab.rulesKept(i), rulesKept(i), `${JSON.stringify(g)} ${composes}`);
     }
   assert.deepEqual(
-    tab.handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
-    handoffWords(STORED.profile.escalate_when, "+1 (646) 932-5775"),
+    tab.handoffWords(STORED.profile.escalate_when, "+1 (212) 555-0142"),
+    handoffWords(STORED.profile.escalate_when, "+1 (212) 555-0142"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
   for (const calls of [true, false]) assert.deepEqual(tab.standingLine(STORED, calls), standingLine(STORED, calls));
@@ -353,7 +353,7 @@ test("for the record as stored, every fold shows the block the server's preview 
   // What composing the draft left out, and the edge sends.
   assert.match(
     tab.consequenceOf("tone", STORED, "whatsapp").text,
-    /^Phone: \+1 \(308\) 336-8109$/m,
+    /^Phone: \+1 \(305\) 555-0123$/m,
     "the number it gives out is the line the platform provisioned",
   );
   assert.match(
@@ -382,8 +382,8 @@ const EDITS = [
   [
     "business_name",
     "identity",
-    (b) => ({ ...b, business_name: "Melany's Salon & Spa" }),
-    "You are the assistant for Melany's Salon & Spa, answering customers over WhatsApp.",
+    (b) => ({ ...b, business_name: "Marisa's Salon & Spa" }),
+    "You are the assistant for Marisa's Salon & Spa, answering customers over WhatsApp.",
   ],
   [
     "address",
@@ -394,14 +394,14 @@ const EDITS = [
   [
     "website",
     "identity",
-    (b) => profile(b, { website: "https://melanys.example" }),
-    "Website: https://melanys.example",
+    (b) => profile(b, { website: "https://marisas.example" }),
+    "Website: https://marisas.example",
   ],
   [
     "booking_link",
     "identity",
-    (b) => ({ ...b, booking_link: "https://book.example/melany" }),
-    "Booking link: https://book.example/melany",
+    (b) => ({ ...b, booking_link: "https://book.example/marisa" }),
+    "Booking link: https://book.example/marisa",
   ],
   ["phone_display", "identity", (b) => ({ ...b, phone_display: "+1 (646) 555-0100" }), "Phone: +1 (646) 555-0100"],
   ["tone", "identity", (b) => profile(b, { tone: "Brisk and exact." }), "Tone: Brisk and exact."],
@@ -467,8 +467,8 @@ const EDITS = [
   [
     "system_prompt",
     "platform",
-    (b) => ({ ...b, system_prompt: newReceptionistDefaults("Melany's Salon & Spa").system_prompt }),
-    newReceptionistDefaults("Melany's Salon & Spa").system_prompt,
+    (b) => ({ ...b, system_prompt: newReceptionistDefaults("Marisa's Salon & Spa").system_prompt }),
+    newReceptionistDefaults("Marisa's Salon & Spa").system_prompt,
   ],
 ];
 
@@ -502,7 +502,7 @@ test("a record that composes nothing is answered with its stored prompt: no rule
     profile: {
       guardrails: { no_health_advice: true },
       booking_rules: { lead_hours: 2 },
-      handoff_number: "+16469325775",
+      handoff_number: "+12125550142",
     },
   };
   settle(RULES_ONLY);

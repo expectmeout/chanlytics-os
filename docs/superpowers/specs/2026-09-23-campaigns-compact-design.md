@@ -3,7 +3,7 @@
 **Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by the ask ("redesign as you suggest best") · **Branch:** `design/campaigns-compact`
 
 **Analysis:** the three Campaigns tabs measured on the dashboard dev server against the salon's real workspace
-(`/w/melanys-beauty-salon/`), at 1440×900, 1600×900 and 1920×1000 on a desk and at 390×844 with touch emulation,
+(`/w/<workspace-slug>/`), at 1440×900, 1600×900 and 1920×1000 on a desk and at 390×844 with touch emulation,
 on `c28ca4ba` (#948). Every number below is from that tab or from the file and line named beside it.
 
 ## 1. Goal

@@ -15,7 +15,7 @@ const ROOT = path.resolve(here, "../../..");
 const steps = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
 const { ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, STALE_MS, STALE_REPLY_MS } = steps;
 
-const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/melany", fallbacks: {} };
+const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/marisa", fallbacks: {} };
 const NOW = 1_800_000_000_000;
 
 test("age: fresh inside ten minutes, late inside two hours, stale beyond — and no timestamp is now", () => {

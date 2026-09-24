@@ -21,7 +21,7 @@ test("the same moment is the same day, kept rather than rebuilt on every draw", 
   const a = todaySample(NOW);
   assert.equal(a, todaySample(NOW));
   assert.notEqual(a, todaySample(NOW + 60_000), "another moment is another day");
-  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Melany's Studio");
+  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Marisa's Studio");
 });
 
 test("every figure agrees with the threads and calls under it", () => {

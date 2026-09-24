@@ -19,26 +19,40 @@
 // - New proposal (pipeline-new.jsx) picks or adds a person, then opens the one deal sheet;
 // - a teammate's move arrives on its own: the People surface repaints on the deals table.
 
-// The table's columns: People's own person cell, then the deal's service, its value in tabular figures, how long it has
-// stood where it is, and its one chip, whose heading only a screen reader hears (the house's .rec-sr): no one word is
-// right for "Fri 2:00 PM" and "Since Sep 18" alike. Nothing sorts, since the order is the Pipeline's, and nothing
-// hides. Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
+// The table's columns: People's own person cell, then the deal's service, its value in tabular figures, where it stands
+// (its steps, `track`, and how long it has stood there), where they came from and the day a proposal stands until
+// (a member shows those two with Columns), its one chip, whose heading only a screen reader hears (the house's
+// .rec-sr: no one word is right for "Fri 2:00 PM" and "Since Sep 18" alike), and the row's own menu. Person, Value
+// and Stage sort within each group (contracts pipelineSorted); Stage is the Pipeline's own order, as the page opens.
+// Made once, from contracts' headings, so the list page's memo sees one list from one draw to the next.
 let PIPE_COLUMNS = null;
 const pipeColumns = () => {
   if (PIPE_COLUMNS) return PIPE_COLUMNS;
   const w = window.__pipeline.words.columns;
   PIPE_COLUMNS = [
-    { key: "name", label: w.person, sortable: false, pinned: true, cell: (r, x) => window.plNameCell(r.person, x) },
+    { key: "name", label: w.person, sortable: true, pinned: true, cell: (r, x) => window.plNameCell(r.person, x) },
     { key: "service", label: w.service, sortable: false, cell: (r) => <td key="service" className="pipe-service" data-testid="pipe-service">{r.service || ""}</td> },
-    { key: "value", label: w.value, sortable: false, cell: (r) => <td key="value" className="shrink tabular pipe-value" data-testid="pipe-value">{r.value || ""}</td> },
-    { key: "stage", label: w.stage, sortable: false, cell: (r) => <td key="stage" className="shrink dim tabular pipe-stage" data-testid="pipe-in-stage">{r.inStage}</td> },
-    { key: "chip", label: <span className="rec-sr">{w.chip}</span>, sortable: false, cell: (r) => <td key="chip" className="shrink pipe-chip">{r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}</td> },
+    { key: "value", label: w.value, sortable: true, cell: (r) => <td key="value" className="shrink tabular pipe-value" data-testid="pipe-value">{r.value || ""}</td> },
+    { key: "stage", label: w.stage, sortable: true, cell: (r) => (
+      <td key="stage" className="shrink dim tabular pipe-stage">
+        <span className="pipe-stage-in">{window.PipelineTrack ? <window.PipelineTrack steps={r.track} /> : null}<span data-testid="pipe-in-stage">{r.inStage}</span></span>
+      </td>
+    ) },
+    { key: "came", label: w.came, sortable: false, on: false, cell: (r) => <td key="came" className="dim pipe-came" data-testid="pipe-came">{r.person.cameFrom ? r.person.cameFrom.label : ""}</td> },
+    { key: "valid", label: w.valid, sortable: false, on: false, cell: (r) => {
+      const v = r.person.deal && r.person.deal.validUntil;
+      return <td key="valid" className={`shrink tabular pipe-valid${v && v.lapsed ? " is-lapsed" : ""}`} data-testid="pipe-valid">{v ? (v.lapsed ? v.words : v.date) : ""}</td>;
+    } },
+    { key: "chip", label: <span className="rec-sr">{w.chip}</span>, sortable: false, fixed: true, cell: (r) => <td key="chip" className="shrink pipe-chip">{r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}</td> },
+    { key: "actions", label: <span className="rec-sr">{w.acts}</span>, sortable: false, fixed: true, cell: (r, x) => (
+      <td key="actions" className="shrink cl-actions-cell">{window.PipelineRowMenu ? <window.PipelineRowMenu r={r} canRecord={x.canRecord} onPage={x.onPage} onThread={x.onThread} /> : null}</td>
+    ) },
   ];
   return PIPE_COLUMNS;
 };
 
 // A row on a phone is People's card (plRowCard): the face and the name with the chip beside them; the service under
-// them; then the value and the time in stage.
+// them; then the deal's steps, the value and the time in stage.
 const pipeCardCell = (r) => {
   const p = r.person;
   return window.plRowCard({
@@ -49,6 +63,7 @@ const pipeCardCell = (r) => {
     lead: r.service,
     leadTestid: "pipe-service",
     facts: [
+      r.track.length && window.PipelineTrack ? <window.PipelineTrack key="track" steps={r.track} /> : null,
       r.value ? <span key="value" className="pipe-card-value" data-testid="pipe-value">{r.value}</span> : null,
       r.inStage ? <span key="stage" className="pl-card-last" data-testid="pipe-in-stage">{r.inStage}</span> : null,
     ],
@@ -57,10 +72,15 @@ const pipeCardCell = (r) => {
 let PIPE_PHONE_COLUMNS = null;
 const pipePhoneColumns = () => PIPE_PHONE_COLUMNS || (PIPE_PHONE_COLUMNS = [{ key: "card", label: window.__pipeline.words.columns.person, sortable: false, pinned: true, cell: pipeCardCell }]);
 const pipeCardRow = () => "pl-card-row";
-// No sort to keep and none to start from: the headings do not sort, and the Pipeline's order is contracts'.
-const PIPE_SORT = { by: null, dir: "asc" };
-const pipeNoSort = () => {};
+// The order the page opens in: Stage, the Pipeline's own (contracts pipelineOf), until the member picks a heading.
+const PIPE_SORT = { by: "stage", dir: "asc" };
 const PIPE_CTX = {};
+// Beside an open peek on a desk the table keeps who and where it stands in a word: at 1280, beside the sidebar and the
+// rail, the rows have some 350px left of the peek, which holds those two and not the value, which the peek's card says
+// at its head. And of People's acts on a selection the Pipeline keeps its lists and its export, after its own Mark as
+// passed.
+const PIPE_PEEK_KEEPS = new Set(["name", "chip"]);
+const PIPE_BULK_ACTS = ["lists", "export"];
 
 // The first layout a member who never chose one gets: what #941 kept in this browser, read once, else the list. The
 // choice itself is the member's saved view now (usePlControls extraDefaults), and nothing writes the old key again.
@@ -119,7 +139,8 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // The first layout, read once: usePlControls asks for its defaults as it mounts and again as People lands.
   const [firstLayout] = React.useState(pipeFirstLayout);
   const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, extraDefaults: { layout: firstLayout } });
-  const { phone, searchOpen, setSearchOpen, toastNode, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX, extraView, setExtraView } = controls;
+  const { phone, searchOpen, setSearchOpen, toastNode, plFlash, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX, extraView, setExtraView } = controls;
+  const { sel, setSel, toggleSel, clearSelection, canExport, sortBy, sortDir, onSort, colsOpen, setColsOpen, colOptions, pickColumn, colsButton } = controls;
   const layout = extraView && PIPE_LAYOUTS.includes(extraView.layout) ? extraView.layout : "list";
   // The groups the member opened, or folded again, by key. One they never touched is as the Pipeline starts it.
   const [opened, setOpened] = React.useState({});
@@ -138,6 +159,8 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const [newQ, setNewQ] = React.useState("");
   const [newAdd, setNewAdd] = React.useState(EMPTY_ADD);
   const [newFocus, setNewFocus] = React.useState(null);
+  // The board's columns past their first twenty that a member asked to see whole, by key.
+  const [every, setEvery] = React.useState({});
   const rows = people.rows;
   // The whole Pipeline says the line over the table and the rail's counts; the view and the words in the box choose
   // only which rows show under them.
@@ -152,8 +175,15 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
   const loaded = people.page && people.page.has_more ? window.plLoadedWords(rows.length, people.page.total) : null;
   const searching = !!q.trim();
+  // Who may record a deal, whether the rows are a board, and whether they select: a selection is a desk's list, where
+  // x and Space pick the row under the cursor, for Mark as passed and People's own acts.
+  const canRecord = pipeCanRecord();
+  const board = !phone && layout === "board" && !all.empty;
+  const selectable = !phone && !board && (canRecord || canExport);
+  // Each group's rows in the order the member's heading picked (contracts pipelineSorted); the groups never move.
+  const ordered = React.useMemo(() => (P.sorted ? P.sorted(vm, sortBy, sortDir) : vm), [P, vm, sortBy, sortDir]);
   // A search opens every group: someone looked for is someone shown.
-  const sections = vm.groups.map((g) => {
+  const sections = ordered.groups.map((g) => {
     const folds = g.collapsed && !searching;
     const collapsed = folds && !opened[g.key];
     return {
@@ -166,13 +196,15 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
       toggle: collapsed ? words.show : words.hide,
     };
   });
-  const shown = sections.filter((s) => !s.collapsed).flatMap((s) => s.rows);
+  // The rows drawn, which the keys walk: on the board, a column's first twenty until the rest are asked for.
+  const cap = board && P.boardCap ? P.boardCap : Infinity;
+  const shown = sections.filter((s) => !s.collapsed).flatMap((s) => (every[s.key] ? s.rows : s.rows.slice(0, cap)));
   const ids = shown.map((r) => r.id);
   // The table's foot counts the view it shows ("6 people" in Proposal out, "Showing 1 of 6" searched there), as the
   // rail's row for it does; the line above stays the whole Pipeline's.
   const total = viewCount;
   // Each view keeps its own place (the words in the box, the cursor, the scroll), as each of People's lists does.
-  const { cursor, setCursor, rowBudget, keysWith } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}` });
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}` });
   // What the peek opens with: the tab's copy of the person where they were read already (a row warms them under the
   // pointer and the cursor), set in the same draw that opens the peek, so a person the tab holds opens with their
   // card and never with a Reading… first.
@@ -186,7 +218,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const closeSheets = () => { setListsOpen(false); setNewOpen(false); };
   // What the keyboard's one listener reads: Enter opens the peek for the person under the cursor, Esc closes it, and
   // J and K keep walking the rows behind it. Nothing here selects. A phone's sheet holds the keys while it is up.
-  keysWith({ open: openPeek, canSelect: false, sheetOpen: listsOpen || newOpen, closeSheet: closeSheets, peekOpen: !!peekId, closePeek });
+  keysWith({ open: openPeek, canSelect: selectable, sheetOpen: listsOpen || newOpen, closeSheet: closeSheets, peekOpen: !!peekId, closePeek });
   // The peek follows the row cursor while it is open, as the lead's does.
   React.useEffect(() => { if (peekId && cursor && cursor !== peekId) showPeek(cursor); }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { pipePeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -218,6 +250,36 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // Someone who left the Pipeline (nothing to follow now) closes their peek.
   React.useEffect(() => { if (peekId && !peekRow) setPeekId(null); }, [peekId, peekRow]);
   const peekVm = peekRow ? P.peek(peekRow.row, peekRow.group) : null;
+  // Beside an open peek on a desk, the columns that still say the row; on a phone the peek is the whole screen.
+  const compact = !!peekVm && !phone;
+  const tableColumns = React.useMemo(() => (compact ? columns.filter((c) => PIPE_PEEK_KEEPS.has(c.key)) : columns), [columns, compact]);
+  // A board column shows twenty; a cursor or a peek the address puts on a card past them shows the column whole, or
+  // the keys would walk from a card that is not drawn.
+  React.useEffect(() => {
+    if (!board || !isFinite(cap)) return;
+    for (const sct of sections) {
+      if (every[sct.key]) continue;
+      if (sct.rows.slice(cap).some((r) => r.id === cursor || r.id === peekId)) setEvery((e) => ({ ...e, [sct.key]: true }));
+    }
+  }, [board, cursor, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A move that regroups the row puts it under another head, a new element, so the focus the sheet gave back to the row
+  // went with the old one: it goes to the row where it now is.
+  React.useEffect(() => {
+    const onRecorded = (e) => {
+      const id = e && e.detail && e.detail.personId;
+      if (!id) return;
+      setTimeout(() => {
+        const doc = window.document;
+        if (!doc || (doc.activeElement && doc.activeElement !== doc.body)) return;
+        const el = doc.getElementById && doc.getElementById(`person-${id}`);
+        if (el && el.focus) el.focus({ preventScroll: true });
+      }, 0);
+    };
+    window.addEventListener("deal:recorded", onRecorded);
+    return () => window.removeEventListener("deal:recorded", onRecorded);
+  }, []);
+  // The people picked, as the rows shown say them: a person a view no longer shows is not acted on.
+  const picked = selectable ? shown.filter((r) => sel.has(r.id)).map((r) => r.person) : [];
   // The view and the person open over it are the address (contracts pipelineRoute), as Leads keeps its lead
   // (clients-a.jsx peekAddr): when the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page
   // follows it, and a view that changed under an open person closes their peek. When the PAGE moved, it says so:
@@ -250,18 +312,22 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // (people-table.jsx PeopleRowMemo), and the shell hands the page a new onOpenProfile on every route change.
   const pageRef = React.useRef(onOpenProfile);
   pageRef.current = onOpenProfile;
+  const navRef = React.useRef(nav);
+  navRef.current = nav;
   const ctx = React.useMemo(() => ({
     attention: null,
     onOpen: openPeek,
     // Read a person before their row is pressed, as People's rows do: the peek then opens on the tab's copy.
     onWarm: (id) => { if (window.__warmPerson) window.__warmPerson(id); },
-  }), [openPeek]);
+    // The row's menu: the deal's acts where this member may record one, then their page and their thread.
+    canRecord,
+    onPage: (id) => pageRef.current(id),
+    onThread: (r) => { if (r.person.threadId) navRef.current(window.CHANLY.R.thread(r.person.threadId)); },
+  }), [openPeek, canRecord]);
   // A view is a new place: the rail's pick, or a warn part of the line, pushes its address; the picked one again goes
   // back to the whole Pipeline (the rail kit's railToggle).
   const pickView = (v) => { closeSheets(); nav(P.route({ view: v === view ? "all" : v })); };
   // The board: every group as a column, those with nobody in them too, so a card has somewhere to drop.
-  const canRecord = pipeCanRecord();
-  const board = !phone && layout === "board" && !all.empty;
   const boardColumns = board
     ? Object.keys(words.groups).map((key) => sections.find((s) => s.key === key) || { key, label: words.groups[key], meta: null, rows: [], collapsed: false, onToggle: null, toggle: null })
     : null;
@@ -274,6 +340,13 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
     dragEnd();
     const mv = d ? moveOf(d.from, to, d.row) : null;
     if (mv && window.openDealSheet) window.openDealSheet({ personId: d.id, mode: mv.mode, dealId: mv.dealId });
+  };
+  // A card's Move to asks for the sheet a drop would, the card holding focus first so closing the sheet lands on it.
+  const moveTo = (row, from, to) => {
+    const mv = moveOf(from, to, row);
+    if (!mv || !window.openDealSheet) return;
+    if (window.pipeHoldFocus) window.pipeHoldFocus(row.id);
+    window.openDealSheet({ personId: row.id, mode: mv.mode, dealId: mv.dealId });
   };
   // New proposal: who it is for, then the one deal sheet in its propose mode. Someone added is People's own add.
   const openNew = () => { setNewQ(""); setNewAdd(EMPTY_ADD); setNewFocus({ row: "search" }); setNewOpen(true); };
@@ -314,7 +387,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
           <PipelineRailRows sections={rail} view={view} onPick={pickView} />
         </aside>
       )}
-      <div className="cl-main">
+      <div className={`cl-main${compact ? " has-peek" : ""}`}>
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {/* A phone's one bar: the switch, the view shown (its rows in a sheet), search, and New proposal's +. */}
           {phone && (
@@ -361,10 +434,12 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
                 <span className="kbd">/</span>
               </div>
               <div className="cl-controls-right">
+                {/* Which columns show, a member's own, kept in their view: People's menu (people-table.jsx). */}
+                {!board && window.PeopleColumnsMenu ? <window.PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} /> : null}
                 {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
                 <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
                   {PIPE_LAYOUTS.map((v) => (
-                    <button key={v} type="button" className={`cl-tab${layout === v ? " active" : ""}`} aria-pressed={layout === v} onClick={() => setExtraView({ layout: v })} data-testid={`pipeline-view-${v}`}>{words.views[v]}</button>
+                    <button key={v} type="button" className={`cl-tab${layout === v ? " active" : ""}`} aria-pressed={layout === v} onClick={() => { if (v === "board") clearSelection(); setExtraView({ layout: v }); }} data-testid={`pipeline-view-${v}`}>{words.views[v]}</button>
                   ))}
                 </div>
                 {/* The page's one filled button: shown to every role, and said why where the role may not press it. */}
@@ -387,19 +462,26 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
               onDragOver={(key) => { if (over !== key) setOver(key); }}
               onDragLeave={(key) => { if (over === key) setOver(null); }}
               onDrop={drop}
+              onMove={moveTo}
+              every={every}
+              onEvery={(key) => setEvery((e) => ({ ...e, [key]: true }))}
             />
           ) : (
             <Table
               budget={rowBudget}
               noun="person"
-              columns={columns}
+              columns={tableColumns}
               ctx={ctx}
+              selectable={selectable}
+              sel={sel}
+              onToggle={toggleSel}
+              onToggleAll={toggleAll}
               rows={shown}
               sections={sections}
               total={total}
-              sortBy={null}
-              sortDir="asc"
-              onSort={pipeNoSort}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={onSort}
               onOpen={openPeek}
               filtered={searching}
               onClearFilters={() => setQ("")}
@@ -448,6 +530,22 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
             onAddDraft={(patch) => setNewAdd((d) => ({ ...d, ...patch }))}
             onAdd={addForNew}
             onClose={() => { setNewOpen(false); setNewAdd(EMPTY_ADD); }}
+          />
+        ) : null}
+        {/* A selection: People's own bar, with the Pipeline's Mark as passed first and People's lists and export. */}
+        {picked.length > 0 && window.PeopleBulkBar ? (
+          <window.PeopleBulkBar
+            sel={sel}
+            rows={shown.map((r) => r.person)}
+            saved={people.saved || []}
+            savedRead={people.savedRead !== false}
+            canEdit={canRecord}
+            canExport={canExport}
+            onClear={clearSelection}
+            onKeep={(rest) => setSel(new Set(rest))}
+            flash={plFlash}
+            acts={PIPE_BULK_ACTS}
+            lead={window.PipelinePassMany ? <window.PipelinePassMany rows={picked} flash={plFlash} onDone={(passed) => setSel((s) => { const n = new Set(s); for (const id of passed) n.delete(id); return n; })} /> : null}
           />
         ) : null}
         {toastNode}

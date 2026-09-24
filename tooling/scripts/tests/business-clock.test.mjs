@@ -21,8 +21,8 @@ import { BusinessProfileSchema, composeSystemPrompt, describeNow, resolveSystemP
 import { readCode } from "./_source.mjs";
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "(212) 555-0142",
   booking_link: "https://example.com/book",
   system_prompt: "You are the assistant for the salon. " + "x".repeat(40),
   fallbacks: { greeting: "hi", error: "err", non_text: "nt" },

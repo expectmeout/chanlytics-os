@@ -47,5 +47,5 @@ test("the pages beneath it still answer as the workspace's own, under its curren
 test("no other workspace's pages are moved", async () => {
   assert.equal(await whereTo("/yes/chanlytics"), null);
   assert.equal(await whereTo("/yes/billing-probe-2"), null);
-  assert.equal(await whereTo("/b/melanys-beauty-salon"), null);
+  assert.equal(await whereTo("/b/marisas-beauty-salon"), null);
 });

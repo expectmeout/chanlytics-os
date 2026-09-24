@@ -15,24 +15,24 @@ import * as contracts from "@chanlytics/contracts";
 const { consentPageVM, consentFormVM, businessPageVM, textingTermsVM } = contracts;
 
 /** consent-page.test.mjs's salon: a WhatsApp number and no texting line yet. */
-const salonOptIn = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
+const salonOptIn = { businessName: "Marisa's Beauty Salon", whatsappE164: "+13055550188", smsE164: null };
 /** business-page.test.mjs's salon: the record the carriers vetted. */
 const salonRecord = {
-  legalName: "Melany Beauty Corp",
-  tradeName: "Melany's Beauty Salon",
-  street: "2581 Pitkin Ave",
+  legalName: "Marisa Beauty Corp",
+  tradeName: "Marisa's Beauty Salon",
+  street: "1200 Maple Ave",
   streetSecondary: null,
   city: "Brooklyn",
   region: "NY",
   postalCode: "11208",
   country: "US",
-  contactEmail: "hola@melanys.example",
-  publicPhoneE164: "+13083368109",
+  contactEmail: "hola@marisas.example",
+  publicPhoneE164: "+13055550123",
   websiteUrl: null,
   services: [{ name: "Balayage", durationMin: 180, priceNote: "from $180" }],
-  optInUrl: "/yes/melanys-beauty-salon",
-  privacyUrl: "/b/melanys-beauty-salon",
-  termsUrl: "/b/melanys-beauty-salon/terms",
+  optInUrl: "/yes/marisas-beauty-salon",
+  privacyUrl: "/b/marisas-beauty-salon",
+  termsUrl: "/b/marisas-beauty-salon/terms",
 };
 const UNINDEXED = { index: false, follow: false };
 const NOT_FOUND = { title: "Not found · Chanlytics", robots: UNINDEXED };
@@ -71,12 +71,12 @@ test("REGRESSION (N21): a /yes link no workspace answers to names the tab Not fo
   // The desk sign joined them: named for the sheet and the business on it, Not found where they are, never indexed.
   assert.deepEqual(contracts.deskSignMetadata(null), NOT_FOUND);
   assert.deepEqual(contracts.deskSignMetadata(salonOptIn), {
-    title: "Desk sign: Melany's Beauty Salon",
+    title: "Desk sign: Marisa's Beauty Salon",
     robots: UNINDEXED,
   });
   assert.deepEqual(
     contracts.deskSignMetadata(noWay),
-    { title: "Desk sign: Melany's Beauty Salon", robots: UNINDEXED },
+    { title: "Desk sign: Marisa's Beauty Salon", robots: UNINDEXED },
     "with nothing to print it still renders, saying so, so it keeps its name",
   );
 });
@@ -115,20 +115,20 @@ test("REGRESSION (N21): a /b page that shows Not found says so in the tab and is
   assert.deepEqual(
     contracts.businessPageMetadata(salonRecord),
     {
-      title: "Melany's Beauty Salon",
-      description: "Melany's Beauty Salon — who we are, what we do, and our text-message terms.",
+      title: "Marisa's Beauty Salon",
+      description: "Marisa's Beauty Salon — who we are, what we do, and our text-message terms.",
       robots: { index: true, follow: true },
     },
     "a page with something to show is named for the business customers know, and findable",
   );
   assert.deepEqual(contracts.textingTermsMetadata(salonRecord), {
-    title: "Text messaging terms: Melany's Beauty Salon",
-    description: "The terms of the text messages Melany's Beauty Salon sends.",
+    title: "Text messaging terms: Marisa's Beauty Salon",
+    description: "The terms of the text messages Marisa's Beauty Salon sends.",
     robots: { index: true, follow: true },
   });
   assert.equal(
     contracts.businessPageMetadata({ ...salonRecord, tradeName: null }).title,
-    "Melany Beauty Corp",
+    "Marisa Beauty Corp",
     "without a trading name, the legal one",
   );
 });

@@ -26,7 +26,7 @@ const channel = (kind, over = {}) =>
     {
       id: `ch-${kind}`,
       kind,
-      number_e164: kind === "voice" ? "+13083368109" : "+19177724072",
+      number_e164: kind === "voice" ? "+13055550123" : "+13055550188",
       status: "active",
       created_at: ago(30 * 24 * H),
       last_inbound_at: ago(2 * H),
@@ -53,8 +53,8 @@ const line = (over = {}) => ({
 });
 const listing = (over = {}) => ({
   place_id: "p1",
-  name: "Melany's Beauty Salon",
-  address: "2581 Pitkin Ave, Brooklyn",
+  name: "Marisa's Beauty Salon",
+  address: "1200 Maple Ave, Brooklyn",
   maps_uri: "https://maps.google.com/?cid=1",
   business_status: "OPERATIONAL",
   rating: 4.6,
@@ -66,9 +66,9 @@ const listing = (over = {}) => ({
 });
 const connection = (over = {}) => ({
   google_email: "owner@example.com",
-  account_title: "Melany's",
+  account_title: "Marisa's",
   location_name: "locations/1",
-  location_title: "Melany's Beauty Salon",
+  location_title: "Marisa's Beauty Salon",
   connected_at: ago(5 * 24 * H),
   last_synced_at: ago(H),
   sync_error: null,
@@ -138,18 +138,18 @@ test("the live salon: both numbers on, the listing watched, the profile connecte
     ),
   );
   assert.equal(r.whatsapp.state, "connected");
-  assert.equal(r.whatsapp.detail, "+1 (917) 772-4072");
+  assert.equal(r.whatsapp.detail, "+1 (305) 555-0188");
   assert.ok(r.whatsapp.sentence.startsWith("Receiving · last message"));
   assert.deepEqual(r.whatsapp.verb, { label: "Templates", to: "messages", who: "operator" });
   assert.equal(r.phone.state, "connected");
   assert.equal(r.phone.verb, null);
   assert.equal(r.google_profile.state, "connected");
-  assert.equal(r.google_profile.detail, "Melany's Beauty Salon");
+  assert.equal(r.google_profile.detail, "Marisa's Beauty Salon");
   assert.ok(r.google_profile.sentence.startsWith("Connected as owner@example.com · synced"));
   assert.equal(r.google_profile.verb.to, "verb:google-disconnect");
   assert.equal(r.google_listing.state, "connected");
   assert.equal(r.google_listing.stateWords, "Watched");
-  assert.ok(r.google_listing.sentence.startsWith("Melany's Beauty Salon · 4.6 ★ · 71 reviews on Google · Checked"));
+  assert.ok(r.google_listing.sentence.startsWith("Marisa's Beauty Salon · 4.6 ★ · 71 reviews on Google · Checked"));
   assert.equal(r.google_listing.verb.label, "Sync now", "with the profile connected, a read is a sync");
   assert.equal(r.calendar.state, "connected");
   const rows = connectionRows(

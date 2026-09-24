@@ -17,21 +17,30 @@ const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
 let db;
-let melanyId;
+let pilotId;
 let smokeId;
 
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
+  // The pilot is the first workspace: 00001_foundation.sql made it, and its name
+  // lives there, not here. The smoke tenant is `test`, so it is never the one.
+  const { data: first } = await db
+    .from("tenants")
+    .select("id")
+    .eq("status", "active")
+    .order("created_at")
+    .limit(1)
+    .single();
+  pilotId = first.id;
   const { data: ts } = await db.from("tenants").select("id, slug");
-  melanyId = ts.find((t) => t.slug === "melanys-beauty-salon").id;
   smokeId = ts.find((t) => t.slug === "chanlytics-smoke-test").id;
 });
 
 test("the seeded config parses under the SAME zod schema the runtime uses", { skip }, async () => {
-  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", melanyId).single();
+  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", pilotId).single();
   const parsed = parseTenantConfig(data.config);
-  assert.ok(parsed?.brain, "Melany's seeded config must survive schema validation");
+  assert.ok(parsed?.brain, "the pilot's seeded config must survive schema validation");
   assert.ok(parsed.notifications.escalation_emails.length >= 1);
 });
 
@@ -70,12 +79,12 @@ test("per-tenant credentials resolve through Vault; a null ref means env fallbac
     .select("id, credentials_ref, tenant_id")
     .eq("kind", "whatsapp");
   const smoke = chans.find((c) => c.tenant_id === smokeId);
-  const melany = chans.find((c) => c.tenant_id === melanyId);
+  const pilot = chans.find((c) => c.tenant_id === pilotId);
   const { data: creds } = await db.rpc("get_channel_credentials", { p_channel_id: smoke.id });
   assert.equal(creds.phone_id, "TEST-PHONE-ID");
   assert.equal(creds.access_token, "SMOKE-FAKE-TOKEN");
-  const { data: none } = await db.rpc("get_channel_credentials", { p_channel_id: melany.id });
-  assert.equal(none, null, "Melany rides the env fallback until her ref is set");
+  const { data: none } = await db.rpc("get_channel_credentials", { p_channel_id: pilot.id });
+  assert.equal(none, null, "the pilot rides the env fallback until its ref is set");
 });
 
 test("roles are the widened set and nothing kept 'staff'", { skip }, async () => {
@@ -87,10 +96,10 @@ test("policy seeds mirror the edge's previous hardcoded behavior", { skip }, asy
   const { data } = await db
     .from("policies")
     .select("class, mode, limits")
-    .eq("tenant_id", melanyId)
+    .eq("tenant_id", pilotId)
     .is("subject_type", null);
   const by = Object.fromEntries(data.map((p) => [p.class, p]));
-  assert.equal(by.reply.mode, "auto", "Melany answers automatically — flip day changes nothing");
+  assert.equal(by.reply.mode, "auto", "the pilot answers automatically — flip day changes nothing");
   assert.equal(by.reply.limits.max_replies_day, 20);
   assert.equal(by.reply.limits.pause_hours, 24);
   assert.equal(by.money.mode, "never");

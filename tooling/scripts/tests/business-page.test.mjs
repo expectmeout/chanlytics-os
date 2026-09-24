@@ -30,25 +30,25 @@ import {
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = {
-  legalName: "Melany Beauty Corp",
+  legalName: "Marisa Beauty Corp",
   about: "A beauty salon in Brooklyn: hair, colour, nails and brows for walk-in and booked clients, who pay per visit.",
-  tradeName: "Melany's Beauty Salon",
-  street: "2581 Pitkin Ave",
+  tradeName: "Marisa's Beauty Salon",
+  street: "1200 Maple Ave",
   streetSecondary: null,
   city: "Brooklyn",
   region: "NY",
   postalCode: "11208",
   country: "US",
-  contactEmail: "hola@melanys.example",
-  publicPhoneE164: "+13083368109",
+  contactEmail: "hola@marisas.example",
+  publicPhoneE164: "+13055550123",
   websiteUrl: null,
   services: [
     { name: "Balayage", durationMin: 180, priceNote: "from $180" },
     { name: "Cut", durationMin: 45, priceNote: null },
   ],
-  optInUrl: "/yes/melanys-beauty-salon",
-  privacyUrl: "/b/melanys-beauty-salon",
-  termsUrl: "/b/melanys-beauty-salon/terms",
+  optInUrl: "/yes/marisas-beauty-salon",
+  privacyUrl: "/b/marisas-beauty-salon",
+  termsUrl: "/b/marisas-beauty-salon/terms",
 };
 
 test("the four facts a reviewer scans for, and the name customers know", () => {
@@ -57,27 +57,27 @@ test("the four facts a reviewer scans for, and the name customers know", () => {
   // The TRADING name is the title: it is what customers call them and what the
   // campaign's samples say. The legal entity is in the identity block, where a
   // reviewer looks for it.
-  assert.equal(vm.title, "Melany's Beauty Salon");
+  assert.equal(vm.title, "Marisa's Beauty Salon");
   const identity = Object.fromEntries(vm.identity.map((f) => [f.label, f.value]));
-  assert.equal(identity["Legal name"], "Melany Beauty Corp, trading as Melany's Beauty Salon");
-  assert.equal(identity["Address"], "2581 Pitkin Ave, Brooklyn, NY 11208, US");
-  assert.equal(identity["Phone"], "+1 (308) 336-8109");
-  assert.equal(identity["Email"], "hola@melanys.example");
+  assert.equal(identity["Legal name"], "Marisa Beauty Corp, trading as Marisa's Beauty Salon");
+  assert.equal(identity["Address"], "1200 Maple Ave, Brooklyn, NY 11208, US");
+  assert.equal(identity["Phone"], "+1 (305) 555-0123");
+  assert.equal(identity["Email"], "hola@marisas.example");
   // A number and an address are things to act on, so they are links.
-  assert.equal(vm.identity.find((f) => f.label === "Phone").href, "tel:+13083368109");
+  assert.equal(vm.identity.find((f) => f.label === "Phone").href, "tel:+13055550123");
 
   // One name, said once, when the legal name IS the trading name.
   const one = businessPageVM({ ...salon, tradeName: null });
-  assert.equal(one.title, "Melany Beauty Corp");
-  assert.equal(one.identity[0].value, "Melany Beauty Corp", "no 'trading as' when there is nothing to distinguish");
+  assert.equal(one.title, "Marisa Beauty Corp");
+  assert.equal(one.identity[0].value, "Marisa Beauty Corp", "no 'trading as' when there is nothing to distinguish");
 });
 
 test("their own website is linked, not replaced", () => {
   // The floor, not the ceiling. A business with a real site keeps filing it, and
   // this page still exists beside it.
-  const withSite = businessPageVM({ ...salon, websiteUrl: "https://melanys.example" });
-  assert.equal(withSite.websiteUrl, "https://melanys.example");
-  assert.ok(withSite.identity.some((f) => f.label === "Website" && f.href === "https://melanys.example"));
+  const withSite = businessPageVM({ ...salon, websiteUrl: "https://marisas.example" });
+  assert.equal(withSite.websiteUrl, "https://marisas.example");
+  assert.ok(withSite.identity.some((f) => f.label === "Website" && f.href === "https://marisas.example"));
   assert.equal(businessPageVM(salon).websiteUrl, null);
   assert.ok(
     !businessPageVM(salon).identity.some((f) => f.label === "Website"),
@@ -97,8 +97,8 @@ test("the SMS clauses are the shared ones, word for word", () => {
 
   // The lead names the business and states what the texting line carries: no
   // promotions, ever, since the fourth refusal (30896) -- offers go by WhatsApp.
-  assert.equal(vm.smsLead, smsConsentSentence("Melany's Beauty Salon"));
-  assert.match(vm.smsLead, /Melany's Beauty Salon/);
+  assert.equal(vm.smsLead, smsConsentSentence("Marisa's Beauty Salon"));
+  assert.match(vm.smsLead, /Marisa's Beauty Salon/);
   assert.match(vm.smsLead, /No offers or promotions are sent by text/);
   assert.match(vm.smsLead, /go by WhatsApp/);
 });
@@ -239,11 +239,11 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
  * -------------------------------------------------------------------------- */
 
 const ready = (over = {}) => ({
-  workspaceName: "Melany's Beauty Salon",
-  legalName: "Melany Beauty Corp",
+  workspaceName: "Marisa's Beauty Salon",
+  legalName: "Marisa Beauty Corp",
   about: "A beauty salon in Brooklyn: hair, colour, nails and brows for walk-in and booked clients, who pay per visit.",
-  tradeName: "Melany's Beauty Salon",
-  street: "2581 Pitkin Ave",
+  tradeName: "Marisa's Beauty Salon",
+  street: "1200 Maple Ave",
   city: "Brooklyn",
   websiteUrl: null,
   hasOptInNumber: true,
@@ -253,7 +253,7 @@ const ready = (over = {}) => ({
 test("a workspace that is ready has nothing to fix", () => {
   assert.deepEqual(registrationPreflight(ready()), []);
   // Their own site is fine, and so is no site at all.
-  assert.deepEqual(registrationPreflight(ready({ websiteUrl: "https://melanys.example" })), []);
+  assert.deepEqual(registrationPreflight(ready({ websiteUrl: "https://marisas.example" })), []);
 });
 
 test("the name the carriers are told, against the name the brand registers", () => {
@@ -266,19 +266,19 @@ test("the name the carriers are told, against the name the brand registers", () 
   const [p] = registrationPreflight(ready({ workspaceName: "Billing probe" }));
   assert.equal(p.id, "name_mismatch");
   assert.match(p.what, /Billing probe/);
-  assert.match(p.what, /Melany's Beauty Salon/);
+  assert.match(p.what, /Marisa's Beauty Salon/);
   assert.match(p.fix, /cannot be changed after a filing/, "because that is the part that costs money to get wrong");
 
   // Either name matching is enough: a business is known by its trading name and
   // registered under its legal one.
-  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany Beauty Corp" })), []);
-  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Melany's Beauty Salon" })), []);
+  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Marisa Beauty Corp" })), []);
+  assert.deepEqual(registrationPreflight(ready({ workspaceName: "Marisa's Beauty Salon" })), []);
   // And the comparison is loose enough not to nag about punctuation or a suffix.
   for (const near of [
-    "Melanys Beauty Salon",
-    "MELANY'S BEAUTY SALON",
-    "Melany Beauty Corp LLC",
-    "The Melany Beauty Corp",
+    "Marisas Beauty Salon",
+    "MARISA'S BEAUTY SALON",
+    "Marisa Beauty Corp LLC",
+    "The Marisa Beauty Corp",
   ]) {
     assert.deepEqual(registrationPreflight(ready({ workspaceName: near })), [], near);
   }
@@ -309,13 +309,13 @@ test("the message flow must be true: somewhere for a customer to say yes", () =>
 
 test("a website that is not a website is worse than none", () => {
   // With none we publish a page for them. With a broken one we file it.
-  for (const bad of ["melanys", "www melanys com", "http://", "ftp://melanys.example"]) {
+  for (const bad of ["marisas", "www marisas com", "http://", "ftp://marisas.example"]) {
     const ids = registrationPreflight(ready({ websiteUrl: bad })).map((x) => x.id);
     assert.ok(ids.includes("website_unusable"), bad);
   }
-  const [p] = registrationPreflight(ready({ websiteUrl: "melanys" }));
+  const [p] = registrationPreflight(ready({ websiteUrl: "marisas" }));
   assert.match(p.fix, /or clear it, and we will publish a page for you/);
-  for (const good of ["https://melanys.example", "http://melanys.example/salon", "https://www.melanys.example"]) {
+  for (const good of ["https://marisas.example", "http://marisas.example/salon", "https://www.marisas.example"]) {
     assert.deepEqual(registrationPreflight(ready({ websiteUrl: good })), [], good);
   }
 });
@@ -376,10 +376,10 @@ test("what the program keeps and what for, on the page filed as the privacy poli
   assert.equal(vm.yourData.length, 2);
   assert.match(
     vm.yourData[0],
-    /Melany's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/,
+    /Marisa's Beauty Salon keeps your mobile number, the messages you and it exchange, and your yes to messages/,
   );
   assert.match(vm.yourData[1], /not shared with third parties or affiliates for marketing or promotional purposes/);
-  assert.equal(vm.termsUrl, "/b/melanys-beauty-salon/terms", "and the program's own terms are beside it");
+  assert.equal(vm.termsUrl, "/b/marisas-beauty-salon/terms", "and the program's own terms are beside it");
 });
 
 test("the program's terms carry the eight things a reviewer looks for, in the business's name", () => {
@@ -387,14 +387,14 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   // its own error code (30557 to 30563). Chanlytics' /terms carried none.
   const vm = textingTermsVM(salon);
   assert.equal(vm.empty, false);
-  assert.equal(vm.title, "Text messaging terms: Melany's Beauty Salon");
+  assert.equal(vm.title, "Text messaging terms: Marisa's Beauty Salon");
   assert.match(
     vm.lead,
-    /Melany Beauty Corp, trading as Melany's Beauty Salon, 2581 Pitkin Ave, Brooklyn, NY 11208, US/,
+    /Marisa Beauty Corp, trading as Marisa's Beauty Salon, 1200 Maple Ave, Brooklyn, NY 11208, US/,
     "who is bound: the registered name and address",
   );
   const by = Object.fromEntries(vm.items.map((i) => [i.label, i.text]));
-  assert.match(by["The program"], /^Melany's Beauty Salon texts customers who asked for it/, "the program, named");
+  assert.match(by["The program"], /^Marisa's Beauty Salon texts customers who asked for it/, "the program, named");
   assert.match(by["The program"], /No offers or promotions are sent by text/);
   assert.match(by["How you join"], /START/);
   assert.doesNotMatch(
@@ -407,13 +407,13 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   assert.equal(by["Cost"], "Message and data rates may apply.", "verbatim");
   assert.equal(
     by["Help"],
-    "Reply HELP for help, or call +1 (308) 336-8109 or email hola@melanys.example.",
+    "Reply HELP for help, or call +1 (305) 555-0123 or email hola@marisas.example.",
     "a way to reach a person",
   );
   assert.match(by["Stop"], /Reply STOP at any time to stop/);
   assert.match(by["Carriers"], /carriers are not liable for delayed or undelivered messages/i);
   assert.equal(by["Your information"], SMS_CLAUSES[3], "the non-sharing clause, the shared copy");
-  assert.equal(vm.privacyUrl, "/b/melanys-beauty-salon", "linked to the privacy page");
+  assert.equal(vm.privacyUrl, "/b/marisas-beauty-salon", "linked to the privacy page");
   assert.ok(!/standard rate/i.test(vm.items.map((i) => i.text).join(" ")), 'carriers refuse "standard"');
   // No number and no email: help is still HELP.
   assert.equal(

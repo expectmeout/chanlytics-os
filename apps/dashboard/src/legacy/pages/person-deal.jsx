@@ -119,4 +119,4 @@ const PersonDealCard = ({ p, canRecord = false, onCompose = null }) => {
 };
 
 // The card and the quiet line go out too: the Pipeline's peek draws the same deal beside the rows (pipeline-peek.jsx).
-Object.assign(window, { PersonDealCard, PersonDealOne, PersonDealQuiet });
+Object.assign(window, { PersonDealCard, PersonDealOne, PersonDealQuiet, pdRun });

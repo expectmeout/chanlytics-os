@@ -132,7 +132,7 @@ test("a received email is routed by who the provider accepted it FOR, when the e
     data: {
       email_id: "rcv_1",
       to: ["info@bestmovers.com"],
-      cc: ["melanys@mail.chanlytics.com"],
+      cc: ["marisas@mail.chanlytics.com"],
       received_for: ["BestMovers@mail.chanlytics.com"],
     },
   });
@@ -168,7 +168,7 @@ test("what a mailbox sends as: its address, and every reply route that still rou
     true,
   );
   assert.equal(
-    requestLeavesAs(request('"bestmovers@mail.chanlytics.com" <melanys@mail.chanlytics.com>', [as.replyRoutes[0]]), as),
+    requestLeavesAs(request('"bestmovers@mail.chanlytics.com" <marisas@mail.chanlytics.com>', [as.replyRoutes[0]]), as),
     false,
     "the display name proves nothing",
   );

@@ -40,9 +40,9 @@ be rewritten the first time it saves.
 ```
 tenant_channels
   kind        = 'voice'
-  external_id = 'agent_242005d0ce9352af2cef792432'   -- the Agent
+  external_id = 'agent_…'   -- the Agent
   config      = { "provider": "retell",
-                  "llm_id": "llm_ddde8bb71cd8090dece4ca69a2c5" }
+                  "llm_id": "llm_…" }
 ```
 
 `external_id` is already the routing key the voice webhook resolves tenants by,

@@ -55,7 +55,7 @@ const quietPeriod = {
   median_reply_seconds_ai: null,
 };
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
   channels: [
     { kind: "whatsapp", status: "active", number: "+1 305" },
     { kind: "voice", status: "active", number: "+1 786" },
@@ -125,7 +125,7 @@ const liveCall = () => ({
   outcome: null,
   follow_up: null,
   caller_name: null,
-  transcript_object: [{ role: "user", content: "Hi, is Melany in?" }],
+  transcript_object: [{ role: "user", content: "Hi, is Marisa in?" }],
   recording: null,
   conversation_id: "cv1",
   contact_id: "k1",

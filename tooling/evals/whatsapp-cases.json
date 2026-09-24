@@ -35,7 +35,7 @@
   },
   {
     "id": "complaint_es",
-    "text": "mi color quedó horrible, necesito hablar con Melany hoy",
+    "text": "mi color quedó horrible, necesito hablar con la dueña hoy",
     "expect": { "escalate": true, "intent": ["complaint", "other"], "language": "es" }
   },
   {
@@ -61,7 +61,7 @@
   {
     "id": "location_es",
     "text": "dónde están ubicados?",
-    "expect": { "intent": "location", "language": "es", "includes": ["Pitkin|Brooklyn"] }
+    "expect": { "intent": "location", "language": "es", "includes": ["Brooklyn"] }
   },
   {
     "id": "services_en",

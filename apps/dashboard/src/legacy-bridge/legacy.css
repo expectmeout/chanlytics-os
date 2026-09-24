@@ -60,14 +60,13 @@ html.legacy-on #root {
      takes a floor (every list row used to undo one on .pill). A chip that is
      pressed keeps its 20px look and grows its target: an invisible margin
      around each of its buttons, Ask's chips and a tile's value and door, and
-     Ask's Send circle and mic, which a floor would squash into an oval. */
+     Ask's one circle at the field's end, which a floor would squash into an oval. */
   html.legacy-on .chip,
   html.legacy-on .chip > button,
   html.legacy-on .ask-chip,
   html.legacy-on button.ask-tile-value,
   html.legacy-on .ask-tile-door,
-  html.legacy-on .ask-send,
-  html.legacy-on .ask-talk {
+  html.legacy-on .ask-send {
     min-height: 0;
   }
   html.legacy-on button.chip,
@@ -75,8 +74,7 @@ html.legacy-on #root {
   html.legacy-on .ask-chip,
   html.legacy-on button.ask-tile-value,
   html.legacy-on .ask-tile-door,
-  html.legacy-on .ask-send,
-  html.legacy-on .ask-talk {
+  html.legacy-on .ask-send {
     position: relative;
   }
   html.legacy-on button.chip::after,
@@ -84,8 +82,7 @@ html.legacy-on #root {
   html.legacy-on .ask-chip::after,
   html.legacy-on button.ask-tile-value::after,
   html.legacy-on .ask-tile-door::after,
-  html.legacy-on .ask-send::after,
-  html.legacy-on .ask-talk::after {
+  html.legacy-on .ask-send::after {
     content: "";
     position: absolute;
     inset: -8px -3px;

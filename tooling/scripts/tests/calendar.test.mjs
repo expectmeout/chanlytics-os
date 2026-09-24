@@ -124,7 +124,7 @@ function dto(over = {}) {
     },
     closures: [{ date: "2026-09-12", note: "Wedding" }],
     rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
-    booking_link: "https://booksy.com/melanys",
+    booking_link: "https://book.example.com/marisas",
     // The receptionist's next open time from now, which the route works out from every day it offers.
     next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" },
     days,
@@ -181,7 +181,7 @@ test("the week as the page draws it: hours with air, bands where closed, blocks 
     vm.rules,
     "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots",
   );
-  assert.equal(vm.bookingLink, "https://booksy.com/melanys");
+  assert.equal(vm.bookingLink, "https://book.example.com/marisas");
 });
 
 test("without a feed the board still shows the hours and says so; a feed that could not be read says that too", () => {

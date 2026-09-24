@@ -21,14 +21,14 @@ const ZONE = "America/New_York";
 const listeners = {};
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
@@ -533,7 +533,7 @@ const call = {
   status: "ended",
   from_e164: "+19175550106",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: at(30),
   ended_at: at(27),
   duration_ms: 190_000,

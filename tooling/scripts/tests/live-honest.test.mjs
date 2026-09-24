@@ -46,8 +46,8 @@ const call = (over = {}) => ({
   follow_up: null,
   caller_name: null,
   transcript_object: [
-    { role: "agent", content: "Thank you for calling Melany's Beauty Salon!" },
-    { role: "user", content: "Hi, is Melany in today?" },
+    { role: "agent", content: "Thank you for calling Marisa's Beauty Salon!" },
+    { role: "user", content: "Hi, is Marisa in today?" },
   ],
   recording: null,
   conversation_id: "cv1",
@@ -73,7 +73,7 @@ const ended = (over = {}) =>
     contact_id: "c7",
     conversation_id: "cv7",
     contact: { display_name: "Emily Chen", wa_profile_name: null, phone_e164: "+19175550106" },
-    summary: "The user called Melany's Beauty Salon to arrange a bridal trial.",
+    summary: "The user called Marisa's Beauty Salon to arrange a bridal trial.",
     wanted: "Wants to book a bridal trial on October 3",
     outcome: "callback_needed",
     follow_up: "Call Emily back to confirm the bridal trial",
@@ -524,7 +524,7 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
   const text = textOf(row);
   assert.match(text, /Rosa Díaz/);
   assert.match(text, /1:3\d/, "the running clock, from the call's real start");
-  assert.match(text, /“Hi, is Melany in today\?”/, "the caller's own last words, not the receptionist's");
+  assert.match(text, /“Hi, is Marisa in today\?”/, "the caller's own last words, not the receptionist's");
   assert.ok(
     find(row, (n) => n.type === "StatePill" && n.props.value === "live"),
     "and the live pill",
@@ -533,7 +533,7 @@ test("a row says who, how long, and what they last said -- in the Inbox's three 
   withLive([
     call({
       transcript_object: [
-        { role: "agent", content: "Thank you for calling Melany's Beauty Salon!" },
+        { role: "agent", content: "Thank you for calling Marisa's Beauty Salon!" },
         { role: "user", content: "Can I move my Saturday colour to Sunday?" },
         { role: "agent", content: "Let me check what Sunday has open." },
       ],

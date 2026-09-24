@@ -11,19 +11,30 @@
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
  *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
  *              every fold opens on nothing.
+ *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
+ *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people.spec.ts's
+ *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this
  *              file is committed, and no real business's name, address, number or link belongs in the tree.
  *
  * Every cap comes from contracts (`PROFILE_LIMITS`, `MAX_CLOSURES`), so a cap that moves moves the record with it.
  */
-import { MAX_CLOSURES, PROFILE_LIMITS, newReceptionistDefaults } from "@chanlytics/contracts";
+import {
+  MAX_CLOSURES,
+  PROFILE_LIMITS,
+  dealsAreOn,
+  feedSourceLabel,
+  isConsultationTitle,
+  newReceptionistDefaults,
+  proposalMessage,
+} from "@chanlytics/contracts";
 import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
 
-export const SCENARIOS = ["nightly", "salon"];
+export const SCENARIOS = ["nightly", "salon", "pipeline"];
 
 /** What the platform knows about a channel, as tenant_channels rows reach `resolveFacts` (contracts KnownFacts). */
 const asKnownChannel = ({ kind, number_e164, status }) => ({ kind, number_e164, status });
@@ -153,9 +164,280 @@ function salon(name, nowMs) {
   };
 }
 
+const DAY_MS = 86_400_000;
+const iso = (ms) => new Date(ms).toISOString();
+/** An id in the app's own shape, numbered: a person's route is a UUID (surface-registry.ts personRouteId), as every row's is. */
+const uuidOf = (head, n) => `${head}-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+/** A message as the person read hands one over (contracts MessageDto): words on WhatsApp. */
+const messageOf = (id, direction, body, at) => ({
+  id,
+  direction,
+  sender: direction === "inbound" ? "customer" : "human",
+  channel: "whatsapp",
+  type: "text",
+  body,
+  media: null,
+  meta: null,
+  status: direction === "inbound" ? "received" : "read",
+  created_at: at,
+  channel_ts: at,
+});
+
+/**
+ * A person's thread as the person read hands it over (contracts ConversationDto): how they first wrote, the proposal
+ * sent to them where their deal has a link (in contracts proposalMessage's words, which the one-step send puts in the
+ * composer), and the last thing they said. Their row's message columns are read off it, so the list and the page agree.
+ */
+function threadOf(who, firstMs, heardMs, said, deal) {
+  const m = (k, direction, body, at) => messageOf(uuidOf("3e550000", who.n * 10 + k), direction, body, at);
+  const messages = [
+    m(1, "inbound", "Hi! Are you taking on new projects this season?", iso(firstMs)),
+    ...(deal?.proposal_url ? [m(2, "outbound", proposalMessage(deal.proposal_url), deal.proposed_at)] : []),
+    m(3, "inbound", said, iso(heardMs)),
+  ].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+  return {
+    id: uuidOf("c0a00000", who.n),
+    state: "open",
+    paused_until: null,
+    snooze_until: null,
+    assignee_user_id: null,
+    last_wa_inbound_at: iso(heardMs),
+    last_message_at: messages.at(-1).created_at,
+    contact: {
+      id: who.id,
+      display_name: who.name,
+      wa_profile_name: null,
+      phone_e164: who.phone,
+      email: who.email,
+      proposal_url: null,
+      consent: "opted_in",
+      dnc: false,
+      marketing_consent: null,
+    },
+    messages,
+  };
+}
+
+/** A deal as the person read hands it over (contracts DealDto). */
+function dealOf(nowMs, n, stage, o = {}) {
+  const proposed = nowMs - (o.proposedDays ?? 10) * DAY_MS;
+  const decided = o.decidedDays === undefined ? null : iso(nowMs - o.decidedDays * DAY_MS);
+  return {
+    id: uuidOf("d5c0e000", n),
+    contact_id: uuidOf("5c0e0000", n),
+    service: o.service ?? "Brand identity",
+    stage,
+    proposed_at: iso(proposed),
+    decided_at: decided,
+    ended_at: null,
+    amount_cents: o.cents ?? 240_000,
+    per: o.per ?? "once",
+    currency: "USD",
+    note: null,
+    version: 1,
+    created_at: iso(proposed),
+    proposal_url: o.url === undefined ? "https://example.com/proposals/harbor" : o.url,
+    valid_until: o.validUntil ?? null,
+    lost_reason: o.reason ?? null,
+  };
+}
+
+/** The deal a People row carries, as people_list's lateral join does: its columns, every one null for someone with none. */
+const DEAL_COLUMNS = [
+  "id",
+  "stage",
+  "service",
+  "proposed_at",
+  "decided_at",
+  "ended_at",
+  "amount_cents",
+  "per",
+  "proposal_url",
+  "valid_until",
+  "lost_reason",
+];
+const dealColumns = (d) => Object.fromEntries(DEAL_COLUMNS.map((k) => [`deal_${k}`, d ? d[k] : null]));
+
+/**
+ * One row as GET contacts hands it over: people_list's columns in its order, every one on every row, then the reply
+ * mode listPeople adds and the visits withVisits lays on it. The message columns are the thread's.
+ */
+function personRow(who, thread, deal, visits) {
+  const first = thread.messages[0];
+  const last = thread.messages.at(-1);
+  const said = thread.messages.filter((x) => x.direction === "inbound").at(-1);
+  return {
+    id: who.id,
+    display_name: who.name,
+    wa_profile_name: null,
+    phone_e164: who.phone,
+    email: who.email,
+    consent: "opted_in",
+    consent_source: "in_person",
+    consent_updated_at: first.created_at,
+    dnc: false,
+    marketing_consent: null,
+    marketing_consent_source: null,
+    marketing_consent_updated_at: null,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: thread.id,
+    latest_state: thread.state,
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: thread.last_wa_inbound_at,
+    last_message_at: last.created_at,
+    last_message_direction: last.direction,
+    last_message_sender: last.sender,
+    last_inbound_text: said.body,
+    last_inbound_at: said.created_at,
+    last_call_at: null,
+    last_inbound_call_at: null,
+    last_inbound_call_summary: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: first.created_at,
+    earliest_row_at: first.created_at,
+    has_backfill: false,
+    has_chat: true,
+    message_channels: ["whatsapp"],
+    queued_reply_at: null,
+    came_from: "whatsapp",
+    ...dealColumns(deal),
+    effective_reply_mode: "auto",
+    visits,
+  };
+}
+
+/** An appointment as the server reads one off the calendar's feed (contracts VisitDto), matched by the number. */
+const visitAt = (n, startMs, title) => ({
+  id: `v-${n}-${startMs}`,
+  start: iso(startMs),
+  end: iso(startMs + 3_600_000),
+  title,
+  all_day: false,
+  via: "phone",
+});
+
+function pipeline(name, nowMs) {
+  const base = salon(name, nowMs);
+  const BUSINESS = "Harbor Creative";
+  const SERVICES = ["Brand identity", "Website", "Ad management"];
+  // How its customers buy (tenants.sells_by, 00160): by proposal, so deals are on wherever the app asks.
+  const SELLS_BY = "proposal";
+  const profile = {
+    ...base.config.brain.profile,
+    services: SERVICES.map((s) => ({ name: s, duration_min: 60, price_note: "quoted after a consultation" })),
+    booking_rules: { ...base.config.brain.profile.booking_rules, consult_first: ["Brand identity"] },
+  };
+  const config = { ...base.config, brain: { ...base.config.brain, business_name: BUSINESS, profile } };
+  // The salon's calendar feed, read, and named as the server names a feed: from its address alone.
+  const calendar = { state: "ok", source: feedSourceLabel(config.calendar?.ical_url), timezone: TIMEZONE };
+  const feed = { timezone: calendar.timezone, source: calendar.source, state: "ok" };
+  // Which visit is a consultation, as withVisits marks the list's: its title says so, or names a consult-first service.
+  const marked = (v) =>
+    v && { ...v, consultation: isConsultationTitle(v.title, profile.services, profile.booking_rules) };
+  const at = (days, hour = 10) => {
+    const d = new Date(nowMs + days * DAY_MS);
+    d.setUTCHours(hour + 4, 0, 0, 0);
+    return d.getTime();
+  };
+  // Each with the deal their row shows, the one their person read lists.
+  const cast = [
+    { n: 1, name: "Maren Holt", last: visitAt(1, at(-2), "Consultation · Brand identity") },
+    { n: 2, name: "Idris Kane", next: visitAt(2, at(2, 14), "Consultation") },
+    { n: 3, name: "Sol Ferreira", deal: dealOf(nowMs, 3, "proposed", { proposedDays: 11 }), heardDays: 14 },
+    {
+      n: 4,
+      name: "Tove Lind",
+      deal: dealOf(nowMs, 4, "proposed", { proposedDays: 5, service: "Website", cents: 480_000 }),
+      heardDays: 1,
+      said: "Thanks, looking it over. One question on the timeline",
+    },
+    {
+      n: 5,
+      name: "Ravi Menon",
+      deal: dealOf(nowMs, 5, "proposed", { proposedDays: 2, service: "Ad management", cents: 150_000, per: "month" }),
+    },
+    {
+      n: 6,
+      name: "Juno Park",
+      deal: dealOf(nowMs, 6, "won", {
+        proposedDays: 30,
+        decidedDays: 20,
+        service: "Ad management",
+        cents: 150_000,
+        per: "month",
+      }),
+    },
+    { n: 7, name: "Ada Brennan", deal: dealOf(nowMs, 7, "won", { proposedDays: 60, decidedDays: 45, cents: 320_000 }) },
+    { n: 8, name: "Nico Varga", deal: dealOf(nowMs, 8, "lost", { proposedDays: 20, decidedDays: 9, reason: "price" }) },
+  ];
+  const people = [];
+  const details = {};
+  for (const c of cast) {
+    // A number from the block kept for fiction (555-0100 to 0199), as the salon's are.
+    const who = {
+      n: c.n,
+      id: uuidOf("5c0e0000", c.n),
+      name: c.name,
+      phone: `+1212555${String(100 + c.n).padStart(4, "0")}`,
+      email: `${c.name.split(" ")[0].toLowerCase()}@example.com`,
+    };
+    const heardMs = nowMs - (c.heardDays ?? 3) * DAY_MS;
+    const thread = threadOf(who, nowMs - 90 * DAY_MS, heardMs, c.said ?? "Sounds good, talk soon", c.deal);
+    const next = c.next ?? null;
+    const last = c.last ?? null;
+    const row = personRow(who, thread, c.deal ?? null, { ...feed, next: marked(next), last: marked(last) });
+    people.push(row);
+    // The person read as GET contacts/:id composes it (contracts PersonDetailDto). The team a note can be for is not
+    // read here -- note_team is absent, as when the team cannot be read: nothing on this record writes a note.
+    details[row.id] = {
+      row,
+      identities: [{ channel: "whatsapp", external_id: who.phone.slice(1), created_at: row.first_contact_at }],
+      conversations: [thread],
+      calls: [],
+      escalations: [],
+      decisions: [],
+      receptionist_mode: null,
+      workspace_reply_mode: "auto",
+      // The feed's own visits, unmarked, as personVisits reads them, with every one of theirs for the timeline.
+      visits: { ...feed, next, last, all: [last, next].filter(Boolean) },
+      notes: null,
+      person_notes: [],
+      proposal_url: null,
+      booking_link: config.brain.booking_link?.trim() || null,
+      consent_history: [],
+      campaigns: [],
+      lead: null,
+      deals: c.deal ? [c.deal] : [],
+      deals_on: dealsAreOn(SELLS_BY),
+      services: SERVICES,
+      consult_first: [...profile.booking_rules.consult_first],
+    };
+  }
+  return {
+    ...base,
+    config,
+    known: { ...base.known, workspace: { name: BUSINESS, timezone: TIMEZONE } },
+    // How GET contacts answers: every person on the first page, and the calendar they were read against.
+    people,
+    details,
+    calendar,
+    sellsBy: SELLS_BY,
+  };
+}
+
 /** One scenario, built now. Plain data, so the server can hand the page the very object it answers reads from. */
 export function scenario(name, nowMs = Date.now()) {
   if (name === "nightly") return nightly(name);
   if (name === "salon") return salon(name, nowMs);
+  if (name === "pipeline") return pipeline(name, nowMs);
   throw new Error(`no scenario "${name}": ${SCENARIOS.join(", ")}`);
 }

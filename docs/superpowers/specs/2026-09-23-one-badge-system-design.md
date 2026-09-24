@@ -2,7 +2,7 @@
 
 **Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved (23 Sep: option B, a quiet bell, the letter marks removed, "Yes, build it") · **Built:** branch `design/one-badge-system` · **Review page:** https://claude.ai/artifact/7gHvLSThQ8mnmm3xttY7D5 · **Plan:** `docs/superpowers/plans/2026-09-23-one-badge-system.md`
 
-**Analysis:** every badge measured from the browser's computed styles on a local build of `main` at `18c79973` (#918), signed in to Melany's Beauty Salon, light theme: 13 pages and their tabs at 1440px, Today and People again at 390px. Contrast figures composite each tint over its real ground. `main` moved to `191ca9f7` (#920) during the analysis; that commit touches none of the files below.
+**Analysis:** every badge measured from the browser's computed styles on a local build of `main` at `18c79973` (#918), signed in to the pilot's workspace, light theme: 13 pages and their tabs at 1440px, Today and People again at 390px. Contrast figures composite each tint over its real ground. `main` moved to `191ca9f7` (#920) during the analysis; that commit touches none of the files below.
 
 ## 1. Goal
 

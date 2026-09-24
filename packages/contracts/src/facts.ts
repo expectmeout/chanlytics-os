@@ -144,7 +144,7 @@ export function knownForwarding(
 /**
  * Two ways of writing one address.
  *
- * Deliberately loose: Google returns "2581 Pitkin Ave, Brooklyn, NY 11208, USA"
+ * Deliberately loose: Google returns "1200 Maple Ave, Brooklyn, NY 11208, USA"
  * for an owner who typed the same thing without the country. Reporting that as
  * a disagreement would train people to ignore the warning, which costs more
  * than the warning is worth.
@@ -171,8 +171,8 @@ export function sameName(a: string | null | undefined, b: string | null | undefi
  * The comparable shape of a piece of text.
  *
  * Apostrophes and periods come out ENTIRELY rather than becoming spaces:
- * "Melany's" and "Melanys" are one salon, and collapsing the apostrophe to a
- * space makes them "melany s" and "melanys" — a disagreement nobody has, on
+ * "Marisa's" and "Marisas" are one salon, and collapsing the apostrophe to a
+ * space makes them "marisa s" and "marisas" — a disagreement nobody has, on
  * the name of the business, shown to its owner. Every other separator becomes
  * one space.
  */

@@ -18,6 +18,11 @@
  * sends only if a person approves it, to a number nobody has, and fails
  * harmlessly at Meta.
  *
+ * The calls ring the workspace's own voice line, its oldest active
+ * tenant_channels row of kind 'voice': they carry that row's agent id and
+ * dial its number.
+ * `--apply` refuses a workspace without one.
+ *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TENANT_ID, OWNER_USER_ID,
  *      FILLER_PHOTO (optional jpeg path; default tooling/scripts/fixtures/filler-photo.jpg).
  */
@@ -38,8 +43,6 @@ const PURGE = process.argv.includes("--purge");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PHOTO = process.env.FILLER_PHOTO || join(HERE, "fixtures", "filler-photo.jpg");
 const TZ = "America/New_York";
-const AGENT = "agent_242005d0ce9352af2cef792432";
-const SALON = "+19175746416";
 
 /* ------------------------------- the clock -------------------------------- */
 const NOW = new Date();
@@ -175,7 +178,7 @@ const PEOPLE = [
       {
         kind: "human",
         at: dayAt(1, 18, 50),
-        body: "Hi Marcus, Melany here — 4 pm tomorrow works, I'll pencil you in. What's your last name?",
+        body: "Hi Marcus, Marisa here — 4 pm tomorrow works, I'll pencil you in. What's your last name?",
         status: "read",
       },
       { kind: "in", at: hoursAgo(3), body: "Bell. Also is parking ok around there?" },
@@ -257,9 +260,9 @@ const PEOPLE = [
         callerName: "Carlos",
         wanted: "Asked for Saturday hours and whether walk-ins are welcome",
         summary:
-          "The user called Melany's Beauty Salon to ask about Saturday hours and walk-ins. The receptionist gave the hours and suggested booking ahead for weekends.",
+          "The user called Marisa's Beauty Salon to ask about Saturday hours and walk-ins. The receptionist gave the hours and suggested booking ahead for weekends.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Hi, are you open Saturdays? And can I just walk in?"],
           [
             "agent",
@@ -276,9 +279,9 @@ const PEOPLE = [
         outcome: "no_request",
         sentiment: "Neutral",
         summary:
-          "The user called Melany's Beauty Salon and hung up shortly after the greeting without making a request.",
+          "The user called Marisa's Beauty Salon and hung up shortly after the greeting without making a request.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Oh — sorry, wrong number."],
         ],
       },
@@ -298,21 +301,21 @@ const PEOPLE = [
         callerName: "Emily",
         wanted: "Wants to book a bridal trial on October 3 for herself and two bridesmaids",
         followUp:
-          "Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Melany directly",
+          "Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Marisa directly",
         summary:
-          "The user called Melany's Beauty Salon to arrange a bridal trial for October 3 for three people. The receptionist could not quote a group booking and offered a call back from Melany.",
+          "The user called Marisa's Beauty Salon to arrange a bridal trial for October 3 for three people. The receptionist could not quote a group booking and offered a call back from Marisa.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           [
             "user",
             "Hi! I'm getting married in November and I'd like to do a trial on October third — for me and two bridesmaids.",
           ],
           [
             "agent",
-            "Congratulations, Emily! A bridal trial for three is something Melany plans personally so the timing and pricing are right. May I have her call you back at this number?",
+            "Congratulations, Emily! A bridal trial for three is something Marisa plans personally so the timing and pricing are right. May I have her call you back at this number?",
           ],
           ["user", "Yes please, today if possible."],
-          ["agent", "I've noted it — Melany will call you back today. Is there anything else?"],
+          ["agent", "I've noted it — Marisa will call you back today. Is there anything else?"],
           ["user", "No, that's all. Thank you!"],
         ],
       },
@@ -323,7 +326,7 @@ const PEOPLE = [
         reason: "callback",
         state: "open",
         details:
-          "Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Melany directly",
+          "Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Marisa directly",
         at: hoursAgo(0.9),
       },
     ],
@@ -344,9 +347,9 @@ const PEOPLE = [
         link: true,
         wanted: "Wanted to book a keratin treatment next week",
         summary:
-          "The user called Melany's Beauty Salon to book a keratin treatment. The receptionist explained the options and texted the booking link.",
+          "The user called Marisa's Beauty Salon to book a keratin treatment. The receptionist explained the options and texted the booking link.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Hi, I'd like to book a keratin treatment sometime next week."],
           [
             "agent",
@@ -464,7 +467,7 @@ const PEOPLE = [
       {
         kind: "ai",
         at: dayAt(41, 9, 31),
-        body: "Of course, Olivia — I've noted Friday at 11 AM instead of Thursday. Melany will confirm shortly.",
+        body: "Of course, Olivia — I've noted Friday at 11 AM instead of Thursday. Marisa will confirm shortly.",
         intent: "booking",
         confidence: 0.82,
       },
@@ -485,9 +488,9 @@ const PEOPLE = [
         callerName: "Hannah",
         wanted: "Asked whether the salon does hair extensions",
         summary:
-          "The user called Melany's Beauty Salon to ask about hair extensions. The receptionist confirmed the service and offered the booking link, which the caller declined.",
+          "The user called Marisa's Beauty Salon to ask about hair extensions. The receptionist confirmed the service and offered the booking link, which the caller declined.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Do you guys do extensions?"],
           [
             "agent",
@@ -590,9 +593,9 @@ const PEOPLE = [
         sentiment: "Negative",
         wanted: "Was upset that a confirmation for a Tuesday appointment never arrived",
         summary:
-          "The user called Melany's Beauty Salon upset that no confirmation had arrived for a Tuesday appointment. The receptionist apologized and could not verify the booking.",
+          "The user called Marisa's Beauty Salon upset that no confirmation had arrived for a Tuesday appointment. The receptionist apologized and could not verify the booking.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "I booked for Tuesday and never got any confirmation. Is my appointment even in the system?"],
           [
             "agent",
@@ -617,9 +620,9 @@ const PEOPLE = [
         link: "failed",
         wanted: "Wanted to book a blowout for Friday",
         summary:
-          "The user called Melany's Beauty Salon to book a blowout for Friday. The receptionist texted the booking link.",
+          "The user called Marisa's Beauty Salon to book a blowout for Friday. The receptionist texted the booking link.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Hi, can I book a blowout for Friday afternoon?"],
           ["agent", "Of course. I can text you the booking link so you can pick the exact time — shall I?"],
           ["user", "Sure."],
@@ -642,9 +645,9 @@ const PEOPLE = [
         callerName: "Tom",
         wanted: "Asked if the salon takes walk-ins on Sundays",
         summary:
-          "The user called Melany's Beauty Salon asking about Sunday walk-ins. The receptionist explained the salon is closed on Sundays.",
+          "The user called Marisa's Beauty Salon asking about Sunday walk-ins. The receptionist explained the salon is closed on Sundays.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Are you open Sundays for walk-ins?"],
           [
             "agent",
@@ -666,9 +669,9 @@ const PEOPLE = [
         seconds: 35,
         outcome: "no_request",
         sentiment: "Neutral",
-        summary: "The user called Melany's Beauty Salon and ended the call after the greeting.",
+        summary: "The user called Marisa's Beauty Salon and ended the call after the greeting.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Hello? ... hello?"],
           ["agent", "I can hear you — how can I help today?"],
         ],
@@ -689,9 +692,9 @@ const PEOPLE = [
         callerName: "Grace",
         wanted: "Asked whether gift cards are available",
         summary:
-          "The user called Melany's Beauty Salon to ask about gift cards. The receptionist confirmed they are sold at the front desk.",
+          "The user called Marisa's Beauty Salon to ask about gift cards. The receptionist confirmed they are sold at the front desk.",
         turns: [
-          ["agent", "Thank you for calling Melany's Beauty Salon, this is the assistant. How can I help?"],
+          ["agent", "Thank you for calling Marisa's Beauty Salon, this is the assistant. How can I help?"],
           ["user", "Do you sell gift cards?"],
           ["agent", "We do — any amount, at the front desk, Monday to Saturday. Anything else I can help with?"],
           ["user", "That's it, thanks!"],
@@ -863,7 +866,7 @@ const NOTIFICATIONS = [
     route: "inbox",
     aboutConv: "emily",
     title: "Emily phoned · 3 min · needs a call back",
-    body: "They wanted: a bridal trial on October 3 for herself and two bridesmaids.\nOutcome: needs a call back.\nTo do: Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Melany directly.",
+    body: "They wanted: a bridal trial on October 3 for herself and two bridesmaids.\nOutcome: needs a call back.\nTo do: Call Emily back to confirm the bridal trial on Oct 3 — she needs a quote for three people and asked to speak with Marisa directly.",
   },
   {
     kind: "handoff",
@@ -887,7 +890,7 @@ const NOTIFICATIONS = [
     route: "conversations/phone",
     about: { type: "call", person: "carlos" },
     title: "Voice call: +19175550105 (23s, Neutral)",
-    body: "The user called Melany's Beauty Salon and hung up shortly after the greeting without making a request.",
+    body: "The user called Marisa's Beauty Salon and hung up shortly after the greeting without making a request.",
   },
   {
     kind: "deadman",
@@ -1088,6 +1091,18 @@ async function apply() {
   }
   const tenant = (await select("tenants", `select=name&id=eq.${TENANT}`))[0];
   const business = tenant?.name ?? "the business";
+  // The calls ring this workspace's own line, picked as the edge's ensureVoiceAgent picks it. ingest_call files a call
+  // under whichever channel carries its agent id, so another workspace's id would put these calls on that one's line.
+  const voice = (
+    await select(
+      "tenant_channels",
+      `select=external_id,number_e164&tenant_id=eq.${TENANT}&kind=eq.voice&status=eq.active&order=created_at&limit=1`,
+    )
+  )[0];
+  if (!voice) {
+    console.error("refusing: this workspace has no active voice line to file the calls under");
+    process.exit(1);
+  }
   const cfg = await select("tenant_config", `select=*&tenant_id=eq.${TENANT}&limit=1`).catch(() => []);
   const link =
     String(JSON.stringify(cfg)).match(/https?:\/\/[^"\\\s]*booksy[^"\\\s]*|booksy\.com[^"\\\s]*/)?.[0] ??
@@ -1164,10 +1179,10 @@ async function apply() {
         const r = await rpc("ingest_call", {
           p_tenant_id: TENANT,
           p_retell_call_id: retellId,
-          p_agent_id: AGENT,
+          p_agent_id: voice.external_id,
           p_from_e164: p.phone,
           p_from_raw: p.phone,
-          p_to_e164: SALON,
+          p_to_e164: voice.number_e164,
           p_direction: "inbound",
           p_call_type: "phone_call",
           p_status: "ended",

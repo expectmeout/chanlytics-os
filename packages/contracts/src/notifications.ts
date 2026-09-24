@@ -1,5 +1,6 @@
 import { agoShort as spanAgo } from "./time";
 import { FINISH_SETTING_UP } from "./first-run";
+import { firstLine } from "./push";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -395,12 +396,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
           : "alert",
         at,
         title: n.title,
-        message:
-          n.body
-            .split("\n")
-            .find((l) => l.trim())
-            ?.trim()
-            .slice(0, 160) ?? "",
+        message: firstLine(n.body),
         to: n.route ?? look.to,
         icon: look.icon,
         tone: look.tone,

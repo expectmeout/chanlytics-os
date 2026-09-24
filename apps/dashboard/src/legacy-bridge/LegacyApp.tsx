@@ -49,7 +49,6 @@ import {
 import {
   getConnection,
   getSurfaceStatuses,
-  isSurfaceFailed,
   isSurfaceReady,
   markHydrated,
   onSurfaceStatusChange,
@@ -184,42 +183,16 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installSurfaceRegistry, routeSurfaceFor } from "./surface-registry";
+import { installRouteGate, installSurfaceRegistry } from "./surface-registry";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
  *
  * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
  * render, and it is a child of this component: children render before parent
- * effects run. Installing the gate in a useEffect therefore left it undefined
- * at the only moment it mattered, `routeReady()` fell back to `true`, and a
- * cold boot painted the seeded mockup hero ($1,840 revenue, a fabricated
- * operator) for one frame — then the reading pane, then the truth. Strictly worse
- * than no gate at all.
- *
- * Module scope runs before React renders anything, so the very first frame is
- * already gated. It also survives StrictMode's mount/unmount/mount, which the
- * effect's cleanup used to tear down mid-sequence.
+ * effects run, so a gate installed in one was undefined at the only moment it
+ * mattered (surface-registry.ts installRouteGate, which says what that painted).
  */
-function installRouteGate(): void {
-  const w = window as unknown as {
-    __surfaceGate?: (page: string, param?: string | null) => boolean;
-    __surfaceFailed?: (page: string, param?: string | null) => boolean;
-    __onSurfaceReady?: (fn: () => void) => () => void;
-  };
-  // The PANE decides, not the page. Asked with the bare page name, Settings
-  // resolved to nothing and the gate waved a cold load straight through onto
-  // the mockup's fabricated business.
-  w.__surfaceGate = (page, param) => {
-    const key = routeSurfaceFor(page, param);
-    return key ? isSurfaceReady(key) : true;
-  };
-  w.__surfaceFailed = (page, param) => {
-    const key = routeSurfaceFor(page, param);
-    return key ? isSurfaceFailed(key) : false;
-  };
-  w.__onSurfaceReady = onSurfaceStatusChange;
-}
 installRouteGate();
 /**
  * A page's Retry: re-read ONE surface through the runner, by its key, so the

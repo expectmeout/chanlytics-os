@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import {
   AppError,
   SIGNUP_WORDS,
@@ -12,6 +11,7 @@ import {
 } from "@chanlytics/contracts";
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
+import { ipOf, hashKey as hash } from "@/server/request-ip";
 import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
 
 /**
@@ -32,14 +32,6 @@ import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
  * /api/v1/workspaces/create, signed in, like every workspace after the first.
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
-
-const hash = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 32);
-
-function ipOf(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  const first = fwd ? fwd.split(",")[0].trim() : "";
-  return first || req.headers.get("x-real-ip") || "unknown";
-}
 
 export async function GET(): Promise<Response> {
   // The page asks what to render before it renders anything. `posture` is the

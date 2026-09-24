@@ -109,7 +109,9 @@ test.describe("unauthenticated", () => {
     const google = await googleProviderOn();
     if (google === true) await expect(page.getByTestId("google-sign-in")).toBeVisible();
     if (google === false) await expect(page.getByTestId("google-sign-in")).toHaveCount(0);
-    // Nothing behind the gate may be painted to someone who is not through it.
-    await expect(page.locator("body")).not.toContainText("Melany");
+    // Nothing behind the gate may be painted to someone who is not through it:
+    // no sidebar, and no workspace's name at the head of one.
+    await expect(page.getByTestId("sidebar")).toHaveCount(0);
+    await expect(page.getByTestId("sb-workspace")).toHaveCount(0);
   });
 });

@@ -26,14 +26,14 @@ import assert from "node:assert/strict";
 import { composeSystemPrompt, resolveSystemPrompt } from "@chanlytics/contracts";
 
 const brain = {
-  business_name: "Melany's Beauty Salon",
-  phone_display: "(646) 932-5775",
+  business_name: "Marisa's Beauty Salon",
+  phone_display: "(212) 555-0142",
   booking_link: "https://example.com/book",
   system_prompt: "You are the WhatsApp assistant for the salon. We speak Spanish. " + "x".repeat(40),
   fallbacks: { greeting: "hi", error: "err", non_text: "nt" },
 };
 const profile = {
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+  address: "1200 Maple Ave, Brooklyn, NY 11208",
   hours: { mon: { open: "09:30", close: "18:00" }, sun: {} },
   services: [{ name: "Silk press", duration_min: 210 }],
 };
@@ -43,14 +43,14 @@ const profile = {
 test("the phone agent is given the SAME facts as the chat agent", () => {
   const wa = resolveSystemPrompt({ ...brain, profile }, "whatsapp");
   const voice = resolveSystemPrompt({ ...brain, profile }, "voice");
-  for (const fact of ["2581 Pitkin Ave", "09:30", "Silk press", "Sunday: Closed"]) {
+  for (const fact of ["1200 Maple Ave", "09:30", "Silk press", "Sunday: Closed"]) {
     assert.ok(wa.includes(fact), `chat is missing ${fact}`);
     assert.ok(voice.includes(fact), `phone is missing ${fact}`);
   }
 });
 
 test("a prompt written for texting is labelled as such when it is read aloud", () => {
-  // Melany's carried instructions open "You are the WhatsApp assistant" — true
+  // Marisa's carried instructions open "You are the WhatsApp assistant" — true
   // where it was written, a false identity statement down a phone line. We do
   // not delete an owner's sentence; we say where it came from.
   const voice = composeSystemPrompt(brain, { ...profile, extra_instructions: "Be warm." }, "voice");

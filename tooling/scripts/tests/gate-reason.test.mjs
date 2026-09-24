@@ -345,7 +345,7 @@ const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridg
 globalThis.window.__today = TODAY_HELPERS;
 
 const metrics = {
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
   window: {
     days: 1,
@@ -435,7 +435,7 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
     __TEMPLATES_ALL: [],
     __CHANNELS: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
     __starters: undefined,
-    __SETTINGS: { config: { brain: { business_name: "Melany's Beauty Salon" } } },
+    __SETTINGS: { config: { brain: { business_name: "Marisa's Beauty Salon" } } },
     addEventListener: (name) => listening.push(name),
   });
   try {

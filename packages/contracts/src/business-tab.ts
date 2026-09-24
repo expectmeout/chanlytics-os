@@ -834,9 +834,9 @@ export function handoffCallWords(i: { hasHandoffNumber: boolean; hasEscalateWhen
 
 /** The hand-off row at rest, and what a call does, which its fold says under Phone. */
 export interface HandoffWordsVM {
-  /** One line: "For 2 reasons · on a call, transfers to +1 (646) 932-5775"; with no reasons, when it hands over anyway. */
+  /** One line: "For 2 reasons · on a call, transfers to +1 (212) 555-0142"; with no reasons, when it hands over anyway. */
   line: string;
-  /** "transfers to +1 (646) 932-5775", or "takes a message" with no number. */
+  /** "transfers to +1 (212) 555-0142", or "takes a message" with no number. */
   phone: string;
 }
 

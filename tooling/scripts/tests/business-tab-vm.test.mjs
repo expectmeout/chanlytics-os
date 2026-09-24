@@ -252,14 +252,14 @@ test("rulesKept refuses an input the page left out, rather than naming a rule it
 /* ---- The standing line ---- */
 
 const full = {
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
   profile: {
-    address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+    address: "1200 Maple Ave, Brooklyn, NY 11208",
     tone: "Warm and unhurried.",
     hours: { mon: { open: "09:30", close: "18:00" } },
     services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
-    escalate_when: ["They ask for Melany"],
+    escalate_when: ["They ask for Marisa"],
     guardrails: { never_quote_prices: true },
   },
 };
@@ -1192,10 +1192,10 @@ test("the voice's three starting points are sentences the profile keeps, each na
 test("the hand-off row at rest is one line: the reasons counted, and what a call does", () => {
   const two = handoffWords(
     ["They ask for a person, for the owner", "They are upset, or have a complaint"],
-    "+1 (646) 932-5775",
+    "+1 (212) 555-0142",
   );
-  assert.equal(two.phone, "transfers to +1 (646) 932-5775");
-  assert.equal(two.line, "For 2 reasons · on a call, transfers to +1 (646) 932-5775");
+  assert.equal(two.phone, "transfers to +1 (212) 555-0142");
+  assert.equal(two.line, "For 2 reasons · on a call, transfers to +1 (212) 555-0142");
   assert.doesNotMatch(two.line, /They ask/, "the reasons themselves are the fold's, whole");
   assert.equal(handoffWords(["Refunds"], null).line, "For 1 reason · on a call, takes a message");
   // With no reasons it still hands over, on the composer's own triggers, in the words the ability card says them in.
@@ -1481,7 +1481,7 @@ test("a message that writes a detail out instead of naming it is found, link fir
   // `{business}`, `{booking link}` and `{phone}` are filled in as each message goes out; a message that spells one
   // instead says what was true when it was typed and nothing after. The link is known exactly; a number is known by
   // its shape, since the one a customer would ring need not be the one on file.
-  const link = "https://booksy.example/1817434";
+  const link = "https://booksy.example/4471902";
   assert.equal(writtenOutDetail(`Book at ${link} and we will confirm.`, link), "link");
   assert.equal(writtenOutDetail("Call us on (646) 555-0100.", link), "number");
   assert.equal(writtenOutDetail("Call 646-555-0100.", link), "number");

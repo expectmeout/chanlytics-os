@@ -386,7 +386,7 @@ test("the receptionist's own escalation pauses the thread and queues its holding
     assert.equal(t.messages[0].status, "sent");
   }
   {
-    const owner = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Hi, Melany here", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z" };
+    const owner = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Hi, Marisa here", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z" };
     const t = tables({ conversations: [paused], messages: [draft, owner] });
     const w = wireOf();
     const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: draft.body }));
@@ -589,7 +589,7 @@ test("under a pause, the receptionist's queued draft goes unless a person spoke 
     const later = new Date(Date.parse(WRITTEN) + 30_000).toISOString();
     const db = wrap(tables({ conversations: [paused], messages: [
       { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "I've passed this on", sender: "ai", channel: "whatsapp", direction: "outbound", created_at: WRITTEN },
-      { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Melany here", sender: "human", channel: "whatsapp", direction: "outbound", created_at: later },
+      { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "Marisa here", sender: "human", channel: "whatsapp", direction: "outbound", created_at: later },
     ] }));
     const { ctx } = ctxFor(db);
     assert.equal(await dispatchJob(ctx, job()), "done");

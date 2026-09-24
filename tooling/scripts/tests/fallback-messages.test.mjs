@@ -27,10 +27,11 @@ const answering = {
 
 test("a message that names no detail goes out exactly as written", () => {
   const written = {
-    greeting: "Hi! Thanks for reaching out 💛\n\nBook anytime: https://booksy.com/en-us/1817434\n\nOr reply here.",
+    greeting:
+      "Hi! Thanks for reaching out 💛\n\nBook anytime: https://book.example.com/en-us/4471902\n\nOr reply here.",
     error:
-      "Thanks for reaching out! Book anytime: https://booksy.com/en-us/1817434 — or a member of our team will reply here soon.",
-    non_text: "Thanks for your message!  For anything urgent, call us at (646) 932-5775.\n",
+      "Thanks for reaching out! Book anytime: https://book.example.com/en-us/4471902 — or a member of our team will reply here soon.",
+    non_text: "Thanks for your message!  For anything urgent, call us at (212) 555-0142.\n",
   };
   assert.deepEqual(fallbackMessages(brain(written), answering), written, "byte for byte, spacing and all");
 });

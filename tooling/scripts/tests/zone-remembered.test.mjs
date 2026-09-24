@@ -26,7 +26,7 @@ const storage = () => {
     removeItem: (k) => kept.delete(k),
   };
 };
-const tab = (over = {}) => ({ location: { pathname: "/w/melanys", hash: "" }, localStorage: storage(), ...over });
+const tab = (over = {}) => ({ location: { pathname: "/w/marisas", hash: "" }, localStorage: storage(), ...over });
 
 globalThis.window = tab();
 const { knownZone, workspaceZone } = await import(at("apps/dashboard/src/legacy-bridge/zone.ts"));
@@ -37,12 +37,12 @@ test("the workspace's own zone, once published, is what the tab knows, and this 
     __ACTIVE_WORKSPACE: "t1",
   });
   assert.equal(knownZone(win), "America/New_York");
-  assert.deepEqual(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")), { melanys: "America/New_York" });
+  assert.deepEqual(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")), { marisas: "America/New_York" });
 });
 
 test("a cold boot answers from the zone this browser remembers, and makes no read to learn it", async () => {
   const win = tab();
-  win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ melanys: "America/Chicago", other: "Asia/Tokyo" }));
+  win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ marisas: "America/Chicago", other: "Asia/Tokyo" }));
   assert.equal(knownZone(win), "America/Chicago", "REGRESSION: null until the workspace read answered");
   // No window.fetch at all: had it read, the read would have thrown.
   assert.equal(await workspaceZone(win), "America/Chicago");
@@ -52,9 +52,9 @@ test("a cold boot answers from the zone this browser remembers, and makes no rea
 
 test("the workspace's own zone wins over the remembered one, and replaces it", () => {
   const win = tab({ __WORKSPACES: [{ id: "t1", timezone: "Europe/Madrid" }], __ACTIVE_WORKSPACE: "t1" });
-  win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ melanys: "America/Chicago" }));
+  win.localStorage.setItem("chanlytics.zones.v1", JSON.stringify({ marisas: "America/Chicago" }));
   assert.equal(knownZone(win), "Europe/Madrid");
-  assert.equal(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")).melanys, "Europe/Madrid");
+  assert.equal(JSON.parse(win.localStorage.getItem("chanlytics.zones.v1")).marisas, "Europe/Madrid");
 });
 
 test("off a workspace's address, and with storage blocked, nothing is invented", () => {
