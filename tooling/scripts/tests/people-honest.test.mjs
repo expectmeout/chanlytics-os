@@ -1020,6 +1020,45 @@ test("where deals are on, the switch has a third tab, the Pipeline, on a desktop
   });
 });
 
+// Ruben, 24 Sep: the scopes on a phone should look like the Inbox's views. They were a boxed switch squeezed into the
+// bar beside the list button ("All deals 6" shortened at 375px); now they are the shell's own tab strip, the Inbox's
+// .stabs, on a row of their own over the bar, and they stay while the bar is the search field.
+test("on a phone the scopes are the Inbox's tab strip, on a row of their own over the bar, and they stay while searching", () =>
+  onPhone(async () => {
+    await freshPage({ people: [person(1)], dealsOn: true });
+    went.length = 0;
+    let tree = draw();
+    const top = byTestId(tree, "people-phone-bar");
+    const kids = (top.props.children || []).filter(Boolean);
+    const strip = kids[0];
+    assert.match(String(strip.props.className), /\bstabs\b/, "the shell's own strip, as the Inbox draws its views");
+    assert.equal(strip.props.role, "tablist");
+    assert.deepEqual(
+      all(strip, (n) => n.props?.role === "tab").map((n) => [textOf(n), n.props.className]),
+      [
+        ["People", "stabs-tab active"],
+        ["Leads", "stabs-tab"],
+        ["Pipeline", "stabs-tab"],
+      ],
+      "the picked one underlined, as the Inbox's is",
+    );
+    const bar = kids[1];
+    assert.equal(bar.props.className, "pp-bar", "the bar is the row under it");
+    assert.equal(all(bar, (n) => n.props?.role === "tab").length, 0, "no switch squeezed beside the list button");
+    assert.ok(byTestId(bar, "people-phone-lists"), "the list button has the bar");
+    click(byTestId(tree, "people-phone-search-open"));
+    tree = draw();
+    const searching = byTestId(tree, "people-phone-bar");
+    assert.ok(byTestId(searching, "people-phone-search"), "the bar is the field");
+    assert.deepEqual(
+      all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab").map(textOf),
+      ["People", "Leads", "Pipeline"],
+      "and the scopes stay over it",
+    );
+    click(all(byTestId(searching, "people-phone-scopes"), (n) => n.props?.role === "tab")[1]);
+    assert.deepEqual(went, ["clients/leads"]);
+  }));
+
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
   await freshPage({ people: [person(1)] });
   const tree = draw();
