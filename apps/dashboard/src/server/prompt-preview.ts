@@ -3,6 +3,7 @@ import {
   describeNow,
   describeOpenings,
   freeWindows,
+  offersBookingLink,
   parseIcs,
   resolveSystemPrompt,
   seasonHorizon,
@@ -100,7 +101,7 @@ export async function openingsBlock(
       rules,
       now,
     });
-    return describeOpenings(openings, cfg.tz, { daysAhead });
+    return describeOpenings(openings, cfg.tz, { daysAhead, hasBookingLink: offersBookingLink(cfg.brain) });
   } catch (e) {
     console.error(
       "prompt_preview_openings_failed",

@@ -292,7 +292,12 @@ test("REGRESSION (C5b): the phone tool answers a consultation-first service with
     ],
     booking_rules: { consult_first: ["Color correction"] },
   };
-  const said = availabilityAnswer(data, profile, { day: "2026-09-09", service: "color correction" });
+  const said = availabilityAnswer(
+    data,
+    profile,
+    { day: "2026-09-09", service: "color correction" },
+    { hasBookingLink: true },
+  );
   assert.equal(said.offer?.consultation, true);
   assert.equal(said.days, 1, "REGRESSION: a 400-minute filter left nothing open");
   assert.match(
@@ -304,6 +309,7 @@ test("REGRESSION (C5b): the phone tool answers a consultation-first service with
     data,
     { ...profile, booking_rules: {} },
     { day: "2026-09-09", service: "color correction" },
+    { hasBookingLink: true },
   );
   assert.equal(asItself.days, 0, "booked as itself, a 400-minute service fits nothing that afternoon");
   assert.match(
@@ -541,6 +547,81 @@ test("a workspace that confirms its own bookings is not given times to read out"
   }
 });
 
+test("a business with no booking link (one that quotes each job): no calendar is the caller's details taken, one it cannot read a call back, and the times it does read end in the details", async () => {
+  const brain = {
+    business_name: "Harbor Moving",
+    system_prompt: "Answer as the front desk of Harbor Moving, which quotes each move before it is booked.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  /** The door's answer for a workspace of its own holding `config`: one world each, so no runtime is carried over. */
+  const ask = async (n, config) => {
+    const T = `cccccccc-0000-4000-8000-00000000b3b${n}`;
+    const AGENT = `agent_availability_no_link_${n}`;
+    setPg(
+      fakeDb(
+        {
+          tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
+          tenant_channels: [
+            {
+              id: `voice-nl-${n}`,
+              tenant_id: T,
+              kind: "voice",
+              external_id: AGENT,
+              number_e164: "+13055550100",
+              status: "active",
+              credentials_ref: null,
+              config: {},
+            },
+          ],
+          tenant_config: [{ tenant_id: T, config }],
+          policies: [],
+          google_listings: [],
+        },
+        {},
+        { runtime_stamp: () => `stamp-no-link-${n}` },
+      ),
+    );
+    try {
+      const res = await door.POST(
+        new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+          body: JSON.stringify({ call: { call_id: `call_no_link_${n}`, agent_id: AGENT }, args: {} }),
+        }),
+      );
+      assert.equal(res.status, 200);
+      return (await res.json()).result;
+    } finally {
+      setPg(null);
+    }
+  };
+  assert.equal(
+    await ask(2, { brain }),
+    "There is no calendar to check. Take their name, what they need, and where and when, and say the team will follow up.",
+  );
+  // A feed it cannot read the openings from: here, no hours to read them against, so nothing is fetched.
+  assert.equal(
+    await ask(3, { brain, calendar: { ical_url: "https://calendar.example.com/harbor.ics" } }),
+    "I can't see the calendar right now. Offer to have someone call back.",
+  );
+  const now = new Date(ny(2026, 9, 9, 8));
+  const openings = freeWindows({
+    hours: { wed: { open: "09:00", close: "18:00" } },
+    tz: TZ,
+    busy: [],
+    rules: { lead_hours: 0, max_days_ahead: 1 },
+    now,
+  });
+  const said = availabilityAnswer({ openings, tz: TZ, daysAhead: 14 }, undefined, {}, { hasBookingLink: false }).result;
+  assert.ok(
+    said.endsWith(
+      "then take their name, what they need, and where and when so the team can confirm one. Never confirm a slot yourself; the calendar decides.",
+    ),
+    said,
+  );
+  assert.doesNotMatch(said, /booking link/);
+});
+
 test("a client is offered the service itself; a stranger the consultation; the answer takes the flag", () => {
   const services = [
     { name: "Ad management", duration_min: 60 },
@@ -562,9 +643,12 @@ test("a client is offered the service itself; a stranger the consultation; the a
   });
   const data = { openings, tz: TZ, daysAhead: 14 };
   const profile = { services, booking_rules: rules };
-  assert.match(availabilityAnswer(data, profile, { service: "ad management" }).result, /needs a consultation/);
+  assert.match(
+    availabilityAnswer(data, profile, { service: "ad management" }, { hasBookingLink: true }).result,
+    /needs a consultation/,
+  );
   assert.doesNotMatch(
-    availabilityAnswer(data, profile, { service: "ad management" }, { client: true }).result,
+    availabilityAnswer(data, profile, { service: "ad management" }, { client: true, hasBookingLink: true }).result,
     /needs a consultation/,
   );
 });

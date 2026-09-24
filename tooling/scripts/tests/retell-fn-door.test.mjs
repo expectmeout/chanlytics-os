@@ -184,6 +184,9 @@ const READ_IT_BACK =
 const CALLERS_OWN =
   "I can only send WhatsApp messages to the number the caller is phoning from. Ask them to call from that mobile, or offer to book them on the call.";
 const SENT = "Booking link sent to their WhatsApp. Confirm they should see it momentarily.";
+/** A business that quotes each job has no link to send (the first run's decision 2). */
+const NO_LINK =
+  "This business has no booking link, so nothing was sent. Take their name, what they need, and where and when, and say the team will follow up.";
 /** The line this workspace's receptionist answers on, as the resolver publishes it. */
 const PUBLISHED = "+1 (305) 555-0100";
 
@@ -1132,6 +1135,21 @@ test("REGRESSION: a runaway guard that cannot read its own count does not open",
 });
 
 /* --------------------------------- which template, and whose answer it is */
+
+test("a business with no booking link (one that quotes each job) has the details taken instead: asked before anyone is looked up, nothing is sent, and it is said", async () => {
+  const { booking_link: _none, ...quotes } = BRAIN;
+  const w = world({ brain: quotes });
+  await listening(async (log) => {
+    w.open();
+    assert.equal(await spoken(await knock(w.ask(w.number()))), NO_LINK);
+    assert.deepEqual(
+      log.fields("retell_fn_no_link").map((f) => f.tenant),
+      [w.T],
+    );
+  });
+  assert.deepEqual([w.tables.contacts, w.tables.messages], [[], []], "nobody is made a contact, and nothing recorded");
+  assert.deepEqual(w.left().calls, [], "and nothing is sent");
+});
 
 test("a workspace with no approved booking template is told so, in the cause a business can act on", async () => {
   // REGRESSION: this path named booking_link_v1 by literal. That row existed in

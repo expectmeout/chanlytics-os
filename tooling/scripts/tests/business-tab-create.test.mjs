@@ -11,7 +11,14 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { newReceptionistDefaults, FALLBACK_DEFAULTS, roleGate, whyNotAPhone, sellsByVM } from "@chanlytics/contracts";
+import {
+  BOOKING_LINK_NEEDED,
+  newReceptionistDefaults,
+  FALLBACK_DEFAULTS,
+  roleGate,
+  whyNotAPhone,
+  sellsByVM,
+} from "@chanlytics/contracts";
 import { again, unmount, settle, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 import { W, saving } from "./_business-tab-harness.mjs";
 
@@ -163,7 +170,11 @@ test("every empty field says so under itself, nothing is sent, and the fold stay
     wrongIn(tree, "rec-create-number"),
     "There is no line yet, so the receptionist needs a number to give out.",
   );
-  assert.equal(wrongIn(tree, "rec-create-link"), "The receptionist needs a booking link before it can answer anyone.");
+  assert.equal(
+    wrongIn(tree, "rec-create-link"),
+    BOOKING_LINK_NEEDED,
+    "the page's own check and the save's refusal are one sentence (config.ts TenantConfigWriteSchema)",
+  );
   assert.equal(foldOpen(tree), true, "and it stays open over what was typed");
 });
 

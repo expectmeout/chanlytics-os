@@ -327,7 +327,7 @@ const btCheckWebsite = (d) => {
 };
 const btCheckBookingLink = (d) => {
   const v = btTrimmed(d);
-  if (!v) return "The receptionist needs a booking link before it can answer anyone.";
+  if (!v) return "The receptionist needs a booking link to send anyone who wants to book.";
   return BT_WEB.test(v) ? null : "That booking link needs to be a full web address, starting with https://";
 };
 const btCheckPublished = (d, line) => {

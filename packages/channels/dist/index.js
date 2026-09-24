@@ -537,7 +537,12 @@ var BrainConfigSchema = z3.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z3.string().min(3).max(40).optional(),
-  booking_link: z3.string().url().max(500),
+  /**
+   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   */
+  booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
@@ -651,7 +656,11 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
+  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,

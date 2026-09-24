@@ -43,7 +43,9 @@ import {
 import {
   bookingTemplate,
   inboxSlots,
+  NO_LINK_DETAILS,
   normalizePhone,
+  offersBookingLink,
   policyAskClass,
   purposeOfTemplate,
   renderTemplate,
@@ -90,6 +92,13 @@ const VOICE_SENDS_PER_DAY = 3;
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
   "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
+
+/**
+ * Spoken when the business has no booking link: one that quotes each job (the first run's decision 2). Its prompt says
+ * to leave the tool alone; this is the answer if the agent reaches for it anyway, since the tool is on the one shell
+ * every workspace shares.
+ */
+const NO_LINK = `This business has no booking link, so nothing was sent. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -168,6 +177,10 @@ export async function POST(request: Request): Promise<Response> {
     // does not speak in a voice we invented for it.
     L.info("retell_fn_no_persona", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEND });
+  }
+  if (!offersBookingLink(brain)) {
+    L.info("retell_fn_no_link", { tenant: routed.tenantId });
+    return json(200, { result: NO_LINK });
   }
 
   try {
@@ -300,7 +313,7 @@ export async function POST(request: Request): Promise<Response> {
       // resolveParams writes "there", which is true, rather than a gap.
       firstName: null,
       businessName: brain.business_name,
-      bookingLink: brain.booking_link.replace(/^https?:[/][/]/, ""),
+      bookingLink: brain.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
     });
     // The door every send leaves through. It re-reads consent, the pause and
     // the workspace's status at the wire, sends on the TENANT's credentials

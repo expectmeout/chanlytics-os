@@ -8,6 +8,7 @@ import {
   offerFor,
   offerLead,
   offeringHorizon,
+  offersBookingLink,
   parseIcs,
   parseTenantConfig,
   type FeedFailure,
@@ -228,7 +229,11 @@ export async function openingsFor(
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
   const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });
-  const described = describeOpenings(picked, timezone, { maxDays: 3, daysAhead });
+  const described = describeOpenings(picked, timezone, {
+    maxDays: 3,
+    daysAhead,
+    hasBookingLink: offersBookingLink(cfg?.brain),
+  });
   return {
     state: "ok",
     text: `${offerLead(offer)}${described}`,

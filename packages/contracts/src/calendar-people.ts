@@ -425,14 +425,20 @@ export function visitLine(
  * The receptionist's lines about a caller's appointments — facts from the
  * calendar, with the rule that nothing is changed from here. A match by
  * name alone says so, so the receptionist confirms it is them before it
- * reads details back.
+ * reads details back. With no booking link to send (the first run's
+ * decision 2), a change goes to the team.
  */
-export function describeVisits(visits: Visits, tz: string, nowMs: number): string | null {
+export function describeVisits(
+  visits: Visits,
+  tz: string,
+  nowMs: number,
+  opts: { hasBookingLink: boolean },
+): string | null {
   const out: string[] = [];
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.`,
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
     );
   }
   if (visits.last) {
