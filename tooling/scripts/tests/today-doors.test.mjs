@@ -12,15 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  toTodayVM,
-  toLiveVM,
-  setupSteps,
-  firstRunOf,
-  receptionistCardOf,
-  setupCardOf,
-  FIRST_RUN_WORDS,
-} from "@chanlytics/contracts";
+import { toTodayVM, toLiveVM, setupSteps, FIRST_RUN_HELPERS } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const ZONE = "America/New_York";
@@ -458,7 +450,7 @@ const setupSurface = (over = {}) => {
   };
   return { dto, role: "owner", later: [], vm: setupSteps({ ...dto, later: [] }, NOW.getTime()) };
 };
-const firstRun = { of: firstRunOf, card: receptionistCardOf, today: setupCardOf, words: FIRST_RUN_WORDS };
+const firstRun = FIRST_RUN_HELPERS;
 
 test("REGRESSION: with no line connected, Today does not say the receptionist is answering -- one sentence, and one door to finishing setting up", () => {
   globalThis.window.__SETUP = setupSurface();
@@ -476,6 +468,7 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     );
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
     assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
+    assert.ok(textOf(setup).includes("Next: your business"), "and the step it opens on");
     assert.equal(
       [hero, recap, queue, setup].reduce((n, t) => n + buttonsSaying(t, "Open Setup").length, 0),
       0,
@@ -519,13 +512,17 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     assert.equal(rows[0].props["data-testid"], "setup-row-whatsapp", "WhatsApp leads: it sends the booking link");
     assert.ok(rows.length > 1, "and what else is left follows it");
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
-    hide.props.onClick();
+    await hide.props.onClick();
     assert.equal(put.at(-1)[1], true);
-    assert.deepEqual(
-      put.at(-1)[0],
-      rows.map((r) => r.props["data-testid"].slice("setup-row-".length)),
-      "Hide puts every row on the card off at once",
+    const ids = rows.map((r) => r.props["data-testid"].slice("setup-row-".length));
+    assert.deepEqual(put.at(-1)[0], ids, "Hide puts every row on the card off at once");
+    assert.equal(
+      textOf(flashes.at(-1).msg),
+      `All ${ids.length} put off. They stay in Setting up for when you're ready.`,
+      "and says so",
     );
+    await flashes.at(-1).undo();
+    assert.deepEqual(put.at(-1), [ids, false], "its Undo takes them all back");
   } finally {
     delete globalThis.window.__SETUP;
     delete globalThis.window.__firstRun;

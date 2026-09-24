@@ -11,6 +11,7 @@ import {
   setupSteps,
   firstRunOf,
   firstRunStepOf,
+  firstRunStepRoute,
   setupCardOf,
   receptionistCardOf,
   shouldLandOnFirstRun,
@@ -108,6 +109,11 @@ test("a new workspace starts on its business: one step current, the rest ahead, 
   assert.equal(fr.back, null);
   assert.equal(fr.onward, null, "nothing to continue to while the step asks something");
   assert.deepEqual(
+    fr.steps.map((s) => s.to),
+    ["start", "start/phone", "start/try", "start/live"],
+    "the current step is the first run's own address, another step its own",
+  );
+  assert.deepEqual(
     ids(fr.steps.find((s) => s.key === "phone").rows),
     ["line", "keep"],
     "no billing row without billing",
@@ -125,9 +131,14 @@ test("the facts are in: the phone is current, the business can be looked at agai
   assert.equal(fr.shown.key, "phone");
   const back = firstRunOf(vm, "business");
   assert.equal(back.shown.key, "business", "a step already reached opens");
-  assert.deepEqual(back.onward, { label: "Continue", to: "start" }, "and Continue goes on to where the workspace is");
+  assert.deepEqual(
+    back.onward,
+    { label: "Continue", to: "start", leaves: false },
+    "and Continue goes on to where the workspace is, a step's own move",
+  );
+  assert.equal(back.primaryRow, null, "one coral button a step: on a step done it is Continue");
   assert.equal(firstRunOf(vm, "try").shown.key, "phone", "a step not reached yet shows where the workspace is instead");
-  assert.equal(firstRunOf(vm, "phone").back, "business");
+  assert.equal(firstRunOf(vm, "phone").back, "start/business", "Back opens the step before, at its own address");
 });
 
 test("answering: Live is current, with what is left after, and Finish goes to Today", () => {
@@ -143,7 +154,7 @@ test("answering: Live is current, with what is left after, and Finish goes to To
   assert.equal(fr.lead, vm.readiness.sentence, "Setup's own sentence says what it answers on");
   assert.deepEqual(ids(fr.shown.rows), ["whatsapp", "calendar", "team", "yes"]);
   assert.equal(fr.primaryRow, null, "on Live the one action is Finish");
-  assert.deepEqual(fr.onward, { label: "Finish", to: "today" });
+  assert.deepEqual(fr.onward, { label: "Finish", to: "today", leaves: true }, "Finish is a way out");
   assert.equal(fr.progress, 100);
 });
 
@@ -155,6 +166,7 @@ test("an address names a step or nothing", () => {
   assert.equal(firstRunStepOf("phone"), "phone");
   assert.equal(firstRunStepOf("setup"), null);
   assert.equal(firstRunStepOf(null), null);
+  assert.equal(firstRunStepRoute("phone"), "start/phone", "a door that names a row opens the step that draws it");
 });
 
 test("Today's card: while nothing answers, one row that opens the first run; after, Setup's own rows in the order they help most, never one put off", () => {
@@ -163,27 +175,33 @@ test("Today's card: while nothing answers, one row that opens the first run; aft
   assert.equal(before.left, "3 steps left");
   assert.deepEqual(before.start, {
     name: "Your receptionist isn't answering yet",
-    sentence: "Next: your business.",
+    sentence: "What your receptionist says about you: your name, when you're open, what you offer.",
+    status: "Next: your business",
     cta: "Continue setting up",
     to: "start",
   });
   assert.deepEqual(before.rows, []);
   assert.equal(before.hide, null, "the first run cannot be put off");
 
+  // WhatsApp can answer before the phone does: then it is the calls that are not answered.
+  const texting = setupCardOf(
+    setupSteps(empty({ business: facts, channels: { ...empty().channels, whatsapp: live().channels.whatsapp } }), NOW),
+  );
+  assert.equal(texting.start.name, "Calls aren't answered yet");
+  assert.equal(texting.start.status, "Next: your phone");
+
   const after = setupCardOf(setupSteps(live(), NOW));
   assert.equal(after.start, null);
   assert.deepEqual(ids(after.rows), ["keep"], "the one thing a workspace answering everywhere has left");
   assert.equal(after.left, "1 left");
-  assert.equal(after.hide, "Hide");
-  assert.equal(after.skip, "Skip");
+  assert.deepEqual(after.hide, { put: "Hide", said: "Put off. It stays in Setting up for when you're ready." });
+  assert.deepEqual(after.skip, { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." });
   assert.equal(setupCardOf(setupSteps(live({ later: ["keep"] }), NOW)), null, "nothing left once it is put off");
 
   const quiet = live({ calendar: { state: "none" }, team: { members: 1, invitesOpen: 0, alertEmails: 0 } });
-  assert.deepEqual(
-    ids(setupCardOf(setupSteps(quiet, NOW)).rows),
-    ["calendar", "team", "keep"],
-    "WhatsApp, the calendar, a back-up, then the rest",
-  );
+  const three = setupCardOf(setupSteps(quiet, NOW));
+  assert.deepEqual(ids(three.rows), ["calendar", "team", "keep"], "WhatsApp, the calendar, a back-up, then the rest");
+  assert.equal(three.hide.said, "All 3 put off. They stay in Setting up for when you're ready.");
 });
 
 test("the receptionist card: every value is Setup's or the settings read's, the greeting is the phone's word for word, and a blank is a dash", () => {
@@ -209,7 +227,11 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
   assert.equal(card.caption, "Your receptionist, so far");
   assert.equal(card.initials, "NM");
   assert.equal(card.name, "Northside Movers");
-  assert.deepEqual(card.status, { tone: "ok", words: "Answering" });
+  assert.deepEqual(
+    card.status,
+    { state: "ready", words: "Answering" },
+    "Setup's own state, which the page's pill tones",
+  );
   assert.equal(card.strip, "Your receptionist · Answering");
   assert.equal(card.greeting, greetingFor("Northside Movers"));
   const sv = servicesWords(services);
@@ -220,7 +242,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
       ["knows", "Knows", `${sv.chips.map((c) => c.name).join(", ")} ${sv.more}`],
       ["books", "Books with", "northside.example/book"],
       ["speaks", "Speaks", "English, Spanish"],
-      ["answers", "Answers", "+1 (212) 555-0142 when nobody picks up"],
+      ["answers", "Answers", "+1 (305) 555-0124, and calls forwarded from +1 (212) 555-0142"],
       ["through", "Puts through to", "+1 (305) 555-0100"],
     ],
   );
@@ -236,8 +258,8 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
   });
   assert.equal(bare.name, "Luna Studio", "the workspace's name until the receptionist has one");
   assert.equal(bare.initials, "LS");
-  assert.deepEqual(bare.status, { tone: "plain", words: "Not answering yet" });
-  assert.equal(bare.greeting, greetingFor("Luna Studio"));
+  assert.deepEqual(bare.status, { state: "not_started", words: "Not answering yet" });
+  assert.equal(bare.greeting, GREETING_DEFAULT, "the phone greets with the receptionist's name, never the workspace's");
   assert.deepEqual(
     bare.rows.map((r) => r.value),
     [null, null, null, null, null, null],
@@ -256,7 +278,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     workspaceName: null,
     tz: "America/New_York",
   });
-  assert.deepEqual(untried.status, { tone: "ok", words: "Answering · not tried yet" });
+  assert.deepEqual(untried.status, { state: "waiting_you", words: "Answering · not tried yet" });
   assert.equal(
     untried.rows.find((r) => r.key === "answers").value,
     "+1 (305) 555-0124",
@@ -296,5 +318,6 @@ test("the invite code sign-up checked is kept beside the name, and never read ba
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { name: "Luna Studio" } }), null);
   assert.equal(pendingCodeOf(null), null);
   assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "x".repeat(81) } }), null);
+  assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "   " } }), null, "a blank code is none");
   assert.equal(SIGNUP_WORDS.making, "Making your workspace…");
 });

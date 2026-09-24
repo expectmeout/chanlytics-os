@@ -30,9 +30,9 @@ const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, surface
 
 const shell = fs.readFileSync(path.join(DASH, "legacy/pages/app-shell.jsx"), "utf8");
 
-/** Every page key the shell's router matches on. */
+/** Every page key the shell's router matches on, and the retired pages it routes by their move (surfaceRetiredTo). */
 function routedPages() {
-  const pages = new Set();
+  const pages = new Set(Object.keys(registry.SURFACE_RETIRED));
   for (const m of shell.matchAll(/page === "([a-z-]+)"/g)) pages.add(m[1]);
   return pages;
 }
@@ -383,6 +383,10 @@ test("Setup's old address lands on the first run -- the bell rows the edge wrote
   assert.equal(surfaceRetiredTo("admin", "setup"), "start");
   assert.equal(surfaceRetiredTo("admin", "workspace"), undefined, "the rest of Settings stays where it is");
   assert.equal(surfaceRetiredTo("pipeline", null), "clients", "a retired page still moves as a page");
+  // A demo session: a pane that moved and a page gone from the tree move there too; a retired page it still draws stays.
+  assert.equal(surfaceRetiredTo("admin", "setup", true), "start", "the mockup has no Setup pane either");
+  assert.equal(surfaceRetiredTo("leads", null, true), "clients/leads");
+  assert.equal(surfaceRetiredTo("pipeline", null, true), undefined, "the demo keeps the Deal board it still draws");
   assert.equal(surfaceStateFor("start", null), "real");
   assert.equal(routeSurfaceFor("start", null), "setup", "the first run waits for Setup's read");
 });

@@ -845,12 +845,7 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
       bridge.includes('globals: ["__SETUP"]') &&
       bridge.includes('events: ["surface:setup"]'),
   );
-  // A row put off is the member's (setup-later.test.mjs runs it); landing is once per session.
-  assert.ok(bridge.includes("chanlytics.setup.landed"), "landing is once per session");
-  assert.ok(
-    bridge.includes("shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"),
-    "the landing rule is the contracts' rule",
-  );
+  // A row put off is the member's, and the landing is once a session: setup-later.test.mjs runs both.
   // One assembly, two callers: the workspace reads its own on the session
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.

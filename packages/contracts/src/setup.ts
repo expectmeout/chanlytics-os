@@ -1351,3 +1351,9 @@ export function setupLaterOf(view: unknown): string[] {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+
+/** Why putting a row off, or back, did not start: nothing was saved, and the rows stay as they were. */
+export const SETUP_LATER_REFUSED = {
+  reading: "Setting up is still being read. Try again in a moment.",
+  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment.",
+} as const;

@@ -19,6 +19,7 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
+import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
 
 export type SurfaceState = "real" | "demo";
 
@@ -269,18 +270,27 @@ export const SURFACE_RETIRED: Record<string, string> = {
  * `admin/setup`, so the address stays good and lands where Setup is now.
  */
 export const ROUTES_MOVED: Record<string, string> = {
-  "admin/setup": "start",
+  "admin/setup": FIRST_RUN_ROUTE,
 };
 
-/** Where a retired page, or a pane that moved, lands now; undefined for an address that is where it always was. */
-export function surfaceRetiredTo(page: string, param?: string | null): string | undefined {
-  return (param ? ROUTES_MOVED[`${page}/${param}`] : undefined) ?? SURFACE_RETIRED[page];
+/** Retired pages the mockup no longer has either: the seeded Leads page was deleted when Leads became a scope of People. */
+const GONE_FROM_THE_TREE = new Set(["leads"]);
+
+/**
+ * Where a retired page, or a pane that moved, lands now; undefined for an address that is where it always was. A pane
+ * that moved and a page gone from the tree move for everyone; a retired page the mockup still has (the Deal board)
+ * stays where it is in a demo session (`demo`), which is the one place it is still drawn.
+ */
+export function surfaceRetiredTo(page: string, param?: string | null, demo = false): string | undefined {
+  const moved = param ? ROUTES_MOVED[`${page}/${param}`] : undefined;
+  if (moved) return moved;
+  return demo && !GONE_FROM_THE_TREE.has(page) ? undefined : SURFACE_RETIRED[page];
 }
 
 export function installSurfaceRegistry(): void {
   const w = window as unknown as {
     __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
-    __surfaceRetired?: (page: string, param?: string | null) => string | undefined;
+    __surfaceRetired?: (page: string, param?: string | null, demo?: boolean) => string | undefined;
   };
   w.__surfaceState = surfaceStateFor;
   w.__surfaceRetired = surfaceRetiredTo;

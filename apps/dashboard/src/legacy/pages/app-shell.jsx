@@ -402,6 +402,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     ? (window.__surfaceState(route.param) || "unknown")
     : null;
   const { page, param } = soonState === "real" ? { page: route.param, param: null } : route;
+  // Where this address lands now, if it moved (surface-registry surfaceRetiredTo): People took over Leads and the Deal
+  // board, and Setup left Settings for the first run. Worked out before the branches, so a pane that moved draws
+  // nothing for the frame before the redirect below.
+  const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param, !!window.__DEMO_MODE)) || null;
   let content, crumbs, activeNav, pane = false, primaryAction = null;
 
   if (page === "inbox") {
@@ -529,7 +533,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     content = <SegmentsPage initialId={param} />;
   } else if (page === "start") {
     // The first run (first-run.jsx): drawn full screen below, after every hook; the crumb names the tab.
-    crumbs = [window.__firstRun ? window.__firstRun.words.title : "Setting up"];
+    crumbs = window.__firstRun ? [window.__firstRun.words.title] : [];
     content = null;
   } else if (page === "admin") {
     // The crumb names the pane Settings opens, by the rule Settings itself
@@ -542,9 +546,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
     pane = true;
     // A pane that moved (surface-registry ROUTES_MOVED) draws nothing for the frame before the redirect below.
-    content = window.__surfaceRetired && window.__surfaceRetired(page, param)
-      ? null
-      : <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
+    content = retiredTo ? null : <SettingsPage tab={param || "workspace"} onTab={(t) => navigate(`admin/${t}`)} />;
   } else if (page === "tasks") {
     activeNav = "tasks";
     crumbs = ["Agents", "Tasks"];
@@ -729,17 +731,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     content = <ComingSoon surface={page} onNavigate={navigate} />;
   }
 
-  // Retired surfaces: People took over Leads and the Deal board. A real
-  // workspace lands on People; the mockup keeps a retired page only while it
-  // still HAS one to keep. The Deal board's is in the tree, so a demo session
-  // stays on it. The seeded Leads page was deleted when Leads became a scope of
-  // People, so `#/leads` is an address that moved for everyone: this route has
-  // no branch of its own any more, and without this the demo would fall through
-  // to Not found for a page that is only somewhere else.
-  const seededPageGone = page === "leads";
-  const retiredTo = window.__surfaceRetired && (!window.__DEMO_MODE || seededPageGone)
-    ? window.__surfaceRetired(page, param)
-    : null;
+  // Retired surfaces and moved panes (retiredTo, above the branches). A real workspace lands where the page is now; a
+  // demo keeps a retired page only while the mockup still HAS it (the Deal board). `#/leads` has no branch of its own
+  // any more, so without the move the demo would fall through to Not found for a page that is only somewhere else.
   useShellEffect(() => {
     // Replaced, so Back never lands on an address that only moves again.
     if (retiredTo) window.location.replace("#/" + retiredTo);

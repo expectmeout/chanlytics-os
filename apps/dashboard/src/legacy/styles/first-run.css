@@ -48,11 +48,13 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   justify-content: center; align-items: start; gap: 48px;
   padding: 40px var(--gutter-page) 48px;
 }
-.fr-step { display: grid; gap: 16px; min-width: 0; }
+.fr-step { display: grid; gap: 20px; min-width: 0; }
+.fr-step-head { display: grid; gap: 8px; }
+.fr-part { display: grid; gap: 10px; }
 .fr-heading { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
-.fr-lead { margin: -6px 0 4px; max-width: 60ch; font-size: 14px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
-.fr-sub { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: var(--ink-dim); }
-.fr-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.fr-lead { margin: 0; max-width: 60ch; font-size: 14px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
+.fr-sub { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink-dim); }
+.fr-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .fr-onward {
   padding: 9px 16px; border: none; border-radius: var(--radius-md, 8px);
   background: var(--accent); color: var(--accent-fg);
@@ -71,11 +73,8 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%;
   background: var(--bg-sunken); color: var(--ink); font-size: 12px; font-weight: 600;
 }
-.fr-card-who { display: grid; gap: 2px; min-width: 0; }
+.fr-card-who { display: grid; gap: 4px; justify-items: start; min-width: 0; }
 .fr-card-who b { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.fr-card-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); }
-.fr-card-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
-.fr-card-status[data-tone="ok"]::before { background: var(--ok); }
 .fr-card-greet { margin: 0; display: grid; gap: 4px; font-size: 13px; line-height: var(--leading-relaxed); }
 .fr-card-rows { margin: 0; display: grid; gap: 8px; }
 .fr-card-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; font-size: 13px; }
@@ -106,7 +105,7 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   .fr-card-cap, .fr-card-foot { display: none; }
   .fr-heading { font-size: 20px; }
   .fr-foot {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; margin: 0;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     background: var(--bg); border-top: 1px solid var(--line);
   }

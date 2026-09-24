@@ -286,19 +286,19 @@ const ListingFinder = ({ flash, onDone }) => {
   );
 };
 
-// What a row's second button says when it puts the row off. The first run offers Later and its undo; Today's card
-// offers Skip, and a row skipped there is not on the card to undo.
-const SETUP_LATER_WORDS = { put: "Later", undo: "Undo later" };
-
 /**
  * Setup's rows, as attention rows, with everything a row does: a route, a dial, or one of the rows' own acts (asking a
  * person, the line chooser, forwarding, the Google finder, activation, billing), each behind its door's role
  * (SETUP_GATES). `rows` are Setup's (contracts setupSteps), in the order to draw them; `primary` names the row whose
- * button is the one coral action. Holds the panels' state and the one verb on its way, so a second press waits for the
- * first (S23). The list only: the caller draws the card it sits in.
+ * button is the one coral action; `later` is what a row's second button says, the caller's (contracts): the first
+ * run's Later keeps the row drawn with its undo, Today's Skip takes it off the card and says so in a toast with Undo
+ * (`said`). Holds the panels' state and the one verb on its way, so a second press waits for the first (S23). The
+ * list only: the caller draws the card it sits in, and may lend the toast (`flash`) where the card can go while one
+ * is up -- Today's, when its last row is skipped.
  */
-const SetupRows = ({ S, rows, primary = null, later = SETUP_LATER_WORDS, testid = "setup-rows" }) => {
-  const [toastNode, flash] = window.usePPToast();
+const SetupRows = ({ S, rows, later, primary = null, flash: lent = null, testid = "setup-rows" }) => {
+  const [toastNode, own] = window.usePPToast();
+  const flash = lent || own;
   const [chooser, setChooser] = React.useState(false);
   const [forwarding, setForwarding] = React.useState(false);
   const [finder, setFinder] = React.useState(false);
@@ -391,7 +391,10 @@ const SetupRows = ({ S, rows, primary = null, later = SETUP_LATER_WORDS, testid 
     once(`later:${r.id}`, async () => {
       const res = await window.__setup.later(r.id, !r.later);
       if (!res.ok) flash(window.refusalToast(res, "Not saved"));
+      else if (!r.later && later.said) flash({ msg: <>{later.said}</>, undo: () => takeBack(r.id) });
     });
+  const takeBack = (id) =>
+    window.__setup.later(id, false).then((res) => { if (!res.ok) flash(window.refusalToast(res, "Not saved")); });
   const laterLabel = (r) => (r.later ? later.undo : later.put);
   return (
     <div className="setup-rows" data-testid={testid}>

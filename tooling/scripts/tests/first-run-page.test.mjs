@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, firstRunOf, receptionistCardOf, setupCardOf, FIRST_RUN_WORDS } from "@chanlytics/contracts";
+import { setupSteps, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -55,7 +55,7 @@ let refreshed = 0;
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
-  location: { hash: "#/start", replace: (to) => replaced.push(to) },
+  location: { hash: "#/start" },
   sessionStorage: {
     getItem: (k) => store[k] ?? null,
     setItem: (k, v) => {
@@ -63,7 +63,7 @@ globalThis.window = {
     },
   },
   __SETUP: surface(blank),
-  __firstRun: { of: firstRunOf, card: receptionistCardOf, today: setupCardOf, words: FIRST_RUN_WORDS },
+  __firstRun: FIRST_RUN_HELPERS,
   __setup: {
     refresh: async () => {
       refreshed += 1;
@@ -87,6 +87,7 @@ globalThis.document ??= {
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 globalThis.FailedRead = globalThis.window.FailedRead;
+globalThis.StatePill = globalThis.window.StatePill;
 // data-bits publishes the shell's toast hook; the page's rows keep this harness's quiet one.
 globalThis.window.usePPToast = () => [null, () => {}];
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
@@ -94,7 +95,9 @@ await import("../../../apps/dashboard/src/legacy/pages/first-run.jsx");
 
 /* ---- a stub React: the Setup page test's, with this page as the one drawn ---- */
 let param = null;
-const Page = () => globalThis.window.FirstRun({ param, onNavigate: (to) => went.push(to) });
+// A step move replaces the address (the shell's navigate with { replace: true }); a way out is a new entry.
+const Page = () =>
+  globalThis.window.FirstRun({ param, onNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) });
 let cells = [];
 const frames = hookFrames();
 const fresh = () => {
@@ -185,10 +188,12 @@ test("a new workspace opens on its business: the rail says where it is, the step
   assert.equal(rowIn(rows, "line"), null, "and not the phone's");
   assert.equal(rowIn(rows, "facts").cta.kind, "primary", "its first open row carries the one coral button");
   assert.equal(textOf(byTestId(tree, "fr-phone-line")), "Step 1 of 4 · Your business");
-  assert.equal(textOf(byTestId(tree, "fr-card-status")), "Not answering yet");
+  const status = byTestId(tree, "fr-card-status");
+  assert.equal(textOf(status), "Not answering yet");
+  assert.equal(status.props["data-state"], "not_started", "the status is the state pill, toned by Setup's own states");
   assert.equal(byTestId(tree, "fr-back"), null);
   assert.equal(byTestId(tree, "fr-onward"), null);
-  assert.equal(store["chanlytics.setup.landed"], "1", "being here is the landing: Today does not send this tab back");
+  assert.equal(store[FIRST_RUN_LANDED_KEY], "1", "being here is the landing: Today does not send this tab back");
 });
 
 test("a step already reached opens in place from the rail, and Continue goes on to where the workspace is", () => {
@@ -197,20 +202,21 @@ test("a step already reached opens in place from the rail, and Continue goes on 
   fresh();
   const tree = mount();
   assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+  assert.equal(
+    rowIn(byTestId(tree, "fr-rows"), "facts").cta.kind,
+    "ghost",
+    "a step done: its one coral button is Continue",
+  );
   byTestId(tree, "fr-onward").props.onClick();
-  assert.equal(replaced.at(-1), "#/start");
+  assert.equal(replaced.at(-1), "start");
   byTestId(tree, "fr-rail-phone").props.onClick();
-  assert.equal(replaced.at(-1), "#/start", "the current step is the bare address");
+  assert.equal(replaced.at(-1), "start", "the current step is the bare address");
   param = null;
   fresh();
   const phone = mount();
   assert.equal(textOf(byTestId(phone, "fr-heading")), "Your phone");
   byTestId(phone, "fr-back").props.onClick();
-  assert.equal(
-    replaced.at(-1),
-    "#/start/business",
-    "Back opens the step before, replaced so the browser's Back leaves",
-  );
+  assert.equal(replaced.at(-1), "start/business", "Back opens the step before, replaced so the browser's Back leaves");
 });
 
 test("answering: Live, with what is left, and Finish goes to Today", () => {
@@ -265,4 +271,18 @@ test("a failed read says so, and the retry reads again; before the read, Reading
   globalThis.window.__SETUP = undefined;
   fresh();
   assert.equal(textOf(byTestId(mount(), "fr-reading")), "Reading your workspace…");
+});
+
+test("without the bridge the page says nothing of its own: every word is contracts'", () => {
+  const F = globalThis.window.__firstRun;
+  delete globalThis.window.__firstRun;
+  try {
+    globalThis.window.__SETUP = surface(blank);
+    fresh();
+    const tree = mount();
+    assert.ok(byTestId(tree, "first-run"));
+    assert.equal(textOf(tree), "");
+  } finally {
+    globalThis.window.__firstRun = F;
+  }
 });

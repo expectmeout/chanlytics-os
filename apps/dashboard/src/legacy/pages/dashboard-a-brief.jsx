@@ -53,22 +53,33 @@ const RunsDone = ({ nav }) => {
 // receptionist is not answering, the one row that opens the first run; after, Setup's own optional rows in the order
 // they help most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing
 // is left. Every word is contracts' (first-run.ts setupCardOf, through window.__firstRun); the rows are Setup's own
-// (setup.jsx SetupRows). On a phone only the next row shows (mobile.css).
+// (setup.jsx SetupRows). On a phone only the next row shows, with its one button (mobile.css).
 const TodaySetup = () => {
   useTcTick("surface:setup");
+  // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
+  const [toastNode, flash] = window.usePPToast();
   const S = window.__SETUP;
   const F = window.__firstRun;
-  if (!S || !F) return null;
-  const card = F.today(S.vm);
-  if (!card) return null;
+  const card = S && F ? F.todayCard(S.vm) : null;
+  if (!card) return toastNode;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
+  const put = (ids, on) => window.__setup.later(ids, on);
+  const hide = async () => {
+    const ids = card.rows.map((r) => r.id);
+    const r = await put(ids, true);
+    if (!r.ok) return flash(window.refusalToast(r, "Not saved"));
+    flash({
+      msg: <>{card.hide.said}</>,
+      undo: () => put(ids, false).then((u) => { if (!u.ok) flash(window.refusalToast(u, "Not saved")); }),
+    });
+  };
   return (
     <section className="tq today-setup" data-testid="today-setup">
       <div className="tq-head">
         <span className="tq-title">{card.title}</span>
         <span className="tq-sub">{card.left}</span>
         {card.hide ? (
-          <button className="btn btn-ghost btn-sm" onClick={() => window.__setup && window.__setup.later(card.rows.map((r) => r.id), true)} data-testid="today-setup-hide">{card.hide}</button>
+          <button className="btn btn-ghost btn-sm today-setup-hide" onClick={hide} data-testid="today-setup-hide">{card.hide.put}</button>
         ) : null}
       </div>
       {card.start ? (
@@ -77,7 +88,7 @@ const TodaySetup = () => {
             glyph="flag"
             name={card.start.name}
             sentence={card.start.sentence}
-            status={[]}
+            status={[card.start.status]}
             tone="warn"
             cta={{ label: card.start.cta, kind: "primary", onClick: () => nav(card.start.to) }}
             onOpen={() => nav(card.start.to)}
@@ -86,12 +97,12 @@ const TodaySetup = () => {
           />
         </div>
       ) : (
-        <window.SetupRows S={S} rows={card.rows} primary={card.rows[0].id} later={{ put: card.skip, undo: null }} testid="today-setup-rows" />
+        <window.SetupRows S={S} rows={card.rows} primary={card.rows[0].id} later={card.skip} flash={flash} testid="today-setup-rows" />
       )}
+      {toastNode}
     </section>
   );
 };
-window.TodaySetup = TodaySetup;
 
 // A review on Google, the morning it lands: first seen in the last day and a half, written recently, not part of the
 // first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
@@ -262,4 +273,4 @@ const TodayCard = () => {
   );
 };
 
-Object.assign(window, { HeroBrief, TodayCard, todaySurface });
+Object.assign(window, { HeroBrief, TodayCard, TodaySetup, todaySurface });

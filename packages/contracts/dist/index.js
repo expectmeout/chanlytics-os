@@ -4874,6 +4874,799 @@ function leadMonth(zone, at2) {
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
 }
 
+// src/greeting.ts
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/business-tab.ts
+var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
+var ABILITY_CHANNEL_WORDS = {
+  whatsapp: { has: "in chat", not: "not in chat" },
+  voice: { has: "on a call", not: "not on a call" }
+};
+var channelOpens = (c) => {
+  const w = ABILITY_CHANNEL_WORDS[c].has;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+var STRENGTHS = /* @__PURE__ */ (() => ({
+  never_confirm_booking: {
+    strength: "structural",
+    chip: "It cannot anyway",
+    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    checkedOn: null
+  },
+  never_quote_prices: {
+    strength: "checked",
+    chip: "Checked, not just told",
+    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
+    // page draws both -- so the sentence must not say the channels too, or an owner
+    // reads the same fact twice, once in prose and once in the two boxes under it.
+    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
+    // more: forty-five euros, or a pound sign, would pass it untouched.
+    //
+    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
+    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
+    // call) run either way; the switch adds or removes the one prompt line that tells it
+    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    checkedOn: [
+      {
+        channel: "whatsapp",
+        label: channelOpens("whatsapp"),
+        words: "The words are swapped before the customer sees them. A draft sits in between."
+      },
+      {
+        channel: "voice",
+        label: channelOpens("voice"),
+        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
+        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
+        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
+        // with it rather than promising the better half of it.
+        words: "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached."
+      }
+    ]
+  },
+  disclose_ai: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    checkedOn: null
+  },
+  no_health_advice: {
+    strength: "instructed",
+    chip: "Told, and trusted",
+    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    checkedOn: null
+  }
+}))();
+function ruleStrength(key) {
+  return STRENGTHS[key];
+}
+var VISION_STRENGTH = /* @__PURE__ */ (() => ({
+  strength: "power",
+  chip: "gives it a power",
+  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
+  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
+  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
+  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  checkedOn: null
+}))();
+var RULES_AT_REST_WORDS = {
+  never_quote_prices: "Never quotes a price",
+  never_confirm_booking: "Never confirms a booking",
+  disclose_ai: "Says it's an assistant",
+  no_health_advice: "No health advice"
+};
+var CANNOT_BOOK_WORDS = "Cannot book anything";
+var PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
+function rulesKept(i) {
+  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  }
+  const rules = i.rules;
+  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
+  for (const key of GUARDRAIL_KEYS) {
+    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
+  }
+  const kept = [];
+  for (const key of GUARDRAIL_KEYS) {
+    const { strength } = ruleStrength(key);
+    const told = i.composes && rules[key];
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
+  }
+  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
+  return kept;
+}
+var CANNOT_SAY_SERVICES = "cannot say what you offer";
+var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
+var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
+var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented.";
+function standingLine(i, calls) {
+  if (typeof calls !== "boolean") {
+    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
+  const p = i.profile ?? {};
+  const gaps = [];
+  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
+  if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
+  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
+  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
+  if (!has2(p.tone))
+    gaps.push({
+      sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.",
+      row: "tone"
+    });
+  const answers = [];
+  if (has2(p.address)) answers.push("where you are");
+  if (has2(p.hours)) answers.push("when you're open");
+  if (has2(p.services)) answers.push("what you offer");
+  if (has2(i.booking_link)) answers.push("how to book");
+  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
+  const wont = has2(p.services) ? calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE : null;
+  return { can, wont, missing: gaps[0] ?? null };
+}
+var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+function openWeekWords(hours, tz) {
+  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
+  const zone = `in ${timezoneCity(tz)} time`;
+  if (!open) return `Times are ${zone}`;
+  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+function hoursZoneWords(tz) {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+}
+function closuresAheadWords(closures, tz, now) {
+  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
+  const next = ahead[0];
+  if (!next) return { count: 0, line: null };
+  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
+  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
+}
+var count = (n) => n.toLocaleString("en-US");
+var CHIPS_SHOWN = 3;
+function chipsMoreWords(n) {
+  return `+${count(n)}`;
+}
+var SERVICE_CHIPS = CHIPS_SHOWN;
+function servicesWords(services) {
+  const list2 = (Array.isArray(services) ? services : []).filter(
+    (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
+  );
+  const n = list2.length;
+  if (!n) return { count: 0, line: null, chips: [], more: null };
+  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
+  }));
+  return {
+    count: n,
+    line: count(n),
+    chips,
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
+  };
+}
+function blockShareWords(chars, total) {
+  const SHARES = [
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"]
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
+}
+function promptCostWords(chars, total) {
+  const share = blockShareWords(chars, total);
+  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
+}
+function promptTotalWords(total) {
+  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
+}
+var PROMPT_READERS = {
+  whatsapp: "Every WhatsApp message, word for word",
+  voice: "Every phone call, composed when the call starts"
+};
+var PROMPT_NOW = {
+  label: {
+    whatsapp: "Sent alongside it, rebuilt for every message",
+    voice: "Sent alongside it, rebuilt for every call"
+  },
+  why: {
+    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
+  }
+};
+function servicesToldWords(i) {
+  const n = i.count;
+  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
+  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const size = i.chars ? `, ${count(i.chars)} characters` : "";
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+}
+function serviceUndoName(name) {
+  const n = typeof name === "string" ? name.trim() : "";
+  return n ? `Undo removing ${n}` : "Undo removing a service";
+}
+function servicesFoundWords(shown, total) {
+  if (!total) return "No services yet.";
+  if (!shown) return "No service is called that.";
+  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+}
+function servicesSaveWords(n) {
+  if (!n) return "Save with no services";
+  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
+}
+var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
+var plural = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+function bookingRulesWords(rules) {
+  const r = rules ?? {};
+  const parts2 = [];
+  if (isNumber(r.lead_hours))
+    parts2.push(
+      r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`
+    );
+  if (isNumber(r.slot_min)) parts2.push(`${count(r.slot_min)}-minute slots`);
+  if (isNumber(r.buffer_min))
+    parts2.push(
+      r.buffer_min === 0 ? "no gap between appointments" : `${plural(r.buffer_min, "minute", "minutes")} between appointments`
+    );
+  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts2.push(`up to ${plural(r.party_max, "person", "people")}`);
+  const joined = parts2.join(" \xB7 ");
+  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
+    const t = x.trim();
+    return /[.!?…]$/.test(t) ? t : `${t}.`;
+  });
+  const d = BOOKING_DEFAULTS;
+  return {
+    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
+    notes: notes.length ? notes.join(" ") : null,
+    none: `The calendar's own \u2014 at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
+  };
+}
+function bookingRuleRefusal(key) {
+  const shape = BookingRulesSchema.shape;
+  const words4 = {
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
+  };
+  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  const bound = say ? shape[key]?.unwrap?.() : null;
+  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
+    throw new TypeError(
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
+    );
+  }
+  return say(bound.minValue, bound.maxValue);
+}
+var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
+  lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  buffer_min: null,
+  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
+  party_max: "Larger groups go to a person."
+}))();
+var PROFILE_CROSSING_WORDS = {
+  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
+  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
+};
+var TONE_PRESETS = [
+  {
+    label: "Warm and brief",
+    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
+  },
+  {
+    label: "Professional, no small talk",
+    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
+  },
+  {
+    label: "Chatty, first names",
+    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
+  }
+];
+var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+var cutAtWord = (text, max) => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at2 = head.lastIndexOf(" ");
+  const cut = (at2 > 0 ? head.slice(0, at2) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}\u2026`;
+};
+function handoffChatWords(i) {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+function transferWords(hasHandoffNumber) {
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
+}
+function handoffCallWords(i) {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+function handoffWords(reasons, transfer) {
+  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
+  const n = list2.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  const phone = number ? `transfers to ${number}` : "takes a message";
+  return {
+    line: `${n ? `For ${plural(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
+    phone
+  };
+}
+var NOTE_CHIPS = CHIPS_SHOWN;
+function notesWords(notes) {
+  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
+  const n = titles.length;
+  return {
+    count: n,
+    chips: titles.slice(0, NOTE_CHIPS),
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
+  };
+}
+var OPENING_SHOWN = 72;
+function instructionsWords(text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { opening: null, limit: null };
+  return {
+    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
+    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
+  };
+}
+function fallbacksWords(fallbacks) {
+  const keys = Object.keys(FALLBACK_DEFAULTS);
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? f[k].trim() : "";
+    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+  }).length;
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
+}
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
+var BOOLEAN_INPUTS = {
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  visionOn: true,
+  bookingHeld: true
+};
+function heldFor(pauseHours) {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+function abilityRows(i) {
+  if (!i || typeof i !== "object")
+    throw new TypeError(
+      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds."
+    );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
+    (k) => typeof i[k] !== "boolean"
+  );
+  if (notBoolean.length) {
+    throw new TypeError(
+      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
+    );
+  }
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
+    );
+  }
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
+  const answering = i.voiceLive || chatAnswers;
+  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
+  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const rows = [
+    {
+      id: "answer",
+      title: "Answer from your facts",
+      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
+      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+      channels: both,
+      runsOn: { label: "Name and hours", row: "name" },
+      ready: answering,
+      // The facts it answers from are the standing line's subject, at the top of the page.
+      missing: false
+    },
+    {
+      id: "open_times",
+      title: "Say which times are open",
+      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
+      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
+      // while the call still starts with the openings (call-start.ts) and chat is still handed
+      // them, so this says only what holds on both: it has them, and a request to book gets no link.
+      detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
+      runsOn: { label: "The calendar it reads", row: "calendar" },
+      ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed
+    },
+    {
+      id: "booking_link",
+      title: "Send the booking link",
+      detail: bookingDetail,
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
+      runsOn: { label: "The booking link", row: "booking_link" },
+      ready: linkGoes,
+      missing: !i.hasBookingLink
+    },
+    {
+      id: "transfer",
+      title: "Put a caller through",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
+      // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
+      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
+      runsOn: { label: "The transfer number", row: "handoff_number" },
+      ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber
+    },
+    {
+      id: "handoff",
+      title: "Hand the thread to you",
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
+      channels: { voice: false, whatsapp: chatAnswers },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
+      ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false
+    },
+    {
+      id: "vision",
+      title: "Look at a photo",
+      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
+      // The switch sits with the rules it keeps, which is the row that opens it.
+      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
+      ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
+      on: i.visionOn
+    }
+  ];
+  const held = repliesHeld ? {
+    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+    door: "Your Autonomy tab",
+    to: "admin/autonomy"
+  } : null;
+  return { rows, held };
+}
+var CANNOT_ROWS = [
+  {
+    id: "book",
+    title: "Book, move or cancel an appointment",
+    detail: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it."
+  },
+  {
+    id: "outbound_call",
+    title: "Ring a customer",
+    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
+    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
+  },
+  {
+    id: "sms",
+    title: "Send a text message",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    soon: true
+  }
+];
+function cannotRows(i) {
+  if (typeof i?.smsLive !== "boolean") {
+    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
+  }
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+}
+var PROFILE_LIMITS = /* @__PURE__ */ (() => {
+  const cap2 = (schema) => {
+    const s = schema;
+    if (typeof s.maxLength === "number") return s.maxLength;
+    for (const c of s.def?.checks ?? []) {
+      const d = c?._zod?.def;
+      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
+    }
+    throw new TypeError(
+      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
+    );
+  };
+  const floor = (schema) => {
+    const s = schema;
+    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
+    return s.minLength;
+  };
+  const opt = (schema) => schema.unwrap();
+  const p = BusinessProfileSchema.shape;
+  const service = opt(p.services).element.shape;
+  const note = opt(p.notes).element.shape;
+  const rules = BookingRulesSchema.shape;
+  const minutes = opt(service.duration_min);
+  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
+  return {
+    tone: cap2(opt(p.tone)),
+    services: cap2(opt(p.services)),
+    serviceName: cap2(service.name),
+    serviceMinutes: minutes.maxValue,
+    servicePrice: cap2(opt(service.price_note)),
+    languages: cap2(opt(p.languages)),
+    languageMin: floor(opt(p.languages).element),
+    languageMax: cap2(opt(p.languages).element),
+    reasons: cap2(opt(p.escalate_when)),
+    reason: cap2(opt(p.escalate_when).element),
+    consultFirst: cap2(opt(rules.consult_first)),
+    consultFirstLine: cap2(opt(rules.consult_first).element),
+    ruleNotes: cap2(opt(rules.notes)),
+    ruleNote: cap2(opt(rules.notes).element),
+    notes: cap2(opt(p.notes)),
+    noteTitle: cap2(note.title),
+    noteText: cap2(note.text),
+    closureNote: cap2(opt(ClosureSchema.shape.note)),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
+  };
+})();
+function profileRefusal(key, seen, of) {
+  const L2 = PROFILE_LIMITS;
+  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${plural(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const words4 = {
+    tone: () => chars(L2.tone),
+    services: () => `At most ${plural(L2.services, "service", "services")}.`,
+    serviceName: () => chars(L2.serviceName),
+    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
+    servicePrice: () => chars(L2.servicePrice),
+    languages: () => `At most ${plural(L2.languages, "language", "languages")}.`,
+    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
+    reasons: () => lines(L2.reasons, "reason", "reasons"),
+    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
+    consultFirst: () => lines(L2.consultFirst, "service", "services"),
+    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
+    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
+    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
+    notes: () => `At most ${plural(L2.notes, "note", "notes")}.`,
+    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    closures: () => `At most ${plural(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closureNote: () => chars(L2.closureNote),
+    shifts: () => `At most ${plural(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    instructions: () => chars(L2.instructions),
+    message: () => chars(L2.message)
+  };
+  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  if (!say) {
+    throw new TypeError(
+      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
+    );
+  }
+  return say();
+}
+var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+function writtenOutDetail(text, bookingLink) {
+  const said = typeof text === "string" ? text : "";
+  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
+  if (link && said.includes(link)) return "link";
+  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
+}
+
+// src/first-run.ts
+var FIRST_RUN_ROUTE = "start";
+function firstRunStepRoute(key) {
+  return `${FIRST_RUN_ROUTE}/${key}`;
+}
+var FIRST_RUN_LANDED_KEY = "chanlytics.setup.landed";
+var FINISH_SETTING_UP = "Finish setting up";
+var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
+var FIRST_RUN_STEPS = [
+  {
+    key: "business",
+    name: "Your business",
+    lead: "What your receptionist says about you: your name, when you're open, what you offer.",
+    rows: ["facts", "google"],
+    needs: ["facts"]
+  },
+  {
+    key: "phone",
+    name: "Your phone",
+    lead: "The number your customers call, and how those calls reach your receptionist.",
+    rows: ["billing", "line", "keep"],
+    needs: ["billing", "line"]
+  },
+  {
+    key: "try",
+    name: "Try it",
+    lead: "Call it from your own phone and hear what your customers will hear.",
+    rows: ["receptionist", "handoff"],
+    needs: ["receptionist"]
+  },
+  // The last step is where the others lead: nothing to finish, only what is left after it.
+  { key: "live", name: "Live", lead: "", rows: LIVE_ROWS, needs: [] }
+];
+var SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"];
+var FIRST_RUN_WORDS = {
+  title: "Setting up",
+  later: "Finish later",
+  laterShort: "Later",
+  back: "Back",
+  continue: "Continue",
+  finish: "Finish",
+  liveHeading: "Your receptionist is answering",
+  liveNext: "When you're ready",
+  reading: "Reading your workspace\u2026",
+  failedWhat: "your workspace",
+  failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
+  toToday: "Back to Today",
+  /** A row's second button on the first run, and what it says once pressed. */
+  putOff: { put: "Later", undo: "Undo later" }
+};
+var rowOf = (vm, id) => vm.rows.find((r) => r.id === id) ?? null;
+var stepDone = (vm, def) => def.needs.every((id) => {
+  const r = rowOf(vm, id);
+  return !r || r.state === "ready";
+});
+function firstRunStepOf(param) {
+  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
+  return hit ? hit.key : null;
+}
+function firstRunOf(vm, at2) {
+  const last = FIRST_RUN_STEPS[FIRST_RUN_STEPS.length - 1];
+  const open = FIRST_RUN_STEPS.find((s) => s !== last && !stepDone(vm, s));
+  const current = open ? open.key : last.key;
+  const steps = FIRST_RUN_STEPS.map((def2, i) => ({
+    key: def2.key,
+    name: def2.name,
+    number: i + 1,
+    state: def2.key === current ? "current" : def2 !== last && stepDone(vm, def2) ? "done" : "ahead",
+    rows: def2.rows.map((id) => rowOf(vm, id)).filter((r) => r !== null),
+    to: def2.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def2.key)
+  }));
+  const asked = firstRunStepOf(at2);
+  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  const def = FIRST_RUN_STEPS[shown.number - 1];
+  const final = def === last;
+  const onward = final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false } : null;
+  const primary = onward ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
+  return {
+    steps,
+    current,
+    complete: !open,
+    shown,
+    heading: final ? FIRST_RUN_WORDS.liveHeading : def.name,
+    lead: final ? vm.readiness.sentence : def.lead,
+    phoneLine: `Step ${shown.number} of ${FIRST_RUN_STEPS.length} \xB7 ${shown.name}`,
+    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
+    primaryRow: primary ? primary.id : null,
+    back: shown.number > 1 ? steps[shown.number - 2].to : null,
+    onward
+  };
+}
+var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." };
+function setupCardOf(vm) {
+  const fr = firstRunOf(vm);
+  if (!fr.complete) {
+    const left = fr.steps.slice(0, -1).filter((s) => s.state !== "done").length;
+    const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
+    const def = FIRST_RUN_STEPS[next.number - 1];
+    return {
+      title: FINISH_SETTING_UP,
+      left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      start: {
+        // WhatsApp can answer before the phone does (Setup's readiness): then it is the calls that are not answered.
+        name: vm.readiness.answering ? "Calls aren't answered yet" : "Your receptionist isn't answering yet",
+        sentence: def.lead,
+        status: `Next: ${next.name.toLowerCase()}`,
+        cta: "Continue setting up",
+        to: FIRST_RUN_ROUTE
+      },
+      rows: [],
+      hide: null,
+      skip: CARD_SKIP
+    };
+  }
+  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
+    (r) => r !== null && r.state !== "ready" && !r.later && !!r.verb
+  );
+  if (!rows.length) return null;
+  const said = rows.length === 1 ? CARD_SKIP.said : `All ${rows.length} put off. They stay in Setting up for when you're ready.`;
+  return {
+    title: FINISH_SETTING_UP,
+    left: `${rows.length} left`,
+    start: null,
+    rows,
+    hide: { put: "Hide", said },
+    skip: CARD_SKIP
+  };
+}
+var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+function receptionistCardOf(i) {
+  const b = i.brain;
+  const p = b?.profile ?? null;
+  const spoken = (b?.business_name || i.setup.business.name || "").trim();
+  const name = spoken || (i.workspaceName ?? "").trim();
+  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
+  const status = !i.answering ? { state: "not_started", words: "Not answering yet" } : tried ? { state: "ready", words: "Answering" } : { state: "waiting_you", words: "Answering \xB7 not tried yet" };
+  const sv = servicesWords(p?.services ?? null);
+  const kept = i.numbers?.keptLine ?? null;
+  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
+  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
+  const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
+  return {
+    caption: "Your receptionist, so far",
+    initials: name ? initialsOf(name) : "",
+    name: name || "Your receptionist",
+    status,
+    strip: `Your receptionist \xB7 ${status.words}`,
+    greetingLabel: "Greets every caller with",
+    greeting: greetingFor(spoken || null),
+    rows: [
+      { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
+      {
+        key: "knows",
+        label: "Knows",
+        value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
+      },
+      { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
+      // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
+      {
+        key: "answers",
+        label: "Answers",
+        value: line ? kept ? `${show(line)}, and calls forwarded from ${show(kept)}` : show(line) : null
+      },
+      { key: "through", label: "Puts through to", value: show(through) }
+    ],
+    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
+  };
+}
+function shouldLandOnFirstRun(role, answering, route, landed) {
+  if (landed || role !== "owner" || answering) return false;
+  return route === "" || route === "today";
+}
+var FIRST_RUN_HELPERS = {
+  of: firstRunOf,
+  receptionist: receptionistCardOf,
+  todayCard: setupCardOf,
+  words: FIRST_RUN_WORDS,
+  landedKey: FIRST_RUN_LANDED_KEY
+};
+
 // src/leads.ts
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -5123,7 +5916,9 @@ function leadReachLine(prior) {
 }
 function leadsFirstDayWays(f) {
   const live = !!(f.voice && f.voice.active && f.voice.number);
-  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "start" }];
+  const reachDoors = [
+    { id: "line", label: live ? "Your number" : "Set up your number", to: firstRunStepRoute("phone") }
+  ];
   if (!f.whatsapp || !f.whatsapp.active)
     reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
   return [
@@ -5159,7 +5954,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function leadNearWhere(labels) {
   const isNear = (l) => l.toLowerCase().startsWith("near ");
   return labels.length && labels.every(isNear) ? `near ${leadAnd(labels.map((l) => l.slice(5).trim()))}` : `in ${leadAnd(labels)}`;
@@ -5185,7 +5980,7 @@ function leadEndingLine(ending, f) {
       if (f.counted === 0) {
         return {
           mark,
-          title: `There are ${plural(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          title: `There are ${plural2(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
           step: f.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(f.nearby)}` } : null
         };
@@ -5209,7 +6004,7 @@ function leadEndingLine(ending, f) {
       return {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
+        title: `Found all ${plural2(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
@@ -6530,11 +7325,11 @@ var DEAL_LOST_REASON_SAID = {
   not_a_fit: "not being a fit",
   other: "something else"
 };
-var plural2 = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
+var plural3 = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
 var upper = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 function medianLine(days, clients) {
   if (days === null || !clients) return null;
-  const wait = days === 0 ? "under a day" : plural2(days, "day", "days");
+  const wait = days === 0 ? "under a day" : plural3(days, "day", "days");
   return clients === 1 ? `${upper(wait)} to a yes.` : `Median ${wait} to a yes.`;
 }
 function sourcesLine(sources, clients) {
@@ -6563,14 +7358,14 @@ function reasonsLine(reasons, passed) {
 function openLine(open) {
   if (!open.count) return null;
   const worth2 = amountTotalsWords(open.amounts);
-  if (!worth2) return `${plural2(open.count, "proposal", "proposals")} still open.`;
+  if (!worth2) return `${plural3(open.count, "proposal", "proposals")} still open.`;
   return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
 }
 function toDealReportVM(dto, rangeLabel) {
   if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural2(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural3(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
   const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
-  const stock = dto.clients === 0 ? "No clients right now." : `${plural2(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
+  const stock = dto.clients === 0 ? "No clients right now." : `${plural3(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
   const outcomes = dto.sent === 0 ? null : {
     title: DEAL_OUTCOMES_TITLE,
     max: dto.sent,
@@ -7499,7 +8294,7 @@ var DECISION_LABELS = {
   pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
   resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" }
 };
-function plural3(n, one, many = `${one}s`) {
+function plural4(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
@@ -7873,7 +8668,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       };
     })() : {},
     since: base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
-    metaLine: `${plural3(base.threads, "conversation")} \xB7 ${plural3(base.calls, "call")}`,
+    metaLine: `${plural4(base.threads, "conversation")} \xB7 ${plural4(base.calls, "call")}`,
     lastExchange: { customer, reply },
     facts,
     rightNow,
@@ -8086,8 +8881,8 @@ var SERVER_LOOK = {
 };
 var ROUTE_VERBS = [
   // Setup is the first run now (#/start); a row written before then still says admin/setup, and lands there too.
-  [/^admin\/setup/, "Finish setting up"],
-  [/^start/, "Finish setting up"],
+  [/^admin\/setup/, FINISH_SETTING_UP],
+  [/^start/, FINISH_SETTING_UP],
   [/^admin\/integrations/, "Open Connections"],
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
@@ -8365,7 +9160,7 @@ var REASON_WHY = {
   callback: "because they need a call back"
 };
 var reasonWhy = (r) => REASON_WHY[r] ?? reasonShort(r) ?? r;
-var plural4 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural5 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var wireWord = (w) => w === "WhatsApp" ? w : w.toLowerCase();
 var counted = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -8432,7 +9227,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     }
   }
   const answeredItself = handedOver && p.answered_by_ai ? "The rest it answered itself." : "";
-  const sentMore = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural4(p.messages_out_ai, "message")} in all.` : "";
+  const sentMore = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural5(p.messages_out_ai, "message")} in all.` : "";
   const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
   const answeredWhy = (handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]).filter(Boolean);
   const answered = {
@@ -11967,16 +12762,16 @@ function holds(c, v, nowMs) {
 function listRuleMatches(rule, v, nowMs) {
   return rule.all.every((c) => holds(c, v, nowMs));
 }
-var plural5 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
+var plural6 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 function listConditionWords(c) {
   const label = LIST_RULE_FIELDS.find((f) => f.id === c.field).label;
   switch (c.field) {
     case "last_visit":
     case "last_heard":
     case "first_contact":
-      return c.op === "more_than" ? `${label} more than ${plural5(c.days, "day")} ago` : `${label} in the last ${plural5(c.days, "day")}`;
+      return c.op === "more_than" ? `${label} more than ${plural6(c.days, "day")} ago` : `${label} in the last ${plural6(c.days, "day")}`;
     case "next_visit":
-      return c.op === "within" ? `${label} in the next ${plural5(c.days, "day")}` : `${label} more than ${plural5(c.days, "day")} away`;
+      return c.op === "within" ? `${label} in the next ${plural6(c.days, "day")}` : `${label} more than ${plural6(c.days, "day")} away`;
     case "booked":
     case "asked_not_booked":
     case "offers_yes":
@@ -11987,7 +12782,7 @@ function listConditionWords(c) {
       return `${c.op === "is" ? label : "Did not come from"}: ${PERSON_CAME_FROM_WORDS[c.from]}`;
     case "calls":
     case "conversations":
-      return `${c.op === "at_least" ? "At least" : "At most"} ${plural5(c.n, c.field === "calls" ? "call" : "conversation")}`;
+      return `${c.op === "at_least" ? "At least" : "At most"} ${plural6(c.n, c.field === "calls" ? "call" : "conversation")}`;
   }
 }
 function listRuleParts(rule) {
@@ -13075,7 +13870,7 @@ function toCampaignReportVM(dto) {
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
 
 // src/report-facts.ts
-var plural6 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural7 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 function reportFacts(vm, campaigns) {
   const out = [];
@@ -13085,7 +13880,7 @@ function reportFacts(vm, campaigns) {
       id: "unanswered",
       tone: "warn",
       icon: "alert",
-      text: `${plural6(none, "message")} ${none === 1 ? "has" : "have"} no reply yet`,
+      text: `${plural7(none, "message")} ${none === 1 ? "has" : "have"} no reply yet`,
       sub: "",
       door: { label: "Open the Inbox", to: "inbox" }
     });
@@ -13099,7 +13894,7 @@ function reportFacts(vm, campaigns) {
       tone: "",
       icon: "users",
       text: `${several ? "Top reason it handed over" : "Why it handed over"}: ${lowerFirst2(top.label)}`,
-      sub: several ? plural6(top.value, "time") : "every time",
+      sub: several ? plural7(top.value, "time") : "every time",
       door: { label: "See them", to: "inbox" }
     });
   }
@@ -13342,7 +14137,7 @@ var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var plural7 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural8 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
@@ -13351,7 +14146,7 @@ function starsOf(rating) {
   return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
 }
 function reviewsWords(count2) {
-  return typeof count2 === "number" ? plural7(count2, "review") : "reviews not counted yet";
+  return typeof count2 === "number" ? plural8(count2, "review") : "reviews not counted yet";
 }
 function listingLine(l) {
   if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
@@ -14045,7 +14840,7 @@ function textingWords(l) {
   }
 }
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
-var plural8 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural9 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function activationWords(cap2, nowMs) {
   if (cap2.live && cap2.activated) return `Activated ${agoWords(Date.parse(cap2.activated.at), nowMs)}`;
   if (cap2.tested) return "Tested \u2014 activate it to say it is yours";
@@ -14177,7 +14972,7 @@ function setupSteps(i, nowMs = Date.now()) {
         state: "waiting_you",
         required: true,
         sentence: serious.sentence,
-        details: [`${b.name} \xB7 hours set \xB7 ${plural8(b.services, "service")} on record`],
+        details: [`${b.name} \xB7 hours set \xB7 ${plural9(b.services, "service")} on record`],
         verb: { label: "Fix it in Business", to: serious.to }
       });
     } else if (missing.length === 0) {
@@ -14187,7 +14982,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "Business facts",
         state: "ready",
         required: true,
-        sentence: `${b.name} \xB7 hours set \xB7 ${plural8(b.services, "service")} on record`,
+        sentence: `${b.name} \xB7 hours set \xB7 ${plural9(b.services, "service")} on record`,
         details: [
           b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one",
           b.address ? "Address on record" : "No address yet"
@@ -14543,7 +15338,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const cap2 = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
-      t.approved ? `${plural8(t.approved, "approved message")}` : t.pending ? `${plural8(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.approved ? `${plural9(t.approved, "approved message")}` : t.pending ? `${plural9(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
@@ -14648,8 +15443,8 @@ function setupSteps(i, nowMs = Date.now()) {
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
-    const who = `${plural8(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural8(t.invitesOpen, "invite")} open` : ""}`;
-    const alerts = t.alertEmails ? `alerts go to ${plural8(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+    const who = `${plural9(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural9(t.invitesOpen, "invite")} open` : ""}`;
+    const alerts = t.alertEmails ? `alerts go to ${plural9(t.alertEmails, "address", "addresses")}` : "no alert address yet";
     row2({
       id: "team",
       icon: "users",
@@ -14665,7 +15460,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const offers = i.consent.offers;
     const said = i.consent.offersSaidYes;
     const talk = i.consent.yes;
-    const alsoTalk = talk > said ? [`${plural8(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    const alsoTalk = talk > said ? [`${plural9(talk, "person", "people")} said yes to messages about their own visit`] : [];
     row2(
       offers > 0 ? {
         id: "yes",
@@ -14673,7 +15468,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "The first yes",
         state: "ready",
         required: false,
-        sentence: `${plural8(offers, "person", "people")} said yes to offers.`,
+        sentence: `${plural9(offers, "person", "people")} said yes to offers.`,
         details: alsoTalk,
         verb: { label: "Open Broadcasts", to: "broadcasts" }
       } : said > 0 ? {
@@ -14682,7 +15477,7 @@ function setupSteps(i, nowMs = Date.now()) {
         title: "The first yes",
         state: "waiting_you",
         required: false,
-        sentence: `${plural8(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
+        sentence: `${plural9(said, "person", "people")} said yes to offers, but nobody can be sent one yet \u2014 ${NO_NUMBER_REACH}.`,
         details: alsoTalk,
         verb: { label: "Open People", to: "clients" }
       } : {
@@ -14783,6 +15578,10 @@ function setupLaterOf(view) {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
+var SETUP_LATER_REFUSED = {
+  reading: "Setting up is still being read. Try again in a moment.",
+  unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
+};
 
 // src/identity.ts
 var ROLE_WORDS = {
@@ -14843,6 +15642,7 @@ function inviteState(expiresAt, nowMs) {
 import { z as z8 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
+var InviteCodeSchema = z8.string().trim().max(80);
 var SignupSchema = z8.object({
   name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
@@ -14863,7 +15663,7 @@ var SignupSchema = z8.object({
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z8.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z8.string().trim().max(80).optional()
+  code: InviteCodeSchema.optional()
 }).strict();
 var SIGNUP_WAITLIST = "waitlist";
 function signupPosture(code2) {
@@ -14885,9 +15685,8 @@ function pendingWorkspaceOf(metadata) {
 function pendingCodeOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
   const p = metadata[PENDING_WORKSPACE_KEY];
-  const code2 = p && typeof p === "object" ? p.code : null;
-  if (typeof code2 !== "string" || code2.length > 80) return null;
-  return code2.trim() || null;
+  const r = InviteCodeSchema.safeParse(p && typeof p === "object" ? p.code : null);
+  return r.success && r.data ? r.data : null;
 }
 var SIGNUP_WORDS = {
   title: "Create your workspace",
@@ -15481,7 +16280,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "waiting_them",
         stateWords: "Waiting on us",
         sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
-        verb: { label: "Retry it", to: "start", who: "owner" }
+        verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" }
       })
     );
   } else if (i.lineRequestedAt) {
@@ -15507,7 +16306,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not connected",
         sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: "start", who: "owner" }
+        verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
       })
     );
   } else {
@@ -15520,7 +16319,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not connected",
         sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: "start", who: "owner" }
+        verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
       })
     );
   }
@@ -15606,7 +16405,7 @@ function connectionRows(i, nowMs = Date.now()) {
         state: "none",
         stateWords: "Not watched",
         sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: "start", who: "owner" }
+        verb: { label: "Find it", to: firstRunStepRoute("business"), who: "owner" }
       })
     );
   } else {
@@ -16839,611 +17638,6 @@ function registrationPreflight(f) {
     });
   }
   return out;
-}
-
-// src/business-tab.ts
-var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
-var ABILITY_CHANNEL_WORDS = {
-  whatsapp: { has: "in chat", not: "not in chat" },
-  voice: { has: "on a call", not: "not on a call" }
-};
-var channelOpens = (c) => {
-  const w = ABILITY_CHANNEL_WORDS[c].has;
-  return w.charAt(0).toUpperCase() + w.slice(1);
-};
-var STRENGTHS = /* @__PURE__ */ (() => ({
-  never_confirm_booking: {
-    strength: "structural",
-    chip: "It cannot anyway",
-    sentence: "There is no appointments table in this product; nothing in it can create, move or cancel one. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
-    checkedOn: null
-  },
-  never_quote_prices: {
-    strength: "checked",
-    chip: "Checked, not just told",
-    // The sentence says the rule. `checkedOn` says how it lands per channel, and the
-    // page draws both -- so the sentence must not say the channels too, or an owner
-    // reads the same fact twice, once in prose and once in the two boxes under it.
-    // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
-    // more: forty-five euros, or a pound sign, would pass it untouched.
-    //
-    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
-    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
-    // call) run either way; the switch adds or removes the one prompt line that tells it
-    // not to quote one. So the sentence cannot say the switch turns the checking on.
-    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
-    checkedOn: [
-      {
-        channel: "whatsapp",
-        label: channelOpens("whatsapp"),
-        words: "The words are swapped before the customer sees them. A draft sits in between."
-      },
-      {
-        channel: "voice",
-        label: channelOpens("voice"),
-        // What ALWAYS holds is that the owner is told: a correction goes into the call only while its turns are
-        // still being delivered, and with that switched off on the agent the same check runs on the final transcript
-        // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
-        // with it rather than promising the better half of it.
-        words: "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached."
-      }
-    ]
-  },
-  disclose_ai: {
-    strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
-    checkedOn: null
-  },
-  no_health_advice: {
-    strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
-    checkedOn: null
-  }
-}))();
-function ruleStrength(key) {
-  return STRENGTHS[key];
-}
-var VISION_STRENGTH = /* @__PURE__ */ (() => ({
-  strength: "power",
-  chip: "gives it a power",
-  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
-  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
-  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
-  checkedOn: null
-}))();
-var RULES_AT_REST_WORDS = {
-  never_quote_prices: "Never quotes a price",
-  never_confirm_booking: "Never confirms a booking",
-  disclose_ai: "Says it's an assistant",
-  no_health_advice: "No health advice"
-};
-var CANNOT_BOOK_WORDS = "Cannot book anything";
-var PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
-function rulesKept(i) {
-  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
-    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
-  }
-  const rules = i.rules;
-  if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
-  for (const key of GUARDRAIL_KEYS) {
-    if (typeof rules[key] !== "boolean") throw new TypeError(`rulesKept needs ${key} as a boolean.`);
-  }
-  const kept = [];
-  for (const key of GUARDRAIL_KEYS) {
-    const { strength } = ruleStrength(key);
-    const told = i.composes && rules[key];
-    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
-    else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
-  }
-  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
-  return kept;
-}
-var CANNOT_SAY_SERVICES = "cannot say what you offer";
-var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
-var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented.";
-function standingLine(i, calls) {
-  if (typeof calls !== "boolean") {
-    throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
-  }
-  const p = i.profile ?? {};
-  const gaps = [];
-  if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
-  if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
-  if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
-  if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
-  if (!has2(p.tone))
-    gaps.push({
-      sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.",
-      row: "tone"
-    });
-  const answers = [];
-  if (has2(p.address)) answers.push("where you are");
-  if (has2(p.hours)) answers.push("when you're open");
-  if (has2(p.services)) answers.push("what you offer");
-  if (has2(i.booking_link)) answers.push("how to book");
-  const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE : null;
-  return { can, wont, missing: gaps[0] ?? null };
-}
-var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
-function openWeekWords(hours, tz) {
-  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
-  const zone = `in ${timezoneCity(tz)} time`;
-  if (!open) return `Times are ${zone}`;
-  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
-}
-function hoursZoneWords(tz) {
-  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
-}
-function closuresAheadWords(closures, tz, now) {
-  const dated = (closures ?? []).filter((c) => !!c?.date);
-  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
-  const next = ahead[0];
-  if (!next) return { count: 0, line: null };
-  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
-  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
-}
-var count = (n) => n.toLocaleString("en-US");
-var CHIPS_SHOWN = 3;
-function chipsMoreWords(n) {
-  return `+${count(n)}`;
-}
-var SERVICE_CHIPS = CHIPS_SHOWN;
-function servicesWords(services) {
-  const list2 = (Array.isArray(services) ? services : []).filter(
-    (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
-  );
-  const n = list2.length;
-  if (!n) return { count: 0, line: null, chips: [], more: null };
-  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
-    name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
-  }));
-  return {
-    count: n,
-    line: count(n),
-    chips,
-    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
-  };
-}
-function blockShareWords(chars, total) {
-  const SHARES = [
-    [1 / 10, "a tenth"],
-    [1 / 5, "a fifth"],
-    [1 / 4, "a quarter"],
-    [1 / 3, "a third"],
-    [2 / 5, "two fifths"],
-    [1 / 2, "half"],
-    [3 / 5, "three fifths"],
-    [2 / 3, "two thirds"],
-    [3 / 4, "three quarters"],
-    [4 / 5, "four fifths"],
-    [9 / 10, "nine tenths"]
-  ];
-  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
-  const f = Math.min(1, chars / total);
-  if (f >= 0.95) return "nearly everything it reads";
-  if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
-}
-function promptCostWords(chars, total) {
-  const share = blockShareWords(chars, total);
-  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
-}
-function promptTotalWords(total) {
-  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
-}
-var PROMPT_READERS = {
-  whatsapp: "Every WhatsApp message, word for word",
-  voice: "Every phone call, composed when the call starts"
-};
-var PROMPT_NOW = {
-  label: {
-    whatsapp: "Sent alongside it, rebuilt for every message",
-    voice: "Sent alongside it, rebuilt for every call"
-  },
-  why: {
-    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
-    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
-  }
-};
-function servicesToldWords(i) {
-  const n = i.count;
-  if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
-  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
-  const size = i.chars ? `, ${count(i.chars)} characters` : "";
-  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
-}
-function serviceUndoName(name) {
-  const n = typeof name === "string" ? name.trim() : "";
-  return n ? `Undo removing ${n}` : "Undo removing a service";
-}
-function servicesFoundWords(shown, total) {
-  if (!total) return "No services yet.";
-  if (!shown) return "No service is called that.";
-  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
-}
-function servicesSaveWords(n) {
-  if (!n) return "Save with no services";
-  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
-}
-var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
-var plural9 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
-function bookingRulesWords(rules) {
-  const r = rules ?? {};
-  const parts2 = [];
-  if (isNumber(r.lead_hours))
-    parts2.push(
-      r.lead_hours === 0 ? "same-day bookings" : `at least ${r.lead_hours === 1 ? "1 hour's" : `${count(r.lead_hours)} hours'`} notice`
-    );
-  if (isNumber(r.slot_min)) parts2.push(`${count(r.slot_min)}-minute slots`);
-  if (isNumber(r.buffer_min))
-    parts2.push(
-      r.buffer_min === 0 ? "no gap between appointments" : `${plural9(r.buffer_min, "minute", "minutes")} between appointments`
-    );
-  if (isNumber(r.max_days_ahead)) parts2.push(`up to ${plural9(r.max_days_ahead, "day", "days")} ahead`);
-  if (isNumber(r.party_max)) parts2.push(`up to ${plural9(r.party_max, "person", "people")}`);
-  const joined = parts2.join(" \xB7 ");
-  const notes = (Array.isArray(r.notes) ? r.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
-    const t = x.trim();
-    return /[.!?…]$/.test(t) ? t : `${t}.`;
-  });
-  const d = BOOKING_DEFAULTS;
-  return {
-    line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
-    notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own \u2014 at least ${plural9(d.lead_hours, "hour's", "hours'")} notice, up to ${plural9(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
-  };
-}
-function bookingRuleRefusal(key) {
-  const shape = BookingRulesSchema.shape;
-  const words4 = {
-    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural9(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural9(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
-    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural9(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
-    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural9(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
-    party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
-  };
-  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
-  const bound = say ? shape[key]?.unwrap?.() : null;
-  if (!say || !bound || bound.minValue == null || bound.maxValue == null) {
-    throw new TypeError(
-      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
-    );
-  }
-  return say(bound.minValue, bound.maxValue);
-}
-var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${plural9(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
-  buffer_min: null,
-  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
-  party_max: "Larger groups go to a person."
-}))();
-var PROFILE_CROSSING_WORDS = {
-  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
-  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
-};
-var TONE_PRESETS = [
-  {
-    label: "Warm and brief",
-    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
-  },
-  {
-    label: "Professional, no small talk",
-    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
-  },
-  {
-    label: "Chatty, first names",
-    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
-  }
-];
-var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
-var cutAtWord = (text, max) => {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const head = t.slice(0, max + 1);
-  const at2 = head.lastIndexOf(" ");
-  const cut = (at2 > 0 ? head.slice(0, at2) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
-  return `${cut}\u2026`;
-};
-function handoffChatWords(i) {
-  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
-  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
-}
-function transferWords(hasHandoffNumber) {
-  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
-}
-function handoffCallWords(i) {
-  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
-}
-function handoffWords(reasons, transfer) {
-  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
-  const n = list2.length;
-  const number = typeof transfer === "string" ? transfer.trim() : "";
-  const phone = number ? `transfers to ${number}` : "takes a message";
-  return {
-    line: `${n ? `For ${plural9(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
-    phone
-  };
-}
-var NOTE_CHIPS = CHIPS_SHOWN;
-function notesWords(notes) {
-  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
-  const n = titles.length;
-  return {
-    count: n,
-    chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
-  };
-}
-var OPENING_SHOWN = 72;
-function instructionsWords(text) {
-  const t = typeof text === "string" ? text.trim() : "";
-  if (!t) return { opening: null, limit: null };
-  return {
-    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
-    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
-  };
-}
-function fallbacksWords(fallbacks) {
-  const keys = Object.keys(FALLBACK_DEFAULTS);
-  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
-  const differ = keys.filter((k) => {
-    const t = typeof f[k] === "string" ? f[k].trim() : "";
-    return t !== "" && t !== FALLBACK_DEFAULTS[k];
-  }).length;
-  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
-}
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
-var BOOLEAN_INPUTS = {
-  voiceLive: true,
-  whatsappLive: true,
-  hasCalendarFeed: true,
-  hasBookingLink: true,
-  hasBookingTemplate: true,
-  hasHandoffNumber: true,
-  hasEscalateWhen: true,
-  visionOn: true,
-  bookingHeld: true
-};
-function heldFor(pauseHours) {
-  const hours = Math.max(1, Math.round(pauseHours));
-  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
-  return hours === 1 ? "an hour" : `${hours} hours`;
-}
-function abilityRows(i) {
-  if (!i || typeof i !== "object")
-    throw new TypeError(
-      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds."
-    );
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
-    (k) => typeof i[k] !== "boolean"
-  );
-  if (notBoolean.length) {
-    throw new TypeError(
-      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
-    );
-  }
-  if (!POLICY_MODES.includes(i.replyMode)) {
-    throw new TypeError(
-      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
-    );
-  }
-  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
-  const chatAnswers = i.whatsappLive && !repliesHeld;
-  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
-  const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
-  const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const rows = [
-    {
-      id: "answer",
-      title: "Answer from your facts",
-      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
-      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
-      channels: both,
-      runsOn: { label: "Name and hours", row: "name" },
-      ready: answering,
-      // The facts it answers from are the standing line's subject, at the top of the page.
-      missing: false
-    },
-    {
-      id: "open_times",
-      title: "Say which times are open",
-      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      // With bookings held, check_availability offers a caller no times (retell-availability.ts),
-      // while the call still starts with the openings (call-start.ts) and chat is still handed
-      // them, so this says only what holds on both: it has them, and a request to book gets no link.
-      detail: !i.hasCalendarFeed ? linkGoes ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
-      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "The calendar it reads", row: "calendar" },
-      ready: answering && i.hasCalendarFeed,
-      missing: !i.hasCalendarFeed
-    },
-    {
-      id: "booking_link",
-      title: "Send the booking link",
-      detail: bookingDetail,
-      // The call's send goes through the same outbound gate the Replies row holds, so a
-      // workspace whose replies are held has no channel here at all -- and neither has one
-      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
-      channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
-      runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes,
-      missing: !i.hasBookingLink
-    },
-    {
-      id: "transfer",
-      title: "Put a caller through",
-      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
-      detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
-      // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
-      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
-      runsOn: { label: "The transfer number", row: "handoff_number" },
-      ready: i.voiceLive && i.hasHandoffNumber,
-      missing: !i.hasHandoffNumber
-    },
-    {
-      id: "handoff",
-      title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
-      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
-      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
-      // hand-off row's fold says it in the same words (handoffChatWords).
-      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: chatAnswers },
-      runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: chatAnswers,
-      // The base triggers hold with no reasons at all, so nothing here is missing.
-      missing: false
-    },
-    {
-      id: "vision",
-      title: "Look at a photo",
-      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
-      // The switch sits with the rules it keeps, which is the row that opens it.
-      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
-      ready: chatAnswers && i.visionOn,
-      // Off is the one state an owner changes from this card.
-      missing: !i.visionOn,
-      on: i.visionOn
-    }
-  ];
-  const held = repliesHeld ? {
-    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
-    door: "Your Autonomy tab",
-    to: "admin/autonomy"
-  } : null;
-  return { rows, held };
-}
-var CANNOT_ROWS = [
-  {
-    id: "book",
-    title: "Book, move or cancel an appointment",
-    detail: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your booking link does that, whichever tool is behind it."
-  },
-  {
-    id: "outbound_call",
-    title: "Ring a customer",
-    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
-    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
-  },
-  {
-    id: "sms",
-    title: "Send a text message",
-    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
-    soon: true
-  }
-];
-function cannotRows(i) {
-  if (typeof i?.smsLive !== "boolean") {
-    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
-  }
-  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
-}
-var PROFILE_LIMITS = /* @__PURE__ */ (() => {
-  const cap2 = (schema) => {
-    const s = schema;
-    if (typeof s.maxLength === "number") return s.maxLength;
-    for (const c of s.def?.checks ?? []) {
-      const d = c?._zod?.def;
-      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
-    }
-    throw new TypeError(
-      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
-    );
-  };
-  const floor = (schema) => {
-    const s = schema;
-    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
-    return s.minLength;
-  };
-  const opt = (schema) => schema.unwrap();
-  const p = BusinessProfileSchema.shape;
-  const service = opt(p.services).element.shape;
-  const note = opt(p.notes).element.shape;
-  const rules = BookingRulesSchema.shape;
-  const minutes = opt(service.duration_min);
-  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
-  return {
-    tone: cap2(opt(p.tone)),
-    services: cap2(opt(p.services)),
-    serviceName: cap2(service.name),
-    serviceMinutes: minutes.maxValue,
-    servicePrice: cap2(opt(service.price_note)),
-    languages: cap2(opt(p.languages)),
-    languageMin: floor(opt(p.languages).element),
-    languageMax: cap2(opt(p.languages).element),
-    reasons: cap2(opt(p.escalate_when)),
-    reason: cap2(opt(p.escalate_when).element),
-    consultFirst: cap2(opt(rules.consult_first)),
-    consultFirstLine: cap2(opt(rules.consult_first).element),
-    ruleNotes: cap2(opt(rules.notes)),
-    ruleNote: cap2(opt(rules.notes).element),
-    notes: cap2(opt(p.notes)),
-    noteTitle: cap2(note.title),
-    noteText: cap2(note.text),
-    closureNote: cap2(opt(ClosureSchema.shape.note)),
-    closures: MAX_CLOSURES,
-    shifts: MAX_INTERVALS_PER_DAY,
-    instructions: INSTRUCTIONS_MAX,
-    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
-  };
-})();
-function profileRefusal(key, seen, of) {
-  const L2 = PROFILE_LIMITS;
-  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const lines = (max, one, many) => `At most ${plural9(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const words4 = {
-    tone: () => chars(L2.tone),
-    services: () => `At most ${plural9(L2.services, "service", "services")}.`,
-    serviceName: () => chars(L2.serviceName),
-    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
-    servicePrice: () => chars(L2.servicePrice),
-    languages: () => `At most ${plural9(L2.languages, "language", "languages")}.`,
-    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
-    reasons: () => lines(L2.reasons, "reason", "reasons"),
-    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
-    consultFirst: () => lines(L2.consultFirst, "service", "services"),
-    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
-    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
-    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
-    notes: () => `At most ${plural9(L2.notes, "note", "notes")}.`,
-    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    closures: () => `At most ${plural9(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
-    closureNote: () => chars(L2.closureNote),
-    shifts: () => `At most ${plural9(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
-    instructions: () => chars(L2.instructions),
-    message: () => chars(L2.message)
-  };
-  const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
-  if (!say) {
-    throw new TypeError(
-      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
-    );
-  }
-  return say();
-}
-var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-function writtenOutDetail(text, bookingLink) {
-  const said = typeof text === "string" ? text : "";
-  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
-  if (link && said.includes(link)) return "link";
-  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
 }
 
 // src/prompt-blocks.ts
@@ -19184,159 +19378,6 @@ function csvCell(v) {
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-
-// src/greeting.ts
-function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
-}
-var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-
-// src/first-run.ts
-var FIRST_RUN_ROUTE = "start";
-var FIRST_RUN_STEPS = [
-  {
-    key: "business",
-    name: "Your business",
-    lead: "What your receptionist says about you: your name, when you're open, what you offer.",
-    rows: ["facts", "google"],
-    needs: ["facts"]
-  },
-  {
-    key: "phone",
-    name: "Your phone",
-    lead: "The number your customers call, and how those calls reach your receptionist.",
-    rows: ["billing", "line", "keep"],
-    needs: ["billing", "line"]
-  },
-  {
-    key: "try",
-    name: "Try it",
-    lead: "Call it from your own phone and hear what your customers will hear.",
-    rows: ["receptionist", "handoff"],
-    needs: ["receptionist"]
-  },
-  { key: "live", name: "Live", lead: "", rows: [], needs: [] }
-];
-var LIVE_ROWS = ["whatsapp", "calendar", "team", "email", "yes"];
-var SETUP_CARD_ORDER = ["whatsapp", "calendar", "team", "handoff", "keep", "google", "email", "yes"];
-var FIRST_RUN_WORDS = {
-  title: "Setting up",
-  later: "Finish later",
-  laterShort: "Later",
-  back: "Back",
-  continue: "Continue",
-  finish: "Finish",
-  liveHeading: "Your receptionist is answering",
-  liveNext: "When you're ready",
-  reading: "Reading your workspace\u2026",
-  failedWhat: "your workspace",
-  failedBody: "This page can't read your workspace at the moment. Nothing you set up is lost.",
-  toToday: "Back to Today"
-};
-var rowOf = (vm, id) => vm.rows.find((r) => r.id === id) ?? null;
-var stepDone = (vm, def) => def.needs.every((id) => {
-  const r = rowOf(vm, id);
-  return !r || r.state === "ready";
-});
-function firstRunStepOf(param) {
-  const hit = FIRST_RUN_STEPS.find((s) => s.key === param);
-  return hit ? hit.key : null;
-}
-function firstRunOf(vm, at2) {
-  const open = FIRST_RUN_STEPS.find((s) => s.key !== "live" && !stepDone(vm, s));
-  const current = open ? open.key : "live";
-  const steps = FIRST_RUN_STEPS.map((def2, i) => ({
-    key: def2.key,
-    name: def2.name,
-    number: i + 1,
-    state: def2.key === current ? "current" : def2.key !== "live" && stepDone(vm, def2) ? "done" : "ahead",
-    rows: (def2.key === "live" ? LIVE_ROWS : def2.rows).map((id) => rowOf(vm, id)).filter((r) => r !== null)
-  }));
-  const asked = firstRunStepOf(at2);
-  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
-  const def = FIRST_RUN_STEPS[shown.number - 1];
-  const live = shown.key === "live";
-  const primary = live ? null : shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null;
-  return {
-    steps,
-    current,
-    complete: !open,
-    shown,
-    heading: live ? FIRST_RUN_WORDS.liveHeading : def.name,
-    lead: live ? vm.readiness.sentence : def.lead,
-    phoneLine: `Step ${shown.number} of ${FIRST_RUN_STEPS.length} \xB7 ${shown.name}`,
-    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
-    primaryRow: primary ? primary.id : null,
-    back: shown.number > 1 ? FIRST_RUN_STEPS[shown.number - 2].key : null,
-    onward: live ? { label: FIRST_RUN_WORDS.finish, to: "today" } : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE } : null
-  };
-}
-function setupCardOf(vm) {
-  const fr = firstRunOf(vm);
-  if (!fr.complete) {
-    const left = fr.steps.filter((s) => s.key !== "live" && s.state !== "done").length;
-    const next = fr.steps.find((s) => s.key === fr.current) ?? fr.steps[0];
-    return {
-      title: "Finish setting up",
-      left: `${left} ${left === 1 ? "step" : "steps"} left`,
-      start: {
-        name: "Your receptionist isn't answering yet",
-        sentence: `Next: ${next.name.toLowerCase()}.`,
-        cta: "Continue setting up",
-        to: FIRST_RUN_ROUTE
-      },
-      rows: [],
-      hide: null,
-      skip: "Skip"
-    };
-  }
-  const rows = SETUP_CARD_ORDER.map((id) => rowOf(vm, id)).filter(
-    (r) => r !== null && r.state !== "ready" && !r.later && !!r.verb
-  );
-  if (!rows.length) return null;
-  return { title: "Finish setting up", left: `${rows.length} left`, start: null, rows, hide: "Hide", skip: "Skip" };
-}
-var initialsOf3 = (name) => name.split(/\s+/).map((w) => w.match(/[\p{L}\p{N}]/u)?.[0] ?? "").filter(Boolean).slice(0, 2).join("").toUpperCase();
-var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
-function receptionistCardOf(i) {
-  const b = i.brain;
-  const p = b?.profile ?? null;
-  const name = (b?.business_name || i.setup.business.name || i.workspaceName || "").trim();
-  const tried = !!(i.setup.channels.voice.lastInboundAt || i.setup.channels.whatsapp.lastInboundAt);
-  const status = !i.answering ? { tone: "plain", words: "Not answering yet" } : { tone: "ok", words: tried ? "Answering" : "Answering \xB7 not tried yet" };
-  const sv = servicesWords(p?.services ?? null);
-  const kept = i.numbers?.keptLine ?? null;
-  const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
-  const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
-  const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
-  return {
-    caption: "Your receptionist, so far",
-    initials: initialsOf3(name),
-    name: name || "Your receptionist",
-    status,
-    strip: `Your receptionist \xB7 ${status.words}`,
-    greetingLabel: "Greets every caller with",
-    greeting: greetingFor(name || null),
-    rows: [
-      { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
-      {
-        key: "knows",
-        label: "Knows",
-        value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
-      },
-      { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
-      { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
-      { key: "answers", label: "Answers", value: kept ? `${show(kept)} when nobody picks up` : show(line) },
-      { key: "through", label: "Puts through to", value: show(through) }
-    ],
-    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
-  };
-}
-function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || role !== "owner" || answering) return false;
-  return route === "" || route === "today";
-}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -19468,6 +19509,9 @@ export {
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
   FEED_MAX_BYTES,
+  FINISH_SETTING_UP,
+  FIRST_RUN_HELPERS,
+  FIRST_RUN_LANDED_KEY,
   FIRST_RUN_ROUTE,
   FIRST_RUN_STEPS,
   FIRST_RUN_WORDS,
@@ -19488,6 +19532,7 @@ export {
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
   IntervalSchema,
+  InviteCodeSchema,
   JOB_KINDS,
   JOB_STATES,
   JUDGE_FACT_KEYS,
@@ -19755,6 +19800,7 @@ export {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SETUP_CARD_ORDER,
+  SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
   SETUP_STATE_WORDS,
   SHORTCUTS,
@@ -20000,6 +20046,7 @@ export {
   firstNameOf,
   firstRunOf,
   firstRunStepOf,
+  firstRunStepRoute,
   firstWorkspaceDoor,
   fmtClock,
   fmtDay,

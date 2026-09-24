@@ -1,4 +1,4 @@
-/* global React, Icon, FailedRead */
+/* global React, Icon, FailedRead, StatePill */
 // Chanlytics — the first run (#/start).
 //
 // Setup's own rows, one step to a screen, full screen, with the owner's receptionist filling in beside them
@@ -48,7 +48,7 @@ const FrRail = ({ fr, go, label }) => (
         <li key={s.key} className="fr-rail-step" data-state={s.state} aria-current={s.key === fr.shown.key ? "step" : undefined}>
           {s.state === "ahead"
             ? <span className="fr-rail-btn">{body}</span>
-            : <button type="button" className="fr-rail-btn" onClick={() => go(s.key)} data-testid={`fr-rail-${s.key}`}>{body}</button>}
+            : <button type="button" className="fr-rail-btn" onClick={() => go(s.to)} data-testid={`fr-rail-${s.key}`}>{body}</button>}
         </li>
       );
     })}
@@ -64,7 +64,7 @@ const FrCard = ({ card, open }) => (
         <span className="fr-card-av" aria-hidden="true">{card.initials}</span>
         <div className="fr-card-who">
           <b>{card.name}</b>
-          <span className="fr-card-status" data-tone={card.status.tone} data-testid="fr-card-status">{card.status.words}</span>
+          <StatePill kind="setup" value={card.status.state} label={card.status.words} testid="fr-card-status" />
         </div>
       </div>
       <p className="fr-card-greet"><span className="fr-card-k">{card.greetingLabel}</span>“{card.greeting}”</p>
@@ -85,42 +85,45 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:setup");
   useFrTick("surface:settings");
   const [cardOpen, setCardOpen] = React.useState(false);
+  const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
-    try { window.sessionStorage.setItem("chanlytics.setup.landed", "1"); } catch { /* still here */ }
-  }, []);
-  const F = window.__firstRun;
+    if (!F) return;
+    try { window.sessionStorage.setItem(F.landedKey, "1"); } catch { /* still here */ }
+  }, [F]);
+  // Without the bridge there is nothing to say: every word here is contracts'.
+  if (!F) return <div className="fr-root fr-waiting" data-testid="first-run" />;
+  const W = F.words;
   const S = window.__SETUP;
   const leave = (to) => onNavigate(to);
-  if (S === null && F) {
+  if (S === null) {
     return (
       <div className="fr-root fr-waiting" data-testid="first-run">
         <FailedRead
           kind="card"
-          what={F.words.failedWhat}
-          body={F.words.failedBody}
+          what={W.failedWhat}
+          body={W.failedBody}
           onRetry={() => window.__setup && window.__setup.refresh && window.__setup.refresh()}
-          also={{ label: F.words.toToday, onClick: () => leave("today") }}
+          also={{ label: W.toToday, onClick: () => leave("today") }}
           testid="fr-failed"
           retryTestid="fr-retry"
         />
       </div>
     );
   }
-  if (!S || !F) {
+  if (!S) {
     return (
       <div className="fr-root fr-waiting" data-testid="first-run">
-        <p className="fr-reading" data-testid="fr-reading">{F ? F.words.reading : "Reading your workspace…"}</p>
+        <p className="fr-reading" data-testid="fr-reading">{W.reading}</p>
       </div>
     );
   }
-  const W = F.words;
   const fr = F.of(S.vm, param);
-  const card = F.card(frCardInputs(S));
+  const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run.
-  const go = (key) => window.location.replace(key === fr.current ? "#/start" : `#/start/${key}`);
-  const onward = () => (fr.onward.to === "today" ? leave("today") : window.location.replace(`#/${fr.onward.to}`));
+  const go = (to) => onNavigate(to, { replace: true });
+  const onward = () => (fr.onward.leaves ? leave(fr.onward.to) : go(fr.onward.to));
   return (
     <div className="fr-root" data-testid="first-run" data-step={step.key}>
       <header className="fr-top">
@@ -142,14 +145,18 @@ const FirstRun = ({ param = null, onNavigate }) => {
       </div>
       <div className="fr-body">
         <main className="fr-step" aria-labelledby="fr-heading">
-          <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
-          {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
+          <div className="fr-step-head">
+            <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
+            {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
+          </div>
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {step.key === "live" && step.rows.length ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
           {step.rows.length ? (
-            <section className="tq fr-rows">
-              <window.SetupRows S={S} rows={step.rows} primary={fr.primaryRow} testid="fr-rows" />
-            </section>
+            <div className="fr-part">
+              {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
+              <section className="tq fr-rows">
+                <window.SetupRows S={S} rows={step.rows} primary={fr.primaryRow} later={W.putOff} testid="fr-rows" />
+              </section>
+            </div>
           ) : null}
           {fr.back || fr.onward ? (
             <div className="fr-foot">

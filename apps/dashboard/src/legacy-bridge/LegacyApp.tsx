@@ -16,6 +16,7 @@ import {
   DEFAULT_THEME_PREF,
   DEVICE_PREFS_STORAGE,
   isSidebarPref,
+  FIRST_RUN_ROUTE,
   type PendingWorkspace,
   type ThemePref,
   type SidebarPref,
@@ -453,7 +454,7 @@ export default function LegacyApp() {
           // the new workspace is the one the app opens on, on its first run
           // (#/start). By its slug: it is not in __WORKSPACES yet, and by id the
           // app boots twice.
-          switchWorkspace(w.id, w.slug, "#/start");
+          switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`);
         }}
       />
     );
@@ -469,7 +470,7 @@ export default function LegacyApp() {
           setCreating(false);
           // The new workspace is the one the app opens on, on its first run
           // (#/start), at its slug, so the app boots once.
-          switchWorkspace(w.id, w.slug, "#/start");
+          switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`);
         }}
       />
     );

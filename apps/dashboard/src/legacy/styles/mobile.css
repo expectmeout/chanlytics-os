@@ -120,8 +120,11 @@
   .tq-sub { flex-basis: 100%; white-space: normal; }
   .tq-live { flex-wrap: wrap; }
   .tq-live-text { white-space: normal; }
-  /* What is left to set up, on a phone: only the next thing, one line and one button; its head says how many are left. */
+  /* What is left to set up, on a phone: only the next thing, one line and one button; its head says how many are left.
+     Skip and Hide wait for a wider screen. */
   .today-setup .setup-rows .tq-list > :not(:first-child) { display: none; }
+  .today-setup .tq-list .cl-attn-sentence { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .today-setup .cl-attn-cta.ghost, .today-setup .today-setup-hide { display: none; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
@@ -237,7 +240,7 @@
   html.legacy-on .settings .set-input,
   html.legacy-on .settings .sd-input,
   html.legacy-on .settings .biz-input,
-  html.legacy-on .settings .setup-area { min-height: 44px; }
+  html.legacy-on .setup-rows .setup-area { min-height: 44px; }
   html.legacy-on .settings .btn-icon.btn-sm { width: 44px; }
   html.legacy-on .settings .cl-tab { min-width: 44px; }
   html.legacy-on .settings .cl-bucket-link { min-height: 44px; }

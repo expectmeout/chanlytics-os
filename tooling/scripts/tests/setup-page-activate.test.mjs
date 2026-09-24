@@ -17,6 +17,7 @@ import {
   MODE_WORDS,
   formatPhoneDisplay,
   roleGate,
+  FIRST_RUN_WORDS,
 } from "@chanlytics/contracts";
 import { hookFrames } from "./_hook-frames.mjs";
 
@@ -207,12 +208,15 @@ globalThis.EmptyState = globalThis.window.EmptyState;
 // data-bits also publishes the shell's toast hook; this harness keeps its own flash.
 globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
-// Setup's rows as the first run and Today draw them (setup.jsx SetupRows): every row, the next one primary.
+// Setup's rows as the first run draws them (setup.jsx SetupRows): every row, the next one primary, its Later. A test
+// that draws them as Today does sets `drawAs`.
+let drawAs = { later: FIRST_RUN_WORDS.putOff };
 const Page = () =>
   globalThis.window.SetupRows({
     S: globalThis.window.__SETUP,
     rows: globalThis.window.__SETUP.vm.rows,
     primary: globalThis.window.__SETUP.vm.next ? globalThis.window.__SETUP.vm.next.row : null,
+    ...drawAs,
   });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
@@ -290,6 +294,12 @@ const walk = (n, fn) => {
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
   if (n.rendered) walk(n.rendered, fn);
+};
+const textOf = (n) => {
+  if (n == null || typeof n === "boolean") return "";
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  return textOf(n.props?.children) + (n.rendered ? textOf(n.rendered) : "");
 };
 
 test("the page: the row's Activate reaches the bridge with the capability's name, and the owner is told", async () => {
@@ -403,6 +413,32 @@ test("the page: Later puts a row off through the bridge, and waits for it like a
     if (!facts && n.props?.testid === "setup-row-facts") facts = n.props;
   });
   assert.equal(facts.also, null, "a row the receptionist needs is never put off");
+});
+
+test("the page as Today draws it: Skip says so in the card's own toast, whose Undo takes the row back", async () => {
+  globalThis.window.__SETUP = { dto, role: "owner", later: [], vm, fetchedAt: NOW };
+  const lent = [];
+  drawAs = {
+    later: { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." },
+    flash: (m) => lent.push(m),
+  };
+  try {
+    fresh();
+    let row = null;
+    walk(mount(), (n) => {
+      if (!row && n.props?.testid === "setup-row-keep") row = n.props;
+    });
+    assert.equal(row.also.label, "Skip");
+    const own = calls.flash.length;
+    await row.also.onClick();
+    assert.deepEqual(calls.later.at(-1), ["keep", true]);
+    assert.equal(calls.flash.length, own, "said in the toast the card lent, which outlives the row");
+    assert.equal(textOf(lent.at(-1).msg), "Put off. It stays in Setting up for when you're ready.");
+    await lent.at(-1).undo();
+    assert.deepEqual(calls.later.at(-1), ["keep", false], "Undo takes it back");
+  } finally {
+    drawAs = { later: FIRST_RUN_WORDS.putOff };
+  }
 });
 
 test("the page: the one coral button is the row the caller names, and every other verb is quiet", () => {

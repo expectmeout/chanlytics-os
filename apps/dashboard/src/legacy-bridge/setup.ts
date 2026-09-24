@@ -12,11 +12,10 @@ import {
   setupRoute,
   setupLaterOf,
   shouldLandOnFirstRun,
-  firstRunOf,
-  receptionistCardOf,
-  setupCardOf,
-  FIRST_RUN_WORDS,
+  FIRST_RUN_HELPERS,
+  FIRST_RUN_LANDED_KEY,
   FIRST_RUN_ROUTE,
+  SETUP_LATER_REFUSED,
   type SetupDto,
   type SetupVM,
   type SetupRequestKind,
@@ -44,12 +43,7 @@ export interface SetupSurface {
 }
 
 /** The first run's rules and words, for the pages that draw it: #/start (first-run.jsx) and Today's card. */
-export interface FirstRunApi {
-  of: typeof firstRunOf;
-  card: typeof receptionistCardOf;
-  today: typeof setupCardOf;
-  words: typeof FIRST_RUN_WORDS;
-}
+export type FirstRunApi = typeof FIRST_RUN_HELPERS;
 
 export interface SetupApi {
   /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
@@ -113,6 +107,16 @@ function publish(dto: SetupDto, role: string, later: string[]): void {
   window.__SETUP = { dto, role, later, vm: setupSteps({ ...dto, later }), fetchedAt: Date.now() };
 }
 
+/**
+ * The put-off rows' saves: one at a time, each sending the list as it stands when it goes, because a save replaces
+ * the page's whole view (member_view_set, 00113) and two in flight can land out of order. While one is on its way a
+ * re-read keeps the list on screen, which is newer than anything the read can say.
+ */
+let laterSaving: Promise<unknown> = Promise.resolve();
+let laterPending = 0;
+/** Whether the member's saved view was read. A save made without it would replace what they put off with less. */
+let laterKnown = false;
+
 export const setupOverride: SurfaceOverride = {
   key: "setup",
   globals: ["__SETUP"],
@@ -135,11 +139,11 @@ export const setupOverride: SurfaceOverride = {
     try {
       // The rows this member put off ride on their own saved view (the door People's view goes through), read beside
       // the workspace's facts. A views read that fails puts nothing off rather than failing Setup.
-      const [d, v] = await Promise.all([
-        read("GET setup"),
-        read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
-      ]);
-      publish(d.setup, d.role, setupLaterOf(v.views.setup));
+      const [d, v] = await Promise.all([read("GET setup"), read("GET views").catch(() => null)]);
+      const prior = window.__SETUP;
+      const later = prior && (laterPending > 0 || !v) ? prior.later : v ? setupLaterOf(v.views.setup) : [];
+      laterKnown = !!v || (laterKnown && !!prior);
+      publish(d.setup, d.role, later);
     } catch (e) {
       // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
       window.__SETUP = null;
@@ -160,23 +164,32 @@ export function installSetup(win: Window = window): void {
     ago: (iso) => agoWords(Date.parse(iso), Date.now()),
   };
   win.__setup = {
-    async later(ids, on) {
+    later(ids, on) {
       const s = win.__SETUP;
-      if (!s) return { ok: false, message: "Setup is still being read." };
+      if (!s) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.reading });
+      if (!laterKnown) return Promise.resolve({ ok: false, message: SETUP_LATER_REFUSED.unread });
       const list = Array.isArray(ids) ? ids : [ids];
-      const next = on ? [...new Set([...s.later, ...list])] : s.later.filter((x) => !list.includes(x));
-      publish(s.dto, s.role, next);
-      win.dispatchEvent(new CustomEvent("surface:setup"));
-      // The whole list each time: a save replaces the page's view (member_view_set, 00113).
-      const r = await saveView("setup", { later: next });
-      if (r.ok) return { ok: true, message: "" };
-      // Not kept, so not put off: the rows come back as they were, and the caller says why.
-      const now = win.__SETUP;
-      if (now) {
-        publish(now.dto, now.role, s.later);
+      // This call's own change, so a refusal takes back only it, whatever else was put off or back meanwhile.
+      const changed = list.filter((x) => s.later.includes(x) !== on);
+      if (changed.length === 0) return Promise.resolve({ ok: true, message: "" });
+      const move = (off: boolean) => {
+        const now = win.__SETUP;
+        if (!now) return;
+        const next = off ? [...new Set([...now.later, ...changed])] : now.later.filter((x) => !changed.includes(x));
+        publish(now.dto, now.role, next);
         win.dispatchEvent(new CustomEvent("surface:setup"));
-      }
-      return { ok: false, message: r.message };
+      };
+      move(on);
+      laterPending += 1;
+      const saved = laterSaving.then(async () => {
+        const r = await saveView("setup", { later: win.__SETUP?.later ?? [] });
+        laterPending -= 1;
+        // Not kept, so not put off (or back): this call's rows return as they were, and the caller says why.
+        if (!r.ok) move(!on);
+        return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+      });
+      laterSaving = saved;
+      return saved;
     },
     async activate(kind) {
       const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });
@@ -233,14 +246,14 @@ export function installSetup(win: Window = window): void {
   win.addEventListener("surface:setup", () => {
     let landed = false;
     try {
-      landed = win.sessionStorage.getItem("chanlytics.setup.landed") === "1";
+      landed = win.sessionStorage.getItem(FIRST_RUN_LANDED_KEY) === "1";
     } catch {
       landed = false;
     }
     const s = win.__SETUP;
     if (!s || !shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)) return;
     try {
-      win.sessionStorage.setItem("chanlytics.setup.landed", "1");
+      win.sessionStorage.setItem(FIRST_RUN_LANDED_KEY, "1");
     } catch {
       /* still land, once */
     }
@@ -248,5 +261,5 @@ export function installSetup(win: Window = window): void {
     if (nav) nav(FIRST_RUN_ROUTE);
     else win.location.hash = `/${FIRST_RUN_ROUTE}`;
   });
-  win.__firstRun = { of: firstRunOf, card: receptionistCardOf, today: setupCardOf, words: FIRST_RUN_WORDS };
+  win.__firstRun = FIRST_RUN_HELPERS;
 }

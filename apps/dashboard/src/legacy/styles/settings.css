@@ -9,9 +9,9 @@
    one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
    12px of padding and seven sizes of type between 10 and 13px, which is what
    "cluttered" was: nothing wrong with any one row, no two alike. Setup's rows
-   keep it wherever they are drawn (the first run, Today's card), so their
+   and their Try card keep it wherever they are drawn (the first run, Today's card), so their
    rules read one scale inside Settings and out. */
-.settings, .setup-rows {
+.settings, .setup-rows, .setup-try {
   --set-title: var(--text-md);
   --set-label: var(--text-base);
   --set-hint: var(--text-sm);
@@ -171,17 +171,17 @@
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
    in the policy matrix have no fill to tell them apart at all. */
-.settings .set-input, .settings .sd-input, .settings .biz-input, .settings .setup-area { border-color: var(--line-strong); }
+.settings .set-input, .settings .sd-input, .settings .biz-input, .setup-rows .setup-area { border-color: var(--line-strong); }
 .settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
 /* Something happens under a finger. There is no hover on a phone, and tapping a
    dot, a chip, a path or a switch gave nothing back. */
-.settings .pol-dot:active, .settings .cl-attn-cta:active,
-.settings .cl-bucket-link:active, .settings .setup-path:active, .settings .biz-choice:active,
-.settings .setup-number:active { transform: scale(0.97); }
+.settings .pol-dot:active, .settings .cl-attn-cta:active, .setup-rows .cl-attn-cta:active,
+.settings .cl-bucket-link:active, .setup-rows .setup-path:active, .settings .biz-choice:active,
+.setup-rows .setup-number:active { transform: scale(0.97); }
 .settings .set-switch:active { filter: brightness(0.96); }
 .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); }
 .settings .set-switch.on:hover { background: var(--ink-muted); }
-.settings .setup-path:hover, .settings .setup-number:hover { border-color: var(--line-strong); }
+.setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); }
 .set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .set-pane a:not([class]):hover { text-decoration-color: currentColor; }
 

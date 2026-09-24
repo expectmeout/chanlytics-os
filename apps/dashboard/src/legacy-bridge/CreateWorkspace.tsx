@@ -119,11 +119,11 @@ export default function CreateWorkspace({
   const started = useRef(false);
 
   /** Make the workspace: the press's and the arrival's one way. True once it is made. */
-  const create = async (trimmed: string, typed: string): Promise<boolean> => {
+  const create = async (trimmed: string, typedCode: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
     const r = await api()("POST workspaces/create", {
-      body: { name: trimmed, timezone, ...(door === "invite" && typed ? { code: typed } : {}) },
+      body: { name: trimmed, timezone, ...(door === "invite" && typedCode ? { code: typedCode } : {}) },
       // Nothing here is read again: the tab leaves for the new workspace at once (onCreated).
       refresh: false,
     });

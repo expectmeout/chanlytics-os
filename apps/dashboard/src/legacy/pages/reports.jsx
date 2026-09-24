@@ -107,7 +107,7 @@ const GoogleSection = ({ days }) => {
       <RptSection title="Google reviews">
         <div className="rpt-grid">
           <ChartCard className="rpt-span-12" title="Your listing on Google" testid="google-none">
-            <EmptyState kind="line" title="Find your business on Google once." body="Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands." action={{ label: "Find it", to: "start" }} />
+            <EmptyState kind="line" title="Find your business on Google once." body="Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands." action={{ label: "Find it", to: "start/business" }} />
           </ChartCard>
         </div>
       </RptSection>

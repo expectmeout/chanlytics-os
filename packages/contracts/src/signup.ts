@@ -10,6 +10,9 @@ import { isTimezone } from "./workspace";
 export const SIGNUP_NAME_MIN = 2;
 export const SIGNUP_NAME_MAX = 120;
 
+/** The invite code, where sign-up is by invitation: what the form, the create screen and the kept answers all read it as. */
+export const InviteCodeSchema = z.string().trim().max(80);
+
 export const SignupSchema = z
   .object({
     name: z
@@ -35,7 +38,7 @@ export const SignupSchema = z
     /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, when sign-up is by invitation. */
-    code: z.string().trim().max(80).optional(),
+    code: InviteCodeSchema.optional(),
   })
   .strict();
 export type SignupInput = z.infer<typeof SignupSchema>;
@@ -110,9 +113,8 @@ export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
 export function pendingCodeOf(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") return null;
   const p = (metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY];
-  const code = p && typeof p === "object" ? (p as { code?: unknown }).code : null;
-  if (typeof code !== "string" || code.length > 80) return null;
-  return code.trim() || null;
+  const r = InviteCodeSchema.safeParse(p && typeof p === "object" ? (p as { code?: unknown }).code : null);
+  return r.success && r.data ? r.data : null;
 }
 
 /** What the page says, in one place. The sentence after a submit is the same whether or not the address was known. */
