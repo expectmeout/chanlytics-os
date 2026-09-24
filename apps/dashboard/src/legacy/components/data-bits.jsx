@@ -633,16 +633,23 @@ const holdStill = (control, change) => {
 // A name, a face or a chip with a page of its own is a link to that page: `<a {...window.routeDoor(to, go)}>`. Its
 // address is in the href, so a long press, a middle click or a new tab opens it too, and a plain press takes the app's
 // own way there (`go`, else CHANLY.nav), which keeps Back the app's. A thread's person was reachable only through its
-// Actions menu, "Open profile", under a name that looked like a link and was not one.
-const routeDoor = (to, go = null) => ({
-  href: `#/${to}`,
-  onClick: (e) => {
-    if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
-    if (e && e.preventDefault) e.preventDefault();
-    if (go) go(to);
-    else if (window.CHANLY) window.CHANLY.nav(to);
-  },
-});
+// Actions menu, "Open profile", under a name that looked like a link and was not one. A door to a person reads them as
+// a pointer reaches it or it takes focus, as People's rows do: their page opens on nothing of theirs until it is whole.
+const RD_PERSON = /^clients\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const routeDoor = (to, go = null) => {
+  const person = RD_PERSON.exec(to);
+  const warm = person ? () => { if (window.__warmPerson) window.__warmPerson(person[1]); } : null;
+  return {
+    href: `#/${to}`,
+    onClick: (e) => {
+      if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+      if (e && e.preventDefault) e.preventDefault();
+      if (go) go(to);
+      else if (window.CHANLY) window.CHANLY.nav(to);
+    },
+    ...(warm ? { onPointerEnter: warm, onFocus: warm } : {}),
+  };
+};
 Object.assign(window, { holdStill, routeDoor });
 
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------

@@ -120,12 +120,18 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 /** The wire: the person's read answers `answer()`, a DELETE of them is accepted, anything else is a 404. Every request kept. */
 let seen = [];
+let held = null;
 let answer = () => json(200, { ok: true, data: { person: detail() } });
 globalThis.window.fetch = async (url, init = {}) => {
   const u = new URL(String(url), "https://app.chanlytics.com");
   const method = init.method ?? "GET";
   seen.push({ method, path: u.pathname, workspace: u.searchParams.get("workspace") });
   if (method === "GET" && u.pathname === `/api/v1/contacts/${ID}`) return answer();
+  // Anyone else a list shows: answered when the test lets them go (`held`), else at once.
+  if (method === "GET" && /^[/]api[/]v1[/]contacts[/][0-9a-f-]{36}$/.test(u.pathname)) {
+    if (!held) return json(200, { ok: true, data: { person: detail() } });
+    return new Promise((r) => held.push(() => r(json(200, { ok: true, data: { person: detail() } }))));
+  }
   if (method === "DELETE" && u.pathname === `/api/v1/contacts/${ID}`) return json(200, { ok: true, data: {} });
   if (method === "PUT" && u.pathname === `/api/v1/contacts/${ID}/details`) return json(200, { ok: true, data: {} });
   return json(404, { ok: false, error: { code: "not_found", message: `no ${method} ${u.pathname}` } });
@@ -136,6 +142,7 @@ const settle = async () => {
 };
 
 const bridge = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { readCache, clearReadCaches } = await import("../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 const { clearSurfaceCache } = await import("../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 /**
@@ -151,6 +158,7 @@ const SLOT = "chanlytics.reads.v1.person";
 beforeEach(() => {
   clearReadCaches();
   seen = [];
+  held = null;
   answer = () => json(200, { ok: true, data: { person: detail() } });
   globalThis.window.location.pathname = "/w/harbor";
   globalThis.window.location.hash = "";
@@ -285,4 +293,72 @@ test("a read still out when the tab is cleared is not kept when it lands: a sign
   await out;
   assert.equal(bridge.peekPerson(ID), null, "REGRESSION: the read that landed after the sign-out kept them");
   assert.equal(globalThis.sessionStorage.getItem(SLOT), null, "and wrote them back into the tab");
+});
+
+const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const asked = () =>
+  seen.filter((q) => q.method === "GET" && q.path.startsWith("/api/v1/contacts/")).map((q) => q.path.split("/").pop());
+
+test("a list's people are read ahead once the boot is in: the first twelve, two at a time, never one the tab holds", async () => {
+  // A person the tab does not hold opens on nothing of theirs until their page is whole (client-profile.jsx): the way
+  // it opens at once is to have read them before the press.
+  const rows = Array.from({ length: 14 }, (_, i) => uuid(i + 1));
+  held = null;
+  await bridge.personDetail(rows[2]);
+  seen = [];
+  held = [];
+  bridge.warmPeople(rows);
+  await settle();
+  assert.deepEqual(asked(), [rows[0], rows[1]], "two at a time, in the list's order");
+  for (let i = 0; i < 20 && held.length; i++) {
+    held.shift()();
+    await settle();
+  }
+  const read = asked();
+  assert.equal(read.length, 11, `the first twelve but the one already held: ${read.length}`);
+  assert.ok(!read.includes(rows[2]), "the one the tab holds is not read again");
+  assert.ok(!read.includes(rows[12]) && !read.includes(rows[13]), "and nobody past the twelfth");
+  assert.ok(bridge.peekPerson(rows[11]), "held now: their page opens whole");
+});
+
+test("a later list replaces what an earlier one was still waiting to read; off a workspace page nothing is read", async () => {
+  held = [];
+  bridge.warmPeople([uuid(21), uuid(22), uuid(23), uuid(24)]);
+  await settle();
+  bridge.warmPeople([uuid(31)]);
+  for (let i = 0; i < 10 && held.length; i++) {
+    held.shift()();
+    await settle();
+  }
+  assert.deepEqual(asked(), [uuid(21), uuid(22), uuid(31)], "the two out finish; the list on screen goes next");
+  seen = [];
+  globalThis.window.location.pathname = "/";
+  bridge.warmPeople([uuid(41)]);
+  await settle();
+  assert.deepEqual(asked(), [], "a read that names no workspace is refused, so none goes");
+});
+
+test("a list drawn from the tab before the boot starts waits for that boot: its reads never stand in the boot's lanes", async () => {
+  // On a reload People draws from the tab in the first render, and its effect runs before the shell's starts the boot
+  // (a child's effects run before its parent's). Asked at once, afterBoot answered for no boot at all.
+  let bootIn = () => {};
+  const slow = {
+    key: "slow",
+    apply: () =>
+      new Promise((r) => {
+        bootIn = r;
+      }),
+  };
+  bridge.warmPeople([uuid(51)]);
+  const stop = startSurfaces([slow]);
+  try {
+    await settle();
+    assert.deepEqual(asked(), [], "REGRESSION: the read went out beside the boot's own");
+    bootIn();
+    await settle();
+    await settle();
+    assert.deepEqual(asked(), [uuid(51)], "and once the boot is in, it goes");
+  } finally {
+    stop();
+  }
 });

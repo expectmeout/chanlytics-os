@@ -227,6 +227,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const total = viewCount;
   // Each view keeps its own place (the words in the box, the cursor, the scroll), as each of People's lists does.
   const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}` });
+  // The people this view shows first, read in the background once the boot is in, so a row's peek and their page open
+  // on what the tab already holds (people-detail.ts warmPeople).
+  const aheadKey = ids.slice(0, 12).join(",");
+  React.useEffect(() => { if (aheadKey && window.__warmPeople) window.__warmPeople(aheadKey.split(",")); }, [aheadKey]);
   // What the peek opens with: the tab's copy of the person where they were read already (a row warms them under the
   // pointer and the cursor), set in the same draw that opens the peek, so a person the tab holds opens with their
   // card and never with a Reading… first.

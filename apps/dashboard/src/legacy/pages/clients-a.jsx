@@ -2705,6 +2705,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // Each view keeps its own place: everyone, a smart list, a kept list or a state.
   const peopleView = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "all";
   const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({ controls, page: "people", view: peopleView, ids: shownIds, noun: "person", selectionOf: `${tab}|${listId}|${savedId}` });
+  // The people this view shows first, read in the background once the boot is in, so a press opens a page the tab
+  // already holds, whole (people-detail.ts warmPeople): a person not read yet opens on nothing of theirs until it is.
+  const aheadKey = shownIds.slice(0, 12).join(",");
+  React.useEffect(() => { if (aheadKey && window.__warmPeople) window.__warmPeople(aheadKey.split(",")); }, [aheadKey]);
   // The phone's Add a person: the desktop's door (plAddPerson), the page's draft. Added, the sheet closes and their
   // page opens, as the desktop's form does.
   const addOnPhone = async () => {

@@ -1127,6 +1127,20 @@ test("Passed or ended opens with its Show, folds again with Hide, and a row open
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
 
+test("the Pipeline reads the people it shows ahead, in their order, so a row's peek opens on what the tab holds", async () => {
+  await fresh();
+  const lists = [];
+  const was = globalThis.window.__warmPeople;
+  globalThis.window.__warmPeople = (ids) => lists.push(ids);
+  try {
+    const tree = draw();
+    assert.ok(lists.length, "the rows on screen went to the courier");
+    assert.deepEqual(lists.at(-1), rowIds(tree).slice(0, 12), "the ones drawn, first to last");
+  } finally {
+    globalThis.window.__warmPeople = was;
+  }
+});
+
 test("the keys are People's: J walks the rows shown, Enter opens the peek, Esc closes it, and a folded group is passed by", async () => {
   await fresh();
   let tree = draw();

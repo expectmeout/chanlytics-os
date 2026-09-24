@@ -1506,6 +1506,62 @@ test("a route whose surface has not landed is an empty pane that says it is read
   }
 });
 
+test("Today waits for the card it draws above its queue, and once its own read is in, only for so long", () => {
+  // The card that says what is left to set up sits above the queue: landing after it, it pushed the queue down. The
+  // gate holds Today for it (surface-registry ROUTE_WAITS); once Today's own surface is in, past the wait it draws.
+  const due = new Map();
+  const keepTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms) => {
+    due.set(ms, fn);
+    return 0;
+  };
+  const redraw = () => {
+    deep = false;
+    frames.begin();
+    const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} });
+    deep = true;
+    return tree;
+  };
+  win.__routeWaitMs = 3000;
+  win.__surfaceGate = (page, param, own) => !!own;
+  try {
+    const held = mount("#/today");
+    assert.ok(!find(held.tree, (n) => n.type === "DashboardA"), "the queue is not drawn under a card still on its way");
+    assert.ok(due.has(3000), "and waits the registry's time, no longer");
+    due.get(3000)();
+    assert.ok(
+      find(redraw(), (n) => n.type === "DashboardA"),
+      "past the wait, the page draws with what it has",
+    );
+
+    // The wait counts from Today's own surface landing, not from arriving: a slow own read that used the whole wait
+    // would draw the moment it landed, and the card would still push the queue down.
+    const told = [];
+    win.__onSurfaceReady = (fn) => {
+      told.push(fn);
+      return () => {};
+    };
+    win.__surfaceGate = () => false;
+    due.clear();
+    mount("#/today");
+    assert.ok(!due.has(3000), "REGRESSION: the wait ran from arriving, before Today's own surface was in");
+    assert.ok(!find(redraw(), (n) => n.type === "DashboardA"), "a page whose own surface is not in keeps reading");
+    win.__surfaceGate = (page, param, own) => !!own;
+    for (const fn of told) fn();
+    assert.ok(due.has(3000), "armed as Today's own surface lands");
+    due.get(3000)();
+    assert.ok(
+      find(redraw(), (n) => n.type === "DashboardA"),
+      "and past it, Today draws",
+    );
+  } finally {
+    globalThis.setTimeout = keepTimeout;
+    delete win.__surfaceGate;
+    delete win.__onSurfaceReady;
+    delete win.__routeWaitMs;
+  }
+});
+
 test("a move that stays on the page -- People to Leads and back -- draws without the route fade; a move to another page keeps it", () => {
   // The two scopes are two mounts, and the shell's 240ms route fade played on every switch between them, on top of
   // the rows' own draw: the switch read as a wait. The fade is for arriving somewhere else.
