@@ -817,8 +817,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
           state: "waiting_you",
           required: !answering,
           sentence: "Get a number for calls, or keep the one you have.",
+          // The number is part of the plan (decision 1, 24 Sep 2026): Checkout bills one price and nothing bills a
+          // number fee, so no row quotes one. What a number costs Chanlytics stays in lines.costs for the back office.
           details: [
-            `A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month · your receptionist answers it · texting arrives when the carriers register it`,
+            "A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it",
           ],
           verb: { label: "Get a line", to: "verb:choose-line" },
         })
@@ -830,10 +832,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
             state: "waiting_you",
             required: !answering,
             sentence: "Add a card, then get a number for calls.",
-            details: [
-              `A local number is about $${lines.costs.local_number_month_usd.toFixed(2)} a month, billed with your subscription`,
-              "Nothing is charged until your trial ends",
-            ],
+            details: ["A local number, included in your plan", "Nothing is charged until your trial ends"],
             verb: { label: "Open Billing", to: "admin/billing" },
           })
         : // CANNOT SPEND, AND THERE IS NO CARD TO ADD. Three states, not two: this
