@@ -11,6 +11,12 @@
 //
 // The business step is Find while an owner can link a listing (first-run.ts `find`): what Google has for the business,
 // found already, instead of the step's rows. Setup's Google row opens it (the one finder).
+//
+// After Find it is Check (first-run.ts `check`, canvas R2, V2, P2): what the receptionist answers from, in the Business
+// tab's own rows (business-tab-*.jsx, drawn here through window, so the two screens never disagree), and how customers
+// buy. The receptionist it checks is set up from what is known, on an owner's press (window.__setup.receptionist, the
+// first receptionist's route): Find's "Yes, this is us" and "We're not on Google" ask for it, and so does Check's own
+// press where there is still none. Every row saves through the Business tab's one saver, as it does on that tab.
 
 const useFrTick = (event) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -24,7 +30,7 @@ const useFrTick = (event) => {
 const frWorkspace = () => (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
 
 // What the card reads beyond Setup: the brain and the resolved numbers from the settings read, once it has landed,
-// and the workspace's name and clock from the list the shell already holds.
+// and the workspace's name, clock and answer to how its customers buy from the list the shell already holds.
 const frCardInputs = (S) => {
   const cfg = window.__SETTINGS && window.__SETTINGS.config;
   const facts = window.__FACTS && window.__FACTS.facts;
@@ -37,6 +43,7 @@ const frCardInputs = (S) => {
     numbers: facts ? { voiceLine: value(facts.voice_line), keptLine: value(facts.kept_line), handoff: value(facts.handoff_number) } : null,
     workspaceName: (ws && ws.name) || null,
     tz: (ws && ws.timezone) || window.DEFAULT_TIMEZONE || "America/New_York",
+    sellsBy: (ws && ws.sells_by) || null,
   };
 };
 
@@ -48,7 +55,7 @@ const frCardInputs = (S) => {
  * Find was asked for by name, goes to the step's own address (\`done\`). The step is Find only for an owner, who alone
  * may search and link. The toast is the page's (\`flash\`): a link ends Find as the surfaces repaint.
  */
-const FrFind = ({ W, flash, done, go }) => {
+const FrFind = ({ W, flash, done, go, make }) => {
   // null while Google is asked; then what it said: the candidates, the words it was asked, whether they were the owner's.
   const [found, setFound] = React.useState(null);
   const [picked, setPicked] = React.useState(null);
@@ -81,14 +88,21 @@ const FrFind = ({ W, flash, done, go }) => {
     const r = await window.__google.link(c.place_id);
     setBusy(false);
     flash(r.ok ? { tone: "ok", msg: <>{W.linked(c.name, r.read)}</> } : window.refusalToast(r, W.notLinked));
+    // "Yes, this is us": the receptionist is set up from what Google says, where none is yet.
+    if (r.ok) make();
   };
   const notOnGoogle = async () => {
     if (busy || !window.__setup) return;
     setBusy(true);
     const r = await window.__setup.later("google", true);
     setBusy(false);
-    if (!r.ok) flash(window.refusalToast(r, W.notSaved));
-    else if (done) go(done);
+    if (!r.ok) {
+      flash(window.refusalToast(r, W.notSaved));
+      return;
+    }
+    // Not on Google: the receptionist is set up with the name typed at sign-up, and Check asks for the rest.
+    make();
+    if (done) go(done);
   };
   const hits = found ? found.candidates : [];
   return (
@@ -135,6 +149,89 @@ const FrFind = ({ W, flash, done, go }) => {
         <span aria-hidden="true"> · </span>
         <a href="/privacy">{W.privacy}</a>
       </p>
+    </div>
+  );
+};
+
+/**
+ * Check (canvas R2, V2, P2): what the receptionist answers from, in the Business tab's own rows, over the settings read's
+ * brain -- the week and its clock, where the business is, its website; how customers buy, the booking link and the rules
+ * it keeps (the price rule shown as its default); what it offers and the languages it speaks. Each row saves through the
+ * tab's one saver, and a sheet opens over the first run as it does over the tab. How customers buy is the tab's own
+ * choice, drawn open and saved at once through the workspace's door; until it is said, the first answer is shown, and
+ * Looks right sends it (FirstRun). With no receptionist yet: an owner's one press, or who sets it up.
+ */
+const FrCheck = ({ check, W, flash, make, making, go }) => {
+  const settings = window.__SETTINGS || null;
+  const brain = (settings && settings.config && settings.config.brain) || null;
+  if (!brain) {
+    // The settings read's brain draws the rows. None there: the owner's press, who sets it up, or, set up and not read
+    // back yet, the read on its way; and a read that failed, its retry.
+    if (check.make) {
+      return (
+        <div className="fr-check-make" data-testid="fr-check-make">
+          <p className="fr-check-note">{check.make.sentence}</p>
+          <button type="button" className="fr-onward" onClick={make} disabled={making} aria-busy={making || undefined} data-testid="fr-check-make-press" {...window.gate("team", "set up the receptionist")}>
+            {making ? check.make.busy : check.make.cta}
+          </button>
+        </div>
+      );
+    }
+    if (check.waiting) return <p className="fr-check-note" data-testid="fr-check-waiting">{check.waiting}</p>;
+    if (window.__surfaceFailed && window.__surfaceFailed("admin", "workspace")) {
+      return <FailedRead kind="card" what="your receptionist" surface="settings" testid="fr-check-failed" retryTestid="fr-check-retry" />;
+    }
+    return <p className="fr-reading" data-testid="fr-check-reading">{W.reading}</p>;
+  }
+  const S = window.__businessTabSave;
+  const saver = S.saver;
+  const base = saver.base();
+  const canEdit = !window.canDo || window.canDo("settings");
+  const rows = { brain, base, canEdit, flash, saver };
+  // How customers buy, as the workspace list carries it, and its words (contracts sellsByVM); without the bridge, no choice.
+  const tab = window.__businessTab || {};
+  const stored = S.answer();
+  const buys = tab.sellsByVM ? tab.sellsByVM(stored) : null;
+  const door = S.sellsBy;
+  const choose = (next) => {
+    if (next === stored || !door || door.pending()) return;
+    door.save({ answer: next, said: tab.sellsBySaved ? tab.sellsBySaved(stored, next) : null, done: null, flash });
+  };
+  const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
+  return (
+    <div className="fr-check" data-testid="fr-check">
+      <section className="rec-card fr-check-card" aria-label={W.groups.facts}>
+        <window.BtHoursRow brain={brain} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} note={note} />
+        <window.BtZoneRow brain={brain} canEdit={canEdit} gate={window.gate("settings", "change the timezone")} flash={flash} />
+        <window.BtAddressRow {...rows} />
+        <window.BtWebsiteRow {...rows} />
+      </section>
+      <section className="rec-card fr-check-card" aria-label={W.groups.buys}>
+        {buys && window.btSellsByChoice ? (
+          <div className="fr-check-buys">
+            {window.btSellsByChoice({
+              id: "fr-sells-by",
+              vm: buys,
+              value: stored || buys.first,
+              set: choose,
+              readOnly: !canEdit || !door || door.pending(),
+              label: true,
+              testid: "fr-sells-by",
+            })}
+          </div>
+        ) : null}
+        <window.BtBookingLinkRow {...rows} />
+        <window.BtRulesRow {...rows} config={settings.config} />
+      </section>
+      <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
+        <window.BtServicesRow brain={brain} canEdit={canEdit} gate={window.gate("settings", "change your services")} saver={saver} />
+        <window.BtLanguagesRow {...rows} />
+      </section>
+      {check.find ? (
+        <p className="fr-check-note">
+          <button type="button" className="fr-find-link" onClick={() => go(check.find.to)} data-testid="fr-check-find">{check.find.label}</button>
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -190,8 +287,19 @@ const FirstRun = ({ param = null, onNavigate }) => {
   useFrTick("surface:setup");
   useFrTick("surface:settings");
   const [cardOpen, setCardOpen] = React.useState(false);
-  // The page's toast, lent to Find: a link ends Find as the surfaces repaint, and what it says outlives it.
+  // The page's toast, lent to Find and Check: a link ends Find as the surfaces repaint, and what it says outlives it.
   const [toastNode, flash] = window.usePPToast();
+  // The ask for the receptionist, held here and lent to Find and Check: Find is gone by the time it answers.
+  const [making, setMaking] = React.useState(false);
+  // Check's rows save through the Business tab's saver and doors, which outlive the page: a save moving through any of
+  // them draws the page again, as it draws the tab.
+  const [, redraw] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    const S = window.__businessTabSave;
+    const doors = S ? [S.saver, S.zone, S.sellsBy] : [];
+    const stops = doors.map((d) => (d && d.subscribe ? d.subscribe(redraw) : null));
+    return () => stops.forEach((stop) => { if (stop) stop(); });
+  }, []);
   const F = window.__firstRun;
   // Being here is the landing: Today does not send this tab back again this session.
   React.useEffect(() => {
@@ -236,7 +344,36 @@ const FirstRun = ({ param = null, onNavigate }) => {
   const step = fr.shown;
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run.
   const go = (to) => onNavigate(to, { replace: true });
-  const onward = () => (fr.onward.leaves ? leave(fr.onward.to) : go(fr.onward.to));
+  // Set the receptionist up from what is known, where none is: once at a time, and a refusal said in its words.
+  const make = async () => {
+    if (making || !window.__setup || !window.__setup.receptionist) return;
+    setMaking(true);
+    const r = await window.__setup.receptionist();
+    setMaking(false);
+    if (!r.ok) flash(window.refusalToast(r, W.check.notMade));
+  };
+  const onward = () => {
+    const o = fr.onward;
+    if (o.held) return;
+    if (!fr.check) {
+      if (o.leaves) leave(o.to);
+      else go(o.to);
+      return;
+    }
+    // Looks right: the answer to how customers buy, as Check shows it, is sent where none is stored (as the create card
+    // sends it), and the step goes on once it is taken.
+    const B = window.__businessTabSave;
+    const tab = window.__businessTab || {};
+    const stored = B ? B.answer() : null;
+    const door = B && B.sellsBy;
+    if (stored || !door || !tab.sellsByVM) {
+      go(o.to);
+      return;
+    }
+    if (door.pending()) return;
+    const shown = tab.sellsByVM(null).first;
+    door.save({ answer: shown, said: tab.sellsBySaved ? tab.sellsBySaved(null, shown) : null, done: () => go(o.to), flash });
+  };
   return (
     <div className="fr-root" data-testid="first-run" data-step={step.key}>
       <header className="fr-top">
@@ -262,9 +399,10 @@ const FirstRun = ({ param = null, onNavigate }) => {
             <h1 className="fr-heading" id="fr-heading" data-testid="fr-heading">{fr.heading}</h1>
             {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
           </div>
-          {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} /> : null}
+          {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
+          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} /> : null}
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {!fr.find && step.rows.length ? (
+          {!fr.find && !fr.check && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}
               <section className="tq fr-rows">
@@ -275,12 +413,29 @@ const FirstRun = ({ param = null, onNavigate }) => {
           {fr.back || fr.onward ? (
             <div className="fr-foot">
               {fr.back ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => go(fr.back)} data-testid="fr-back">{W.back}</button> : <span />}
-              {fr.onward ? <button type="button" className="fr-onward" onClick={onward} data-testid="fr-onward">{fr.onward.label}</button> : null}
+              {fr.onward && fr.onward.held ? <span className="fr-held" id="fr-held" data-testid="fr-held">{fr.onward.held}</span> : null}
+              {fr.onward ? (
+                <button
+                  type="button"
+                  className="fr-onward"
+                  onClick={onward}
+                  // Held, it stays in reach and says why beside it, as a gated act does: never `disabled`, which lets go of focus.
+                  aria-disabled={fr.onward.held ? true : undefined}
+                  aria-describedby={fr.onward.held ? "fr-held" : undefined}
+                  data-testid="fr-onward"
+                >
+                  {fr.onward.label}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </main>
         <FrCard card={card} open={cardOpen} />
       </div>
+      {/* The services list opens in a sheet, as it does on the Business tab, which draws it last of everything there. */}
+      {fr.check && window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.BtServicesSheet ? (
+        <window.BtServicesSheet brain={window.__SETTINGS.config.brain} canEdit={!window.canDo || window.canDo("settings")} flash={flash} saver={window.__businessTabSave.saver} />
+      ) : null}
       {toastNode}
     </div>
   );

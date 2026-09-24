@@ -763,7 +763,8 @@ export function isRealDate(key: string): boolean {
   return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === key;
 }
 
-const DAY_NAME: Record<string, string> = {
+/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
+export const DAY_NAMES: Record<(typeof DAYS)[number], string> = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -772,6 +773,7 @@ const DAY_NAME: Record<string, string> = {
   sat: "Saturday",
   sun: "Sunday",
 };
+const DAY_NAME: Record<string, string> = DAY_NAMES;
 
 /**
  * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
@@ -930,15 +932,7 @@ export function withFirstAlertAddress(config: unknown, email: string | null | un
 
 /* ---------------------------------------------------------------- compose */
 
-const DAY_LABEL: Record<string, string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
-};
+const DAY_LABEL: Record<string, string> = DAY_NAMES;
 
 /** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
 /** One stretch of consecutive days that share the same hours. */

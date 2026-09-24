@@ -52,6 +52,9 @@ const went = [];
 const replaced = [];
 const store = {};
 let refreshed = 0;
+/** The first receptionist's asks, and what the route answers next (made, unless a test says). */
+const receptionistAsked = [];
+let receptionistSays = null;
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
@@ -69,6 +72,10 @@ globalThis.window = {
       refreshed += 1;
     },
     later: async () => ({ ok: true, message: "" }),
+    receptionist: async () => {
+      receptionistAsked.push(1);
+      return receptionistSays ?? { ok: true, made: true, message: "" };
+    },
   },
   __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "w1",
@@ -176,18 +183,20 @@ const textOf = (n) => {
   return textOf(n.props?.children) + (n.rendered ? textOf(n.rendered) : "");
 };
 
-test("a new workspace opens on its business: the rail says where it is, the step draws its own rows, and nothing answers yet", () => {
+test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets the receptionist up, and nothing answers yet", () => {
   globalThis.window.__SETUP = surface(blank);
   param = null;
   fresh();
   const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics", "nothing on Google here: the basics");
   assert.ok(byTestId(tree, "fr-rail-business"), "the step on screen is a button on the rail");
   assert.equal(byTestId(tree, "fr-rail-phone"), null, "a step not reached is only its name");
-  const rows = byTestId(tree, "fr-rows");
-  assert.ok(rowIn(rows, "facts"), "the business step draws the facts row");
-  assert.equal(rowIn(rows, "line"), null, "and not the phone's");
-  assert.equal(rowIn(rows, "facts").cta.kind, "primary", "its first open row carries the one coral button");
+  assert.equal(byTestId(tree, "fr-rows"), null, "Check, not Setup's rows");
+  assert.equal(
+    textOf(byTestId(tree, "fr-check-make")),
+    "Your receptionist starts with the name Harbor Moving, and you add the rest here.Set up your receptionist",
+    "the name typed at sign-up, and the step's one coral button",
+  );
   assert.equal(textOf(byTestId(tree, "fr-phone-line")), "Step 1 of 4 · Your business");
   const status = byTestId(tree, "fr-card-status");
   assert.equal(textOf(status), "Not answering yet");
@@ -197,17 +206,19 @@ test("a new workspace opens on its business: the rail says where it is, the step
   assert.equal(store[FIRST_RUN_LANDED_KEY], "1", "being here is the landing: Today does not send this tab back");
 });
 
-test("a step already reached opens in place from the rail, and Continue goes on to where the workspace is", () => {
+test("a step already reached opens in place from the rail, and its onward goes on to where the workspace is", () => {
   globalThis.window.__SETUP = surface(withFacts);
   param = "business";
   fresh();
   const tree = mount();
-  assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+  assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics");
   assert.equal(
-    rowIn(byTestId(tree, "fr-rows"), "facts").cta.kind,
-    "ghost",
-    "a step done: its one coral button is Continue",
+    textOf(byTestId(tree, "fr-check-reading")),
+    "Reading your receptionist…",
+    "set up, and the settings read not landed: its rows wait for it",
   );
+  assert.equal(textOf(byTestId(tree, "fr-onward")), "Looks right", "a step done: its one coral button");
+  assert.equal(byTestId(tree, "fr-held"), null, "nothing holds it");
   byTestId(tree, "fr-onward").props.onClick();
   assert.equal(replaced.at(-1), "start");
   byTestId(tree, "fr-rail-phone").props.onClick();
@@ -356,6 +367,76 @@ test("Find: another one checked, Yes links it, and the page says so, since Find 
   assert.equal(textOf(flashes.at(-1).msg), "Harbor Moving Warehouse is your listing on Google — read just now.");
 });
 
+test("Find: Yes links it, then asks for the receptionist to be set up from what Google says", async () => {
+  const asked = googleSays([found([HARBOR])]);
+  const { tree } = await findOn();
+  const before = receptionistAsked.length;
+  await byTestId(tree, "fr-find-yes").props.onClick();
+  assert.deepEqual(asked.link, ["p-harbor"]);
+  await tick();
+  assert.equal(receptionistAsked.length, before + 1, "once, after the link was taken");
+});
+
+test("Find: a link refused asks for nothing more", async () => {
+  googleSays([found([HARBOR])]);
+  globalThis.window.__google.link = async () => ({
+    ok: false,
+    read: false,
+    message: "Google could not read that listing.",
+  });
+  const { tree } = await findOn();
+  const before = receptionistAsked.length;
+  await byTestId(tree, "fr-find-yes").props.onClick();
+  await tick();
+  assert.equal(receptionistAsked.length, before);
+});
+
+test("Check with no receptionist: the owner's press asks for it, once while it is out, and a refusal is said in its words", async () => {
+  globalThis.window.__SETUP = surface(blank);
+  param = null;
+  fresh();
+  const tree = mount();
+  const before = receptionistAsked.length;
+  let answer;
+  receptionistSays = new Promise((r) => {
+    answer = r;
+  });
+  const press = byTestId(tree, "fr-check-make-press");
+  const going = press.props.onClick();
+  const busy = byTestId(mount(), "fr-check-make-press");
+  assert.equal(busy.props["aria-busy"], true);
+  assert.equal(textOf(busy), "Setting up…");
+  busy.props.onClick();
+  assert.equal(receptionistAsked.length, before + 1, "a second press while it is out asks for nothing");
+  answer({ ok: false, made: false, message: "Only an owner can do this." });
+  await going;
+  receptionistSays = null;
+  assert.equal(textOf(flashes.at(-1).msg), "Not set up — Only an owner can do this.");
+  assert.equal(
+    textOf(byTestId(mount(), "fr-check-make-press")),
+    "Set up your receptionist",
+    "and it can be pressed again",
+  );
+});
+
+test("Check's rows wait for the settings read, and a read that failed offers its retry", () => {
+  globalThis.window.__SETUP = surface(withFacts);
+  param = "business";
+  const again = [];
+  globalThis.window.__refreshSurface = (s) => again.push(s);
+  globalThis.window.__surfaceFailed = (page, pane) => page === "admin" && pane === "workspace";
+  try {
+    fresh();
+    const tree = mount();
+    assert.ok(byTestId(tree, "fr-check-failed"), "the settings read failed: said, where the rows would be");
+    byTestId(tree, "fr-check-retry").props.onClick();
+    assert.deepEqual(again, ["settings"], "and its retry reads the settings again");
+  } finally {
+    delete globalThis.window.__surfaceFailed;
+    delete globalThis.window.__refreshSurface;
+  }
+});
+
 test("Find: nothing found says so, with the search and the way out, and no Yes", async () => {
   googleSays([found([], "Harbor Moving")]);
   const { tree } = await findOn();
@@ -407,14 +488,17 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
   };
   try {
     const { tree } = await findOn();
+    const before = receptionistAsked.length;
     await byTestId(tree, "fr-find-not").props.onClick();
     assert.deepEqual(said, [["google", true]]);
+    await tick();
+    assert.equal(receptionistAsked.length, before + 1, "and the receptionist is set up with the name typed at sign-up");
   } finally {
     globalThis.window.__setup.later = was;
   }
 });
 
-test("Find is an owner's, by the role gate (View-as included): anyone else sees the step's rows", async () => {
+test("Find is an owner's, by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
   const asked = googleSays([found([HARBOR])]);
   const was = globalThis.window.canDo;
   globalThis.window.canDo = (a) => a !== "team";
@@ -424,8 +508,9 @@ test("Find is an owner's, by the role gate (View-as included): anyone else sees 
     fresh();
     const tree = mount();
     assert.equal(byTestId(tree, "fr-find"), null);
-    assert.ok(byTestId(tree, "fr-rows"));
-    assert.equal(textOf(byTestId(tree, "fr-heading")), "Your business");
+    assert.equal(textOf(byTestId(tree, "fr-check-waiting")), "An owner sets up the receptionist here.");
+    assert.equal(byTestId(tree, "fr-check-make"), null, "no press to offer");
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Tell us the basics");
     assert.deepEqual(asked.find, [], "and nothing is searched");
   } finally {
     globalThis.window.canDo = was;

@@ -99,6 +99,20 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-find-legal a { color: inherit; }
 .fr-find-legal a:hover { color: var(--ink-dim); }
 
+/* Check (canvas R2, V2, P2): the Business tab's own rows, in three cards, with the choice of how customers buy drawn
+   open in the second and a quiet note under the hours. The rows and their sheets are the record kit's (record.css); only
+   the cards' spacing is the first run's. A card here has no head, so its first row draws no rule over itself. */
+.fr-check { display: grid; gap: 16px; }
+.fr-check-card { padding-top: 6px; }
+.fr-check-card > .rec-row:first-child { border-top: 0; }
+.fr-check-buys { padding: 12px 0 14px; }
+.fr-check-note { margin: 0; font-size: 13px; line-height: var(--leading-relaxed); color: var(--ink-dim); }
+.fr-check-unsure { display: block; margin-top: 4px; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-muted); }
+.fr-check-make { display: grid; gap: 14px; justify-items: start; }
+/* Looks right, held until the step is done: in reach, with why beside it. */
+.fr-held { flex: 1 1 auto; margin: 0 12px; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
+.fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+
 .fr-card { position: sticky; top: 24px; display: grid; gap: 8px; min-width: 0; }
 .fr-card-cap { font-size: 12px; color: var(--ink-dim); }
 .fr-card-box {
@@ -160,5 +174,8 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
     background: var(--bg); border-top: 1px solid var(--line);
   }
   .fr-foot .fr-onward { flex: 1 1 auto; }
+  /* Why Looks right is held, over it rather than squeezed beside it. */
+  .fr-foot { flex-wrap: wrap; }
+  .fr-held { flex: 1 1 100%; order: -1; margin: 0; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .fr-bar > span { transition: none; } }
