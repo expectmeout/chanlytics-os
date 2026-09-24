@@ -3397,8 +3397,8 @@ html.legacy-on .msg-use-link { position: relative; }
    the thread's Actions already do. Ask on a phone is no sheet but the whole screen (ask.css, the takeover): it fades
    in, and leaves as a dialog does, by the kit's modal-out over its wash's wash-out, above. */
 @media (max-width: 900px) {
-  .sb-sheet.pl-sheet, .sb-sheet.pp-sheet, .sb-sheet.pl-finder { animation: sheet-in 260ms var(--ease-out); }
-  .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pp-sheet[data-leaving="true"], .sb-sheet.pl-finder[data-leaving="true"] {
+  .sb-sheet.pl-sheet, .sb-sheet.pp-sheet, .sb-sheet.pl-plan { animation: sheet-in 260ms var(--ease-out); }
+  .sb-sheet.pl-sheet[data-leaving="true"], .sb-sheet.pp-sheet[data-leaving="true"], .sb-sheet.pl-plan[data-leaving="true"] {
     animation: sheet-out 180ms var(--ease-in) forwards;
   }
 }

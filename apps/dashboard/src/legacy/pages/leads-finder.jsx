@@ -1,9 +1,11 @@
 /* global React, Icon */
-// The finder: the composer an owner describes businesses in (Task 8), the plan
-// card whose words are pickers (Task 9), and the strip that says what a round
-// is doing and how it ended (Task 10). Hookless, as every part of People is:
-// all of its state lives in LeadsReal (clients-a.jsx), which keeps a Find
-// half-written in the tab and closes it on Esc, and arrives here as props.
+// The Leads scope's plan panel: the card for a plan born from the strip and
+// the answer row when a search stopped to ask (spec F5), the plan card whose
+// words are pickers (Task 9), and the strip that says what a round is doing
+// and how it ended (Task 10). A fresh Find is Ask's (spec F1, F2): nothing
+// here composes one. Hookless, as every part of People is: all of its state
+// lives in LeadsReal (clients-a.jsx), which closes the panel on Esc, and
+// arrives here as props.
 //
 // Nothing here names the vendor that runs a search: the owner sees Claude
 // finding businesses, and where each fact came from.
@@ -119,14 +121,7 @@ const LeadsFirstDay = ({
   );
 };
 
-/* ------------------------------------------------------ the one Ask turn */
-
-/**
- * The words the finder sends. scopeFromRoute("clients", "leads:...") answers
- * null on main (only a uuid on clients is a scope), so the turn goes with no
- * scope and the clients surface, and the question names Leads itself.
- */
-const leadFinderAsk = (words) => `On People › Leads, find businesses I could reach: ${String(words || "").trim()}`;
+/* ---------------------------------------------------------- the amend turn */
 
 /**
  * The one turn that amends a search waiting on its question: which search, what it asked, what the owner first
@@ -139,15 +134,24 @@ const leadFinderAmendAsk = (a, words) =>
   `My answer: ${String(words || "").trim()}. Propose the same search with my answer applied, and keep everything I did not change.`;
 
 /**
- * One Ask turn, through window.__ask.send (legacy-bridge/ask/api.ts). The
- * SendEvent shapes are that file's: thread, trace, delta, final, error. The
- * finder listens for the trace line while it waits and for the `final`
- * message: a lead_search proposal is the plan card, and words with no card are
- * a refusal said under the input. The page hands its setters in, so this is a
- * plain function the tests can run.
+ * The answer to a search's question, as one Ask turn on the Leads surface
+ * through window.__ask.send (legacy-bridge/ask/api.ts). The SendEvent shapes
+ * are that file's: thread, trace, delta, final, error. The panel listens for
+ * the trace line while it waits and for the `final` message: a lead_search
+ * proposal is the plan card, and words with no card are a refusal said under
+ * the input. It only ever amends the search the page opened it under (`more`,
+ * answer mode): a fresh Find is Ask's own turn (spec F2) and never comes
+ * through here. The page hands its setters in, so this is a plain function
+ * the tests can run.
  */
-const leadFinderPlan = async (words, set) => {
+const leadAnswerPlan = async (words, set) => {
   const A = window.__ask;
+  const answering = set.more && set.more.answer ? set.more : null;
+  if (!answering) {
+    set.refusal("Nothing to answer here.");
+    set.stage("compose");
+    return null;
+  }
   set.stage("thinking");
   set.refusal(null);
   set.proposal(null);
@@ -160,10 +164,7 @@ const leadFinderPlan = async (words, set) => {
   }
   let card = null;
   let said = "";
-  // Opened under a search's question (the page's `more`, answer mode), the turn amends that search.
-  const answering = set.more && set.more.answer ? set.more : null;
-  const text = answering ? leadFinderAmendAsk(answering, words) : leadFinderAsk(words);
-  await A.send({ text, threadId: null, scope: null, surface: "clients" }, (ev) => {
+  await A.send({ text: leadFinderAmendAsk(answering, words), threadId: null, scope: null, surface: "leads" }, (ev) => {
     if (!ev || !ev.t) return;
     if (ev.t === "trace") set.trace(ev.text);
     else if (ev.t === "final") {
@@ -176,7 +177,7 @@ const leadFinderPlan = async (words, set) => {
     const p = (card.payload || {}).plan || null;
     set.proposal(card);
     // An answer is the round's next version at the count the round reserved: the card shows what will be sent.
-    set.plan(answering && p ? { ...p, version: answering.baseVersion + 1, count: answering.count } : p);
+    set.plan(p ? { ...p, version: answering.baseVersion + 1, count: answering.count } : p);
     set.stage("plan");
     return card;
   }
@@ -188,7 +189,7 @@ const leadFinderPlan = async (words, set) => {
 /**
  * Find N leads. An Ask card goes through commitProposal (legacy-bridge
  * ask/commit.ts), which posts the plan to POST lead-searches marked as Ask's;
- * a plan the finder opened from a strip's next step goes through
+ * a plan the panel opened from a strip's next step goes through
  * __leadSearchMore on that search, or, when that step was Include on a round
  * still waiting for its answer, through __leadSearchAnswer. Either way the
  * route's own sentence on a refusal (402, 409, 429) is said under the button,
@@ -233,8 +234,8 @@ const leadFinderApprove = async (proposal, plan, set) => {
 /* --------------------------------------------------------- the pickers -- */
 
 // A picker is a button that opens a listbox of its own. It is not in
-// PL_OVERLAY (the finder is the page's own overlay), so the page's keys stay
-// awake behind it; Esc closes the picker here, before the page's listener.
+// PL_OVERLAY (the plan panel is the page's own overlay), so the page's keys
+// stay awake behind it; Esc closes the picker here, before the page's listener.
 const LeadPick = ({ id, label, cls, title, open, options, onOpen, onPick }) => (
   <span className="lf-pick">
     <button
@@ -382,7 +383,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
           disabled={!!busy || !!cannot || ask.count < 1}
           onClick={() => onApprove(ask.count === plan.count ? plan : C.planVersionOf(plan, { count: ask.count }))}
         >
-          <Icon name="sparkle" size={13} />{busy ? "Starting…" : ask.label}
+          {busy ? "Starting…" : ask.label}
         </button>
         <button type="button" className="btn btn-ghost" data-testid="plan-back" onClick={onBack}>Change what I asked</button>
         {view && view.title && !answering ? <span className="lf-said" data-testid="plan-title">{view.title}</span> : null}
@@ -391,95 +392,58 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
   );
 };
 
-/* -------------------------------------------------------- the composer -- */
+/* ------------------------------------------------------ the plan panel -- */
 
 /**
- * The finder itself: the input with a mic held to talk, the trace line while
- * Claude reads, the three suggestions, the refusal in words under the input,
- * and the plan card once a card comes back (sections 8.2, 8.3).
+ * The plan panel: the card for a plan born from the strip (more, nearby, look
+ * further, carry on, try again), and, when a search stopped to ask, the answer
+ * row that runs the amend turn (spec F5): the question, one input, "Send my
+ * answer", and the trace line while Claude reads. A fresh Find is Ask's (F1,
+ * F2); nothing here composes one, so the row is drawn only under a question.
  *
- * stage: compose | thinking | plan | starting. Every hook it needs is
- * LeadsReal's; `talk` is useAskTalk's answer (ask-hooks.jsx), declared
- * there and handed down, so nothing is recorded or uploaded here.
+ * stage: compose (answering only) | thinking | plan | starting. `answering` is
+ * what the page hands it under a waiting search's question (clients-a.jsx
+ * answerOf), or null; it is the row's discriminator, so every caller says it.
  */
-const LeadFinder = ({
-  open, stage, words, proposal, plan = null, facts = null, refusal, busy, trace, suggestions, talk, pick = null,
-  onWords, onPlan, onChangePlan = () => {}, onApprove, onBack, onClose, onPick = () => {}, answering = null,
+const LeadPlanPanel = ({
+  open, stage, words, proposal, plan = null, facts = null, refusal, busy, trace, pick = null, answering,
+  onWords, onAnswer, onChangePlan = () => {}, onApprove, onBack, onClose, onPick = () => {},
 }) => {
   if (!open) return null;
   const card = proposal && proposal.payload ? proposal.payload : {};
   const shown = plan || card.plan || null;
-  const composing = stage === "compose";
+  const composing = stage === "compose" && !!answering;
   const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
   const typed = !!(words || "").trim();
-  const ideas = composing && !typed && !answering && suggestions && suggestions.items ? suggestions.items.slice(0, 3) : [];
-  // Under a search's question the input is the owner's answer to it, and the question stays in view above it.
-  const hint = answering ? "Tell Claude what you meant" : "Describe the businesses you want";
-  // One line: the spark, the words, and what can be pressed. What used to be a footer is said where it is used --
-  // the keys on the button they press, the consent rule behind the lock beside it -- so the bar is one row tall.
   return (
-    <div className="lf-panel pl-finder" role="dialog" aria-label={answering ? "Change the search" : "Find leads"} data-testid="lead-finder">
-      {answering && composing ? <p className="lf-answering" data-testid="finder-answering">{answering.question}</p> : null}
-      <div className={`lf-compose${thinking ? " thinking" : ""}`}>
-        <span className={`lf-spark ${thinking ? "live" : ""}`}><Icon name="sparkle" size={16} /></span>
-        <input
-          className="lf-input"
-          type="text"
-          value={words || ""}
-          maxLength={400}
-          placeholder={hint}
-          aria-label={hint}
-          data-testid="finder-input"
-          disabled={!composing}
-          onChange={(e) => onWords(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && composing && !busy && typed) { e.preventDefault(); onPlan(words); } }}
-        />
-        {thinking ? (
-          <span className="lf-think" role="status" data-testid="finder-thinking">{trace || "Reading what you asked"}</span>
-        ) : null}
-        {talk && talk.canTalk && composing ? (
-          <button
-            type="button"
-            className={`lf-mic ${talk.listening ? "on" : ""}`}
-            data-testid="finder-talk"
-            aria-pressed={!!talk.listening}
-            aria-label="Hold to talk"
-            title="Hold to talk"
-            onPointerDown={talk.start}
-            onPointerUp={talk.stop}
-            onPointerLeave={talk.stop}
-            onPointerCancel={talk.stop}
-            onContextMenu={(e) => e.preventDefault()}
-          >
-            <Icon name="mic" size={14} />
-          </button>
-        ) : null}
-        {composing ? (
-          <span className="lf-lock" tabIndex={0} role="note" aria-label={LEAD_FINDER_CONSENT} data-tip={LEAD_FINDER_CONSENT} data-testid="finder-consent">
-            <Icon name="lock" size={13} />
-          </span>
-        ) : null}
-        {composing ? (
-          <button type="button" className="btn btn-primary btn-sm lf-go" data-testid="finder-plan" disabled={!!busy || !typed} onClick={() => onPlan(words)}>
-            Plan it<span className="lf-key" aria-hidden="true">{"↵"}</span>
-          </button>
-        ) : null}
-        <button type="button" className="lf-close" aria-label="Close" title="Close (esc)" data-testid="finder-close" onClick={onClose}><Icon name="x" size={12} /></button>
-        {thinking ? <span className="lf-sweep" aria-hidden="true" /> : null}
-      </div>
-      {composing && refusal ? <p className="lf-said" role="status" data-testid="finder-refusal">{refusal}</p> : null}
-      {ideas.length ? (
-        <div className="lf-examples" data-testid="finder-suggestions">
-          <span className="lf-ex-h">Suggested from what your business does</span>
-          {ideas.map((s, i) => (
-            <button key={s.words} type="button" className="lf-ex" style={{ "--i": i }} data-testid="finder-suggestion" title={s.reach || undefined} onClick={() => onWords(s.words)}>
-              <span className="w">{s.words}</span>
-              {s.reach ? <span className="k">{s.reach}</span> : null}
+    <div className="lf-panel pl-plan" role="dialog" aria-label={answering ? "Change the search" : "The plan"} data-testid="lead-plan-panel">
+      {composing ? <p className="lf-answering" data-testid="plan-answering">{answering.question}</p> : null}
+      {composing || thinking ? (
+        <div className={`lf-compose${thinking ? " thinking" : ""}`}>
+          <input
+            className="lf-input"
+            type="text"
+            value={words || ""}
+            maxLength={400}
+            placeholder="Tell Claude what you meant"
+            aria-label="Tell Claude what you meant"
+            data-testid="plan-answer-input"
+            disabled={!composing}
+            onChange={(e) => onWords(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && composing && !busy && typed) { e.preventDefault(); onAnswer(words); } }}
+          />
+          {thinking ? <span className="lf-think" role="status" data-testid="plan-thinking">{trace || "Reading what you asked"}</span> : null}
+          {composing ? (
+            <button type="button" className="btn btn-primary btn-sm lf-go" data-testid="plan-answer-send" disabled={!!busy || !typed} onClick={() => onAnswer(words)}>
+              Send my answer
             </button>
-          ))}
+          ) : null}
+          <button type="button" className="lf-close" aria-label="Close" title="Close (esc)" data-testid="plan-close" onClick={onClose}><Icon name="x" size={12} /></button>
+          {thinking ? <span className="lf-sweep" aria-hidden="true" /> : null}
         </div>
       ) : null}
+      {composing && refusal ? <p className="lf-said" role="status" data-testid="plan-refusal">{refusal}</p> : null}
       {planning && shown ? (
         <LeadPlanCard
           plan={shown}
@@ -499,8 +463,6 @@ const LeadFinder = ({
     </div>
   );
 };
-/** The consent rule the finder works under, said once, behind the lock beside Plan it. */
-const LEAD_FINDER_CONSENT = "You can email and call leads. Texts and offers wait for their yes.";
 
 /* ----------------------------------------------------------- the strip -- */
 
@@ -704,4 +666,4 @@ const LeadStrip = ({ vm, onAction, children = null }) => {
   );
 };
 
-Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, leadFinderAmendAsk, LEAD_ROUND_MAKERS });
+Object.assign(window, { LeadPlanPanel, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadAnswerPlan, leadFinderApprove, leadFinderAmendAsk, LEAD_ROUND_MAKERS });

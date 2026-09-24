@@ -692,19 +692,6 @@ const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope
 // store is published (the standalone harness), the place and the draft live for the page.
 const plPlaceLoad = (page, view) => (window.__tabMemory ? window.__tabMemory.place(page, view) : null);
 const plPlaceSave = (page, view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace(page, view, place); };
-// The Find kept is its words, and the plan Claude wrote for them with the card it came on. A plan cost a wait to get,
-// and approving one only posts it (legacy-bridge ask/commit.ts), so it is as good after a refresh as before. A turn
-// still being read, or one being started, is not: it comes back as its words.
-const ldFinderLoad = () => (window.__tabMemory ? window.__tabMemory.draft("leads-find") : null);
-const ldFinderSave = (f) => {
-  if (!window.__tabMemory) return;
-  const planned = f.stage === "plan" && !!f.plan;
-  if (!f.words && !planned) { window.__tabMemory.dropDraft("leads-find"); return; }
-  window.__tabMemory.keepDraft("leads-find", {
-    open: !!f.open, words: f.words || "",
-    stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
-  });
-};
 /** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
 const ldValuesPref = () => { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
@@ -2115,16 +2102,9 @@ const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test
 const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
 // What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
 // menu, the phone's drawer. Only the app's (every one sits inside .app-root), so a hidden dialog a browser extension
-// adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet) and the Columns menu
-// (.pl-cols-menu), which the listener names apart.
-// Hold to talk is Ask's own hook (ask-hooks.jsx), loaded before this file in both lists (manifest.ts:52,
-// Chanlytics.html:90). Where it is not -- a unit harness that draws this page on its own -- the stand-in answers
-// "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so LeadsReal keeps
-// one hook order either way and the finder simply offers no mic.
-const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
-const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); React.useRef(false); return PL_NO_TALK; };
-
-const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
+// adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet), the Columns menu
+// (.pl-cols-menu), the peek (.pl-peek) and the plan panel (.pl-plan), which the listener names apart.
+const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan)';
 
 /* ------------------------------------------------------------ the list page, in both scopes */
 // People and Leads are one page with two scopes, and each scope is a component of its own: PeopleReal and LeadsReal,
@@ -2445,11 +2425,11 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
       const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
       // A key an earlier listener took (the ? sheet's Esc) is not the page's.
       if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // The page's own overlays first, in the order Esc closes them: the peek, then the finder, then the Columns
-      // menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and the peek
-      // follows the cursor -- so it is not in PL_OVERLAY either.
+      // The page's own overlays first, in the order Esc closes them: the peek, then the plan panel, then the
+      // Columns menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and
+      // the peek follows the cursor -- so it is not in PL_OVERLAY either.
       if (e.key === "Escape" && k.peekOpen) { e.preventDefault(); k.closePeek(); return; }
-      // The finder holds every key while it is open: its input, its pickers and its buttons are its own.
+      // The plan panel holds every key while it is open: its answer row, its pickers and its buttons are its own.
       if (k.finderOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeFinder(); } return; }
       // The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's
       // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
@@ -2491,7 +2471,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   }, []);
   // What the keyboard's one listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and
   // the view's own (`own`: what Enter opens, whether a row may be selected, the sheets, and under Leads the peek, the
-  // finder, F and C).
+  // plan panel, F and C).
   const keysWith = (own) => {
     keys.current = {
       ids,
@@ -3051,23 +3031,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const [removing, setRemoving] = useState(null);
   const [leadBusy, setLeadBusy] = useState(false);
   const [removeError, setRemoveError] = useState(null);
-  // Hold to talk, as Ask does it: the browser's own recogniser, started on press and stopped on release, handing
-  // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
-  // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
-  const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
-  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || usePlNoTalk)({
-    lang: talkLang,
-    disabled: finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
-    onWords: setFinderWords,
-    onHeard: (heard, error) => {
-      if (heard) { setFinderWords(heard); return; }
-      // The two things a browser can say about a microphone, in Ask's own words (ask-text.jsx): one spelling.
-      const t = window.askText ? window.askText(talkLang) : null;
-      if (!t) return;
-      if (error === "not-allowed") plFlash({ msg: <>{t.micDenied}</> });
-      else if (error && error !== "aborted" && error !== "no-speech") plFlash({ msg: <>{t.micFailed}</> });
-    },
-  });
   // One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
   // member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
   // supersedes, so a slow page of the old view never lands on the new one.
@@ -3168,23 +3131,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
     else nav(want, { replace: true });
   }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
-  // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
-  const finderKept = React.useRef(false);
-  React.useEffect(() => {
-    const d = ldFinderLoad();
-    if (!d) return;
-    setFinderWords(d.words || "");
-    setFinderPlan(d.plan || null);
-    setFinderProposal(d.proposal || null);
-    setFinderMore(d.more || null);
-    setFinderStage(d.stage === "plan" && d.plan ? "plan" : "compose");
-    setFinderOpen(!!d.open);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    if (!finderKept.current) { finderKept.current = true; return; }
-    ldFinderSave({ open: finderOpen, stage: finderStage, words: finderWords, plan: finderPlan, proposal: finderProposal, more: finderMore });
-  }, [finderOpen, finderStage, finderWords, finderPlan, finderProposal, finderMore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------------------------------------------------- the Leads scope's acts */
   // Every one goes through the courier the bridge installed (legacy-bridge/leads.ts): the route, then the
@@ -3273,15 +3219,15 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     // records not_a_fit for every row it touched, and release C reads the why.
     return leadAct(() => window.__leadsBulk(body), <>Not a fit.</>);
   };
-  /* -------------------------------------------- the finder (Tasks 8, 9, 10) */
-  // The setters leadFinderPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
-  // an approval belongs to when the plan was opened from a strip rather than typed.
+  /* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
+  // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
+  // an approval belongs to when the plan was opened from a strip, and whether it answers that round's question.
   const finderSet = {
     open: setFinderOpen, stage: setFinderStage, words: setFinderWords, trace: setFinderTrace,
     refusal: setFinderRefusal, proposal: setFinderProposal, plan: setFinderPlan, pick: setFinderPick,
     more: finderMore,
   };
-  const finderPlanIt = (words) => window.leadFinderPlan(words, finderSet);
+  const finderAnswer = (words) => window.leadAnswerPlan(words, finderSet);
   const finderApprove = async (plan) => {
     const answering = !!(finderMore && finderMore.answer);
     const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
@@ -3317,8 +3263,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
-    // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked
-    // sent back as the answer amended nothing.
+    // Answering, the answer row behind the card (Change what I asked) is the owner's answer: what they first asked
+    // sent back as the answer amended nothing. Otherwise the words are what was asked, for Ask's field (onFinderBack).
     setFinderWords(how === "answer" ? "" : s.asked);
     setFinderProposal(null);
     setFinderPlan(plan);
@@ -3407,11 +3353,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
     peekOpen: !!peekId || !!lightboxId,
     // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
-    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the finder, the
+    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the plan panel, the
     // Columns menu, the selection.
     closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen,
-    // Esc lets an answer go as the close button does: what the tab keeps of a Find is never an answer.
+    // Esc lets an answer go as the close button does.
     closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
     canFind,
     find: openFind,
@@ -3470,8 +3416,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-    // The no that changes the search: the finder opens under the question, empty, and what comes back from Ask is
-    // this round's next version (leadFinderApprove answers it; it never starts a second search).
+    // The no that changes the search: the plan panel opens its answer row under the question, empty, and what comes
+    // back from Ask is this round's next version (leadFinderApprove answers it; it never starts a second search).
     if (id === "change") {
       setFinderWords("");
       setFinderProposal(null);
@@ -3652,14 +3598,20 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       finderTrace={finderTrace}
       finderPick={finderPick}
       onFinderWords={setFinderWords}
-      onFinderPlan={finderPlanIt}
+      onFinderAnswer={finderAnswer}
       onFinderApprove={finderApprove}
       onFinderChangePlan={setFinderPlan}
       onFinderPick={setFinderPick}
-      onFinderBack={() => setFinderStage("compose")}
+      // Change what I asked: under a question it is the answer row; on a plan born from the strip it is Ask, with
+      // what the search asked for in the field (the panel composes nothing, spec F5).
+      onFinderBack={() => {
+        if (finderMore && finderMore.answer) { setFinderStage("compose"); return; }
+        setFinderOpen(false);
+        setFinderMore(null);
+        openFind(finderWords);
+      }}
       onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
       finderAnswering={finderMore && finderMore.answer ? finderMore : null}
-      talk={talk}
       peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
       // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
       // cursor as J and K do, so the rows behind the peek move with it.

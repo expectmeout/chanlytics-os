@@ -1,5 +1,5 @@
 /* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, RailSection, RailRow, PeopleStanding, PeopleTable,
-   PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadFinder, LeadStrip, LeadPeek,
+   PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadPlanPanel, LeadStrip, LeadPeek,
    LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
 // table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
@@ -350,7 +350,8 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
       { header: words.askedLine },
       { label: "Rename", icon: "pencil", onClick: () => onRename(s), gate: canFind ? undefined : window.gate("find", "rename this search") },
       { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick: () => onMore(s), gate: canFind ? undefined : window.gate("find", "search again") },
-      { label: "Search again, changed", icon: "sparkle", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") },
+      // A door wears the three's mark, as Find leads does: the sparkle means written by Claude, and this is a press.
+      { label: "Search again, changed", icon: "three", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") },
       { label: `Export these ${s.count}`, icon: "external", onClick: () => { if (exportHref) window.open(exportHref, "_self"); }, gate: canFind ? undefined : window.gate("find", "export these leads") },
       // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named
       // for what it does; the toast it answers with carries its own Undo, which puts them back.
@@ -699,7 +700,7 @@ const LeadStreets = ({ rows, plot, by, picked, onPick, x, children }) => {
 // wide screen it ran ~790px tall and its bottom -- and the note and Search wider under it -- sat below the fold.
 // This measures the room from the map's top to the bottom of whatever scrolls it, less the foot and the padding
 // under it, and hands it to the stylesheet as --map-h; the list beside it takes the same height. It measures again
-// on a resize and whenever the column above it grows or shrinks (the finder opening, the band's fits appearing).
+// on a resize and whenever the column above it grows or shrinks (the plan panel opening, the band's fits appearing).
 const useLeadMapFit = () => {
   const ref = useLmRef(null);
   useLmEffect(() => {
@@ -964,14 +965,14 @@ const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount =
   );
 };
 
-// The finder, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener
-// closes the finder on Esc before anything else and holds every other key while it is open (Task 2), so a second
-// listener here would take the key twice and close the finder and then the selection on one press.
-const LeadFinderSheet = ({ onClose, children }) => (
+// The plan panel, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener
+// closes the panel on Esc before anything else and holds every other key while it is open (Task 2), so a second
+// listener here would take the key twice and close the panel and then the selection on one press.
+const LeadPlanSheet = ({ onClose, children }) => (
   <>
     <div className="sb-sheet-backdrop" onClick={onClose} />
     {/* A phone's alone: its handle says a thumb pulls it down, and it goes the way it came (data-bits touchSwipe, leaving). */}
-    <div className="sb-sheet pl-finder" role="dialog" aria-label="Find leads" data-testid="leads-finder-sheet" ref={window.leaving ? window.leaving("leads-finder") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose }) : {})}>
+    <div className="sb-sheet pl-plan" role="dialog" aria-label="The plan" data-testid="lead-plan-sheet" ref={window.leaving ? window.leaving("lead-plan") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose }) : {})}>
       <div className="ld-sheet-handle" />
       {children}
     </div>
@@ -1072,14 +1073,13 @@ const LeadsScope = (p) => {
             </>
           )}
 
-          {/* The finder folds out above the table on a desktop and comes up as a sheet from the bottom of a
-              phone. `phone` changes two things inside the finder itself and nothing else (Task 8): hold-to-talk
-              is the sheet's first control, and the input is full width under it. */}
+          {/* The plan panel folds out above the table on a desktop and comes up as a sheet from the bottom of a
+              phone: the card for a plan born from the strip, or the answer row under a search's question (spec F5).
+              A fresh Find is Ask's (F1), the takeover on a phone and the Stage on a desktop, so nothing composes here. */}
           {!p.firstDay && p.finderOpen && (() => {
-            const finder = (
-              <LeadFinder
+            const panel = (
+              <LeadPlanPanel
                 open
-                phone={phone}
                 stage={p.finderStage}
                 words={p.finderWords}
                 proposal={p.finderProposal}
@@ -1088,19 +1088,17 @@ const LeadsScope = (p) => {
                 pick={p.finderPick}
                 refusal={p.finderRefusal}
                 busy={p.finderBusy}
-                suggestions={L.suggestions}
-                talk={p.talk}
+                answering={p.finderAnswering}
                 onWords={p.onFinderWords}
-                onPlan={p.onFinderPlan}
+                onAnswer={p.onFinderAnswer}
                 onChangePlan={p.onFinderChangePlan}
                 onPick={p.onFinderPick}
                 onApprove={p.onFinderApprove}
                 onBack={p.onFinderBack}
                 onClose={p.onCloseFinder}
-                answering={p.finderAnswering}
               />
             );
-            return phone ? <LeadFinderSheet onClose={p.onCloseFinder}>{finder}</LeadFinderSheet> : finder;
+            return phone ? <LeadPlanSheet onClose={p.onCloseFinder}>{panel}</LeadPlanSheet> : panel;
           })()}
 
           {/* Which list is open, as People says which of its lists is (its .cl-section-head, the same classes): the
@@ -1290,4 +1288,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadCallMenu, LEAD_PHONE_COLUMNS, ldCardCell, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadCallMenu, LEAD_PHONE_COLUMNS, ldCardCell, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadPlanSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, ldPlacePop, LEAD_COLUMNS, LEAD_SORT_KEYS });
