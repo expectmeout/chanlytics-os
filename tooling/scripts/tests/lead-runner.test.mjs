@@ -302,6 +302,35 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
   );
 });
 
+// The question says "I'm dropping X: it mostly returned those", and a yes accepts that. An answer that changed the
+// plan (Include, or Change what I asked) is a new plan whose terms are the owner's: the dropped term is the one that
+// finds the kind just included. And the owner is told once, when the round stops to ask, not on every page.
+test("an answer that changed the plan keeps every term, a yes drops the one the question named, and asking tells the owner once", async () => {
+  for (const [answer, dropped] of [
+    ["keep", true],
+    ["include", false],
+  ]) {
+    const told = [];
+    const tell = async (e) => {
+      told.push(e);
+    };
+    const { w, p } = await probed();
+    const [r1, r2] = w.runs();
+    await collect(p("c1", { tell }), r1.id, "p0", "c1");
+    assert.deepEqual(told, [], "not while the probe is still coming in");
+    await collect(p("c2", { tell }), r2.id, "p0", "c2");
+    assert.deepEqual(told, [{ kind: "question", roundId: w.round().id }], "told once, when it asks");
+    const plan = answer === "include" ? { ...w.round().plan, version: 2, exclusions: [] } : undefined;
+    w.rpcs.lead_round_answer({ p_round_id: w.round().id, p_answer: answer, p_plan: plan });
+    await startRound(p("job-3"), w.round().id, "job-3", true);
+    const terms = w.apify.calls
+      .filter((c) => c.op === "startRun")
+      .slice(2)
+      .map((c) => c.input.searchStringsArray[0]);
+    assert.equal(!terms.includes("strength coach"), dropped, `${answer}: ${terms.join(", ")}`);
+  }
+});
+
 test("a probe that fits well goes on: the round runs and the main phase is scheduled as a resume of the same round, sized from the yield", async () => {
   const { w, p } = await probed({
     plan: {

@@ -205,7 +205,10 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const counted = members.filter((m) => m.counted).length;
     // Round 1 sizes from its probe; a top-up or a renewal has no probe of its own and starts from an even yield.
     const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
-    ask = mainAsk(plan, targetOf(round) - counted, y, round.question?.dropTerm ?? null);
+    // The question said "I'm dropping X: it mostly returned those", and a yes accepted it. An answer that changed the
+    // plan is a new plan, and its terms are the owner's: the dropped one finds the very kind they just included.
+    const dropTerm = round.answered === "keep" ? (round.question?.dropTerm ?? null) : null;
+    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
   const caps = runCaps(plan, ask.perTerm, leftUsd);
 
@@ -718,7 +721,14 @@ async function roundDecision(
       p.now(),
     );
     if (a.kind === "ask")
-      return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
+      return {
+        round: { state: "waiting_on_owner", question: a.question, ending: null },
+        next: null,
+        // Once the question is committed: it waits a day on a person who may not be looking at the page.
+        after: async () => {
+          await p.tell?.({ kind: "question", roundId: round.id }).catch(() => undefined);
+        },
+      };
     // The probe passed: the round runs on to the plan's count (the door raised the target the same way for an answered question).
     return {
       round: { state: "running", question: null, ending: null, target: targetOf(round) },
