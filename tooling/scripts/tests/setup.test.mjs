@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import {
   setupSteps,
   setupRoute,
-  shouldLandOnSetup,
   SETUP_STATE_WORDS,
   formatPhoneDisplay,
   agoWords,
@@ -804,17 +803,11 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
 });
 
-test("the landing rule: an owner whose receptionist answers nowhere lands on Setup once, from Today or nothing", () => {
+// The landing rule itself moved with the page it lands on: first-run.test.mjs, shouldLandOnFirstRun.
+test("the route a hash names, which the landing rule reads", () => {
   assert.equal(setupRoute(""), "today");
-  assert.equal(setupRoute("#/admin/setup"), "admin/setup");
+  assert.equal(setupRoute("#/start"), "start");
   assert.equal(setupRoute("#today"), "today");
-  assert.equal(shouldLandOnSetup("owner", false, "today", false), true);
-  assert.equal(shouldLandOnSetup("owner", false, "", false), true);
-  assert.equal(shouldLandOnSetup("owner", false, "inbox", false), false, "a deep link is respected");
-  assert.equal(shouldLandOnSetup("owner", false, "today", true), false, "once per session");
-  assert.equal(shouldLandOnSetup("owner", true, "today", false), false, "answering — Today is the page");
-  assert.equal(shouldLandOnSetup("operator", false, "today", false), false, "only the owner is sent to Setup");
-  assert.equal(shouldLandOnSetup(null, false, "today", false), false);
 });
 
 test("the words: four states, no jargon, no trade", () => {
@@ -873,12 +866,10 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
       bridge.includes('globals: ["__SETUP"]') &&
       bridge.includes('events: ["surface:setup"]'),
   );
+  // A row put off is the member's (setup-later.test.mjs runs it); landing is once per session.
+  assert.ok(bridge.includes("chanlytics.setup.landed"), "landing is once per session");
   assert.ok(
-    bridge.includes("chanlytics.setup.later.") && bridge.includes("chanlytics.setup.landed"),
-    "later is a preference on this device; landing is once per session",
-  );
-  assert.ok(
-    bridge.includes("shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"),
+    bridge.includes("shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)"),
     "the landing rule is the contracts' rule",
   );
   // One assembly, two callers: the workspace reads its own on the session

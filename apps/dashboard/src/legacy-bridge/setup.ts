@@ -1,15 +1,22 @@
 /**
- * Setup on the legacy page: the facts from /api/v1/setup, the rows from
- * contracts/setup.ts, "Later" as a preference on this device, one verb that
- * asks a person at Chanlytics for a line, and the landing rule — an owner
- * whose receptionist answers nowhere yet lands on Setup once per session.
- * Every write goes through the typed client; after one lands the refresh
- * map re-reads this surface.
+ * Setup for the legacy pages: the facts from /api/v1/setup, the rows from
+ * contracts/setup.ts, the rows this member put off (their saved view, on every
+ * device), one verb that asks a person at Chanlytics for a line, the first
+ * run's helpers (contracts/first-run.ts, as window.__firstRun), and the landing
+ * rule — an owner whose receptionist answers nowhere yet lands on the first
+ * run once per session. Every write goes through the typed client; after one
+ * lands the refresh map re-reads this surface.
  */
 import {
   setupSteps,
   setupRoute,
-  shouldLandOnSetup,
+  setupLaterOf,
+  shouldLandOnFirstRun,
+  firstRunOf,
+  receptionistCardOf,
+  setupCardOf,
+  FIRST_RUN_WORDS,
+  FIRST_RUN_ROUTE,
   type SetupDto,
   type SetupVM,
   type SetupRequestKind,
@@ -25,18 +32,28 @@ import {
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
-import { getActiveWorkspace } from "./workspace";
+import { saveView } from "./people-detail";
 
 export interface SetupSurface {
   dto: SetupDto;
   role: string;
+  /** The rows this member put off: their saved Setup view (memberships.views.setup), the same on every device. */
+  later: string[];
   vm: SetupVM;
   fetchedAt: number;
 }
 
+/** The first run's rules and words, for the pages that draw it: #/start (first-run.jsx) and Today's card. */
+export interface FirstRunApi {
+  of: typeof firstRunOf;
+  card: typeof receptionistCardOf;
+  today: typeof setupCardOf;
+  words: typeof FIRST_RUN_WORDS;
+}
+
 export interface SetupApi {
-  /** Put an optional row off, or take it back. A preference on this device. */
-  later(id: string, on: boolean): void;
+  /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
+  later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }>;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
@@ -88,39 +105,12 @@ declare global {
     __SETUP?: SetupSurface | null;
     __setup?: SetupApi;
     __forwarding?: ForwardingWords;
+    __firstRun?: FirstRunApi;
   }
 }
 
-const laterKey = () => `chanlytics.setup.later.${getActiveWorkspace() ?? "default"}`;
-
-export function readLater(storage: Pick<Storage, "getItem"> | null = safeStorage()): string[] {
-  try {
-    const raw = storage?.getItem(laterKey());
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLater(ids: string[]): void {
-  try {
-    safeStorage()?.setItem(laterKey(), JSON.stringify(ids));
-  } catch {
-    /* a preference, not a fact */
-  }
-}
-
-function safeStorage(): Storage | null {
-  try {
-    return typeof window !== "undefined" ? window.localStorage : null;
-  } catch {
-    return null;
-  }
-}
-
-function publish(dto: SetupDto, role: string): void {
-  window.__SETUP = { dto, role, vm: setupSteps({ ...dto, later: readLater() }), fetchedAt: Date.now() };
+function publish(dto: SetupDto, role: string, later: string[]): void {
+  window.__SETUP = { dto, role, later, vm: setupSteps({ ...dto, later }), fetchedAt: Date.now() };
 }
 
 export const setupOverride: SurfaceOverride = {
@@ -143,8 +133,13 @@ export const setupOverride: SurfaceOverride = {
   ],
   apply: async () => {
     try {
-      const d = await read("GET setup");
-      publish(d.setup, d.role);
+      // The rows this member put off ride on their own saved view (the door People's view goes through), read beside
+      // the workspace's facts. A views read that fails puts nothing off rather than failing Setup.
+      const [d, v] = await Promise.all([
+        read("GET setup"),
+        read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
+      ]);
+      publish(d.setup, d.role, setupLaterOf(v.views.setup));
     } catch (e) {
       // Null, not undefined: the page draws a card with a retry instead of "Reading your workspace…" for ever.
       window.__SETUP = null;
@@ -165,14 +160,23 @@ export function installSetup(win: Window = window): void {
     ago: (iso) => agoWords(Date.parse(iso), Date.now()),
   };
   win.__setup = {
-    later(id, on) {
-      const ids = readLater();
-      writeLater(on ? [...new Set([...ids, id])] : ids.filter((x) => x !== id));
+    async later(ids, on) {
       const s = win.__SETUP;
-      if (s) {
-        publish(s.dto, s.role);
+      if (!s) return { ok: false, message: "Setup is still being read." };
+      const list = Array.isArray(ids) ? ids : [ids];
+      const next = on ? [...new Set([...s.later, ...list])] : s.later.filter((x) => !list.includes(x));
+      publish(s.dto, s.role, next);
+      win.dispatchEvent(new CustomEvent("surface:setup"));
+      // The whole list each time: a save replaces the page's view (member_view_set, 00113).
+      const r = await saveView("setup", { later: next });
+      if (r.ok) return { ok: true, message: "" };
+      // Not kept, so not put off: the rows come back as they were, and the caller says why.
+      const now = win.__SETUP;
+      if (now) {
+        publish(now.dto, now.role, s.later);
         win.dispatchEvent(new CustomEvent("surface:setup"));
       }
+      return { ok: false, message: r.message };
     },
     async activate(kind) {
       const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });
@@ -234,14 +238,15 @@ export function installSetup(win: Window = window): void {
       landed = false;
     }
     const s = win.__SETUP;
-    if (!s || !shouldLandOnSetup(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)) return;
+    if (!s || !shouldLandOnFirstRun(s.role, s.vm.readiness.answering, setupRoute(win.location.hash), landed)) return;
     try {
       win.sessionStorage.setItem("chanlytics.setup.landed", "1");
     } catch {
       /* still land, once */
     }
     const nav = (win as unknown as { appNavigate?: (to: string) => void }).appNavigate;
-    if (nav) nav("admin/setup");
-    else win.location.hash = "/admin/setup";
+    if (nav) nav(FIRST_RUN_ROUTE);
+    else win.location.hash = `/${FIRST_RUN_ROUTE}`;
   });
+  win.__firstRun = { of: firstRunOf, card: receptionistCardOf, today: setupCardOf, words: FIRST_RUN_WORDS };
 }

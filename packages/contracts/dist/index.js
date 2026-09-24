@@ -14776,10 +14776,6 @@ function setupLaterOf(view) {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x) => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
-function shouldLandOnSetup(role, answering, route, landed) {
-  if (landed || role !== "owner" || answering) return false;
-  return route === "" || route === "today";
-}
 
 // src/identity.ts
 var ROLE_WORDS = {
@@ -20355,7 +20351,6 @@ export {
   shortTime,
   shortcutGroups,
   shouldLandOnFirstRun,
-  shouldLandOnSetup,
   signupPosture,
   siteHost,
   slotChoices,

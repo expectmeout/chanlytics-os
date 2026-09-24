@@ -1353,18 +1353,3 @@ export function setupLaterOf(view: unknown): string[] {
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
-
-/**
- * Whether this arrival lands on Setup: an owner, a receptionist that answers
- * nowhere yet, a plain arrival (Today or nothing), and not already sent
- * there this session. Everyone else gets Today.
- */
-export function shouldLandOnSetup(
-  role: string | null | undefined,
-  answering: boolean,
-  route: string,
-  landed: boolean,
-): boolean {
-  if (landed || role !== "owner" || answering) return false;
-  return route === "" || route === "today";
-}
