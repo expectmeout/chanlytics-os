@@ -712,6 +712,10 @@ async function roundDecision(
   };
 
   if (phase === "probe") {
+    // The probe decides once. A collect that reaches here after it did -- the webhook's `final` after the poll that
+    // already asked, or a late poll once the owner answered -- decides nothing: asking again re-wrote the question
+    // and its day, and told the owner a second time.
+    if (round.state !== "queued" && round.state !== "probing") return null;
     // The probe alone may reach the count: nothing more is asked for, and the round goes to its checks.
     if (counted >= targetOf(round)) return toChecks;
     const judged = members.filter(wasJudged);
