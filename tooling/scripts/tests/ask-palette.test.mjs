@@ -493,6 +493,9 @@ test("a follow-up folds the answer above the line; Clear ends the conversation, 
   tree = await later(Palette, OPEN);
   assert.equal(byTestId(tree, "ask-turn"), null, "home again");
   assert.ok(byTestId(tree, "ask-row-now"));
+  // Nobody waits here (no queue): Right now is the sentence alone, no pill and no Brief me (spec 4.3).
+  assert.equal(byTestId(tree, "ask-pill"), null);
+  assert.equal(byTestId(tree, "ask-row-brief"), null, "a quiet queue is the sentence alone");
   await closes();
 });
 

@@ -58,17 +58,20 @@ html.legacy-on #root {
   /* A pill is words and a tally is a number: neither is pressed, so neither
      takes a floor (every list row used to undo one on .pill). A chip that is
      pressed keeps its 20px look and grows its target: an invisible margin
-     around each of its buttons. */
+     around each of its buttons, and Ask's chips. */
   html.legacy-on .chip,
-  html.legacy-on .chip > button {
+  html.legacy-on .chip > button,
+  html.legacy-on .ask-chip {
     min-height: 0;
   }
   html.legacy-on button.chip,
-  html.legacy-on .chip > button {
+  html.legacy-on .chip > button,
+  html.legacy-on .ask-chip {
     position: relative;
   }
   html.legacy-on button.chip::after,
-  html.legacy-on .chip > button::after {
+  html.legacy-on .chip > button::after,
+  html.legacy-on .ask-chip::after {
     content: "";
     position: absolute;
     inset: -8px -3px;

@@ -75,19 +75,22 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
       onClick: () => onActivate(it),
       "data-testid": `ask-row-${it.type}`,
     };
-    if (it.type === "now")
+    // With nothing needing anyone, the sentence alone (spec 4.3): no pill and no Brief me; the row still asks.
+    if (it.type === "now") {
+      const waiting = !!(it.people || it.runs);
       return (
         <div key={i} {...shared} className={`ask-row now${sel ? " sel" : ""}`}>
-          {it.people || it.runs ? (
+          {waiting ? (
             <span className="ask-now-pills">
               {it.people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(it.people)}</span> : null}
               {it.runs ? <span className="pill pill-warn" data-testid="ask-pill">{t.runsWaiting(it.runs)}</span> : null}
             </span>
           ) : null}
           <span className="ask-row-label">{it.label}</span>
-          <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">{t.briefMe}</span>
+          {waiting ? <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">{t.briefMe}</span> : null}
         </div>
       );
+    }
     // One tab stop: the keys walk the list from the line (aria-activedescendant), so a chip is never reached by Tab.
     if (ahChip(it))
       return (
