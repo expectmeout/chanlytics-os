@@ -86,10 +86,11 @@ answers…", and the three "Always on" rules as a 78px card.
   playbook's run to come), the runs named on the cell's hover. It was seven rows and 209px.
 - **The runs are rows** in one list, about 50px: the kind's mark, the name with its state, "Playbook · Win-back ·
   quiet 30 days" or "Broadcast · Everyone who said yes" under it, when it goes, who it reached with the reasons on one
-  line, and — only on a run waiting on you — Approve the run and Skip. The whole row opens the run; "Open" goes. The
-  template's code name and language leave the row (the run's report has them); the policy chip stays on a run that
-  waits (it says why it waits).
-- **Get their yes folds** to one line under the runs ("Get their yes — the QR, a desk sign and your sign-up page"),
+  line, and — only on a run waiting on you — Approve the run and Skip. A run to come or going out is cancelled or
+  stopped from its report. The whole row opens the run; "Open" goes. The template's code name and language leave the
+  row (the run's report has them); the policy chip stays on a run that waits (it says why it waits) where the list is
+  wide enough for it beside the name.
+- **Get their yes folds** to one line under the runs ("Get their yes — only people who said yes get a broadcast"),
   open when the address is `broadcasts/get-yes`, so every door that lands there still lands on it open.
 - The foot line about replies goes.
 
@@ -104,18 +105,20 @@ answers…", and the three "Always on" rules as a 78px card.
 ### 3.5 On a phone (720px and under)
 
 - The top bar says **Campaigns** once (as it says Inbox once); the tabs say which.
-- The head is one slim line: the numbers (one line, ellipsis) and the act.
+- The head is one slim bar: the numbers and the act ("New", its whole name kept for a screen reader); a warning
+  ("Welcome has nobody to send to") takes a line of its own under them, and "not set up" is left to the group.
 - Every list row is **People's row**, on the row tokens (`--row-pad-y/x`, `--row-gap`, the three lines):
   a playbook — name and state; who it reaches; the next run and the runs. A run — name and state; how it was sent,
-  when, who it reached; Approve and Skip only when it waits. A template — title and language; the quote; what sends it
-  and what went out.
+  when, who it reached; Approve and Skip only when it waits. A template — its title; the quote; what sends it
+  and what went out (its languages are its open row's).
 - Not set up is a list of one-line rows; the week strip keeps its seven cells.
 
 ## 4. What does not change
 
 Every sentence a number sits in is still the view model's or the bridge's; no count is added, none is derived here.
 The composers (the playbook sheet, the send screen, a template), the run's report and its approval sheet, the routes,
-the doors, the gates and the test ids keep their shape.
+the doors and the gates keep their shape, and so do the test ids, but for two a design change retired: `bc-waiting`
+(the flag that repeated the filter) and `template-origin` (the chip that is now the open row's foot).
 
 ## 5. PRs
 

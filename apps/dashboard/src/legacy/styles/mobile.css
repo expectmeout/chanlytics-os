@@ -358,23 +358,24 @@
   .cal-rules .cal-rule-parts { flex-direction: column; }
   .cal-rules .cal-rule + .cal-rule::before { content: none; }
 
-  /* A person's page shows the person first. The top bar says People, so the back is the arrow alone, a thumb
-     wide, on the same line as the name, and the avatar shrinks to a mark: the hero was 152px of chrome above the work. */
-  .cl-prof-hero { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: "back id" "acts acts" "danger danger"; gap: 12px 4px; margin-left: -12px; }
-  .cl-prof-hero > .cl-prof-back { width: 44px; min-width: 44px; height: 44px; justify-content: center; font-size: 16px; }
-  .cl-prof-back .cl-prof-back-word { display: none; }
+  /* A person's page shows the person first. The way back is the top bar's, as a phone's own back is: its crumb says
+     ‹ People. The arrow stood in a column of its own beside the avatar, so every line under the name began 102px in
+     and wrapped, and the head had three left edges. Now it starts at the page's edge, the avatar a mark beside the name. */
+  .cl-prof-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "id" "acts"; gap: 14px; }
+  .cl-prof-hero > .cl-prof-back { display: none; }
   .cl-prof-id { align-items: flex-start; gap: 10px; }
   .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
   .cl-prof-name { font-size: 18px; }
   /* The acts take the row under who they are, the page's full width, a thumb's height each: the thread and a send
      share it, and the ⋯ keeps a thumb's width at its end. */
-  .cl-prof-hero > .cl-prof-queue-actions { margin-left: 12px; justify-content: stretch; }
+  .cl-prof-hero > .cl-prof-queue-actions { justify-content: stretch; }
   .cl-prof-hero > .cl-prof-queue-actions > .btn { flex: 1 1 auto; }
   .cl-prof-hero > .cl-prof-queue-actions > .more-wrap { flex: none; }
-  .cl-prof-hero > .cl-prof-danger { margin-left: 12px; }
-  /* The crumb names the person, and the name is the first thing under it: the crumb says People, once. */
+  /* The crumb names the person, and the name is the first thing under it: the crumb says People, once, with the
+     back's chevron before it (drawn, not a glyph, so it sits on the word's middle in every font). */
   .main:has(.cl-profile) .crumbs > :not(:first-child) { display: none; }
-  .main:has(.cl-profile) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
+  .main:has(.cl-profile) .crumbs .crumb-link { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-weight: 500; }
+  .main:has(.cl-profile) .crumbs .crumb-link::before { content: ""; flex: none; width: 7px; height: 7px; margin-left: 3px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
 
   /* Tap-target floor for decision-critical controls (≈40px) */
   .ix-approval-decide .btn,
@@ -439,6 +440,9 @@
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
   .inbox.phone-thread .ix-list { display: none; }
   .inbox.phone-thread .ix-thread-pane { display: flex; }
+  /* The drafts-about-to-send pill floats at the top of the screen, which on a phone is the open thread's header: it
+     covered Back, the name and Actions. The thread's own bar says its countdown; the pill is the list's. */
+  .inbox.phone-thread .ix-sending-strip { display: none; }
   /* Opening a thread: it comes in from the right, over where the list stood, as a page opens on a phone. The list's
      hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
   .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
@@ -505,6 +509,7 @@
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
      and the composer say, in 126px more. A phone number as a name does not wrap thrice. */
   .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ix-th-who { gap: 8px; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* The thread's own rules sit on the thread (.ix-thread-pane), not on the page that mounts it: the one thread opens in

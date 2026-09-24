@@ -592,7 +592,8 @@ const CalendarReal = ({ initialDay = null }) => {
               </select>
             )}
             <div className="cl-tabs cal-views" role="group" aria-label="View">
-              {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={() => setView(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
+              {/* A view is a different height under the tabs (fourteen cards, six weeks, a day): they hold still. */}
+              {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setView(id)) : setView(id))} data-testid={`cal-view-${id}`}>{l}</button>)}
             </div>
           </div>
         </div>
@@ -657,7 +658,7 @@ const CalendarReal = ({ initialDay = null }) => {
             <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
             <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
           </div>
-          <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={() => setAboutOpen((v) => !v)} data-testid="cal-about-toggle">
+          <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAboutOpen((v) => !v)) : setAboutOpen((v) => !v))} data-testid="cal-about-toggle">
             Hours and rules <Icon name="chevron-down" size={12} />
           </button>
         </div>

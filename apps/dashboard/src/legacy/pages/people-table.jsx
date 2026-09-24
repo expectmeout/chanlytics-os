@@ -155,7 +155,8 @@ const plSectionBodies = (sections, span, budget, row) => {
               <span className="pl-sec-label">{s.label}</span>
               <span className="tally">{s.rows.length}</span>
               {s.meta ? <><span className="pl-sec-dot" aria-hidden="true">·</span><span className="pl-sec-meta" data-testid="table-section-meta">{s.meta}</span></> : null}
-              {s.onToggle && s.toggle ? <button type="button" className="pl-sec-toggle" aria-expanded={!s.collapsed} onClick={s.onToggle} data-testid="table-section-toggle">{s.toggle}</button> : null}
+              {/* Folding a group takes its rows from under the head: the head holds still (data-bits holdStill). */}
+              {s.onToggle && s.toggle ? <button type="button" className="pl-sec-toggle" aria-expanded={!s.collapsed} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, s.onToggle) : s.onToggle())} data-testid="table-section-toggle">{s.toggle}</button> : null}
             </span>
           </th>
         </tr>

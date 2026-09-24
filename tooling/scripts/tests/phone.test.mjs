@@ -17,7 +17,17 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizePhone, formatPhoneDisplay, whyNotAPhone, shortCode, EVENT_KINDS } from "@chanlytics/contracts";
+import {
+  normalizePhone,
+  formatPhoneDisplay,
+  whyNotAPhone,
+  whyNotAHandoff,
+  whyNotForward,
+  HANDOFF_FORWARDS_BACK,
+  FORWARD_IS_HANDOFF,
+  shortCode,
+  EVENT_KINDS,
+} from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 test("normalizePhone, pinned by value so the four layers can be compared", () => {
@@ -132,4 +142,24 @@ test("the receptionist records a short code and does not answer it", () => {
   assert.ok(
     persist.includes('emitEvent(db!, tenantId!, "ingest.unreachable_sender", "ingest", "message", ing!.message_id)'),
   );
+});
+
+test("F2: a transfer number that forwards to the receptionist is refused, and so is forwarding the transfer number", () => {
+  // Made-up numbers, all in 555-01xx: the line it answers on, and the number the business keeps and forwards to it.
+  const LINE = "+13055550123";
+  const KEPT = "+12125550142";
+  assert.equal(whyNotAHandoff("+1 917 555 0100", LINE, KEPT), null, "a cell a person answers is fine");
+  assert.equal(
+    whyNotAHandoff("+1 (212) 555-0142", LINE, KEPT),
+    HANDOFF_FORWARDS_BACK,
+    "the number that forwards here would ring the receptionist again",
+  );
+  assert.match(whyNotAHandoff("+13055550123", LINE, KEPT), /own line/, "the own-line refusal is unchanged");
+  assert.equal(whyNotAHandoff(KEPT, LINE, null), null, "no forwarding, no loop");
+  assert.equal(whyNotAHandoff("", LINE, KEPT), null, "empty is a choice: take a message");
+  assert.match(whyNotAHandoff("2125550142", LINE, KEPT), /country code/, "the country code is still asked first");
+  assert.equal(whyNotForward(KEPT, "+1 212 555 0142"), FORWARD_IS_HANDOFF);
+  assert.equal(whyNotForward(KEPT, "+19175550100"), null, "a different transfer number is no loop");
+  assert.equal(whyNotForward(KEPT, null), null, "no transfer number, no loop");
+  assert.equal(whyNotForward(null, KEPT), null);
 });

@@ -18,6 +18,85 @@ import type { SchemaSet } from "./schema-sets";
 import { agoWords } from "./time";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "./reports";
+import { DAYS, dayProblems, type Hours } from "./config";
+import { WEEKDAY_KEYS } from "./availability";
+
+/** A moment in Google's week: day 0 is Sunday. */
+export type GooglePoint = {
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+/** One of Google's opening periods. No close means open around the clock. */
+export type GooglePeriod = {
+  open: GooglePoint;
+  close: GooglePoint | null;
+};
+
+/**
+ * What the public listing says about the business beyond its name and address, as the edge last read it
+ * (google_listings.facts): Google's own answers, kept so the first run can offer them for the owner to check.
+ * Nothing here reaches a customer until the owner has confirmed it into the Business record.
+ */
+export type GoogleListingFacts = {
+  /** Google's opening periods, as read; null when the listing gives none. */
+  hours: GooglePeriod[] | null;
+  /** E.164, when Google's international number reads as one. */
+  phone_e164: string | null;
+  /** The number the way Google prints it for its country, e.g. "(305) 555-0100". */
+  phone_display: string | null;
+  website: string | null;
+  /** Google's kind of place, e.g. "hair_salon", and its label, e.g. "Hair salon". */
+  primary_type: string | null;
+  primary_type_label: string | null;
+  /** A business that goes to its customers and shows no address. */
+  service_area_only: boolean;
+  /** IANA zone, e.g. "America/New_York". */
+  time_zone: string | null;
+};
+
+type Day = (typeof DAYS)[number];
+const hhmm = (h: number, m: number): string => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+/**
+ * Google's opening periods as the Business record's week (config.ts HoursSchema): a shift per period, a closed day
+ * absent. What the record cannot hold is left out and NAMED in `unsure`, so the owner is asked about that day rather
+ * than shown a week that quietly differs from the listing:
+ *
+ * - a period with no close, which is how Google says a place never closes -- every day is unsure;
+ * - a shift that closes on another day, past midnight;
+ * - a day the record's own rules refuse (config.ts dayProblems: a fifth shift, two that overlap, a close before
+ *   its open), judged by the same rules the Business tab's save is.
+ */
+export function hoursFromGoogle(periods: readonly GooglePeriod[] | null | undefined): {
+  hours: Partial<Record<Day, Hours>>;
+  unsure: Day[];
+} {
+  // Around the clock, as Google sends it: one period, Sunday at midnight, no close. The week has no hours to give.
+  if ((periods ?? []).some((p) => !p.close)) return { hours: {}, unsure: [...DAYS] };
+  const shifts = new Map<Day, Array<{ open: string; close: string }>>();
+  const unsure = new Set<Day>();
+  for (const p of periods ?? []) {
+    const day = WEEKDAY_KEYS[p.open.day];
+    if (!day) continue;
+    if (!p.close || p.close.day !== p.open.day) {
+      unsure.add(day);
+      continue;
+    }
+    const shift = { open: hhmm(p.open.hour, p.open.minute), close: hhmm(p.close.hour, p.close.minute) };
+    shifts.set(day, [...(shifts.get(day) ?? []), shift]);
+  }
+  const hours: Partial<Record<Day, Hours>> = {};
+  for (const day of DAYS) {
+    const list = (shifts.get(day) ?? []).sort((a, b) => a.open.localeCompare(b.open));
+    if (unsure.has(day) || !list.length) continue;
+    const made: Hours = list.length === 1 ? { open: list[0].open, close: list[0].close } : { intervals: list };
+    if (dayProblems(made, day).length) unsure.add(day);
+    else hours[day] = made;
+  }
+  return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
+}
 
 export interface GoogleListingDto {
   place_id: string;

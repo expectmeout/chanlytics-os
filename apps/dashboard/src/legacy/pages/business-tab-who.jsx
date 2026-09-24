@@ -37,7 +37,9 @@ const btTextBox = (words) => ({ draft, set, problem, field }) => (
  * number, and `testid` the prefix of the choice's and the note's test ids. Drawn by the Who you are row and by the
  * create card (business-tab-create.jsx), so the choice and its words are written once. Hookless but for the box.
  */
-const btPublishedBox = ({ line, handoff, testid }) => ({ draft, set, problem, field, gate: pressable, readOnly }) => {
+// `kept` is the number the business keeps and forwards to that line (contracts kept_line): published, it reaches the
+// receptionist whenever nobody picks up, so it is not the number that "will not reach" it.
+const btPublishedBox = ({ line, handoff, kept, testid }) => ({ draft, set, problem, field, gate: pressable, readOnly }) => {
   const lineShown = window.phoneShown(line);
   return (
     <>
@@ -68,7 +70,9 @@ const btPublishedBox = ({ line, handoff, testid }) => ({ draft, set, problem, fi
           ? <><b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
           : window.__samePhone && window.__samePhone(draft.typed, line)
             ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
-            : handoff && window.__samePhone && window.__samePhone(draft.typed, handoff)
+            : kept && window.__samePhone && window.__samePhone(draft.typed, kept)
+              ? <>Your own number. The calls nobody picks up there go to your receptionist on <b className="tabular">{lineShown}</b>.</>
+              : handoff && window.__samePhone && window.__samePhone(draft.typed, handoff)
               ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
               : line
                 ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>
@@ -99,6 +103,9 @@ const btDispute = (f, conflict, take) => {
   };
 };
 const BT_TAKE_THEIRS = { draft: (v) => v };
+// The transfer number's disagreement is a loop (contracts factConflicts): the other answer is the number that forwards
+// back to the receptionist, so it is said and never offered in one press -- taking it would make the loop.
+const BT_TAKE_NOTHING = { draft: (v) => v, from: [] };
 // The name Google lists may be taken in one press. The workspace's own name may not: it is whatever the workspace was
 // called when it was made -- a Stripe test's "Billing probe" once went to the carriers as a business's name
 // (business-page.ts) -- and a press that renamed the business to it would put that name in front of customers.
@@ -138,6 +145,8 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);
+  // The number the business keeps and forwards to the receptionist, which a transfer must never ring.
+  const keptLine = (F.kept_line && F.kept_line.value) || null;
   const pub = factOf("phone_display", brain.phone_display);
   const transfer = factOf("handoff_number", profile.handoff_number);
   const handoff = transfer.value || null;
@@ -272,7 +281,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
             said: v ? <>Customers are told to call <b className="tabular">{v}</b> now.</> : <>Customers are told to call your line.</>,
           };
         }}
-        body={btPublishedBox({ line: voiceLine, handoff, testid: "rec-inline-phone_display" })}
+        body={btPublishedBox({ line: voiceLine, handoff, kept: keptLine, testid: "rec-inline-phone_display" })}
       />
 
       {/* Where a caller who insists on a person is transferred. Empty is a choice. Shown, and changed from, the way the
@@ -288,11 +297,11 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         value={transfer.value ? phoneShown(transfer.value) : null}
         empty="Takes a message instead"
         source={chip(transfer)}
-        disputed={btDispute(transfer, conflictOn("handoff_number"), BT_TAKE_THEIRS)}
+        disputed={btDispute(transfer, conflictOn("handoff_number"), BT_TAKE_NOTHING)}
         gate={gate("transfer number")}
         initial={phoneShown(profile.handoff_number) || ""}
         storedAs={transferOf}
-        check={(d) => S.CHECK_OF.handoff_number(d, voiceLine)}
+        check={(d) => S.CHECK_OF.handoff_number(d, voiceLine, keptLine)}
         commit={(d) => {
           const v = transferOf(d);
           return {

@@ -137,6 +137,8 @@ export async function POST(request: Request): Promise<Response> {
           address: details.address,
           maps_uri: details.maps_uri,
           business_status: details.business_status,
+          // What the read just said about the place, never what the listing it replaces said.
+          facts: details.facts,
           linked_by: userId,
           linked_at: new Date().toISOString(),
           rating: null,

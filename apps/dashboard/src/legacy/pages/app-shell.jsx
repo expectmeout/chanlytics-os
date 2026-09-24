@@ -481,7 +481,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const held = !client && window.__peekPerson ? window.__peekPerson(param) : null;
     const real = realWorkspace();
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, client ? client.name : held ? held.name : "Profile"];
+    // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none).
+    crumbs = [{ label: "People", to: "clients", go: backToPeople }, client ? client.name : held ? held.name : "Profile"];
     pane = true;
     content = client || people || real
       ? <ClientProfile id={param} onBack={backToPeople} real={real} />
@@ -625,15 +626,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "outbound";
     crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
-    // A real workspace's button opens the composer on the page, once the
-    // playbooks have loaded; until then there is nothing to press, where the
-    // demo's Ask detour opened Ask over the skeleton or the failure pane
-    // (N10). The seeded page keeps it.
-    primaryAction = window.__PLAYBOOKS ? (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
-        <Icon name="plus" size={12} /> New playbook
-      </button>
-    ) : window.__DEMO_MODE ? (
+    // A real workspace's New playbook is the page's own, at the right of its one
+    // line, where Broadcasts and Templates keep theirs (outbound-real.jsx): the
+    // page draws only once the playbooks have loaded, so there is never a button
+    // over the skeleton or the failure pane, where the demo's Ask detour opened
+    // Ask (N10). The seeded page keeps its detour here.
+    primaryAction = !window.__PLAYBOOKS && window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>

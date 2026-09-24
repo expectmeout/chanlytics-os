@@ -3,7 +3,7 @@
  * the dashboard's /api/v1/billing verbs call it for an owner.
  *
  *   { op: "status" }                                  → what this deployment can do, whether its key is live or test, the plan as Stripe states it, the trial length
- *   { op: "checkout", tenant_id, email }              → the way to Checkout (a card, the trial), back to Billing after
+ *   { op: "checkout", tenant_id, email, return? }     → the way to Checkout (a card, the trial), back to Billing -- or to the first run, `return: "start"` -- after
  *   { op: "portal", tenant_id }                       → the way to Stripe's portal (card, invoices, cancel)
  *   { op: "invoices", tenant_id }                     → the last twelve invoices
  *   { op: "sync", tenant_id }                         → read the subscription from Stripe now and apply it
@@ -28,11 +28,14 @@ import {
   trialDays,
 } from "../../lib/billing.js";
 import { logger } from "../../lib/log.js";
+import { isCheckoutReturn } from "../../lib/packages/contracts.js";
 
 interface Body {
   op?: string;
   tenant_id?: string;
   email?: string;
+  /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
+  return?: unknown;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,7 +93,9 @@ export async function POST(request: Request): Promise<Response> {
     if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
     if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
     const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().slice(0, 254) : null;
-    const r = await checkoutFor(db, tenantId, tenant.data.name, email, tenant.data.slug ?? null);
+    // A place on the closed list, or Billing: never a path taken on the caller's word.
+    const back = isCheckoutReturn(body.return) ? body.return : "billing";
+    const r = await checkoutFor(db, tenantId, tenant.data.name, email, tenant.data.slug ?? null, back);
     L.info(
       r.ok ? "billing_checkout_opened" : "billing_checkout_refused",
       r.ok ? {} : { error: r.error, detail: r.detail?.slice(0, 200) },

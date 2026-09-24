@@ -19,6 +19,7 @@ import {
   type BillingDto,
   type BillingVM,
   type BillingInvoiceDto,
+  type CheckoutReturn,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
@@ -32,8 +33,11 @@ export interface BillingSurface {
 
 export interface BillingApi {
   vm(dto: BillingDto, nowMs?: number): BillingVM;
-  /** The way to Stripe Checkout: the browser leaves the app and comes back to Billing. Owners only. */
-  checkout(): Promise<{ ok: boolean; message: string }>;
+  /**
+   * The way to Stripe Checkout: the browser leaves the app and comes back to Billing, or to the first run when it
+   * asks (`"start"`). Owners only.
+   */
+  checkout(back?: CheckoutReturn): Promise<{ ok: boolean; message: string }>;
   /** The way to Stripe's portal. Owners only. */
   portal(): Promise<{ ok: boolean; message: string }>;
   invoices(): Promise<{ ok: boolean; invoices: BillingInvoiceDto[]; message: string }>;
@@ -83,8 +87,8 @@ export const billingOverride: SurfaceOverride = {
 export function installBilling(win: Window = window): void {
   win.__billing = {
     vm: (dto, nowMs) => toBillingVM(dto, nowMs),
-    async checkout() {
-      const r = await api()("POST billing/checkout", { body: {} });
+    async checkout(back) {
+      const r = await api()("POST billing/checkout", { body: back ? { return: back } : {} });
       if (!r.ok) return { ok: false, message: r.message };
       if (r.data.url) win.location.assign(r.data.url);
       return { ok: !!r.data.url, message: "" };

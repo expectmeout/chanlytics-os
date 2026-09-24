@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { desiredVoiceShell, planVoiceConvergence, voiceLlmCreateBody } from "@chanlytics/channels";
-import { readCode, readRaw } from "./_source.mjs";
+import { whyNotAHandoff } from "@chanlytics/contracts";
 
 test("a freshly applied agent, with the provider's own defaults added, is converged", () => {
   const desired = desiredVoiceShell(undefined, { "x-fn-secret": "sealed" });
@@ -65,16 +65,16 @@ test("The transfer number is compared with the receptionist's own line, not the 
   // one a person answers, which is exactly where a transfer should go, so
   // comparing against that refused the very number the owner wanted.
   // Since Task 3.7 the transfer number is a row of the Business page, and its check is the page's one table of them
-  // (business-tab-save.jsx CHECK_OF), asked with the line the Who you are card read off the settings read.
-  const row = readRaw("apps/dashboard/src/legacy/pages/business-tab-save.jsx");
-  assert.ok(row.includes("window.__whyNotAHandoff(d, line)"));
-  // What the row hands it is the PROVISIONED line the settings read resolved, never phone_display: the Who you are
-  // card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
-  const phone = readCode("packages/contracts/src/phone.ts");
-  assert.ok(phone.includes("normalizePhone(norm) === normalizePhone(ownLine)"));
-  assert.ok(
-    !/phone_?[Dd]isplay/.test(phone),
+  // (business-tab-save.jsx CHECK_OF), asked with the PROVISIONED line the settings read resolved, never phone_display:
+  // the Who you are card reads F.voice_line and asks the check with it, which business-tab-page.test.mjs presses.
+  // Made-up numbers, in 555-01xx: the line the receptionist answers on; +1 212 555 0142 is the number customers are told.
+  const LINE = "+13055550123";
+  assert.equal(
+    whyNotAHandoff("+1 212 555 0142", LINE),
+    null,
     "REGRESSION: the salon's own human line was refused as the receptionist's",
   );
+  assert.equal(whyNotAHandoff("+1 212 555 0142", LINE, null), null, "and nothing forwards it back");
+  assert.match(whyNotAHandoff("+1 (305) 555-0123", LINE), /own line/, "the line itself would ring itself");
   // (The prompt card saying which channel reads it is settings-truth.test.mjs's F33.)
 });

@@ -9,7 +9,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveFacts, factConflicts, samePhone, sameAddress, sameName, SOURCE_WORDS } from "@chanlytics/contracts";
+import {
+  resolveFacts,
+  factConflicts,
+  knownForwarding,
+  samePhone,
+  sameAddress,
+  sameName,
+  SOURCE_WORDS,
+} from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "./_source.mjs";
 
 /** Melany's Beauty Salon, exactly as the database held it. */
@@ -74,6 +82,89 @@ test("a mismatch that is NOT the transfer number reads as the plain error it is"
   );
   const [c] = factConflicts(f);
   assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
+});
+
+/**
+ * A made-up workspace for the forwarding cases (F1): every number is in 555-01xx, the range kept for fiction. It
+ * answers on its line, publishes the number customers already know, and puts callers through to a mobile.
+ */
+const HARBOR = {
+  typed: {
+    business_name: "Harbor Moving",
+    phone_display: "(212) 555-0142",
+    profile: { handoff_number: "+19175550100" },
+  },
+  known: {
+    workspace: { name: "Harbor Moving", timezone: "America/New_York" },
+    channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }],
+    listing: null,
+  },
+};
+const KEPT = "+12125550142";
+const LINE = "+13055550123";
+
+test("F1: the number the business keeps and forwards to its line is what it publishes, not a disagreement", () => {
+  // The first run's default: keep the number customers know, forward the calls nobody picks up to the line.
+  const f = resolveFacts(HARBOR.typed, { ...HARBOR.known, forwarding: [{ from_e164: KEPT, to_e164: LINE }] });
+  assert.deepEqual(f.kept_line, { value: KEPT, source: "provisioned" });
+  assert.deepEqual(
+    f.phone_display,
+    { value: "(212) 555-0142", source: "typed" },
+    "no dispute: a call to it that nobody picks up reaches the line",
+  );
+  assert.deepEqual(factConflicts(f), []);
+});
+
+test("F1: forwarding that points at a line the workspace no longer answers on keeps nothing, and the conflict stands", () => {
+  const f = resolveFacts(HARBOR.typed, { ...HARBOR.known, forwarding: [{ from_e164: KEPT, to_e164: "+13055550199" }] });
+  assert.deepEqual(f.kept_line, { value: null, source: "absent" }, "it forwards somewhere this workspace is not");
+  const [c] = factConflicts(f);
+  assert.equal(c.fact, "phone_display");
+  assert.equal(c.severity, "serious");
+  assert.match(c.sentence, /Anyone who calls the published number does not reach it/);
+});
+
+test("F1: a transfer number that forwards back to the receptionist is a loop, said on the transfer row", () => {
+  // Stored before the transfer row refused it (phone.ts whyNotAHandoff): the kept number as the transfer number too.
+  const f = resolveFacts(
+    { ...HARBOR.typed, profile: { handoff_number: KEPT } },
+    { ...HARBOR.known, forwarding: [{ from_e164: KEPT, to_e164: LINE }] },
+  );
+  assert.equal(f.phone_display.disputed, undefined, "publishing the kept number is still right");
+  const conflicts = factConflicts(f);
+  assert.deepEqual(
+    conflicts.map((c) => [c.fact, c.severity, c.known, c.knownSource, c.to]),
+    [["handoff_number", "serious", "+1 (212) 555-0142", "provisioned", "admin/workspace"]],
+  );
+  assert.match(conflicts[0].sentence, /through to \+1 \(212\) 555-0142, which forwards the calls nobody picks up back/);
+  assert.match(conflicts[0].sentence, /they would come straight back/);
+
+  // A transfer number that is not the kept one is no loop, and forwarding that reaches another line keeps nothing.
+  const elsewhere = resolveFacts(
+    { ...HARBOR.typed, profile: { handoff_number: KEPT } },
+    { ...HARBOR.known, forwarding: [{ from_e164: KEPT, to_e164: "+13055550199" }] },
+  );
+  assert.equal(
+    factConflicts(elsewhere).some((c) => c.fact === "handoff_number"),
+    false,
+    "the kept number reaches another line, so a transfer to it rings a person",
+  );
+});
+
+test("F1: knownForwarding reads Setup's lines -- forwarded rows with a number, and where each one goes", () => {
+  assert.deepEqual(
+    knownForwarding([
+      { kind: "own", e164: LINE, forwarding: null },
+      { kind: "forwarded", e164: KEPT, forwarding: { destination_e164: LINE } },
+      { kind: "forwarded", e164: null, forwarding: { destination_e164: LINE } },
+      { kind: "forwarded", e164: "+17185550100" },
+    ]),
+    [
+      { from_e164: KEPT, to_e164: LINE },
+      { from_e164: "+17185550100", to_e164: null },
+    ],
+  );
+  assert.deepEqual(knownForwarding([]), []);
 });
 
 test("no typed value falls back to what the platform knows", () => {

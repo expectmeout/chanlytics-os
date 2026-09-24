@@ -661,9 +661,14 @@ test("the line row over the product's own line: get one when this deployment can
   const can = setupSteps(empty({ lines: withLines([]) }), NOW);
   assert.equal(row(can, "line").state, "waiting_you");
   assert.equal(row(can, "line").sentence, "Get a number for calls, or keep the one you have.");
+  // The number is part of the plan (Ruben, 24 Sep 2026; the first run's spec): nothing bills a number fee, so nothing quotes one.
   assert.deepEqual(row(can, "line").details, [
-    "A local number is about $1.15 a month · your receptionist answers it · texting arrives when the carriers register it",
+    "A local number, included in your plan · your receptionist answers it · texting arrives when the carriers register it",
   ]);
+  assert.ok(
+    !JSON.stringify(setupSteps(empty({ lines: withLines([]) }), NOW)).includes("$"),
+    "no row quotes a price for a number",
+  );
   assert.deepEqual(row(can, "line").verb, { label: "Get a line", to: "verb:choose-line" });
   const cannot = setupSteps(empty({ lines: withLines([], false) }), NOW);
   assert.deepEqual(

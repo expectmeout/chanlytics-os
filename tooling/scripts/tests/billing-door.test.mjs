@@ -470,6 +470,34 @@ test("checkout: a fresh workspace gets a customer made in its name and a Checkou
   });
 });
 
+test("F4: checkout comes back to the first run when it is asked to, from a closed list -- anything else is Billing", async () => {
+  const back = async (ret) => {
+    use(tables());
+    const s = stripe({
+      "customers.create": async () => ({ id: "cus_new", object: "customer" }),
+      "checkout.sessions.create": async () => ({ url: "https://checkout.stripe.test/cs_f4" }),
+    });
+    assert.equal(
+      (await knock({ op: "checkout", email: "ada@example.com", ...(ret ? { return: ret } : {}) })).status,
+      200,
+    );
+    const [[session]] = s.asked("checkout.sessions.create");
+    return [session.success_url, session.cancel_url];
+  };
+  assert.deepEqual(
+    await back("start"),
+    ["https://dash.test/w/harbor?billing=success#/start", "https://dash.test/w/harbor?billing=cancel#/start"],
+    "the first run that asked for the card, with the outcome in the same word",
+  );
+  assert.deepEqual(await back("billing"), [BILLING_PAGE("harbor", "success"), BILLING_PAGE("harbor", "cancel")]);
+  assert.deepEqual(
+    await back("https://evil.example/steal"),
+    [BILLING_PAGE("harbor", "success"), BILLING_PAGE("harbor", "cancel")],
+    "a place that is not on the list is Billing, never a path taken on the caller's word",
+  );
+  assert.deepEqual(await back(null), [BILLING_PAGE("harbor", "success"), BILLING_PAGE("harbor", "cancel")]);
+});
+
 test("checkout is refused in the door's words -- no such workspace, no billing row, a workspace invoiced by hand, one already subscribed in any live state, a deployment not ready, and Stripe saying no -- and nothing is written for any of them", async () => {
   const s = stripe({
     "customers.create": async () => {

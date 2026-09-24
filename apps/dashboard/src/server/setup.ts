@@ -43,6 +43,7 @@ import {
   starterByName,
   resolveFacts,
   factConflicts,
+  knownForwarding,
   channelFor,
   type SetupDto,
   type CapabilityKind,
@@ -264,6 +265,8 @@ export async function setupDtoFor(
       workspace: null,
       channels: channels.data ?? [],
       listing: listing ? { name: listing.name, address: listing.address } : null,
+      // A kept number that forwards to the line is the number to publish, not a conflict.
+      forwarding: knownForwarding(lineRows),
     }),
   );
 

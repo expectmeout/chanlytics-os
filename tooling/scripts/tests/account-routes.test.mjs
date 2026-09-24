@@ -435,6 +435,55 @@ test("a new workspace: the body judged by its schema, the function's own words r
   assert.deepEqual(made.at(-1), { p_name: "Harbor Two", p_timezone: "America/Chicago" });
 });
 
+test("F3: a new workspace's first alert address is its creator's -- written through the settings door, and never over a choice or at the workspace's expense", async () => {
+  const rpcs = {
+    create_workspace: (a) => ({
+      id: C,
+      slug: "harbor-two",
+      name: a.p_name,
+      status: "active",
+      timezone: "America/New_York",
+    }),
+  };
+  // The provisioner (00017) has made the config row, empty, by the time the function returns.
+  const tables = {
+    memberships: both("viewer", "owner"),
+    tenant_config: [{ tenant_id: C, config: {}, version: 1, updated_at: "2026-09-24T00:00:00Z" }],
+  };
+  const out = await create.POST.run(send("POST", { name: "Harbor Two" }), ctxFor(tables, {}, rpcs));
+  assert.equal(out.workspace.id, C);
+  assert.deepEqual(
+    [tables.tenant_config[0].config, tables.tenant_config[0].version, tables.tenant_config[0].updated_by],
+    [{ notifications: { escalation_emails: ["ada@example.com"] } }, 2, USER],
+    "the creator's address, saved as the settings door saves: versioned, and by its author",
+  );
+
+  // A config row that is not there yet costs the owner nothing: the workspace is still answered.
+  setRateStore(memoryStore());
+  const bare = { memberships: both("viewer", "owner") };
+  const again = await create.POST.run(send("POST", { name: "Harbor Two" }), ctxFor(bare, {}, rpcs));
+  assert.equal(again.workspace.id, C);
+
+  // An address already on the row is the owner's choice, and stays.
+  setRateStore(memoryStore());
+  const chosen = {
+    memberships: both("viewer", "owner"),
+    tenant_config: [
+      {
+        tenant_id: C,
+        config: { notifications: { escalation_emails: ["desk@harbor.example"] } },
+        version: 4,
+        updated_at: "2026-09-24T00:00:00Z",
+      },
+    ],
+  };
+  await create.POST.run(send("POST", { name: "Harbor Two" }), ctxFor(chosen, {}, rpcs));
+  assert.deepEqual(
+    [chosen.tenant_config[0].config.notifications.escalation_emails, chosen.tenant_config[0].version],
+    [["desk@harbor.example"], 4],
+  );
+});
+
 test("the roster: the workspace the tab named, assembled after the caller proves membership, with the open invitations beside the members", async () => {
   const rpcs = {
     team_roster: (a) =>

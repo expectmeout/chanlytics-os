@@ -12,7 +12,7 @@
  * nothing. The edge runs these plans against the tables and the bell; the
  * tests run them against fixtures.
  */
-import { ratingWords, reviewSnippet, starsOf } from "@chanlytics/contracts";
+import { ratingWords, reviewSnippet, starsOf, type GoogleListingFacts } from "@chanlytics/contracts";
 import type { PlaceDetails, PlaceReview } from "./google-places";
 import type { GbpReview, GbpReviewsPage } from "./google-profile";
 
@@ -107,6 +107,8 @@ export interface ListingCheckPlan {
     review_count: number | null;
     checked_at: string;
     check_error: null;
+    /** What the listing says now beyond its name and address (google_listings.facts), for the first run to offer. */
+    facts: GoogleListingFacts;
   };
   day: { day: string; rating: number | null; review_count: number };
   /** Every review Google showed, to upsert; the row keeps its first_seen_at. Empty when the profile carries the reviews. */
@@ -147,6 +149,7 @@ export function planListingCheck(
       review_count: fresh.review_count,
       checked_at: now,
       check_error: null,
+      facts: fresh.facts,
     },
     day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
     reviews: carriesReviews ? fresh.reviews.map((r) => ({ ...r, last_seen_at: now })) : [],

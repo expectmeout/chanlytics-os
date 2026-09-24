@@ -579,51 +579,44 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
-function checkDay(h, day, ctx) {
+function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
-  const at2 = (...rest) => ["brain", "profile", "hours", day, ...rest];
+  const out = [];
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2(open ? "close" : "open"),
+    out.push({
+      path: [open ? "close" : "open"],
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("close"),
-      message: `${name} closes at or before it opens.`
-    });
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at2("intervals"),
-      message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
-    });
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "close"),
-        message: `${name}: a shift has to close after it opens.`
-      });
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
     }
   });
   const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
-      ctx.addIssue({
-        code: z3.ZodIssueCode.custom,
-        path: at2("intervals", n, "open"),
-        message: `${name}: two shifts overlap.`
-      });
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
+  }
+  return out;
+}
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure(c, n, ctx) {
@@ -4350,7 +4343,7 @@ async function runA2PSaga(start, p) {
 // src/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
-var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
 var PLACES_SEARCH_LIMIT = 5;
 var PLACES_TIMEOUT_MS = 1e4;
 var PlacesError = class extends Error {
@@ -4423,6 +4416,40 @@ function reviewOf(r) {
     maps_uri: str2(r.googleMapsUri)
   };
 }
+function pointOf(v) {
+  const o = obj(v);
+  if (!o) return null;
+  const day = num(o.day) ?? 0;
+  const hour = num(o.hour) ?? 0;
+  const minute = num(o.minute) ?? 0;
+  return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
+}
+function periodOf(v) {
+  const o = obj(v);
+  const open = pointOf(o?.open);
+  if (!o || !open) return null;
+  if (o.close === void 0) return { open, close: null };
+  const close = pointOf(o.close);
+  return close ? { open, close } : null;
+}
+function e164Of(international) {
+  if (!international || !international.trim().startsWith("+")) return null;
+  const e164 = `+${international.replace(/\D/g, "")}`;
+  return E164.test(e164) ? e164 : null;
+}
+function factsOf(p) {
+  const periods = obj(p.regularOpeningHours)?.periods;
+  return {
+    hours: Array.isArray(periods) ? periods.map(periodOf).filter((x) => x !== null) : null,
+    phone_e164: e164Of(str2(p.internationalPhoneNumber)),
+    phone_display: str2(p.nationalPhoneNumber),
+    website: str2(p.websiteUri),
+    primary_type: str2(p.primaryType),
+    primary_type_label: localized(p.primaryTypeDisplayName).text,
+    service_area_only: p.pureServiceAreaBusiness === true,
+    time_zone: str2(obj(p.timeZone)?.id)
+  };
+}
 function parsePlacesSearch(json) {
   const places = obj(json)?.places;
   if (!Array.isArray(places)) return [];
@@ -4442,7 +4469,8 @@ function parsePlaceDetails(json) {
     business_status: str2(p.businessStatus),
     rating: num(p.rating),
     review_count: num(p.userRatingCount),
-    reviews
+    reviews,
+    facts: factsOf(p)
   };
 }
 function refusal2(status, body) {
@@ -4542,7 +4570,8 @@ function planListingCheck(before, knownIds, fresh, day, nowMs, opts = {}) {
       rating: fresh.rating,
       review_count: fresh.review_count,
       checked_at: now,
-      check_error: null
+      check_error: null,
+      facts: fresh.facts
     },
     day: { day, rating: fresh.rating, review_count: fresh.review_count ?? 0 },
     reviews: carriesReviews ? fresh.reviews.map((r) => ({ ...r, last_seen_at: now })) : [],

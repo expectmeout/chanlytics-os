@@ -363,8 +363,9 @@ const ChartCard = ({ title, takeaway = null, testid, className = "", config = nu
           <div className="ck-card-actions">
             {switchable && (
               <div className="ck-seg" role="group" aria-label={`Show ${title} as`}>
-                <button type="button" className={showTable ? "" : "on"} aria-pressed={!showTable} onClick={() => setAsTable(false)} data-testid="card-chart">Chart</button>
-                <button type="button" className={showTable ? "on" : ""} aria-pressed={showTable} onClick={() => setAsTable(true)} data-testid="card-table">Table</button>
+                {/* A chart and its table are not one height: the switch holds still, the last card's too. */}
+                <button type="button" className={showTable ? "" : "on"} aria-pressed={!showTable} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAsTable(false)) : setAsTable(false))} data-testid="card-chart">Chart</button>
+                <button type="button" className={showTable ? "on" : ""} aria-pressed={showTable} onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => setAsTable(true)) : setAsTable(true))} data-testid="card-table">Table</button>
               </div>
             )}
             <button type="button" className="ck-icon-btn" onClick={() => ckSaveCsv(title, data)} aria-label={`Save “${title}” as a CSV file`} title="Save as CSV" data-testid="card-csv">

@@ -1,4 +1,4 @@
-import { SchemaSet, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
+import { SchemaSet, GoogleListingFacts, LeadSearchPlan, PlaceFacts, JudgePlaceAnswer } from '@chanlytics/contracts';
 
 interface WaConfig {
     phoneId: string;
@@ -2004,10 +2004,19 @@ declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
  * The key travels in a header and the field mask in another; without the
  * mask Google refuses the call. HTTP is a port, so the planner beside this
  * (google-sync.ts) and every test run without a network.
+ *
+ * Details also reads what the listing says beyond its name: the week, the
+ * numbers, the site, the kind of place, whether it serves an area rather
+ * than an address, and its zone -- kept on the listing for the first run to
+ * offer the owner (contracts GoogleListingFacts). None of those costs more:
+ * `reviews` already bills the read at the top tier. The names are Google's
+ * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
+ * refuses the whole read, so the test pins them name by name.
  */
+
 declare const PLACES_BASE = "https://places.googleapis.com/v1";
 declare const PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
-declare const PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews";
+declare const PLACES_DETAILS_MASK: string;
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 declare const PLACES_SEARCH_LIMIT = 5;
 declare const PLACES_TIMEOUT_MS = 10000;
@@ -2053,6 +2062,8 @@ interface PlaceDetails {
     rating: number | null;
     review_count: number | null;
     reviews: PlaceReview[];
+    /** What the listing says beyond its name and address, for the owner to check. */
+    facts: GoogleListingFacts;
 }
 /** Text Search: the query as the owner or the facts give it; a handful of results. */
 declare function placesSearchRequest(key: string, query: string, opts?: {
@@ -2167,6 +2178,21 @@ declare function replyToReview(http: PlacesHttp, token: string, reviewName: stri
 declare const GBP_REPLY_MAX = 4096;
 declare function cleanReply(text: unknown): string;
 
+/**
+ * The check: what a fresh read of the listing changes, decided once, purely.
+ *
+ * Two sources, one rule for news. The public listing shows the five reviews
+ * Google finds most relevant, never a feed, and counts every rating, with
+ * or without words: a review is new when it was not on record and was
+ * written since the previous check (a relevance shift can surface an old
+ * one, and that is not news), and the count is the truth for how many
+ * ratings arrived. The owner's Business Profile carries every review, so
+ * there the rule is simply: not on record, written since the last sync.
+ * The first read after linking or connecting is history and raises
+ * nothing. The edge runs these plans against the tables and the bell; the
+ * tests run them against fixtures.
+ */
+
 interface ListingBefore {
     rating: number | null;
     review_count: number | null;
@@ -2208,6 +2234,8 @@ interface ListingCheckPlan {
         review_count: number | null;
         checked_at: string;
         check_error: null;
+        /** What the listing says now beyond its name and address (google_listings.facts), for the first run to offer. */
+        facts: GoogleListingFacts;
     };
     day: {
         day: string;
