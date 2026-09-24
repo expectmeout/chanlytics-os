@@ -1485,6 +1485,24 @@
 }
 .cl-prof-deal-act:hover { color: var(--ink); }
 .cl-prof-deal-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The deal's next step (0007, amended): one quiet line under its acts, the day in the warn ink once it is due, and
+   its Done and Change as the card's own quiet words; with none, "Set a next step" in a dashed outline. */
+.cl-prof-deal-nextstep { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
+.cl-prof-deal-next-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+.cl-prof-deal-next-label { margin-right: 6px; font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
+.cl-prof-deal-next-words { color: var(--ink); }
+.cl-prof-deal-next-day { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cl-prof-deal-nextstep:not([data-due="ahead"]) .cl-prof-deal-next-day { color: var(--warn-ink); font-weight: 500; }
+.cl-prof-deal-next-for { white-space: nowrap; }
+.cl-prof-deal-next-acts { margin-top: 0; }
+.cl-prof-deal-setnext {
+  align-self: flex-start; display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); background: none;
+  font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+.cl-prof-deal-setnext:hover { color: var(--ink); border-color: var(--ink-dim); }
+.cl-prof-deal-setnext:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* None open: the line and its act, and nothing around them. */
 .cl-prof-deal-none { max-width: var(--measure-prose); display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; min-width: 0; }
 /* No deal open: the section is one line, its name beside what stands and its act, where a heading over one line of
@@ -1986,6 +2004,18 @@
 .cl-prof-note-decide { display: flex; gap: 6px; padding-top: 4px; }
 .cl-prof-note-all { align-self: flex-start; }
 .cl-prof-note-rule { font-size: 11px; }
+/* A step (0007, amended): its Done box before its words; its day first on its line, in the warn ink once it is due;
+   done, its words struck through in the dim ink, and the line says who did it and when. */
+.cl-prof-note-day { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.cl-prof-note-date { max-width: 160px; }
+.cl-prof-note-step { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.cl-prof-note-done { flex: none; margin: 2px 0 0; accent-color: var(--ink); }
+.cl-prof-note-due { font-variant-numeric: tabular-nums; }
+.cl-prof-note-due[data-due="past"], .cl-prof-note-due[data-due="today"] { color: var(--warn-ink); font-weight: 500; }
+.cl-pnote.is-done .cl-prof-note-body { color: var(--ink-dim); text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+@media (pointer: coarse) {
+  html.legacy-on .cl-prof-note-done { width: 18px; height: 18px; }
+}
 
 /* ---- The rail in three groups; the next step under a list; the next visit on the row ---- */
 .cl-rail-group + .cl-rail-group { margin-top: 10px; }

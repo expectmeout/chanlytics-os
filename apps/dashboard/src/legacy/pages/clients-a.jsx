@@ -657,6 +657,8 @@ const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Wait
 const PL_LIST_TIP = {
   needs_you: "An open escalation, or a thread waiting for a person",
   waiting_on_you: "You took over and they wrote last",
+  // A note with a day (0007, amended): every workspace's.
+  steps_due: "Their next step's day has come, or gone by — a note with a day, for the team",
   new_week: "First contact in the last 7 days, by evidence — imported history never counts",
   quiet: "No message or call in 30 days",
   phoned_only: "Only ever phoned — no WhatsApp thread",

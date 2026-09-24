@@ -10665,6 +10665,79 @@ function lineCredentialFailure(lastError) {
 }
 var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
+// src/step-sheet.ts
+var STEP_SHEET_WORDS = {
+  titles: { add: "Set a next step", edit: "Change the step" },
+  what: { label: "What to do", placeholder: "Call about the timeline" },
+  when: { label: "When", pick: "The day" },
+  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
+  teamOnly: "A step is for the team only: the receptionist never reads it.",
+  save: { add: "Set it", edit: "Save" },
+  saving: "Saving\u2026",
+  reading: "Reading\u2026",
+  gone: "This person is not in your workspace.",
+  noStep: "This step is no longer here.",
+  done: { add: "Next step set", edit: "Step saved" },
+  failed: "Could not save this step.",
+  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: `At most ${NOTE_MAX} characters.` },
+  discard: {
+    question: "Discard your changes?",
+    detail: "Nothing here has been saved.",
+    yes: "Yes, discard",
+    no: "Keep editing"
+  }
+};
+function stepSheetFor(p, ask, nowMs, tz) {
+  const W = STEP_SHEET_WORDS;
+  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
+  const mode = ask.noteId ? "edit" : "add";
+  const dealId = note ? note.dealId : ask.dealId ?? null;
+  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
+  const days = stepDays(nowMs, tz);
+  const day = note?.step ? note.step.day.day : null;
+  return {
+    mode,
+    title: W.titles[mode],
+    sub: service ? `${p.name} \xB7 ${service}` : p.name,
+    days,
+    team: [
+      { id: "", label: W.for.anyone },
+      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
+    ],
+    draft: {
+      what: note ? note.body : "",
+      day,
+      picking: !!day && !days.some((c) => c.key === day),
+      forId: note ? note.forUserId : null
+    },
+    note: note ? { id: note.id, version: note.version } : null,
+    dealId,
+    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
+    save: W.save[mode]
+  };
+}
+function stepSheetBody(sheet, draft) {
+  const P = STEP_SHEET_WORDS.problems;
+  const what = draft.what.trim();
+  if (!what) return { body: null, problem: { field: "what", words: P.what } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong } };
+  if (!draft.day || !isRealDate(draft.day)) return { body: null, problem: { field: "day", words: P.day } };
+  return {
+    problem: null,
+    body: {
+      body: what,
+      due_on: draft.day,
+      for_user_id: draft.forId || null,
+      team_only: true,
+      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
+      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
+    }
+  };
+}
+function stepSheetDirty(draft, opened) {
+  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null);
+}
+
 // src/template-languages.ts
 var L = (id, name, region, native) => ({
   id,
@@ -18429,7 +18502,24 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
     flags,
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
-    more: others.filter((o) => o.mode !== nextMode)
+    more: others.filter((o) => o.mode !== nextMode),
+    step: dealStepOf(p.noteList, deal.id)
+  };
+}
+function dealStepOf(notes, dealId) {
+  if (!dealId) return null;
+  const open = (notes ?? []).map((n, i) => ({ n, i, step: n.step })).filter(
+    (x) => x.n.dealId === dealId && !!x.step && !x.step.done
+  ).sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || b.i - a.i);
+  const first = open[0];
+  if (!first) return null;
+  return {
+    id: first.n.id,
+    version: first.n.version,
+    words: first.n.body,
+    day: first.step.day,
+    forWho: first.n.forWho,
+    mine: first.n.mine
   };
 }
 function quietOf(p, nowMs, tz) {
@@ -19916,6 +20006,7 @@ export {
   SPEND_NUMBER,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
+  STEP_SHEET_WORDS,
   ServiceSchema,
   SignupSchema,
   TEMPLATE_BODY_MAX,
@@ -20096,6 +20187,7 @@ export {
   dealSheetMessage,
   dealSheetRefusal,
   dealSinceMs,
+  dealStepOf,
   dealsAreOn,
   dedupeFeed,
   defaultParamSpecs,
@@ -20553,6 +20645,9 @@ export {
   stateTone,
   stepDayOf,
   stepDays,
+  stepSheetBody,
+  stepSheetDirty,
+  stepSheetFor,
   suggestLocalPart,
   telHref,
   templateBlocked,

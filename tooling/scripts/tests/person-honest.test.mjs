@@ -2463,3 +2463,219 @@ test("who may do what to a note: its author changes it, an owner or its author d
     globalThis.window.__personNotes = saved;
   }
 });
+
+/* ----------------------------------- steps (0007, amended; 00163) ----------------------------------- */
+
+/** A day by the business's calendar, some days from now: far enough from a midnight that no zone moves it. */
+const dayFrom = (days) => contracts.zoneDayKey(NOW + days * 86_400_000, ZONE);
+/** The notes card's courier, as the bridge publishes it, recording what the page asks of it. */
+const stepCourier = (sent) => {
+  const ok = { ok: true, data: {} };
+  return {
+    write: async (id, body) => (sent.push(["write", id, body]), ok),
+    remove: async () => ok,
+    decide: async () => ok,
+    done: async (id, noteId, done, version) => (sent.push(["done", id, noteId, done, version]), ok),
+    days: contracts.stepDays,
+    dayOf: contracts.stepDayOf,
+    words: contracts.NOTE_WORDS,
+    max: contracts.NOTE_MAX,
+  };
+};
+const stepNotes = () => [
+  noteDto("n-step", "Call about the timeline", 5, {
+    due_on: dayFrom(3),
+    deal_id: "d1",
+    mine: true,
+    author_name: "Ruben",
+    team_only: true,
+  }),
+  noteDto("n-done", "Send the revised quote", 50, {
+    due_on: dayFrom(-2),
+    done_at: new Date(NOW - 3_600_000).toISOString(),
+    done_by_name: "Sam",
+    team_only: true,
+  }),
+  noteDto("n-plain", "Allergic to ammonia.", 60, { mine: true, author_name: "Ruben" }),
+];
+
+test("a note may have a day (0007, amended): a day makes it a step and holds Team only on; a step says its day, is ticked done by anyone who acts, says who did it and when, and offers the next one", async () => {
+  const vm = toPersonVM(detail({ person_notes: stepNotes(), note_team: NOTE_TEAM }), ZONE, new Date(NOW));
+  const sent = [];
+  const flashes = [];
+  const asked = [];
+  const keep = {
+    notes: globalThis.window.__personNotes,
+    toast: globalThis.window.usePPToast,
+    sheet: globalThis.window.openStepSheet,
+  };
+  globalThis.window.__personNotes = stepCourier(sent);
+  globalThis.window.usePPToast = () => [null, (t) => flashes.push(t)];
+  globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
+  const W = contracts.NOTE_WORDS;
+  try {
+    const draw = await profile(vm);
+    const rowsOf = (tree) => all(byTestId(tree, "person-notes"), (n) => n.props?.["data-testid"] === "person-note");
+    let [step, done, plain] = rowsOf(draw());
+    assert.match(String(step.props.className), /\bis-step\b/);
+    assert.equal(textOf(byTestId(step, "person-note-due")), vm.noteList[0].step.words);
+    assert.match(textOf(byTestId(step, "person-note-due")), /^Due /);
+    assert.doesNotMatch(textOf(step), /Team only/, "a step is the team's by rule: its line does not say so again");
+    assert.match(String(done.props.className), /\bis-done\b/);
+    assert.match(textOf(byTestId(done, "person-note-due")), /^Done by Sam · /);
+    assert.equal(byTestId(plain, "person-note-due"), null, "a note with no day says none");
+    assert.equal(byTestId(plain, "person-note-done"), null);
+
+    // Ticked by anyone who acts, with the version the page saw; done, the toast offers the next one, on its deal.
+    byTestId(step, "person-note-done").props.onChange({ target: { checked: true } });
+    await settle();
+    assert.deepEqual(sent.at(-1), ["done", vm.id, "n-step", true, 1]);
+    assert.equal(flashes.at(-1).action.label, W.setTheNext);
+    flashes.at(-1).action.onClick();
+    assert.deepEqual(asked.at(-1), { personId: vm.id, dealId: "d1" });
+    // Ticked again, a done step is open again, and nothing is offered.
+    [step, done, plain] = rowsOf(draw());
+    byTestId(done, "person-note-done").props.onChange({ target: { checked: false } });
+    await settle();
+    assert.deepEqual(sent.at(-1), ["done", vm.id, "n-done", false, 1]);
+    assert.equal(flashes.at(-1).action, undefined);
+
+    // The composer: a day makes the note a step, and holds Team only on whatever it was.
+    type(byTestId(draw(), "person-notes-input"), "Follow up on the logo");
+    let tree = draw();
+    const tomorrow = contracts.stepDays(Date.now(), "UTC")[1];
+    assert.equal(tomorrow.label, "Tomorrow");
+    byTestId(tree, "person-note-day").props.onChange({ target: { value: tomorrow.key } });
+    tree = draw();
+    const lock = byTestId(tree, "person-note-team-only");
+    assert.deepEqual([lock.props.checked, lock.props.disabled], [true, true]);
+    press(byTestId(tree, "person-notes-save"));
+    await settle();
+    assert.deepEqual(sent.at(-1), [
+      "write",
+      vm.id,
+      { body: "Follow up on the logo", for_user_id: null, team_only: true, due_on: tomorrow.key },
+    ]);
+    assert.equal(textOf(flashes.at(-1).msg), W.stepAdded);
+
+    // Pick a day opens the date field, and Add waits for a day.
+    type(byTestId(draw(), "person-notes-input"), "Call her back");
+    tree = draw();
+    byTestId(tree, "person-note-day").props.onChange({ target: { value: "pick" } });
+    tree = draw();
+    assert.equal(byTestId(tree, "person-notes-save").props.disabled, true, "no day picked yet");
+    byTestId(tree, "person-note-date").props.onChange({ target: { value: "2026-12-01" } });
+    tree = draw();
+    press(byTestId(tree, "person-notes-save"));
+    await settle();
+    assert.equal(sent.at(-1)[2].due_on, "2026-12-01");
+
+    // Its author takes a day away: the change says so. A note that never had one says nothing of days.
+    const editOf = (row) =>
+      find(row, (n) => n.type === globalThis.MoreMenu).props.items.find((i) => i.label === W.edit);
+    [step, done, plain] = rowsOf(draw());
+    editOf(step).onClick();
+    tree = draw();
+    byTestId(tree, "person-note-day").props.onChange({ target: { value: "" } });
+    press(byTestId(draw(), "person-note-save"));
+    await settle();
+    assert.deepEqual(sent.at(-1), [
+      "write",
+      vm.id,
+      {
+        body: "Call about the timeline",
+        for_user_id: null,
+        team_only: true,
+        note_id: "n-step",
+        version: 1,
+        clear_due: true,
+      },
+    ]);
+    [step, done, plain] = rowsOf(draw());
+    editOf(plain).onClick();
+    press(byTestId(draw(), "person-note-save"));
+    await settle();
+    assert.deepEqual(sent.at(-1), [
+      "write",
+      vm.id,
+      { body: "Allergic to ammonia.", for_user_id: null, team_only: false, note_id: "n-plain", version: 1 },
+    ]);
+  } finally {
+    globalThis.window.__personNotes = keep.notes;
+    globalThis.window.usePPToast = keep.toast;
+    globalThis.window.openStepSheet = keep.sheet;
+  }
+});
+
+test("a deal's card says its next step (0007, amended): Next, what, when, for whom, with Done and, for its author, Change; with none, Set a next step; a viewer only reads it", async () => {
+  const sent = [];
+  const asked = [];
+  const heard = [];
+  const keep = {
+    notes: globalThis.window.__personNotes,
+    sheet: globalThis.window.openStepSheet,
+    me: globalThis.window.__ME,
+  };
+  globalThis.window.__personNotes = stepCourier(sent);
+  globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
+  const onSaved = (e) => heard.push(e.detail);
+  globalThis.window.addEventListener("note:saved", onSaved);
+  const S = contracts.NOTE_WORDS;
+  try {
+    const notes = [
+      noteDto("n-late", "Chase the signature", 3, { due_on: dayFrom(6), deal_id: "d1", team_only: true }),
+      noteDto("n-soon", "Call about the timeline", 5, {
+        due_on: dayFrom(2),
+        deal_id: "d1",
+        mine: true,
+        author_name: "Ruben",
+        for_user_id: "u-sam",
+        for_name: "Sam",
+        team_only: true,
+      }),
+      noteDto("n-person", "Ask about her sister", 7, { due_on: dayFrom(1), team_only: true }),
+    ];
+    let tree = (await profile(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM })))();
+    const card = byTestId(tree, "person-deal-card");
+    const step = byTestId(card, "person-deal-nextstep");
+    assert.ok(step, "the card says its next step");
+    // The earliest open step that names the deal; the person's own step (no deal) is not the card's.
+    assert.equal(textOf(byTestId(step, "person-deal-nextstep-words")), "Call about the timeline");
+    assert.match(textOf(byTestId(step, "person-deal-nextstep-day")), /^Due /);
+    assert.match(textOf(step), new RegExp(`^${S.next}`));
+    assert.match(textOf(step), /For Sam/);
+    press(byTestId(step, "person-deal-nextstep-done"));
+    await settle();
+    assert.deepEqual(sent.at(-1), ["done", "p1", "n-soon", true, 1]);
+    assert.deepEqual(heard.at(-1), { personId: "p1" }, "the page reads them again");
+    press(byTestId(step, "person-deal-nextstep-change"));
+    assert.deepEqual(asked.at(-1), { personId: "p1", noteId: "n-soon" });
+
+    // Someone else's step: Done, and no Change.
+    tree = (await profile(withDeals([dealRow()], { person_notes: [notes[0]], note_team: NOTE_TEAM })))();
+    assert.ok(byTestId(tree, "person-deal-nextstep-done"));
+    assert.equal(byTestId(tree, "person-deal-nextstep-change"), null, "only its author changes it");
+
+    // No step on the deal: Set a next step, which asks for the sheet on that deal.
+    tree = (await profile(withDeals([dealRow()], { person_notes: [notes[2]], note_team: NOTE_TEAM })))();
+    assert.equal(byTestId(tree, "person-deal-nextstep"), null);
+    const set = byTestId(tree, "person-deal-set-nextstep");
+    assert.equal(textOf(set), S.setNext);
+    press(set);
+    assert.deepEqual(asked.at(-1), { personId: "p1", dealId: "d1" });
+
+    // A viewer reads the step and acts on none of it.
+    globalThis.window.__ME = { role: "viewer" };
+    tree = (await profile(withDeals([dealRow()], { person_notes: notes, note_team: NOTE_TEAM })))();
+    assert.ok(byTestId(tree, "person-deal-nextstep"));
+    assert.equal(byTestId(tree, "person-deal-nextstep-done"), null);
+    assert.equal(byTestId(tree, "person-deal-nextstep-change"), null);
+    tree = (await profile(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM })))();
+    assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
+  } finally {
+    globalThis.window.removeEventListener("note:saved", onSaved);
+    globalThis.window.__personNotes = keep.notes;
+    globalThis.window.openStepSheet = keep.sheet;
+    globalThis.window.__ME = keep.me;
+  }
+});

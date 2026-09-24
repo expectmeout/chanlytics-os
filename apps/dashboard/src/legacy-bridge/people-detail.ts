@@ -8,6 +8,10 @@ import {
   NOTE_WORDS,
   stepDayOf,
   stepDays,
+  stepSheetBody,
+  stepSheetDirty,
+  stepSheetFor,
+  STEP_SHEET_WORDS,
   TIMELINE_FILTERS,
   dealCardsOf,
   dealMenuActs,
@@ -438,6 +442,11 @@ declare global {
       /** The days a step's picker offers, and a day as every page says it (contracts steps.ts). */
       days: typeof stepDays;
       dayOf: typeof stepDayOf;
+      /** The step sheet's words, what it opens with, what it sends, and whether anything was typed (step-sheet.ts). */
+      sheet: typeof stepSheetFor;
+      sheetBody: typeof stepSheetBody;
+      sheetDirty: typeof stepSheetDirty;
+      sheetWords: typeof STEP_SHEET_WORDS;
       words: typeof NOTE_WORDS;
       max: number;
     };
@@ -528,6 +537,10 @@ export function installPeopleCourier(): void {
     done: markStepDone,
     days: stepDays,
     dayOf: stepDayOf,
+    sheet: stepSheetFor,
+    sheetBody: stepSheetBody,
+    sheetDirty: stepSheetDirty,
+    sheetWords: STEP_SHEET_WORDS,
     words: NOTE_WORDS,
     max: NOTE_MAX,
   };

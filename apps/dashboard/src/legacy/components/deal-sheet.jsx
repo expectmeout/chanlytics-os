@@ -424,4 +424,5 @@ const DealSheetHost = () => {
   );
 };
 
-Object.assign(window, { openDealSheet, DealSheetHost, DealSheetFields });
+// The select goes out too: the step sheet asks who a step is for in the same field (step-sheet.jsx).
+Object.assign(window, { openDealSheet, DealSheetHost, DealSheetFields, DsSelect });

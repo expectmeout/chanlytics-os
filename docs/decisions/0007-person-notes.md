@@ -1,6 +1,7 @@
 # 0007 · A note is a record
 
-**Status:** decided; phase 1 built (00157), phase 2 built (00159), phase 3 built (00158). Written against commit `18c79973`
+**Status:** decided; phase 1 built (00157), phase 2 built (00159), phase 3 built (00158); amended 24 September, a
+note may have a day (00163), built on the person's page. Written against commit `18c79973`
 (PR #918, 23 September 2026). Where this note and the code disagree, the code
 wins.
 
@@ -76,6 +77,33 @@ call, thread, with `source_id` for a call or a conversation).
 Either deploy order works for phase 1: the migration lands first; a page or an
 edge from before it keeps reading and writing the old field, which the old
 door still keeps and now copies into the log.
+
+## Amended 24 September · A note may have a day
+
+The Pipeline, worked (plan `docs/superpowers/plans/2026-09-23-pipeline-worked.md`, decision 2): a next step is a
+note with a day, not a new kind of record. `person_notes` gains `due_on`, `done_at`, `done_by` and `deal_id`
+(00163).
+
+- **A step is the team's.** A day sets `team_only`, and a CHECK holds it (`person_notes_step_is_the_teams`), so
+  the receptionist, which reads only notes not for the team, never reads a step. Only a step is done
+  (`person_notes_done_is_a_step`).
+- **The doors.** `person_note_add` and `person_note_edit` take the day and the deal, which must be the person's
+  own (`bad_deal`). A change that sends no day keeps the one it has, so a page from before this release cannot
+  take it away; `p_clear_due` takes it, and its done with it. `person_note_done` marks a step done or open again,
+  by any owner or operator (a step for Maria is Maria's to do), with the version the page saw; a press that
+  changes nothing writes nothing. Each writes its event (`contact.note_done`, `contact.note_undone`), never the
+  words.
+- **The next step.** `people_list` carries each person's earliest open step (`step_*`: by its day, then as
+  written), and the list route names who it is for from the team, read only when a step is for someone. A step
+  for a teammate rings them as a note does (00158).
+- **Where it shows now.** The notes card: a Day beside For (it holds Team only on), a Done box on each step, and
+  done, who did it and when. A deal's card: its next step, the earliest open one that names it, with Done and,
+  for its author, Change; with none, Set a next step. Both open one step sheet (`components/step-sheet.jsx`,
+  `window.openStepSheet`). People's rail gains Steps due, in every workspace. Every word and rule is contracts'
+  (`steps.ts`, `step-sheet.ts`, `deal-sheet.ts dealStepOf`).
+- **Next.** The Pipeline (a Next step column, a Steps due view, the peek's row, the board card's line), Today's
+  day panel, the thread's step under the deal chip, and Ask's `propose_deal` writing one: the plan's PR 4, second
+  half.
 
 ## What earns a suggestion (phase 2)
 
