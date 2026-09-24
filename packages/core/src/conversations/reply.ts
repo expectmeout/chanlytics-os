@@ -140,8 +140,11 @@ export interface ReplyPorts extends Pick<
     category: string | null;
     variables?: unknown;
   } | null>;
-  /** The facts a template's params come from, when the workspace has them. */
-  templateFacts(tenantId: string): Promise<{ business_name: string; booking_link: string } | null>;
+  /**
+   * The facts a template's params come from, when the workspace has them: its name, and its booking link or null for
+   * a business that quotes each job (the first run's decision 2).
+   */
+  templateFacts(tenantId: string): Promise<{ business_name: string; booking_link: string | null } | null>;
   /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
   claimForReply(conversationId: string, untilIso: string, userId: string, nowIso: string): Promise<boolean>;
   /** The operator's words as a queued outbound row; its id. */
@@ -312,10 +315,18 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
         "validation",
         "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.",
       );
-    const params: string[] = resolveParams(inboxSlots(tpl), {
+    const slots = inboxSlots(tpl);
+    // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still
+    // go; one that sends the link is refused here, in words, rather than sent with the slot empty.
+    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+      throw new AppError(
+        "validation",
+        "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Business first.",
+      );
+    const params: string[] = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
       businessName: facts.business_name,
-      bookingLink: facts.booking_link.replace(/^https?:[/][/]/, ""),
+      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;
