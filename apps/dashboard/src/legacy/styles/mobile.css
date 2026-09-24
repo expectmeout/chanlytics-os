@@ -632,6 +632,11 @@
 @media (max-width: 720px) {
   .bc-page { --gutter-page: 16px; }
 
+  /* The top bar says Campaigns, once, as it says Inbox once: the tab under it says which of the three this is, and
+     the crumb said it again over the tab ("Campaigns / Playbooks" over "Playbooks"). */
+  .main:has(.cm-page, .bc-page) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.cm-page, .bc-page) .crumbs > :first-child { color: var(--ink); font-weight: 500; }
+
   /* The send row wraps: the name on its own line, the time on its own line,
      then the two buttons sharing the last one. */
   .bc-actions { flex-wrap: wrap; }

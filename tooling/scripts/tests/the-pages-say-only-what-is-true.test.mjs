@@ -841,8 +841,14 @@ const byId = (tree, id) => {
 const mountMessagesOpen = (over, name) => {
   const tree = mountMessages(over);
   let row = null;
+  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
+  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
   walk(tree, (n) => {
-    if (!row && /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) && textOf(n).includes(name))
+    if (
+      !row &&
+      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
+      n.props?.["data-template"] === name
+    )
       row = n;
   });
   assert.ok(row, `no row for ${name}`);
