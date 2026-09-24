@@ -234,19 +234,19 @@ test("the visit's own words: when and what for, from the visit the run read", ()
   assert.deepEqual(
     resolveParams(specs, {
       firstName: "Ana",
-      businessName: "Melany's",
+      businessName: "Marisa's",
       bookingLink: null,
       visitWhen: "tomorrow at 2:00 PM",
       visitService: "a consultation",
     }),
-    ["Ana", "Melany's", "tomorrow at 2:00 PM", "a consultation"],
+    ["Ana", "Marisa's", "tomorrow at 2:00 PM", "a consultation"],
   );
   assert.deepEqual(
-    resolveParams(specs, { firstName: "Ana", businessName: "Melany's", bookingLink: null }).slice(2),
+    resolveParams(specs, { firstName: "Ana", businessName: "Marisa's", bookingLink: null }).slice(2),
     ["", ""],
     "no facts, no words: the send holds the person rather than sending a blank",
   );
-  assert.deepEqual(exampleParams(specs, "Melany's").slice(2), ["tomorrow at 2:00 PM", "a consultation"]);
+  assert.deepEqual(exampleParams(specs, "Marisa's").slice(2), ["tomorrow at 2:00 PM", "a consultation"]);
 });
 
 test("two starters written for the two moments: a utility reminder with the visit's words, a marketing thank-you with the link, in both languages", () => {

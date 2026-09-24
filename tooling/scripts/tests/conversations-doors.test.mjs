@@ -73,7 +73,7 @@ const call = (over = {}) => ({
   status: "ended",
   from_e164: "+19175550106",
   from_raw: null,
-  to_e164: "+13083368109",
+  to_e164: "+13055550123",
   started_at: "2026-09-14T13:00:00Z",
   ended_at: "2026-09-14T13:03:10Z",
   duration_ms: 190_000,
@@ -164,14 +164,14 @@ test("REGRESSION (A7, A9, A23): a chat row opens its Inbox thread, each of our m
 const went = [];
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
@@ -483,7 +483,7 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     CHANNEL_LABELS: { whatsapp: "WhatsApp", phone: "Phone" },
   };
   // The route's address as the client builds it, with the workspace named (inbox-verbs.ts window.__href).
-  globalThis.window.__href = (route, p) => `${route}|${p.id}|workspace=melanys`;
+  globalThis.window.__href = (route, p) => `${route}|${p.id}|workspace=marisas`;
   try {
     withRows([rec]);
     cells = [];
@@ -510,7 +510,7 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
     // It was a bare fetch that named no workspace, then a link read once and signed for five minutes.
     assert.equal(
       node.props.src,
-      `GET calls/[id]/recording|${rec.callId}|workspace=melanys`,
+      `GET calls/[id]/recording|${rec.callId}|workspace=marisas`,
       "REGRESSION: the recording was not the route's own address",
     );
     node.props.ref.current = el;

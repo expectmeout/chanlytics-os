@@ -97,6 +97,10 @@ export const env = {
   get RESEND_WEBHOOK_SECRET() {
     return read(process.env.RESEND_WEBHOOK_SECRET);
   },
+  // Push (Expo's push service)
+  get EXPO_ACCESS_TOKEN() {
+    return read(process.env.EXPO_ACCESS_TOKEN);
+  },
 
   // LLM
   get ANTHROPIC_API_KEY() {

@@ -40,7 +40,7 @@ function fakes(over = {}) {
     broadcast: broadcast(),
     workspacePaused: false,
     template: approved,
-    facts: { businessName: "Melany's", bookingLink: "https://book.example/m" },
+    facts: { businessName: "Marisa's", bookingLink: "https://book.example/m" },
     batch: [
       { contact_id: "k1", facts: null },
       { contact_id: "k2", facts: null },
@@ -131,13 +131,13 @@ test("each person goes through the door with the template's purpose, proactive, 
     kind: "broadcast",
     purpose: "marketing",
     proactive: true,
-    body: "Hi Ada, a spring offer from Melany's.",
-    template: { name: "month_offer", language: "en_US", params: ["Ada", "Melany's"] },
+    body: "Hi Ada, a spring offer from Marisa's.",
+    template: { name: "month_offer", language: "en_US", params: ["Ada", "Marisa's"] },
     meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer" },
   });
   assert.equal(
     sends[1].body,
-    "Hi Bo, a spring offer from Melany's.",
+    "Hi Bo, a spring offer from Marisa's.",
     "the profile name when no display name is on file",
   );
   // Each person is CLAIMED before the door and settled after it: the first mark

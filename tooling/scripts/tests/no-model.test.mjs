@@ -16,10 +16,10 @@ const { noModelPlan, NO_MODEL_PAGE } = await import(
 );
 
 test("no model: the workspace's own greeting goes as a labelled fallback, and the thread goes to a person", () => {
-  const plan = noModelPlan({ greeting: "Thanks for writing to Melany's. A person will be with you shortly." });
+  const plan = noModelPlan({ greeting: "Thanks for writing to Marisa's. A person will be with you shortly." });
   assert.equal(
     plan.replyText,
-    "Thanks for writing to Melany's. A person will be with you shortly.",
+    "Thanks for writing to Marisa's. A person will be with you shortly.",
     "the workspace's words, not ours",
   );
   assert.deepEqual(plan.meta, { ack: true, fallback: "no_model" }, "the message row says what it is");

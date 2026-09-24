@@ -222,10 +222,10 @@ Stamping the timestamp before the work completes would silently skip a tenant fo
 The nightly journey test is **red**. The failing case is not cosmetic:
 
 ```
-not ok 294 — GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte
+not ok 294 — GOLDEN: seeded pilot brain === the quarantined DR fallback, byte for byte
 ```
 
-`tooling/scripts/tests/control-plane.integration.test.mjs:51` compares the live salon's stored config against `FALLBACK_BRAIN` in `apps/edge/lib/tenant-fallback.ts:21` — the copy the receptionist falls back to when the database cannot be read. Melany's config moved to v8 this morning (the published-number fix); the fallback did not.
+`tooling/scripts/tests/control-plane.integration.test.mjs:51` compares the live salon's stored config against `FALLBACK_BRAIN` in `apps/edge/lib/tenant-fallback.ts:21` — the copy the receptionist falls back to when the database cannot be read. The pilot's config moved to v8 this morning (the published-number fix); the fallback did not.
 
 So **a disaster-recovery restore today would reinstate the bug we just fixed** — telling every customer to call the transfer number.
 

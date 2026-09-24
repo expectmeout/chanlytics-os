@@ -42,12 +42,12 @@ test("the words: six outcomes with a sentence each; a stranger's value has none;
   assert.equal(callOutcomeWords(undefined), null);
   assert.equal(
     tidyCallSummary(
-      "The user called Melany's Beauty Salon to inquire about business hours, specifically for Tuesday, and asked about highlight services and pricing. The agent provided the hours.",
+      "The user called Marisa's Beauty Salon to inquire about business hours, specifically for Tuesday, and asked about highlight services and pricing. The agent provided the hours.",
     ),
     "Called to inquire about business hours, specifically for Tuesday, and asked about highlight services and pricing. The agent provided the hours.",
   );
   assert.equal(
-    tidyCallSummary("The user called Melany's Beauty Salon and indicated they were testing the system."),
+    tidyCallSummary("The user called Marisa's Beauty Salon and indicated they were testing the system."),
     "Called and indicated they were testing the system.",
   );
   assert.equal(
@@ -67,7 +67,7 @@ test("the analysis rides the normalised call when it is an object, and the threa
     direction: "inbound",
     duration_ms: 125_000,
     call_analysis: {
-      call_summary: "The user called Melany's Beauty Salon to book a gel manicure.",
+      call_summary: "The user called Marisa's Beauty Salon to book a gel manicure.",
       custom_analysis_data: {
         caller_wanted: " Asked for a gel manicure this Saturday around 10. ",
         outcome: "booking_link_sent",
@@ -125,7 +125,7 @@ test("the call card: the request is the headline, the outcome, the to-do and the
     sentiment: "Positive",
     call_successful: true,
     in_voicemail: false,
-    summary: "The user called Melany's Beauty Salon to inquire about a gel manicure. The agent sent the booking link.",
+    summary: "The user called Marisa's Beauty Salon to inquire about a gel manicure. The agent sent the booking link.",
     transcript_object: null,
     recording: null,
     conversation_id: "cv1",
@@ -196,7 +196,7 @@ test("the strip reads the same words: what they wanted from the people door, an 
       {
         ...caller,
         last_inbound_call_summary:
-          "The user called Melany's Beauty Salon to inquire about the opening hours for the next day.",
+          "The user called Marisa's Beauty Salon to inquire about the opening hours for the next day.",
       },
       ZONE,
       NOW,
@@ -295,7 +295,7 @@ test("the agent reader carries the analysis schema, so the diagnostic's drift is
     new Response(
       JSON.stringify({
         agent_id: "agent_x",
-        agent_name: "Melany's",
+        agent_name: "Marisa's",
         version: 3,
         is_published: true,
         response_engine: { type: "retell-llm", llm_id: "llm_1", version: 2 },

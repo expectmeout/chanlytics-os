@@ -52,8 +52,8 @@ test("Today draws the call in progress first, then the people who need you, the 
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
-  channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "voice", status: "active", number: "+13055550123" }],
   window: {
     days: 1,
     since: "2026-09-04T04:00:00+00:00",

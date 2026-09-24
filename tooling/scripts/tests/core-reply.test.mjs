@@ -42,7 +42,7 @@ function fakes(over = {}) {
     replyChannel: "whatsapp",
     priorReceipt: null,
     template: approved,
-    templateFacts: { business_name: "Melany's", booking_link: "https://book.example/m" },
+    templateFacts: { business_name: "Marisa's", booking_link: "https://book.example/m" },
     hash: (s) => `h(${s})`,
     claimForReply: true,
     takeControl: undefined,
@@ -210,14 +210,14 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   );
   assert.equal(
     call("queue")[1].body,
-    "Book with Melany's: book.example/m",
+    "Book with Marisa's: book.example/m",
     "the workspace's facts, the scheme stripped, over the client's",
   );
   assert.equal(call("queue")[1].type, "template");
   assert.deepEqual(call("schedule")[3].template, {
     name: "reservar_ahora",
     language: "en_US",
-    params: ["Melany's", "book.example/m"],
+    params: ["Marisa's", "book.example/m"],
   });
   assert.deepEqual(call("record")[5], { message_id: "m1", window_open: false, template: "reservar_ahora" });
   assert.equal(r.window_open, false);
@@ -314,12 +314,12 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
   );
   assert.deepEqual(
     log.find((l) => l[0] === "schedule")[3].template.params,
-    ["Rosa", "Melany's", "book.example/m"],
+    ["Rosa", "Marisa's", "book.example/m"],
     "the first name, the business, the link: the starter's own slots",
   );
   assert.equal(
     log.find((l) => l[0] === "queue")[1].body,
-    "Hi Rosa, welcome to Melany's! Book whenever you're ready: book.example/m",
+    "Hi Rosa, welcome to Marisa's! Book whenever you're ready: book.example/m",
   );
 
   const nameless = fakes({ template: welcome });

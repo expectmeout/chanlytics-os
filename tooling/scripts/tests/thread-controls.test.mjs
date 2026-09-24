@@ -20,14 +20,14 @@ const at = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
     replace() {},
     reload() {},
   },
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf },
   __identity: { member: memberWords },

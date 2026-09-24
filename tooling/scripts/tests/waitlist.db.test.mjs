@@ -62,10 +62,10 @@ after(async () => {
 
 test("REGRESSION: somebody who asks is actually on the list", { skip }, async () => {
   const email = addr("ana");
-  await joinWaitlist({ email, name: "Melany's Beauty Salon", source: "https://chanlytics.com/pricing?utm=x" });
+  await joinWaitlist({ email, name: "Marisa's Beauty Salon", source: "https://chanlytics.com/pricing?utm=x" });
   const row = await rowFor(email);
   assert.ok(row, "the row this whole table exists for");
-  assert.equal(row.business, "Melany's Beauty Salon");
+  assert.equal(row.business, "Marisa's Beauty Salon");
   assert.equal(row.source, "https://chanlytics.com/pricing?utm=x");
   assert.equal(row.invited_at, null, "null is what puts them IN the queue");
 });

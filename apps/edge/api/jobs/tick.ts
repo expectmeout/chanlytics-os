@@ -23,6 +23,7 @@ import { whatsappSender } from "../../lib/packages/core.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
 import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
+import { expoPush } from "../../lib/ops/push.js";
 import {
   runTick,
   claimNext,
@@ -94,6 +95,8 @@ export async function POST(request: Request): Promise<Response> {
               wire,
               alert: alertFor(db, job),
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
+              // The phones, through Expo's push service: no per-tenant credential, one transport for all.
+              push: expoPush(),
               provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),

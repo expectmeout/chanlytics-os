@@ -14,7 +14,7 @@ import { readCode, readRaw } from "./_source.mjs";
 const NOW = new Date("2026-09-06T14:00:00Z");
 
 const metrics = (over = {}) => ({
-  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
   channels: [
     { kind: "whatsapp", status: "active", number: "+1 305" },
     { kind: "voice", status: "active", number: "+1 786" },

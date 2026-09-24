@@ -57,7 +57,7 @@ const asked = (id) => ({ id: `e-${id}`, reason: "human_token", details: null, st
 
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
@@ -66,7 +66,7 @@ globalThis.window = {
   },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },
@@ -321,7 +321,7 @@ const inboxWith = (threads) => {
 
 /** Today's read, in the shape the server answers it: without it Today's boot failed and tried again 800ms later. */
 const metrics = {
-  workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+  workspace: { name: "Marisa's Beauty Salon", timezone: ZONE, status: "active" },
   channels: [{ kind: "whatsapp", status: "active", number: "+16465550100" }],
   window: {
     days: 1,

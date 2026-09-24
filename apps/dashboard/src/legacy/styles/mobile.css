@@ -658,3 +658,14 @@
   /* The QR and the wording it explains stopped being side by side. */
   .bc-optin-body { flex-wrap: wrap; }
 }
+
+/* ====================================================================
+   Inside the native shell (html.in-app, stamped before paint from the
+   shell's User-Agent). The native tab bar stands where the web's did, and
+   the shell tells the page how tall it is in --app-inset-bottom on <html>.
+   Outside the app the variable is unset and every rule below is inert.
+   ==================================================================== */
+html.in-app .phone-tabs { display: none; }
+html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }
+html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
+/* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */

@@ -203,7 +203,7 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
 test("an email reply's request is frozen from the workspace's own mailbox: it leaves as that address, threads under the parent, and is tagged with its row", async () => {
   const ctx = {
     supabase: fakeDb({
-      mailboxes: [row(A), row(B, { id: "mb-b", local_part: "melanys", reply_token: "b".repeat(24) })],
+      mailboxes: [row(A), row(B, { id: "mb-b", local_part: "marisas", reply_token: "b".repeat(24) })],
     }),
   };
   const parent = {
@@ -263,7 +263,7 @@ test("an email reply's request is frozen from the workspace's own mailbox: it le
 test("Today counts the workspace's email line beside the routing rows, and only where the channel is real", async () => {
   const summary = {
     workspace: { name: "Best Movers", timezone: "America/New_York", status: "active" },
-    channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
+    channels: [{ kind: "voice", status: "active", number: "+13055550123" }],
   };
   const rpcs = { metrics_summary: () => summary };
   const withBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [row(A)] }, {}, rpcs);
@@ -271,7 +271,7 @@ test("Today counts the workspace's email line beside the routing rows, and only 
   assert.deepEqual(
     m.channels,
     [
-      { kind: "voice", status: "active", number: "+13083368109" },
+      { kind: "voice", status: "active", number: "+13055550123" },
       { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" },
     ],
     "REGRESSION: Today said '1 of 1 line connected' on a workspace with two",

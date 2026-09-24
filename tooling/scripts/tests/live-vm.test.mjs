@@ -33,7 +33,7 @@ function call(id, over = {}) {
     call_type: "phone_call",
     from_e164: "+17865550181",
     from_raw: "+17865550181",
-    to_e164: "+13083368109",
+    to_e164: "+13055550123",
     started_at: ago(161_000),
     ended_at: null,
     updated_at: ago(2_000),
@@ -57,7 +57,7 @@ function call(id, over = {}) {
 const voice = {
   id: "ch1",
   kind: "voice",
-  number_e164: "+13083368109",
+  number_e164: "+13055550123",
   status: "active",
   created_at: ago(86_400_000),
   last_inbound_at: ago(161_000),
@@ -174,7 +174,7 @@ test("the transcript keeps only spoken turns, with the provider's timings", () =
   const c = toLiveCallVM(
     call("t", {
       transcript_object: [
-        { role: "agent", content: "Melany's, how can I help?", words: [{ word: "Melany's", start: 0.4, end: 0.9 }] },
+        { role: "agent", content: "Marisa's, how can I help?", words: [{ word: "Marisa's", start: 0.4, end: 0.9 }] },
         { role: "tool_call_invocation", content: "" },
         { role: "user", content: "Saturday?", words: [{ word: "Saturday", start: 65.2, end: 65.9 }] },
       ],
@@ -183,7 +183,7 @@ test("the transcript keeps only spoken turns, with the provider's timings", () =
     NOW,
   );
   assert.deepEqual(c.transcript, [
-    { speaker: "agent", text: "Melany's, how can I help?", t: "0:00" },
+    { speaker: "agent", text: "Marisa's, how can I help?", t: "0:00" },
     { speaker: "client", text: "Saturday?", t: "1:05" },
   ]);
 });
@@ -209,7 +209,7 @@ test("who: a name, else the number, else 'withheld' — and a phone-like name is
 
 test("the line: number and switch from the voice channel; null when there is none", () => {
   const vm = toLiveVM([], [voice], ZONE, NOW);
-  assert.deepEqual(vm.line, { number: "+1 (308) 336-8109", on: true, lastCallLabel: vm.line.lastCallLabel });
+  assert.deepEqual(vm.line, { number: "+1 (305) 555-0123", on: true, lastCallLabel: vm.line.lastCallLabel });
   assert.ok(vm.line.lastCallLabel);
   assert.equal(toLiveVM([], [{ ...voice, status: "disabled" }], ZONE, NOW).line.on, false);
   assert.equal(toLiveVM([], [{ ...voice, kind: "whatsapp" }], ZONE, NOW).line, null);

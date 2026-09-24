@@ -387,7 +387,7 @@ export function mediaVM(m: MessageDto): MediaVM | null {
 }
 
 /* An email replies by quoting the whole of what it answers. "Got it, thanks!" arrived as six
-   lines of "On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon <…> wrote: > testing back at
+   lines of "On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon <…> wrote: > testing back at
    you >", and the thread drew every one of them. The chain is kept — an operator may need to see
    what the customer was answering — but it is not what the bubble says.
 
@@ -398,7 +398,7 @@ export function mediaVM(m: MessageDto): MediaVM | null {
 const QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
 /* "On <date> <someone> wrote:", which the wire does NOT always put on its own line. The body this
    was written against arrived flattened — "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM
-   Melany's Beauty Salon <…> wrote: > testing back at you >", all one line — so it is not anchored
+   Marisa's Beauty Salon <…> wrote: > testing back at you >", all one line — so it is not anchored
    to a line start. Instead the attribution only counts when a quote actually follows it: a newline
    or a ">". "On Tuesday my friend wrote: yes" is a customer's sentence, and stays one. */
 const QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;

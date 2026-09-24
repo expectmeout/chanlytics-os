@@ -46,7 +46,7 @@ test("the words for the signed-in person: a given name or 'Your account', initia
   );
   assert.equal(personInitials(null, null), "?");
   assert.equal(personInitials("  ", "ops@x.io"), "O");
-  assert.equal(personInitials("Melany De La Cruz", null), "MD", "the contacts' rule: the first two words");
+  assert.equal(personInitials("Marisa De La Rosa", null), "MD", "the contacts' rule: the first two words");
   assert.deepEqual(ROLE_WORDS, { owner: "Owner", operator: "Operator", viewer: "Viewer" });
 });
 

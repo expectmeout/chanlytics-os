@@ -52,7 +52,7 @@ installBusinessTab();
 /* ------------------------------------ the record ------------------------------------ */
 
 /**
- * A stored config, as the settings read hands it over: Melany's record with something in every fold, and three things
+ * A stored config, as the settings read hands it over: Marisa's record with something in every fold, and three things
  * no form renders, which every save must leave exactly as they are: a key of the profile, a rule of booking_rules, and
  * the config's other sections. Never handed to a helper itself: each call gets its own copy (stored()), and what comes
  * back is compared with this, so a helper that wrote into the config it was handed cannot hide it.
@@ -63,18 +63,18 @@ installBusinessTab();
  */
 const STORED = {
   brain: {
-    business_name: "Melany's Beauty Salon",
-    booking_link: "https://booksy.com/en-us/1817434",
+    business_name: "Marisa's Beauty Salon",
+    booking_link: "https://book.example.com/en-us/4471902",
     system_prompt:
-      "You are the WhatsApp assistant for Melany's Beauty Salon. Lashes, brows and nails; end with [[HUMAN]] if unsure.",
+      "You are the WhatsApp assistant for Marisa's Beauty Salon. Lashes, brows and nails; end with [[HUMAN]] if unsure.",
     fallbacks: {
       greeting: "Hi! Thanks for reaching out to {business}.",
       error: "Sorry, something went wrong on our side.",
       non_text: "Thanks, a person will look at this.",
     },
     profile: {
-      address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-      website: "https://melanysbeautysalon.com",
+      address: "1200 Maple Ave, Brooklyn, NY 11208",
+      website: "https://marisasbeautysalon.example.com",
       tone: "Warm and unhurried.",
       languages: ["English", "Spanish"],
       hours: {
@@ -92,7 +92,7 @@ const STORED = {
         { name: "Highlights", duration_min: 45 },
       ],
       notes: [{ title: "Walk-ins", text: "Walk-ins are welcome; appointments are recommended for long services." }],
-      escalate_when: ["They ask for Melany", "They are upset, or have a complaint"],
+      escalate_when: ["They ask for Marisa", "They are upset, or have a complaint"],
       booking_rules: {
         lead_hours: 2,
         slot_min: 30,
@@ -102,13 +102,13 @@ const STORED = {
         a_rule_added_later: "keep me",
       },
       guardrails: { never_quote_prices: true, no_health_advice: true },
-      handoff_number: "+16469325775",
+      handoff_number: "+12125550142",
       a_key_no_form_renders: "keep me too",
     },
   },
-  calendar: { ical_url: "https://calendar.example.com/melany/basic.ics" },
+  calendar: { ical_url: "https://calendar.example.com/marisa/basic.ics" },
   features: { vision: false },
-  notifications: { escalation_emails: ["melany@example.com"] },
+  notifications: { escalation_emails: ["marisa@example.com"] },
 };
 const stored = () => structuredClone(STORED);
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -227,23 +227,23 @@ const EDITS = {
       }),
   ],
   calendar: [
-    () => " webcal://calendar.example.com/melany/new.ics ",
-    (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/melany/new.ics" }),
+    () => " webcal://calendar.example.com/marisa/new.ics ",
+    (next) => assert.deepEqual(next.calendar, { ical_url: "webcal://calendar.example.com/marisa/new.ics" }),
   ],
   // The create fold, drawn only where there is no receptionist; on a stored brain it writes the three it asks for, a
   // different number where one is typed, and keeps the brain's own prompt and messages.
   receptionist: [
     (d) => ({
       ...d,
-      name: "  Melany's Salon & Spa ",
+      name: "  Marisa's Salon & Spa ",
       own: false,
       typed: " (646) 555-0100 ",
-      link: " https://book.example/melany ",
+      link: " https://book.example/marisa ",
     }),
     (next) => {
       assert.deepEqual(
         [next.brain.business_name, next.brain.phone_display, next.brain.booking_link],
-        ["Melany's Salon & Spa", "(646) 555-0100", "https://book.example/melany"],
+        ["Marisa's Salon & Spa", "(646) 555-0100", "https://book.example/marisa"],
       );
       assert.deepEqual(
         [next.brain.system_prompt, next.brain.fallbacks],
@@ -416,7 +416,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
   const s = stored();
   assert.equal(S.draftOf("tone", s), "Warm and unhurried.");
   assert.deepEqual(S.draftOf("languages", s), ["English", "Spanish"]);
-  assert.equal(S.draftOf("escalate_when", s), "They ask for Melany\nThey are upset, or have a complaint");
+  assert.equal(S.draftOf("escalate_when", s), "They ask for Marisa\nThey are upset, or have a complaint");
   assert.equal(S.draftOf("consult_first", s), "Color correction\nExtensions");
   assert.deepEqual(
     S.draftOf("booking_rules", s),
@@ -742,10 +742,10 @@ test("extra_instructions: the box is the owner's words, and the prompt becomes t
   assert.equal(emptied.brain.system_prompt, baseline);
   // Under the name the brain holds when it goes, so a rename saved before it is the name its lines carry.
   const renamed = stored();
-  renamed.brain.business_name = "Melany's Salon & Spa";
+  renamed.brain.business_name = "Marisa's Salon & Spa";
   assert.equal(
     S.saveFold("extra_instructions", renamed, { text: "Our own words.", carried: false }).brain.system_prompt,
-    newReceptionistDefaults("Melany's Salon & Spa").system_prompt,
+    newReceptionistDefaults("Marisa's Salon & Spa").system_prompt,
   );
 });
 
@@ -1624,7 +1624,7 @@ const previewed = (config) => {
       tz: "America/New_York",
       policy: {},
       known: {
-        workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" },
+        workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York" },
         channels: [],
         listing: null,
       },
@@ -1760,7 +1760,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
         profile: {
           hours: { mon: { open: "09:30", close: "18:00" } },
           guardrails: { never_quote_prices: true },
-          handoff_number: "+16469325775",
+          handoff_number: "+12125550142",
         },
       },
     };

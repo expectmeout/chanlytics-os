@@ -189,7 +189,7 @@ test("language, scope and settings changes", () => {
   assert.equal(scopeFromRoute("clients", "seg:vip"), null);
   const cfg = {
     brain: {
-      business_name: "Melany's",
+      business_name: "Marisa's",
       profile: { hours: { mon: { open: "10:00", close: "18:00" } }, closures: [{ date: "2026-12-25" }] },
     },
     features: { vision: true },
@@ -767,6 +767,10 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     "in the tab bar's own row, at the thumb and over no page: it floated 126px up, over what the page drew there",
   );
   assert.ok(
+    askCss.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
+    "and inside the native shell it lifts by the shell's tab bar, whose height the shell sets on <html>",
+  );
+  assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes("grid-template-columns: repeat(5, 1fr);"),
     "the five tabs keep their places",
   );
@@ -805,14 +809,10 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   );
 });
 
-test("the Line's mic says when it cannot listen, and the eval checks that an Open asked for is followed", () => {
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    ui.includes('data-testid="ask-talk-off"'),
-    "where the browser cannot listen, the mic says so instead of vanishing",
-  );
+test("the eval checks that an Open asked for is followed", () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
-  // ask-palette.test.mjs ("open, show or see", "a turn since the Line").
+  // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
+  // one button is Send alone, executed there too ("one button at the field's end").
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
 });

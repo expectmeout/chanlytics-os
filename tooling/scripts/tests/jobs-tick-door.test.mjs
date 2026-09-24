@@ -429,8 +429,14 @@ test("each job leaves on its own workspace's WhatsApp credentials from the vault
     "and its own owner is told, nobody else",
   );
   assert.deepEqual(
-    L.tables.jobs.map((j) => j.state),
-    ["done", "done", "done"],
+    L.tables.jobs.map((j) => [j.kind, j.tenant_id, j.state ?? "scheduled"]),
+    [
+      ["outbound_send", a.T, "done"],
+      ["outbound_send", b.T, "done"],
+      ["outbound_send", none.T, "done"],
+      ["push_send", none.T, "scheduled"],
+    ],
+    "the three ran; the refused one's kept row leaves one push job for its own owner's phone (00162), for the next heartbeat",
   );
 });
 
@@ -499,9 +505,16 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
     [[lineless.T, "send_failed"]],
   );
   assert.deepEqual(
-    L.tables.jobs.map((j) => j.state),
-    ["done", "done", "done"],
+    L.tables.jobs.map((j) => [j.kind, j.state ?? "scheduled"]),
+    [
+      ["outbound_send", "done"],
+      ["outbound_send", "done"],
+      ["outbound_send", "done"],
+      ["push_send", "scheduled"],
+    ],
+    "the three ran; the lineless one's kept row leaves one push job for its owner's phone, for the next heartbeat",
   );
+  assert.equal(L.tables.jobs[3].tenant_id, lineless.T, "that workspace's, nobody else's");
 });
 
 /* ------------------------------------------------------------ tried again */
@@ -637,9 +650,15 @@ test("ten failures in one heartbeat page the platform once with the counts, fail
     );
   });
 
+  // Each failure's kept row leaves one push_send for its owner's phone (00162): those rows are the ledger's next
+  // heartbeat, not this one's, and they are not what was failing.
+  const ran = L.tables.jobs.filter((j) => j.kind !== "push_send");
+  assert.ok(ran.length === 29 && ran.every((j) => j.state === "failed"), "every job is recorded failed");
+  const told = L.tables.jobs.filter((j) => j.kind === "push_send");
+  assert.equal(told.length, 29, "and each failure's kept row leaves one push job for its owner's phone");
   assert.ok(
-    L.tables.jobs.length === 29 && L.tables.jobs.every((j) => j.state === "failed"),
-    "every job is recorded failed",
+    told.every((j) => j.payload?.notification_id && j.state === undefined),
+    "each naming its row, scheduled for the ledger (the fake keeps the database's default state as unset)",
   );
   assert.equal(
     L.tables.messages.filter((m) => m.status === "failed").length,

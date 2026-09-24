@@ -1,28 +1,26 @@
 /**
  * One-off Slice 0 seed: create the operator auth users (email-confirmed, OTP
- * login only) and their owner memberships on the Melany tenant. Idempotent.
- * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SEED_EMAILS (comma list).
+ * login only) and their owner memberships on one workspace. Idempotent.
+ * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SEED_EMAILS (comma list),
+ * SEED_SLUG (the workspace's slug: a business's name is configuration, never a literal).
  */
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const slug = process.env.SEED_SLUG;
 const emails = (process.env.SEED_EMAILS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-if (!url || !key || !emails.length) {
-  console.error("SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SEED_EMAILS required");
+if (!url || !key || !slug || !emails.length) {
+  console.error("SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SEED_SLUG, SEED_EMAILS required");
   process.exit(2);
 }
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 
-const { data: tenant, error: terr } = await db
-  .from("tenants")
-  .select("id, slug")
-  .eq("slug", "melanys-beauty-salon")
-  .single();
+const { data: tenant, error: terr } = await db.from("tenants").select("id, slug").eq("slug", slug).single();
 if (terr) {
   console.error("tenant lookup failed:", terr.message);
   process.exit(1);

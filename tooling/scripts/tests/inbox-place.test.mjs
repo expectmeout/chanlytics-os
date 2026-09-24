@@ -68,7 +68,7 @@ const asked = (over = {}) => ({
 const listeners = {};
 globalThis.window = {
   location: {
-    pathname: "/w/melanys",
+    pathname: "/w/marisas",
     hash: "",
     origin: "https://app.chanlytics.com",
     assign() {},
@@ -77,7 +77,7 @@ globalThis.window = {
   },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  __WORKSPACES: [{ id: "t1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: ZONE }],
+  __WORKSPACES: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
   __ACTIVE_WORKSPACE: "t1",
   __chrome: { state: stateOf, replyWaits: replyWaitsOnYou },
   __identity: { member: memberWords },

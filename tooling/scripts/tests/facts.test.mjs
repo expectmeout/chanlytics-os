@@ -20,25 +20,25 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "./_source.mjs";
 
-/** Melany's Beauty Salon, exactly as the database held it. */
+/** Marisa's Beauty Salon, exactly as the database held it. */
 const LIVE = {
   typed: {
-    business_name: "Melany's Beauty Salon",
-    phone_display: "(646) 932-5775",
-    booking_link: "https://booksy.com/en-us/1817434_melany-s-beauty-salon_hair-salon_29902_brooklyn",
+    business_name: "Marisa's Beauty Salon",
+    phone_display: "(212) 555-0142",
+    booking_link: "https://book.example.com/en-us/4471902_marisa-s-beauty-salon_hair-salon_29902_brooklyn",
     profile: {
-      address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-      website: "https://melanysbeautysalon.com",
-      handoff_number: "+16469325775",
+      address: "1200 Maple Ave, Brooklyn, NY 11208",
+      website: "https://marisasbeautysalon.example.com",
+      handoff_number: "+12125550142",
     },
   },
   known: {
-    workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" },
+    workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York" },
     channels: [
-      { kind: "whatsapp", number_e164: "+19177724072", status: "active" },
-      { kind: "voice", number_e164: "+13083368109", status: "active" },
+      { kind: "whatsapp", number_e164: "+13055550188", status: "active" },
+      { kind: "voice", number_e164: "+13055550123", status: "active" },
     ],
-    listing: { name: "Melany's Beauty Salon", address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" },
+    listing: { name: "Marisa's Beauty Salon", address: "1200 Maple Ave, Brooklyn, NY 11208, USA" },
   },
 };
 
@@ -46,14 +46,14 @@ test("the live workspace: the published number is the transfer number, and that 
   const f = resolveFacts(LIVE.typed, LIVE.known);
 
   // What it answers on is provisioned and never typed.
-  assert.deepEqual(f.voice_line, { value: "+13083368109", source: "provisioned" });
-  assert.deepEqual(f.whatsapp_line, { value: "+19177724072", source: "provisioned" });
+  assert.deepEqual(f.voice_line, { value: "+13055550123", source: "provisioned" });
+  assert.deepEqual(f.whatsapp_line, { value: "+13055550188", source: "provisioned" });
 
   // What it SAYS is still what was typed — changing that silently would be a
   // worse bug than the one being fixed — but the disagreement is on the record.
-  assert.equal(f.phone_display.value, "(646) 932-5775");
+  assert.equal(f.phone_display.value, "(212) 555-0142");
   assert.equal(f.phone_display.source, "typed");
-  assert.deepEqual(f.phone_display.disputed, { value: "+1 (308) 336-8109", source: "provisioned" });
+  assert.deepEqual(f.phone_display.disputed, { value: "+1 (305) 555-0123", source: "provisioned" });
 
   const [worst] = factConflicts(f);
   assert.equal(worst.fact, "phone_display");
@@ -61,13 +61,13 @@ test("the live workspace: the published number is the transfer number, and that 
   // It knows the published number IS the transfer number, so it says the thing
   // that is actually true rather than a generic mismatch warning.
   assert.match(worst.sentence, /the number it transfers to/);
-  assert.match(worst.sentence, /never the receptionist answering on \+1 \(308\) 336-8109/);
+  assert.match(worst.sentence, /never the receptionist answering on \+1 \(305\) 555-0123/);
   assert.equal(worst.to, "admin/workspace");
 });
 
 test("Google's country suffix is not a disagreement", () => {
   const f = resolveFacts(LIVE.typed, LIVE.known);
-  // "2581 Pitkin Ave, Brooklyn, NY 11208" vs "…, USA". Reporting that trains
+  // "1200 Maple Ave, Brooklyn, NY 11208" vs "…, USA". Reporting that trains
   // people to ignore the warning, which costs more than the warning is worth.
   assert.equal(f.address.source, "typed");
   assert.equal(f.address.disputed, undefined);
@@ -168,13 +168,13 @@ test("F1: knownForwarding reads Setup's lines -- forwarded rows with a number, a
 });
 
 test("no typed value falls back to what the platform knows", () => {
-  const f = resolveFacts({ business_name: "Melany’s Beauty Salon", profile: {} }, LIVE.known);
+  const f = resolveFacts({ business_name: "Marisa’s Beauty Salon", profile: {} }, LIVE.known);
   assert.deepEqual(
     f.phone_display,
-    { value: "+1 (308) 336-8109", source: "provisioned" },
-    "formatted for speech: a prompt saying +13083368109 is a receptionist reading digits aloud",
+    { value: "+1 (305) 555-0123", source: "provisioned" },
+    "formatted for speech: a prompt saying +13055550123 is a receptionist reading digits aloud",
   );
-  assert.equal(f.address.value, "2581 Pitkin Ave, Brooklyn, NY 11208, USA");
+  assert.equal(f.address.value, "1200 Maple Ave, Brooklyn, NY 11208, USA");
   assert.equal(f.address.source, "verified");
   assert.deepEqual(factConflicts(f), [], "agreeing with the only source there is is not a conflict");
 });
@@ -191,29 +191,29 @@ test("nothing known and nothing typed is 'absent', not an empty string", () => {
 test("a disabled channel is not a line", () => {
   const f = resolveFacts(
     { profile: {} },
-    { channels: [{ kind: "voice", number_e164: "+13083368109", status: "disabled" }] },
+    { channels: [{ kind: "voice", number_e164: "+13055550123", status: "disabled" }] },
   );
   assert.equal(f.voice_line.value, null, "a switched-off line answers nothing, so it claims nothing");
   assert.equal(f.phone_display.source, "absent");
 });
 
 test("the same number written two ways is one fact", () => {
-  assert.ok(samePhone("(646) 932-5775", "+16469325775"));
-  assert.ok(samePhone("646-932-5775", "16469325775"));
-  assert.ok(!samePhone("+16469325775", "+13083368109"));
-  assert.ok(!samePhone("", "+16469325775"), "nothing is not a match");
+  assert.ok(samePhone("(212) 555-0142", "+12125550142"));
+  assert.ok(samePhone("212-555-0142", "12125550142"));
+  assert.ok(!samePhone("+12125550142", "+13055550123"));
+  assert.ok(!samePhone("", "+12125550142"), "nothing is not a match");
   // Resolution uses it, so a workspace that typed its own line in a friendly
   // format must not be accused of a conflict.
-  const f = resolveFacts({ phone_display: "(308) 336-8109", profile: {} }, LIVE.known);
+  const f = resolveFacts({ phone_display: "(305) 555-0123", profile: {} }, LIVE.known);
   assert.equal(f.phone_display.disputed, undefined);
   assert.deepEqual(factConflicts(f), []);
 });
 
 test("addresses and names compare on what they mean, not how they are punctuated", () => {
-  assert.ok(sameAddress("2581 Pitkin Ave, Brooklyn, NY 11208", "2581 Pitkin Ave, Brooklyn, NY 11208, USA"));
-  assert.ok(!sameAddress("2581 Pitkin Ave", "99 Nowhere Rd"));
-  assert.ok(sameName("Melany's Beauty Salon", "Melanys Beauty Salon"));
-  assert.ok(!sameName("Melany's", "Someone Else"));
+  assert.ok(sameAddress("1200 Maple Ave, Brooklyn, NY 11208", "1200 Maple Ave, Brooklyn, NY 11208, USA"));
+  assert.ok(!sameAddress("1200 Maple Ave", "99 Nowhere Rd"));
+  assert.ok(sameName("Marisa's Beauty Salon", "Marisas Beauty Salon"));
+  assert.ok(!sameName("Marisa's", "Someone Else"));
 });
 
 test("every source has words a person can read", () => {
@@ -311,17 +311,17 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   const { setupSteps } = await import("@chanlytics/contracts");
   const base = {
     business: {
-      name: "Melany's Beauty Salon",
+      name: "Marisa's Beauty Salon",
       hours: true,
       services: 33,
       bookingLink: true,
       address: true,
-      handoff: "+16469325775",
+      handoff: "+12125550142",
       broken: false,
     },
     channels: {
-      whatsapp: { present: true, active: true, number: "+19177724072", quality: "GREEN", lastInboundAt: null },
-      voice: { present: true, active: true, number: "+13083368109", lastInboundAt: null },
+      whatsapp: { present: true, active: true, number: "+13055550188", quality: "GREEN", lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: null },
     },
     templates: { approved: 6, pending: 0, startersApproved: 5 },
     calendar: { state: "ok" },
@@ -342,11 +342,11 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   const conflicts = factConflicts(
     resolveFacts(
       {
-        business_name: "Melany's Beauty Salon",
-        phone_display: "(646) 932-5775",
-        profile: { handoff_number: "+16469325775" },
+        business_name: "Marisa's Beauty Salon",
+        phone_display: "(212) 555-0142",
+        profile: { handoff_number: "+12125550142" },
       },
-      { channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }] },
+      { channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }] },
     ),
   );
   assert.equal(conflicts.length, 1);
@@ -361,7 +361,7 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   );
   assert.equal(factsRow.verb.label, "Fix it in Business");
   // "Answering" and "answering correctly" are different claims.
-  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+1 \(308\) 336-8109/);
+  assert.match(flagged.readiness.sentence, /never the receptionist answering on \+1 \(305\) 555-0123/);
   assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
 });
 

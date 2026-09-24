@@ -541,7 +541,7 @@ async function renderLoadedProfile(extra = {}) {
     // The shell's workspace list and the bridge's script, so the visit ask can
     // show the desk what to say -- the sentence the campaign files as method (3).
     __WORKSPACES: [
-      { id: "t-1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: "America/New_York" },
+      { id: "t-1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: "America/New_York" },
     ],
     __ACTIVE_WORKSPACE: "t-1",
     __verbalOptInScript: verbalOptInScript,
@@ -667,7 +667,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   // And when the yes is spoken, the desk is shown what to ask: the sentence the
   // campaign files as its spoken opt-in, in this workspace's name (30896).
   assert.ok(
-    talk.yesHow.includes(verbalOptInScript("Melany's Beauty Salon")),
+    talk.yesHow.includes(verbalOptInScript("Marisa's Beauty Salon")),
     "the script, verbatim, with the workspace's name",
   );
   assert.match(talk.yesHow, /^How did they tell you\? In person or on the phone, ask in these words: /);
@@ -675,7 +675,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   await spoken.click(byLabel(spoken.tree, "Yes"));
   assert.match(
     textOf(byId(spoken.tree, "consent-control-how")),
-    /Would you like Melany's Beauty Salon to text you/,
+    /Would you like Marisa's Beauty Salon to text you/,
     "on the rendered ask, not only in its props",
   );
   assert.deepEqual(

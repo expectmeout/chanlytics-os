@@ -363,14 +363,14 @@ Append:
 import { standingLine } from "@chanlytics/contracts";
 
 const full = {
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
   profile: {
-    address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+    address: "1200 Maple Ave, Brooklyn, NY 11208",
     tone: "Warm and unhurried.",
     hours: { mon: { open: "09:30", close: "18:00" } },
     services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
-    escalate_when: ["They ask for Melany"],
+    escalate_when: ["They ask for Marisa"],
     guardrails: { never_quote_prices: true },
   },
 };
@@ -729,15 +729,15 @@ Append:
 ```js
 import { promptBlocks, composeSystemPrompt } from "@chanlytics/contracts";
 
-const brain = { business_name: "Melany's Beauty Salon", phone_display: "+1 (308) 336-8109", booking_link: "https://booksy.com/x" };
+const brain = { business_name: "Marisa's Beauty Salon", phone_display: "+1 (305) 555-0123", booking_link: "https://booksy.com/x" };
 const profile = {
   tone: "Warm and unhurried.",
   languages: ["English", "Spanish"],
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
+  address: "1200 Maple Ave, Brooklyn, NY 11208",
   hours: { mon: { open: "09:30", close: "18:00" }, sat: { open: "09:30", close: "19:00" } },
   services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }],
   notes: [{ title: "Walk-ins", text: "Walk-ins are welcome." }],
-  escalate_when: ["They ask for Melany"],
+  escalate_when: ["They ask for Marisa"],
   guardrails: { never_quote_prices: true },
 };
 
@@ -1030,10 +1030,10 @@ const W = globalThis.window;
 
 test("a row draws its label, its value and one act", () => {
   const tree = fresh(() =>
-    W.RecordRow({ label: "Website", value: "melanysbeautysalon.com", act: { label: "Change", onClick: () => {} } }),
+    W.RecordRow({ label: "Website", value: "marisasbeautysalon.example.com", act: { label: "Change", onClick: () => {} } }),
   );
   assert.match(textOf(tree), /Website/);
-  assert.match(textOf(tree), /melanysbeautysalon\.com/);
+  assert.match(textOf(tree), /marisasbeautysalon\.example\.com/);
   assert.match(textOf(tree), /Change/);
 });
 
@@ -1045,7 +1045,7 @@ test("an empty row says so and keeps its act reachable", () => {
 });
 
 test("a source chip is the one pill, in the fact kind's tone", () => {
-  const tree = draw(W.RecordRow, { label: "Address", value: "2581 Pitkin Ave", source: "verified" });
+  const tree = draw(W.RecordRow, { label: "Address", value: "1200 Maple Ave", source: "verified" });
   const pill = find(tree, (n) => classes(n).some((c) => c.startsWith("pill-")));
   assert.ok(pill, "the chip is a StatePill");
   assert.ok(classes(pill).includes("pill-ok"), "verified is ok");
@@ -1057,9 +1057,9 @@ test("a disputed fact wears warn and offers the other answer", () => {
   const tree = fresh(() =>
     W.RecordRow({
       label: "Address",
-      value: "2581 Pitkin Avenue",
+      value: "1200 Maple Avenue",
       source: "typed",
-      disputed: { value: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => used.push(1) },
+      disputed: { value: "1200 Maple Ave, Brooklyn, NY 11208, USA", source: "verified", onUse: () => used.push(1) },
     }),
   );
   const pill = find(tree, (n) => classes(n).includes("pill-warn"));
@@ -1198,7 +1198,7 @@ test("a tip you cannot click is a chip; one you can is a card", () => {
   assert.ok(!find(chip, (n) => classes(n).includes("rec-card-tip")), "a chip is not a card");
 
   const used = [];
-  const card = draw(W.RecordTipCard, { title: "Google's address", body: "2581 Pitkin Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
+  const card = draw(W.RecordTipCard, { title: "Google's address", body: "1200 Maple Ave, Brooklyn, NY 11208, USA", act: { label: "Use it", onClick: () => used.push(1) } });
   press(find(card, (n) => typeof n.props?.onClick === "function" && textOf(n) === "Use it"));
   assert.equal(used.length, 1);
 });
@@ -1585,63 +1585,63 @@ import { standingLine } from "@chanlytics/contracts";
 // The settings read's own preview, built as the server builds it: a fold's draft is resolved with its inputs (Task 3.1).
 const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
 
-/** Melany's Beauty Salon, the live tenant, as the surface hands it over. */
-const melany = {
-  address: "2581 Pitkin Ave, Brooklyn, NY 11208",
-  website: "https://melanysbeautysalon.com",
+/** Marisa's Beauty Salon: the live tenant's record, in made-up details, as the surface hands it over. */
+const marisa = {
+  address: "1200 Maple Ave, Brooklyn, NY 11208",
+  website: "https://marisasbeautysalon.example.com",
   tone: "Warm and unhurried.",
   languages: ["English", "Spanish"],
   hours: { mon: { open: "09:30", close: "18:00" }, tue: { open: "09:30", close: "18:00" }, wed: { open: "09:30", close: "18:00" }, thu: { open: "09:30", close: "18:00" }, fri: { open: "09:30", close: "19:00" }, sat: { open: "09:30", close: "19:00" }, sun: {} },
   services: [{ name: "Balayage", duration_min: 180, price_note: "quoted at consult" }, { name: "Highlights", duration_min: 45, price_note: "quoted at consult" }],
   notes: [{ title: "Walk-ins", text: "Walk-ins are welcome; appointments are recommended for long services." }],
-  escalate_when: ["They ask for a person, for Melany or for the owner", "They are upset, or have a complaint"],
+  escalate_when: ["They ask for a person, for Marisa or for the owner", "They are upset, or have a complaint"],
   booking_rules: { lead_hours: 2, slot_min: 30, max_days_ahead: 14, party_max: 4, consult_first: ["Color correction", "Extensions"] },
   guardrails: { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true },
-  handoff_number: "+16469325775",
+  handoff_number: "+12125550142",
 };
 
 /** The brain as stored. It parses, as every saved one does, or consequenceOf resolves nothing from it. */
 const brainOf = (profile) => ({
-  business_name: "Melany's Beauty Salon",
-  booking_link: "https://booksy.com/en-us/1817434",
-  system_prompt: "You are the WhatsApp assistant for Melany's Beauty Salon. Answer warmly and briefly.",
+  business_name: "Marisa's Beauty Salon",
+  booking_link: "https://book.example.com/en-us/4471902",
+  system_prompt: "You are the WhatsApp assistant for Marisa's Beauty Salon. Answer warmly and briefly.",
   fallbacks: { greeting: "Hi! Someone will be with you shortly.", error: "Sorry, something went wrong on our side.", non_text: "Thanks, a person will look at this." },
   profile,
 });
 
-const settings = (profile = melany, over = {}) => ({
+const settings = (profile = marisa, over = {}) => ({
   version: 7,
   config: { brain: brainOf(profile), calendar: { ical_url: "https://app.chanlytics.com/api/v1/calendar/filler.ics" }, ...over },
   // Beside the config, the settings read hands over its preview, with the inputs it was resolved with.
   prompt: composePromptPreview(brainOf(profile), {
     tz: "America/New_York",
     policy: {},
-    known: { workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York" }, channels: [{ kind: "voice", number_e164: "+13083368109", status: "active" }], listing: null },
+    known: { workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York" }, channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }], listing: null },
     openings: null,
   }),
 });
 
 const facts = (over = {}) => ({
   facts: {
-    business_name: { value: "Melany's Beauty Salon", source: "verified" },
-    phone_display: { value: "+1 (308) 336-8109", source: "provisioned" },
-    booking_link: { value: "https://booksy.com/en-us/1817434", source: "typed" },
-    address: { value: "2581 Pitkin Ave, Brooklyn, NY 11208", source: "verified" },
-    website: { value: "https://melanysbeautysalon.com", source: "typed" },
-    handoff_number: { value: "+16469325775", source: "typed" },
-    voice_line: { value: "+13083368109", source: "provisioned" },
-    whatsapp_line: { value: "+13083368109", source: "provisioned" },
+    business_name: { value: "Marisa's Beauty Salon", source: "verified" },
+    phone_display: { value: "+1 (305) 555-0123", source: "provisioned" },
+    booking_link: { value: "https://book.example.com/en-us/4471902", source: "typed" },
+    address: { value: "1200 Maple Ave, Brooklyn, NY 11208", source: "verified" },
+    website: { value: "https://marisasbeautysalon.example.com", source: "typed" },
+    handoff_number: { value: "+12125550142", source: "typed" },
+    voice_line: { value: "+13055550123", source: "provisioned" },
+    whatsapp_line: { value: "+13055550123", source: "provisioned" },
     ...(over.facts ?? {}),
   },
   conflicts: over.conflicts ?? [],
 });
 
 /** Draw the tab over a given record. Every later test uses this. */
-const drawTab = ({ profile = melany, conflicts = [] } = {}) => {
+const drawTab = ({ profile = marisa, conflicts = [] } = {}) => {
   W.__SETTINGS = settings(profile);
   W.__FACTS = facts({ conflicts });
-  W.__WORKSPACES = [{ id: "t-melany", name: "Melany's Beauty Salon", timezone: "America/New_York" }];
-  W.__ACTIVE_WORKSPACE = "t-melany";
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: "America/New_York" }];
+  W.__ACTIVE_WORKSPACE = "t-marisa";
   return fresh(() => W.BusinessTab({ flash: () => {} }));
 };
 
@@ -1659,23 +1659,23 @@ Then the tests:
 
 ```js
 test("the standing line says what contracts said, and never writes its own", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const band = byTestId(tree, "rec-standing");
   const vm = standingLine(W.__SETTINGS.config.brain);
   assert.match(textOf(band), new RegExp(vm.can.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(textOf(band), new RegExp(vm.wont.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.equal(vm.missing, null, "Melany's record is missing nothing");
+  assert.equal(vm.missing, null, "Marisa's record is missing nothing");
 });
 
 test("a missing voice is named in the band, and the link opens its row", () => {
-  const tree = drawTab({ profile: { ...melany, tone: undefined } });
+  const tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const band = byTestId(tree, "rec-standing");
   assert.match(textOf(band), /no voice of its own/i);
   assert.ok(find(band, (n) => typeof n.props?.onClick === "function"), "the gap carries its own door");
 });
 
 test("Who you are draws seven rows, in the spec's order", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
   assert.deepEqual(keys, [
     "Name", "Address", "Website", "Booking link", "Answers on", "Tells customers to call", "Transfers a caller to",
@@ -1683,22 +1683,22 @@ test("Who you are draws seven rows, in the spec's order", () => {
 });
 
 test("the Workspace row is gone, whatever the workspace is called", () => {
-  const same = drawTab({ profile: melany });
+  const same = drawTab({ profile: marisa });
   assert.equal(byTestId(same, "rec-row-workspace"), null);
-  W.__WORKSPACES = [{ id: "t-melany", name: "Billing probe", timezone: "America/New_York" }];
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Billing probe", timezone: "America/New_York" }];
   const different = again(() => W.BusinessTab({ flash: () => {} }));
   assert.equal(byTestId(different, "rec-row-workspace"), null, "a second name for the business is not a row");
 });
 
 test("the line it answers is shown, never offered as a box", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-voice_line");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-voice_line");
   assert.equal(byTestId(row, "rec-row-act-voice_line"), null, "nothing here is typed");
   const door = find(row, (n) => typeof n.props?.onClick === "function");
   assert.ok(door, "one link to Connections");
 });
 
 test("the carrier record is named once, at the foot", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const mentions = all(card, (n) => typeof n.props?.children === "string" && /Connections/.test(n.props.children));
   assert.equal(mentions.length, 1, "asked once, said once");
   assert.match(textOf(byTestId(card, "rec-who-foot")), /legal name/i);
@@ -1708,13 +1708,13 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
   const conflict = {
     fact: "phone_display",
     severity: "serious",
-    used: "+1 (646) 932-5775",
-    known: "+1 (308) 336-8109",
+    used: "+1 (212) 555-0142",
+    known: "+1 (305) 555-0123",
     knownSource: "provisioned",
-    sentence: "Your receptionist tells customers to call +1 (646) 932-5775, but it answers on +1 (308) 336-8109.",
+    sentence: "Your receptionist tells customers to call +1 (212) 555-0142, but it answers on +1 (305) 555-0123.",
     to: "admin/workspace",
   };
-  const tree = drawTab({ profile: melany, conflicts: [conflict] });
+  const tree = drawTab({ profile: marisa, conflicts: [conflict] });
   assert.equal(byTestId(tree, "set-conflict-banner"), null, "the banner above the card is gone");
   const row = byTestId(tree, "rec-row-phone_display");
   assert.match(textOf(row), new RegExp(conflict.sentence.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -1778,7 +1778,7 @@ import { hoursLines } from "@chanlytics/contracts";
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
 test("the ribbon draws the week, and a closed day carries no bar", () => {
-  const ribbon = byTestId(drawTab({ profile: melany }), "bt-hours-ribbon");
+  const ribbon = byTestId(drawTab({ profile: marisa }), "bt-hours-ribbon");
   const days = all(ribbon, (n) => classes(n).includes("bt-ribbon-day"));
   assert.equal(days.length, 7);
   const sunday = days[6];
@@ -1786,13 +1786,13 @@ test("the ribbon draws the week, and a closed day carries no bar", () => {
 });
 
 test("the summary sentence is the one the composer wrote", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-hours");
-  assert.match(textOf(row), new RegExp(summaryOf(melany.hours).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-hours");
+  assert.match(textOf(row), new RegExp(summaryOf(marisa.hours).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
 test("copying a day says what it opened and what it overwrote, and puts it all back", () => {
   const flashes = [];
-  W.__SETTINGS = settings(melany);
+  W.__SETTINGS = settings(marisa);
   W.__FACTS = facts();
   const tree = fresh(() => W.BusinessTab({ flash: (f) => flashes.push(f) }));
   openFold(tree, "hours");
@@ -1810,7 +1810,7 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
 });
 
 test("the calendar row states its last read, and there is no button for it", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const row = byTestId(tree, "rec-row-calendar");
   assert.match(textOf(row), /read/i);
   assert.equal(find(row, (n) => /Check the address/i.test(textOf(n))), null, "a row that can say it needs no button");
@@ -1854,7 +1854,7 @@ git commit -am "The week has a shape"
 - [ ] **Step 1: Write the failing test**
 
 ```js
-const many = { ...melany, services: Array.from({ length: 33 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 + i, price_note: "quoted at consult" })) };
+const many = { ...marisa, services: Array.from({ length: 33 }, (_, i) => ({ name: `Service ${i + 1}`, duration_min: 30 + i, price_note: "quoted at consult" })) };
 
 test("the services row counts them and says how they are priced", () => {
   const row = byTestId(drawTab({ profile: many }), "rec-row-services");
@@ -1895,7 +1895,7 @@ test("removing a service offers it back at its own index", () => {
 });
 
 test("the booking-rules fold shows what the composer will write", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   openFold(tree, "booking_rules");
   const says = byTestId(again(() => W.BusinessTab({ flash: () => {} })), "rec-fold-says-booking_rules");
   const block = W.__businessTab.consequenceOf("booking_rules", W.__SETTINGS.config.brain, "whatsapp");
@@ -1903,7 +1903,7 @@ test("the booking-rules fold shows what the composer will write", () => {
 });
 
 test("consult-first is its own row with its own name", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-consult_first");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-consult_first");
   assert.match(textOf(row), /Needs a consult first/i);
   assert.match(textOf(row), /Color correction/);
 });
@@ -1934,7 +1934,7 @@ git commit -am "What you offer, and the list that needed room"
 > **Carried from Task 3.1's review.** The rules fold's consequence includes the Autonomy tab's rule lines, since a draft is resolved with the settings read's own policy. The vision switch never changes the prompt's words (`FOLD_BLOCK.vision` is null: a photo's words go in the customer's own turn), so it shows no "It will say". A record whose profile composes nothing has no rules block at all: the fold says why once, in contracts' words, and never draws an empty block.
 
 > **Changed in execution (22 Sep).** The steps below are the plan as written. What shipped differs in these ways.
-> 1. **The card is a file of its own**, `pages/business-tab-answers.jsx` (`window.BtAnswersCard`), in both load lists after `business-tab-offer.jsx`, drawn by the page above the services sheet, which stays its last drawn child. Seven folds, each id the key it saves. So the hand-off row is `escalate_when`, not the plan's `handoff`: the plan's test reads `rec-row-escalate_when`. `abilityRows`' two hand-off abilities named `handoff`, a row nothing drew: the chat hand-off now opens `escalate_when`, and, since the review, the transfer opens `handoff_number`, the number's one editor (Task 3.2's decision). The plan's tone test typed Melany's own tone, which changes nothing; it types another and reads the fold's parts.
+> 1. **The card is a file of its own**, `pages/business-tab-answers.jsx` (`window.BtAnswersCard`), in both load lists after `business-tab-offer.jsx`, drawn by the page above the services sheet, which stays its last drawn child. Seven folds, each id the key it saves. So the hand-off row is `escalate_when`, not the plan's `handoff`: the plan's test reads `rec-row-escalate_when`. `abilityRows`' two hand-off abilities named `handoff`, a row nothing drew: the chat hand-off now opens `escalate_when`, and, since the review, the transfer opens `handoff_number`, the number's one editor (Task 3.2's decision). The plan's tone test typed Marisa's own tone, which changes nothing; it types another and reads the fold's parts.
 > 2. **Four things the canvas said were not true, and are not said.** "It stops answering, marks the thread Needs you and emails your staff": the email goes to the Notifications tab's list (`notify.ts` `chooseAddressing`), which may be nobody, and the pause ends; the fold says the ability card's own sentence, now written once (`handoffChatWords`). "The phone agent has its own transfer, so the reasons above do not reach it": the composer writes the reasons under the call's hand-off heading too, so the fold says "Your reasons reach a call too." and the ability card's transfer sentence (`handoffCallWords`). The photos switch's "The four above are limits and start on": health advice starts off. "2 you wrote": a workspace set up before S5 was given messages with its details copied in, which nobody wrote, so the row says how many differ from the default wording (`fallbacksWords`).
 > 3. **Contracts** (`business-tab.ts`, on `__businessTab` with `hasProfile`): `TONE_PRESETS`, `handoffWords`, `handoffChatWords`, `handoffCallWords`, `notesWords`, `instructionsWords` and `fallbacksWords`, and `RULES_WITHOUT_FIELDS_WORDS`, the M-2 sentence, written once for Phase 4 to reuse.
 > 4. **The gestures grew three things** (business-tab-gestures.jsx, business-tab-folds.jsx). A fold of lines (`BtFold lines`: the voice and the languages are lines of Who you are) says only the lines its draft changes, under "It will be told", where the whole block said eight lines about one. `willSay` answers `caveat`, its blocks' own notes (prompt-blocks.ts), which a fold draws with the whole block: the rules' says which of its lines the Autonomy tab wrote, the hand-off's that it is always sent. And `rows()` puts back a word as itself, where it spread "Spanish" into an object. `linesOf` is published, so the hand-off fold asks the rule its save writes the reasons by.
@@ -1953,8 +1953,8 @@ git commit -am "What you offer, and the list that needed room"
 
 ```js
 test("the voice has a box, and it is the first row of How it answers", () => {
-  // Melany's real record, with no tone on it.
-  const tree = drawTab({ profile: { ...melany, tone: undefined } });
+  // Marisa's record, with no tone on it.
+  const tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const card = byTestId(tree, "rec-card-answers");
   const rows = all(card, (n) => classes(n).includes("rec-row"));
   assert.match(textOf(rows[0]), /Its voice/);
@@ -1962,7 +1962,7 @@ test("the voice has a box, and it is the first row of How it answers", () => {
 });
 
 test("typing a voice reaches the composer, and nothing else moves", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   openFold(tree, "tone");
   typeInto(tree, "tone", "Warm and unhurried.");
   const says = textOf(byTestId(again(drawTab), "rec-fold-says-tone"));
@@ -1970,7 +1970,7 @@ test("typing a voice reaches the composer, and nothing else moves", () => {
 });
 
 test("hand-off is one row naming both channels", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const row = byTestId(tree, "rec-row-handoff");
   assert.match(textOf(row), /WhatsApp/);
   assert.match(textOf(row), /Phone/);
@@ -2022,11 +2022,11 @@ import assert from "node:assert/strict";
 
 const STORED = {
   brain: {
-    business_name: "Melany's Beauty Salon",
+    business_name: "Marisa's Beauty Salon",
     booking_link: "https://booksy.com/x",
     system_prompt: "…the workspace's own prompt…",
     profile: {
-      address: "2581 Pitkin Ave",
+      address: "1200 Maple Ave",
       hours: { mon: { open: "09:30", close: "18:00" } },
       services: [{ name: "Balayage", duration_min: 180 }],
       booking_rules: { lead_hours: 2, slot_min: 30, a_rule_added_later: "keep me" },
@@ -2106,7 +2106,7 @@ git commit -m "A save patches, and the test that proves it"
 > **Changed in execution (22 Sep).** The steps below are the plan as written. What shipped differs in these ways.
 > 1. **The create-receptionist fold is its own card**, `pages/business-tab-create.jsx` (`window.BtCreateCard`), in both load lists after `business-tab-services.jsx`. At rest it draws the empty state the old card said, whose "Set up the receptionist" opens a `BtFold` with id `receptionist` holding the old create path's three fields; under it is *When you're open*'s own timezone row (`window.BtZoneRow`), not a copy of it. The fold saves through `foldJob` like every other, and writes `business_name`, `booking_link`, `phone_display` only where a different number is typed, and the product's prompt and messages ONLY where none is stored -- where the form wrote them on every save. It writes no `profile`: the form's profile of three guardrails composed exactly what no profile composes (`hasProfile` does not count guardrails) and absent is the same three rules in force, so it was a second way of saying nothing.
 > 2. **Two seams on the gestures made it possible.** `BtFold` takes `rest({ request, can })`, which draws something else in the row's place for a fold with no fact to state yet (`can` is `btOpening`'s own answer — whether there is a config to save onto and a draft that could be worked out of it, which is exactly what gates opening — and NOT whether the role may: a card's primary act is shown gated, where a row's own act is simply absent), and `check(draft)`, the card's own check beside `problemsOf`, for what the draft does not hold and only the page knows -- the line the workspace answers on. And a fold with a `rest` judges an UNTOUCHED Save instead of closing (`nothingYet`): there is nothing stored for a check to judge wrongly, and pressing Save on three empty required boxes must say what is missing, as the create form did, not look as though it saved.
-> 3. **The number the receptionist gives out is one box**, `window.btPublishedBox` (`business-tab-who.jsx`), drawn by the *Tells customers to call* row and by the create card, so the choice between the line and a different number and the four sentences that say what each costs are written once. Its placeholder was the LIVE SALON's transfer number (`+1 646 932 5775`), in both number boxes; both are the reserved fictional range now, as the rows they replaced used. That is a "no customer in the code" break that shipped on this branch in Task 3.2.
+> 3. **The number the receptionist gives out is one box**, `window.btPublishedBox` (`business-tab-who.jsx`), drawn by the *Tells customers to call* row and by the create card, so the choice between the line and a different number and the four sentences that say what each costs are written once. Its placeholder was the LIVE SALON's transfer number (`+1 212 555 0142`), in both number boxes; both are the reserved fictional range now, as the rows they replaced used. That is a "no customer in the code" break that shipped on this branch in Task 3.2.
 > 4. **`PaneWorkspace`'s states are four returns, not three**: broken, the record (`window.BusinessTab`, with `PromptPreview` and `WorkspaceData` under it), the create card, and the mockup's own card for a pane with no settings read at all -- which is the standalone harness, and which the old `real ?` branches wrote twice.
 > 5. **Deleted with `BusinessEditor`**: `hoursSummary`, `MAX_SHIFTS`, `MAX_CLOSURE_ROWS`, `SET_DAYS`, `SET_LANGS`, `FALLBACK_ROWS`, `DAY_LABEL_SHORT`, and the card's own rows `FactRow`, `FactConflicts`, `PublishedNumberRow`, `HandoffRow` and `TimezoneRow`. `SetSectionHead` stays (Your data draws one). 294 lines of `settings.css` went with them. `settingsRulesKept`/`SET_EDITED_RULES` went too, in the fix round: they had no caller but `settings-save-keeps-rules.test.mjs`, and the guarantee they stood for — the rules a form does not render survive a save — is not a helper any more but the shape of every fold, which `business-tab-folds.test.mjs` proves for EVERY one of them over a record carrying `booking_rules.a_rule_added_later` and `profile.a_key_no_form_renders`. That test file is deleted with them.
 > 6. **The rail's second question changed words.** With the form gone, "The changes in the business editor have not been saved." names something that does not exist; it is "Nothing you changed on this tab has been saved."
@@ -2376,8 +2376,8 @@ Phase 5. `components.css`, `mobile.css`, `legacy.css`, the tokens and `.pill` be
 import { abilityRows, cannotRows } from "@chanlytics/contracts";
 
 test("the card draws every ability, with the channel that has it", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-can");
-  // Every input, as the page computes it for Melany (Step 3's table). abilityRows throws on a
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-can");
+  // Every input, as the page computes it for Marisa (Step 3's table). abilityRows throws on a
   // boolean left out, so a wiring slip fails here instead of drawing a card that lies.
   for (const a of abilityRows({
     voiceLive: true, whatsappLive: true, hasCalendarFeed: true, hasBookingLink: true, hasBookingTemplate: true,
@@ -2392,7 +2392,7 @@ test("the card draws every ability, with the channel that has it", () => {
 });
 
 test("an ability whose input is missing points at the row that supplies it", () => {
-  const thin = { ...melany, handoff_number: undefined };
+  const thin = { ...marisa, handoff_number: undefined };
   const card = byTestId(drawTab({ profile: thin }), "rec-card-can");
   const transfer = byTestId(card, "rec-can-transfer");
   assert.match(textOf(transfer), /takes a message instead/i);
@@ -2402,13 +2402,13 @@ test("an ability whose input is missing points at the row that supplies it", () 
 test("the card reads the Autonomy tab: a pause nobody set is a day, and held bookings are said", () => {
   // Nothing under pause_hours is the common case. Passed as a number the page worked out, it
   // read "holds off for NaN hours"; passed as stored, abilityRows reads it as the pane does.
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-can");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-can");
   assert.match(textOf(byTestId(card, "rec-can-handoff")), /holds off for a day/);
   // Booking on ask: the page asks contracts' bookingHeld, the edge's own question, never a copy.
   const before = W.__POLICIES;
   W.__POLICIES = { rows: [{ class: "reply", mode: "auto", limits: {} }, { class: "booking", mode: "ask", limits: {} }], role: "owner" };
   try {
-    const held = byTestId(byTestId(drawTab({ profile: melany }), "rec-card-can"), "rec-can-booking_link");
+    const held = byTestId(byTestId(drawTab({ profile: marisa }), "rec-card-can"), "rec-can-booking_link");
     assert.match(textOf(held), /Your Autonomy tab holds bookings for you to confirm/);
   } finally {
     W.__POLICIES = before;
@@ -2418,12 +2418,12 @@ test("the card reads the Autonomy tab: a pause nobody set is a day, and held boo
 test("a workspace with both lines and an approved booking-link message is told the call sends the link", () => {
   // hasBookingTemplate is contracts' bookingTemplate over the workspace's templates: left out,
   // every two-channel workspace was told the call can't send it.
-  const row = byTestId(byTestId(drawTab({ profile: melany }), "rec-card-can"), "rec-can-booking_link");
+  const row = byTestId(byTestId(drawTab({ profile: marisa }), "rec-card-can"), "rec-can-booking_link");
   assert.match(textOf(row), /caller's WhatsApp, when their number has one/);
 });
 
 test("what it cannot do carries no switch", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-cannot");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-cannot");
   for (const c of cannotRows({ smsLive: false })) {
     const row = byTestId(card, `rec-cannot-${c.id}`);
     assert.ok(row, `${c.id} is drawn`);
@@ -2582,7 +2582,7 @@ On the page: `held` draws once, above the rows, with one door to the Autonomy ta
 import { ruleStrength, GUARDRAIL_KEYS } from "@chanlytics/contracts";
 
 test("each rule says how far it goes, in the words contracts wrote", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const card = byTestId(tree, "rec-card-answers");
   for (const key of GUARDRAIL_KEYS) {
     const row = byTestId(card, `rec-rule-${key}`);
@@ -2595,21 +2595,21 @@ test("each rule says how far it goes, in the words contracts wrote", () => {
 test("the price rule still says it is checked with the switch off", () => {
   // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
   // whether the switch is on or off; the switch changes one prompt line, and the row says so.
-  const off = { ...melany, guardrails: { ...melany.guardrails, never_quote_prices: false } };
+  const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
   const row = byTestId(drawTab({ profile: off }), "rec-rule-never_quote_prices");
   assert.match(textOf(row), /Checked, not just told/);
   assert.match(textOf(row), /whether this switch is on or off/);
 });
 
 test("the checked rule draws both channels, because they differ", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-rule-never_quote_prices");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-rule-never_quote_prices");
   assert.match(textOf(row), /In chat/i);
   assert.match(textOf(row), /On a call/i);
   assert.match(textOf(row), /before the customer sees them/i);
 });
 
 test("vision is an ability, not a limit, and is drawn apart", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-answers");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-answers");
   const vision = byTestId(card, "rec-rule-vision");
   assert.match(textOf(vision), /gives it a power/i);
   assert.equal(find(vision, (n) => classes(n).includes("rec-rule-sep")) !== null, true, "a dashed rule separates it from the four limits");
@@ -2812,7 +2812,7 @@ price rule alone; **1** dashed separator. At rest: **0** strength words on the r
 import { promptBlocks } from "@chanlytics/contracts";
 
 const drawPrompt = (channel = "whatsapp") => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   press(byTestId(tree, "rec-prompt-open"));
   return again(() => W.BusinessTab({ flash: () => {} }));
 };
@@ -3009,7 +3009,7 @@ corepack pnpm test
 - [ ] **Step 3: Commit and open the final PR**
 
 > **Changed in execution (22 Sep).** Built on `design/motion-and-the-words` in two commits (`3523e14a`, `cf3ef67d`) and this note.
-> 1. **What is on screen at rest, counted.** `business-tab-page.test.mjs` walks what the tab draws with no editor open and names every control that is neither in a closed editor nor a filled row's latent act. On a whole record (Melany's) it is four: **Read it**; the **Connections** link in Who you are's foot sentence (a word of the sentence, not an act beside it; it gained `rec-who-carriers`); **Add one** on Days you're closed, which is empty; and **Turn it on** beside Look at a photo, which is off. The last two are §11's own exceptions (the act on an empty row; anything missing), and the standing line's link is drawn only when there is a gap, so a whole record has none. An empty record adds only what is empty or missing, and the standing line's link. Under the tab, Your data draws **Download** with its mark and the two links in its deletion sentence. The count differs from §11's four, so §11 is amended (dated) with it: the page was not bent, since each extra control is either an exception §11 already makes or a link inside a sentence, and hiding a word of a sentence until it is hovered is not quieter. The journey counts, by computed style at 1280 with the pointer away, every control painted in the pane (laid out, and nothing over it transparent), holds each to one of those reasons, hovers a filled row and finds its act and only it drawn, and at 390 finds every act drawn. A mutant drawing a filled row's act at rest turned it red.
+> 1. **What is on screen at rest, counted.** `business-tab-page.test.mjs` walks what the tab draws with no editor open and names every control that is neither in a closed editor nor a filled row's latent act. On a whole record (Marisa's) it is four: **Read it**; the **Connections** link in Who you are's foot sentence (a word of the sentence, not an act beside it; it gained `rec-who-carriers`); **Add one** on Days you're closed, which is empty; and **Turn it on** beside Look at a photo, which is off. The last two are §11's own exceptions (the act on an empty row; anything missing), and the standing line's link is drawn only when there is a gap, so a whole record has none. An empty record adds only what is empty or missing, and the standing line's link. Under the tab, Your data draws **Download** with its mark and the two links in its deletion sentence. The count differs from §11's four, so §11 is amended (dated) with it: the page was not bent, since each extra control is either an exception §11 already makes or a link inside a sentence, and hiding a word of a sentence until it is hovered is not quieter. The journey counts, by computed style at 1280 with the pointer away, every control painted in the pane (laid out, and nothing over it transparent), holds each to one of those reasons, hovers a filled row and finds its act and only it drawn, and at 390 finds every act drawn. A mutant drawing a filled row's act at rest turned it red.
 > 2. **"N more below" is dropped.** Under the owner's rule it is a count that repeats what is already there: Save names the number ("Save 33 services"), the list scrolls under a head and a foot that hold still so a row cut at the foot's edge says there is more, and the search is how a person finds one of 33. And it is a number that recounts itself as the list scrolls, which §9's refusals (no number counts up) and the owner's "technical data users do not need" both refuse. The one-line hint that goes once you scroll was weighed and refused too: a scroll listener and a measured body for one line that says what the scrollbar says.
 > 3. **The languages fold's tokens are quiet** (step 1c). Each `li.bt-token` is its word and its remove, no border, no pill, no ground, the space between two words telling them apart; the remove keeps its 44px reach under a finger. "languages" joined the folds the phone journey opens as sheets, where `expectSheetQuiet` refused the salon's two bordered pills before the rule changed and passes after.
 > 4. **Run everything, one last time** (after the last commit): `corepack pnpm --filter "./packages/*" build`; `-r typecheck`, `lint` (39 warnings, none new), `format:check` and `check:dist` green, only the contracts dist differing from `b21256cb` (the other four rebuilt byte-identical, line endings aside); `corepack pnpm test` **4226** tests, **0** failed (3988 pass, 238 skipped for want of a database), 4211 before this task. `corepack pnpm e2e:local -- e2e/settings-business.spec.ts` and `--scenario=salon` both **16/16** (14 before: the four motions, and what is on screen at rest).

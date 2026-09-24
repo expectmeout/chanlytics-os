@@ -309,7 +309,7 @@ export interface PreflightProblem {
   fix: string;
 }
 
-/** Loose enough that "Melany's Salon" and "Melanys Salon LLC" are the same business. */
+/** Loose enough that "Marisa's Salon" and "Marisas Salon LLC" are the same business. */
 const loose = (s: string) =>
   s
     .toLowerCase()

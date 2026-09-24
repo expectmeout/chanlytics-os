@@ -66,10 +66,25 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
       "<PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />",
     ),
   );
+  assert.ok(
+    shell.includes("{!window.__IN_APP && ("),
+    "and only outside the app: inside it the native tab bar stands there (window.__IN_APP, stamped before paint)",
+  );
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");
   assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
+  // Inside the app: the native tab bar stands where the web one did, and the shell says how tall it is.
+  assert.ok(
+    css.includes("html.in-app .phone-tabs { display: none; }"),
+    "belt and braces for the frame before the shell reads the global",
+  );
+  assert.ok(
+    css.includes("html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }"),
+    "the room under every surface is the shell's tab bar, not the web's",
+  );
+  assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
     css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"),
     "fixed to the viewport: flowed, it lived below the fold",
@@ -101,6 +116,10 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
     layout.includes('appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Chanlytics" }'),
   );
   assert.ok(layout.includes('viewportFit: "cover"'));
+  assert.ok(
+    layout.includes("__html: inAppBootScript()"),
+    "inside the app: stamped before first paint, beside the theme",
+  );
   assert.ok(
     readCode("apps/dashboard/proxy.ts").includes('"/manifest.webmanifest"'),
     "the installer fetches it without a session (the public list is pinned by value in auth-gate)",

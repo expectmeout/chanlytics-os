@@ -15,13 +15,13 @@ const PEOPLE = [
   { id: "p1", name: "Daniela Reyes", phone: "+19175550101", email: "daniela@example.com" },
   { id: "p2", name: "Marcus Bell", phone: "+19175550102", email: null },
 ];
-const OWN = new Set(["salon@melany.com"]);
+const OWN = new Set(["salon@marisa.example.com"]);
 const event = (over) => ({
   title: "",
   description: null,
   location: null,
   attendees: [],
-  organizer: "salon@melany.com",
+  organizer: "salon@marisa.example.com",
   ...over,
 });
 
@@ -73,7 +73,11 @@ test("an appointment finds its person wherever the booking put them", () => {
 test("and never finds one who is not there", () => {
   // The business's own address is on the event because it is the business's calendar.
   assert.equal(
-    matchPerson(event({ title: "Team meeting", attendees: [{ name: null, email: "salon@melany.com" }] }), PEOPLE, OWN),
+    matchPerson(
+      event({ title: "Team meeting", attendees: [{ name: null, email: "salon@marisa.example.com" }] }),
+      PEOPLE,
+      OWN,
+    ),
     null,
     "the salon is not a customer",
   );
@@ -89,9 +93,9 @@ test("the contacts come off the title, the notes, the location and the attendees
   const c = extractContacts(
     event({
       title: "Gloss · Daniela Reyes",
-      description: "Phone: (917) 555-0101 · daniela@example.com · booked by salon@melany.com",
+      description: "Phone: (917) 555-0101 · daniela@example.com · booked by salon@marisa.example.com",
       location: "+1 917 555 0102",
-      attendees: [{ name: "Marcus Bell", email: "salon@melany.com" }],
+      attendees: [{ name: "Marcus Bell", email: "salon@marisa.example.com" }],
     }),
     OWN,
   );

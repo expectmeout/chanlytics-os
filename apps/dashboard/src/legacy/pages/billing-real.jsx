@@ -110,9 +110,16 @@ const PaneBillingReal = ({ flash }) => {
             {vm.testMode && <span className="set-row-hint" data-testid="billing-test-mode-note">{vm.testMode}</span>}
           </div>
           <div className="bc-chips">
-            {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => leave("checkout")} data-testid="billing-checkout" {...window.gate("billing", "start the subscription")}>{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
-            {vm.actions.resume && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={resume} data-testid="billing-resume" {...window.gate("billing", "resume the subscription")}>{busy === "resume" ? "Resuming…" : "Resume"}</button>}
-            {vm.actions.portal && <button className="btn btn-sm" disabled={!!busy} onClick={() => leave("portal")} data-testid="billing-portal" {...window.gate("billing", "manage the subscription")}>{busy === "portal" ? "Opening Stripe…" : "Manage billing"}</button>}
+            {window.__IN_APP ? (
+              /* A free companion to a paid web tool offers no purchase and no call to buy elsewhere (App Store 3.1.3(f)): the status stays, the doors do not. */
+              <span className="set-row-hint" data-testid="billing-in-app">Billing is managed from Chanlytics on the web.</span>
+            ) : (
+              <>
+                {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => leave("checkout")} data-testid="billing-checkout" {...window.gate("billing", "start the subscription")}>{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
+                {vm.actions.resume && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={resume} data-testid="billing-resume" {...window.gate("billing", "resume the subscription")}>{busy === "resume" ? "Resuming…" : "Resume"}</button>}
+                {vm.actions.portal && <button className="btn btn-sm" disabled={!!busy} onClick={() => leave("portal")} data-testid="billing-portal" {...window.gate("billing", "manage the subscription")}>{busy === "portal" ? "Opening Stripe…" : "Manage billing"}</button>}
+              </>
+            )}
             {subscribed && <button className="cl-bucket-link" disabled={!!busy} onClick={sync} data-testid="billing-sync" {...window.gate("approve", "read Stripe again")}>{busy === "sync" ? "Refreshing…" : "Refresh"}</button>}
           </div>
         </div>

@@ -1,6 +1,6 @@
 # Ask, the Stage: design spec
 
-**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 23 Sep (F · The Stage for the desktop; the takeover on a phone); built 23–24 Sep as PR #957 (the plan's "As built" section lists what differed) · **Plan:** `docs/superpowers/plans/2026-09-23-ask-the-stage.md` (one plan, one PR)
+**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 23 Sep (F · The Stage for the desktop; the takeover on a phone); built 23–24 Sep as PR #957 (the plan's "As built" section lists what differed) · S12 revised 24 Sep to one button at the field's end (the plan's "As built, one button") · **Plan:** `docs/superpowers/plans/2026-09-23-ask-the-stage.md` (one plan, one PR)
 **Direction:** picked on the review page https://claude.ai/artifact/UPrgqXnortmV5HFoTPyMr9 (rows F and F · phone). D · The Composer and E · The Sheet were set aside.
 **Base:** written against `origin/main` at `000d4906` (#940). The Line's spec (`2026-09-23-ask-the-line-design.md`, rev 3) stands underneath this one: the protocol, the answer's shape (Say · Show · Do, `AskAnswer` v2, one door, sources and receipts), the turn on the server, the model gate and its call are unchanged. This document changes only what a person sees and touches. Where this spec and the code disagree, the code wins.
 
@@ -35,7 +35,7 @@ What does not change: the backend ("i like the backend"); the words of every ans
 - **S9. Persistence.** A conversation comes back until Clear (as today); the words typed come back on reopen and go on send or Clear; the open conversation's id survives a reload and is opened again on the next open; all of it through the tab's memory kit, per workspace, forgotten at sign-out.
 - **S10. The keyboard never opens by itself on a phone.** The takeover opens with focus on its dialog, not the field; a tap on the field opens the keyboard; a hold on the mic or on the three listens without it. On the desktop the field takes focus on open, as today.
 - **S11. Hold to talk, two places.** The mic button (as today) and the three themselves on the phone (as the band did: a press held 320ms listens, a shorter press does nothing). Space held on an empty field talks on the desktop (as today).
-- **S12. Send and Stop.** A 32px circle at the field's end: faint with no words, ink with words, Stop while a turn runs. Enter sends, as today.
+- **S12. One button at the field's end.** A 32px ink circle: the mic with no words (hold to talk, the kit's classic `mic` glyph), Send once there are words, Stop while a turn runs; coral while it listens; faint only where the browser cannot listen and there are no words. Its glyph blooms in as the role turns. Enter sends, as today. (Revised 24 Sep: Ruben asked for one icon that "morphs into the arrow up if user types and if not it is as the microphone", and a classic microphone in place of the waveform.)
 - **S13. Motion is CSS and the one FLIP.** The panel and the takeover come and go through the shell's kit; the three FLIP from their door; parts rise 6px as they fade in, 60ms apart; the reading line fades; tiles and chips arrive with their part. No count-up (a figure is "20s" or "1 min" as often as "5"). Nothing moves under reduced motion but the finger's own drag.
 - **S14. Today's band goes.** `today-face.jsx`, its styles, its tests and the turn reducer it alone used (`mascot/turn.ts`) retire; the ✦ is the phone's door. The queue starts under the header again.
 - **S15. One turn runner.** The Line's `submit` is the one place a question becomes a turn on every screen; the band's reducer is not carried over.
@@ -54,7 +54,7 @@ The scrim and the panel as today (`ask.css:9-20`), the panel 80px from the top i
 - The three: an 84×68 `AskFace` canvas at the left (`fitSide` gives 16.6px squares), `ref` for the FLIP as today.
 - The scope chip, when there is one, before the field, as today (`.ask-scope`).
 - The field: 20px, `letter-spacing: -0.012em`, placeholder "Ask anything" (`t.placeholder`), "Ask a follow-up" in a conversation (`t.follow`), "Listening…" while listening, as today.
-- The right cluster, in order of state: at rest the mic (`.ask-talk`, 36px, ghost) and Send; while a turn runs, Stop; with an answer drawn, Copy, Read aloud and Clear (`.ask-line-btn quiet`, as today) and Send.
+- The right cluster, in order of state: at rest the one button (`.ask-send`, S12: the mic, or Send with words); while a turn runs it is Stop; with an answer drawn, Copy, Read aloud and Clear (`.ask-line-btn quiet`, as today) stand before it.
 - The reading line: a second row inside the band, 12.5px in `--accent-ink` with a 6px coral dot pulsing (`ask-pulse` stays), showing `live.traces[last]` or `t.thinking`. The band grows to 112px with it (`grid-template-rows: 0fr → 1fr`, 160ms) and back.
 
 ### 4.3 Under the band, at rest
@@ -103,7 +103,7 @@ Above the band, as today (`.ask-folds`), each fold a 36px row: the light square,
 `.ask-modal.ask-line` is the screen: `position: fixed; inset: 0`, `background: var(--bg)`, no radius, no shadow, padding-top `env(safe-area-inset-top)`, padding-bottom `env(safe-area-inset-bottom)`; the wash behind it is the kit's, fully covered. `role="dialog" aria-modal="true" aria-label="Ask Chanlytics"`. Three rows: the head, the middle (flex 1, scrolls when it must, `overscroll-behavior: contain`), the foot.
 
 - **Head** (52px): "Earlier" as `.btn-ghost` with the chat glyph at the left (toggles the Earlier list, `aria-pressed`); Clear as `.btn-ghost` beside it only in a conversation; × (44px) at the right.
-- **Foot**: the field (56px, `--bg-sunken`, radius 16, `--line`), the mic (40px) and Send (32px) inside it, in 12px side padding; it rides the keyboard through `--ask-kb` as today.
+- **Foot**: the field (56px, `--bg-sunken`, radius 16, `--line`), the one button (36px) inside it, in 12px side padding; it rides the keyboard through `--ask-kb` as today.
 
 ### 5.2 At rest
 
@@ -111,7 +111,7 @@ The middle centres its content: the three (a `<canvas>` in a stage of `min(232px
 
 ### 5.3 Listening
 
-A hold on the mic, or a press held 320ms on the three (S11): the three huddle in coral (mood `listening`); the pills, sentence and chips give way to the words heard, centred, 26px/500, the last word dim until it settles; the foot becomes "Let go to ask" (a 60px coral pill, `--accent` on `--accent-fg`, the mic glyph) with "Type instead" (`.btn-ghost`) above it. Letting go with words asks them; with none, the screen is at rest again. The keyboard never opens for a hold (`preventDefault` on the pointer down, `touch-action: none` on the mic and the stage, as today's `.ask-talk` and `.tf-stage` do).
+A hold on the mic, or a press held 320ms on the three (S11): the three huddle in coral (mood `listening`); the pills, sentence and chips give way to the words heard, centred, 26px/500, the last word dim until it settles; the foot becomes "Let go to ask" (a 60px coral pill, `--accent` on `--accent-fg`, the mic glyph) with "Type instead" (`.btn-ghost`) above it. Letting go with words asks them; with none, the screen is at rest again. The keyboard never opens for a hold (`preventDefault` on the pointer down, `touch-action: none` on the button and the stage, as `.ask-send` and `.tf-stage` do).
 
 ### 5.4 Reading
 
@@ -119,7 +119,7 @@ The question at the top of the middle (a 7px dark square and the words, 14px); t
 
 ### 5.5 The answer
 
-On the first `say` line the stage eases to 96×78 (a CSS `height` transition of 200ms; the canvas fits its box every frame, so the squares shrink with it) and stays centred at the top with the question under it in 12.5px dim; the answer draws on the rail under that, as 4.5 but the tiles two across and the items at 48px; the folds of earlier turns above the answer in the same scrolling middle; the foot's field says "Ask a follow-up" with the mic and Send. The middle scrolls; the stage and the question scroll with it (they are part of it), so a long answer is read with the three out of the way.
+On the first `say` line the stage eases to 96×78 (a CSS `height` transition of 200ms; the canvas fits its box every frame, so the squares shrink with it) and stays centred at the top with the question under it in 12.5px dim; the answer draws on the rail under that, as 4.5 but the tiles two across and the items at 48px; the folds of earlier turns above the answer in the same scrolling middle; the foot's field says "Ask a follow-up" with the one button. The middle scrolls; the stage and the question scroll with it (they are part of it), so a long answer is read with the three out of the way.
 
 The answer's `do.open` with `now` goes where it points and closes the takeover, as today (`nav`).
 
@@ -152,11 +152,11 @@ The ✦ (`.phone-ask`, the three on coral) opens it with a tap; it hides while t
 | Safe areas | phone | `env(safe-area-inset-*)` on head and foot |
 | Rides the keyboard | phone | `--ask-kb` (today) |
 | Scroll stays inside | phone | `overscroll-behavior: contain` on the middle; the page under it is not scrolled (the overlay is fixed) |
-| Send fills with words | both | S12 |
+| One button: the mic, Send, Stop | both | S12 |
 | Haptics | phone | S16 |
 | Reduced motion | both | S13 |
 | Screen readers | both | `aria-modal`, the listbox and `aria-activedescendant` as today, the headline said once whole (`.ask-said`), the reading line `aria-live="polite"` |
-| Where speech is absent | both | the mic shows off and says so (today's `t.noVoice`); the three's hold does the same on the phone |
+| Where speech is absent | both | the one button is Send alone; a held Space or the three's hold says so (`t.noVoice`), once |
 | The field | both | `enterkeyhint="send"`, `autocapitalize="sentences"`, `autocomplete="off"`, `spellcheck="false"`, `maxLength=1000` (today) |
 
 ## 7. The code: modules and what each owns

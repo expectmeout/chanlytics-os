@@ -2,7 +2,7 @@
  * An email replies by quoting the whole of what it answers, and the thread drew every line of it.
  *
  * Measured on app.chanlytics.com: ruben@rjcapital.io's "Got it, thanks!" rendered as six lines of
- * "On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon <…> wrote: > testing back at you >" on a
+ * "On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon <…> wrote: > testing back at you >" on a
  * 375px screen — the whole bubble, for two words of reply. The chain is kept (an operator may need
  * to see what the customer was answering) but it is not what the bubble says.
  *
@@ -19,8 +19,8 @@ import { splitQuotedReply, toInboxThreadVM, toConversationVM } from "@chanlytics
 
 test("the body this was written against — flattened onto one line — splits at the attribution", () => {
   const body =
-    "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon < " +
-    "melanys-beauty-salon@mail.chanlytics.com> wrote: > testing back at you >";
+    "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon < " +
+    "marisas-beauty-salon@mail.chanlytics.com> wrote: > testing back at you >";
   const { text, quoted } = splitQuotedReply(body);
   assert.equal(text, "Got it, thanks!");
   assert.ok(quoted.startsWith("On Thu, Sep 17, 2026"), `quoted began: ${quoted.slice(0, 40)}`);
@@ -125,7 +125,7 @@ test("an email's chain is split off; the same characters on WhatsApp are words",
 /* ----------------- and the Conversations row says the same words ----------------- */
 
 // Found on 21 September: the thread said "Got it, thanks!" and the Conversations list beside it previewed
-// "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Melany's Beauty Salon < melanys-beauty-salon@mail…", because
+// "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Marisa's Beauty Salon < marisas-beauty-salon@mail…", because
 // toConversationVM read messageText() and never the split. Two view models, one fix.
 test("a Conversations row previews and is searched by what they wrote, not the chain they quoted", () => {
   const body = "Got it, thanks! On Thu, Sep 17, 2026 at 10:44 PM Foo <a@b.com> wrote: > testing back at you >";

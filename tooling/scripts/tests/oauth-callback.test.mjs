@@ -74,7 +74,7 @@ test("a refusal keeps its reason for the log: the code and the description, clip
 });
 
 test("`next` is a path on this site, or the root", () => {
-  for (const ok of ["/", "/#/inbox", "/w/melanys#/people", "/settings?tab=team"]) assert.equal(safeNext(ok), ok, ok);
+  for (const ok of ["/", "/#/inbox", "/w/marisas#/people", "/settings?tab=team"]) assert.equal(safeNext(ok), ok, ok);
   for (const bad of [
     "https://evil.example/",
     "//evil.example",

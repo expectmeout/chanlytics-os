@@ -166,12 +166,12 @@ test("resume: an LLM or an agent from a failed run is read back and reused, neve
 test("idempotent: a workspace with a voice row plans nothing, and says why", () => {
   const on = planVoiceProvision({
     tenant,
-    channel: { id: "c1", status: "active", agentId: "agent_live", number: "+13083368109" },
+    channel: { id: "c1", status: "active", agentId: "agent_live", number: "+13055550123" },
     request: { areaCode: 305 },
   });
   assert.equal(on.nothing, true);
   assert.deepEqual(on.steps, []);
-  assert.match(on.reason, /already answering on \+13083368109/);
+  assert.match(on.reason, /already answering on \+13055550123/);
   assert.match(on.reason, /voice-converge/);
   const off = planVoiceProvision({
     tenant,

@@ -24,7 +24,7 @@ const NOW = new Date("2026-09-14T14:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
 
 const ANA = "u-ana";
-const TEAM = [{ userId: ANA, email: "ana@melanys.com", displayName: "Ana García" }];
+const TEAM = [{ userId: ANA, email: "ana@marisas.example.com", displayName: "Ana García" }];
 const rosa = {
   id: "p1",
   display_name: "Rosa Díaz",

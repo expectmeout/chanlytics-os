@@ -41,7 +41,7 @@ import {
   foldOf,
   inline,
   labelled,
-  melany,
+  marisa,
   openFold,
   openFolds,
   openRows,
@@ -81,23 +81,23 @@ after(() => unmount());
 /* ------------------------------------ the plan's seven ------------------------------------ */
 
 test("the standing line says what contracts said, and never writes its own", () => {
-  const tree = drawTab({ profile: melany });
+  const tree = drawTab({ profile: marisa });
   const band = byTestId(tree, "rec-standing");
   const vm = standingLine(W.__SETTINGS.config.brain, true);
   assert.match(textOf(band), new RegExp(escape(vm.can)));
   assert.match(textOf(band), new RegExp(escape(vm.wont)));
-  assert.equal(vm.missing, null, "Melany's record is missing nothing");
+  assert.equal(vm.missing, null, "Marisa's record is missing nothing");
 });
 
 test("M-1: the band names a call's correction only on a workspace that answers calls", () => {
   // In chat the swap happens before the reply is sent; on a call the figure has been heard and what follows is a
   // correction (contracts, policy.ts). One sentence for both was exact on one channel and flattering on the other.
-  const withCall = drawTab({ profile: melany });
+  const withCall = drawTab({ profile: marisa });
   const heard = textOf(byTestId(withCall, "rec-standing"));
   assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true).wont)));
   assert.match(heard, /on a call caught afterwards rather than prevented/i);
   // A workspace with no phone line is told nothing about a line it does not have.
-  const chatOnly = drawTab({ profile: melany, facts: { voice_line: { value: null, source: "absent" } } });
+  const chatOnly = drawTab({ profile: marisa, facts: { voice_line: { value: null, source: "absent" } } });
   const alone = textOf(byTestId(chatOnly, "rec-standing"));
   assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false).wont)));
   assert.doesNotMatch(alone, /on a call/i);
@@ -108,7 +108,7 @@ test("M-1: the band names a call's correction only on a workspace that answers c
 });
 
 test("a missing voice is named in the band, and the link opens its row", () => {
-  const tree = drawTab({ profile: { ...melany, tone: undefined } });
+  const tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const band = byTestId(tree, "rec-standing");
   assert.match(textOf(band), /no voice of its own/i);
   assert.ok(
@@ -118,7 +118,7 @@ test("a missing voice is named in the band, and the link opens its row", () => {
 });
 
 test("Who you are draws seven rows, in the spec's order", () => {
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
   assert.deepEqual(keys, [
     "Name",
@@ -132,15 +132,15 @@ test("Who you are draws seven rows, in the spec's order", () => {
 });
 
 test("the Workspace row is gone, whatever the workspace is called", () => {
-  const same = drawTab({ profile: melany });
+  const same = drawTab({ profile: marisa });
   assert.equal(byTestId(same, "rec-row-workspace"), null);
-  W.__WORKSPACES = [{ id: "t-melany", name: "Billing probe", timezone: "America/New_York" }];
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Billing probe", timezone: "America/New_York" }];
   const different = redrawTab();
   assert.equal(byTestId(different, "rec-row-workspace"), null, "a second name for the business is not a row");
 });
 
 test("the line it answers is shown, never offered as a box", () => {
-  const row = byTestId(drawTab({ profile: melany }), "rec-row-voice_line");
+  const row = byTestId(drawTab({ profile: marisa }), "rec-row-voice_line");
   assert.equal(byTestId(row, "rec-row-act-voice_line"), null, "nothing here is typed");
   // The row itself is a press too (record-row.jsx: the whole row presses its act); the door is what is in it.
   const door = find(row, (n) => n !== row && typeof n.props?.onClick === "function");
@@ -148,7 +148,7 @@ test("the line it answers is shown, never offered as a box", () => {
   // Beyond the plan: the number as Setup writes it, where it came from, where the door goes, and what a screen reader
   // hears it called: where it goes and why, beginning with the word on it, since that word and the row's label
   // together ("Connections Answers on") say nothing.
-  assert.match(textOf(row), /\+1 \(308\) 336-8109/);
+  assert.match(textOf(row), /\+1 \(305\) 555-0123/);
   assert.match(textOf(row), /your line/);
   assert.equal(door.props["data-testid"], "rec-row-door-voice_line");
   assert.equal(door.props["aria-label"], "Connections, where the line it answers on is set up");
@@ -166,7 +166,7 @@ test("the carrier record is named once, at the foot", () => {
   // hands every node an array of children, so that count was always 0; and the Answers-on row's own door says
   // Connections too, as the old FactRow's did. What it pins is that the carrier record -- the legal name and the
   // registered address -- is asked for on Connections and said once here, at the foot.
-  const card = byTestId(drawTab({ profile: melany }), "rec-card-who");
+  const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const mentions = all(card, (n) => /legal name|registered address/i.test(ownWords(n)));
   assert.equal(mentions.length, 1, "asked once, said once");
   const foot = byTestId(card, "rec-who-foot");
@@ -182,13 +182,13 @@ test("a conflict sits on the row it is about, and there is no banner", () => {
   const conflict = {
     fact: "phone_display",
     severity: "serious",
-    used: "+1 (646) 932-5775",
-    known: "+1 (308) 336-8109",
+    used: "+1 (212) 555-0142",
+    known: "+1 (305) 555-0123",
     knownSource: "provisioned",
-    sentence: "Your receptionist tells customers to call +1 (646) 932-5775, but it answers on +1 (308) 336-8109.",
+    sentence: "Your receptionist tells customers to call +1 (212) 555-0142, but it answers on +1 (305) 555-0123.",
     to: "admin/workspace",
   };
-  const tree = drawTab({ profile: melany, conflicts: [conflict] });
+  const tree = drawTab({ profile: marisa, conflicts: [conflict] });
   assert.equal(byTestId(tree, "set-conflict-banner"), null, "the banner above the card is gone");
   const row = byTestId(tree, "rec-row-phone_display");
   assert.match(textOf(row), new RegExp(escape(conflict.sentence.slice(0, 40))));
@@ -234,7 +234,7 @@ test("a fact that is not the owner's says where it came from; one they set says 
   let tree = drawTab({
     resolved: {
       ...KNOWN,
-      listing: { name: "Melany's Beauty Salon", address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" },
+      listing: { name: "Marisa's Beauty Salon", address: "1200 Maple Ave, Brooklyn, NY 11208, USA" },
     },
   });
   const chipOf = (row) => {
@@ -257,7 +257,7 @@ test("a fact that is not the owner's says where it came from; one they set says 
   );
   assert.match(
     textOf(byTestId(tree, "rec-row-handoff_number")),
-    /\+1 \(646\) 932-5775/,
+    /\+1 \(212\) 555-0142/,
     "written as people write it, never as it is stored",
   );
   assert.doesNotMatch(
@@ -267,15 +267,15 @@ test("a fact that is not the owner's says where it came from; one they set says 
   );
   // What only Google says is Google's: no address typed, and the one it lists.
   tree = drawTab({
-    profile: without(melany, "address"),
-    resolved: { ...KNOWN, listing: { name: null, address: "2581 Pitkin Ave, Brooklyn, NY 11208, USA" } },
+    profile: without(marisa, "address"),
+    resolved: { ...KNOWN, listing: { name: null, address: "1200 Maple Ave, Brooklyn, NY 11208, USA" } },
   });
   assert.equal(chipOf("rec-row-address"), stateOf("fact", "verified").label, "from Google");
-  assert.match(textOf(byTestId(tree, "rec-row-address")), /2581 Pitkin Ave, Brooklyn, NY 11208, USA/);
+  assert.match(textOf(byTestId(tree, "rec-row-address")), /1200 Maple Ave, Brooklyn, NY 11208, USA/);
 });
 
 test("an empty website says what empty means, and claims no page it cannot back", () => {
-  const tree = drawTab({ profile: without(melany, "website"), facts: { website: { value: null, source: "absent" } } });
+  const tree = drawTab({ profile: without(marisa, "website"), facts: { website: { value: null, source: "absent" } } });
   const row = byTestId(tree, "rec-row-website");
   assert.equal(row.props["data-empty"], "true");
   // Exactly what the composer does with an empty box: it writes no website line. Not that the receptionist has none to
@@ -311,7 +311,7 @@ test("each act is named for what it acts on: its words and its row's label, or w
   );
   // Empty, the act's own words are "Add one", and the name keeps them.
   tree = drawTab({
-    profile: without(without(melany, "website"), "handoff_number"),
+    profile: without(without(marisa, "website"), "handoff_number"),
     facts: { website: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
   });
   assert.deepEqual(
@@ -340,7 +340,7 @@ test("an inline save sends the stored config with its one key changed, and every
   tree = redrawTab(flash);
   assert.deepEqual(openRows(tree), ["address"], "the row became its field");
   assert.equal(byTestId(tree, "rec-row-address"), null, "in the row's place");
-  assert.equal(boxOf(tree, "address").props.value, melany.address, "starting from what is stored");
+  assert.equal(boxOf(tree, "address").props.value, marisa.address, "starting from what is stored");
   typeInto(tree, "address", "  10 Pier St, Brooklyn, NY 11201  ");
   tree = redrawTab(flash);
   saveRow(tree, "address");
@@ -357,12 +357,12 @@ test("an inline save sends the stored config with its one key changed, and every
   tree = drawTab({ flash });
   openFold(tree, "booking_link");
   tree = redrawTab(flash);
-  typeInto(tree, "booking_link", "https://book.example/melany");
+  typeInto(tree, "booking_link", "https://book.example/marisa");
   tree = redrawTab(flash);
   saveRow(tree, "booking_link");
   assert.deepEqual(sent[1].config, {
     ...stored,
-    brain: { ...stored.brain, booking_link: "https://book.example/melany" },
+    brain: { ...stored.brain, booking_link: "https://book.example/marisa" },
   });
 });
 
@@ -405,7 +405,7 @@ test("what stops a save is said under the box, before any round trip, and nothin
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
-  typeInto(tree, "website", "melanysbeautysalon");
+  typeInto(tree, "website", "marisasbeautysalon");
   tree = redrawTab(flash);
   saveRow(tree, "website");
   tree = redrawTab(flash);
@@ -419,8 +419,8 @@ test("what stops a save is said under the box, before any round trip, and nothin
   );
   assert.deepEqual([sent.length, flashes.length], [0, 0], "nothing sent, and nothing said in a toast");
   assert.deepEqual(openRows(tree), ["website"], "the editor stays open");
-  assert.equal(box.props.value, "melanysbeautysalon", "with what was typed");
-  typeInto(tree, "website", "https://melanysbeautysalon.com/home");
+  assert.equal(box.props.value, "marisasbeautysalon", "with what was typed");
+  typeInto(tree, "website", "https://marisasbeautysalon.example.com/home");
   tree = redrawTab(flash);
   assert.equal(boxOf(tree, "website").props["aria-invalid"], undefined, "typing again takes the sentence away");
 
@@ -482,7 +482,7 @@ test("F1: the number the business keeps, given out, says its missed calls reach 
   tree = redrawTab(flash);
   assert.match(
     textOf(byTestId(tree, "rec-inline-phone_display-note")),
-    /^Your own number\. The calls nobody picks up there go to your receptionist on \+1 \(308\) 336-8109\.$/,
+    /^Your own number\. The calls nobody picks up there go to your receptionist on \+1 \(305\) 555-0123\.$/,
   );
   typeInto(tree, "phone_display", "+1 (646) 555-0100");
   tree = redrawTab(flash);
@@ -498,11 +498,11 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   const flashes = [];
   const flash = (f) => flashes.push(f);
   // Facts resolved as the settings read resolves them: Google lists the salon at an address written another way.
-  const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
+  const google = "1200 Maple Ave, Brooklyn, NY 11208, USA";
   let tree = drawTab({
     flash,
-    profile: { ...melany, address: "2581 Pitkin Avenue" },
-    resolved: { ...KNOWN, listing: { name: "Melany's Beauty Salon", address: google } },
+    profile: { ...marisa, address: "1200 Maple Avenue" },
+    resolved: { ...KNOWN, listing: { name: "Marisa's Beauty Salon", address: google } },
   });
   let stored = structuredClone(W.__SETTINGS.config);
   const address = byTestId(tree, "rec-row-address");
@@ -523,7 +523,7 @@ test("Use Google's and Publish the line instead each send exactly their patch", 
   });
 
   // The published number is the transfer number: the serious one, as the live salon had it.
-  tree = drawTab({ flash, brain: { phone_display: "(646) 932-5775" }, resolved: KNOWN });
+  tree = drawTab({ flash, brain: { phone_display: "(212) 555-0142" }, resolved: KNOWN });
   stored = structuredClone(W.__SETTINGS.config);
   const row = byTestId(tree, "rec-row-phone_display");
   assert.equal(row.props["data-state"], "warn", "the serious one washes its row");
@@ -547,15 +547,15 @@ test("It will say: the lines of the prompt the draft changes, resolved as the ed
   openFold(tree, "website");
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-inline-says-website"), null, "nothing changed, nothing said");
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   const says = byTestId(tree, "rec-inline-says-website");
   // The one line it changes, from the bridge's own block for the draft, and none of the block around it; and beside
   // it the line as it stands, which goes. A line rewritten is one of each.
-  const comes = composed("website", { ...stored, profile: { ...melany, website: "https://melanys.example" } }).filter(
-    (l) => l.includes("https://melanys.example"),
+  const comes = composed("website", { ...stored, profile: { ...marisa, website: "https://marisas.example" } }).filter(
+    (l) => l.includes("https://marisas.example"),
   );
-  const goes = composed("website", stored).filter((l) => l.includes("https://melanysbeautysalon.com"));
+  const goes = composed("website", stored).filter((l) => l.includes("https://marisasbeautysalon.example.com"));
   assert.deepEqual([comes.length, goes.length], [1, 1]);
   assert.deepEqual(partsOf(says), [
     ["It will say", comes[0]],
@@ -566,7 +566,7 @@ test("It will say: the lines of the prompt the draft changes, resolved as the ed
     "and the box is described by it",
   );
 
-  typeInto(tree, "website", "melanys");
+  typeInto(tree, "website", "marisas");
   tree = redrawTab();
   assert.equal(
     byTestId(tree, "rec-inline-says-website"),
@@ -586,13 +586,13 @@ test("It will say: the lines of the prompt the draft changes, resolved as the ed
   tree = drawTab();
   openFold(tree, "name");
   tree = redrawTab();
-  typeInto(tree, "name", "Melany's Salon & Spa");
+  typeInto(tree, "name", "Marisa's Salon & Spa");
   tree = redrawTab();
   const opens = (name) => composed("business_name", { ...stored, business_name: name }).filter((l) => l.includes(name));
-  assert.equal(opens("Melany's Salon & Spa").length, 1);
+  assert.equal(opens("Marisa's Salon & Spa").length, 1);
   assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-name")), [
-    ["It will say", opens("Melany's Salon & Spa")[0]],
-    ["It will no longer say", opens("Melany's Beauty Salon")[0]],
+    ["It will say", opens("Marisa's Salon & Spa")[0]],
+    ["It will no longer say", opens("Marisa's Beauty Salon")[0]],
   ]);
 
   // The transfer number's words are a call's, read on the phone: what a call is told once it is emptied, and what a
@@ -603,7 +603,7 @@ test("It will say: the lines of the prompt the draft changes, resolved as the ed
   typeInto(tree, "handoff_number", "");
   tree = redrawTab();
   const call = composed("handoff_number", stored, "voice");
-  const emptied = composed("handoff_number", { ...stored, profile: without(melany, "handoff_number") }, "voice");
+  const emptied = composed("handoff_number", { ...stored, profile: without(marisa, "handoff_number") }, "voice");
   assert.deepEqual(partsOf(byTestId(tree, "rec-inline-says-handoff_number")), [
     ["It will say", emptied.filter((l) => !call.includes(l)).join("\n")],
     ["It will no longer say", call.filter((l) => !emptied.includes(l)).join("\n")],
@@ -651,8 +651,8 @@ test("It will say nothing for a draft the page refuses, even where the save's ow
 
 test("a rename writes the product's opening lines again under the new name, and leaves an owner's own words alone", () => {
   const sent = saving();
-  const was = "Melany's Beauty Salon";
-  const now = "Melany's Salon & Spa";
+  const was = "Marisa's Beauty Salon";
+  const now = "Marisa's Salon & Spa";
   const baselineOf = (name) => newReceptionistDefaults(name).system_prompt;
   // The lines of a brain that name the business: the one the prompt opens with, and with `carried` the product's own
   // lines carried after it, each found by the name it holds.
@@ -832,7 +832,7 @@ test("only one editor is open at a time: a clean one gives way, one holding chan
   tree = redrawTab();
   assert.equal(
     boxOf(tree, "address").props.value,
-    melany.address,
+    marisa.address,
     "and what was thrown away is gone: it opens on what is stored",
   );
 });
@@ -848,7 +848,7 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
 
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   assert.equal(W.__settingsUnsaved(), true, "the Settings rail and the browser ask before this is thrown away");
   cancelRow(tree, "website");
@@ -858,7 +858,7 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
   press(byTestId(tree, "rec-inline-website-cancel-no"));
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null);
-  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example");
+  assert.equal(boxOf(tree, "website").props.value, "https://marisas.example");
 
   const key = (k, over = {}) => ({
     key: k,
@@ -883,7 +883,7 @@ test("Cancel with changes asks first; with none it closes at once; Escape is Can
 
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   inline(tree, "website").props.onKeyDown(key("Enter"));
   assert.equal(sent.length, 0, "Enter alone does not save");
@@ -920,7 +920,7 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
     tree = redrawTab();
     inline(tree, "website").props.ref.current = element;
     inline(tree, "website").props.onFocus({ target: box });
-    typeInto(tree, "website", "https://melanys.example");
+    typeInto(tree, "website", "https://marisas.example");
     tree = redrawTab();
 
     // Cancel's own ask: "Yes, discard" had focus, and "Keep editing" takes the ask away.
@@ -951,7 +951,7 @@ test("answered with Keep editing, an ask gives focus back to the box, whichever 
     assert.ok(byTestId(tree, "rec-inline-website-cancel-confirm"));
     inline(tree, "website").props.onFocus({ target: box });
     doc.activeElement = box;
-    typeInto(tree, "website", "https://melanys.example/h");
+    typeInto(tree, "website", "https://marisas.example/h");
     asking = false;
     tree = redrawTab();
     assert.equal(byTestId(tree, "rec-inline-website-cancel-confirm"), null, "a keystroke is an answer: keep editing");
@@ -1004,7 +1004,7 @@ test("Save stays a button focus can rest on while it saves, and a press meanwhil
   let tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   saveRow(tree, "website");
   tree = redrawTab();
@@ -1037,7 +1037,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab(flash);
   assert.equal(boxOf(tree, "website").props.readOnly, undefined, "the person's, until it is sent");
   saveRow(tree, "website");
@@ -1053,7 +1053,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   tree = redrawTab(flash);
   assert.equal(
     boxOf(tree, "website").props.value,
-    "https://melanys.example",
+    "https://marisas.example",
     "what is on its way is what the box holds",
   );
 
@@ -1084,7 +1084,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   assert.deepEqual(openRows(tree), ["address"], "the save's answer was the answer");
   assert.equal(
     sent[0].config.brain.profile.website,
-    "https://melanys.example",
+    "https://marisas.example",
     "and what was sent is what was typed before Save",
   );
   assert.deepEqual([W.__settingsUnsaved(), W.__settingsSaving()], [false, false]);
@@ -1094,7 +1094,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   sent.length = 0;
   openFold(tree, "website");
   tree = redrawTab(flash);
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab(flash);
   saveRow(tree, "website");
   tree = redrawTab(flash);
@@ -1116,7 +1116,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   );
   assert.deepEqual(
     [boxOf(tree, "website").props.readOnly, boxOf(tree, "website").props.value],
-    [undefined, "https://melanys.example"],
+    [undefined, "https://marisas.example"],
   );
   assert.equal(W.__settingsSaving(), false);
 
@@ -1143,11 +1143,11 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
 
 /* ------------------------------------ the tab's one saver ------------------------------------ */
 
-const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
+const google = "1200 Maple Ave, Brooklyn, NY 11208, USA";
 /** A record Google lists at another address and under another name: two presses, one on each row. */
 const disputed = () => ({
-  profile: { ...melany, address: "2581 Pitkin Avenue" },
-  resolved: { ...KNOWN, listing: { name: "Melany's Salon & Spa", address: google } },
+  profile: { ...marisa, address: "1200 Maple Avenue" },
+  resolved: { ...KNOWN, listing: { name: "Marisa's Salon & Spa", address: google } },
 });
 const useOn = (tree, row) =>
   press(find(byTestId(tree, `rec-row-${row}`), (n) => n.type === "button" && textOf(n) === "Use Google's"));
@@ -1168,7 +1168,7 @@ test("two saves close together go one after the other, the second on the first's
     "in order, each on the version before it",
   );
   assert.equal(sent[1].config.brain.profile.address, google, "the second carries the first's change");
-  assert.equal(sent[1].config.brain.business_name, "Melany's Salon & Spa");
+  assert.equal(sent[1].config.brain.business_name, "Marisa's Salon & Spa");
   assert.deepEqual(
     flashes.map((f) => f.tone || "ok"),
     ["ok", "ok"],
@@ -1198,7 +1198,7 @@ test("a save made while another is out waits its turn, and its row says it is sa
   assert.equal(sent.length, 1, "the second waits while the first is out");
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   saveRow(tree, "website");
   tree = redrawTab();
@@ -1218,8 +1218,8 @@ test("a save made while another is out waits its turn, and its row says it is sa
     sent.map((s) => s.version),
     [7, 8, 9],
   );
-  assert.equal(sent[2].config.brain.profile.website, "https://melanys.example");
-  assert.equal(sent[2].config.brain.business_name, "Melany's Salon & Spa", "every change before it, carried");
+  assert.equal(sent[2].config.brain.profile.website, "https://marisas.example");
+  assert.equal(sent[2].config.brain.business_name, "Marisa's Salon & Spa", "every change before it, carried");
   assert.equal(sent[2].config.brain.profile.address, google);
 });
 
@@ -1304,7 +1304,7 @@ test("a page drawn again finds the tab's one saver: the answer to the last save,
   tree = redrawTab();
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   saveRow(tree, "website");
   assert.equal(sent.length, 1, "the website waits while the address is out");
@@ -1321,7 +1321,7 @@ test("a page drawn again finds the tab's one saver: the answer to the last save,
     [7, 8],
     "and it goes on the first's answer when the first is taken",
   );
-  assert.equal(sent[1].config.brain.profile.website, "https://melanys.example");
+  assert.equal(sent[1].config.brain.profile.website, "https://marisas.example");
 });
 
 /** Stand in for the bridge's PUT, holding each save until the test takes it (`accept`) or answers it (`answer`). */
@@ -1472,9 +1472,9 @@ test("a rename made on top of another is told against the name that one saves, a
   // The Name row's blocks, and the product's own lines it writes again, are read on the saver's base too: with Google's
   // name taken and not read back yet, a second rename replaces that name, not the one the page was drawn with. And
   // while Google's name is still out, the row's own save is: its editor opens, takes no typing, and its Save waits.
-  const was = "Melany's Beauty Salon";
-  const google = "Melany's Salon & Spa";
-  const now = "Melany's Studio";
+  const was = "Marisa's Beauty Salon";
+  const google = "Marisa's Salon & Spa";
+  const now = "Marisa's Studio";
   const baselineOf = (name) => newReceptionistDefaults(name).system_prompt;
   const naming = (brain, name) =>
     [
@@ -1539,14 +1539,14 @@ test("a save the server refuses is said in its words, and the editor stays open 
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab(flash);
   saveRow(tree, "website");
   await settle();
   tree = redrawTab(flash);
   assert.equal(sent.length, 1, "sent once");
   assert.deepEqual(openRows(tree), ["website"], "the editor is still open");
-  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example", "with its draft");
+  assert.equal(boxOf(tree, "website").props.value, "https://marisas.example", "with its draft");
   assert.equal(byTestId(tree, "rec-inline-save-website").props["aria-busy"], undefined, "and Save is not busy");
   assert.deepEqual(
     [flashes.length, flashes[0].tone, textOf(flashes[0].msg)],
@@ -1562,7 +1562,7 @@ test("a save whose promise fails before the server takes it says so, and leaves 
   let tree = drawTab({ flash });
   openFold(tree, "website");
   tree = redrawTab(flash);
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab(flash);
   saveRow(tree, "website");
   await settle();
@@ -1570,7 +1570,7 @@ test("a save whose promise fails before the server takes it says so, and leaves 
   const save = byTestId(tree, "rec-inline-save-website");
   assert.equal(save.props["aria-busy"], undefined, "not saving for good");
   assert.deepEqual(openRows(tree), ["website"], "still open");
-  assert.equal(boxOf(tree, "website").props.value, "https://melanys.example", "with what was typed");
+  assert.equal(boxOf(tree, "website").props.value, "https://marisas.example", "with what was typed");
   assert.deepEqual([flashes.at(-1).tone, textOf(flashes.at(-1).msg)], ["danger", "The network went away."]);
   cancelRow(tree, "website");
   tree = redrawTab(flash);
@@ -1583,7 +1583,7 @@ test("the number it gives out: your line stores nothing, and a different number 
   const flash = (f) => flashes.push(f);
   let tree = drawTab({ flash });
   const stored = structuredClone(W.__SETTINGS.config);
-  assert.match(textOf(byTestId(tree, "rec-row-phone_display")), /\+1 \(308\) 336-8109/);
+  assert.match(textOf(byTestId(tree, "rec-row-phone_display")), /\+1 \(305\) 555-0123/);
   openFold(tree, "phone_display");
   tree = redrawTab(flash);
   const radios = (t) => all(byTestId(t, "rec-inline-phone_display-choice"), (n) => n.props?.role === "radio");
@@ -1596,13 +1596,13 @@ test("the number it gives out: your line stores nothing, and a different number 
   );
   assert.match(
     textOf(byTestId(tree, "rec-inline-phone_display-note")),
-    /\+1 \(308\) 336-8109 — the line your receptionist answers/,
+    /\+1 \(305\) 555-0123 — the line your receptionist answers/,
   );
   press(radios(tree)[1]);
   tree = redrawTab(flash);
   assert.equal(
     boxOf(tree, "phone_display").props.value,
-    "+1 (308) 336-8109",
+    "+1 (305) 555-0123",
     "a different number starts from the line, as people write it",
   );
   assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /That is your line/);
@@ -1653,7 +1653,7 @@ test("an editor whose page goes away lets go of the registry, and one that comes
   let tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   redrawTab();
   // React's StrictMode check, which the app runs in development: every effect cleaned up and run again at once.
   remount(() => W.React.createElement(W.BusinessTab, { flash: () => {} }));
@@ -1678,7 +1678,7 @@ test("the transfer number starts from the number as it is shown, is checked unde
   tree = redrawTab(flash);
   assert.equal(
     boxOf(tree, "handoff_number").props.value,
-    "+1 (646) 932-5775",
+    "+1 (212) 555-0142",
     "a change starts from the number as it is shown",
   );
   typeInto(tree, "handoff_number", "646 555 0199");
@@ -1686,7 +1686,7 @@ test("the transfer number starts from the number as it is shown, is checked unde
   saveRow(tree, "handoff_number");
   tree = redrawTab(flash);
   assert.match(textOf(inline(tree, "handoff_number")), /needs the country code/);
-  typeInto(tree, "handoff_number", "+1 (308) 336-8109");
+  typeInto(tree, "handoff_number", "+1 (305) 555-0123");
   tree = redrawTab(flash);
   saveRow(tree, "handoff_number");
   tree = redrawTab(flash);
@@ -1756,10 +1756,10 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
   W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
   try {
     const sent = saving();
-    const google = "2581 Pitkin Ave, Brooklyn, NY 11208, USA";
+    const google = "1200 Maple Ave, Brooklyn, NY 11208, USA";
     const tree = drawTab({
-      profile: { ...melany, tone: undefined, address: "2581 Pitkin Avenue" },
-      resolved: { ...KNOWN, listing: { name: "Melany's Beauty Salon", address: google } },
+      profile: { ...marisa, tone: undefined, address: "1200 Maple Avenue" },
+      resolved: { ...KNOWN, listing: { name: "Marisa's Beauty Salon", address: google } },
     });
     assert.deepEqual(
       all(tree, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")),
@@ -1769,7 +1769,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     const why = roleGate("viewer", "settings", "change the business").reason;
     assert.equal(all(tree, (n) => ownWords(n).includes(why)).length, 1, "the reason is said once");
     assert.match(textOf(byTestId(tree, "bt-viewer")), /You can read everything\./);
-    assert.match(textOf(byTestId(tree, "rec-row-name")), /Melany's Beauty Salon/, "and everything is there to read");
+    assert.match(textOf(byTestId(tree, "rec-row-name")), /Marisa's Beauty Salon/, "and everything is there to read");
 
     const band = byTestId(tree, "rec-standing");
     assert.match(textOf(band), /no voice of its own/i, "the gap is still named");
@@ -1791,7 +1791,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
       "and no press, not even a refused one",
     );
     // The serious one too: its row still washes warn, and still offers nothing.
-    const serious = drawTab({ brain: { phone_display: "(646) 932-5775" }, resolved: KNOWN });
+    const serious = drawTab({ brain: { phone_display: "(212) 555-0142" }, resolved: KNOWN });
     const published = byTestId(serious, "rec-row-phone_display");
     assert.equal(published.props["data-state"], "warn");
     assert.match(textOf(published), /which is the number it transfers to/);
@@ -1831,14 +1831,14 @@ test("a name the workspace goes by is shown against the business's, and never of
   );
 
   // Google's answer is a fill: one press takes it.
-  const listed = drawTab({ resolved: { ...KNOWN, listing: { name: "Melany's Salon & Spa", address: null } } });
+  const listed = drawTab({ resolved: { ...KNOWN, listing: { name: "Marisa's Salon & Spa", address: null } } });
   assert.ok(find(byTestId(listed, "rec-row-name"), (n) => n.type === "button" && textOf(n) === "Use Google's"));
 });
 
 /* ------------------------------------ the standing line's door ------------------------------------ */
 
 test("the standing line's door opens the row it names, and that row asks before its changes go like any other", () => {
-  let tree = drawTab({ profile: without(melany, "address"), facts: { address: { value: null, source: "absent" } } });
+  let tree = drawTab({ profile: without(marisa, "address"), facts: { address: { value: null, source: "absent" } } });
   const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
@@ -1855,7 +1855,7 @@ test("the standing line's door opens the row it names, and that row asks before 
   press(door);
   tree = redrawTab();
   assert.deepEqual(openRows(tree), ["address"]);
-  typeInto(tree, "address", "2581 Pitkin Ave, Brooklyn, NY 11208");
+  typeInto(tree, "address", "1200 Maple Ave, Brooklyn, NY 11208");
   tree = redrawTab();
   // The door knows only the row's id. What it opened is guarded as the row's own act would have guarded it, by the
   // row's own dirty test: the Settings rail asks, the browser asks, and another row's act waits on an answer.
@@ -1874,11 +1874,11 @@ test("the standing line's door opens the row it names, and that row asks before 
   tree = redrawTab();
   assert.deepEqual(openRows(tree), ["address"], "another row's act does not throw the changes away");
   assert.ok(byTestId(tree, "rec-inline-address-ask-confirm"), "it asks first, beside them");
-  assert.equal(boxOf(tree, "address").props.value, "2581 Pitkin Ave, Brooklyn, NY 11208");
+  assert.equal(boxOf(tree, "address").props.value, "1200 Maple Ave, Brooklyn, NY 11208");
 
   // A fold is opened the same way: the voice's gap opens How it answers' voice fold, and its door is heard with that
   // row's act and label (business-tab-answers.test.mjs holds the fold it opens).
-  tree = drawTab({ profile: { ...melany, tone: undefined } });
+  tree = drawTab({ profile: { ...marisa, tone: undefined } });
   const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(
     heard(toTone),
@@ -1990,7 +1990,7 @@ test("Cancel's question and another row's are one question: answered once, asked
   tree = drawTab();
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   cancelRow(tree, "website");
   tree = redrawTab();
@@ -2020,7 +2020,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   tree = redrawTab(flash);
   assert.equal(labelled(tree, "Tuesday closes").props.value, "18:00");
   // A colleague's save, read back into this tab: Tuesday closes at 20:00, version 8.
-  const theirs = settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } });
+  const theirs = settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } });
   W.__SETTINGS = { ...theirs, version: 8 };
   tree = redrawTab(flash);
   assert.equal(
@@ -2045,7 +2045,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   assert.equal(sent.length, 1, "REGRESSION: refused as changed after it opened");
   assert.equal(sent[0].version, 8);
   assert.deepEqual(sent[0].config.brain.profile.hours, {
-    ...melany.hours,
+    ...marisa.hours,
     mon: { open: "09:30", close: "17:00" },
     tue: { open: "09:30", close: "20:00" },
   });
@@ -2058,7 +2058,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   typeAt(tree, "Monday closes", "17:00");
   tree = redrawTab(flash);
   W.__SETTINGS = {
-    ...settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } }),
+    ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,
   };
   tree = redrawTab(flash);
@@ -2086,7 +2086,7 @@ test("a fold whose own part of the settings moved after it was typed in is refus
   typeAt(tree, "Monday closes", "17:00");
   tree = redrawTab(flash);
   W.__SETTINGS = {
-    ...settings({ ...melany, hours: { ...melany.hours, tue: { open: "09:30", close: "20:00" } } }),
+    ...settings({ ...marisa, hours: { ...marisa.hours, tue: { open: "09:30", close: "20:00" } } }),
     version: 8,
   };
   tree = redrawTab(flash);
@@ -2390,21 +2390,21 @@ test("a row's own line of what it will say is marked as it changes, not as it fi
   let tree = drawTab();
   press(byTestId(tree, "rec-row-act-website"));
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   const lines = () =>
     all(byTestId(tree, "rec-inline-says-website"), (n) => classes(n).includes("rec-says-line")).map((l) => [
       textOf(l),
       l.props["data-changed"] === "true",
     ]);
-  const first = lines().filter(([l]) => l.includes("melanys.example"));
+  const first = lines().filter(([l]) => l.includes("marisas.example"));
   assert.equal(first.length, 1, "it says the new address");
   assert.equal(first[0][1], false, "what arrives with the block is not a change of it");
-  typeInto(tree, "website", "https://melanys.example/book");
+  typeInto(tree, "website", "https://marisas.example/book");
   tree = redrawTab();
   const marked = lines().filter(([, on]) => on);
   assert.deepEqual(marked.length, 1);
-  assert.match(marked[0][0], /melanys\.example\/book/, "the line the keystroke changed");
+  assert.match(marked[0][0], /marisas\.example\/book/, "the line the keystroke changed");
 });
 
 test("a row drawn again as its editor's save closes it says so, for its value to arrive; opened and cancelled, it does not", () => {
@@ -2430,7 +2430,7 @@ test("a row drawn again as its editor's save closes it says so, for its value to
   // A row edited in place, saved.
   openFold(tree, "website");
   tree = redrawTab();
-  typeInto(tree, "website", "https://melanys.example");
+  typeInto(tree, "website", "https://marisas.example");
   tree = redrawTab();
   saveRow(tree, "website");
   tree = redrawTab();

@@ -5,7 +5,7 @@
  * adapter that builds the ports from the job's context (no env reads here).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseTenantConfig, type JobKind, type JobNews } from "@chanlytics/contracts";
+import { parseTenantConfig, pushFor, type JobKind, type JobNews, type PushMessage } from "@chanlytics/contracts";
 import {
   classifyReceived,
   emailPlainText,
@@ -36,6 +36,16 @@ import {
   type Json,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
+
+export interface PushReceipt {
+  to: string;
+  status: "ok" | "error";
+  /** Expo's name for what went wrong; "DeviceNotRegistered" is a phone to forget. */
+  error?: string;
+}
+export interface PushPort {
+  send(messages: PushMessage[]): Promise<PushReceipt[]>;
+}
 
 export interface JobContext {
   db: SupabaseClient<Database>;
@@ -96,6 +106,12 @@ export interface JobContext {
     collect: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
     check: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
   };
+  /**
+   * The phones: one message each through Expo's push service, as the edge
+   * binds it (lib/ops/push.ts). INJECTED like email's intake. A receipt per
+   * message, in order; a transport failure throws and the ledger tries again.
+   */
+  push?: PushPort;
   /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
@@ -479,6 +495,53 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /**
+ * push_send: one kept notification to every phone of the people it is for.
+ * payload: { notification_id }. The row it names may be gone (purged, or the
+ * workspace erased): that is a job done, not a failure. A phone the service
+ * says is gone is forgotten here, where the answer is.
+ */
+async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
+  const id = String(job.payload.notification_id ?? "");
+  if (!id) throw new Error("push_send: no notification named");
+  const n = must(
+    "push_send: cannot read the notification",
+    await ctx.db
+      .from("notifications")
+      .select("id, tenant_id, title, body, route, recipient_user_id")
+      .eq("id", id)
+      .eq("tenant_id", job.tenant_id)
+      .maybeSingle(),
+  );
+  if (!n) return;
+  const readers = n.recipient_user_id
+    ? [n.recipient_user_id]
+    : (
+        must(
+          "push_send: cannot read who is in the workspace",
+          await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id),
+        ) ?? []
+      ).map((m) => m.user_id);
+  if (!readers.length) return;
+  const devices =
+    must(
+      "push_send: cannot read the phones",
+      await ctx.db.from("push_devices").select("token").in("user_id", readers),
+    ) ?? [];
+  if (!devices.length) return;
+  const receipts = await ctx.push.send(
+    pushFor(
+      n,
+      devices.map((d) => d.token),
+    ),
+  );
+  const gone = receipts.filter((r) => r.status === "error" && r.error === "DeviceNotRegistered").map((r) => r.to);
+  if (gone.length) {
+    must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+  }
+}
+
+/**
  * Every declared kind, and only those. `Record<JobKind, Handler>` is the
  * compiler's promise that a kind added to JOB_KINDS without a handler does
  * not build, rather than sitting on the ledger until a row of it is claimed
@@ -492,6 +555,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   lead_round_start: leadRoundStart,
   lead_collect: leadCollect,
   lead_check: leadCheck,
+  push_send: pushSend,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {
