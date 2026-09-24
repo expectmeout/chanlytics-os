@@ -463,14 +463,14 @@ const AskReal = ({ open, onClose }) => {
     </button>
   );
   const reading = speech.speakingId === "line";
-  // Send: an ink circle that fills once there are words, and gives way to Stop while a turn runs (spec 4.2, S12).
+  // Send: an ink circle that fills once there are words; while a turn runs the same circle is Stop (spec 4.2, S12).
   const sendButton = (
     <button type="button" className="ask-send" onClick={() => submit()} disabled={!query.trim()} aria-label={t.askSend} title={t.askSend} data-testid="ask-send">
       <Icon name="arrow-up" size={15} />
     </button>
   );
   const right = live ? (
-    <button type="button" className="ask-line-btn" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
+    <button type="button" className="ask-send" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
       <Icon name="stop" size={14} />
     </button>
   ) : drawn ? (

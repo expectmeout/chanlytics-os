@@ -42,7 +42,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
 .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */
-.ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: 12.5px; color: var(--accent-ink); }
+.ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: 12.5px; color: var(--accent-ink); animation: wash-in 160ms var(--ease-out) both; }
 .ask-stage.live .ask-reading { padding-top: 6px; }
 .ask-reading-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ask-pulse 1.2s ease-in-out infinite; }
 @keyframes ask-pulse { 0%, 100% { transform: scale(.7); opacity: .4; } 50% { transform: scale(1); opacity: 1; } }
@@ -199,7 +199,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-card-undo { margin-left: auto; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ask-cursor, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
+  .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
   .ask-fold-chev, .ask-stage, .ask-send { transition: none; }
 }
 

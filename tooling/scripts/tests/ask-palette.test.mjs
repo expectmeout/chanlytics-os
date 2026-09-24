@@ -852,6 +852,7 @@ test("the Line takes back a Say the server set aside and shows the reads again; 
   tree = await later(Palette, OPEN);
   assert.equal(byClass(tree, "ask-headline").length, 0, "the Say taken back is not drawn");
   assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the calendar…"), "the read is shown again");
+  assert.ok(byTestId(tree, "ask-trace"), "the body is the question again");
   land();
   tree = await later(Palette, OPEN);
   assert.deepEqual(
@@ -977,9 +978,10 @@ test("the band: one reading line says what Ask reads, Send fills with words, Sto
   typed(tree, "how did the week go?");
   tree = await later(Palette, OPEN);
   assert.equal(byTestId(tree, "ask-send").props.disabled, false);
-  keyed(tree, "Enter");
+  press(byTestId(tree, "ask-send"));
   await tick();
   tree = await later(Palette, OPEN);
+  assert.deepEqual(calls.sent, ["how did the week go?"]);
   assert.equal(textOf(byTestId(tree, "ask-reading")), "Reading this week's calls…", "the latest trace, one line");
   assert.ok(byTestId(tree, "ask-stop"), "Stop while it reads");
   assert.equal(byTestId(tree, "ask-send"), null);
