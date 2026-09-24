@@ -546,7 +546,6 @@ const PEOPLE_NOT_PUBLISHED = new Map([
     "the api's addresses (inbox-verbs.ts): without it the page offers no export, and the harness serves no file",
   ],
   ["__lists", "a saved list's verbs (people-lists.ts), every one a write: the page offers none without them"],
-  ["__ask", "Ask's (ask.ts): the page asks it only which language a talk is in, and says English without it"],
 ]);
 const LEADS_SCOPE = /^__(LEADS|LEAD_VM|leads?[A-Z]\w*)$/;
 
