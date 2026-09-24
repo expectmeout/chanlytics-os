@@ -277,6 +277,7 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
     whatsappWires: [],
     allowlistSkips: 0,
     processed: 0,
+    emails: [],
   };
   setInboundPorts({
     db: pg,
@@ -333,6 +334,9 @@ function receptionist({ allowlist = "", ingest = () => {}, escalate = () => {} }
           seen.allowlistSkips += 1;
         },
         unreachableSender: async () => {},
+        noteEmail: async (address) => {
+          seen.emails.push(address);
+        },
         vetoFallback: async () => {},
         pause: async () => {},
         usage: async () => {},
@@ -649,6 +653,22 @@ test("a text on an approved line is answered on that line: the subaccount's own 
     );
     assert.equal(log.said("sms_inbound")[0].held, false);
     assert.deepEqual(w.left().mail, [], "nobody is paged for a text that was answered");
+  });
+});
+
+test("a text that is an address and nothing else is kept on the person before anything is answered; two addresses, or someone else's, are not", async () => {
+  const w = world();
+  w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  await listening(async () => {
+    assert.deepEqual(await heard(await text(w.form(from, { Body: "Ana.Ruiz@Example.com" }), w.TOKEN)), twiml(200));
+    assert.deepEqual(seen.emails, ["ana.ruiz@example.com"], "kept in its stored spelling");
+    assert.deepEqual(
+      await heard(await text(w.form(from, { Body: "ana@example.com or bob@example.com" }), w.TOKEN)),
+      twiml(200),
+    );
+    assert.deepEqual(seen.emails, ["ana.ruiz@example.com"], "two addresses: nothing kept");
   });
 });
 

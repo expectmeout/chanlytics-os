@@ -88,7 +88,7 @@ export interface NormalizedCall {
   cost: unknown;
   latency: unknown;
   /** The agent's post-call analysis answers (custom_analysis_data), when the
-   *  provider sent an object: caller_wanted, outcome, follow_up, caller_name. */
+   *  provider sent an object: the CALL_ANALYSIS_FIELDS answers (voice-shell.ts). */
   analysis: Record<string, unknown> | null;
 }
 

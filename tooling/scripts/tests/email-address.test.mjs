@@ -10,7 +10,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeEmail, whyNotAnEmail, erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
+import {
+  normalizeEmail,
+  whyNotAnEmail,
+  erasedEmailHash,
+  erasedPhoneHash,
+  addressInMessage,
+} from "@chanlytics/contracts";
 
 test("normalizeEmail, pinned by value: trimmed and lower-cased, and nothing else is changed", () => {
   assert.equal(normalizeEmail("ana@example.com"), "ana@example.com");
@@ -85,4 +91,34 @@ test("an erased address leaves the same kind of digest a number does: keyed by t
     await erasedPhoneHash(T, "+16465550123"),
     "56e86917ee6abdc0edbc7c5ee8f90437d6cb1549cdb35f0439f4e59634473588",
   );
+});
+
+// addressInMessage (Task 10): the address a customer gives in their own words, kept only when the message is
+// unmistakably theirs and names exactly one address. Two addresses, a long message, or an address in a sentence
+// about someone else give nothing, so the receptionist asks again rather than keeping a guess.
+test("a message that is an address, or a few words with one address in them, gives the address in its stored spelling", () => {
+  assert.equal(addressInMessage("Ana.Ruiz@Example.com"), "ana.ruiz@example.com");
+  assert.equal(addressInMessage("  ana@example.com. "), "ana@example.com");
+  assert.equal(addressInMessage("it's ana@example.com"), "ana@example.com");
+  assert.equal(addressInMessage("my email is <ana@example.com>"), "ana@example.com");
+  assert.equal(addressInMessage("mi correo es ana@example.com"), "ana@example.com");
+  assert.equal(
+    addressInMessage("Sure! ana@example.com"),
+    "ana@example.com",
+    "a short answer with one address is theirs",
+  );
+});
+
+test("a sentence about someone else's address, two addresses, a long message or a malformed address give nothing", () => {
+  assert.equal(
+    addressInMessage("send it to my husband at bob@example.com please, he handles the bookings for us"),
+    null,
+    "well past the eight-word bound, so the earlier 'my' does not make this address theirs",
+  );
+  assert.equal(addressInMessage("ana@example.com or bob@example.com"), null, "two addresses: no way to pick one");
+  assert.equal(addressInMessage("ana@example"), null, "not a well-formed address");
+  assert.equal(addressInMessage(`${"x".repeat(150)} ana@example.com`), null, "over the 160-char message bound");
+  assert.equal(addressInMessage("hello, no address here"), null);
+  assert.equal(addressInMessage(null), null);
+  assert.equal(addressInMessage(""), null);
 });

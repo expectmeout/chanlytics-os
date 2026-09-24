@@ -261,7 +261,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], repliedBefore: 
  * `ingest(n)` runs inside the ingest, so a case can make one message's throw.
  */
 function receptionist({ ingest = () => {} } = {}) {
-  const seen = { runtimes: [], wires: [], ingested: [], sent: [], alerts: [] };
+  const seen = { runtimes: [], wires: [], ingested: [], sent: [], alerts: [], emails: [] };
   setInboundPorts({
     db: pg,
     runtime: async (_db, routed) => {
@@ -309,6 +309,9 @@ function receptionist({ ingest = () => {} } = {}) {
         processed: async () => {},
         allowlistSkip: async () => {},
         unreachableSender: async () => {},
+        noteEmail: async (address) => {
+          seen.emails.push(address);
+        },
         vetoFallback: async () => {},
         pause: async () => {},
         usage: async () => {},
@@ -462,6 +465,41 @@ test("a routed number runs its own workspace's receptionist: the channel the dat
     const [line] = log.said("wa_inbound");
     assert.deepEqual(line.fields, { from_tail: from.slice(-4), type: "text", id }, "a tail, a type and an id");
     assert.ok(!line.args.join(" ").includes(from), "never the number");
+  });
+});
+
+test("an image captioned with an address keeps nothing, and the same words typed keep it: a caption is not an answer", async () => {
+  const w = world();
+  w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const words = "my email is ana@example.com";
+  await listening(async () => {
+    const captioned = await deliver(
+      w.change({
+        contacts: [{ wa_id: from, profile: { name: "Dana" } }],
+        messages: [
+          {
+            from,
+            id: `wamid.${w.i}.captioned`,
+            timestamp: now(),
+            type: "image",
+            image: { id: `media-${w.i}`, mime_type: "image/jpeg", caption: words },
+          },
+        ],
+      }),
+    );
+    assert.deepEqual(await answer(captioned), [200, { ok: true }]);
+    assert.deepEqual(seen.emails, [], "a caption is not an answer");
+
+    const typed = await deliver(
+      w.change({
+        contacts: [{ wa_id: from, profile: { name: "Dana" } }],
+        messages: [text(from, `wamid.${w.i}.typed`, words)],
+      }),
+    );
+    assert.deepEqual(await answer(typed), [200, { ok: true }]);
+    assert.deepEqual(seen.emails, ["ana@example.com"], "the same words typed are the customer's own");
   });
 });
 

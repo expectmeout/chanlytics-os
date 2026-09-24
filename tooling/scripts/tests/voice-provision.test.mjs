@@ -75,7 +75,7 @@ test("the agent body carries the product's voice and every setting the pipeline 
   assert.equal(body.end_call_after_silence_ms, 30000);
   assert.deepEqual(
     body.post_call_analysis_data.map((f) => f.name),
-    ["caller_wanted", "outcome", "follow_up", "caller_name"],
+    ["caller_wanted", "outcome", "follow_up", "caller_name", "caller_email"],
   );
   assert.deepEqual(planAgentSettings(body, { retentionDays: 90 }).drift, [], "the agent converger plans nothing");
   assert.equal(agentSettingsDrift(body).converged, true);

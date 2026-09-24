@@ -17,6 +17,7 @@
  * and the tests share it, so an appointment is the same person everywhere.
  */
 import { dayInZone, dayPlusInZone, type FeedItem } from "./availability";
+import { normalizeEmail } from "./email-address";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
 
 export interface EventContacts {
@@ -579,13 +580,17 @@ export interface CalendarPerson {
   uid: string | null;
   /** Epoch ms of the appointment that named them — the soonest upcoming, else the latest past. */
   start: number;
+  /** The one address the appointment carried beside the one number, else null: two addresses are nobody's. */
+  email: string | null;
 }
 
 /**
  * Everyone the feed names by phone inside the window — a month back, three
  * months ahead — one row per number, so the sweep and the page create each
  * person once. A name is taken from the appointment that keys the row; a
- * later appointment with a name fills in for one without.
+ * later appointment with a name fills in for one without, and so does the
+ * one address an appointment carried beside its one number — unless that
+ * address rode beside another number anywhere in the feed, when it is nobody's.
  */
 export function peopleFromItems(
   items: FeedItem[],
@@ -596,6 +601,10 @@ export function peopleFromItems(
   const from = nowMs - (window.backDays ?? 30) * 86_400_000;
   const to = nowMs + (window.aheadDays ?? 90) * 86_400_000;
   const byPhone = new Map<string, CalendarPerson>();
+  // Every number each address rode with, across the feed. An address beside one customer's number on one
+  // appointment and beside another's on the next -- a co-host among the guests, a booking page's "email hello@…"
+  // in every description -- is nobody's, not the first customer's with a refusal (23505) for everyone after.
+  const ridersOf = new Map<string, Set<string>>();
   const better = (a: CalendarPerson, b: CalendarPerson): boolean => {
     // Upcoming beats past; among upcoming the soonest; among past the latest.
     const aUp = a.start >= nowMs;
@@ -605,23 +614,38 @@ export function peopleFromItems(
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    // Phones only: people are made from a number, never an address (create_person),
-    // so the business's own ADDRESSES have nothing to take off here.
-    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
+    // People are made from a number, never an address (create_person); an address rides along for the person the
+    // number names. The business's own ADDRESSES are not taken off here -- the sweep and the board pass none. The
+    // case that happened, an own address on every appointment, rides with many numbers and is nobody's below; a
+    // lone one beside a single customer's number on a feed of one appointment is not caught.
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
     if (!phones.length) continue;
+    for (const e of found.emails) {
+      const riders = ridersOf.get(e) ?? new Set<string>();
+      for (const phone of phones) riders.add(phone);
+      ridersOf.set(e, riders);
+    }
+    // One number and one address name one person; an event with two addresses names nobody's. Through the one
+    // normalizer every writer of an address goes through (00125), so what rides along is what People can hold.
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
     const name = guessName(it, services);
     for (const phone of phones) {
-      const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
       const have = byPhone.get(phone);
       if (!have) {
         byPhone.set(phone, row);
         continue;
       }
-      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
-      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
+      // The better appointment keys the row; a name or an address the other carried fills in where it has none.
+      const [keep, other] = better(row, have) ? [row, have] : [have, row];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
     }
   }
-  return [...byPhone.values()].sort((a, b) => a.start - b.start);
+  // The address is the normalizer's spelling of the match it was counted under, so the two agree.
+  return [...byPhone.values()]
+    .map((r) => (r.email && (ridersOf.get(r.email)?.size ?? 0) > 1 ? { ...r, email: null } : r))
+    .sort((a, b) => a.start - b.start);
 }
 
 /* ------------------------------------------------- asked, then booked */

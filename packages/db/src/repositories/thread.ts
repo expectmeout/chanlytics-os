@@ -196,6 +196,8 @@ export interface LeadContext {
   history: ThreadTurn[];
   /** They asked us to stop. Carried so no caller has to look it up separately. */
   optedOut: boolean;
+  /** Whether an email address is on file for them: the receptionist asks for one only when there is none (the booking rule ask_email). Undefined for a reader that never learned it, which says nothing. */
+  hasEmail?: boolean;
   /** The owner's notes on them — facts for the receptionist, never read aloud. The field 00157 superseded: said only
    *  where the notes themselves could not be read (`noteList` null or absent). */
   notes?: string | null;
@@ -262,7 +264,9 @@ export async function readLeadContext(
   // for the answer: read again without it, and deals are off there, as they would be.
   const withAnswer = await db
     .from("contacts")
-    .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)")
+    .select(
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)",
+    )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
@@ -275,13 +279,14 @@ export async function readLeadContext(
     dnc: boolean;
     notes: string | null;
     proposal_url: string | null;
+    email: string | null;
     sellsBy: string | null;
   } | null = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
   if (cErr && noSellsBy(cErr.message)) {
     const older = await db
       .from("contacts")
-      .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url")
+      .select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email")
       .eq("tenant_id", tenantId)
       .eq("phone_e164", phoneE164)
       .maybeSingle();
@@ -351,6 +356,7 @@ export async function readLeadContext(
     lastSeenAt: contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    hasEmail: !!contact.email,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
@@ -433,6 +439,10 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   if (!lead.contactId) return "New contact — no prior history on record.";
   const bits: string[] = [];
   bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  // Whether an address is on file, so the receptionist asks for one only when there is none (booking rule ask_email);
+  // a reader that never learned it (undefined) says nothing rather than a guess.
+  if (lead.hasEmail === true) bits.push("Their email address is on file.");
+  else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {
     const days = lead.lastSeenAt
       ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 86_400_000)

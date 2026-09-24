@@ -324,6 +324,7 @@ function world(w, { brain = BRAIN, config, channels, draft = {}, messages, polic
         consent: "opted_in",
         dnc: false,
         notes: null,
+        email: null,
       },
     ],
     conversations: [
@@ -581,7 +582,11 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
     `Sorry, something went wrong on our side. A person will call you back from ${formatPhoneDisplay(VOICE_LINE)}.`,
     "the holding message, with the line as it is now (S5)",
   );
-  assert.equal(q.leadNote, "Name on record: Rosa. Returning contact. Last in touch today.", "who the customer is");
+  assert.equal(
+    q.leadNote,
+    "Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
+    "who the customer is",
+  );
   assert.ok(q.nowNote.includes(`(${TZ})`), "the clock, in the business's zone");
   assert.ok(
     q.nowNote.includes(`The business is CLOSED today \u2014 ${SHUT_TODAY}`),
@@ -900,7 +905,7 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
   );
   assert.equal(
     blocks[2],
-    "Who you are speaking with: Name on record: Rosa. Returning contact. Last in touch today.",
+    "Who you are speaking with: Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
     "who the customer is",
   );
   assert.equal(blocks[3], frameSteer(OWNER_SAYS), "and the owner's instruction, framed as the steer block");

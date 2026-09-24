@@ -1424,6 +1424,11 @@ var BookingRulesSchema = z3.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
   party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -3159,6 +3164,12 @@ var CALL_ANALYSIS_FIELDS = [
     name: "caller_name",
     description: "The caller's name exactly as they gave it. Leave empty if they did not say one.",
     examples: ["Ana", "Daniela R."]
+  },
+  {
+    type: "string",
+    name: "caller_email",
+    description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
+    examples: ["ana.ruiz@example.com", "daniela.r@example.net"]
   }
 ];
 var API2 = "https://api.twilio.com/2010-04-01";
@@ -3319,6 +3330,24 @@ function normalizeEmail(raw) {
   const m = SHAPE2.exec(s);
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s;
+}
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
 }
 var EVENT_KINDS2 = [
   "message.received",
@@ -4026,6 +4055,11 @@ var BookingRulesSchema2 = z32.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z32.array(z32.string().min(1).max(80)).max(20).optional(),
   party_max: z32.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z32.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z32.array(z32.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -4411,7 +4445,7 @@ ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
   const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length)) {
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
     const lines = [];
     if (br.lead_hours !== void 0) {
       lines.push(
@@ -4423,6 +4457,10 @@ ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
     if (br.party_max)
       lines.push(
         `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+      );
+    if (br.ask_email)
+      lines.push(
+        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
       );
     for (const n of br.notes ?? []) lines.push(n);
     s.push(`
@@ -7648,6 +7686,11 @@ var BookingRulesSchema3 = z33.object({
   /** Services that need a consultation before they can be booked. */
   consult_first: z33.array(z33.string().min(1).max(80)).max(20).optional(),
   party_max: z33.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z33.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z33.array(z33.string().min(1).max(200)).max(10).optional()
 }).strict();
@@ -45462,6 +45505,10 @@ async function answerInbound(input, ports) {
     ...carrier ? { sms: (to, p) => carrier.send(to, p.body) } : {}
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);
+  if (ing && n.kind === "text") {
+    const given = addressInMessage(n.body);
+    if (given) await sink.noteEmail(given);
+  }
   const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
   const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;

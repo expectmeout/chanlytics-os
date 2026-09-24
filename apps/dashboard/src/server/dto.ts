@@ -1,4 +1,4 @@
-import type { CallDto, ConversationDto, MessageDto } from "@chanlytics/contracts";
+import { normalizeEmail, type CallDto, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 
 /**
  * Row → DTO mapping, in one place.
@@ -19,7 +19,7 @@ export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
 
 export const CALL_COLUMNS =
-  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
+  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
 
 export interface ConversationRow {
   id: string;
@@ -82,6 +82,8 @@ export interface CallRow {
   outcome?: string | null;
   follow_up?: string | null;
   caller_name?: string | null;
+  /** The post-call analysis as the door filed it (00061, jsonb): the object the columns above were read from. */
+  analysis?: unknown;
   transcript_object: unknown;
   recording: unknown;
   conversation_id: string | null;
@@ -208,6 +210,9 @@ export function stripWordTimings(raw: unknown): CallDto["transcript_object"] {
 
 export function toCallDto(c: CallRow): CallDto {
   const rec = c.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
+  // The address the caller spelled out, from the post-call analysis (voice-shell CALL_ANALYSIS_FIELDS): a string
+  // in the analysis object, or nothing. Any other shape the provider might send is nothing too.
+  const spelled = (c.analysis as { caller_email?: unknown } | null | undefined)?.caller_email;
   return {
     id: c.id,
     retell_call_id: c.retell_call_id,
@@ -230,6 +235,9 @@ export function toCallDto(c: CallRow): CallDto {
     outcome: c.outcome ?? null,
     follow_up: c.follow_up ?? null,
     caller_name: c.caller_name ?? null,
+    // In its stored spelling (normalizeEmail) or nothing: a suggestion for the person's page, never applied to the
+    // contact by itself, like the name beside it.
+    caller_email: normalizeEmail(typeof spelled === "string" ? spelled : null),
     transcript_object: stripWordTimings(c.transcript_object),
     // storage_path and provider_url never leave the server: audio is reachable
     // only through the signed-URL route.

@@ -291,9 +291,21 @@ async function addPeopleSeen(
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
-    // No address: the door takes a phone, and nobody is made from an
-    // attendee's address. They match by the number they were created from.
-    added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email: null });
+    // The appointment's one address, for a person just made from its number: the door refuses a taken or malformed
+    // address (23505, 22023) and the person keeps none; never fatal to the board. One the door already had keeps
+    // whatever address they have, and the board matches the new person by the address only when it was kept. The
+    // door runs with the member's session, so History names the member who opened the board as the one who set it.
+    let email: string | null = null;
+    if (r.email && !out.existed) {
+      const { error: eErr } = await ctx.supabase.rpc("set_person_email", {
+        p_contact_id: out.contact_id,
+        p_email: r.email,
+      });
+      if (!eErr) email = r.email;
+      else if (eErr.code !== "23505" && eErr.code !== "22023")
+        console.error("calendar_person_email_failed", JSON.stringify({ tenant: tenantId, code: eErr.code }));
+    }
+    added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email });
   }
   if (refused) {
     console.error(

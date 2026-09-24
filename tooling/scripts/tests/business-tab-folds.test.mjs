@@ -307,6 +307,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
   assert.deepEqual(S.PATHS_OF.consult_first, ["brain.profile.booking_rules.consult_first"]);
   assert.ok(!S.PATHS_OF.booking_rules.includes("brain.profile.booking_rules.consult_first"));
   assert.deepEqual(S.PATHS_OF.booking_rules.map((p) => p.split(".").pop()).sort(), [
+    "ask_email",
     "buffer_min",
     "lead_hours",
     "max_days_ahead",
@@ -427,8 +428,9 @@ test("each fold opens with its stored values, as the form it replaces opened the
       max_days_ahead: "",
       party_max: "4",
       notes: "No bookings after 5pm on Saturdays",
+      ask_email: false,
     },
-    "numbers as the boxes hold them, and empty where there is no rule",
+    "numbers as the boxes hold them, empty where there is no rule, and the switch off where none is stored",
   );
   assert.deepEqual(S.draftOf("services", s), STORED.brain.profile.services);
   assert.deepEqual(S.draftOf("closures", s), STORED.brain.profile.closures);
@@ -503,7 +505,18 @@ test("each fold opens with its stored values, as the form it replaces opened the
       ["languages", []],
       ["notes", []],
       ["escalate_when", ""],
-      ["booking_rules", { lead_hours: "", slot_min: "", buffer_min: "", max_days_ahead: "", party_max: "", notes: "" }],
+      [
+        "booking_rules",
+        {
+          lead_hours: "",
+          slot_min: "",
+          buffer_min: "",
+          max_days_ahead: "",
+          party_max: "",
+          notes: "",
+          ask_email: false,
+        },
+      ],
       ["consult_first", ""],
       [
         "guardrails",
@@ -661,6 +674,20 @@ test("booking_rules and consult_first share one stored object, and each writes o
   assert.equal(
     "lead_hours" in S.saveFold("booking_rules", stored(), { ...draft, lead_hours: "500" }).brain.profile.booking_rules,
     false,
+  );
+  // The email switch: on is stored as true; off is no key at all (the schema's absent means no), never a false.
+  assert.equal(
+    S.saveFold("booking_rules", stored(), { ...draft, ask_email: true }).brain.profile.booking_rules.ask_email,
+    true,
+  );
+  assert.equal("ask_email" in S.saveFold("booking_rules", stored(), draft).brain.profile.booking_rules, false);
+  const asked = stored();
+  asked.brain.profile.booking_rules.ask_email = true;
+  assert.equal(S.draftOf("booking_rules", asked).ask_email, true, "the switch reads as it is stored");
+  assert.equal(
+    "ask_email" in S.saveFold("booking_rules", asked, { ...draft, ask_email: false }).brain.profile.booking_rules,
+    false,
+    "switched off, the key goes",
   );
 
   // Consult first: its lines, and every other rule as stored.

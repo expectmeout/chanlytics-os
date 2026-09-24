@@ -155,18 +155,24 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * it was short, so the same signal appeared in two positions down one fold, and an owner scanning for it had to read
  * every row. One position, measured against each badge's own label rather than the viewport, since the labels start
  * at the same edge and a badge that moved with its label would still be wrong.
+ *
+ * The walk is scoped to the open sheet (`sheet`), never the page: a fold's body stays drawn, hidden, while it is
+ * closed (RecordFold), and the booking rules' email switch is a `.bt-rule` row with no badge, so a page-wide walk
+ * counted it as a sixth rule wearing none while the guardrails sheet was open.
  */
-async function expectRuleBadgesInLine(page: Page, where: string): Promise<void> {
-  const badges = await page.evaluate(() =>
-    [...document.querySelectorAll(".bt-rule")].map((row) => {
-      const label = row.querySelector(".bt-rule-label")!.getBoundingClientRect();
-      const chip = row.querySelector(".bt-rule-chip")?.getBoundingClientRect();
-      return {
-        id: row.getAttribute("data-testid"),
-        dx: chip ? Math.round(chip.left - label.left) : null,
-        ownLine: chip ? chip.top >= label.bottom - 1 : null,
-      };
-    }),
+async function expectRuleBadgesInLine(page: Page, sheet: string, where: string): Promise<void> {
+  const badges = await page.evaluate(
+    (within) =>
+      [...document.querySelectorAll(`${within} .bt-rule`)].map((row) => {
+        const label = row.querySelector(".bt-rule-label")!.getBoundingClientRect();
+        const chip = row.querySelector(".bt-rule-chip")?.getBoundingClientRect();
+        return {
+          id: row.getAttribute("data-testid"),
+          dx: chip ? Math.round(chip.left - label.left) : null,
+          ownLine: chip ? chip.top >= label.bottom - 1 : null,
+        };
+      }),
+    sheet,
   );
   expect(badges.length, `${where}: four rules and the photos switch`).toBe(5);
   for (const b of badges) expect(b.dx, `${where}: ${b.id} wears a badge`).not.toBeNull();
@@ -1066,7 +1072,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await expectNoSidewaysScroll(page, `the ${id} fold open`, [PANE, `${sheet} .rec-sheet-body`]);
       await expectQuiet(page, `the ${id} fold open`);
       await expectSheetQuiet(page, sheet, `the ${id} fold open`, SWITCH_TOKENS);
-      if (id === "guardrails") await expectRuleBadgesInLine(page, "the rules fold open on a phone");
+      if (id === "guardrails") await expectRuleBadgesInLine(page, sheet, "the rules fold open on a phone");
       await discard(page, id);
     }
     await expectRecordUnchanged(page, before);

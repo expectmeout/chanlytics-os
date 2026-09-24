@@ -468,7 +468,7 @@ test("an owner's read puts the people the feed names in People through the door;
       vevent([
         "UID:b1",
         "SUMMARY:Ana Ruiz · Balayage",
-        "DESCRIPTION:+1 (917) 555-0100",
+        "DESCRIPTION:+1 (917) 555-0100 ana@example.com",
         "DTSTART;TZID=America/New_York:20260908T140000",
         "DTEND;TZID=America/New_York:20260908T153000",
       ]),
@@ -482,6 +482,7 @@ test("an owner's read puts the people the feed names in People through the door;
     ),
   });
   const made = [];
+  const emailed = [];
   const rpcs = {
     people_list: () => [],
     create_person: (args) => {
@@ -492,6 +493,10 @@ test("an owner's read puts the people the feed names in People through the door;
         throw e;
       }
       return { contact_id: "p-ana", existed: false };
+    },
+    set_person_email: (a) => {
+      emailed.push(a);
+      return { contact_id: a.p_contact_id, email: a.p_email };
     },
   };
   const ctx = ctxFor(tables(url), rpcs);
@@ -512,6 +517,11 @@ test("an owner's read puts the people the feed names in People through the door;
   );
   const bo = dto.days.find((d) => d.key === "2026-09-09").items[0];
   assert.equal(bo.person, null, "the refused number is one person, not the board");
+  assert.deepEqual(
+    emailed,
+    [{ p_contact_id: "p-ana", p_email: "ana@example.com" }],
+    "the appointment's one address goes through the door to the person just made from its number; one the door refused gets none",
+  );
 
   forgetFeeds();
   const quiet = [];

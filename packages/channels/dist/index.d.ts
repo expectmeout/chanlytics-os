@@ -249,7 +249,7 @@ interface NormalizedCall {
     cost: unknown;
     latency: unknown;
     /** The agent's post-call analysis answers (custom_analysis_data), when the
-     *  provider sent an object: caller_wanted, outcome, follow_up, caller_name. */
+     *  provider sent an object: the CALL_ANALYSIS_FIELDS answers (voice-shell.ts). */
     analysis: Record<string, unknown> | null;
 }
 /**
@@ -542,10 +542,13 @@ declare const VOICE_WEBHOOK_TIMEOUT_MS = 20000;
 /**
  * What the agent's post-call analysis fills in after every call, in the
  * caller's own terms: what they wanted, how it ended, what a person should
- * do next, the name they gave. The provider's default summary ("The user
- * called Marisa's Beauty Salon to inquire about…") is kept beside it; these
- * are what the strip, the profile and the call card say. The webhook files
- * them through ingest_call (migration 00061).
+ * do next, the name they gave, the email address they spelled out. The
+ * provider's default summary ("The user called Marisa's Beauty Salon to
+ * inquire about…") is kept beside it; these are what the strip, the profile
+ * and the call card say. The webhook files them through ingest_call
+ * (migration 00061): the first four as columns, the address inside the
+ * analysis it keeps whole. The name and the address are suggestions for the
+ * person's page, never applied to the contact by themselves.
  */
 declare const CALL_ANALYSIS_FIELDS: readonly [{
     readonly type: "string";
@@ -567,6 +570,11 @@ declare const CALL_ANALYSIS_FIELDS: readonly [{
     readonly name: "caller_name";
     readonly description: "The caller's name exactly as they gave it. Leave empty if they did not say one.";
     readonly examples: readonly ["Ana", "Daniela R."];
+}, {
+    readonly type: "string";
+    readonly name: "caller_email";
+    readonly description: "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.";
+    readonly examples: readonly ["ana.ruiz@example.com", "daniela.r@example.net"];
 }];
 /** The agent-level fields the plan reads, as get-agent returns them. */
 interface LiveAgentSettings {
