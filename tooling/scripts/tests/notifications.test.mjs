@@ -117,7 +117,11 @@ test("this device's read state: seen moves the line, read and dismissed are by k
   assert.equal(agoLabel(NOW - 5 * 60_000, NOW), "5m");
   assert.equal(agoLabel(NOW - 3 * 3_600_000, NOW), "3h");
   assert.equal(agoLabel(NOW - 2 * 86_400_000, NOW), "2d");
-  assert.deepEqual([...ALERT_KINDS], ["needs_you", "held_draft", "missed_call"], "an invitation can wait for the bell");
+  assert.deepEqual(
+    [...ALERT_KINDS],
+    ["needs_you", "held_draft", "missed_call", "leads_question"],
+    "an invitation can wait for the bell; a search waiting a day on its question cannot",
+  );
 });
 
 test("the bridge: reads the globals, keeps state per workspace and device, alerts only for what appears after the first look and only in the background", async () => {
