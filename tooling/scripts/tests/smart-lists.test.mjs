@@ -616,6 +616,7 @@ test("nobody is put on or taken off a smart list by hand; its rule changes, a ha
     name: "Drifting",
     ids: [],
     rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+    archived_at: null,
   });
   assert.deepEqual(t.segments.find((s) => s.id === S2).rule.all[0].days, 60);
 });
@@ -773,9 +774,17 @@ test("either deploy order: on a database 00155 has not reached, every list reads
       return q;
     },
   };
-  assert.deepEqual(await savedListsFor(db, "t1"), [{ id: "s1", name: "Regulars", ids: ["c1"], rule: null }]);
-  assert.deepEqual(await savedListFor(db, "t1", "s1"), { id: "s1", name: "Regulars", ids: ["c1"], rule: null });
-  assert.deepEqual(await listRow(db, "s1"), { id: "s1", tenant_id: "t1", name: "Regulars", rule: null });
+  // And before 00169: never archived.
+  const kept = { id: "s1", name: "Regulars", ids: ["c1"], rule: null, archived_at: null };
+  assert.deepEqual(await savedListsFor(db, "t1"), [kept]);
+  assert.deepEqual(await savedListFor(db, "t1", "s1"), kept);
+  assert.deepEqual(await listRow(db, "s1"), {
+    id: "s1",
+    tenant_id: "t1",
+    name: "Regulars",
+    rule: null,
+    archived_at: null,
+  });
 });
 
 test("a rule may read another list only one level deep, only one there is, never itself, never one this version can't read", () => {

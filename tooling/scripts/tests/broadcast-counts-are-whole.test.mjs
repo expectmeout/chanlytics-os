@@ -261,6 +261,20 @@ test("REGRESSION: an audience says, per purpose, how many on it said yes, a numb
   );
 });
 
+test("an archived list is offered to no new broadcast: it is off People's rail, and the send refuses it (00169)", async () => {
+  wire({
+    lists: [
+      { id: "s1", name: "Regulars", ids: ["p1"], rule: null, archived_at: null },
+      { id: "s2", name: "VIP", ids: ["p2"], rule: null, archived_at: "2026-09-20T12:00:00.000Z" },
+    ],
+  });
+  await broadcastsOverride.apply();
+  assert.deepEqual(
+    globalThis.window.__BROADCASTS.audiences.filter((a) => a.kind === "saved").map((a) => a.id),
+    ["s1"],
+  );
+});
+
 test("the verbs publish the words for a list whose yeses have no number to send to -- People's, from contracts (#663)", async () => {
   const { broadcasts } = await import("../../../apps/dashboard/src/legacy-bridge/broadcast-verbs.ts");
   assert.equal(typeof broadcasts.noNumberWords, "function", "the send screen's words for it");

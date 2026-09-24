@@ -2,6 +2,7 @@ import {
   localDate,
   nextOpenMoment,
   parseParamSpecs,
+  listToken,
   planRun,
   playbookListRef,
   playbookRunReach,
@@ -88,12 +89,15 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // deleted under it runs nobody, and one that can't be counted here -- a calendar not read, a rule this build can't
   // read -- runs nobody either; each says so.
   let listIds: ReadonlySet<string> | null = null;
+  let kept: { token: string; rule: unknown; counted_at: string } | undefined;
   if (trig?.kind === "saved") {
     const ref = playbookListRef(p);
     const m = ref ? ctx.listMembers(ref) : null;
-    if (!m) return off("no_list");
+    if (!m || !ref) return off("no_list");
     if (m.state === "unknown") return off(m.reason === "calendar" ? "no_calendar" : "list_uncounted");
     listIds = m.ids;
+    // The list as it was counted, kept on the run (decision 0009, "sends remember").
+    kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: now.toISOString() };
   }
   // A proposal follow-up where deals are off has no proposals to follow: off, and the run says so (0006).
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
@@ -162,7 +166,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       template_language: p.template_language,
       params: specs,
       // The run's own audience: the playbook, and who its moment named and left out.
-      audience: { kind: "playbook", id: p.id, label: p.name, reach },
+      audience: { kind: "playbook", id: p.id, label: p.name, reach, ...(kept ? { list: kept } : {}) },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,

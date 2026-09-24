@@ -201,14 +201,26 @@ instead of Quiet or Active.
 - **Verbs.** Create, rename, change the rule, add, remove, archive, restore and delete each write a `decisions` row
   (subject `list`), so the Activity log says who did what.
 - **Archive, not delete, while something depends on the list** (call 2): a playbook on it, or another list's rule
-  that reads it. The list leaves the rail but still resolves; its playbooks pause, and the owner is told by a
-  notification. A paused playbook on an archived list says so and offers to restore the list or pick another. A list
-  nothing depends on is deleted. A scheduled broadcast enrolled its people when it was made, so it depends on nothing.
+  that reads it. The list leaves the rail but still resolves; its playbooks pause. A paused playbook on an archived
+  list says so and offers to restore the list or pick another. A list nothing depends on is deleted. A scheduled
+  broadcast enrolled its people when it was made, so it depends on nothing.
+
+  As built (00169), the owner is told on the spot and in Activity, not by a notification: the page that archived the
+  list says which playbooks paused and which lists read it, each pause is a `pause_playbook` decision (`why:
+list_archived`), and the `archive_list` decision names them all. Notifications are written only by the edge, and a
+  second writer for one event was not worth a bell the person who pressed Delete has already been answered by. The
+  database is the floor under the route: `playbooks.list_id` is `on delete no action`, so a list a playbook names is
+  never deleted out from under it, while a workspace deleted whole still goes. A restore under a name a live list now
+  has is refused in words ("Rename this one to bring it back"). A playbook on an archived list is not resumed, and no
+  playbook is put on one.
+
 - **Live.** `segments` and `segment_members` join the realtime publication, and People refreshes on them.
 - **Names** are unique among live lists regardless of case.
 - **Adds** of more than 500 are sent in parts by the page; the route's limit stays.
 - **Sends remember.** A broadcast's audience keeps its rule, the rule's version and when it was counted; a playbook
-  run keeps its list reference and rule.
+  run keeps its list reference and rule. As built, both keep `audience.list = { token, rule, counted_at }`: the rule
+  carries its own version, and a list kept by hand keeps `rule: null`, its recipients being who was on it. The
+  broadcast's ledger row names only the token.
 
 ### Playbooks
 

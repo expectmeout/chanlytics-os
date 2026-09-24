@@ -44,7 +44,15 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   { table: "deals", event: "*" },
   // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00166)
   { table: "person_notes", event: "*" },
+  // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
+  { table: "segments", event: "*" },
+  { table: "segment_members", event: "*" },
 ];
+
+/** The tables the one subscription listens to: a surface's refreshOnTables can only name one of these. */
+export function watchedTables(): string[] {
+  return WATCHED.map((w) => w.table);
+}
 
 export function subscribeMessagesInserts(
   client: SupabaseClient<Database>,

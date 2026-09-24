@@ -12,6 +12,9 @@
 import { listMembers, listRuleParts, type ListRule, type PersonRowVM } from "@chanlytics/contracts";
 import { api } from "./api";
 
+/** How many people one request puts on a list (the route's LIST_BATCH_MAX). */
+const LIST_ADD_PART = 500;
+
 export const lists = {
   create: (name: string, rule: ListRule | null = null) =>
     api()("POST segments", { body: rule ? { name, rule } : { name } }),
@@ -45,8 +48,25 @@ export const lists = {
     return m.state === "ok" ? m.ids.size : null;
   },
   rename: (id: string, name: string) => api()("PUT segments/[id]", { params: { id }, body: { name } }),
+  /** Deleted, or archived when a playbook or another list depends on it (the answer says which, and what paused). */
   remove: (id: string) => api()("DELETE segments/[id]", { params: { id } }),
-  add: (id: string, contactIds: string[]) => api()("PUT segments/[id]", { params: { id }, body: { add: contactIds } }),
+  /** An archived list back on People's rail (00169). */
+  restore: (id: string) => api()("PUT segments/[id]", { params: { id }, body: { archived: false } }),
+  /**
+   * People onto a list, in parts of LIST_ADD_PART: the route takes at most 500 at a time, and a selection past that is
+   * not refused, it is sent in turns. The first refusal stops the rest and is the answer.
+   */
+  add: async (id: string, contactIds: string[]) => {
+    let last: Awaited<ReturnType<ReturnType<typeof api>>> | null = null;
+    for (let at = 0; at < Math.max(1, contactIds.length); at += LIST_ADD_PART) {
+      last = await api()("PUT segments/[id]", {
+        params: { id },
+        body: { add: contactIds.slice(at, at + LIST_ADD_PART) },
+      });
+      if (!last.ok) return last;
+    }
+    return last!;
+  },
   drop: (id: string, contactIds: string[]) =>
     api()("PUT segments/[id]", { params: { id }, body: { remove: contactIds } }),
 };
