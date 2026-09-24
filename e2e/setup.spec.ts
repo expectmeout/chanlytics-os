@@ -103,7 +103,8 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await expect(card.getByTestId("today-setup-left")).toHaveText(/^\d+ (steps? )?left$/);
     const start = card.getByTestId("today-setup-go");
     if ((await start.count()) > 0) {
-      await expect(start).toHaveText("Continue setting up");
+      // The button says it twice, at length and in a phone's two words (#968); either way it continues.
+      await expect(start).toContainText("Continue setting up");
       await start.click();
       await expect(page).toHaveURL(/#\/start/);
       await expect(page.getByTestId("first-run")).toBeVisible();

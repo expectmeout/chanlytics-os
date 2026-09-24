@@ -51,7 +51,9 @@ export async function readLeaks(page: Page): Promise<LeakRow[]> {
   const band = page.getByTestId("today-leaks");
   if ((await band.count()) === 0) return [];
   const out: LeakRow[] = [];
-  for (const row of await band.locator('[data-testid^="today-leak-"]').all()) {
+  // The rows alone: a row's own Ask (today-leak-ask-<id>) and, on a phone, its text door (today-leak-text-<id>)
+  // share the prefix and are not rows.
+  for (const row of await band.locator('.tl-row[data-testid^="today-leak-"]').all()) {
     out.push({
       id: ((await row.getAttribute("data-testid")) ?? "").replace(/^today-leak-/, ""),
       text: (await row.locator(".tl-text").innerText()).trim(),
