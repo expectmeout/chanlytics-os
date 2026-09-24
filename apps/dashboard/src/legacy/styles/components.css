@@ -2328,7 +2328,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   .pb-standing .pb-standing-warn { flex-basis: 100%; margin-left: 0; }
 }
 
-/* Being in step with WhatsApp is a state, so it is drawn as one, on the head's
+/* Being synced with WhatsApp is a state, so it is drawn as one, on the head's
    line: a dot, when it last looked, and a press to look again. */
 .tpl-fresh { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 0 0 1px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; }
 .tpl-fresh:hover:not(:disabled) { color: var(--ink-muted); }
@@ -2960,8 +2960,8 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 
 /* ---- The messages are a list, not a wall of chat ----
    A row per message with the columns named once above them -- the mark's column,
-   the message, its languages, what sends it, what went out -- and the WHOLE
-   message opens under the row it belongs to, one at a time. */
+   the message, what sends it, what went out -- and the WHOLE message, with its
+   languages, opens under the row it belongs to, one at a time. */
 /* People's table, which is the list every Campaigns tab draws (.cl-table-wrap): one hairline box, a sunken head of
    10px capitals, rows on the page's ground with a hairline between them, the hover's grey. */
 .msg-list { container-type: inline-size; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: clip; background: var(--bg); }
@@ -2971,8 +2971,8 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
 .msg-row { border-bottom: 1px solid var(--line); }
 .msg-row:last-child { border-bottom: 0; }
 .msg-row:hover { background: var(--bg-hover); }
-/* Something sends it and a language of it is missing or not approved: a customer
-   is getting nothing. The row is the hover's grey, standing still. */
+/* A language something sends is missing or not approved: those sends are refused or
+   skipped. The row is the hover's grey, standing still. */
 .msg-row.is-attn { background: var(--bg-hover); }
 .msg-row.is-open { background: var(--bg-sunken); }
 .msg-row.is-hidden { opacity: .7; }
@@ -3133,9 +3133,9 @@ html.legacy-on .msg-use-link { position: relative; }
 .msg-list-hidden { margin-top: -6px; }
 /* The list sits beside the sidebar, so what decides whether the columns fit is
    the LIST's width and never the window's (#735). Under that, a row stacks, and
-   stacked it is People's row on a phone (the --row-* tokens): the title with its
-   language at the right, the words under it, and what sends it beside what went
-   out on the third line -- "4 sent · Sep 14", with no heading left above it to say
+   stacked it is People's row on a phone (the --row-* tokens): the title, the words
+   under it, and what sends it beside what went out on the third line --
+   "4 sent · Sep 14", with no heading left above it to say
    what the number is. Each of the four had a line or two of its own, so a template
    stood 178-229px tall at 390px, where a person stands 84. */
 @container (max-width: 774px) {

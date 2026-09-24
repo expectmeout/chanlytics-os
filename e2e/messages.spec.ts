@@ -3,10 +3,10 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 
 /**
- * Campaigns › Templates, on a real workspace: one card per template showing
- * the bubble the customer sees, the languages beside it, the three doors of
+ * Campaigns › Templates, on a real workspace: one row per template, opening
+ * on the bubble the customer sees with its languages, the three doors of
  * Campaigns in one strip, and never Meta's sample. Read-only except for
- * opening the composer and a card's menu; nothing here submits, hides or
+ * opening the composer and a row's menu; nothing here submits, hides or
  * deletes a template.
  */
 test.describe("Templates on a real workspace", () => {
@@ -15,7 +15,7 @@ test.describe("Templates on a real workspace", () => {
     await signIn(page);
   });
 
-  test("one card per template, the bubble the customer sees, the languages beside it, the sample never shown", async ({
+  test("one row per template, opening on the bubble the customer sees and its languages, the sample never shown", async ({
     page,
   }) => {
     await page.goto("/#/messages");
