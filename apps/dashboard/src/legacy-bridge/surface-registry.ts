@@ -159,7 +159,9 @@ export function personRouteId(page: string, param?: string | null): string | nul
  * own surface.
  */
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
-  today: ["calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "setup", "google", "people"],
+  // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
+  // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
+  today: ["setup", "calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "google", "people"],
   calendar: ["people"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers.
   start: ["settings"],
@@ -167,6 +169,18 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
 };
+
+/**
+ * What a page's first draw waits for besides its own surface: a band drawn ABOVE the page's own content, which would
+ * push that content down if it landed after it. Today draws what is left to set up above its queue. A wait that
+ * failed is over (the band says so where it would be, or draws nothing), and a wait never makes a page unavailable:
+ * that is its own surface's to say, and a page whose own surface is in draws after ROUTE_WAIT_MS whatever else is
+ * still out (app-shell.jsx).
+ */
+export const ROUTE_WAITS: Record<string, readonly string[]> = {
+  today: ["setup"],
+};
+export const ROUTE_WAIT_MS = 3000;
 
 /** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
@@ -316,16 +330,21 @@ export function installSurfaceRegistry(): void {
  */
 export function installRouteGate(): void {
   const w = window as unknown as {
-    __surfaceGate?: (page: string, param?: string | null) => boolean;
+    __surfaceGate?: (page: string, param?: string | null, own?: boolean) => boolean;
     __surfaceFailed?: (page: string, param?: string | null) => boolean;
     __onSurfaceReady?: (fn: () => void) => () => void;
+    __routeWaitMs?: number;
   };
+  w.__routeWaitMs = ROUTE_WAIT_MS;
   // The PANE decides, not the page. Asked with the bare page name, Settings
   // resolved to nothing and the gate waved a cold load straight through onto
   // the mockup's fabricated business.
-  w.__surfaceGate = (page, param) => {
+  // `own`: the route's own surface alone, without what its first draw waits for beside it (ROUTE_WAITS).
+  w.__surfaceGate = (page, param, own = false) => {
     const key = routeSurfaceFor(page, param);
-    return key ? isSurfaceReady(key) : true;
+    if (key && !isSurfaceReady(key)) return false;
+    if (own) return true;
+    return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
   };
   w.__surfaceFailed = (page, param) => {
     const key = routeSurfaceFor(page, param);

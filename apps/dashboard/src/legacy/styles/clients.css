@@ -1215,12 +1215,9 @@
 .cl-prof-hero > .cl-prof-id { grid-area: id; min-width: 0; }
 .cl-prof-hero > .cl-prof-queue-actions { grid-area: acts; }
 .cl-prof-hero > .cl-prof-danger { grid-column: 1 / -1; }
-/* A person on the way, from their People row: their head stands where the page's own will, so nothing moves when the
-   rest lands. The frame keeps the page's grid; with the areas taken away, the way back was put in a column of its own
-   (a grid-area naming no area makes one), 670px to the right of where it lands and 117px under it. */
-.cl-prof-hero > .cl-prof-known { grid-area: id; min-width: 0; }
-/* Nothing to name the person with yet (a bare Reading…, gone, a failed read): what is said takes the row under the way back. */
-.cl-profile--solo .cl-prof-hero > :not(.cl-prof-back):not(.cl-prof-known) { grid-column: 1 / -1; }
+/* Nobody to draw (gone, a failed read): what is said takes the row under the way back. The frame keeps the page's grid;
+   with the areas taken away, the way back was put in a column of its own (a grid-area naming no area makes one). */
+.cl-profile--solo .cl-prof-hero > :not(.cl-prof-back) { grid-column: 1 / -1; }
 .cl-prof-back {
   display: inline-flex;
   align-items: center;
@@ -1407,9 +1404,6 @@
 .cl-prof-now .pill .live-dot { display: none; }
 /* Said under the line only when it asks for something (escalated, held, queued, snoozed, silent). */
 .cl-prof-now-why { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); }
-/* A person the page has not read yet, drawn from their People row while the rest is read. */
-.cl-prof-known { display: flex; flex-direction: column; gap: 4px; }
-.cl-prof-known .route-reading { padding-left: 0; padding-right: 0; }
 /* The page's acts, beside who they are: the thread, what can be sent to them, and the page's ⋯. A label too long for
    its button ends in an ellipsis rather than pushing the row off the page. */
 .cl-prof-hero > .cl-prof-queue-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; min-width: 0; }
@@ -2403,9 +2397,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .clients:not(.leads-scope) .cl-section { padding: 0 16px 10px; }
   .clients:not(.leads-scope) .cl-list-action { margin: 0; }
 }
-/* The line's one tap keeps a thumb's 44px without making the line 44px tall. */
+/* The line's one tap keeps a thumb's 44px without making the line 44px tall, and its ground stays on its words: the
+   button keeps a 24px look and the thumb's 10px above and below is an invisible margin, as a chip's is (legacy.css).
+   A 44px box pulled in by -10px margins painted its "on" ground over the wrapped line above and below it (24 Sep). */
 @media (max-width: 900px) and (pointer: coarse) {
-  html.legacy-on .pl-standing-needs { margin-top: -10px; margin-bottom: -10px; }
+  html.legacy-on .pl-standing-needs { position: relative; min-height: 24px; }
+  html.legacy-on .pl-standing-needs::after { content: ""; position: absolute; inset: -10px 0; }
 }
 
 /* People's own sheets on a phone (PhoneSheet): Add a person, and the open list's rename, delete and "Save these". From
@@ -2527,9 +2524,33 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 }
 
 @media (max-width: 900px) {
-  /* A row of the phone's Lists sheet is the sheet's width, so what is picked and what is pressed is the whole row: a
-     row was as wide as its words, and Everyone's picked ground a box around two words. */
+  /* A cell of the phone's Lists sheet is its track's width, so what is picked and what is pressed is the whole cell:
+     a row was as wide as its words, and Everyone's picked ground a box around two words. */
   .pl-sheet .cl-rail-row { width: 100%; text-align: left; }
+  /* The sheet, compact (Ruben, 24 Sep: "too cluttered, takes most of the screen"). Its lists stand two to a row, as
+     the Inbox's buckets do: the name and its count on one line, the picked one raised on the rail's own ground. One
+     level of heading names each block (People's groups, Leads' Lists and Searches, the Pipeline's sections); a list
+     with nobody in it is said in the block's one quiet line (RailEmpty), not drawn. What stands across the sheet:
+     Everyone, a search with its menu, a heading, a hint, the quiet line and a box being filled in. */
+  .pl-sheet .cl-rail-section { padding: 6px 8px; }
+  .pl-sheet .cl-rail-section,
+  .pl-sheet .cl-rail-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 6px; }
+  .pl-sheet .cl-rail-section > :not(.cl-rail-row),
+  .pl-sheet .cl-rail-group > :not(.cl-rail-row),
+  .pl-sheet .cl-rail-row.has-acts,
+  .pl-sheet .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
+  .pl-sheet .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  .pl-sheet .cl-rail-label,
+  .pl-sheet .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
+  /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height
+     here would outrank that floor. */
+  .pl-sheet .cl-rail-row { padding: 9px 10px; font-size: var(--text-sm); }
+  .pl-sheet .cl-rail-row.has-acts { padding: 0 4px 0 0; }
+  .pl-sheet .cl-rail-row .count { font-size: var(--text-sm); }
+  .pl-sheet .cl-rail-empty { margin: 0; padding: 2px 10px 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+  /* New list is a quiet row under Saved, not a dashed box in a footer of its own. */
+  .pl-sheet .cl-rail-foot { margin: 0; padding: 0 8px 4px; border-top: 0; }
+  .pl-sheet .cl-rail-newseg { justify-content: flex-start; padding: 9px 10px; border: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 }
 
 /* ---- The table in sections (people-table.jsx `sections`): the Pipeline's stages, People › Pipeline (0008) -------

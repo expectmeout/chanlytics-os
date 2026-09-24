@@ -2937,6 +2937,46 @@ test("the strip above the table is a component that exists, with a view model be
   assert.equal(typeof s.onAction, "function", "one onAction, and it is the page's");
 });
 
+// The phone's sheet is compact (People's RailEmpty): a list with no lead in it is said in a line, not drawn; all leads
+// and the one picked always are, and every search is drawn -- each is a thing kept, with its own menu.
+test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, all leads, the picked one and every search stay", () => {
+  fresh();
+  const rail = {
+    lists: [
+      { id: "all", label: "All leads", count: 12 },
+      { id: "ready", label: "Ready", count: 12 },
+      { id: "nurture", label: "Contacted", count: 0 },
+      { id: "converted", label: "Talking", count: 0 },
+      { id: "not_a_fit", label: "Not a fit", count: 0 },
+    ],
+    searches: [{ id: SEARCH_B, name: "Chiropractors · Round Rock", count: 0, mark: "question", undoable: false }],
+  };
+  const props = {
+    rail,
+    list: "not_a_fit",
+    searchId: null,
+    canFind: true,
+    wordsFor: () => ({ askedLine: "", keepsLine: "" }),
+    onPickList: () => {},
+    onPickSearch: () => {},
+    hrefFor: () => null,
+    onNew: () => {},
+  };
+  const lists = (tree) =>
+    [...new Set(all(tree, (n) => String(n.props?.["data-testid"] || "").startsWith("leads-list-")))].map(
+      (n) => n.props["data-testid"],
+    );
+  frames.begin();
+  const compact = globalThis.window.LeadsRailRows({ ...props, compact: true });
+  assert.deepEqual(lists(compact), ["leads-list-all", "leads-list-ready", "leads-list-not_a_fit"]);
+  assert.equal(textOf(byTestId(compact, "leads-lists-empty")), "Empty now: Contacted · Talking");
+  assert.ok(byTestId(compact, `leads-search-${SEARCH_B}`), "a search with nothing counted yet is still drawn");
+  frames.begin();
+  const desk = globalThis.window.LeadsRailRows(props);
+  assert.equal(lists(desk).length, 5, "a desktop's rail draws every list");
+  assert.equal(byTestId(desk, "leads-lists-empty"), null);
+});
+
 test("the running strip's Stop reaches the stop route, and the question's Yes and Stop here reach the answer route carrying no plan", async () => {
   fresh({ leads: surface({ searches: [running(), waiting] }) });
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });

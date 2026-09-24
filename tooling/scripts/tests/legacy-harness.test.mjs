@@ -23,6 +23,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import util from "node:util";
+import vm from "node:vm";
+import { parse } from "acorn";
+import { transformSync } from "esbuild";
 import {
   identityWords,
   memberWords,
@@ -255,4 +259,120 @@ test("the mockup draws Reports and Today from their samples, loaded right after 
     "data/today-sample.js",
     "the demo's Today reads what installTodaySample published",
   );
+});
+
+/**
+ * The harness's one shared scope, run on node: every file it loads, in its order, as the browser runs it.
+ *
+ * Each `<script type="text/babel">` is compiled by @babel/standalone with its default presets (react + env), and env
+ * turns a top-level `const`, `let` or `class` into a `var`. A classic script's top-level `var` is a property of
+ * `window`, so every file's top-level names are ONE namespace, and the file loaded last decides what a name means.
+ * The bridge never sees this (manifest.ts imports each file as a module), so only the harness breaks, and only when
+ * someone opens it.
+ *
+ * Here: JSX compiled by esbuild, env's rewrite done at the top level only (acorn finds the declarations), and every
+ * file run in one vm context whose global is `window`. React is a stand-in that answers anything, since nothing is
+ * drawn; each file's top level runs, which is all that decides a global.
+ */
+const anything = () => {
+  const kids = new Map();
+  const fn = function () {
+    return me;
+  };
+  const me = new Proxy(fn, {
+    get: (_, k) => {
+      if (k === Symbol.toPrimitive) return () => "";
+      if (!kids.has(k)) kids.set(k, anything());
+      return kids.get(k);
+    },
+    apply: () => me,
+    construct: () => me,
+  });
+  return me;
+};
+
+/** Every name a binding pattern declares: `const { useState: useXState } = React` declares useXState. */
+const boundNames = (p, out = []) => {
+  if (!p) return out;
+  if (p.type === "Identifier") out.push(p.name);
+  else if (p.type === "ObjectPattern")
+    for (const q of p.properties) boundNames(q.type === "RestElement" ? q : q.value, out);
+  else if (p.type === "ArrayPattern") for (const q of p.elements) boundNames(q, out);
+  else if (p.type === "RestElement") boundNames(p.argument, out);
+  else if (p.type === "AssignmentPattern") boundNames(p.left, out);
+  return out;
+};
+
+/** A legacy file as the harness runs it: JSX compiled, top-level const/let/class made var as env makes them. */
+const asClassicScript = (file) => {
+  let code = transformSync(fs.readFileSync(path.join(ROOT, LEGACY, file), "utf8"), {
+    loader: "jsx",
+    jsx: "transform",
+    sourcefile: file,
+  }).code;
+  const names = [];
+  const edits = [];
+  for (const s of parse(code, { ecmaVersion: "latest", sourceType: "script" }).body) {
+    if (s.type === "VariableDeclaration") {
+      for (const d of s.declarations) boundNames(d.id, names);
+      if (s.kind !== "var") edits.push([s.start, s.start + s.kind.length, "var"]);
+    } else if (s.type === "FunctionDeclaration") names.push(s.id.name);
+    else if (s.type === "ClassDeclaration") {
+      names.push(s.id.name);
+      edits.push([s.end, s.end, ";"], [s.start, s.start, `var ${s.id.name} = `]);
+    }
+  }
+  for (const [from, to, text] of edits.sort((a, b) => b[0] - a[0])) code = code.slice(0, from) + text + code.slice(to);
+  return { code, names };
+};
+
+/** One name, one meaning: the same value, or the same function written twice (a helper copied into two files). */
+const sameMeaning = (a, b) =>
+  Object.is(a, b) ||
+  (typeof a === "function" && typeof b === "function" && String(a) === String(b)) ||
+  util.isDeepStrictEqual(a, b);
+
+const sharedScope = (() => {
+  const win = vm.createContext({
+    React: anything(),
+    ReactDOM: anything(),
+    document: anything(),
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent: () => true,
+    console,
+  });
+  vm.runInContext("globalThis.window = globalThis;", win);
+  const threw = [];
+  const declared = new Map();
+  const twoMeanings = [];
+  for (const file of harness) {
+    const { code, names } = asClassicScript(file);
+    try {
+      new vm.Script(code, { filename: file }).runInContext(win);
+    } catch (e) {
+      threw.push(`${file}: ${e.message}`);
+    }
+    for (const name of names) {
+      const before = declared.get(name);
+      if (before && !sameMeaning(before.value, win[name])) twoMeanings.push(`${name}: ${before.file} and ${file}`);
+      declared.set(name, { file, value: win[name] });
+    }
+  }
+  return { threw, twoMeanings };
+})();
+
+test("every file the harness loads runs in its shared scope", () => {
+  // A file that throws at its top level leaves every name after the throw undefined, so the check below would pass
+  // over a file it never finished reading.
+  assert.deepEqual(sharedScope.threw, []);
+});
+
+test("no two files the harness loads give one top-level name two meanings", () => {
+  // pages/pipeline.jsx, the retired seeded demo, loads after pages/pipeline-board.jsx. Both declared a top-level
+  // PipelineBoard, so the demo's replaced the real one on window, and the Pipeline's Board threw "Cannot read
+  // properties of undefined (reading 'map')" drawing the demo's board with the real board's props. The same happened
+  // to the seed palette's AskAnswer (dashboard-a-ask.jsx), replaced by ask-turn.jsx's. A name a later file sets on
+  // purpose with `window.X = ...` (the *-real.jsx pages) is an assignment, not a declaration, and is not held here.
+  assert.deepEqual(sharedScope.twoMeanings, []);
 });

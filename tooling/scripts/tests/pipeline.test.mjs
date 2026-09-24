@@ -1127,6 +1127,20 @@ test("Passed or ended opens with its Show, folds again with Hide, and a row open
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
 
+test("the Pipeline reads the people it shows ahead, in their order, so a row's peek opens on what the tab holds", async () => {
+  await fresh();
+  const lists = [];
+  const was = globalThis.window.__warmPeople;
+  globalThis.window.__warmPeople = (ids) => lists.push(ids);
+  try {
+    const tree = draw();
+    assert.ok(lists.length, "the rows on screen went to the courier");
+    assert.deepEqual(lists.at(-1), rowIds(tree).slice(0, 12), "the ones drawn, first to last");
+  } finally {
+    globalThis.window.__warmPeople = was;
+  }
+});
+
 test("the keys are People's: J walks the rows shown, Enter opens the peek, Esc closes it, and a folded group is passed by", async () => {
   await fresh();
   let tree = draw();
@@ -1420,6 +1434,37 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   tree = draw();
   assert.match(textOf(byTestId(tree, "pipeline-new-add")), /That is not a mobile number\./);
   assert.equal(asked.length, 2);
+});
+
+// The phone's sheet is compact (People's RailEmpty): a view with no deal in it is said in its section's one quiet line,
+// not drawn; all deals and the one picked always are. A desktop's rail draws every row.
+test("the Pipeline's rows, compact in a phone's sheet: an empty view is said in a line, all deals and the picked one stay", () => {
+  const sections = [
+    {
+      key: "deals",
+      label: "Deals",
+      rows: [
+        { view: "all", label: "All deals", count: 0, tone: null },
+        { view: "consultations", label: "Consultations", count: 3, tone: null },
+        { view: "proposals", label: "Proposal out", count: 0, tone: null },
+        { view: "clients", label: "Clients", count: 0, tone: null },
+        { view: "ended", label: "Passed or ended", count: 0, tone: null },
+      ],
+    },
+  ];
+  const ids = (tree) =>
+    all(tree, (n) => String(n.props?.["data-testid"] || "").startsWith("pipeline-rail-row-")).map((n) =>
+      n.props["data-testid"].slice("pipeline-rail-row-".length),
+    );
+  // The stub tree reaches a node through its parent's children and its own drawing both: each is counted once.
+  const said = (tree) => [...new Set(all(tree, (n) => n.props?.className === "cl-rail-empty"))].map(textOf);
+  const Rows = globalThis.window.PipelineRailRows;
+  const compact = Rows({ sections, view: "clients", onPick: () => {}, compact: true });
+  assert.deepEqual([...new Set(ids(compact))], ["all", "consultations", "clients"]);
+  assert.deepEqual(said(compact), ["Empty now: Proposal out · Passed or ended"]);
+  const rail = Rows({ sections, view: "clients", onPick: () => {} });
+  assert.deepEqual([...new Set(ids(rail))], ["all", "consultations", "proposals", "clients", "ended"]);
+  assert.deepEqual(said(rail), []);
 });
 
 test("on a phone: one bar with the switch, the view's list button, search and New proposal's +, then the line and People's cards", () =>

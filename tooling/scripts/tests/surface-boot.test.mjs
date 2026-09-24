@@ -483,3 +483,17 @@ test("(0008) a cold Calendar reads People right after its own surface: an appoin
   assert.deepEqual(order.slice(0, 2), ["calendar", "people"], "its own surface, then People, before anyone else's");
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
+
+test("Today reads what is left to set up right after its own surface: the card is drawn above the queue", async () => {
+  // Read seventh, Setup landed after the queue and the card pushed it down (Ruben, 24 Sep 2026: "does not load
+  // properly like the rest of the page").
+  const { ROUTE_DRAWS, ROUTE_WAITS } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.equal(ROUTE_DRAWS.today[0], "setup");
+  assert.deepEqual(ROUTE_WAITS.today, ["setup"], "and Today's first draw waits for it");
+  const keys = ["conversations", "inbox", "today", "settings", "people", "calendar", "reports", "setup", "google"];
+  const { order, overrides } = crowd(keys, { hash: "#/today" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.deepEqual(order.slice(0, 2), ["today", "setup"], "its own surface, then Setup, in the first lanes");
+});

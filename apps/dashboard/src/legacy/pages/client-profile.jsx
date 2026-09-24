@@ -503,9 +503,7 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
 // a person with no name yet the control is the invitation ("Name them"), always
 // visible; a person who has a name shows a quiet pencil beside it. The pencil
 // used to show on hover alone, which a phone never has. Enter saves, Escape leaves.
-// `still`: drawn in the head a person's page shows while their record is on its way -- the same size, so nothing moves
-// when the page lands, and nothing pressed yet: a rename typed there went with the frame it was typed in.
-const PersonName = ({ p, canEdit, flash, still = false }) => {
+const PersonName = ({ p, canEdit, flash }) => {
   const [editing, setEditing] = useStateP(false);
   const [value, setValue] = useStateP("");
   const [busy, setBusy] = useStateP(false);
@@ -532,8 +530,7 @@ const PersonName = ({ p, canEdit, flash, still = false }) => {
             className={`cl-prof-rename ${unnamed ? "is-plain" : ""}`}
             title={unnamed ? "Give them a name" : "Rename"}
             aria-label={unnamed ? "Give them a name" : "Rename"}
-            onClick={still ? undefined : open}
-            disabled={still}
+            onClick={open}
             data-testid="person-rename"
           >
             <Icon name="edit" size={11} />
@@ -1340,29 +1337,15 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     </PersonProfileFrame>
   );
   if (!vm) {
-    const known = loading && window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((r) => r.id === id) : null;
+    // A person the tab does not hold yet is nothing of theirs until their whole page is in: the pane the shell draws for
+    // any page on its way, `Reading…` after the standard's beat, and then the page, all of it at once. It opened on their
+    // People row's name and number first, and the rest landed a moment later under it (Ruben, 24 Sep: "the header part
+    // still loads first for a split second"). People and the Pipeline read the people on screen ahead
+    // (people-detail.ts warmPeople), and every door to a person reads them as it is reached, so most opens are held.
+    if (loading) return <div className="route-reading" aria-busy="true" role="status" data-testid="person-reading">Reading…</div>;
     return (
       <PersonProfileFrame onBack={onBack}>
-        {!loading
-          ? <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />
-          : known
-            ? (
-              <div className="cl-prof-known" aria-busy="true" data-testid="person-known">
-                <div className="cl-prof-id">
-                  <div className="cl-prof-avatar" aria-hidden="true">{known.initials}</div>
-                  <div className="cl-prof-titles">
-                    {/* The page's own name, rename and all: a bare h1 stood 9px higher on a phone than the name that
-                        replaced it, whose rename takes a thumb's 44px. */}
-                    <div className="cl-prof-name-line"><PersonName p={known} canEdit={!!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"))} flash={ppFlash} still /></div>
-                    <div className="cl-prof-meta cl-prof-idline">
-                      <div className="cl-prof-idline-run">{[known.channelWords, known.phone].filter(Boolean).map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="route-reading" role="status">Reading…</div>
-              </div>
-            )
-            : <div className="cl-prof-loading route-reading" aria-busy="true" role="status">Reading…</div>}
+        <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />
       </PersonProfileFrame>
     );
   }

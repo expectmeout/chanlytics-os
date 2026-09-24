@@ -2217,7 +2217,26 @@ test("a People row reads its person as a pointer reaches it or the cursor lands 
   }
 });
 
-test("a person not read yet opens on their People row, with Reading… after the standard's beat, never a bare Loading…", async () => {
+test("People reads the people it shows ahead, so a press opens a page the tab already holds", async () => {
+  const draw = await peoplePage([row(), row({ id: "p2", display_name: "Ana Ruiz" })]);
+  const lists = [];
+  const was = globalThis.window.__warmPeople;
+  globalThis.window.__warmPeople = (ids) => lists.push(ids);
+  try {
+    draw();
+    await settle();
+    assert.ok(
+      lists.some((ids) => ids.includes("p1") && ids.includes("p2")),
+      `the rows on screen, handed to the courier: ${JSON.stringify(lists)}`,
+    );
+  } finally {
+    globalThis.window.__warmPeople = was;
+  }
+});
+
+test("a person not read yet is nothing of theirs until their whole page is in: never the name first and the rest after", async () => {
+  // Ruben, 24 Sep 2026: "the person name the header part still loads first for a split second". The page drew their
+  // People row's name and number over Reading…, and the rest landed under it a moment later.
   await peoplePage([row()]);
   let resolve = null;
   globalThis.window.__personDetail = () =>
@@ -2230,20 +2249,34 @@ test("a person not read yet opens on their People row, with Reading… after the
   let tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
   frames.begin();
   tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
-  const known = byTestId(tree, "person-known");
-  assert.ok(known, "the head is drawn from the row the tab already has");
-  assert.equal(known.props["aria-busy"], "true");
-  assert.equal(textOf(find(known, (n) => n.type === "h1")), "Daniela Reyes", "their name, at once");
-  assert.ok(
-    find(known, (n) => String(n.props?.className || "").includes("route-reading")),
-    "Reading…, after a beat",
+  const reading = byTestId(tree, "person-reading");
+  assert.ok(reading, "the pane any page on its way draws");
+  assert.equal(reading.props["aria-busy"], "true");
+  assert.ok(String(reading.props.className).includes("route-reading"), "Reading…, after the standard's beat");
+  assert.equal(
+    find(tree, (n) => n.type === "h1"),
+    null,
+    "REGRESSION: their name drawn before their page",
   );
+  assert.ok(!textOf(tree).includes("Daniela Reyes"), "nothing of theirs at all");
   assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
-  const rename = byTestId(known, "person-rename");
-  assert.ok(rename, "the page's own name, rename and all, so the name does not move when the page lands");
-  assert.equal(rename.props.disabled, true, "but nothing pressed yet: a rename typed there went with the frame");
-  resolve(null);
+
+  // Their page lands whole: the head, where they stand and the history in the same draw.
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  resolve(vm);
   await settle();
+  frames.begin();
+  tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {} });
+  assert.ok(byTestId(tree, "person-now"), "where they stand");
+  assert.ok(
+    find(tree, (n) => n.type === "h1"),
+    "their name",
+  );
+  assert.ok(
+    find(tree, (n) => String(n.props?.className || "").includes("cl-prof-history")),
+    "and their history, together",
+  );
+  assert.equal(byTestId(tree, "person-reading"), null);
 });
 
 test("a kept copy whose read again failed says so, quietly, and stays: never taken for now", async () => {
@@ -2309,12 +2342,7 @@ test("on a real workspace a person's page is the real one before People's rows l
     cells = [];
     frames.begin();
     const tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {}, real: true });
-    const frame = find(tree, (n) => String(n.props?.className || "").includes("cl-profile--solo"));
-    assert.ok(frame, "the real page's own frame, while their read is out");
-    assert.ok(
-      find(frame, (n) => String(n.props?.className || "").includes("route-reading")),
-      "saying Reading…",
-    );
+    assert.ok(byTestId(tree, "person-reading"), "the real page, reading their record, never the seeded profile");
     assert.equal(resolve === null, false, "and it asked for the person");
     resolve(null);
     await settle();
