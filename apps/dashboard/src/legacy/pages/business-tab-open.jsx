@@ -530,7 +530,7 @@ const BtoFeedWhole = () => {
 };
 
 /** The calendar's one box, the whole of its last read, and the old form's note about what the address is. */
-const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
+const BtoFeedBox = ({ draft, update, problems, readOnly, stored, offers }) => (
   <>
     {stored ? <BtoFeedWhole /> : null}
     <window.RecordField
@@ -547,7 +547,7 @@ const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
     />
     <p className="bt-fold-note">
       The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
-      It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
+      It is only ever read. Nothing is booked from here; {offers ? "the booking link does that, whichever tool is behind it." : "your team does that, from the details it takes."}
     </p>
     {/* Only an owner is sent the address whole (the settings route masks it for everyone else), and a masked address
         edited in part would be saved as written. */}
@@ -572,6 +572,9 @@ const BtoFeedBox = ({ draft, update, problems, readOnly, stored }) => (
  * saver's base, which BtFold asks for itself.
  */
 const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver }) => {
+  // Whether it sends a link at all, by the resolver's own test; without the bridge, the words that have one.
+  const btoTab = window.__businessTab || {};
+  const btoOffers = !btoTab.offersBookingLink || btoTab.offersBookingLink(brain);
   const tab = window.__businessTab || {};
   const Fold = window.BtFold;
   const profile = brain.profile || {};
@@ -642,7 +645,7 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
           children: <BtoFeedRead stored={!!feed} whole={!canEdit} />,
           name: feed ? "Change the calendar it reads" : "Add one: a calendar for it to read",
         }}
-        body={(f) => <BtoFeedBox {...f} stored={feed} />}
+        body={(f) => <BtoFeedBox {...f} stored={feed} offers={btoOffers} />}
       />
     </section>
   );

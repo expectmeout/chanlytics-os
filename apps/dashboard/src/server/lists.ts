@@ -47,12 +47,17 @@ export function cleanListName(raw: unknown): string {
  */
 export function cleanListRule(
   raw: unknown,
-  saved: readonly { id: string; rule?: unknown }[] = [],
+  saved: readonly { id: string; name?: string; rule?: unknown; archived_at?: string | null }[] = [],
   self: string | null = null,
 ): ListRule | null {
   if (raw === undefined || raw === null) return null;
   const rule = asListRule(raw);
   if (!rule) throw new AppError("validation", "That rule can't be read. Describe who is on the list again.");
+  // The lists this one already reads: an archived one among them (00169) is kept, and no new one is taken up.
+  const was = self ? saved.find((l) => l.id.toLowerCase() === self.toLowerCase())?.rule : null;
+  const before = new Set(
+    (was == null ? null : asListRule(was)) ? ruleLists(asListRule(was)!).map((t) => t.toLowerCase()) : [],
+  );
   for (const token of ruleLists(rule)) {
     const ref = parseListToken(token);
     const known =
@@ -64,6 +69,8 @@ export function cleanListRule(
     if (!known) throw new AppError("validation", "That rule reads a list there isn't. Pick one of your lists.");
     if (ref?.kind === "saved" && ref.id === self?.toLowerCase())
       throw new AppError("validation", "A list can't read itself.");
+    if (typeof known === "object" && known.archived_at && !before.has(token.toLowerCase()))
+      throw new AppError("validation", `${known.name ?? "That list"} is archived. Restore it on People to read it.`);
     if (typeof known === "object" && known.rule != null) {
       const other = asListRule(known.rule);
       if (!other) throw new AppError("validation", "That rule reads a list this version can't read. Reload the page.");

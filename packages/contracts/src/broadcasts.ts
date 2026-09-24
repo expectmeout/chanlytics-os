@@ -73,6 +73,12 @@ export interface Audience {
    * on a broadcast a person sent, and on a run made before runs kept it.
    */
   reach?: RunReach;
+  /**
+   * The list it went to, as it was counted (decision 0009, "sends remember"): its token, and its rule then -- null for
+   * a list kept by hand, whose people are the recipients -- so a rule edited later never changes what a send meant.
+   * Absent on everyone, and on a send made before sends kept it.
+   */
+  list?: { token: string; rule: unknown; counted_at: string };
 }
 
 /**

@@ -57,6 +57,9 @@ import {
   profileRefusal,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -141,6 +144,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist", 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "ABILITY_CHANNEL_WORDS",
+    "BOOKING_LINK_NEEDED",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
     "GUARDRAIL_KEYS",
@@ -148,12 +152,13 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "PROFILE_LIMITS",
     "PROMPT_NOW",
     "PROMPT_READERS",
-    "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
     "VISION_STRENGTH",
     "abilityRows",
     "blockShareWords",
     "bookingHeld",
+    "bookingLinkOptional",
+    "bookingLinkRowWords",
     "bookingRuleRefusal",
     "bookingRulesWords",
     "bookingTemplate",
@@ -171,8 +176,10 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "hasProfile",
     "hoursZoneWords",
     "instructionsWords",
+    "isProductFallback",
     "needsConsultation",
     "notesWords",
+    "offersBookingLink",
     "openWeekWords",
     "profileCrossing",
     "profileRefusal",
@@ -181,6 +188,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "promptTotalWords",
     "ruleStrength",
     "rulesKept",
+    "rulesWithoutFieldsWords",
     "saveIssues",
     "sellsBySaved",
     "sellsByVM",
@@ -213,6 +221,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     [null, "proposal"],
   ])
     assert.equal(tab.sellsBySaved(was, now), sellsBySaved(was, now), `${was} → ${now}`);
+  // Who is asked for a booking link, by that answer (the first run's decision 2), and what the link row says either way.
+  for (const answer of [null, "booking", "proposal"])
+    assert.equal(tab.bookingLinkOptional(answer), bookingLinkOptional(answer), String(answer));
+  for (const answer of [null, "booking", "proposal"])
+    assert.deepEqual(tab.bookingLinkRowWords(answer), bookingLinkRowWords(answer));
+  assert.equal(tab.BOOKING_LINK_NEEDED, BOOKING_LINK_NEEDED);
   // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
   assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
   assert.deepEqual(tab.PROMPT_NOW, PROMPT_NOW);
@@ -232,7 +246,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     handoffWords(STORED.profile.escalate_when, "+1 (212) 555-0142"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
-  for (const calls of [true, false]) assert.deepEqual(tab.standingLine(STORED, calls), standingLine(STORED, calls));
+  for (const calls of [true, false])
+    assert.deepEqual(tab.standingLine(STORED, calls, null), standingLine(STORED, calls, null));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
   const at = new Date("2026-09-21T12:00:00Z");
@@ -286,6 +301,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     whatsappLive: true,
     hasCalendarFeed: true,
     hasBookingLink: true,
+    linkOptional: false,
     hasBookingTemplate: true,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
@@ -295,7 +311,9 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     replyMode: "auto",
   };
   assert.deepEqual(tab.abilityRows(inputs), abilityRows(inputs));
-  for (const smsLive of [false, true]) assert.deepEqual(tab.cannotRows({ smsLive }), cannotRows({ smsLive }));
+  for (const smsLive of [false, true])
+    for (const hasBookingLink of [false, true])
+      assert.deepEqual(tab.cannotRows({ smsLive, hasBookingLink }), cannotRows({ smsLive, hasBookingLink }));
   const policies = [null, { booking: { mode: "auto" } }, POLICY];
   assert.deepEqual(
     policies.map((p) => tab.bookingHeld(p)),

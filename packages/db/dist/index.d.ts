@@ -3401,6 +3401,7 @@ type Database = {
                     last_run_at: string | null;
                     last_run_for: string | null;
                     list_id: string | null;
+                    list_key: string | null;
                     name: string;
                     params: Json;
                     policy_class: string;
@@ -3423,6 +3424,7 @@ type Database = {
                     last_run_at?: string | null;
                     last_run_for?: string | null;
                     list_id?: string | null;
+                    list_key?: string | null;
                     name: string;
                     params?: Json;
                     policy_class: string;
@@ -3445,6 +3447,7 @@ type Database = {
                     last_run_at?: string | null;
                     last_run_for?: string | null;
                     list_id?: string | null;
+                    list_key?: string | null;
                     name?: string;
                     params?: Json;
                     policy_class?: string;
@@ -3636,6 +3639,7 @@ type Database = {
             };
             segments: {
                 Row: {
+                    archived_at: string | null;
                     created_at: string;
                     created_by: string | null;
                     id: string;
@@ -3645,6 +3649,7 @@ type Database = {
                     updated_at: string;
                 };
                 Insert: {
+                    archived_at?: string | null;
                     created_at?: string;
                     created_by?: string | null;
                     id?: string;
@@ -3654,6 +3659,7 @@ type Database = {
                     updated_at?: string;
                 };
                 Update: {
+                    archived_at?: string | null;
                     created_at?: string;
                     created_by?: string | null;
                     id?: string;
@@ -6066,6 +6072,8 @@ interface SavedListRow {
     name: string;
     ids: string[];
     rule: unknown;
+    /** When it was archived (00169): it leaves People's rail and still resolves for the playbooks that name it. */
+    archived_at: string | null;
 }
 /** A list as a verb acts on it: the workspace it belongs to is the one its role is judged in. */
 interface ListRow {
@@ -6074,6 +6082,8 @@ interface ListRow {
     name: string;
     /** A smart list's rule, or null for a list kept by hand: nobody is put on or taken off a rule by hand. */
     rule: unknown;
+    /** When it was archived (00169); null for a live list. */
+    archived_at: string | null;
 }
 interface WriteError {
     code?: string;
@@ -6117,6 +6127,22 @@ declare function addToList(db: Db$2, list: Pick<ListRow, "id" | "tenant_id">, co
 declare function dropFromList(db: Db$2, listId: string, contactIds: readonly string[]): Promise<{
     error: WriteError | null;
 }>;
+/**
+ * A list archived (a moment) or restored (null): the column a member may change (00169's grant). A restore under a name
+ * a live list now has is the database's 23505.
+ */
+declare function archiveList(db: Db$2, id: string, at: Date | null, 
+/** A new name to come back under, in the same write: a restore and its rename land together or not at all. */
+name?: string): Promise<{
+    error: WriteError | null;
+    count: number;
+}>;
+/** The playbooks that name a list: what archiving it pauses. */
+declare function playbooksOnList(db: Db$2, tenantId: string, listId: string): Promise<{
+    id: string;
+    name: string;
+    state: string;
+}[]>;
 /** A list and its member rows. `count` says whether anything was removed: a delete that removed nothing is no delete. */
 declare function deleteList(db: Db$2, id: string): Promise<{
     error: WriteError | null;
@@ -6214,6 +6240,8 @@ interface SubscribeOptions {
     /** Observability: called with SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED. */
     onStatus?: (status: string) => void;
 }
+/** The tables the one subscription listens to: a surface's refreshOnTables can only name one of these. */
+declare function watchedTables(): string[];
 declare function subscribeMessagesInserts(client: SupabaseClient<Database>, 
 /** Called with the changed row and the TABLE it came from, so a caller can
  *  route the event instead of repainting everything on every change. */
@@ -6267,4 +6295,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, yesesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, archiveList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, playbooksOnList, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, watchedTables, yesesSince };

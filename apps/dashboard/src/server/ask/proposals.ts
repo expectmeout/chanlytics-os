@@ -22,13 +22,10 @@ import {
   type DealStage,
   AskSettingsChangeSchema,
   EVERYONE_LABEL,
-  PEOPLE_LISTS,
-  savedListIds,
-  savedListLookup,
-  ruleLists,
-  asListRule,
+  BUILTIN_LISTS,
+  LIST_PLAYBOOK_CLASSES,
+  parseListToken,
   PERSON_MODES,
-  audienceMembers,
   broadcastName,
   cleanParam,
   clockWhen,
@@ -39,7 +36,6 @@ import {
   parseParamSpec,
   renderTemplate,
   shiftKey,
-  type AudienceKind,
   type ParamSpec,
   POLICY_CLASSES,
   POLICY_MODES,
@@ -71,10 +67,10 @@ import {
   triggerOf,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListFor, savedListsFor } from "@chanlytics/db";
+import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
-import { audiencePoolOnce } from "../audience";
+import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
@@ -216,7 +212,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_broadcast",
     description:
-      "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+      "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, or any list list_audiences names (its kind and audience_id: a People list, or one of the workspace's own) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
     input_schema: obj(
       {
         template_id: { type: "string" },
@@ -232,11 +228,14 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_playbook",
     description:
-      "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
+      "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger: quiet_30 (win-back), new_week (welcome), phoned_only (save our number), everyone_monthly (the month's offer), saved_list (on any list: give its token from list_audiences in list -- one of People's or one of the workspace's own -- and policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id: an approved template, or omit it for the trigger's starter when the workspace holds it. params: the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link); a starter's are filled in, except a typed one such as the month's offer. run_hour 9–20 by the business's clock (default 10), cap_per_run (default 25). Read list_playbooks first. It becomes a card the person approves; it then runs under its class's autonomy mode.",
     input_schema: obj(
       {
         // Every trigger except the two that follow the calendar; a proposal's is refused where deals are off.
         trigger: { type: "string", enum: PLAYBOOK_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) },
+        // On a list (saved_list): the list's token from list_audiences, and what it sends.
+        list: { type: "string" },
+        policy_class: { type: "string", enum: [...LIST_PLAYBOOK_CLASSES] },
         template_id: { type: "string" },
         params: { type: "array", items: { type: "string" } },
         run_hour: { type: "number" },
@@ -773,8 +772,8 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (!UUID.test(templateId)) return refuse("template_id must be an id list_audiences returned");
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
     return refuse("audience_kind must be everyone, list or saved");
-  if (kind === "list" && !PEOPLE_LISTS.some((l) => l.id === audienceId))
-    return refuse("audience_id must be a People list id: needs_you, waiting_on_you, new_week, quiet or phoned_only");
+  if (kind === "list" && !BUILTIN_LISTS.some((l) => l.id === audienceId))
+    return refuse("audience_id must be a People list id, as list_audiences names them");
   if (kind === "saved" && !(audienceId && UUID.test(audienceId)))
     return refuse("audience_id must be a saved list id from list_audiences");
   const specs: ParamSpec[] = [];
@@ -805,29 +804,32 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
 
   // The audience, counted the way the route will count it.
   // The pool and the list the route will read, so the count here is the count it enrols.
-  const { rows, listCtx } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
-  let savedIds: Set<string> | null = null;
+  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
+  // one that can't be counted here refused with why.
+  let members: Set<string> | null = null;
   let label = EVERYONE_LABEL;
-  if (kind === "saved") {
-    const seg = await savedListFor(t.ctx.supabase, t.tenantId, audienceId!);
-    if (!seg) return refuse("no such list; list_audiences names them");
-    // A smart list's people by its rule, the way the send finds them (savedListIds), with the lists it reads.
-    const rule = asListRule(seg.rule);
-    const others = rule && ruleLists(rule).length ? await savedListsFor(t.ctx.supabase, t.tenantId) : [];
-    savedIds = savedListIds(seg, rows, listCtx, savedListLookup(others));
-    label = seg.name;
-  } else if (kind === "list") {
-    label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
+  if (kind !== "everyone") {
+    const found = await poolList(t.ctx, t.tenantId, pool, {
+      kind: kind === "list" ? "builtin" : "saved",
+      id: audienceId!,
+    });
+    if (!found) return refuse("no such list; list_audiences names them");
+    if (found.archived) return refuse(archivedListWords(found.label, "send"));
+    if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
+    members = new Set(found.memberIds);
+    label = found.label;
   }
+  const rows = members ? pool.rows.filter((r) => members!.has(r.id)) : pool.rows;
   // The same purpose the route will derive, from the same column of the same
   // template row this function already read. An assistant that proposes a
   // broadcast the route then refuses has wasted the operator's approval.
   const purpose = purposeOfTemplate(tpl.category);
-  const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose).length;
+  const count = eligibleFor(rows, "everyone", null, null, purpose).length;
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
   if (count === 0)
     return refuse(
-      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds))} Say so, and name what to do about it`,
+      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows)} Say so, and name what to do about it`,
     );
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and
@@ -869,7 +871,11 @@ const MODE_WORDS: Record<string, string> = {
 
 async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
-  if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only or everyone_monthly");
+  if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only, everyone_monthly or saved_list");
+  // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
+  const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
+  if (trig.kind === "saved" && !listRef)
+    return refuse("a playbook on a list needs list: the list's token from list_audiences (seg:<id> or list:<id>)");
   // The proposal follow-up (0006): only where deals are on, and one per workspace (00167).
   if (trig.kind === "deal") {
     const [sellsBy, one] = await Promise.all([
@@ -955,6 +961,8 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     checked = await checkPlaybookInput(t.ctx, t.tenantId, {
       name: str(input.name, 80) || undefined,
       trigger: trig.id,
+      ...(listRef ? (listRef.kind === "builtin" ? { list_key: listRef.id } : { list_id: listRef.id }) : {}),
+      ...(listRef ? { policy_class: str(input.policy_class, 20) || undefined } : {}),
       template_id: tpl.id,
       params: specs,
       run_hour: typeof input.run_hour === "number" ? input.run_hour : undefined,
@@ -965,8 +973,8 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   }
 
   const deal = trig.kind === "deal";
-  const [rows, policies, paceRead, followUps] = await Promise.all([
-    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now).then((pool) => pool.rows),
+  const [pool, policies, paceRead, followUps] = await Promise.all([
+    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
@@ -979,23 +987,37 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     byAny: new Map<string, number>(),
     followUps,
   };
+  // A list's people, as a run counts them with no one looking (audience.ts poolList over the pool read for no one
+  // is what the runner does; here the pool is the member's, so a list about "me" was refused by the check above).
+  let listIds: Set<string> | null = null;
+  let listLabel: string | null = null;
+  if (listRef) {
+    const found = await poolList(t.ctx, t.tenantId, pool, listRef);
+    if (!found) return refuse("no such list; list_audiences names them");
+    if (found.archived) return refuse(archivedListWords(found.label, "run"));
+    if ("unknown" in found) return refuse(`${found.label} can't be counted right now: ${found.unknown}`);
+    listIds = new Set(found.memberIds);
+    listLabel = found.label;
+  }
   // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
   const drawn = playbookRunReach(
-    rows,
+    pool.rows,
     { trigger: trig.id, cap_per_run: 100_000, gap_days: 0, cadence_days: 0 },
     untouched,
     t.now.getTime(),
     dealPaceOf(paceRead),
+    listIds,
   );
   const candidates = drawn.reach.will;
-  const mode = policies.find((r) => r.class === trig.cls)?.mode ?? "ask";
+  const cls = checked.policy_class;
+  const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
   const words = renderTemplate(tpl.body_preview, exampleParams(specs, "the business"));
   return propose({
     kind: "playbook",
     needs: "operator",
     title: `Playbook: ${checked.name}`,
-    summary: `${trig.label} — ${trig.hint.toLowerCase()} · ${scheduleLine(checked)} · ${saidYesWords("the list", purposeOfPlaybook(trig.cls), candidates, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[trig.cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${trig.label} — ${trig.hint.toLowerCase()}`} · ${scheduleLine(checked)} · ${saidYesWords("the list", purposeOfPlaybook(cls), candidates, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
     payload: {
       trigger: trig.id,
       trigger_label: trig.label,
@@ -1008,7 +1030,10 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
       cadence_days: checked.cadence_days,
       name: checked.name,
       candidates,
-      policy_class: trig.cls,
+      policy_class: cls,
+      // The list it runs on, when it runs on one: the commit names it as the composer does.
+      list_id: checked.list_id,
+      list_key: checked.list_key,
       mode,
     },
     undo: "Delete it — nothing will run",

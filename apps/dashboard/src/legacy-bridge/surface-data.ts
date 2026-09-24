@@ -201,7 +201,6 @@ import {
   type EscalationDto,
   type CallDto,
   type TodayVM,
-  toPersonRowVM,
   dealPaceOf,
   followUpStandOf,
   type FollowUpFactsDto,
@@ -212,9 +211,15 @@ import {
   listMembers,
   listRuleParts,
   listUnknownWords,
+  ruleNeeds,
+  unmetNeed,
   parseListToken,
   savedListIds,
   savedListLookup,
+  savedListTip,
+  poolListContext,
+  poolRowOf,
+  poolRowsOf,
   type ListContext,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
@@ -771,11 +776,18 @@ export interface PeopleSurface {
     id: string;
     label: string;
     group: string;
+    /** What it holds, in one line (contracts BUILTIN_LISTS): the rail's tip. */
+    tip: string;
     count: number;
     ids: string[];
     action: { text: string; cta: string; to: string; enabled: boolean } | null;
   }[];
   groups: { id: string; label: string }[];
+  /**
+   * People's lists this workspace doesn't show, each with why (lists.ts listUnknownWords): a calendar not read, deals
+   * off. A door to one says it can't be counted here, never that it isn't a list.
+   */
+  hidden: { id: string; label: string; why: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
@@ -792,9 +804,16 @@ export interface PeopleSurface {
     rule: string[] | null;
     /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
     unknown: string | null;
+    /** Its line on the rail (contracts savedListTip): why it can't be counted, what a hand list is for, or its rule. */
+    tip: string;
   }[];
   /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
+  /**
+   * The workspace's archived lists (00169): off the rail, each still what a playbook on it names. The rail says them in
+   * one quiet line, each one press from coming back.
+   */
+  archived: { id: string; name: string }[];
   aggregates: PeopleAggregates;
 
   /** One row of the attention strip per person: the sentence, the state line, the one button. */
@@ -823,7 +842,7 @@ let peopleLoaded: {
   people: PersonRowDto[];
   page: PeopleSurface["page"];
   /** Null when the read of them failed. */
-  saved: { id: string; name: string; ids: string[]; rule?: unknown }[] | null;
+  saved: { id: string; name: string; ids: string[]; rule?: unknown; archived_at?: string | null }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
   /** Deals are on here (0008), and the profile lists a consult-first service (0004): which Journey lists exist. */
@@ -842,8 +861,7 @@ let peopleLoaded: {
  * the row's second line, the thread's chip and send, or Today's proposals waiting, which all read it from here.
  */
 function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
-  const vm = toPersonRowVM(r, tz, now, viewerId());
-  return dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return poolRowOf(r, { tz, now, viewer: viewerId(), dealsOn });
 }
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
@@ -866,7 +884,12 @@ function publishPeople(): void {
   });
   const calendar = peopleLoaded.calendar;
   // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
-  const listCtx: ListContext = { calendar: calendar.state, dealsOn, consultFirst, viewer: viewerId() !== null };
+  const listCtx: ListContext = poolListContext({
+    calendar: calendar.state,
+    dealsOn,
+    consultFirst,
+    viewer: viewerId(),
+  });
   const savedLists = peopleLoaded.saved ?? [];
   const lookup = savedListLookup(savedLists);
   const listName = (token: string): string | null => {
@@ -890,38 +913,48 @@ function publishPeople(): void {
         id: l.id,
         label: l.label,
         group: l.group,
+        tip: l.tip,
         count: members.length,
         ids: members.map((r) => r.id),
         action: peopleListAction(l.id, members),
       };
     }),
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    hidden: PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), listCtx);
+      return need ? [{ id: l.id, label: l.label, why: listUnknownWords(need, calendar.state) }] : [];
+    }),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,
     consultFirst,
     dealPace: dealsOn ? peopleLoaded.dealPace : null,
-    saved: savedLists.map((l) => {
-      // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (lists.ts listMembers), over
-      // the rows on the page, so an erased person never counts. A rule that can't be counted here says why.
-      const m = listMembers(l, rows, listCtx, lookup);
-      const members = m.state === "ok" ? rows.filter((r) => m.ids.has(r.id)) : [];
-      const ids = members.map((r) => r.id);
-      const rule = l.rule == null ? null : asListRule(l.rule);
-      // The list's own step, the way a built-in list carries its: a broadcast to those on it who said yes.
-      return {
-        id: l.id,
-        name: l.name,
-        count: ids.length,
-        ids,
-        members: l.ids,
-        action: savedListAction(l.id, members),
-        byHand: l.rule == null,
-        rule: rule ? listRuleParts(rule, listName) : null,
-        unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
-      };
-    }),
+    // The live lists on the rail; the archived ones in their own line, and still read for the lists that name them.
+    saved: savedLists
+      .filter((l) => !l.archived_at)
+      .map((l) => {
+        // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (lists.ts listMembers), over
+        // the rows on the page, so an erased person never counts. A rule that can't be counted here says why.
+        const m = listMembers(l, rows, listCtx, lookup);
+        const members = m.state === "ok" ? rows.filter((r) => m.ids.has(r.id)) : [];
+        const ids = members.map((r) => r.id);
+        const rule = l.rule == null ? null : asListRule(l.rule);
+        // The list's own step, the way a built-in list carries its: a broadcast to those on it who said yes.
+        return {
+          id: l.id,
+          name: l.name,
+          count: ids.length,
+          ids,
+          members: l.ids,
+          action: savedListAction(l.id, members),
+          byHand: l.rule == null,
+          rule: rule ? listRuleParts(rule, listName) : null,
+          unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
+        };
+      })
+      .map((s) => ({ ...s, tip: savedListTip(s) })),
     savedRead: peopleLoaded.saved !== null,
+    archived: savedLists.filter((l) => !!l.archived_at).map((l) => ({ id: l.id, name: l.name })),
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
 
@@ -1063,7 +1096,8 @@ export const peopleOverride: SurfaceOverride = {
   // Deals too: a teammate's move, or a payment's, shows on the rows and the Pipeline without a reload (0008). The
   // tab's own moves already re-read People through the refresh map (POST contacts/[id]/deal).
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "deals", "person_notes"],
+  // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload.
+  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "deals", "person_notes", "segments", "segment_members"],
   apply: async () => {
     // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read
     // brings back, so the tab's own saves are laid over it. A read that overlapped no save takes the server's views as
@@ -1222,7 +1256,8 @@ export const broadcastsOverride: SurfaceOverride = {
     // Every page of people, not the first: the send enrols everyone, so an
     // audience counted over one page promised fewer people than the send reaches.
     const { people: everyone } = await everyPerson(people);
-    const rows = everyone.map((r) => toPersonRowVM(r, tz, now, viewerId()));
+    // The pool's one reading (contracts audience-pool.ts), as the send reads it.
+    const rows = poolRowsOf(everyone, { tz, now, viewer: viewerId(), dealsOn: !!people.deals_on });
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     // Who a run reached within the week, for the note on how many of an audience heard from one.
@@ -1271,32 +1306,35 @@ export const broadcastsOverride: SurfaceOverride = {
       })),
       ...(saved instanceof Error
         ? []
-        : saved.lists.map((s) => ({
-            kind: "saved" as const,
-            id: s.id,
-            label: s.name,
-            // Counted as the send will count it (lists.ts): a rule that can't be counted here reaches nobody, and
-            // the send refuses it in words.
-            ...optionFor(
-              "saved",
-              null,
-              savedListIds(
-                s,
-                rows,
-                {
-                  calendar: people.calendar?.state ?? "none",
-                  dealsOn: !!people.deals_on,
-                  consultFirst: !!people.consult_first,
-                  viewer: viewerId() !== null,
-                },
-                savedListLookup(saved.lists),
+        : // An archived list is sent to no new broadcast (00169): it is off People's rail, and the send refuses it.
+          saved.lists
+            .filter((s) => !s.archived_at)
+            .map((s) => ({
+              kind: "saved" as const,
+              id: s.id,
+              label: s.name,
+              // Counted as the send will count it (lists.ts): a rule that can't be counted here reaches nobody, and
+              // the send refuses it in words.
+              ...optionFor(
+                "saved",
+                null,
+                savedListIds(
+                  s,
+                  rows,
+                  poolListContext({
+                    calendar: people.calendar?.state ?? "none",
+                    dealsOn: !!people.deals_on,
+                    consultFirst: !!people.consult_first,
+                    viewer: viewerId(),
+                  }),
+                  savedListLookup(saved.lists),
+                ),
               ),
-            ),
-            hint:
-              s.rule == null
-                ? "A list kept by hand — of those whose yes covers this message"
-                : "A list that keeps itself current — of those whose yes covers this message",
-          }))),
+              hint:
+                s.rule == null
+                  ? "A list kept by hand — of those whose yes covers this message"
+                  : "A list that keeps itself current — of those whose yes covers this message",
+            }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
@@ -1428,11 +1466,17 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
-  /** The lists a playbook may run on, each with its own count; empty when there are none or they were not read. */
+  /**
+   * Every list a playbook may run on (decision 0009), each by its token (`seg:<id>` for People's, `list:<id>` for the
+   * workspace's own) with its own count: People's first, then the workspace's. Empty when none could be read.
+   */
   lists: {
+    /** The list's token: what the composer picks and the card links by. */
     id: string;
     name: string;
     smart: boolean;
+    /** One of People's lists, not the workspace's own. */
+    builtin: boolean;
     candidates: number | null;
     held: number | null;
     named: PlaybookNamed | null;
@@ -1496,20 +1540,31 @@ export const playbooksOverride: SurfaceOverride = {
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
-    // A playbook on one of the workspace's lists is counted by its list ("list:<id>"), and named for it.
+    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
     const listsKept = pb.lists ?? [];
-    const keyOf = (p: { trigger: string; list_id?: string | null }) =>
-      p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
+    const peopleLists = pb.people_lists ?? [];
+    const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
+      p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    // A built-in is named by contracts when the route's People read failed: it is never deleted. One of the
+    // workspace's own is named by the lists read; unread, it is a list that could not be read, never a deleted one.
+    const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
+      p.list_key
+        ? (peopleLists.find((l) => l.key === p.list_key)?.label ??
+          PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ??
+          null)
+        : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
+    const unnamed = pb.lists === null ? "A list that could not be read" : "A list that was deleted";
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
-        const kept = p.trigger === "saved_list" ? listsKept.find((l) => l.id === p.list_id) : undefined;
+        const onArchived = p.trigger === "saved_list" && !!listsKept.find((l) => l.id === p.list_id)?.archived;
         return {
           ...p,
-          triggerLabel:
-            p.trigger === "saved_list" ? (kept?.name ?? "A list that was deleted") : (t?.label ?? p.trigger),
+          // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
+          listArchived: onArchived,
+          triggerLabel: p.trigger === "saved_list" ? (listNameOf(p) ?? unnamed) : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
@@ -1522,12 +1577,13 @@ export const playbooksOverride: SurfaceOverride = {
       }),
       timezone: tz,
       countsRead: offered.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
-      lists: listsKept.map((l) => ({
-        ...l,
-        candidates: pool(`list:${l.id}`),
-        held: held(`list:${l.id}`),
-        named: named(`list:${l.id}`),
-      })),
+      lists: [
+        ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
+        // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
+        ...listsKept
+          .filter((l) => !l.archived)
+          .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
+      ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",
       triggers: offered.map((t) => ({
         id: t.id,

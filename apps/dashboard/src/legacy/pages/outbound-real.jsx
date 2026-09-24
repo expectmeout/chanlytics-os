@@ -25,6 +25,15 @@ const usePlaybooks = () => {
 // Stable empties, so a workspace without templates or triggers does not
 // re-run the effects on every render.
 const PB_NONE = [];
+// A list a playbook may run on, in the picker's two groups (decision 0009): People's, then the workspace's own.
+const PB_LIST_GROUPS = { people: "People's lists", own: "Your lists" };
+const pbListSub = (l) => (l.builtin ? "One of People's lists" : l.smart ? "Keeps itself current" : "Kept by hand");
+// What a playbook on a list sends, and the row of Autonomy it runs under (contracts LIST_PLAYBOOK_CLASSES). Both need
+// the yes to offers.
+const PB_LIST_CLASSES = [
+  { id: "campaign", label: "An offer", sub: "Runs under Standing offers in Autonomy", icon: "gift" },
+  { id: "reengage", label: "A win-back", sub: "Runs under Re-engage quiet customers in Autonomy", icon: "undo" },
+];
 // The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
 const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
 // A number said as a word inside a sentence -- "the six moments", "two set up" -- the way a person says it.
@@ -110,7 +119,7 @@ const PB_BLURBS = {
   visit_tomorrow: "Everyone with a visit tomorrow — the reminder that keeps the chair from sitting empty.",
   visited: "Everyone who came in yesterday and has nothing on the calendar — the shortest path from a visit to the next booking.",
   lapsed: "Everyone whose last visit was 45 days ago or more, with nothing ahead on the calendar — the regulars drifting away.",
-  saved_list: "Everyone on one of your lists — kept by hand, or kept current by a rule you described.",
+  saved_list: "Everyone on a list — one of People's, or one of yours, kept by hand or kept current by a rule you described.",
   proposal_waiting: "Everyone whose proposal has waited with nothing back — one nudge each, with the link to it, before it goes cold.",
 };
 const pbShort = (id) => (window.__starters && window.__starters.langTag ? window.__starters.langTag(id) : String(id || "").slice(0, 2).toUpperCase());
@@ -336,8 +345,13 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     cap: editing ? editing.cap_per_run : 25,
     gap: editing ? editing.gap_days : 90,
     cadence: editing ? editing.cadence_days : 30,
-    // The list a playbook on one of the workspace's lists runs on: its own, or the first list kept.
-    listId: editing ? editing.list_id || null : ((data.lists || PB_NONE)[0] || {}).id || null,
+    // The list a playbook on a list runs on, by its token (decision 0009): its own, or the first of the workspace's
+    // lists, else the first of People's.
+    listId: editing
+      ? (editing.list_key ? `seg:${editing.list_key}` : editing.list_id ? `list:${editing.list_id}` : null)
+      : ((data.lists || PB_NONE).find((l) => !l.builtin) || (data.lists || PB_NONE)[0] || {}).id || null,
+    // What a playbook on a list sends, under which row of Autonomy: an offer, or a win-back.
+    cls: editing && editing.trigger === "saved_list" && editing.policy_class === "reengage" ? "reengage" : "campaign",
     fills: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind ? p.kind : "text")) } : {},
     typed: editing && Array.isArray(editing.params) ? { [editing.template_id]: editing.params.map((p) => (p && p.kind === "text" ? p.value : "")) } : {},
   }), [editing, initialTrigger]); // eslint-disable-line react-hooks/exhaustive-deps -- what it opened as, read once
@@ -360,8 +374,9 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
   const [fills, setFills] = React.useState(start.fills);
   const [typed, setTyped] = React.useState(start.typed);
   const [listId, setListId] = React.useState(start.listId === undefined ? null : start.listId);
+  const [cls, setCls] = React.useState(start.cls || "campaign");
   // What the sheet holds, against what it opened as: changed, it is kept in the tab, and Cancel asks first.
-  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, fills, typed };
+  const held = { trigger, tplId, picked, name, hour, cap, gap, cadence, listId, cls, fills, typed };
   const work = window.useUnsavedWork("playbook", draftKey, { value: held, dirty: JSON.stringify(held) !== JSON.stringify(opened), onLeave: onCancel });
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
@@ -467,7 +482,9 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
     if (!window.__playbooks || !ready) return;
     setBusy(true);
     setError(null);
-    const body = { name: name === null || !name.trim() ? null : name.trim(), trigger, ...(onList ? { list_id: listId } : {}), template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) };
+    // A list by its token: one of People's is its id (list_key), one of the workspace's own its list (list_id).
+    const onWhich = onList && listId ? (listId.startsWith("seg:") ? { list_key: listId.slice(4) } : { list_id: listId.slice(5) }) : {};
+    const body = { name: name === null || !name.trim() ? null : name.trim(), trigger, ...onWhich, ...(onList ? { policy_class: cls } : {}), template_id: tpl.id, params: specs, run_hour: Number(hour), cap_per_run: capN, gap_days: Number(gap), cadence_days: Number(cadence) };
     const r = editing ? await window.__playbooks.update(editing.id, body) : await window.__playbooks.create(body);
     setBusy(false);
     if (!r.ok) { setError(r.message || "It could not be saved."); return; }
@@ -544,11 +561,13 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
             ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a moment</span></span>}
             testid="pb-moment"
           />
-          {/* Which of the workspace's lists it runs on: kept by hand, or kept current by a rule. */}
+          {/* Which list it runs on (decision 0009): one of People's, or one of the workspace's own, kept by hand or by a
+              rule. A list about whoever is looking is never offered: a run has no one looking. */}
           {onList && (lists.length ? (
             <window.CmPicker
               value={listId}
-              choices={lists.map((l) => ({ id: l.id, label: l.name, sub: l.smart ? "Keeps itself current" : "Kept by hand", icon: l.smart ? "sparkle" : "filter", hint: l.candidates === null || l.candidates === undefined ? null : l.candidates > 0 ? `${l.candidates} today` : "nobody today" }))}
+              choices={lists.map((l) => ({ id: l.id, label: l.name, group: l.builtin ? "people" : "own", sub: pbListSub(l), icon: l.builtin || l.smart ? "sparkle" : "filter", hint: l.candidates === null || l.candidates === undefined ? null : l.candidates > 0 ? `${l.candidates} today` : "nobody today" }))}
+              groups={PB_LIST_GROUPS}
               onPick={setListId}
               label="The list it runs on"
               search={lists.length > 8}
@@ -556,13 +575,28 @@ const PlaybookComposer = ({ data, editing, initialTrigger = null, onDone, onCanc
               triggerClass="pb-pick"
               face={list ? (
                 <>
-                  <span className="pb-pick-mark" aria-hidden="true"><Icon name={list.smart ? "sparkle" : "filter"} size={15} /></span>
-                  <span className="pb-pick-text"><span className="pb-pick-title">{list.name}</span><span className="pb-pick-sub">{list.smart ? "Keeps itself current" : "Kept by hand"}</span></span>
+                  <span className="pb-pick-mark" aria-hidden="true"><Icon name={list.builtin || list.smart ? "sparkle" : "filter"} size={15} /></span>
+                  <span className="pb-pick-text"><span className="pb-pick-title">{list.name}</span><span className="pb-pick-sub">{pbListSub(list)}</span></span>
                 </>
               ) : <span className="pb-pick-text"><span className="pb-pick-title is-empty">Pick a list</span></span>}
               testid="pb-list"
             />
           ) : <p className="pb-warn" data-testid="pb-no-lists">Keep a list on People first — by hand, or describe who and it keeps itself current.</p>)}
+          {/* What a playbook on a list sends, and so which row of Autonomy governs it: an offer, or a win-back. */}
+          {onList && (
+            <window.CmPicker
+              value={cls}
+              choices={PB_LIST_CLASSES}
+              onPick={setCls}
+              label="What it sends"
+              fit="trigger"
+              triggerClass="pb-pick"
+              face={
+                <span className="pb-pick-text"><span className="pb-pick-title">{(PB_LIST_CLASSES.find((c) => c.id === cls) || PB_LIST_CLASSES[0]).label}</span><span className="pb-pick-sub">{(PB_LIST_CLASSES.find((c) => c.id === cls) || PB_LIST_CLASSES[0]).sub}</span></span>
+              }
+              testid="pb-list-class"
+            />
+          )}
           {trig && counted && <window.CmReach will={will} pool={pool} of={of} held={base.held} reasons={reasons} size="sm" testid="pb-reach" />}
           {visits && data.calendar !== "ok" && <p className="pb-warn" data-testid="pb-calendar">A visit moment reads the calendar: connect it in Settings › Business before a run can send.</p>}
         </section>
@@ -705,7 +739,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
   // The trigger's list, on People (a smart list's own view); `segments/<id>` would land there too, one hop later.
   // A follow-up's is the Pipeline's own view of the proposals waiting (contracts pipelineRoute).
-  const listRoute = p.trigger === "saved_list" && p.list_id ? `clients/list:${p.list_id}` : trig && trig.list ? `clients/seg:${trig.list}` : trig && trig.kind === "deal" && window.__pipeline ? window.__pipeline.route({ view: "waiting" }) : "clients/seg:opted_in";
+  const listRoute = p.trigger === "saved_list" && p.list_key ? `clients/seg:${p.list_key}` : p.trigger === "saved_list" && p.list_id ? `clients/list:${p.list_id}` : trig && trig.list ? `clients/seg:${trig.list}` : trig && trig.kind === "deal" && window.__pipeline ? window.__pipeline.route({ view: "waiting" }) : "clients/seg:opted_in";
   // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
@@ -798,6 +832,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
             {/* "Next run paused" was the words when it is. A follow-up where deals are off says why it runs nothing. */}
             {p.off
               ? <>{p.off}</>
+              : p.listArchived
+              ? <>Paused &mdash; its list, <b>{p.triggerLabel}</b>, is archived.{canAct && window.__lists ? <>{" "}<button type="button" className="ob-link" onClick={() => act(() => window.__lists.restore(p.list_id), () => <><b>{p.triggerLabel}</b> is back; resume the playbook when you want it running</>)} data-testid="pb-list-restore">Bring the list back</button>, or edit the playbook to run on another.</> : null}</>
               : p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
               // The hour was in bold on its own, which promised a send. It keeps

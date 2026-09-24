@@ -981,6 +981,124 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
   }
 });
 
+test("REGRESSION: a playbook's list that could not be read is not called deleted, and one of People's is named by contracts (decision 0009)", async () => {
+  const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+  const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  const rows = [
+    { ...route, id: "pb-own", trigger: "saved_list", list_id: "l1", list_key: null },
+    { ...route, id: "pb-people", trigger: "saved_list", list_id: null, list_key: "lapsed" },
+  ];
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const fetchKept = globalThis.window.fetch;
+  // The route's reads of the lists failed: its own lists null, People's none.
+  globalThis.window.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    if (path === "/api/v1/playbooks")
+      return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: null, people_lists: [] });
+    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
+    if (path === "/api/v1/channels") return answer({ channels: [] });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+  };
+  try {
+    await playbooksOverride.apply();
+    const label = (id) => globalThis.window.__PLAYBOOKS.rows.find((p) => p.id === id).triggerLabel;
+    assert.equal(
+      label("pb-own"),
+      "A list that could not be read",
+      "REGRESSION: a failed read said the list was deleted",
+    );
+    assert.equal(label("pb-people"), "Lapsed", "a built-in is never deleted: contracts names it");
+  } finally {
+    globalThis.window.fetch = fetchKept;
+  }
+});
+
+test("a playbook on an archived list says so on its card, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
+  const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
+  const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+  const pools = {
+    ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
+    "list:l1": empty,
+    "list:l2": empty,
+  };
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  const rows = [
+    {
+      ...route,
+      id: "pb-vip",
+      name: "VIP offer",
+      trigger: "saved_list",
+      list_id: "l1",
+      list_key: null,
+      state: "paused",
+    },
+  ];
+  const kept = [
+    { id: "l1", name: "VIP", smart: false, archived: true },
+    { id: "l2", name: "Regulars", smart: false, archived: false },
+  ];
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const fetchKept = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    if (path === "/api/v1/playbooks")
+      return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: kept, people_lists: [] });
+    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
+    if (path === "/api/v1/channels") return answer({ channels: [] });
+    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+  };
+  const installed = [
+    "__playbooks",
+    "__refreshPlaybooks",
+    "__playbookReach",
+    "__playbookReachWords",
+    "__playbookReachDoor",
+    "__playbookNoNumberWords",
+    "__reachLines",
+    "__poolWords",
+    "__playbookName",
+    "__lists",
+  ];
+  const restored = [];
+  installPlaybooks();
+  globalThis.window.__lists = {
+    restore: async (id) => {
+      restored.push(id);
+      return { ok: true, data: {} };
+    },
+  };
+  try {
+    await playbooksOverride.apply();
+    const P = globalThis.window.__PLAYBOOKS;
+    assert.equal(P.rows[0].listArchived, true);
+    assert.deepEqual(
+      P.lists.filter((l) => !l.builtin).map((l) => l.id),
+      ["list:l2"],
+      "an archived list is offered to no new playbook",
+    );
+    const drawn = card(P.rows[0]);
+    const sentence = textOf(find(drawn, (n) => String(n.props?.className || "") === "ob-sentence")).replace(
+      /\s+/g,
+      " ",
+    );
+    assert.ok(sentence.includes("Paused — its list, VIP, is archived."), sentence);
+    await press(byTestId(drawn, "pb-list-restore"));
+    await settle();
+    assert.deepEqual(restored, ["l1"]);
+    assert.match(textOf(toasts.at(-1).msg), /^VIP is back; resume the playbook when you want it running/);
+  } finally {
+    for (const k of installed) delete globalThis.window[k];
+    globalThis.window.fetch = fetchKept;
+  }
+});
+
 test("REGRESSION: counts that could not be read are said once, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
   const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
   const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");

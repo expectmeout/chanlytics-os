@@ -73,6 +73,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* A section: its label, its rows, its chips (ask-home.jsx). The gap above is between sections, never between rows. */
 .ask-rows-sec { display: flex; flex-direction: column; }
 .ask-rows-label { padding: 0 6px 6px; font-size: 12px; color: var(--ink-dim); }
+/* A section's note under its chips (Leads' consent rule, ask-home.jsx): one dim line at the chips' own 6px gutter. */
+.ask-rows-note { margin: 6px 0 0; padding: 0 6px; font-size: 12px; line-height: 1.4; color: var(--ink-dim); }
 .ask-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 0 10px; border-radius: var(--radius-md); color: var(--ink); cursor: pointer; }
 .ask-row.sel { background: var(--bg-hover); }
 .ask-row-glyph { flex: none; color: var(--ink-dim); }
@@ -260,12 +262,15 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      keeps the full width (Earlier, the words typed, the jumps), and Right now centres its own parts. */
   .ask-rows { align-items: center; gap: 16px; padding: 8px 16px 12px; }
   .ask-rows-sec { align-items: center; width: 100%; }
+  /* Centred, the chips would take their own width and a long one would run past both edges: they keep to the section's. */
+  .ask-rows-sec > .ask-chips { max-width: 100%; }
   .ask-rows-sec > .ask-row { align-self: stretch; }
   .ask-row { min-height: 48px; }
   .ask-row.now { flex-direction: column; align-items: center; gap: 10px; text-align: center; min-height: 0; padding: 0; }
   .ask-row.now .ask-row-label { font-size: 14.5px; line-height: 1.45; max-width: 32ch; }
   .ask-row.now.sel { background: transparent; }
   .ask-chips { justify-content: center; }
+  .ask-rows-note { text-align: center; }
   /* The delete question sits under the middle, over the foot. */
   .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
   /* The foot: the band as the field, last in the column, the one button inside it (spec 5.1). */

@@ -53,7 +53,8 @@ import {
   chipsMoreWords,
   instructionsWords,
   fallbacksWords,
-  RULES_WITHOUT_FIELDS_WORDS,
+  isProductFallback,
+  rulesWithoutFieldsWords,
   guardrailsInForce,
   hoursLines,
   MAX_INTERVALS_PER_DAY,
@@ -63,6 +64,10 @@ import {
   writtenOutDetail,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
+  offersBookingLink,
   type PromptBlockVM,
   type ProfileCrossing,
   type BusinessProfile,
@@ -288,7 +293,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
 // handoffCallWords), the notes' (notesWords), the owner's own words' (instructionsWords), the three messages'
-// (fallbacksWords), and what the rules fold says on a record whose details compose nothing (RULES_WITHOUT_FIELDS_WORDS),
+// (fallbacksWords), and what the rules fold says on a record whose details compose nothing (rulesWithoutFieldsWords),
 // which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by,
 // and rulesKept is which of them the row at rest may name -- derived from the three strengths, since a checked rule
@@ -339,7 +344,8 @@ export const BUSINESS_TAB = {
   chipsMoreWords,
   instructionsWords,
   fallbacksWords,
-  RULES_WITHOUT_FIELDS_WORDS,
+  isProductFallback,
+  rulesWithoutFieldsWords,
   hasProfile,
   guardrailsInForce,
   PROFILE_LIMITS,
@@ -347,6 +353,10 @@ export const BUSINESS_TAB = {
   writtenOutDetail,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
+  offersBookingLink,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

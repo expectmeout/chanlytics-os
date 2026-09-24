@@ -56,6 +56,7 @@ import {
   instructionsWords,
   fallbacksWords,
   RULES_WITHOUT_FIELDS_WORDS,
+  rulesWithoutFieldsWords,
   NO_FIELDS_COMPOSED_WORDS,
   BusinessProfileSchema,
   FALLBACK_DEFAULTS,
@@ -265,7 +266,7 @@ const full = {
 };
 
 test("the standing line is three clauses, and never a percentage", () => {
-  const s = standingLine(full, false);
+  const s = standingLine(full, false, null);
   assert.match(s.can, /where you are/);
   assert.match(s.can, /when you.re open/);
   assert.match(s.can, /how to book/);
@@ -276,7 +277,7 @@ test("the standing line is three clauses, and never a percentage", () => {
 
 test("the standing line names the one thing missing, and where to fix it", () => {
   const noVoice = { ...full, profile: { ...full.profile, tone: undefined } };
-  const s = standingLine(noVoice, false);
+  const s = standingLine(noVoice, false, null);
   assert.match(s.missing.sentence, /no voice of its own/i);
   assert.equal(s.missing.row, "tone");
 });
@@ -286,10 +287,10 @@ test("it offers a consult or the link instead of a price, switch on or off, and 
   // with it -- with the switch off, there is no rule of the owner's to point at. And it names
   // both, because chat's replacement offers a consult and a call's correction offers the link.
   for (const guardrails of [{ never_quote_prices: true }, { never_quote_prices: false }, undefined]) {
-    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } }, false);
+    const s = standingLine({ ...full, profile: { ...full.profile, guardrails } }, false, null);
     assert.equal(s.wont, "It offers a consult or the booking link instead of a price.", JSON.stringify(guardrails));
   }
-  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, false).wont, null);
+  assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, false, null).wont, null);
 });
 
 test("M-1: what it will not do names the difference between the channels, once", () => {
@@ -297,7 +298,7 @@ test("M-1: what it will not do names the difference between the channels, once",
   // (policy.ts, layerTwo). On a call there is no before -- the figure has been heard, and what follows is a
   // correction (spokenBreach). One clause said on both channels was exact on one of them and flattering on the
   // other, which is the imprecision this task exists to name.
-  const onACall = standingLine(full, true);
+  const onACall = standingLine(full, true, null);
   assert.match(onACall.wont, /consult or the booking link instead of a price/, "the promise is unchanged");
   assert.match(onACall.wont, /in chat/i, "and it says which channel does what");
   assert.match(onACall.wont, /on a call/i);
@@ -308,12 +309,12 @@ test("M-1: what it will not do names the difference between the channels, once",
   assert.doesNotMatch(onACall.wont, /correction/i, "REGRESSION: the band promised a correction it cannot always make");
   // A workspace with no call answers only in chat, where the plain sentence is exact. Naming a channel it does not
   // answer on would be the page teaching an owner about a line they do not have.
-  assert.equal(standingLine(full, false).wont, "It offers a consult or the booking link instead of a price.");
+  assert.equal(standingLine(full, false, null).wont, "It offers a consult or the booking link instead of a price.");
   // Still three clauses, on either channel (spec 4.1): what it can say, what it will not, and the one gap. The VM
   // having three keys is true by construction and proves nothing; what could go wrong is the middle clause growing
   // into two sentences, so it is counted as a reader counts it -- by its full stops.
   for (const calls of [true, false]) {
-    const s = standingLine({ ...full, profile: { ...full.profile, tone: undefined } }, calls);
+    const s = standingLine({ ...full, profile: { ...full.profile, tone: undefined } }, calls, null);
     assert.ok(s.can && s.wont && s.missing, `calls=${calls}: all three`);
     for (const [what, clause] of [
       ["can", s.can],
@@ -330,7 +331,7 @@ test("M-1: what it will not do names the difference between the channels, once",
   }
   // Nothing to price is still nothing said, whichever lines answer.
   for (const calls of [true, false]) {
-    assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, calls).wont, null);
+    assert.equal(standingLine({ ...full, profile: { ...full.profile, services: [] } }, calls, null).wont, null);
   }
 });
 
@@ -342,7 +343,7 @@ test("standingLine refuses to guess which lines answer", () => {
 });
 
 test("a record with nothing says so without listing every gap", () => {
-  const s = standingLine({ business_name: "", booking_link: "", profile: {} }, false);
+  const s = standingLine({ business_name: "", booking_link: "", profile: {} }, false, null);
   assert.match(s.can, /cannot answer anyone yet/i);
   assert.equal(s.wont, null);
   assert.equal(s.missing.row, "name");
@@ -355,6 +356,7 @@ const live = {
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
+  linkOptional: false,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -371,6 +373,7 @@ test("an ability names its channels and the row it runs on", () => {
     whatsappLive: true,
     hasCalendarFeed: true,
     hasBookingLink: true,
+    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: false,
@@ -399,6 +402,7 @@ test("an ability whose input is missing says which row to fill", () => {
     whatsappLive: true,
     hasCalendarFeed: false,
     hasBookingLink: true,
+    linkOptional: false,
     hasHandoffNumber: false,
     hasEscalateWhen: true,
     visionOn: false,
@@ -422,6 +426,7 @@ test("nothing is ready on a channel that is not answering", () => {
     whatsappLive: false,
     hasCalendarFeed: true,
     hasBookingLink: true,
+    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: true,
@@ -437,6 +442,7 @@ test("nothing is ready on a channel that is not answering", () => {
     whatsappLive: false,
     hasCalendarFeed: true,
     hasBookingLink: true,
+    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: true,
@@ -838,7 +844,7 @@ test("each half of a hand-off opens the row that supplies it: the transfer numbe
 /* ---- What it cannot do ---- */
 
 test("what it cannot do is stated, and is not a setting", () => {
-  const rows = cannotRows({ smsLive: false });
+  const rows = cannotRows({ smsLive: false, hasBookingLink: true });
   const ids = rows.map((r) => r.id);
   assert.deepEqual(ids, ["book", "outbound_call", "sms"]);
   assert.match(rows[0].detail, /no appointments table/i);
@@ -850,7 +856,7 @@ test("a text message is not listed as something it cannot do once texting is liv
   // Texting goes live on an active carrier line that is not a rehearsal filing
   // (capabilities.ts). On such a line "not part of what is sold yet" is not true.
   assert.deepEqual(
-    cannotRows({ smsLive: true }).map((r) => r.id),
+    cannotRows({ smsLive: true, hasBookingLink: true }).map((r) => r.id),
     ["book", "outbound_call"],
   );
   // Left out by an untyped caller, it would quietly read as not live.
@@ -1058,6 +1064,7 @@ test("the services sheet's foot says how many it will be told of, how long they 
       profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
     },
     false,
+    null,
   ).missing;
   assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
   assert.equal(
@@ -1499,4 +1506,74 @@ test("a message that writes a detail out instead of naming it is found, link fir
     null,
     "eight digits in a row are not a phone number",
   );
+});
+
+test("a business that quotes, with no booking link, is told of no missing link and says how to get a quote; with no link its price clause takes their details; with a link every word is as it was", () => {
+  const quotes = { ...full, booking_link: undefined };
+  const s = standingLine(quotes, false, "proposal");
+  assert.equal(s.missing, null, "it has none by right (the first run's decision 2), and nothing else is missing");
+  assert.doesNotMatch(s.can, /how to book/);
+  assert.match(s.can, /and how to get a quote\.$/, "it answers: it takes their details for a quote");
+  assert.equal(
+    standingLine({ business_name: "Harbor Moving" }, false, "proposal").can,
+    "It can say how to get a quote.",
+    "never 'cannot answer anyone yet' just after the create card",
+  );
+  assert.equal(s.wont, "It offers a consult, or takes their details, instead of a price.");
+  assert.equal(
+    standingLine(quotes, true, "proposal").wont,
+    "It offers a consult, or takes their details, instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.",
+  );
+  for (const answer of ["booking", null]) {
+    const asked = standingLine(quotes, false, answer);
+    assert.equal(asked.missing.row, "booking_link", `one that books, or has not said, is missing it (${answer})`);
+    assert.doesNotMatch(asked.can, /how to book|how to get a quote/, String(answer));
+    assert.equal(asked.wont, "It offers a consult, or takes their details, instead of a price.");
+  }
+  for (const answer of ["booking", "proposal", null])
+    assert.equal(standingLine(full, false, answer).wont, "It offers a consult or the booking link instead of a price.");
+  assert.throws(
+    () => standingLine(full, false),
+    TypeError,
+    "the answer is required: whether a missing link is a gap turns on it",
+  );
+});
+
+test("a business that quotes, with no booking link, takes their details: its booking-link row is missing nothing", () => {
+  const quotes = idOf(abilityRows({ ...live, hasBookingLink: false, linkOptional: true })).booking_link;
+  assert.deepEqual(
+    [quotes.detail, quotes.missing, quotes.ready],
+    ["No booking link, so it takes their details for you to follow up with a quote.", false, false],
+  );
+  const asked = idOf(abilityRows({ ...live, hasBookingLink: false, linkOptional: false })).booking_link;
+  assert.deepEqual([asked.detail, asked.missing], ["No booking link yet, so there is nothing to send.", true]);
+  const { linkOptional: _unsaid, ...unsaid } = live;
+  assert.throws(() => abilityRows(unsaid), TypeError);
+});
+
+test("the rules fold over a stored prompt names the no-link rule where there is no link, by the resolver's own test; with a link it is as it was", () => {
+  assert.equal(rulesWithoutFieldsWords({ booking_link: "https://book.example/luna" }), RULES_WITHOUT_FIELDS_WORDS);
+  assert.equal(rulesWithoutFieldsWords(null), RULES_WITHOUT_FIELDS_WORDS, "nothing known: as a call is told");
+  assert.equal(
+    rulesWithoutFieldsWords({}),
+    `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by what to do with no booking link and any rules your Autonomy tab adds.`,
+  );
+});
+
+test("with no booking link, the two rows that lean on one say what does the work instead; the rest are as they were", () => {
+  const detail = (hasBookingLink) =>
+    Object.fromEntries(cannotRows({ smsLive: false, hasBookingLink }).map((r) => [r.id, r.detail]));
+  const linked = detail(true);
+  const none = detail(false);
+  assert.match(linked.book, /Your booking link does that, whichever tool is behind it\.$/);
+  assert.equal(
+    none.book,
+    "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  );
+  assert.equal(
+    none.sms,
+    "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
+  );
+  assert.equal(none.outbound_call, linked.outbound_call, "a row that leans on no link is as it was");
+  assert.throws(() => cannotRows({ smsLive: false }), TypeError, "whether there is a link is required, as smsLive is");
 });

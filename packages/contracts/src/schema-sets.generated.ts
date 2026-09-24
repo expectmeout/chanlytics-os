@@ -35,14 +35,15 @@ export const SCHEMA_SETS = {
   "decisions.actor_type": ["user", "ai", "system", "owner_phone"],
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
-    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal",
+    "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
     "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role",
     "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast",
     "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call",
-    "record_deal", "import",
+    "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list",
+    "archive_list", "restore_list", "delete_list", "import",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

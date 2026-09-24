@@ -316,8 +316,9 @@ const BT_STORED_AS = {
   handoff_number: btTransferOf,
 };
 
-/* What stops each row's save before any round trip: its sentence, said under the box, or null. Each takes the draft and
-   the line the workspace answers on ("" when there is none). The address takes anything, empty included. */
+/* What stops each row's save before any round trip: its sentence, said under the box, or null. Each takes the draft;
+   the two numbers take the line the workspace answers on ("" when there is none) too, and the booking link the
+   workspace's answer to how its customers buy. The address takes anything, empty included. */
 
 // The API refuses an empty name too, but names no field: checked here, the owner is told where.
 const btCheckName = (d) => (btTrimmed(d) ? null : "The receptionist needs a business name before it can answer anyone.");
@@ -325,9 +326,13 @@ const btCheckWebsite = (d) => {
   const v = btTrimmed(d);
   return v && !BT_WEB.test(v) ? "The website needs to be a full web address, starting with https://" : null;
 };
-const btCheckBookingLink = (d) => {
+// Asked of a business that books or has not said (contracts bookingLinkOptional, by the answer the caller holds): a
+// business that quotes may leave it empty, and its receptionist takes the customer's details instead. Without the
+// bridge (the standalone mockup before it loads, a test that never installed it) there is nothing to ask.
+const btCheckBookingLink = (d, sellsBy) => {
   const v = btTrimmed(d);
-  if (!v) return "The receptionist needs a booking link before it can answer anyone.";
+  const tab = window.__businessTab;
+  if (!v) return tab && tab.bookingLinkOptional && !tab.bookingLinkOptional(sellsBy) ? tab.BOOKING_LINK_NEEDED : null;
   return BT_WEB.test(v) ? null : "That booking link needs to be a full web address, starting with https://";
 };
 const btCheckPublished = (d, line) => {
@@ -386,11 +391,11 @@ const btPatchProfile = (key) => (value) => (b, p) => {
   return b;
 };
 
-const btPatchBookingLink = (link) => (b) => { b.booking_link = link; return b; };
-
-// Absent is the schema's "the line it answers", so publishing the line removes the key rather than storing "".
-const btPatchPublished = (value) => (b) => {
-  if (value) b.phone_display = value; else delete b.phone_display;
+// A key of the brain an emptied box removes rather than storing "": the published number, whose absence is the
+// schema's "the line it answers", and the booking link, whose empty one would fail the read's web-address check and the
+// whole config with it, which leaves the receptionist silent.
+const btPatchBrain = (key) => (value) => (b) => {
+  if (value) b[key] = value; else delete b[key];
   return b;
 };
 
@@ -399,8 +404,8 @@ const BT_PATCH_OF = {
   name: btPatchName,
   address: btPatchProfile("address"),
   website: btPatchProfile("website"),
-  booking_link: btPatchBookingLink,
-  phone_display: btPatchPublished,
+  booking_link: btPatchBrain("booking_link"),
+  phone_display: btPatchBrain("phone_display"),
   // Emptied, the phone receptionist takes a message instead of transferring.
   handoff_number: btPatchProfile("handoff_number"),
 };
@@ -413,6 +418,12 @@ const BT_PATCH_OF = {
 // PATCH_OF by its id. business-tab-folds.jsx adds each fold's paths, keys and helpers to it as it loads.
 // Added to the object when there is one already, never put in its place: under hot reload this file runs again and
 // business-tab-folds.jsx does not, and a new object left every fold helper undefined until a full reload.
+// The workspace's answer to how its customers buy, as the workspace list carries it (business-tab-offer.jsx
+// btSellsByNow), asked as it is needed since that file loads after this one; null where it was never said.
+const btAnswer = () => (window.btSellsByNow ? window.btSellsByNow() : null);
+// The answer a create fold's draft stands on: the one chosen in it, else the workspace's (business-tab-create.jsx).
+const btAnswerOf = (draft) => (draft && draft.sells_by) || btAnswer();
+
 Object.assign(window, {
   phoneShown: btPhoneShown,
   __businessTabSave: Object.assign(window.__businessTabSave || {}, {
@@ -424,6 +435,8 @@ Object.assign(window, {
     same: btSame,
     trimmed: btTrimmed,
     isBaseline: btIsBaseline,
+    answer: btAnswer,
+    answerOf: btAnswerOf,
     STORED_AS: BT_STORED_AS,
     CHECK_OF: BT_CHECK_OF,
     PATCH_OF: BT_PATCH_OF,

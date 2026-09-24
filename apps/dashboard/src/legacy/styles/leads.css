@@ -1,9 +1,10 @@
-/* The Leads scope of People: the finder, the plan card and the strip.
+/* The Leads scope of People: the plan panel, the plan card and the strip.
    Every rule is the canvas's (lead-finder-design/canvas), on the tokens
    tokens.css already publishes. The seeded page's .ld-* rules are not reused:
-   that page is retired (release B, Task 20). */
+   that page is retired (release B, Task 20). A fresh Find is Ask's (spec
+   2026-09-24-ask-is-the-finder-design.md, F1): its composer lives in ask.css. */
 
-/* ---------------------------------------------------------- the finder -- */
+/* ------------------------------------------------------ the plan panel -- */
 
 .lf-panel {
   margin: 12px 28px 0;
@@ -19,67 +20,35 @@
 /* Focus is a quiet ring in the accent, not a second colour: the bar is where the owner is writing. */
 .lf-panel:focus-within { border-color: var(--line-strong); box-shadow: var(--shadow-md), 0 0 0 3px oklch(from var(--accent) l c h / 0.1); }
 @keyframes lf-in { from { opacity: 0; transform: translateY(-6px) scale(0.995); } to { opacity: 1; transform: none; } }
-@keyframes lf-breathe { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(0.82) rotate(45deg); opacity: 0.6; } }
 @keyframes lf-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 @keyframes lf-fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip, .lf-ex { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .lf-panel, .lf-strip { animation: none; } }
 
-/* One row, 48px: the spark, the words, and what can be pressed. The keys live on the button they press and the
-   consent rule behind the lock beside it, so there is no footer. */
+/* The answer row, one row of 48px under a search's question: the words, Send my answer, and close. It is drawn
+   only while a search waits on its owner; a fresh Find is Ask's field (ask.css). */
 .lf-compose { position: relative; display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px 0 14px; }
-.lf-spark { color: var(--ink-dim); display: inline-flex; flex: none; margin-right: 4px; }
-.lf-spark.live { color: var(--accent); }
-.lf-spark.live svg { animation: lf-breathe 1.6s var(--ease-in-out, ease-in-out) infinite; }
 .lf-input {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
   font-family: inherit; font-size: 14.5px; letter-spacing: -0.01em; color: var(--ink); padding: 0;
 }
 .lf-input::placeholder { color: var(--ink-faint); }
 .lf-input:disabled { color: var(--ink-muted); }
-/* While Claude reads: its trace where the buttons were, and a hairline running under the bar. */
+/* While Claude reads: its trace where the button was, and a hairline running under the row. */
 .lf-think { flex: none; max-width: 42%; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: lf-fade 200ms var(--ease-out); }
 .lf-sweep { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; overflow: hidden; pointer-events: none; }
 .lf-sweep::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--accent); animation: lf-sweep 1.3s var(--ease-in-out, ease-in-out) infinite; }
-.lf-mic, .lf-close, .lf-lock {
+.lf-close {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 8px; border: 0;
   background: transparent; color: var(--ink-dim); cursor: pointer; padding: 0;
 }
-.lf-mic:hover, .lf-close:hover { color: var(--ink); background: var(--bg-hover); }
-.lf-mic.on { background: var(--accent-soft); color: var(--accent); }
-.lf-mic:focus-visible, .lf-close:focus-visible, .lf-lock:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
-/* The consent rule, said on hover or focus (a tap focuses it on a phone), to the lock's left inside the bar. */
-.lf-lock { position: relative; color: var(--ink-faint); cursor: help; }
-.lf-lock:hover, .lf-lock:focus-visible { color: var(--ink-muted); background: var(--bg-hover); }
-.lf-lock::after {
-  content: attr(data-tip); position: absolute; right: calc(100% + 6px); top: 50%;
-  width: max-content; max-width: min(360px, 62vw); padding: 6px 10px; border-radius: 8px;
-  background: var(--ink); color: var(--bg); font-size: 11.5px; line-height: 1.4; text-align: left; white-space: normal;
-  opacity: 0; transform: translate(4px, -50%); pointer-events: none; z-index: 20;
-  transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
-}
-.lf-lock:hover::after, .lf-lock:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+.lf-close:hover { color: var(--ink); background: var(--bg-hover); }
+.lf-close:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
 .lf-go { margin-left: 2px; }
-.lf-go .lf-key { margin-left: 6px; font-size: 11px; opacity: 0.55; }
-/* Ideas from what the business does: quiet pills under an empty bar, gone the moment the owner types. How
-   reachable each kind is sits in the pill's tooltip. */
-.lf-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 12px 36px; }
-.lf-ex-h { font-size: 11px; color: var(--ink-dim); margin-right: 2px; }
-.lf-ex {
-  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--line);
-  border-radius: var(--radius-full); background: transparent; font: inherit; font-size: 12px; color: var(--ink-muted);
-  cursor: pointer; white-space: nowrap; max-width: 100%;
-  animation: lf-in 240ms var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 45ms);
-  transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
-}
-.lf-ex .w { overflow: hidden; text-overflow: ellipsis; }
-.lf-ex .k { display: none; }
-.lf-ex:hover { color: var(--ink); border-color: var(--line-strong); background: var(--bg-hover); }
-.lf-ex:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
-.lf-said { font-size: 12px; color: var(--ink-dim); margin: 0; padding: 0 16px 10px 36px; }
+/* A refusal, under the input it answers, on the input's own left edge. */
+.lf-said { font-size: 12px; color: var(--ink-dim); margin: 0; padding: 0 16px 10px 14px; }
 @media (prefers-reduced-motion: reduce) {
-  .lf-spark.live svg, .lf-sweep::after, .lf-think { animation: none; }
-  .lf-lock::after { transition: none; }
+  .lf-sweep::after, .lf-think { animation: none; }
 }
 
 /* ------------------------------------------------------- the plan card -- */
@@ -138,8 +107,8 @@
    the question in the accent, or one of the nine endings. The phone's own
    stacking of these is in the 900px block at the foot of this file. */
 
-/* The question a search asked, over the input that answers it (Change what I asked). */
-.lf-answering { margin: 0 0 8px; color: var(--ink-dim); font-size: var(--text-sm); line-height: 1.4; }
+/* The question a search asked, over the input that answers it (Change what I asked), on the input's left edge. */
+.lf-answering { margin: 0; padding: 12px 14px 0; color: var(--ink-dim); font-size: var(--text-sm); line-height: 1.4; }
 .lf-strip {
   position: relative; margin: 10px var(--gutter-page) 0; display: flex; align-items: center; flex-wrap: wrap;
   gap: 6px 10px; padding: 4px 6px 4px 14px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
@@ -444,13 +413,15 @@
 .ld-search-renaming input { flex: 1; min-width: 0; }
 
 /* ======================================================= the first day ====
-   No search kept yet (Task 17, §8.9): people first, then the composer and the
-   suggestions Claude wrote from this workspace's own line. It stands where the
-   table stands, so it keeps the table's column of measure. */
+   No search kept yet (Task 17, §8.9): people first, then Find leads (the door
+   to Ask) and the suggestions Claude wrote from this workspace's own line. It
+   stands where the table stands, so it keeps the table's column of measure. */
 
 .fr { max-width: 816px; padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 10px; }
 .fr-h { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); margin: 0; }
 .fr-p { font-size: var(--text-md); color: var(--ink-muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+/* The first day's one door to Ask (spec F1): a button, not a bar, so it keeps its own width in the column. */
+.fr-find { align-self: flex-start; }
 
 .fr-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 4px; }
 .fr-way { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
@@ -462,10 +433,6 @@
 .fr-door:hover { text-decoration: underline; }
 
 .fr-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
-/* The composer is the column's, on the column's gutter (the canvas's .fr .lf-panel). .lf-panel's own margin is the
-   finder's over the table, where it folds out; here it is on the page from the first draw. With that margin kept, the
-   composer stood 56px in at 1280, against the heading's 28px. */
-.fr .lf-panel { margin: 4px 0 0; animation: none; }
 
 .fr-sugs-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .fr-line-edit { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
@@ -488,6 +455,11 @@
    900px and under: cards, one bar, and the work first. Nothing above the rows
    but the bar and the strip. */
 
+/* At a phone's width the shell's ✦ is the one door to Ask (spec F1): the bar's mark gives way to it. */
+@media (max-width: 720px) {
+  .ld-bar-find { display: none; }
+}
+
 @media (max-width: 900px) {
   /* One gutter for the pane, owned by the scope. The bar, the strip, the band, the chips, the bench, the map and the
      first day read --gutter-page, and at this width the pane's is People's 16px (the cards' wrap, the standing line
@@ -496,12 +468,14 @@
      touch phone at 375. */
   .leads-scope { --gutter-page: 16px; }
 
-  /* One bar replaces the rail and the controls row: People's (PeoplePhoneBar, clients.css .pp-bar), with Find as its
-     last control. The rail is already display: none at this width (mobile.css) and the Leads scope draws neither of
-     them here; the rule stands for a window dragged past the band between two state changes, and it is scoped to
-     Leads, because People's own controls row at this width is People's business. */
+  /* One bar replaces the rail and the controls row: People's (PeoplePhoneBar, clients.css .pp-bar). The rail is
+     already display: none at this width (mobile.css) and the Leads scope draws neither of them here; the rule stands
+     for a window dragged past the band between two state changes, and it is scoped to Leads, because People's own
+     controls row at this width is People's business. */
   .leads-scope .cl-controls { display: none; }
-  .ld-bar-find { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--accent); cursor: pointer; }
+  /* Find leads as the bar's last control, the three's still mark, in ink: from 721px to 900px the controls row is
+     gone and the shell draws no ✦, so this is the page's one door. */
+  .ld-bar-find { color: var(--ink); }
 
   /* The classes and the chips give up the gutter, not their words. */
   .ld-classes, .ld-chips { flex-wrap: nowrap; overflow-x: auto; }
@@ -565,45 +539,29 @@
      the popover it is on a desktop, inside the peek that is now the screen. */
   .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: 118px; width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
 
-  /* Find opens a sheet from the bottom, and hold-to-talk is its first control. Three things wear .pl-finder, the
-     name PL_OVERLAY knows the finder by: the sheet, the finder inside it and the first day's composer, so the sheet's
-     box names the sheet. The sheet is the pane, edge to edge on the bottom as the canvas draws it (.ph-sheet) and as
-     People's lists sheet and the record sheet sit, with the one gutter and the one scroller. The finder inside it is
-     its column, with no box of its own, and its foot runs to the sheet's edges (.ph-sheet .lf-foot). When one rule
-     drew all three, the sheet stood centred 16px in from each edge and padded the finder a second time: the input
-     started 49px in on a touch phone at 375, and a plan scrolled in two boxes at once. */
-  .sb-sheet.pl-finder {
+  /* The plan panel opens as a sheet from the bottom. Two things wear .pl-plan, the name PL_OVERLAY knows the panel
+     by: the sheet and the panel inside it, so the sheet's box names the sheet. The sheet is the pane, edge to edge on
+     the bottom as the canvas draws it (.ph-sheet) and as People's lists sheet and the record sheet sit, with the one
+     gutter and the one scroller. The panel inside it is its column, with no box of its own. When one rule drew both,
+     the sheet stood centred 16px in from each edge and padded the panel a second time: the input started 49px in on
+     a touch phone at 375, and a plan scrolled in two boxes at once. */
+  .sb-sheet.pl-plan {
     left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 88vh; max-height: 88dvh; overflow: auto;
     border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px;
   }
   .ld-sheet-handle { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--line-strong); margin: 0 auto 2px; flex: none; }
-  .pl-finder .lf-panel { border: 0; background: none; margin: 0; box-shadow: none; overflow: visible; display: flex; flex-direction: column; gap: 14px; }
-  .pl-finder .lf-panel .lf-foot { margin: 0 calc(-1 * var(--gutter-page)) -18px; padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
-  /* The composer is voice first on a phone, in the sheet and on the first day alike: a centred column, even on both
-     sides (the desktop row's narrower right side is for the close button at its end), and on the sheet's gutter in
-     the sheet. Its foot gives the sentence the whole line and puts the keys under it: beside it they left the
-     sentence three lines tall at 375 and broke "plan it" in two. */
-  .pl-finder .lf-compose { flex-direction: column; gap: 10px; padding: 12px 16px; }
-  .pl-finder .lf-panel .lf-compose { padding: 0; }
-  .pl-finder .lf-foot { flex-wrap: wrap; row-gap: 6px; }
-  .pl-finder .lf-spark { display: none; }
-  .pl-finder .lf-mic { order: -1; width: 76px; height: 76px; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent); border: 0; }
-  .pl-finder .lf-input { width: 100%; text-align: center; font-size: var(--text-lg); line-height: var(--leading-relaxed); }
-  .pl-finder .lf-acts .btn { width: 100%; min-height: 48px; justify-content: center; }
-  /* The row's small controls keep to the sheet's corners -- the rule behind the lock top left, close top right --
-     and Plan it is the column's last, full width. The rule opens under the lock, where a thumb left room. */
-  .pl-finder .lf-compose { position: relative; }
-  .pl-finder .lf-lock { position: absolute; left: 0; top: 0; }
-  .pl-finder .lf-close { position: absolute; right: 0; top: 0; }
-  .pl-finder .lf-go { order: 9; width: 100%; min-height: 48px; justify-content: center; margin: 0; }
-  .pl-finder .lf-go .lf-key { display: none; }
-  .pl-finder .lf-think { max-width: 100%; text-align: center; }
-  .pl-finder .lf-lock::after { left: 0; right: auto; top: calc(100% + 6px); transform: translateY(-3px); }
-  .pl-finder .lf-lock:hover::after, .pl-finder .lf-lock:focus-visible::after, .pl-finder .lf-lock:focus::after { transform: none; opacity: 1; }
-  .pl-finder .lf-examples { padding: 0; justify-content: center; }
-  .pl-finder .lf-ex-h { flex-basis: 100%; text-align: center; }
-  .pl-finder .lf-said { padding: 0; text-align: center; }
+  .pl-plan .lf-panel { border: 0; background: none; margin: 0; box-shadow: none; overflow: visible; display: flex; flex-direction: column; gap: 14px; }
+  /* The answer row is a column on a phone: the question on the sheet's gutter, the input full width, Send my answer
+     under it at a thumb's height, and close at the foot. Beside the input they left the sentence three lines tall
+     at 375. */
+  .pl-plan .lf-answering { padding: 0; }
+  .pl-plan .lf-compose { flex-direction: column; align-items: stretch; gap: 10px; padding: 0; }
+  .pl-plan .lf-input { width: 100%; font-size: var(--text-md); line-height: var(--leading-relaxed); }
+  .pl-plan .lf-go { width: 100%; min-height: 48px; justify-content: center; margin: 0; }
+  .pl-plan .lf-close { align-self: flex-end; }
+  .pl-plan .lf-think { max-width: 100%; }
+  .pl-plan .lf-said { padding: 0; }
 }
 
 /* ============================== the row, re-cut (D5, docs/plans/…D5-the-page.md) ====

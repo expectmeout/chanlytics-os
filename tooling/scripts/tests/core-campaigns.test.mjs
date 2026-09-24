@@ -10,6 +10,7 @@ import {
   BROADCAST_MAX_RECIPIENTS,
   EVERYONE_LABEL,
   FOLLOW_UP_NEEDS_DEALS,
+  PEOPLE_LISTS,
   FOLLOW_UP_NEEDS_LINK,
   broadcastName,
   emptyAudienceRefusal,
@@ -84,7 +85,9 @@ function fakes(over = {}) {
     template: template(),
     bookingLink: "https://book.example/m",
     people,
-    savedList: null,
+    // One list, resolved and counted the one way (the adapter's poolList): here, a People list over the people these
+    // fakes hold, and no list of the workspace's own unless a test gives one.
+    list: null,
     number: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
     // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
     timezone: "America/New_York",
@@ -100,6 +103,14 @@ function fakes(over = {}) {
     dealsOn: false,
     ...over,
   };
+  if (answers.list === null) {
+    const pool = answers.people;
+    answers.list = (ref) => {
+      if (ref.kind !== "builtin") return null;
+      const l = PEOPLE_LISTS.find((x) => x.id === ref.id);
+      return l ? { label: l.label, memberIds: pool.filter(l.test).map((r) => r.id) } : null;
+    };
+  }
   const ports = {};
   for (const [name, answer] of Object.entries(answers)) {
     ports[name] = async (...args) => {
@@ -215,6 +226,29 @@ test("a broadcast is refused in the person's words, in order, before anything is
   assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
 });
 
+test("a list the send can't count here is refused in its own words, never sent to nobody (decision 0009)", async () => {
+  const f = fakes({
+    list: () => ({
+      label: "Lapsed regulars",
+      unknown: "This list reads your calendar, which can't be read right now.",
+    }),
+  });
+  await refused(
+    make(f, { template_id: T1, audience: { kind: "saved", id: S1 } }),
+    "conflict",
+    409,
+    "Lapsed regulars can't be counted here. This list reads your calendar, which can't be read right now.",
+  );
+  assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
+  // Every People list is an audience now, not the five the refusal once named: resolved through the one port.
+  const booked = fakes({ list: (ref) => (ref.id === "booked" ? { label: "Booked", memberIds: ["a"] } : null) });
+  await make(booked, { template_id: T1, audience: { kind: "list", id: "booked" } });
+  assert.deepEqual(
+    booked.of("enrol")[0][2].map((r) => r.contact_id),
+    ["a"],
+  );
+});
+
 test("the audience: everyone, a People list, or a list kept by hand, crossed with the yes this template's category needs; an empty audience says which yes was missing", async () => {
   const all = fakes();
   await make(all, { template_id: T1, audience: everyone });
@@ -237,15 +271,27 @@ test("the audience: everyone, a People list, or a list kept by hand, crossed wit
     quiet.of("enrol")[0][2].map((r) => r.contact_id),
     ["a"],
   );
-  assert.deepEqual(quiet.of("create")[0][1].audience, { kind: "list", id: "quiet", label: "Quiet 30+ days" });
-  const saved = fakes({ savedList: (id) => (id === S1 ? { name: "VIPs", memberIds: ["b", "d"] } : null) });
+  // The send keeps the list as it was counted (decision 0009): its token, and its rule then.
+  const counted = { counted_at: NOW.toISOString(), rule: null };
+  assert.deepEqual(quiet.of("create")[0][1].audience, {
+    kind: "list",
+    id: "quiet",
+    label: "Quiet 30+ days",
+    list: { token: "seg:quiet", ...counted },
+  });
+  const saved = fakes({ list: (ref) => (ref.id === S1 ? { label: "VIPs", memberIds: ["b", "d"] } : null) });
   await make(saved, { template_id: T1, audience: { kind: "saved", id: S1 } });
   assert.deepEqual(
     saved.of("enrol")[0][2].map((r) => r.contact_id),
     ["b"],
     "on the list and said yes",
   );
-  assert.deepEqual(saved.of("create")[0][1].audience, { kind: "saved", id: S1, label: "VIPs" });
+  assert.deepEqual(saved.of("create")[0][1].audience, {
+    kind: "saved",
+    id: S1,
+    label: "VIPs",
+    list: { token: `list:${S1}`, ...counted },
+  });
   await refused(
     make(fakes(), { template_id: T1, audience: { kind: "saved", id: S1 } }),
     "not_found",
@@ -382,7 +428,11 @@ test("REGRESSION: an empty audience says which of its two causes it has -- a yes
     "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
   /** The route's refusal of one list, for a message of this category: its status and its words, whole. */
   const refusalOf = async (list, category = "marketing") => {
-    const f = fakes({ people: rows, savedList: (id) => lists[id] ?? null, template: template({ category }) });
+    const f = fakes({
+      people: rows,
+      list: (ref) => (lists[ref.id] ? { label: lists[ref.id].name, memberIds: lists[ref.id].memberIds } : null),
+      template: template({ category }),
+    });
     try {
       await make(f, { template_id: T1, audience: { kind: "saved", id: list } });
     } catch (e) {
@@ -869,6 +919,7 @@ test("the playbook's check: the trigger first, then the template through the one
       name: "Win-back",
       trigger: "quiet_30",
       list_id: null,
+      list_key: null,
       template_id: T1,
       template_name: starter,
       template_language: "en_US",

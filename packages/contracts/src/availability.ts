@@ -13,6 +13,7 @@
  * here. The edge fetches and caches; tests feed fixtures.
  */
 import type { Closure, Hours } from "./config";
+import { NO_LINK_DETAILS } from "./no-booking-link";
 
 /** A taken stretch of time, epoch milliseconds. */
 export interface BusyBlock {
@@ -745,23 +746,29 @@ function span(tz: string, start: number, end: number): string {
  * The openings as the receptionist is told them: a few days, the windows on
  * each, and the rule that the calendar decides. Text on both channels; the
  * phone agent reads it aloud in its own words.
+ *
+ * `hasBookingLink` is required: what follows an opening is the link, or for a
+ * business with none, the details the team needs (NO_LINK_DETAILS).
  */
 export function describeOpenings(
   openings: Opening[],
   tz: string,
-  opts: { maxDays?: number; daysAhead?: number } = {},
+  opts: { maxDays?: number; daysAhead?: number; hasBookingLink: boolean },
 ): string {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const hasLink = opts.hasBookingLink;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
   }
   const lines = openings
     .slice(0, maxDays)
     .map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return (
     `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
-    `Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`
+    (hasLink
+      ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
+      : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
   );
 }
 

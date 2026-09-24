@@ -201,27 +201,62 @@ instead of Quiet or Active.
 - **Verbs.** Create, rename, change the rule, add, remove, archive, restore and delete each write a `decisions` row
   (subject `list`), so the Activity log says who did what.
 - **Archive, not delete, while something depends on the list** (call 2): a playbook on it, or another list's rule
-  that reads it. The list leaves the rail but still resolves; its playbooks pause, and the owner is told by a
-  notification. A paused playbook on an archived list says so and offers to restore the list or pick another. A list
-  nothing depends on is deleted. A scheduled broadcast enrolled its people when it was made, so it depends on nothing.
+  that reads it. The list leaves the rail but still resolves; its playbooks pause. A paused playbook on an archived
+  list says so and offers to restore the list or pick another. A list nothing depends on is deleted. A scheduled
+  broadcast enrolled its people when it was made, so it depends on nothing.
+
+  As built (00169), the owner is told on the spot and in Activity, not by a notification: the page that archived the
+  list says which playbooks paused and which lists read it, each pause is a `pause_playbook` decision (`why:
+list_archived`), and the `archive_list` decision names them all. Notifications are written only by the edge, and a
+  second writer for one event was not worth a bell the person who pressed Delete has already been answered by. The
+  database is the floor under the route: `playbooks.list_id` is `on delete no action`, so a list a playbook names is
+  never deleted out from under it, while a workspace deleted whole still goes. A restore under a name a live list now
+  has is refused in words ("Rename this one to bring it back"). A playbook on an archived list is not resumed, and no
+  playbook is put on one.
+
 - **Live.** `segments` and `segment_members` join the realtime publication, and People refreshes on them.
 - **Names** are unique among live lists regardless of case.
 - **Adds** of more than 500 are sent in parts by the page; the route's limit stays.
 - **Sends remember.** A broadcast's audience keeps its rule, the rule's version and when it was counted; a playbook
-  run keeps its list reference and rule.
+  run keeps its list reference and rule. As built, both keep `audience.list = { token, rule, counted_at }`: the rule
+  carries its own version, and a list kept by hand keeps `rule: null`, its recipients being who was on it. The
+  broadcast's ledger row names only the token.
 
 ### Playbooks
 
-One trigger, `on_list`, runs on any list a playbook may use: a built-in by `list_key`, a saved list by `list_id`, with
-its class chosen on the playbook. `quiet_30`, `new_week`, `phoned_only`, `lapsed` and `saved_list` stay readable, each
-the same moment as `on_list` on its list, so a playbook made before the change runs unchanged. The composer offers
-them as presets: a list, a class and a starter template.
+One trigger runs on any list a playbook may use: a built-in by `list_key` (00168), a saved list by `list_id` (00155),
+never both, with its class chosen on the playbook, an offer (`campaign`) or a win-back (`reengage`). As built, that
+trigger is `saved_list`, relabelled **On a list**, rather than a new `on_list` beside it: every playbook already on a
+list keeps running, and there are not two triggers for one moment. `quiet_30`, `new_week`, `phoned_only` and `lapsed`
+stay as they are, the presets they always were: a list, a class and a starter template. A run resolves its list by
+reference (`RunContext.listMembers`), and one it can't count here skips its day and says so (`list_uncounted`, or
+`no_calendar`). A list about whoever is looking is never offered to a playbook, and refused if named.
+
+00168 also grants the update of `list_id` (and `list_key`): 00121's column grant never named it, so in production a
+member could put a playbook on a list and never move it to another.
 
 ### One pool
 
 The rows, visits and view models the edge and the dashboard judge lists over are built by one function in contracts
 from what each app fetches, with one calendar horizon. Past the page's 50 pages the page shows the server's count from
 the same judge (phase 5, when a workspace nears it).
+
+### The surfaces, as built
+
+Phase 4 ships in three parts. The first, **honest lists**:
+
+- **A list the address names that People doesn't have is said, never Everyone under its name.** The address keeps
+  it, nobody is shown, and the title and the table say "This list isn't here" with the way back to everyone. An
+  archived list says so and comes back from the same line. The old `segments/<id>` route lands on the list's own
+  address either way.
+- **A list playbook's name** comes from contracts when it is one of People's, which is never deleted; one of the
+  workspace's own whose read failed is "a list that could not be read", not a deleted one.
+- **The words:** a list with a rule is never called "kept by hand"; a profile opened before People is read says it
+  is reading their lists; every list's tip is the view model's (`BUILTIN_LISTS[].tip`, `savedListTip`).
+- **The phone's Lists sheet** folds an empty list of the workspace's own into its quiet line, and draws no Saved
+  heading over nothing. The New list door's address gives way to the list once it is made.
+- **Export follows the list that is open:** `GET contacts/export?list=<token>`, counted as a send counts it (every
+  member, not the page's loaded rows), named in the file and on the ledger.
 
 ### The four calls, as approved
 

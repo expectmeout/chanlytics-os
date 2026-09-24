@@ -1,7 +1,15 @@
+import { savedListFor, savedListsFor } from "@chanlytics/db";
 import {
+  asListRule,
   dealsAreOn,
-  toPersonRowVM,
+  listUnknownWords,
+  membersOf,
+  poolListContext,
+  poolRowsOf,
+  resolveList,
+  ruleLists,
   type ListContext,
+  type ListRef,
   type PersonRowDto,
   type PersonRowVM,
 } from "@chanlytics/contracts";
@@ -40,14 +48,22 @@ export async function audiencePool(ctx: RouteContext, tenantId: string, tz: stri
     sellsByOf(ctx, tenantId),
   ]);
   const deals_on = dealsAreOn(sellsBy);
+  const viewer = ctx.userId ?? null;
   return {
     people,
-    // For the member asking: a teammate's thread is theirs, and a list about "me" is about them.
-    rows: people.map((r) => toPersonRowVM(r, tz, now, ctx.userId ?? null)),
+    // The pool's one reading (contracts audience-pool.ts), for the member asking: a teammate's thread is theirs, and a
+    // list about "me" is about them. Where deals are off no row carries one.
+    rows: poolRowsOf(people, { tz, now, viewer, dealsOn: deals_on }),
     calendar,
     consult_first,
     deals_on,
-    listCtx: { calendar: calendar.state, dealsOn: deals_on, consultFirst: consult_first, viewer: !!ctx.userId },
+    // What the pool can give a list (contracts poolListContext), the consult-first service as withVisits read it.
+    listCtx: poolListContext({
+      calendar: calendar.state,
+      dealsOn: deals_on,
+      consultFirst: consult_first,
+      viewer,
+    }),
   };
 }
 
@@ -65,4 +81,44 @@ export function audiencePoolOnce(
     memo.set("audience_pool", p);
   }
   return p;
+}
+
+/** What a new send or playbook is told of an archived list (00169). */
+export const archivedListWords = (name: string, to: "send" | "run") =>
+  `${name} is archived. Restore it on People to ${to === "send" ? "send to it" : "run a playbook on it"}.`;
+
+/**
+ * One list over a pool (decision 0009): resolved by its reference (contracts resolveList), counted the one way
+ * (membersOf) with the saved lists its rule may read, and, when it can't be counted here, why, in the page's words.
+ * Null when there is no such list. What a send, the assistant's search and its proposals all ask.
+ */
+export async function poolList(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  pool: Pick<AudiencePool, "rows" | "listCtx">,
+  ref: ListRef,
+): Promise<
+  | { label: string; memberIds: string[]; rule: unknown; archived?: true }
+  | { label: string; unknown: string; archived?: true }
+  | null
+> {
+  // A saved list is read with every member; the workspace's other lists only when its rule reads one (in_list). No
+  // built-in reads a saved list.
+  let saved: Awaited<ReturnType<typeof savedListsFor>> = [];
+  // Archived (00169): still counted, for what already names it, and said, for a send or a proposal to refuse.
+  let archived = false;
+  if (ref.kind === "saved") {
+    const one = await savedListFor(ctx.supabase, tenantId, ref.id);
+    if (!one) return null;
+    archived = !!one.archived_at;
+    const rule = one.rule == null ? null : asListRule(one.rule);
+    saved = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [one];
+  }
+  const def = resolveList(ref, saved);
+  if (!def) return null;
+  const m = membersOf(def, pool.rows, pool.listCtx, saved);
+  const said = archived ? { archived: true as const } : {};
+  return m.state === "ok"
+    ? { label: def.label, memberIds: [...m.ids], rule: def.rule, ...said }
+    : { label: def.label, unknown: listUnknownWords(m.reason, pool.listCtx.calendar), ...said };
 }

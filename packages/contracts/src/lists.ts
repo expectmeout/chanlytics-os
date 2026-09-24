@@ -7,6 +7,7 @@
  * was not read, deals that are off here, no one looking for a list about "me", a rule this build cannot read, or a list
  * it reads that is gone. Can't tell is never drawn as nobody.
  */
+import { z } from "zod";
 import {
   asListRule,
   listRuleMatches,
@@ -16,6 +17,7 @@ import {
   type ListNeed,
   type ListRule,
 } from "./list-rules";
+import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "./deals";
 import type { PersonRowVM } from "./people";
 
 /* ------------------------------------------------------------------ the reference */
@@ -58,6 +60,8 @@ export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }
 interface BuiltinSpec {
   id: string;
   label: string;
+  /** What the list holds, in one line: the rail's tip on hover or focus, and the words a picker says under its name. */
+  tip: string;
   group: PeopleListGroup;
   rule: ListRule;
   /**
@@ -78,6 +82,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "needs_you",
     label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" }),
@@ -86,6 +91,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "waiting_on_you",
     label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" }),
@@ -94,6 +100,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "steps_due",
     label: "Steps due",
+    tip: "Their next step's day has come, or gone by — a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r({ field: "step_due", op: "is", yes: true }),
@@ -102,6 +109,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "new_week",
     label: "New this week",
+    tip: "First contact in the last 7 days, by evidence — imported history never counts",
     group: "journey",
     rule: r({ field: "first_contact", op: "within", days: 7 }),
   },
@@ -109,14 +117,22 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "booked_week",
     label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" }),
   },
-  { id: "booked", label: "Booked", group: "journey", rule: r({ field: "booked", op: "is", yes: true }) },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar — the booking is the conversion",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: true }),
+  },
   // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
     group: "journey",
     rule: r({ field: "asked_not_booked", op: "is", yes: true }),
   },
@@ -124,6 +140,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "lapsed",
     label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 }),
   },
@@ -131,6 +148,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "consultation_booked",
     label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "consultation" }),
@@ -138,6 +156,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "proposal_out",
     label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "proposed" }),
@@ -145,6 +164,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "clients",
     label: "Clients",
+    tip: "Said yes, or paid — the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "won" }),
@@ -152,6 +172,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "deal_passed",
     label: "Passed",
+    tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "lost" }),
@@ -159,6 +180,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "deal_ended",
     label: "Ended",
+    tip: "An engagement that ended — the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "ended" }),
@@ -168,12 +190,14 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r({ field: "last_heard", op: "more_than", days: 30 }),
   },
   {
     id: "phoned_only",
     label: "Phoned only",
+    tip: "Only ever phoned — no WhatsApp thread",
     group: "reach",
     rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 }),
   },
@@ -182,6 +206,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_in",
     label: "Said yes to messages",
+    tip: "Said yes to hearing from you — replies and messages about their own visit",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true }),
@@ -189,6 +214,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "offers_ok",
     label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true }),
@@ -197,6 +223,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_out",
     label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r({ field: "stopped", op: "is", yes: true }),
@@ -211,6 +238,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
 export const PEOPLE_LISTS: readonly {
   id: string;
   label: string;
+  tip: string;
   group: PeopleListGroup;
   rule: ListRule;
   needsCalendar?: boolean;
@@ -459,14 +487,40 @@ export function listUnknownWords(reason: ListUnknownReason, calendar: ListContex
         ? "This list reads your calendar. Connect it under Settings › Business to count it."
         : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list reads consultations, and your profile lists no service that starts with one.";
+      return "This list exists only where the profile lists a consult-first service under Settings › Business.";
     case "deals":
-      return "This list reads deals, which are off here.";
+      return `This list exists only where deals are on: the workspace answers “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
-      return "This list's rule can't be read by this version. Reload the page.";
+      return "This list's rule was written by a newer version of Chanlytics and can't be read here.";
     case "list":
       return "A list this one reads is gone, or can't be counted itself.";
   }
 }
+
+/**
+ * A saved list's line, where a built-in has its tip: why it can't be counted here, when it can't; what a list kept by
+ * hand is for; or the rule a smart list keeps itself current by, in the chips its page shows (listRuleParts).
+ */
+export function savedListTip(list: {
+  byHand: boolean;
+  rule: readonly string[] | null;
+  unknown: string | null;
+}): string {
+  if (list.unknown) return list.unknown;
+  if (list.byHand) return "A list kept by hand — add people from their profile";
+  return `Keeps itself current: ${(list.rule ?? []).join(" · ")}`;
+}
+
+/**
+ * The People export's query (GET contacts/export): the list it follows, by its token (`seg:<id>` or `list:<id>`);
+ * none is everyone. The route counts it the way a send does, every member and not the page's loaded rows.
+ */
+export const PeopleExportQuerySchema = z.object({
+  list: z
+    .string()
+    .max(80)
+    .refine((t) => parseListToken(t) !== null, "Name a list by its token.")
+    .optional(),
+});

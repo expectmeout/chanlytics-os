@@ -137,10 +137,11 @@ import { z as z2 } from "zod";
 import { z as z3 } from "zod";
 import { z as z5 } from "zod";
 import { z as z4 } from "zod";
-import { z as z6 } from "zod";
 import { z as z7 } from "zod";
+import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -1151,7 +1152,19 @@ var DECISION_VERBS = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
   "record_deal",
-  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
 var DAY_MS = 864e5;
@@ -1468,7 +1481,12 @@ var BrainConfigSchema = z3.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z3.string().min(3).max(40).optional(),
-  booking_link: z3.string().url().max(500),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
@@ -1748,6 +1766,14 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -1971,14 +1997,6 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -2276,11 +2294,23 @@ var ListDraftAnswerSchema = z6.object({
   cannot: z6.string().trim().max(200),
   all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
 });
+var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var BUILTIN_ID = /^[a-z_]{1,40}$/;
+function parseListToken(token) {
+  if (typeof token !== "string") return null;
+  const at2 = token.indexOf(":");
+  const kind = token.slice(0, at2);
+  const id = token.slice(at2 + 1);
+  if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
+  if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
+  return null;
+}
 var r = (...all) => ({ v: 2, all });
 var BUILTIN_LISTS = [
   {
     id: "needs_you",
     label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" })
@@ -2289,6 +2319,7 @@ var BUILTIN_LISTS = [
   {
     id: "waiting_on_you",
     label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -2297,6 +2328,7 @@ var BUILTIN_LISTS = [
   {
     id: "steps_due",
     label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r({ field: "step_due", op: "is", yes: true })
@@ -2305,6 +2337,7 @@ var BUILTIN_LISTS = [
   {
     id: "new_week",
     label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
     group: "journey",
     rule: r({ field: "first_contact", op: "within", days: 7 })
   },
@@ -2312,14 +2345,22 @@ var BUILTIN_LISTS = [
   {
     id: "booked_week",
     label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" })
   },
-  { id: "booked", label: "Booked", group: "journey", rule: r({ field: "booked", op: "is", yes: true }) },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: true })
+  },
   // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
     group: "journey",
     rule: r({ field: "asked_not_booked", op: "is", yes: true })
   },
@@ -2327,6 +2368,7 @@ var BUILTIN_LISTS = [
   {
     id: "lapsed",
     label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -2334,6 +2376,7 @@ var BUILTIN_LISTS = [
   {
     id: "consultation_booked",
     label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "consultation" })
@@ -2341,6 +2384,7 @@ var BUILTIN_LISTS = [
   {
     id: "proposal_out",
     label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "proposed" })
@@ -2348,6 +2392,7 @@ var BUILTIN_LISTS = [
   {
     id: "clients",
     label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "won" })
@@ -2355,6 +2400,7 @@ var BUILTIN_LISTS = [
   {
     id: "deal_passed",
     label: "Passed",
+    tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "lost" })
@@ -2362,6 +2408,7 @@ var BUILTIN_LISTS = [
   {
     id: "deal_ended",
     label: "Ended",
+    tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "ended" })
@@ -2371,12 +2418,14 @@ var BUILTIN_LISTS = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r({ field: "last_heard", op: "more_than", days: 30 })
   },
   {
     id: "phoned_only",
     label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
     group: "reach",
     rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
   },
@@ -2385,6 +2434,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_in",
     label: "Said yes to messages",
+    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
@@ -2392,6 +2442,7 @@ var BUILTIN_LISTS = [
   {
     id: "offers_ok",
     label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
@@ -2400,6 +2451,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_out",
     label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r({ field: "stopped", op: "is", yes: true })
@@ -2415,6 +2467,9 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     ...needs.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches(l.rule, vm)
   };
+});
+var PeopleExportQuerySchema = z7.object({
+  list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
@@ -2671,30 +2726,30 @@ var NOTE_SUGGEST_SCHEMA = {
 var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z7.object({
-  state: z7.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z7.string().max(300).catch(""),
-  atMs: z7.number().catch(0),
-  undo: z7.record(z7.string(), z7.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z8.object({
+  state: z8.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z8.string().max(300).catch(""),
+  atMs: z8.number().catch(0),
+  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
-  z7.object({
-    op: z7.literal("add_closure"),
-    date: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z7.string().max(200).optional()
+var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
+  z8.object({
+    op: z8.literal("add_closure"),
+    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z8.string().max(200).optional()
   }),
-  z7.object({
-    op: z7.literal("set_hours"),
-    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z8.object({
+    op: z8.literal("set_hours"),
+    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z7.object({ op: z7.literal("add_note"), title: z7.string().min(1).max(80), text: z7.string().min(1).max(1200) }),
-  z7.object({
-    op: z7.literal("add_service"),
-    name: z7.string().min(1).max(80),
-    duration_min: z7.number().int().min(1).max(1440).optional()
+  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
+  z8.object({
+    op: z8.literal("add_service"),
+    name: z8.string().min(1).max(80),
+    duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
 var ASK_ANSWER_CAPS = {
@@ -2849,10 +2904,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z8.string().trim().max(80);
-var SignupSchema = z8.object({
-  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z9.string().trim().max(80);
+var SignupSchema = z9.object({
+  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2866,17 +2921,17 @@ var SignupSchema = z8.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z8.string().max(200).optional(),
+  password: z9.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z8.string().trim().min(1).max(64).optional(),
+  timezone: z9.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z8.object({
-  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z9.object({
+  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2958,15 +3013,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z9.object({
-  places: z9.array(
-    z9.object({
-      ref: z9.number().int(),
-      criteria: z9.array(
-        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
+var AnswerSchema = z10.object({
+  places: z10.array(
+    z10.object({
+      ref: z10.number().int(),
+      criteria: z10.array(
+        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
       ),
-      email_index: z9.number().int().nullable(),
-      reason: z9.string()
+      email_index: z10.number().int().nullable(),
+      reason: z10.string()
     })
   )
 });
@@ -3179,16 +3234,17 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z52 } from "zod";
 import { z as z42 } from "zod";
-import { z as z62 } from "zod";
 import { z as z72 } from "zod";
+import { z as z62 } from "zod";
 import { z as z82 } from "zod";
 import { z as z92 } from "zod";
-z10.config({ jitless: true });
+import { z as z102 } from "zod";
+z11.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -3452,7 +3508,19 @@ var DECISION_VERBS2 = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
   "record_deal",
-  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
 function isOptedOutContact(c) {
@@ -3475,6 +3543,13 @@ function purposeOfPlaybook(policyClass) {
 }
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -4005,7 +4080,12 @@ var BrainConfigSchema2 = z32.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z32.string().min(3).max(40).optional(),
-  booking_link: z32.string().url().max(500),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z32.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z32.string().min(40).max(INSTRUCTIONS_MAX2),
@@ -4276,11 +4356,15 @@ var PROMPT_OPENINGS = {
   /** Above the owner's own words on a call, alone or after the line above. */
   ownWordsOnACall: "Some of it was written for text conversations"
 };
+function noLinkBooking(channel) {
+  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+}
 function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const s = [];
+  const link = offersBookingLink(base) ? base.booking_link : null;
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -4294,7 +4378,7 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  s.push(`Booking link: ${base.booking_link}`);
+  if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
   const hrs = hoursLines(profile.hours);
   if (hrs.length) {
@@ -4371,8 +4455,8 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
-Ending: once the caller has said goodbye, use end_call.`
+` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `${noLinkBooking("voice")}
+`) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -4393,24 +4477,28 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
-${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
+${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
+${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
   s.push(
     `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
     rules.push(
-      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link."
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`
     );
   }
   if (g.never_confirm_booking) {
-    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
+    );
   }
   if (g.disclose_ai) {
     rules.push(
@@ -4422,7 +4510,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   );
   if (g.no_health_advice) {
     rules.push(
-      "Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link."
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
     );
   }
   rules.push(...policyRules(policy, channel));
@@ -4433,7 +4521,7 @@ ${rules.map((r22) => `- ${r22}`).join("\n")}`);
 }
 function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
   if (!hasProfile(brain.profile)) {
-    const rules = policyRules(policy, channel);
+    const rules = [...offersBookingLink(brain) ? [] : [noLinkBooking(channel)], ...policyRules(policy, channel)];
     return rules.length ? `${brain.system_prompt}
 
 ${PROMPT_OPENINGS.rules}
@@ -4444,7 +4532,7 @@ ${rules.map((r22) => `- ${r22}`).join("\n")}` : brain.system_prompt;
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
     phone_display: facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
@@ -4454,10 +4542,15 @@ function ownWordsOf(brain) {
   return own?.trim() ? own : brain?.system_prompt ?? null;
 }
 var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
   non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
 };
+var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: FALLBACK_DEFAULTS.non_text
+}))();
 var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
 var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
@@ -4472,10 +4565,14 @@ function fallbackMessages(brain, known) {
   const facts = resolveFacts(brain, known);
   const values = {
     business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value
   };
-  const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  const own = (kind) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
+  };
+  const say = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 function keyParts(key) {
@@ -5009,6 +5106,27 @@ function stateCode(raw) {
   if (up.length === 2 && US_CODES2.has(up)) return up;
   return US_STATES2[s.toLowerCase()] ?? null;
 }
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var WAITING_AFTER_DAYS = 7;
+var DAY_MS3 = 864e5;
+function heardSinceProposal(r22) {
+  const d = r22.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r22.askedMs !== null && r22.askedMs >= d.sinceMs;
+}
+function waitingOnProposal(r22, nowMs, pace) {
+  const d = r22.deal;
+  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
+  return !heardSinceProposal(r22);
+}
 var FIRST_RUN_ROUTE2 = "start";
 var FIND_PARAM2 = "find";
 var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
@@ -5232,27 +5350,6 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION2 = "How customers buy";
-var SELLS_BY_WORDS2 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-var WAITING_AFTER_DAYS = 7;
-var DAY_MS3 = 864e5;
-function heardSinceProposal(r22) {
-  const d = r22.deal;
-  return !!d && d.stage === "proposed" && d.sinceMs !== null && r22.askedMs !== null && r22.askedMs >= d.sinceMs;
-}
-function waitingOnProposal(r22, nowMs, pace) {
-  const d = r22.deal;
-  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
-  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
-  return !heardSinceProposal(r22);
-}
 var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS2 = [
   {
@@ -5550,11 +5647,26 @@ var ListDraftAnswerSchema2 = z62.object({
   cannot: z62.string().trim().max(200),
   all: z62.array(z62.unknown()).max(LIST_RULE_MAX2)
 });
+var SAVED_ID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
+function listToken(ref) {
+  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
+}
+function parseListToken2(token) {
+  if (typeof token !== "string") return null;
+  const at2 = token.indexOf(":");
+  const kind = token.slice(0, at2);
+  const id = token.slice(at2 + 1);
+  if ((kind === "seg" || kind === "state") && BUILTIN_ID2.test(id)) return { kind: "builtin", id };
+  if (kind === "list" && SAVED_ID2.test(id)) return { kind: "saved", id: id.toLowerCase() };
+  return null;
+}
 var r2 = (...all) => ({ v: 2, all });
 var BUILTIN_LISTS2 = [
   {
     id: "needs_you",
     label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r2({ field: "standing", op: "is", value: "needs_you" })
@@ -5563,6 +5675,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "waiting_on_you",
     label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r2({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -5571,6 +5684,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "steps_due",
     label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r2({ field: "step_due", op: "is", yes: true })
@@ -5579,6 +5693,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "new_week",
     label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
     group: "journey",
     rule: r2({ field: "first_contact", op: "within", days: 7 })
   },
@@ -5586,14 +5701,22 @@ var BUILTIN_LISTS2 = [
   {
     id: "booked_week",
     label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
     group: "journey",
     rule: r2({ field: "next_visit", op: "this_week" })
   },
-  { id: "booked", label: "Booked", group: "journey", rule: r2({ field: "booked", op: "is", yes: true }) },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r2({ field: "booked", op: "is", yes: true })
+  },
   // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
     group: "journey",
     rule: r2({ field: "asked_not_booked", op: "is", yes: true })
   },
@@ -5601,6 +5724,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "lapsed",
     label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
     group: "journey",
     rule: r2({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -5608,6 +5732,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "consultation_booked",
     label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r2({ field: "deal_stage", op: "is", value: "consultation" })
@@ -5615,6 +5740,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "proposal_out",
     label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
     rule: r2({ field: "deal_stage", op: "is", value: "proposed" })
@@ -5622,6 +5748,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "clients",
     label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r2({ field: "deal_stage", op: "is", value: "won" })
@@ -5629,6 +5756,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "deal_passed",
     label: "Passed",
+    tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
     rule: r2({ field: "deal_stage", op: "is", value: "lost" })
@@ -5636,6 +5764,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "deal_ended",
     label: "Ended",
+    tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r2({ field: "deal_stage", op: "is", value: "ended" })
@@ -5645,12 +5774,14 @@ var BUILTIN_LISTS2 = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r2({ field: "last_heard", op: "more_than", days: 30 })
   },
   {
     id: "phoned_only",
     label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
     group: "reach",
     rule: r2({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
   },
@@ -5659,6 +5790,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "opted_in",
     label: "Said yes to messages",
+    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
     group: "reach",
     onProfile: false,
     rule: r2({ field: "said_yes", op: "is", to: "messages", yes: true })
@@ -5666,6 +5798,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "offers_ok",
     label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
     group: "reach",
     onProfile: false,
     rule: r2({ field: "can_receive", op: "is", to: "offers", yes: true })
@@ -5674,6 +5807,7 @@ var BUILTIN_LISTS2 = [
   {
     id: "opted_out",
     label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r2({ field: "stopped", op: "is", yes: true })
@@ -5689,6 +5823,9 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
     ...needs.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches2(l.rule, vm)
   };
+});
+var PeopleExportQuerySchema2 = z72.object({
+  list: z72.string().max(80).refine((t) => parseListToken2(t) !== null, "Name a list by its token.").optional()
 });
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS2 = {
@@ -5964,14 +6101,15 @@ var PLAYBOOK_TRIGGERS = [
     kind: "list",
     hint: "No visit in 45 days, and nothing booked"
   },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
   {
     id: "saved_list",
-    label: "One of your lists",
+    label: "On a list",
     list: null,
     cls: "campaign",
     kind: "saved",
-    hint: "Everyone on a list you keep"
+    hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
   // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
@@ -6022,6 +6160,13 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -6590,30 +6735,30 @@ var NOTE_SUGGEST_SCHEMA2 = {
 var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES2 = ["en", "es", "other"];
 var ASK_UNDO_MS2 = 10 * 6e4;
-var AskProposalOutcomeSchema2 = z72.object({
-  state: z72.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z72.string().max(300).catch(""),
-  atMs: z72.number().catch(0),
-  undo: z72.record(z72.string(), z72.unknown()).nullable().optional()
+var AskProposalOutcomeSchema2 = z82.object({
+  state: z82.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z82.string().max(300).catch(""),
+  atMs: z82.number().catch(0),
+  undo: z82.record(z82.string(), z82.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema2 = z72.discriminatedUnion("op", [
-  z72.object({
-    op: z72.literal("add_closure"),
-    date: z72.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z72.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z72.string().max(200).optional()
+var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
+  z82.object({
+    op: z82.literal("add_closure"),
+    date: z82.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z82.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z82.string().max(200).optional()
   }),
-  z72.object({
-    op: z72.literal("set_hours"),
-    day: z72.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z72.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z72.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z82.object({
+    op: z82.literal("set_hours"),
+    day: z82.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z82.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z82.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z72.object({ op: z72.literal("add_note"), title: z72.string().min(1).max(80), text: z72.string().min(1).max(1200) }),
-  z72.object({
-    op: z72.literal("add_service"),
-    name: z72.string().min(1).max(80),
-    duration_min: z72.number().int().min(1).max(1440).optional()
+  z82.object({ op: z82.literal("add_note"), title: z82.string().min(1).max(80), text: z82.string().min(1).max(1200) }),
+  z82.object({
+    op: z82.literal("add_service"),
+    name: z82.string().min(1).max(80),
+    duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
 var ASK_ANSWER_CAPS2 = {
@@ -6768,10 +6913,10 @@ var ASK_ANSWER_FORMAT2 = {
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z82.string().trim().max(80);
-var SignupSchema2 = z82.object({
-  name: z82.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z82.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema2 = z92.string().trim().max(80);
+var SignupSchema2 = z92.object({
+  name: z92.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z92.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -6785,17 +6930,17 @@ var SignupSchema2 = z82.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z82.string().max(200).optional(),
+  password: z92.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z82.string().trim().min(1).max(64).optional(),
+  timezone: z92.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema2.optional()
 }).strict();
-var PendingWorkspaceSchema2 = z82.object({
-  name: z82.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z92.object({
+  name: z92.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z82.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z92.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -6897,15 +7042,15 @@ function judgeAsked(plan) {
   for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
   return out;
 }
-var AnswerSchema2 = z92.object({
-  places: z92.array(
-    z92.object({
-      ref: z92.number().int(),
-      criteria: z92.array(
-        z92.object({ key: z92.string(), answer: z92.enum(["pass", "fail", "unknown"]), facts: z92.array(z92.string()) })
+var AnswerSchema2 = z102.object({
+  places: z102.array(
+    z102.object({
+      ref: z102.number().int(),
+      criteria: z102.array(
+        z102.object({ key: z102.string(), answer: z102.enum(["pass", "fail", "unknown"]), facts: z102.array(z102.string()) })
       ),
-      email_index: z92.number().int().nullable(),
-      reason: z92.string()
+      email_index: z102.number().int().nullable(),
+      reason: z102.string()
     })
   )
 });
@@ -7036,16 +7181,17 @@ function judgeOpId(runId, fromOffset, batch) {
 }
 
 // ../db/dist/index.js
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z53 } from "zod";
 import { z as z43 } from "zod";
-import { z as z63 } from "zod";
 import { z as z73 } from "zod";
+import { z as z63 } from "zod";
 import { z as z83 } from "zod";
 import { z as z93 } from "zod";
-z11.config({ jitless: true });
+import { z as z103 } from "zod";
+z12.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -7240,7 +7386,19 @@ var DECISION_VERBS3 = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
   "record_deal",
-  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
 var DAY_MS8 = 864e5;
@@ -7549,7 +7707,12 @@ var BrainConfigSchema3 = z33.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z33.string().min(3).max(40).optional(),
-  booking_link: z33.string().url().max(500),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z33.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z33.string().min(40).max(INSTRUCTIONS_MAX3),
@@ -7829,6 +7992,14 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE3 = "start";
 var FIND_PARAM3 = "find";
 var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
@@ -8052,14 +8223,6 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION3 = "How customers buy";
-var SELLS_BY_WORDS3 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS3 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS3 = [
   {
@@ -8357,11 +8520,23 @@ var ListDraftAnswerSchema3 = z63.object({
   cannot: z63.string().trim().max(200),
   all: z63.array(z63.unknown()).max(LIST_RULE_MAX3)
 });
+var SAVED_ID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var BUILTIN_ID3 = /^[a-z_]{1,40}$/;
+function parseListToken3(token) {
+  if (typeof token !== "string") return null;
+  const at2 = token.indexOf(":");
+  const kind = token.slice(0, at2);
+  const id = token.slice(at2 + 1);
+  if ((kind === "seg" || kind === "state") && BUILTIN_ID3.test(id)) return { kind: "builtin", id };
+  if (kind === "list" && SAVED_ID3.test(id)) return { kind: "saved", id: id.toLowerCase() };
+  return null;
+}
 var r3 = (...all) => ({ v: 2, all });
 var BUILTIN_LISTS3 = [
   {
     id: "needs_you",
     label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r3({ field: "standing", op: "is", value: "needs_you" })
@@ -8370,6 +8545,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "waiting_on_you",
     label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r3({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -8378,6 +8554,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "steps_due",
     label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r3({ field: "step_due", op: "is", yes: true })
@@ -8386,6 +8563,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "new_week",
     label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
     group: "journey",
     rule: r3({ field: "first_contact", op: "within", days: 7 })
   },
@@ -8393,14 +8571,22 @@ var BUILTIN_LISTS3 = [
   {
     id: "booked_week",
     label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
     group: "journey",
     rule: r3({ field: "next_visit", op: "this_week" })
   },
-  { id: "booked", label: "Booked", group: "journey", rule: r3({ field: "booked", op: "is", yes: true }) },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r3({ field: "booked", op: "is", yes: true })
+  },
   // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
     group: "journey",
     rule: r3({ field: "asked_not_booked", op: "is", yes: true })
   },
@@ -8408,6 +8594,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "lapsed",
     label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
     group: "journey",
     rule: r3({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -8415,6 +8602,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "consultation_booked",
     label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r3({ field: "deal_stage", op: "is", value: "consultation" })
@@ -8422,6 +8610,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "proposal_out",
     label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
     rule: r3({ field: "deal_stage", op: "is", value: "proposed" })
@@ -8429,6 +8618,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "clients",
     label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r3({ field: "deal_stage", op: "is", value: "won" })
@@ -8436,6 +8626,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "deal_passed",
     label: "Passed",
+    tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
     rule: r3({ field: "deal_stage", op: "is", value: "lost" })
@@ -8443,6 +8634,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "deal_ended",
     label: "Ended",
+    tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r3({ field: "deal_stage", op: "is", value: "ended" })
@@ -8452,12 +8644,14 @@ var BUILTIN_LISTS3 = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r3({ field: "last_heard", op: "more_than", days: 30 })
   },
   {
     id: "phoned_only",
     label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
     group: "reach",
     rule: r3({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
   },
@@ -8466,6 +8660,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "opted_in",
     label: "Said yes to messages",
+    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
     group: "reach",
     onProfile: false,
     rule: r3({ field: "said_yes", op: "is", to: "messages", yes: true })
@@ -8473,6 +8668,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "offers_ok",
     label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
     group: "reach",
     onProfile: false,
     rule: r3({ field: "can_receive", op: "is", to: "offers", yes: true })
@@ -8481,6 +8677,7 @@ var BUILTIN_LISTS3 = [
   {
     id: "opted_out",
     label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r3({ field: "stopped", op: "is", yes: true })
@@ -8496,6 +8693,9 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l) => {
     ...needs.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches3(l.rule, vm)
   };
+});
+var PeopleExportQuerySchema3 = z73.object({
+  list: z73.string().max(80).refine((t) => parseListToken3(t) !== null, "Name a list by its token.").optional()
 });
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS3 = {
@@ -8752,30 +8952,30 @@ var NOTE_SUGGEST_SCHEMA3 = {
 var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES3 = ["en", "es", "other"];
 var ASK_UNDO_MS3 = 10 * 6e4;
-var AskProposalOutcomeSchema3 = z73.object({
-  state: z73.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z73.string().max(300).catch(""),
-  atMs: z73.number().catch(0),
-  undo: z73.record(z73.string(), z73.unknown()).nullable().optional()
+var AskProposalOutcomeSchema3 = z83.object({
+  state: z83.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z83.string().max(300).catch(""),
+  atMs: z83.number().catch(0),
+  undo: z83.record(z83.string(), z83.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema3 = z73.discriminatedUnion("op", [
-  z73.object({
-    op: z73.literal("add_closure"),
-    date: z73.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z73.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z73.string().max(200).optional()
+var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
+  z83.object({
+    op: z83.literal("add_closure"),
+    date: z83.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z83.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z83.string().max(200).optional()
   }),
-  z73.object({
-    op: z73.literal("set_hours"),
-    day: z73.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z73.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z73.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z83.object({
+    op: z83.literal("set_hours"),
+    day: z83.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z83.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z83.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z73.object({ op: z73.literal("add_note"), title: z73.string().min(1).max(80), text: z73.string().min(1).max(1200) }),
-  z73.object({
-    op: z73.literal("add_service"),
-    name: z73.string().min(1).max(80),
-    duration_min: z73.number().int().min(1).max(1440).optional()
+  z83.object({ op: z83.literal("add_note"), title: z83.string().min(1).max(80), text: z83.string().min(1).max(1200) }),
+  z83.object({
+    op: z83.literal("add_service"),
+    name: z83.string().min(1).max(80),
+    duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
 var ASK_ANSWER_CAPS3 = {
@@ -8930,10 +9130,10 @@ var ASK_ANSWER_FORMAT3 = {
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z83.string().trim().max(80);
-var SignupSchema3 = z83.object({
-  name: z83.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z83.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema3 = z93.string().trim().max(80);
+var SignupSchema3 = z93.object({
+  name: z93.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z93.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -8947,17 +9147,17 @@ var SignupSchema3 = z83.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z83.string().max(200).optional(),
+  password: z93.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z83.string().trim().min(1).max(64).optional(),
+  timezone: z93.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema3.optional()
 }).strict();
-var PendingWorkspaceSchema3 = z83.object({
-  name: z83.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z93.object({
+  name: z93.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z83.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z93.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -9039,15 +9239,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z93.object({
-  places: z93.array(
-    z93.object({
-      ref: z93.number().int(),
-      criteria: z93.array(
-        z93.object({ key: z93.string(), answer: z93.enum(["pass", "fail", "unknown"]), facts: z93.array(z93.string()) })
+var AnswerSchema3 = z103.object({
+  places: z103.array(
+    z103.object({
+      ref: z103.number().int(),
+      criteria: z103.array(
+        z103.object({ key: z103.string(), answer: z103.enum(["pass", "fail", "unknown"]), facts: z103.array(z103.string()) })
       ),
-      email_index: z93.number().int().nullable(),
-      reason: z93.string()
+      email_index: z103.number().int().nullable(),
+      reason: z103.string()
     })
   )
 });
@@ -9551,12 +9751,18 @@ async function replyToConversation(ports, cmd) {
     if (!facts)
       throw new AppError(
         "validation",
-        "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first."
+        "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
       );
-    const params = resolveParams(inboxSlots(tpl), {
+    const slots = inboxSlots(tpl);
+    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+      throw new AppError(
+        "validation",
+        "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
+      );
+    const params = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
       businessName: facts.business_name,
-      bookingLink: facts.booking_link.replace(/^https?:[/][/]/, "")
+      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
@@ -10003,8 +10209,16 @@ async function runPlaybook(ports, cmd) {
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
-  const listIds = trig?.kind === "saved" ? p.list_id ? ctx.lists.get(p.list_id) ?? null : null : null;
-  if (trig?.kind === "saved" && !listIds) return off("no_list");
+  let listIds = null;
+  let kept;
+  if (trig?.kind === "saved") {
+    const ref = playbookListRef(p);
+    const m = ref ? ctx.listMembers(ref) : null;
+    if (!m || !ref) return off("no_list");
+    if (m.state === "unknown") return off(m.reason === "calendar" ? "no_calendar" : "list_uncounted");
+    listIds = m.ids;
+    kept = { token: listToken(ref), rule: m.rule ?? null, counted_at: now.toISOString() };
+  }
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
   const drawn = playbookRunReach(
     ctx.people,
@@ -10057,7 +10271,7 @@ async function runPlaybook(ports, cmd) {
       template_language: p.template_language,
       params: specs,
       // The run's own audience: the playbook, and who its moment named and left out.
-      audience: { kind: "playbook", id: p.id, label: p.name, reach },
+      audience: { kind: "playbook", id: p.id, label: p.name, reach, ...kept ? { list: kept } : {} },
       state: plan.state,
       scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
@@ -10177,8 +10391,9 @@ async function createBroadcast(ports, cmd) {
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
-  if (kind === "list" && (!audienceId || !PEOPLE_LISTS2.some((l) => l.id === audienceId)))
+  if (kind === "list" && (!audienceId || !BUILTIN_LISTS2.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
+  const ref = kind === "list" ? { kind: "builtin", id: audienceId } : kind === "saved" ? { kind: "saved", id: audienceId } : null;
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
     params: body?.params,
@@ -10197,24 +10412,22 @@ async function createBroadcast(ports, cmd) {
   if (!health) throw new AppError("conflict", "Connect a WhatsApp number first \u2014 a broadcast goes out on one.", 409);
   if (!health.canSend) throw new AppError("conflict", health.refusal, 409);
   const rows = await ports.people(now);
-  let savedIds = null;
+  let members = null;
   let label = EVERYONE_LABEL;
-  if (kind === "saved") {
-    const seg = await ports.savedList(audienceId);
-    if (!seg) throw new AppError("not_found", "List not found.", 404);
-    savedIds = new Set(seg.memberIds);
-    label = seg.name;
-  } else if (kind === "list") {
-    label = PEOPLE_LISTS2.find((l) => l.id === audienceId).label;
+  let kept;
+  if (ref) {
+    const found = await ports.list(ref, now);
+    if (!found) throw new AppError("not_found", "List not found.", 404);
+    if ("unknown" in found)
+      throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);
+    members = new Set(found.memberIds);
+    label = found.label;
+    kept = { token: listToken(ref), rule: found.rule ?? null, counted_at: now.toISOString() };
   }
+  const pool = members ? rows.filter((r4) => members.has(r4.id)) : rows;
   const purpose = purposeOfTemplate(tpl.category);
-  const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
-  if (eligible.length === 0)
-    throw new AppError(
-      "conflict",
-      emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind, audienceId, savedIds)),
-      409
-    );
+  const eligible = eligibleFor(pool, "everyone", null, null, purpose);
+  if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = overLimitRefusal(health, eligible.length);
@@ -10226,7 +10439,7 @@ async function createBroadcast(ports, cmd) {
   if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5)
     throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
-  const audience = { kind, id: audienceId, label };
+  const audience = { kind, id: audienceId, label, ...kept ? { list: kept } : {} };
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -10262,7 +10475,8 @@ async function createBroadcast(ports, cmd) {
     name,
     template: `${tpl.name}/${tpl.language}`,
     category: tpl.category,
-    audience: { kind: audience.kind, id: audience.id, label: audience.label },
+    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
     values: specs.map(paramLabel),
     recipients: eligible.length,
     scheduled_for: when.toISOString(),
@@ -10359,12 +10573,25 @@ async function checkPlaybook(ports, body) {
   if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
     throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS2);
   let listName = null;
-  const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
+  const listKey = trig.kind === "saved" && typeof body?.list_key === "string" && body.list_key ? body.list_key : null;
+  const listId = trig.kind === "saved" && !listKey && typeof body?.list_id === "string" ? body.list_id : null;
   if (trig.kind === "saved") {
-    if (!listId || !UUID3.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
-    listName = await ports.listName(listId);
-    if (!listName) throw new AppError("not_found", "List not found.", 404);
+    if (listKey) {
+      const b = BUILTIN_LISTS2.find((l) => l.id === listKey);
+      if (!b) throw new AppError("validation", "Pick the list it runs on.");
+      if (ruleNeeds2(b.rule).includes("viewer"))
+        throw new AppError(
+          "validation",
+          `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`
+        );
+      listName = b.label;
+    } else {
+      if (!listId || !UUID3.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
+      listName = await ports.listName(listId);
+      if (!listName) throw new AppError("not_found", "List not found.", 404);
+    }
   }
+  const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
@@ -10380,11 +10607,12 @@ async function checkPlaybook(ports, body) {
     name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     list_id: listId,
+    list_key: listKey,
     template_id: tpl.id,
     template_name: tpl.name,
     template_language: tpl.language,
     params: specs,
-    policy_class: trig.cls,
+    policy_class: cls,
     run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS2.min, PLAYBOOK_HOURS2.max, "The hour"),
     cap_per_run: int(body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun, 1, 500, "The cap"),
     gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),
@@ -43551,14 +43779,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z12 = zip.trim();
+  const z13 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z12) return { lat: row[1], lng: row[2] };
-    if (row[0] < z12) lo = mid + 1;
+    if (row[0] === z13) return { lat: row[1], lng: row[2] };
+    if (row[0] < z13) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;

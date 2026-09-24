@@ -2,6 +2,7 @@ import { AppError, FOLLOW_UP_NEEDS_DEALS } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
 import { runPlaybookNow } from "@/server/service";
+import { refuseOnArchivedList } from "@/server/playbooks";
 
 /**
  * POST /api/v1/playbooks/:id/run — run it now, at this person's request.
@@ -29,6 +30,8 @@ export const POST = write({
   rate: "playbook",
   handle: async ({ ctx, row: p }) => {
     const id = p.id;
+    // Nor is one on an archived list run now (00169): it is paused until its list is restored or it is moved.
+    await refuseOnArchivedList(ctx, p);
     const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
     if (!r.ok) {
       const said = SAID[r.reason] ?? `The run did not happen (${r.reason}).`;

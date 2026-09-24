@@ -3403,6 +3403,7 @@ export type Database = {
           last_run_at: string | null
           last_run_for: string | null
           list_id: string | null
+          list_key: string | null
           name: string
           params: Json
           policy_class: string
@@ -3425,6 +3426,7 @@ export type Database = {
           last_run_at?: string | null
           last_run_for?: string | null
           list_id?: string | null
+          list_key?: string | null
           name: string
           params?: Json
           policy_class: string
@@ -3447,6 +3449,7 @@ export type Database = {
           last_run_at?: string | null
           last_run_for?: string | null
           list_id?: string | null
+          list_key?: string | null
           name?: string
           params?: Json
           policy_class?: string
@@ -3638,6 +3641,7 @@ export type Database = {
       }
       segments: {
         Row: {
+          archived_at: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -3647,6 +3651,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -3656,6 +3661,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           created_by?: string | null
           id?: string

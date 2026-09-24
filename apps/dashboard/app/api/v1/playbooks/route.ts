@@ -38,11 +38,20 @@ export const GET = read({
       dealPaceRead(ctx, tenantId, now),
     ]);
     const dealsOn = dealsAreOn(sellsBy);
-    const { pools, calendar, lists } = await triggerPools(ctx, tenantId, touched, facts.timezone, now, {
+    const { pools, calendar, lists, people } = await triggerPools(ctx, tenantId, touched, facts.timezone, now, {
       on: dealsOn,
       pace: dealsOn ? dealPaceOf(paceRead) : null,
     });
-    return { playbooks, timezone: facts.timezone, touched, pools, calendar, lists, deals_on: dealsOn };
+    return {
+      playbooks,
+      timezone: facts.timezone,
+      touched,
+      pools,
+      calendar,
+      lists,
+      people_lists: people,
+      deals_on: dealsOn,
+    };
   },
 });
 
@@ -59,8 +68,10 @@ export const POST = write({
         tenant_id: member.tenantId,
         name: v.name,
         trigger: v.trigger,
-        // Named only when there is a list: a database 00155 has not reached takes every other playbook as before.
+        // Named only when there is a list: a database 00155 (or 00168) has not reached takes every other playbook as
+        // before.
         ...(v.list_id ? { list_id: v.list_id } : {}),
+        ...(v.list_key ? { list_key: v.list_key } : {}),
         template_id: v.template_id,
         template_name: v.template_name,
         template_language: v.template_language,

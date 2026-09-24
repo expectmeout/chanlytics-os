@@ -41,7 +41,14 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
   const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0 };
   const sections = [{ key: "now", items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs }] }];
   const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
-  if (asks.length) sections.push({ key: "about", label: t.askAbout(surface), items: asks.map((s) => ({ type: "sug", label: s.q, q: s.q })) });
+  // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
+  if (asks.length)
+    sections.push({
+      key: "about",
+      label: t.askAbout(surface),
+      items: asks.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
+      note: surface === "leads" ? t.leadsConsent : null,
+    });
   if (threads.length && !phone) {
     const items = threads.slice(0, 3).map(thread);
     if (threads.length > 3) items.push({ type: "all", label: t.allEarlier });
@@ -139,6 +146,7 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
               <React.Fragment key={`r${k}`}>{run.items.map(draw)}</React.Fragment>
             ),
           )}
+          {sec.note ? <p className="ask-rows-note" data-testid="ask-rows-note">{sec.note}</p> : null}
         </div>
       ))}
     </div>

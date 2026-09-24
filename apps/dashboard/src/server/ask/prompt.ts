@@ -51,7 +51,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "held back":
     "A person on a broadcast the send skipped at the wire: no recorded yes, asked to stop, no number, or a person had their thread.",
   calendar:
-    "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows and sends the booking link; it never books, moves or cancels anything itself.",
+    "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows, then sends the booking link, or takes their details where there is none; it never books, moves or cancels anything itself.",
   playbook:
     "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned), the month's offer (everyone who said yes, on a cadence), and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
 };
@@ -305,7 +305,11 @@ export function turnSystem(t: TurnFacts): string {
         ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
         : "a viewer: they can read everything and change nothing";
   lines.push(`You are speaking with ${t.personLabel}, ${can}.`);
-  if (t.surface) lines.push(`They are on the ${t.surface} page.`);
+  if (t.surface === "leads")
+    lines.push(
+      "They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read list_lead_searches, then propose_lead_search; ask only when the kind or the place is missing.",
+    );
+  else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
   if (t.scope)
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. Read it before answering about it.`,

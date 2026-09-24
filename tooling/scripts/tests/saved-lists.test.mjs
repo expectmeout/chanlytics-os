@@ -118,7 +118,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
   assert.ok(
-    prof.includes("No lists kept by hand yet.") && prof.includes("Make one on People"),
+    prof.includes("No lists of your own yet.") && prof.includes("Make one on People"),
     "the empty section is a door to People with the New list box opening; 'the People rail' is not a place a phone has",
   );
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));

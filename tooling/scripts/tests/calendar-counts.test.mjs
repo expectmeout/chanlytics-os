@@ -163,17 +163,29 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
     "everyone who said yes and may be texted, past the first page, less the two reached this week",
   );
   assert.equal(pools.everyone_monthly.held, 2, "the two wait for the week's breath: held, not hidden");
-  assert.deepEqual(Object.keys(pools).sort(), [
-    "everyone_monthly",
-    "lapsed",
-    "new_week",
-    "phoned_only",
-    "proposal_waiting",
-    "quiet_30",
-    "saved_list",
-    "visit_tomorrow",
-    "visited",
-  ]);
+  assert.deepEqual(
+    Object.keys(pools)
+      .filter((k) => !k.startsWith("seg:"))
+      .sort(),
+    [
+      "everyone_monthly",
+      "lapsed",
+      "new_week",
+      "phoned_only",
+      "proposal_waiting",
+      "quiet_30",
+      "saved_list",
+      "visit_tomorrow",
+      "visited",
+    ],
+  );
+  // And every one of People's lists a playbook may run on here, under its token (decision 0009): none that reads the
+  // calendar with none connected, none about whoever is looking, none that reads deals where they are off.
+  const peoples = Object.keys(pools).filter((k) => k.startsWith("seg:"));
+  assert.ok(peoples.includes("seg:quiet") && peoples.includes("seg:phoned_only"), peoples.join(", "));
+  assert.ok(!peoples.includes("seg:lapsed"), "Lapsed reads the calendar");
+  assert.ok(!peoples.includes("seg:waiting_on_you"), "a run has no one looking");
+  assert.ok(!peoples.includes("seg:proposal_out"), "deals are off here");
   assert.equal(pools.saved_list, null, "a playbook on a list is counted by its list, never by the trigger");
   assert.equal(pools.visit_tomorrow.candidates, 0, "no calendar, nobody has a visit tomorrow");
   // And everyone the moment names, with who of them no run reaches whatever the
@@ -553,8 +565,8 @@ test("each list a playbook may run on is counted as a run on it would count it, 
   });
   const { pools, lists } = await triggerPools(ctxFor(t, { people_list: pagedList(all) }), T, {}, TZ, NOW, NO_DEALS);
   assert.deepEqual(lists, [
-    { id: "l-hand", name: "Regulars", smart: false },
-    { id: "l-smart", name: "Said yes", smart: true },
+    { id: "l-hand", name: "Regulars", smart: false, archived: false },
+    { id: "l-smart", name: "Said yes", smart: true, archived: false },
   ]);
   assert.deepEqual([pools["list:l-hand"].pool, pools["list:l-hand"].candidates], [1, 1], "the one kept on it");
   assert.deepEqual(

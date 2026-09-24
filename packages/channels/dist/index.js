@@ -4,10 +4,11 @@ import { z as z2 } from "zod";
 import { z as z3 } from "zod";
 import { z as z5 } from "zod";
 import { z as z4 } from "zod";
-import { z as z6 } from "zod";
 import { z as z7 } from "zod";
+import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -207,7 +208,19 @@ var DECISION_VERBS = [
   /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
   "end_call",
   "record_deal",
-  /** A client list brought in from a spreadsheet: one row per part of fifty, subject the workspace. */
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
 var DAY_MS = 864e5;
@@ -539,7 +552,12 @@ var BrainConfigSchema = z3.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z3.string().min(3).max(40).optional(),
-  booking_link: z3.string().url().max(500),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
@@ -827,6 +845,14 @@ function greetingFor(name) {
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -1050,14 +1076,6 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -1355,11 +1373,23 @@ var ListDraftAnswerSchema = z6.object({
   cannot: z6.string().trim().max(200),
   all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
 });
+var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var BUILTIN_ID = /^[a-z_]{1,40}$/;
+function parseListToken(token) {
+  if (typeof token !== "string") return null;
+  const at2 = token.indexOf(":");
+  const kind = token.slice(0, at2);
+  const id = token.slice(at2 + 1);
+  if ((kind === "seg" || kind === "state") && BUILTIN_ID.test(id)) return { kind: "builtin", id };
+  if (kind === "list" && SAVED_ID.test(id)) return { kind: "saved", id: id.toLowerCase() };
+  return null;
+}
 var r = (...all) => ({ v: 2, all });
 var BUILTIN_LISTS = [
   {
     id: "needs_you",
     label: "Needs you",
+    tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "needs_you" })
@@ -1368,6 +1398,7 @@ var BUILTIN_LISTS = [
   {
     id: "waiting_on_you",
     label: "Waiting on you",
+    tip: "You have the thread, or nobody does, and they wrote last \u2014 a teammate's waits on them",
     group: "attention",
     onProfile: false,
     rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
@@ -1376,6 +1407,7 @@ var BUILTIN_LISTS = [
   {
     id: "steps_due",
     label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
     group: "attention",
     onProfile: false,
     rule: r({ field: "step_due", op: "is", yes: true })
@@ -1384,6 +1416,7 @@ var BUILTIN_LISTS = [
   {
     id: "new_week",
     label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
     group: "journey",
     rule: r({ field: "first_contact", op: "within", days: 7 })
   },
@@ -1391,14 +1424,22 @@ var BUILTIN_LISTS = [
   {
     id: "booked_week",
     label: "Booked this week",
+    tip: "An appointment this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" })
   },
-  { id: "booked", label: "Booked", group: "journey", rule: r({ field: "booked", op: "is", yes: true }) },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: true })
+  },
   // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
   {
     id: "asked_never_booked",
     label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
     group: "journey",
     rule: r({ field: "asked_not_booked", op: "is", yes: true })
   },
@@ -1406,6 +1447,7 @@ var BUILTIN_LISTS = [
   {
     id: "lapsed",
     label: "Lapsed",
+    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -1413,6 +1455,7 @@ var BUILTIN_LISTS = [
   {
     id: "consultation_booked",
     label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "consultation" })
@@ -1420,6 +1463,7 @@ var BUILTIN_LISTS = [
   {
     id: "proposal_out",
     label: "Proposal out",
+    tip: "A proposal went out and is waiting on their answer",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "proposed" })
@@ -1427,6 +1471,7 @@ var BUILTIN_LISTS = [
   {
     id: "clients",
     label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "won" })
@@ -1434,6 +1479,7 @@ var BUILTIN_LISTS = [
   {
     id: "deal_passed",
     label: "Passed",
+    tip: "They passed on a proposal",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "lost" })
@@ -1441,6 +1487,7 @@ var BUILTIN_LISTS = [
   {
     id: "deal_ended",
     label: "Ended",
+    tip: "An engagement that ended \u2014 the win-back list for clients",
     group: "journey",
     onProfile: false,
     rule: r({ field: "deal_stage", op: "is", value: "ended" })
@@ -1450,12 +1497,14 @@ var BUILTIN_LISTS = [
   {
     id: "quiet",
     label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
     group: "reach",
     rule: r({ field: "last_heard", op: "more_than", days: 30 })
   },
   {
     id: "phoned_only",
     label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
     group: "reach",
     rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
   },
@@ -1464,6 +1513,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_in",
     label: "Said yes to messages",
+    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
@@ -1471,6 +1521,7 @@ var BUILTIN_LISTS = [
   {
     id: "offers_ok",
     label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
     group: "reach",
     onProfile: false,
     rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
@@ -1479,6 +1530,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_out",
     label: "Opted out",
+    tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r({ field: "stopped", op: "is", yes: true })
@@ -1494,6 +1546,9 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
     ...needs.includes("viewer") ? { needsViewer: true } : {},
     test: (vm) => listRuleMatches(l.rule, vm)
   };
+});
+var PeopleExportQuerySchema = z7.object({
+  list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
@@ -1766,30 +1821,30 @@ var NOTE_SUGGEST_SCHEMA = {
 var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z7.object({
-  state: z7.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z7.string().max(300).catch(""),
-  atMs: z7.number().catch(0),
-  undo: z7.record(z7.string(), z7.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z8.object({
+  state: z8.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z8.string().max(300).catch(""),
+  atMs: z8.number().catch(0),
+  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
-  z7.object({
-    op: z7.literal("add_closure"),
-    date: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z7.string().max(200).optional()
+var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
+  z8.object({
+    op: z8.literal("add_closure"),
+    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z8.string().max(200).optional()
   }),
-  z7.object({
-    op: z7.literal("set_hours"),
-    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z8.object({
+    op: z8.literal("set_hours"),
+    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z7.object({ op: z7.literal("add_note"), title: z7.string().min(1).max(80), text: z7.string().min(1).max(1200) }),
-  z7.object({
-    op: z7.literal("add_service"),
-    name: z7.string().min(1).max(80),
-    duration_min: z7.number().int().min(1).max(1440).optional()
+  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
+  z8.object({
+    op: z8.literal("add_service"),
+    name: z8.string().min(1).max(80),
+    duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
 var ASK_ANSWER_CAPS = {
@@ -1944,10 +1999,10 @@ var ASK_ANSWER_FORMAT = {
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z8.string().trim().max(80);
-var SignupSchema = z8.object({
-  name: z8.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z8.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z9.string().trim().max(80);
+var SignupSchema = z9.object({
+  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -1961,17 +2016,17 @@ var SignupSchema = z8.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z8.string().max(200).optional(),
+  password: z9.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z8.string().trim().min(1).max(64).optional(),
+  timezone: z9.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z8.object({
-  name: z8.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z9.object({
+  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2164,15 +2219,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z9.object({
-  places: z9.array(
-    z9.object({
-      ref: z9.number().int(),
-      criteria: z9.array(
-        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
+var AnswerSchema = z10.object({
+  places: z10.array(
+    z10.object({
+      ref: z10.number().int(),
+      criteria: z10.array(
+        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
       ),
-      email_index: z9.number().int().nullable(),
-      reason: z9.string()
+      email_index: z10.number().int().nullable(),
+      reason: z10.string()
     })
   )
 });

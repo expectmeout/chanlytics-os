@@ -161,8 +161,9 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
         .eq("tenant_id", tenantId)
         .maybeSingle();
       const brain = (data?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
-      return brain?.business_name && brain.booking_link
-        ? { business_name: brain.business_name, booking_link: brain.booking_link }
+      // The name is enough: a template that sends no link needs none, and the verb refuses one that does (reply.ts).
+      return brain?.business_name
+        ? { business_name: brain.business_name, booking_link: brain.booking_link || null }
         : null;
     },
     // This row IS the receptionist's answer to "may I speak?", so a

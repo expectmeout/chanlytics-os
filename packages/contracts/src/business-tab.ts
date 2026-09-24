@@ -24,6 +24,7 @@ import {
   NO_FIELDS_COMPOSED_WORDS,
   type GuardrailsInForce,
   INSTRUCTIONS_MAX,
+  isProductFallback,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   POLICY_MODES,
@@ -33,6 +34,8 @@ import {
   type PolicyMode,
 } from "./config";
 import { hardLimitsWords } from "./policy";
+import { bookingLinkOptional } from "./deals";
+import { offersBookingLink } from "./no-booking-link";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
 import { zoneDayKey } from "./clock";
@@ -256,6 +259,21 @@ export function rulesKept(i: RulesKeptInputs): string[] {
   return kept;
 }
 
+/**
+ * What the booking link's row says with nothing in it, and the hint under its box, by how the workspace's customers buy
+ * (deals.ts bookingLinkOptional): a business that quotes has none by right, and its receptionist takes their details
+ * instead (the first run's decision 2); one that books, or has not said, is missing it. The create card's box says the
+ * same, by the answer chosen in it.
+ */
+export function bookingLinkRowWords(sellsBy: string | null | undefined): { empty: string; hint: string } {
+  return bookingLinkOptional(sellsBy)
+    ? {
+        empty: "None — it takes their details instead",
+        hint: "Optional for a business that quotes: without one, it takes their details instead.",
+      }
+    : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
+}
+
 /** The subset of the brain the standing line reads. */
 export interface StandingInputs {
   business_name?: string | null;
@@ -277,7 +295,7 @@ export interface StandingVM {
    * decision, 20 Sep 2026). Null with nothing to price.
    *
    * On a workspace that answers calls it names the difference between the two channels once,
-   * because the promise lands differently on each: see WONT_PRICE below.
+   * because the promise lands differently on each: see wontPrice below.
    */
   wont: string | null;
   /** The single most useful gap, and the row that fixes it. Null when there is none. */
@@ -319,9 +337,8 @@ const has = (v: unknown): boolean =>
  *
  * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
  */
-const WONT_PRICE = "It offers a consult or the booking link instead of a price.";
-const WONT_PRICE_ON_A_CALL =
-  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.";
+const wontPrice = (link: boolean, calls: boolean): string =>
+  `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " — in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
 
 /**
  * Three clauses, worst last.
@@ -334,15 +351,27 @@ const WONT_PRICE_ON_A_CALL =
  * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
  * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
  * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
+ *
+ * `sellsBy` is the workspace's answer to how its customers buy, null where it was never said, and required for the
+ * same reason: a business that quotes has no booking link by right (deals.ts bookingLinkOptional), and one left out
+ * would be told its missing link is the gap to fix.
  */
-export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
+export function standingLine(i: StandingInputs, calls: boolean, sellsBy: string | null): StandingVM {
   if (typeof calls !== "boolean") {
     throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
   }
+  if (sellsBy !== null && typeof sellsBy !== "string") {
+    throw new TypeError(
+      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it.",
+    );
+  }
   const p = i.profile ?? {};
+  // Whether it offers a link, by the resolver's own test: every clause below that turns on one asks this.
+  const link = offersBookingLink(i);
   const gaps: { sentence: string; row: string }[] = [];
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!has(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!link && !bookingLinkOptional(sellsBy))
+    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
@@ -356,7 +385,9 @@ export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
   if (has(p.address)) answers.push("where you are");
   if (has(p.hours)) answers.push("when you're open");
   if (has(p.services)) answers.push("what you offer");
-  if (has(i.booking_link)) answers.push("how to book");
+  // A business that quotes, with no link, still answers: it takes their details for a quote (decision 2).
+  if (link) answers.push("how to book");
+  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
 
   const can = answers.length
     ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.`
@@ -365,8 +396,10 @@ export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
   // Both offers, because the two channels do different things: chat's replacement offers a
   // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
   // "A consult" alone was true on WhatsApp and not on the phone. And on a workspace with a call,
-  // WHEN each happens differs too, which is the rest of WONT_PRICE_ON_A_CALL's clause.
-  const wont = has(p.services) ? (calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE) : null;
+  // WHEN each happens differs too, which is the rest of the clause on a call. With no link, a
+  // call's correction takes their details in the link's place (priceNextStep, no-booking-link.ts),
+  // and the clause says so.
+  const wont = has(p.services) ? wontPrice(link, calls) : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }
@@ -948,7 +981,7 @@ export function fallbacksWords(
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
     const t = typeof f[k] === "string" ? (f[k] as string).trim() : "";
-    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+    return t !== "" && !isProductFallback(k, t);
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
@@ -969,8 +1002,19 @@ export function fallbacksWords(
  * Built inside a call marked pure, as GUARDRAIL_KEYS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
-  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
+const rulesWithoutFields = (noLink: boolean): string =>
+  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
+export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
+const RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
+
+/**
+ * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
+ * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
+ * rule too, by the resolver's own test (offersBookingLink).
+ */
+export function rulesWithoutFieldsWords(brain: { booking_link?: string | null } | null | undefined): string {
+  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+}
 
 /**
  * What the receptionist can do, and what it cannot.
@@ -1000,6 +1044,11 @@ export interface AbilityInputs {
   whatsappLive: boolean;
   hasCalendarFeed: boolean;
   hasBookingLink: boolean;
+  /**
+   * The workspace is not asked for a booking link: it says some customers get a proposal first (deals.ts
+   * bookingLinkOptional), and with none its receptionist takes their details instead (the first run's decision 2).
+   */
+  linkOptional: boolean;
   /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
   hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
@@ -1044,6 +1093,7 @@ const BOOLEAN_INPUTS: Record<
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
+  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -1144,7 +1194,9 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // (steps.ts layerTwo) -- a price or services reply still carries it, which is why the
   // sentence says "when someone asks to book" and not "it sends no link".
   const bookingDetail = !i.hasBookingLink
-    ? "No booking link yet, so there is nothing to send."
+    ? i.linkOptional
+      ? "No booking link, so it takes their details for you to follow up with a quote."
+      : "No booking link yet, so there is nothing to send."
     : !i.whatsappLive
       ? i.voiceLive
         ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
@@ -1199,7 +1251,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
-      missing: !i.hasBookingLink,
+      missing: !i.hasBookingLink && !i.linkOptional,
     },
     {
       id: "transfer",
@@ -1286,6 +1338,12 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
   },
 ];
 
+/** The two rows whose words lean on a booking link, as said where there is none (the first run's decision 2). */
+const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
+  book: "Not a setting you could switch on. There is no appointments table in this product — nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when.",
+};
+
 /**
  * Said here so nobody has to find out from a customer.
  *
@@ -1297,12 +1355,22 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
  * what is sold yet" is not true, so the row is left out. `smsLive` is checked as
  * it runs, like abilityRows' inputs: left out by an untyped page, it would read
  * as not live.
+ *
+ * `hasBookingLink` is checked the same way: two of the rows lean on a link, and
+ * a business that quotes, with none, is told what does the work instead.
  */
-export function cannotRows(i: { smsLive: boolean }): CannotRowVM[] {
+export function cannotRows(i: { smsLive: boolean; hasBookingLink: boolean }): CannotRowVM[] {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive));
+  if (typeof i?.hasBookingLink !== "boolean") {
+    throw new TypeError(
+      "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books.",
+    );
+  }
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive)).map((r) =>
+    !i.hasBookingLink && CANNOT_NO_LINK[r.id] ? { ...r, detail: CANNOT_NO_LINK[r.id] as string } : r,
+  );
 }
 
 /* ------------------------------------ what a fold will not take ------------------------------------ */

@@ -23,6 +23,7 @@ import {
   seasonHorizon,
   visitsOf,
   ownAddressesOf,
+  offersBookingLink,
   type FeedItem,
   type Opening,
   type ParsedFeed,
@@ -191,7 +192,12 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
 /** The openings block for the prompt, or null when there is nothing to say. */
 export async function openingsFor(rt: TenantRuntime, now = new Date()): Promise<string | null> {
   const data = await openingsData(rt, now);
-  return data ? describeOpenings(data.openings, data.tz, { daysAhead: data.daysAhead }) : null;
+  return data
+    ? describeOpenings(data.openings, data.tz, {
+        daysAhead: data.daysAhead,
+        hasBookingLink: offersBookingLink(rt.brain),
+      })
+    : null;
 }
 
 /** Tests and the diagnostic: forget every cached feed. */
@@ -227,6 +233,7 @@ export async function visitsFor(
       visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
       rt.timezone,
       now.getTime(),
+      { hasBookingLink: offersBookingLink(rt.brain) },
     );
   } catch (e) {
     L.error("availability_visits_failed", { error: errField(e) });

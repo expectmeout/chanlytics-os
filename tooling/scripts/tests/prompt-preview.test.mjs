@@ -155,7 +155,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
         now: NOW,
       }),
       TZ,
-      { daysAhead: 14 },
+      { daysAhead: 14, hasBookingLink: true },
     );
     assert.equal(got, expected, "the same functions the edge's openingsFor runs, with the same inputs");
     assert.ok(

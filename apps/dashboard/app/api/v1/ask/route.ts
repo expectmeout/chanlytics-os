@@ -1,6 +1,8 @@
 import {
   AppError,
   ASK_MAX_CHARS,
+  ASK_SCOPE_KINDS,
+  ASK_SURFACES,
   dealsAreOn,
   detectLanguage,
   policyClassOffered,
@@ -38,8 +40,10 @@ import { appendMessage, createThread, readThread, touchThread } from "@/server/a
 
 export const maxDuration = 60;
 
-const SCOPE_KINDS = new Set(["thread", "conversation", "call", "person", "page"]);
-const SURFACES = new Set(["today", "inbox", "people", "conversations", "live", "reports", "settings", "other"]);
+// The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
+// dropped in silence, and the prompt never learnt the page.
+const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
+const SURFACES = new Set<string>(ASK_SURFACES);
 
 function line(ev: TurnEvent | { t: "thread"; id: string; title: string }): string {
   return `${JSON.stringify(ev)}\n`;

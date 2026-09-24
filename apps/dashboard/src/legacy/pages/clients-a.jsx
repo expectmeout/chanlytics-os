@@ -654,30 +654,6 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
 
-const PL_LIST_TIP = {
-  needs_you: "An open escalation, or a thread waiting for a person",
-  waiting_on_you: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
-  // A note with a day (0007, amended): every workspace's.
-  steps_due: "Their next step's day has come, or gone by — a note with a day, for the team",
-  new_week: "First contact in the last 7 days, by evidence — imported history never counts",
-  quiet: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
-  phoned_only: "Only ever phoned — no WhatsApp thread",
-  opted_in: "Said yes to hearing from you — replies and messages about their own visit",
-  // The list is who can RECEIVE an offer (contracts mayReceive): a yes with no number to send to is not on it.
-  offers_ok: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
-  opted_out: "Asked to stop; the receptionist stays silent, offers included",
-  booked: "An appointment ahead on your calendar — the booking is the conversion",
-  booked_week: "An appointment this week, Monday to Sunday",
-  asked_never_booked: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
-  lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
-  // The journey past the booking (0004): drawn only where deals are a thing here.
-  consultation_booked: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
-  proposal_out: "A proposal went out and is waiting on their answer",
-  clients: "Said yes, or paid — the engagement is running",
-  deal_passed: "They passed on a proposal",
-  deal_ended: "An engagement that ended — the win-back list for clients",
-};
-
 // What the page remembers between visits on this device, per scope: the sort and the columns
 // ({ sortBy, sortDir, columns }), and under Leads the rail's list too ({ list, sortBy, sortDir, columns }).
 const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view", pipeline: "chanlytics-pipeline-view" };
@@ -693,19 +669,6 @@ const plSaveView = (scope, v) => { try { localStorage.setItem(PL_VIEW_KEYS[scope
 // store is published (the standalone harness), the place and the draft live for the page.
 const plPlaceLoad = (page, view) => (window.__tabMemory ? window.__tabMemory.place(page, view) : null);
 const plPlaceSave = (page, view, place) => { if (window.__tabMemory) window.__tabMemory.keepPlace(page, view, place); };
-// The Find kept is its words, and the plan Claude wrote for them with the card it came on. A plan cost a wait to get,
-// and approving one only posts it (legacy-bridge ask/commit.ts), so it is as good after a refresh as before. A turn
-// still being read, or one being started, is not: it comes back as its words.
-const ldFinderLoad = () => (window.__tabMemory ? window.__tabMemory.draft("leads-find") : null);
-const ldFinderSave = (f) => {
-  if (!window.__tabMemory) return;
-  const planned = f.stage === "plan" && !!f.plan;
-  if (!f.words && !planned) { window.__tabMemory.dropDraft("leads-find"); return; }
-  window.__tabMemory.keepDraft("leads-find", {
-    open: !!f.open, words: f.words || "",
-    stage: planned ? "plan" : "compose", plan: planned ? f.plan : null, proposal: planned ? f.proposal || null : null, more: planned ? f.more || null : null,
-  });
-};
 /** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
 const ldValuesPref = () => { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } };
 // A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the
@@ -981,10 +944,20 @@ const plRenameList = async (list, name) => {
   const r = await window.__lists.rename(list.id, name);
   return r.ok ? { ok: true } : { ok: false, error: r.message || "Could not rename the list." };
 };
+// Deleted, or archived (00169, decision 0009): a list a playbook runs on, or another list reads, is archived instead,
+// and the answer says what paused and what reads it, for the page to say.
 const plDeleteList = async (list) => {
   const r = await window.__lists.remove(list.id);
-  return r.ok ? { ok: true } : { ok: false, error: r.message || "The list could not be deleted." };
+  if (!r.ok) return { ok: false, error: r.message || "The list could not be deleted." };
+  const d = r.data || {};
+  return { ok: true, archived: !!d.archived, paused: d.paused || [], readBy: d.read_by || [] };
 };
+// What the page says when a delete archived instead: why, what paused, and where it comes back from.
+const plArchivedWords = (name, r) => (
+  <>
+    <b>{name}</b> is archived, not deleted: {r.paused.length ? <>{r.paused.join(", ")} paused</> : r.readBy.length ? <>{r.readBy.join(", ")} reads it</> : <>a playbook runs on it</>}. It comes back from Archived under your lists.
+  </>
+);
 // Made, then filled. A list whose filling the server refused (more people than it takes at once, say) is taken back,
 // so no empty list is left behind. `made` is the make's answer, `filled` the fill's (null when nothing was made).
 const plMakeListWith = async (name, ids) => {
@@ -1021,7 +994,7 @@ const DeleteListButton = ({ list, onDeleted }) => {
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
     setArm(false);
-    onDeleted();
+    onDeleted(r);
   };
   if (!arm) {
     return <button className="cl-bucket-link danger" style={{ marginLeft: 8 }} onClick={() => { setError(null); setArm(true); }} data-testid="delete-list">Delete list…</button>;
@@ -1118,9 +1091,11 @@ const PeopleListsSheet = ({ onClose, title = "Lists", children }) => {
 const plListRoute = (id) => {
   const people = window.__PEOPLE;
   if (!id || !people) return "clients";
-  if ((people.saved || []).some((s) => s.id === id)) return `clients/list:${id}`;
+  if ([...(people.saved || []), ...(people.archived || [])].some((s) => s.id === id)) return `clients/list:${id}`;
   if ((people.lists || []).some((l) => l.id === id)) return `clients/seg:${id}`;
-  return "clients";
+  // One People doesn't have: its own address all the same, where People says it isn't here rather than showing
+  // Everyone. A saved list's id is a uuid; a built-in's is a word.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? `clients/list:${id}` : `clients/seg:${id}`;
 };
 window.__listRoute = plListRoute;
 
@@ -1174,10 +1149,29 @@ const RailSection = ({ label, icon = null, testid = null, children }) => (
  * empty or not, and so is the list of all of them. `quietOf` answers the rows that step back; `RailEmpty` says them.
  */
 const railQuiet = (rows, keep) => rows.filter((r) => r.count === 0 && !keep(r));
+// The list the address names when People doesn't have it: one of People's this workspace can't count (a calendar not
+// read, deals off), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or from
+// another workspace. Null when the list is here, when none is named, or when the lists could not be read (the rail
+// says that).
+const plListGone = ({ listId, activeList, savedId, activeSaved, people }) => {
+  if (listId && !activeList) {
+    // One of People's this workspace doesn't show: a calendar that couldn't be read, deals off. Can't tell, not gone.
+    const hidden = (people.hidden || []).find((h) => h.id === listId);
+    return hidden
+      ? { title: `${hidden.label} can't be counted here`, body: hidden.why }
+      : { title: "This list isn't here", body: "People doesn't have a list by that name. The link may be old." };
+  }
+  if (!savedId || activeSaved || people.savedRead === false) return null;
+  const archived = (people.archived || []).find((a) => a.id === savedId);
+  return archived
+    ? { title: `${archived.name} is archived`, body: "It comes back from Archived under your lists.", archived }
+    : { title: "This list isn't here", body: "It was deleted, or the link is from another workspace." };
+};
+// The labels are words, or a list's own button (the Saved section's, which still open their lists).
 const RailEmpty = ({ labels, testid = null }) =>
   labels.length ? (
     <p className="cl-rail-empty" data-testid={testid || undefined}>
-      Empty now: {labels.join(" · ")}
+      Empty now: {labels.map((l, i) => <React.Fragment key={i}>{i > 0 ? " · " : null}{l}</React.Fragment>)}
     </p>
   ) : null;
 
@@ -1224,7 +1218,7 @@ const RailRow = ({ label, count = null, active = false, onPick, onWarm = null, s
 // sheet's first row, the way back to everyone. `dealsOn` puts the Pipeline in the switch. Under the Pipeline the rows
 // are People's own lists, and a pick opens that list on People (pipeline-scope.jsx).
 // `compact` is the phone's sheet: one level of heading (the groups), and the empty lists said in a line, not drawn.
-const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
+const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, dealsOn = false, everyone = null, children = null, lists = PL_NO_LISTS, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, archived = PL_NO_LISTS, onRestore = null, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0, compact = false }) => (
   <aside className="cl-rail">
     {scopeTabs && <PeopleScopeTabs scope={scope} onScope={onScope} dealsOn={dealsOn} />}
     {scope === "leads" ? children : (
@@ -1247,7 +1241,7 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
           <RailGroup key={g.id} label={g.label} testid={`rail-group-${g.id}`}>
             {own.filter((l) => !quiet.includes(l)).map((l) => (
               // A list of people who need you counts in amber (the tone map decides which: warn); every other count is a total.
-              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={PL_LIST_TIP[l.id] || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
+              <RailRow key={l.id} smart label={l.label} count={l.count} active={active === l.id} onPick={() => onPick(l.id)} tip={l.tip || null} className={window.__chrome && window.__chrome.state && window.__chrome.state("person", l.id).tone === "warn" ? "asks" : ""} />
             ))}
           </RailGroup>
         );
@@ -1255,15 +1249,33 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       {/* The sheet's one quiet line: every empty list, in the rail's own order (a line a group read as clutter). */}
       {compact ? <RailEmpty labels={railQuiet(lists, (l) => active === l.id).map((l) => l.label)} testid="rail-empty" /> : null}
     </RailSection>
-    <RailSection label="Saved" testid="saved-lists">
+    {/* On a phone's sheet an empty list of the workspace's own is a word in the quiet line, as a smart list's is (one
+        that can't be counted keeps its row and its dash); and a sheet with none of its own draws no Saved over nothing. */}
+    <RailSection label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : "Saved"} testid="saved-lists">
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
-      {saved.map((s) => (
+      {saved.filter((s) => !(compact && railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).includes(s))).map((s) => (
         // A list that can't be counted here draws a dash and says why on hover: can't tell is not nobody.
-        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.unknown || (s.byHand ? "A list kept by hand — add people from their profile" : `Keeps itself current: ${(s.rule || []).join(" · ")}`)} testid={s.byHand ? undefined : "saved-smart"} />
+        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.tip} testid={s.byHand ? undefined : "saved-smart"} />
       ))}
+      {/* Each name opens its list: an empty list is still renamed, deleted and filled from its own page. */}
+      {compact ? <RailEmpty labels={railQuiet(saved.filter((x) => !x.unknown), (x) => activeSaved === x.id).map((s) => <button key={s.id} type="button" className="cl-bucket-link" onClick={() => onPickSaved(s.id)} data-testid="saved-empty-open">{s.name}</button>)} testid="saved-empty" /> : null}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
+      )}
+      {/* Archived lists (00169): off the rail, each one press from coming back, in one quiet line. */}
+      {archived.length > 0 && (
+        <p className="cl-rail-empty" data-testid="rail-archived">
+          Archived:{" "}
+          {archived.map((a, i) => (
+            <React.Fragment key={a.id}>
+              {i > 0 ? " · " : null}
+              {canEdit && onRestore ? (
+                <button type="button" className="cl-bucket-link" title={`Bring ${a.name} back`} onClick={() => onRestore(a)} data-testid="rail-restore">{a.name}</button>
+              ) : a.name}
+            </React.Fragment>
+          ))}
+        </p>
       )}
     </RailSection>
     {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
@@ -2119,16 +2131,9 @@ const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test
 const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
 // What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
 // menu, the phone's drawer. Only the app's (every one sits inside .app-root), so a hidden dialog a browser extension
-// adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet) and the Columns menu
-// (.pl-cols-menu), which the listener names apart.
-// Hold to talk is Ask's own hook (ask-hooks.jsx), loaded before this file in both lists (manifest.ts:52,
-// Chanlytics.html:90). Where it is not -- a unit harness that draws this page on its own -- the stand-in answers
-// "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so LeadsReal keeps
-// one hook order either way and the finder simply offers no mic.
-const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
-const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); React.useRef(false); return PL_NO_TALK; };
-
-const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
+// adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet), the Columns menu
+// (.pl-cols-menu), the peek (.pl-peek) and the plan panel (.pl-plan), which the listener names apart.
+const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-plan)';
 
 /* ------------------------------------------------------------ the list page, in both scopes */
 // People and Leads are one page with two scopes, and each scope is a component of its own: PeopleReal and LeadsReal,
@@ -2449,11 +2454,11 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
       const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
       // A key an earlier listener took (the ? sheet's Esc) is not the page's.
       if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // The page's own overlays first, in the order Esc closes them: the peek, then the finder, then the Columns
-      // menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and the peek
-      // follows the cursor -- so it is not in PL_OVERLAY either.
+      // The page's own overlays first, in the order Esc closes them: the peek, then the plan panel, then the
+      // Columns menu, then the selection. The peek holds only Esc -- J and K keep walking the rows behind it, and
+      // the peek follows the cursor -- so it is not in PL_OVERLAY either.
       if (e.key === "Escape" && k.peekOpen) { e.preventDefault(); k.closePeek(); return; }
-      // The finder holds every key while it is open: its input, its pickers and its buttons are its own.
+      // The plan panel holds every key while it is open: its answer row, its pickers and its buttons are its own.
       if (k.finderOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeFinder(); } return; }
       // The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's
       // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
@@ -2473,7 +2478,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
         if (k.selected) { e.preventDefault(); k.clearSel(); }
         return;
       }
-      // F opens the finder on the Leads scope, for whoever may find; the gate says why to everyone else, at the
+      // F opens Ask on the Leads scope (spec F7), for whoever may find; the gate says why to everyone else, at the
       // button, so the key is simply not theirs.
       if ((e.key === "f" || e.key === "F") && k.canFind) { e.preventDefault(); k.find(); return; }
       if (!k.ids.length) return;
@@ -2495,7 +2500,7 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
   }, []);
   // What the keyboard's one listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and
   // the view's own (`own`: what Enter opens, whether a row may be selected, the sheets, and under Leads the peek, the
-  // finder, F and C).
+  // plan panel, F and C).
   const keysWith = (own) => {
     keys.current = {
       ids,
@@ -2528,9 +2533,10 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the
   // Pipeline, only then.
   const dealsOn = !!people.dealsOn;
-  const listFor = (id) => (id && lists.some((l) => l.id === id) ? id : null);
-  const [listId, setListId] = useState(listFor(initialSegment));
-  React.useEffect(() => { setListId(listFor(initialSegment)); }, [initialSegment]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
+  // never swapped for Everyone.
+  const [listId, setListId] = useState(initialSegment || null);
+  React.useEffect(() => { setListId(initialSegment || null); }, [initialSegment]);
   const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
@@ -2565,6 +2571,12 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   // A list made on the rail says so and is the one shown: the rail used to close
   // with no word, the new list somewhere down it. The answer goes back to the
   // rail, which shows a refusal where the name was typed.
+  // An archived list back on the rail (00169): said in a toast either way.
+  const restoreList = async (a) => {
+    if (!window.__lists) return;
+    const r = await window.__lists.restore(a.id);
+    plFlash(r.ok ? { msg: <><b>{a.name}</b> is back on your lists</> } : { tone: "danger", msg: <>{r.message || "It could not be brought back."}</> });
+  };
   const createList = async (name, rule = null) => {
     const r = await window.__lists.create(name, rule);
     if (r.ok) {
@@ -2580,8 +2592,11 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
-    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$))./.test(cur)) return;
+    // The New list door's address stands while the box is what it opened; once a list is made (or any view picked),
+    // the address is that view's, so a reload opens the list and not the box again.
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
+    if (cur === "clients/new-list" && !want) return;
+    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
@@ -2654,6 +2669,15 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
 
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
+  // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
+  const listGone = plListGone({ listId, activeList, savedId, activeSaved, people });
+  // Export follows the list that is open (decision 0009): the route counts it as a send does, every member; with no
+  // list open it is everyone.
+  const exportName = activeSaved ? activeSaved.name : activeList ? activeList.label : null;
+  // A list that can't be counted here, or isn't here, has no file to take: said on the button, never a refusal page.
+  const exportBlocked = activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? listGone.title : null;
+  const exportHref = window.__href ? window.__href("GET contacts/export", undefined, exportName ? { list: activeSaved ? `list:${activeSaved.id}` : `seg:${activeList.id}` } : undefined) : null;
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
   // not describe. Picking the open one again shows everyone.
@@ -2742,6 +2766,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     if (listAct === "delete") {
       const r = await plDeleteList(activeSaved);
       if (!r.ok) { setListDraft((x) => ({ ...x, busy: false, error: r.error })); return; }
+      if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) });
       closePhoneSheet();
       setSavedId(null);
       return;
@@ -2784,7 +2809,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     { header: "Sort" },
     ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({ label: s.label, checked: sortBy === s.by && sortDir === s.dir, onClick: () => pickSort(s.by, s.dir) })),
     // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(window.__href ? [{ divider: true }, { label: "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(window.__href("GET contacts/export")), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
+    ...(window.__href && !exportBlocked ? [{ divider: true }, { label: exportName ? `Export ${exportName}` : "Export everyone", icon: "external", meta: "CSV", onClick: () => window.location.assign(exportHref), ...(canExport ? {} : { gate: window.gate("export") }) }] : []),
     ...(activeSaved && canEditLists && window.__lists ? [
       { divider: true },
       { label: "Rename this list", icon: "edit", onClick: () => { setListDraft({ ...PL_LIST_EMPTY, name: activeSaved.name }); setListAct("rename"); } },
@@ -2812,6 +2837,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         canEdit={canEditLists}
         onCreateList={window.__lists ? createList : null}
         savedRead={people.savedRead !== false}
+        archived={people.archived || PL_NO_LISTS}
+        onRestore={restoreList}
         newListSignal={newListSignal}
       />
 
@@ -2823,7 +2850,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               scope="people"
               onScope={(to) => nav(plScopeRoute(to))}
               dealsOn={dealsOn}
-              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : "Everyone"}
+              listLabel={activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"}
               onLists={() => setListsOpen(true)}
               listsOpen={listsOpen}
               q={q}
@@ -2862,7 +2889,9 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               {window.__href && (
                 window.canDo && !window.canDo("export")
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
-                  : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
+                  : exportBlocked
+                  ? <button className="btn btn-ghost btn-sm" disabled data-tip={exportBlocked} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</button>
+                  : <a className="btn btn-ghost btn-sm" href={exportHref} download title={exportName ? `Download the people on ${exportName} as a CSV file` : "Download everyone as a CSV file"} data-testid="people-export"><Icon name="external" size={12} /> Export CSV</a>
               )}
               {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside
                   them only turned round an order the table already shows and changes. */}
@@ -2885,11 +2914,13 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
                   ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
                   : activeList
                     ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
-                    : <span className="cl-section-title">Everyone</span>}
-                {(activeList || activeSaved) && (
+                    : listGone
+                      ? <span className="cl-section-title" data-testid="list-gone">{listGone.title}</span>
+                      : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved || listGone) && (
                   <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
                 )}
-                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
+                {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={(r) => { if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) }); setSavedId(null); }} />}
                 {tab !== "all" && (
                   <span className="chip" data-testid="state-filter">
                     <Icon name="filter" size={10} />
@@ -2944,7 +2975,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             scrolled={scrolledX}
             onScrolled={setScrolledX}
             busy={searching}
-            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
+            empty={listGone ? { title: listGone.title, body: listGone.body, action: listGone.archived && canEditLists && window.__lists ? { label: "Bring it back", onClick: () => restoreList(listGone.archived) } : { label: "Show everyone", onClick: () => { setListId(null); setSavedId(null); } } } : activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
@@ -2976,6 +3007,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
               canEdit={canEditLists}
               onCreateList={window.__lists ? createList : null}
               savedRead={people.savedRead !== false}
+              archived={people.archived || PL_NO_LISTS}
+              onRestore={restoreList}
               newListSignal={newListSignal}
             />
           </PeopleListsSheet>
@@ -3070,23 +3103,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const [removing, setRemoving] = useState(null);
   const [leadBusy, setLeadBusy] = useState(false);
   const [removeError, setRemoveError] = useState(null);
-  // Hold to talk, as Ask does it: the browser's own recogniser, started on press and stopped on release, handing
-  // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
-  // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
-  const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
-  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || usePlNoTalk)({
-    lang: talkLang,
-    disabled: finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
-    onWords: setFinderWords,
-    onHeard: (heard, error) => {
-      if (heard) { setFinderWords(heard); return; }
-      // The two things a browser can say about a microphone, in Ask's own words (ask-text.jsx): one spelling.
-      const t = window.askText ? window.askText(talkLang) : null;
-      if (!t) return;
-      if (error === "not-allowed") plFlash({ msg: <>{t.micDenied}</> });
-      else if (error && error !== "aborted" && error !== "no-speech") plFlash({ msg: <>{t.micFailed}</> });
-    },
-  });
   // One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
   // member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
   // supersedes, so a slow page of the old view never lands on the new one.
@@ -3187,23 +3203,6 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
     else nav(want, { replace: true });
   }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // A Find half-written comes back with the page (ldFinderLoad, above), and is kept as it changes. The first pass
-  // still holds the page's empty state, so it keeps nothing: it would clear the draft it is about to be given.
-  const finderKept = React.useRef(false);
-  React.useEffect(() => {
-    const d = ldFinderLoad();
-    if (!d) return;
-    setFinderWords(d.words || "");
-    setFinderPlan(d.plan || null);
-    setFinderProposal(d.proposal || null);
-    setFinderMore(d.more || null);
-    setFinderStage(d.stage === "plan" && d.plan ? "plan" : "compose");
-    setFinderOpen(!!d.open);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    if (!finderKept.current) { finderKept.current = true; return; }
-    ldFinderSave({ open: finderOpen, stage: finderStage, words: finderWords, plan: finderPlan, proposal: finderProposal, more: finderMore });
-  }, [finderOpen, finderStage, finderWords, finderPlan, finderProposal, finderMore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------------------------------------------------- the Leads scope's acts */
   // Every one goes through the courier the bridge installed (legacy-bridge/leads.ts): the route, then the
@@ -3292,15 +3291,15 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     // records not_a_fit for every row it touched, and release C reads the why.
     return leadAct(() => window.__leadsBulk(body), <>Not a fit.</>);
   };
-  /* -------------------------------------------- the finder (Tasks 8, 9, 10) */
-  // The setters leadFinderPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
-  // an approval belongs to when the plan was opened from a strip rather than typed.
+  /* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
+  // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
+  // an approval belongs to when the plan was opened from a strip, and whether it answers that round's question.
   const finderSet = {
     open: setFinderOpen, stage: setFinderStage, words: setFinderWords, trace: setFinderTrace,
     refusal: setFinderRefusal, proposal: setFinderProposal, plan: setFinderPlan, pick: setFinderPick,
     more: finderMore,
   };
-  const finderPlanIt = (words) => window.leadFinderPlan(words, finderSet);
+  const finderAnswer = (words) => window.leadAnswerPlan(words, finderSet);
   const finderApprove = async (plan) => {
     const answering = !!(finderMore && finderMore.answer);
     const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
@@ -3326,19 +3325,18 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     asked: s.asked,
     leavingOut: (s.plan.exclusions || []).map((x) => x.text),
   });
-  // A fresh Find is never an answer: an answer left half-done must not turn the next search into one.
-  const openFind = () => {
-    setFinderMore(null);
-    setFinderProposal(null);
-    setFinderPlan(null);
-    setFinderRefusal(null);
-    setFinderStage("compose");
-    setFinderOpen(true);
+  // Find leads is Ask on this page (spec F1, F2): the takeover on a phone, the Stage on a desktop. A suggestion's
+  // words go into the field; the button and the F key open Ask as ⌘K does, keeping whatever the owner left in it
+  // (a click event is not words).
+  const openFind = (words) => {
+    if (typeof words === "string" && words) window.askAbout({ mode: "compose", prompt: words });
+    else if (window.appAsk) window.appAsk();
+    else window.askAbout({});
   };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
   const openPlanFor = (s, plan, how) => {
-    // Answering, the composer behind the card (Change what I asked) is the owner's answer: what they first asked
-    // sent back as the answer amended nothing.
+    // Answering, the answer row behind the card (Change what I asked) is the owner's answer: what they first asked
+    // sent back as the answer amended nothing. Otherwise the words are what was asked, for Ask's field (onFinderBack).
     setFinderWords(how === "answer" ? "" : s.asked);
     setFinderProposal(null);
     setFinderPlan(plan);
@@ -3408,6 +3406,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     setFinderWords(dto.asked);
     setFinderMore(null);
     setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
+    // The card draws the plan it is handed: without this it drew the last strip-born plan, or nothing at all.
+    setFinderPlan(dto.plan);
+    setFinderPick(null);
     setFinderRefusal(null);
     setFinderStage("plan");
     setFinderOpen(true);
@@ -3427,11 +3428,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
     peekOpen: !!peekId || !!lightboxId,
     // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
-    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the finder, the
+    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the plan panel, the
     // Columns menu, the selection.
     closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen,
-    // Esc lets an answer go as the close button does: what the tab keeps of a Find is never an answer.
+    // Esc lets an answer go as the close button does.
     closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
     canFind,
     find: openFind,
@@ -3490,8 +3491,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
     if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
     if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
-    // The no that changes the search: the finder opens under the question, empty, and what comes back from Ask is
-    // this round's next version (leadFinderApprove answers it; it never starts a second search).
+    // The no that changes the search: the plan panel opens its answer row under the question, empty, and what comes
+    // back from Ask is this round's next version (leadFinderApprove answers it; it never starts a second search).
     if (id === "change") {
       setFinderWords("");
       setFinderProposal(null);
@@ -3672,14 +3673,20 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       finderTrace={finderTrace}
       finderPick={finderPick}
       onFinderWords={setFinderWords}
-      onFinderPlan={finderPlanIt}
+      onFinderAnswer={finderAnswer}
       onFinderApprove={finderApprove}
       onFinderChangePlan={setFinderPlan}
       onFinderPick={setFinderPick}
-      onFinderBack={() => setFinderStage("compose")}
+      // Change what I asked: under a question it is the answer row; on a plan born from the strip it is Ask, with
+      // what the search asked for in the field (the panel composes nothing, spec F5).
+      onFinderBack={() => {
+        if (finderMore && finderMore.answer) { setFinderStage("compose"); return; }
+        setFinderOpen(false);
+        setFinderMore(null);
+        openFind(finderWords);
+      }}
       onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
       finderAnswering={finderMore && finderMore.answer ? finderMore : null}
-      talk={talk}
       peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
       // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
       // cursor as J and K do, so the rows behind the peek move with it.
