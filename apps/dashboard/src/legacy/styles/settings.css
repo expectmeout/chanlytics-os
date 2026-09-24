@@ -1294,9 +1294,11 @@ html.legacy-on .bt-link { position: relative; }
 @media (prefers-reduced-motion: reduce) { .bt-feed { transition: none; } }
 
 /* ---- What you offer (pages/business-tab-offer.jsx) ---- */
-/* At rest: the services' chips are the kit's (RecordChips), and the sentence about pricing takes its own line under
-   them; the booking rules' notes sit under their one sentence the same way. */
-.bt-services-priced, .bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* At rest: the services' chips are the kit's (RecordChips), and the booking rules' notes follow their sentence on its
+   line, in the dim ink (24 Sep: under it they were a second line). With none of the five set they stand under what
+   the calendar applies, as the row's own line. */
+.bt-rules-notes { color: var(--ink-dim); }
+.rec-row-val > .bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); text-wrap: pretty; }
 
 /* The booking rules fold (the canvas's Edit-Fold): the five numbers two to a line, then the notes. */
 .bt-rules { display: flex; flex-direction: column; gap: 14px; }
@@ -1436,11 +1438,9 @@ html.legacy-on .bt-link { position: relative; }
 .bt-rule-checked-who { color: var(--ink-muted); }
 .bt-rule-sep { grid-column: 1 / -1; display: block; margin-bottom: 12px; border-top: 1px dashed var(--line-strong); }
 .bt-rule > .rec-switch { margin-top: 2px; }
-/* The hand-off: each channel's words after its chip, at rest and in the fold. */
-.bt-handoff { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.bt-handoff-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.bt-handoff-words { min-width: 0; overflow-wrap: anywhere; }
-/* Which channel this line is about, as a muted word. It was a bordered pill, twice on the one row, which at a phone's
+/* The hand-off at rest is one line (contracts handoffWords.line); it was a line per channel under its word. */
+.bt-handoff { min-width: 0; overflow-wrap: anywhere; }
+/* Which channel a part of the fold is about, as a muted word. It was a bordered pill, twice on the one row, which at a phone's
    width is two outlined boxes over two sentences: the word does the same job and the row keeps its one grammar. */
 .bt-channel { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-handoff-part { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
