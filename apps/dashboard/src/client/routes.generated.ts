@@ -131,6 +131,7 @@ export const ROUTES = {
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
+  "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
   "POST templates": { method: "POST", path: "/api/v1/templates" },
@@ -291,6 +292,7 @@ export type Routes = {
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
+  "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
   "POST templates": typeof import("../../app/api/v1/templates/route").POST;

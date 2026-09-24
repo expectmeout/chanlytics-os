@@ -116,6 +116,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Calendar's too.
   // Name, hours, services, the hand-off number and the calendar feed are Setup rows too.
   "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
+  // The first receptionist is a settings write too, from what is known: the same surfaces read again.
+  "POST settings/receptionist": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
   "PUT policies": settings,
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not

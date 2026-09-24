@@ -491,6 +491,80 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
   );
 };
 
+/* ------------------------------------ the rows drawn elsewhere too ------------------------------------ */
+
+/** The languages it answers in, as its row states them and its fold edits them; the first run's Check draws it too. */
+const BtaLanguagesRow = ({ brain, canEdit, flash, saver }) => {
+  const profile = brain.profile || {};
+  // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
+  const languages = (Array.isArray(profile.languages) ? profile.languages : []).filter((l) => typeof l === "string" && l.trim() !== "");
+  return (
+    <window.BtFold
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      id="languages"
+      label="Languages"
+      // The old form's words: on WhatsApp the composer says only "You speak: …", and "whichever the caller uses" is a
+      // call's line (config.ts), so the canvas's "It replies in whichever the customer uses" said more than chat is told.
+      hint="It answers in whichever of these a customer uses."
+      lines
+      gate={window.gate("settings", "change the languages it speaks")}
+      row={{
+        value: languages.length ? languages.join(", ") : null,
+        empty: "Not set",
+        name: languages.length ? "Change the languages it speaks" : "Add one: a language it speaks",
+      }}
+      body={(f) => <BtaLanguages {...f} />}
+    />
+  );
+};
+
+/**
+ * The rules it always keeps, as its row names them and its fold switches them; the first run's Check draws it too, as
+ * the price rule shown as its default. `config` is the settings read's, `base` the config the next save goes on.
+ */
+const BtaRulesRow = ({ brain, base = null, config = null, canEdit, flash, saver }) => {
+  const tab = window.__businessTab || {};
+  const S = window.__businessTabSave;
+  // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for three, off for
+  // health advice and photos), so the row and the fold never read a stored rule two ways. Without the bridge to ask,
+  // the row names no rule it cannot back.
+  const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", config || { brain }) : null;
+  // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
+  // save goes on. Without the bridge to ask, nothing is claimed.
+  const on = (base && base.brain) || brain;
+  const composes = typeof tab.hasProfile === "function" ? tab.hasProfile(on.profile || null) : true;
+  // Which of them the row may name, and in what words: contracts', off the three strengths (rulesKept). Not every
+  // switch decides the same amount -- the price detector runs with its switch off, the two told-and-trusted rules are
+  // lines in a prompt a record composing nothing never gets, and a booking is beyond the product either way. So the
+  // row never lists a rule as kept that the receptionist was never told and cannot keep on its own.
+  const ruleChips =
+    rules && typeof tab.rulesKept === "function"
+      ? tab.rulesKept({ rules, vision: rules.vision === true, composes }).map((label) => ({ label }))
+      : [];
+  return (
+    <window.BtFold
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      id="guardrails"
+      label="Rules it always keeps"
+      hint="These hold whatever else you write."
+      gate={window.gate("settings", "change the rules it always keeps")}
+      row={{
+        // Capped like every other row of chips (the kit's RecordChips, contracts CHIPS_SHOWN): five of them wrapped
+        // three deep at a phone's width, which is a paragraph of nouns where the row states one fact.
+        value: ruleChips.length ? (
+          <window.RecordChips chips={ruleChips} max={tab.CHIPS_SHOWN} more={tab.chipsMoreWords} testid="rec-rules-chips" />
+        ) : null,
+        name: "Change the rules it always keeps",
+      }}
+      body={(f) => <BtaRules {...f} unread={composes ? null : tab.rulesWithoutFieldsWords(on)} />}
+    />
+  );
+};
+
 /* ------------------------------------ the card ------------------------------------ */
 
 /**
@@ -510,24 +584,8 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
   const F = ((window.__FACTS || {}).facts) || {};
 
   const tone = typeof profile.tone === "string" && profile.tone.trim() ? profile.tone.trim() : null;
-  // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
-  const languages = (Array.isArray(profile.languages) ? profile.languages : []).filter((l) => typeof l === "string" && l.trim() !== "");
-  // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for three, off for
-  // health advice and photos), so the row and the fold never read a stored rule two ways. Without the bridge to ask,
-  // the row names no rule it cannot back.
-  const rules = typeof tab.guardrailsInForce === "function" ? S.draftOf("guardrails", stored) : null;
-  // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
-  // save goes on. Without the bridge to ask, nothing is claimed.
+  // The brain the fallbacks' preview reads: the one the next save goes on.
   const on = (base && base.brain) || brain;
-  const composes = typeof tab.hasProfile === "function" ? tab.hasProfile(on.profile || null) : true;
-  // Which of them the row may name, and in what words: contracts', off the three strengths (rulesKept). Not every
-  // switch decides the same amount -- the price detector runs with its switch off, the two told-and-trusted rules are
-  // lines in a prompt a record composing nothing never gets, and a booking is beyond the product either way. So the
-  // row never lists a rule as kept that the receptionist was never told and cannot keep on its own.
-  const ruleChips =
-    rules && typeof tab.rulesKept === "function"
-      ? tab.rulesKept({ rules, vision: rules.vision === true, composes }).map((label) => ({ label }))
-      : [];
   // The transfer number as the settings read resolved it, read as the Who you are row reads it (its factOf): the fact
   // when the read carried one, and what is typed only when it carried none (an older server).
   const transferFact = F.handoff_number || { value: profile.handoff_number || null };
@@ -564,39 +622,9 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         body={(f) => <BtaVoice {...f} />}
       />
 
-      <Fold
-        {...shared}
-        id="languages"
-        label="Languages"
-        // The old form's words: on WhatsApp the composer says only "You speak: …", and "whichever the caller uses" is a
-        // call's line (config.ts), so the canvas's "It replies in whichever the customer uses" said more than chat is told.
-        hint="It answers in whichever of these a customer uses."
-        lines
-        gate={gate("the languages it speaks")}
-        row={{
-          value: languages.length ? languages.join(", ") : null,
-          empty: "Not set",
-          name: languages.length ? "Change the languages it speaks" : "Add one: a language it speaks",
-        }}
-        body={(f) => <BtaLanguages {...f} />}
-      />
+      <BtaLanguagesRow brain={brain} {...shared} />
 
-      <Fold
-        {...shared}
-        id="guardrails"
-        label="Rules it always keeps"
-        hint="These hold whatever else you write."
-        gate={gate("the rules it always keeps")}
-        row={{
-          // Capped like every other row of chips (the kit's RecordChips, contracts CHIPS_SHOWN): five of them wrapped
-          // three deep at a phone's width, which is a paragraph of nouns where the row states one fact.
-          value: ruleChips.length ? (
-            <window.RecordChips chips={ruleChips} max={tab.CHIPS_SHOWN} more={tab.chipsMoreWords} testid="rec-rules-chips" />
-          ) : null,
-          name: "Change the rules it always keeps",
-        }}
-        body={(f) => <BtaRules {...f} unread={composes ? null : tab.rulesWithoutFieldsWords(on)} />}
-      />
+      <BtaRulesRow brain={brain} base={base} config={config} {...shared} />
 
       <Fold
         {...shared}
@@ -673,4 +701,5 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
 
 // The two lists were also published for the old form to read as it loaded (BT_OFFERED_LANGUAGES, BT_FALLBACK_ROWS).
 // Task 3.7 deleted that form, and nothing else ever read them, so they are the card's own again.
-Object.assign(window, { BtAnswersCard });
+// And the two rows the first run's Check draws too (first-run.jsx).
+Object.assign(window, { BtAnswersCard, BtLanguagesRow: BtaLanguagesRow, BtRulesRow: BtaRulesRow });

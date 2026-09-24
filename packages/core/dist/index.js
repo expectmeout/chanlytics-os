@@ -1525,7 +1525,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -1534,6 +1534,7 @@ var DAY_NAME = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME = DAY_NAMES2;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -3089,6 +3090,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -4122,7 +4124,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME2 = {
+var DAY_NAMES22 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -4131,6 +4133,7 @@ var DAY_NAME2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME2 = DAY_NAMES22;
 function dayProblems2(h, day) {
   const name = DAY_NAME2[day] ?? day;
   const out = [];
@@ -4215,15 +4218,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
-var DAY_LABEL = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
+var DAY_LABEL = DAY_NAMES22;
 function dayIntervals2(h) {
   return dayIntervals(h).map(([open, close]) => ({ open, close }));
 }
@@ -7175,6 +7170,7 @@ function sha256Hex(text) {
 function judgeOpId(runId, fromOffset, batch) {
   return sha256Hex(`${runId}:${fromOffset}:${batch}`);
 }
+var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 
 // ../db/dist/index.js
 import { z as z12 } from "zod";
@@ -7747,7 +7743,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAME3 = {
+var DAY_NAMES23 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -7756,6 +7752,7 @@ var DAY_NAME3 = {
   sat: "Saturday",
   sun: "Sunday"
 };
+var DAY_NAME3 = DAY_NAMES23;
 function dayProblems3(h, day) {
   const name = DAY_NAME3[day] ?? day;
   const out = [];
@@ -9311,6 +9308,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

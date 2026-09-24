@@ -57,6 +57,47 @@ export type GoogleListingFacts = {
   time_zone: string | null;
 };
 
+/** A moment of Google's week as stored, or null for anything else. */
+const pointOf = (v: unknown): GooglePoint | null => {
+  const p = v !== null && typeof v === "object" ? (v as Record<string, unknown>) : null;
+  return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number"
+    ? { day: p.day, hour: p.hour, minute: p.minute }
+    : null;
+};
+
+/**
+ * google_listings.facts as stored, read back. The edge writes GoogleListingFacts from each details read; a listing
+ * linked before that read existed holds `{}`, which says nothing, and reads as null. The column is jsonb and nothing
+ * but the edge checks what goes in, so each field is read for what it is: a period that is not one is dropped (one
+ * with no close is Google's "around the clock", and kept), and a field of the wrong kind is none.
+ */
+export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (!Object.keys(r).length) return null;
+  const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const hours = Array.isArray(r.hours)
+    ? r.hours.flatMap((p: unknown): GooglePeriod[] => {
+        const q = p !== null && typeof p === "object" ? (p as Record<string, unknown>) : null;
+        const open = q ? pointOf(q.open) : null;
+        if (!q || !open) return [];
+        if (q.close == null) return [{ open, close: null }];
+        const close = pointOf(q.close);
+        return close ? [{ open, close }] : [];
+      })
+    : null;
+  return {
+    hours,
+    phone_e164: text(r.phone_e164),
+    phone_display: text(r.phone_display),
+    website: text(r.website),
+    primary_type: text(r.primary_type),
+    primary_type_label: text(r.primary_type_label),
+    service_area_only: r.service_area_only === true,
+    time_zone: text(r.time_zone),
+  };
+}
+
 type Day = (typeof DAYS)[number];
 const hhmm = (h: number, m: number): string => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
@@ -212,6 +253,11 @@ export interface SetupGoogleFacts {
     check_error: string | null;
   } | null;
   connected?: boolean;
+  /**
+   * The days Google gives hours for in a way the record cannot hold (hoursFromGoogle's `unsure`: past midnight, around
+   * the clock) and the record does not state yet: the first run's Check asks about them. Absent reads as none.
+   */
+  unsure?: Day[];
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */
