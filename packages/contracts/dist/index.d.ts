@@ -6541,12 +6541,15 @@ interface CalendarPerson {
     uid: string | null;
     /** Epoch ms of the appointment that named them — the soonest upcoming, else the latest past. */
     start: number;
+    /** The one address the appointment carried beside the one number, else null: two addresses are nobody's. */
+    email: string | null;
 }
 /**
  * Everyone the feed names by phone inside the window — a month back, three
  * months ahead — one row per number, so the sweep and the page create each
  * person once. A name is taken from the appointment that keys the row; a
- * later appointment with a name fills in for one without.
+ * later appointment with a name fills in for one without, and so does the
+ * one address an appointment carried beside its one number.
  */
 declare function peopleFromItems(items: FeedItem[], services: string[], nowMs: number, window?: {
     backDays?: number;

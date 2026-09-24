@@ -17,6 +17,7 @@
  * and the tests share it, so an appointment is the same person everywhere.
  */
 import { dayInZone, dayPlusInZone, type FeedItem } from "./availability";
+import { normalizeEmail } from "./email-address";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
 
 export interface EventContacts {
@@ -579,13 +580,16 @@ export interface CalendarPerson {
   uid: string | null;
   /** Epoch ms of the appointment that named them — the soonest upcoming, else the latest past. */
   start: number;
+  /** The one address the appointment carried beside the one number, else null: two addresses are nobody's. */
+  email: string | null;
 }
 
 /**
  * Everyone the feed names by phone inside the window — a month back, three
  * months ahead — one row per number, so the sweep and the page create each
  * person once. A name is taken from the appointment that keys the row; a
- * later appointment with a name fills in for one without.
+ * later appointment with a name fills in for one without, and so does the
+ * one address an appointment carried beside its one number.
  */
 export function peopleFromItems(
   items: FeedItem[],
@@ -605,20 +609,25 @@ export function peopleFromItems(
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    // Phones only: people are made from a number, never an address (create_person),
-    // so the business's own ADDRESSES have nothing to take off here.
-    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
+    // People are made from a number, never an address (create_person), so the business's own ADDRESSES have
+    // nothing to take off here; an address rides along for the person the number names.
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
     if (!phones.length) continue;
+    // One number and one address name one person; an event with two addresses names nobody's. Through the one
+    // normalizer every writer of an address goes through (00125), so what rides along is what People can hold.
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
     const name = guessName(it, services);
     for (const phone of phones) {
-      const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const row: CalendarPerson = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
       const have = byPhone.get(phone);
       if (!have) {
         byPhone.set(phone, row);
         continue;
       }
-      if (better(row, have)) byPhone.set(phone, { ...row, name: row.name ?? have.name });
-      else if (!have.name && row.name) byPhone.set(phone, { ...have, name: row.name });
+      // The better appointment keys the row; a name or an address the other carried fills in where it has none.
+      const [keep, other] = better(row, have) ? [row, have] : [have, row];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
     }
   }
   return [...byPhone.values()].sort((a, b) => a.start - b.start);

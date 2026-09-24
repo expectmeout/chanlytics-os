@@ -4254,18 +4254,20 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
+    const found = extractContacts(it, NO_OWN_ADDRESSES);
+    const phones = found.phones;
     if (!phones.length) continue;
+    const email = phones.length === 1 && found.emails.length === 1 ? normalizeEmail(found.emails[0]) : null;
     const name = guessName(it, services);
     for (const phone of phones) {
-      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start };
+      const row2 = { phone, name, title: it.title || "Busy", uid: it.uid, start: it.start, email };
       const have = byPhone.get(phone);
       if (!have) {
         byPhone.set(phone, row2);
         continue;
       }
-      if (better(row2, have)) byPhone.set(phone, { ...row2, name: row2.name ?? have.name });
-      else if (!have.name && row2.name) byPhone.set(phone, { ...have, name: row2.name });
+      const [keep, other] = better(row2, have) ? [row2, have] : [have, row2];
+      byPhone.set(phone, { ...keep, name: keep.name ?? other.name, email: keep.email ?? other.email });
     }
   }
   return [...byPhone.values()].sort((a, b) => a.start - b.start);

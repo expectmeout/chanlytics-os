@@ -665,6 +665,39 @@ test("people from a feed: one row per phone inside the window, the soonest upcom
   );
 });
 
+test("an appointment with one number and one address carries the address to the person; two addresses, or none, carry nothing", async () => {
+  const { peopleFromItems } = await import("@chanlytics/contracts");
+  const at = Date.parse("2026-09-25T15:00:00Z");
+  // Ten digits: a seven-digit number is not one to phoneFrom. The rule under test is the address, not the number.
+  const one = {
+    uid: "u1",
+    title: "Gel manicure — Ana (646) 555-0101 ana@example.com",
+    description: "",
+    location: "",
+    attendees: [],
+    organizer: null,
+    start: at,
+    end: at + 3_600_000,
+    allDay: false,
+  };
+  const two = { ...one, uid: "u2", description: "cc bob@example.com" };
+  const none = { ...one, uid: "u3", title: "Gel manicure — Ana (646) 555-0101" };
+  const [a] = peopleFromItems([one], ["Gel manicure"], at - 86_400_000);
+  assert.equal(a.email, "ana@example.com");
+  const [b] = peopleFromItems([two], ["Gel manicure"], at - 86_400_000);
+  assert.equal(b.email, null, "two addresses: whose is it?");
+  const [c] = peopleFromItems([none], ["Gel manicure"], at - 86_400_000);
+  assert.equal(c.email, null, "no address on the event");
+  // Two appointments name the same number: the one that keys the row has no address, the other does, so it fills in.
+  const later = { ...none, uid: "u4", start: at + 7 * 86_400_000, end: at + 7 * 86_400_000 + 3_600_000 };
+  const [d] = peopleFromItems([later, one], ["Gel manicure"], at + 86_400_000);
+  assert.deepEqual(
+    [d.uid, d.email],
+    ["u4", "ana@example.com"],
+    "the upcoming one keys the row; the address rides along",
+  );
+});
+
 test("one refused number costs one person, never everyone behind them", () => {
   // 22023 is create_person's own refusal of THIS row: a phone that is not in
   // international form, or a name over 80 characters. The read used to `break`
@@ -729,7 +762,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   );
   const lib = readCode("apps/edge/lib/calendar/calendar-people.ts");
   assert.ok(
-    lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })") &&
+    lib.includes(".insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name, email })") &&
       lib.includes('if (iErr.code !== "23505") throw') &&
       /kind: "contact\.added",\s*category: "contact"/.test(lib),
     "get-or-create with the service role, an event for each person created",

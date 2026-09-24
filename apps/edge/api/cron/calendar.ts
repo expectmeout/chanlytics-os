@@ -43,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
     return json(500, { ok: false });
   }
 
-  const out = { tenants: 0, seen: 0, added: 0, named: 0, failed: 0, remaining: page.remaining };
+  const out = { tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, failed: 0, remaining: page.remaining };
   for (const row of page.rows) {
     const cfg = parseTenantConfig(row.config);
     const url = cfg?.calendar?.ical_url ?? null;
@@ -72,11 +72,12 @@ export async function POST(request: Request): Promise<Response> {
       out.seen += r.seen;
       out.added += r.added;
       out.named += r.named;
+      out.emailed += r.emailed;
       // Stamped only on SUCCESS. A failure leaves the row due, so the next tick
       // retries it instead of skipping a workspace for an hour because its feed
       // was briefly unreachable.
       await markCalendarChecked(db, row.tenant_id, now);
-      if (r.added || r.named) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
+      if (r.added || r.named || r.emailed) L.info("calendar_people_added", { tenant_id: row.tenant_id, ...r });
       // A row on the bell, not an email: people arriving is good news, not an alarm.
       if (r.added)
         await recordNotification(row.tenant_id, {

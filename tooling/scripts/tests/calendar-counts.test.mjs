@@ -366,11 +366,12 @@ test("the sweep's library: a person the feed names is made once, a name fills on
     ],
     events: [],
   });
+  const at = (days) => ({ start: NOW.getTime() + days * DAY, email: null });
   const r = await addPeopleFromCalendar(db, T, [
-    { phone: "+19175550001", name: "Ana Ruiz", title: "Ana Ruiz · Balayage", uid: "v1", start: NOW.getTime() + DAY },
-    { phone: "+19175550002", name: "Bo Chen", title: "Bo Chen · Cut", uid: "v2", start: NOW.getTime() + 2 * DAY },
+    { phone: "+19175550001", name: "Ana Ruiz", title: "Ana Ruiz · Balayage", uid: "v1", ...at(1) },
+    { phone: "+19175550002", name: "Bo Chen", title: "Bo Chen · Cut", uid: "v2", ...at(2) },
   ]);
-  assert.deepEqual(r, { seen: 2, added: 1, named: 1, erased: 0 });
+  assert.deepEqual(r, { seen: 2, added: 1, named: 1, erased: 0, emailed: 0 });
   const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
   const contacts = db.seen.filter((s) => s.table === "contacts");
   assert.ok(
@@ -411,15 +412,69 @@ test("the sweep's library: a person who asked to be erased is not brought back b
     ],
     events: [],
   });
+  const at = { start: NOW.getTime() + DAY, email: null };
   const r = await addPeopleFromCalendar(db, T, [
-    { phone: "+19175550003", name: "Cara Voss", title: "Cara Voss · Cut", uid: "v3", start: NOW.getTime() + DAY },
-    { phone: "+19175550004", name: "Dev Rao", title: "Dev Rao · Colour", uid: "v4", start: NOW.getTime() + DAY },
+    { phone: "+19175550003", name: "Cara Voss", title: "Cara Voss · Cut", uid: "v3", ...at },
+    { phone: "+19175550004", name: "Dev Rao", title: "Dev Rao · Colour", uid: "v4", ...at },
   ]);
-  assert.deepEqual(r, { seen: 2, added: 1, named: 0, erased: 1 });
+  assert.deepEqual(r, { seen: 2, added: 1, named: 0, erased: 1, emailed: 0 });
   const inserted = db.seen
     .filter((s) => s.table === "contacts" && s.op === "insert")
     .map((s) => (Array.isArray(s.values) ? s.values[0] : s.values).phone_e164);
   assert.deepEqual(inserted, ["+19175550004"], "the erased number is left erased; the other is made");
+});
+
+test("the sweep fills an empty address from the appointment, never overwrites one, and makes a new person with theirs", async () => {
+  const contacts = [
+    {
+      id: "k1",
+      tenant_id: T,
+      phone_e164: "+16465550101",
+      display_name: "Ana",
+      email: null,
+      erased_at: null,
+      merged_into_contact_id: null,
+    },
+    {
+      id: "k2",
+      tenant_id: T,
+      phone_e164: "+16465550102",
+      display_name: "Dee",
+      email: "dee@example.com",
+      erased_at: null,
+      merged_into_contact_id: null,
+    },
+  ];
+  const db = fakeDb({ contacts, events: [] });
+  const r = await addPeopleFromCalendar(db, T, [
+    { phone: "+16465550101", name: "Ana", title: "Cut", uid: "u1", start: 1, email: "ana@example.com" },
+    { phone: "+16465550102", name: "Dee", title: "Cut", uid: "u2", start: 1, email: "other@example.com" },
+    { phone: "+16465550103", name: "Eli", title: "Cut", uid: "u3", start: 1, email: "eli@example.com" },
+  ]);
+  assert.equal(r.emailed, 1);
+  assert.equal(r.added, 1);
+  const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
+  const updates = db.seen.filter((s) => s.op === "update" && s.table === "contacts");
+  assert.deepEqual(
+    updates.map((u) => first(u).email),
+    ["ana@example.com"],
+    "Dee's address stays hers",
+  );
+  assert.ok(
+    updates.every((u) => u.filters.some(([op, col, val]) => op === "is" && col === "email" && val === null)),
+    "the fill is guarded: only where no address is",
+  );
+  const insert = db.seen.find((s) => s.op === "insert" && s.table === "contacts");
+  assert.equal(first(insert).email, "eli@example.com");
+  // What the table holds afterwards, since the fake writes in place.
+  assert.deepEqual(
+    contacts.map((c) => [c.phone_e164, c.email]),
+    [
+      ["+16465550101", "ana@example.com"],
+      ["+16465550102", "dee@example.com"],
+      ["+16465550103", "eli@example.com"],
+    ],
+  );
 });
 
 test("the edge reads the feed by the same address rule: a private address is never fetched, a good one is parsed once", async () => {
