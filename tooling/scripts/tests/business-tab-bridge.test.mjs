@@ -57,6 +57,9 @@ import {
   profileRefusal,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -141,6 +144,7 @@ const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist", 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "ABILITY_CHANNEL_WORDS",
+    "BOOKING_LINK_NEEDED",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
     "GUARDRAIL_KEYS",
@@ -154,6 +158,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "abilityRows",
     "blockShareWords",
     "bookingHeld",
+    "bookingLinkOptional",
+    "bookingLinkRowWords",
     "bookingRuleRefusal",
     "bookingRulesWords",
     "bookingTemplate",
@@ -213,6 +219,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     [null, "proposal"],
   ])
     assert.equal(tab.sellsBySaved(was, now), sellsBySaved(was, now), `${was} → ${now}`);
+  // Who is asked for a booking link, by that answer (the first run's decision 2), and what the link row says either way.
+  for (const answer of [null, "booking", "proposal"])
+    assert.equal(tab.bookingLinkOptional(answer), bookingLinkOptional(answer), String(answer));
+  for (const optional of [true, false])
+    assert.deepEqual(tab.bookingLinkRowWords(optional), bookingLinkRowWords(optional));
+  assert.equal(tab.BOOKING_LINK_NEEDED, BOOKING_LINK_NEEDED);
   // The prompt sheet's: who reads it, what is sent beside it, and what a block costs, each contracts' own.
   assert.deepEqual(tab.PROMPT_READERS, PROMPT_READERS);
   assert.deepEqual(tab.PROMPT_NOW, PROMPT_NOW);

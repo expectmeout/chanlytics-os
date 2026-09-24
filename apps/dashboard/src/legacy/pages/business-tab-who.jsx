@@ -142,6 +142,11 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const address = factOf("address", profile.address);
   const website = factOf("website", profile.website);
   const link = factOf("booking_link", brain.booking_link);
+  // Whether this workspace is asked for a link at all, by how its customers buy (0008, the first run's decision 2): the
+  // row's check, its empty state and its hint all follow the one answer.
+  const sellsNow = window.btSellsByNow ? window.btSellsByNow() : null;
+  const tab = window.__businessTab;
+  const linkWords = tab.bookingLinkRowWords(tab.bookingLinkOptional(sellsNow));
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);
@@ -221,16 +226,16 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         id="booking_link"
         label="Booking link"
         value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
-        empty="Not set"
+        empty={linkWords.empty}
         // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
-        hint="Sent instead of confirming an appointment itself."
+        hint={linkWords.hint}
         source={chip(link)}
         disputed={btDispute(link, conflictOn("booking_link"), BT_TAKE_THEIRS)}
         gate={gate("booking link")}
         initial={brain.booking_link || ""}
-        check={S.CHECK_OF.booking_link}
+        check={(d) => S.CHECK_OF.booking_link(d, sellsNow)}
         commit={words("booking_link")}
-        body={btTextBox({ placeholder: "https://your-booking-page.com", inputMode: "url", autoComplete: "url", hint: "Sent instead of confirming an appointment itself." })}
+        body={btTextBox({ placeholder: "https://your-booking-page.com", inputMode: "url", autoComplete: "url", hint: linkWords.hint })}
       />
 
       {/* THREE numbers, named for what each one does. They were one row called "Phone line" showing a typed string,

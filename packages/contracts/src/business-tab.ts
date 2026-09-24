@@ -256,6 +256,21 @@ export function rulesKept(i: RulesKeptInputs): string[] {
   return kept;
 }
 
+/**
+ * What the booking link's row says with nothing in it, and the hint under its box, by whether the workspace is asked for
+ * one (deals.ts bookingLinkOptional): a business that quotes has none by right, and its receptionist takes their details
+ * instead (the first run's decision 2); one that books, or has not said, is missing it. The create card's box says the
+ * same.
+ */
+export function bookingLinkRowWords(linkOptional: boolean): { empty: string; hint: string } {
+  return linkOptional
+    ? {
+        empty: "None — it takes their details instead",
+        hint: "Optional for a business that quotes: without one, it takes their details instead.",
+      }
+    : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
+}
+
 /** The subset of the brain the standing line reads. */
 export interface StandingInputs {
   business_name?: string | null;

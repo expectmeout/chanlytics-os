@@ -325,9 +325,13 @@ const btCheckWebsite = (d) => {
   const v = btTrimmed(d);
   return v && !BT_WEB.test(v) ? "The website needs to be a full web address, starting with https://" : null;
 };
-const btCheckBookingLink = (d) => {
+// Asked of a business that books or has not said (contracts bookingLinkOptional, by the answer the caller holds), in
+// the words the first run's Check says too: a business that quotes may leave it empty, and its receptionist takes the
+// customer's details instead.
+const btCheckBookingLink = (d, sellsBy) => {
   const v = btTrimmed(d);
-  if (!v) return "The receptionist needs a booking link to send anyone who wants to book.";
+  const tab = window.__businessTab;
+  if (!v) return tab.bookingLinkOptional(sellsBy) ? null : tab.BOOKING_LINK_NEEDED;
   return BT_WEB.test(v) ? null : "That booking link needs to be a full web address, starting with https://";
 };
 const btCheckPublished = (d, line) => {
@@ -386,7 +390,12 @@ const btPatchProfile = (key) => (value) => (b, p) => {
   return b;
 };
 
-const btPatchBookingLink = (link) => (b) => { b.booking_link = link; return b; };
+// An emptied link is no link: the key goes, as the published number's does below. An empty one fails the read's
+// web-address check, and the whole config with it, which leaves the receptionist silent.
+const btPatchBookingLink = (link) => (b) => {
+  if (link) b.booking_link = link; else delete b.booking_link;
+  return b;
+};
 
 // Absent is the schema's "the line it answers", so publishing the line removes the key rather than storing "".
 const btPatchPublished = (value) => (b) => {

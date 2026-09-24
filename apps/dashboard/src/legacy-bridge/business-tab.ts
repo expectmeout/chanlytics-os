@@ -63,6 +63,9 @@ import {
   writtenOutDetail,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
   type PromptBlockVM,
   type ProfileCrossing,
   type BusinessProfile,
@@ -347,6 +350,9 @@ export const BUSINESS_TAB = {
   writtenOutDetail,
   sellsByVM,
   sellsBySaved,
+  bookingLinkOptional,
+  bookingLinkRowWords,
+  BOOKING_LINK_NEEDED,
 };
 export type BusinessTabHelpers = typeof BUSINESS_TAB;
 

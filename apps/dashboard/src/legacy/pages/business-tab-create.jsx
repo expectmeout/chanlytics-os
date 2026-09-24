@@ -35,6 +35,9 @@
 const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buys }) => {
   const d = draft || {};
   const number = window.btPublishedBox({ line, handoff, kept, testid: "rec-create-number" });
+  // The link box's hint follows the answer chosen below, as the Who you are row's does the workspace's.
+  const tab = window.__businessTab;
+  const linkWords = tab.bookingLinkRowWords(tab.bookingLinkOptional(d.sells_by || (buys ? buys.first : null)));
   return (
     <>
       <window.RecordField
@@ -68,7 +71,7 @@ const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buy
         value={d.link}
         onChange={(v) => update((was) => ({ ...was, link: v }), ["link"])}
         problem={problems.link || null}
-        hint="Sent instead of confirming an appointment itself."
+        hint={linkWords.hint}
         placeholder="https://your-booking-page.com"
         inputMode="url"
         autoComplete="url"

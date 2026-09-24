@@ -13,6 +13,7 @@ import {
   newReceptionistDefaults,
   PROFILE_CROSSING_WORDS,
   hasProfile,
+  BOOKING_LINK_NEEDED,
 } from "@chanlytics/contracts";
 import {
   again,
@@ -2617,4 +2618,45 @@ test("at rest an empty record adds only what is empty or missing, and the standi
     drawn.some((c) => c.id === "rec-standing-door"),
     "the standing line's one link",
   );
+});
+
+test("a business that quotes may empty its booking link, and the key goes rather than an empty one; a business that books is asked for it, in the first run's words", () => {
+  const sent = saving();
+  const flash = () => {};
+  let tree = drawTab({ flash, sellsBy: "proposal" });
+  openFold(tree, "booking_link");
+  tree = redrawTab(flash);
+  typeInto(tree, "booking_link", "   ");
+  tree = redrawTab(flash);
+  saveRow(tree, "booking_link");
+  assert.equal(sent.length, 1);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(sent[0].config.brain, "booking_link"),
+    false,
+    "an empty one would fail the read's web-address check, and the receptionist would go quiet",
+  );
+  tree = drawTab({ flash, sellsBy: "booking" });
+  openFold(tree, "booking_link");
+  tree = redrawTab(flash);
+  typeInto(tree, "booking_link", "");
+  tree = redrawTab(flash);
+  saveRow(tree, "booking_link");
+  tree = redrawTab(flash);
+  assert.ok(textOf(inline(tree, "booking_link")).includes(BOOKING_LINK_NEEDED), textOf(inline(tree, "booking_link")));
+  assert.equal(sent.length, 1, "and nothing more is sent");
+});
+
+test("with no booking link, the row says what a business that quotes does instead; one that books, or has not said, reads it is not set", () => {
+  const without = { booking_link: undefined };
+  assert.match(
+    textOf(byTestId(drawTab({ sellsBy: "proposal", brain: without }), "rec-row-booking_link")),
+    /None — it takes their details instead/,
+  );
+  for (const sellsBy of ["booking", null]) {
+    assert.match(
+      textOf(byTestId(drawTab({ sellsBy, brain: without }), "rec-row-booking_link")),
+      /Not set/,
+      String(sellsBy),
+    );
+  }
 });

@@ -430,7 +430,8 @@ const BT_WRITE = {
     // makes the number it gives out FOLLOW the line instead of freezing a copy of it.
     const typed = btfTrimmed(d.typed);
     btPut(b, "phone_display", !d.own && typed ? typed : undefined);
-    b.booking_link = btfTrimmed(d.link);
+    // None typed is no link, for a business that quotes: the key goes, since an empty one fails the read.
+    btPut(b, "booking_link", btfTrimmed(d.link) || undefined);
     const made = window.__receptionistDefaults(name);
     if (!b.system_prompt) b.system_prompt = made.system_prompt;
     if (!b.fallbacks) b.fallbacks = made.fallbacks;
@@ -589,7 +590,8 @@ const BT_PROBLEMS_OF = {
     const found = {};
     const name = C.name(d.name);
     if (name) found.name = name;
-    const link = C.booking_link(d.link);
+    // By the answer chosen in the fold, else the workspace's: a business that quotes is not asked for a link.
+    const link = C.booking_link(d.link, d.sells_by || (window.btSellsByNow ? window.btSellsByNow() : null));
     if (link) found.link = link;
     return found;
   },
