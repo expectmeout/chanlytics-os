@@ -7,6 +7,9 @@
 // is this card's is each row's value, source, check, patch and box, and the disagreements factConflicts finds drawn on
 // the row each is about.
 //
+// Three of its rows are components of their own, the address, the website and the booking link, because the first
+// run's Check draws them too (first-run.jsx): one row on both screens, so the two never disagree.
+//
 // Loaded after business-tab-gestures.jsx and before business-tab.jsx (both load lists), and read there as
 // window.BtWhoCard. Its top-level names are bt-prefixed and it holds no hook of its own (the rows hold theirs), and no
 // pattern in it holds an object rest, for the reasons business-tab-save.jsx gives.
@@ -112,6 +115,116 @@ const BT_TAKE_NOTHING = { draft: (v) => v, from: [] };
 const BT_TAKE_GOOGLES = { draft: (v) => v, from: ["verified"] };
 
 /**
+ * A fact as the settings read resolved it. A read that carried no facts (an older server) falls back to what is typed
+ * in the brain, with no source claimed for it: a fact with no source is not a fact, but a stored value is still what
+ * the receptionist says. Beside it, the disagreement factConflicts found on it, where there is one, and the source a
+ * filled row shows beside its value.
+ */
+const btFactOf = (key, typed) => {
+  const F = ((window.__FACTS || {}).facts) || {};
+  return F[key] || (typed ? { value: typed, source: null } : { value: null, source: null });
+};
+const btConflictOn = (key) => (((window.__FACTS || {}).conflicts) || []).find((k) => k.fact === key) || null;
+const btSourceOf = (f) => (f.value ? f.source : null);
+// A row's act, gated as the role gate says, named for the thing it changes.
+const btChangeGate = (thing) => window.gate("settings", `change the ${thing}`);
+// A row of words: its draft, trimmed, through the row's patch, and the words every such row says once it is saved.
+const btWordsSaved = (id) => (d) => ({
+  change: window.__businessTabSave.PATCH_OF[id](window.__businessTabSave.trimmed(d)),
+  said: window.BT_SAVED,
+});
+
+/** Where the business is, as the settings read resolved it: Google's, until one is typed. */
+const BtAddressRow = ({ brain, base = null, canEdit, flash, saver }) => {
+  const typed = (brain.profile || {}).address;
+  const address = btFactOf("address", typed);
+  return (
+    <window.BtRow
+      brain={brain}
+      base={base}
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      id="address"
+      label="Address"
+      value={address.value}
+      empty="Not set"
+      source={btSourceOf(address)}
+      disputed={btDispute(address, btConflictOn("address"), BT_TAKE_THEIRS)}
+      gate={btChangeGate("address")}
+      initial={typed || ""}
+      commit={btWordsSaved("address")}
+      body={btTextBox({ placeholder: "123 Example St, Brooklyn, NY 11208", autoComplete: "street-address", hint: "Given when someone asks how to find you." })}
+    />
+  );
+};
+
+/** The website, given when someone asks. */
+const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }) => {
+  const typed = (brain.profile || {}).website;
+  const website = btFactOf("website", typed);
+  return (
+    <window.BtRow
+      brain={brain}
+      base={base}
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      id="website"
+      label="Website"
+      value={website.value ? <span className="bt-one-line">{website.value}</span> : null}
+      empty="Not set"
+      // What empty means, and only what is exact: the prompt names a website only when one is typed here. Not that it
+      // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
+      // customers and the carriers to the page we publish, /b/<slug>: no receptionist is told that page, and the
+      // carriers are filed the business record's own website (Connections), or that page when the record has none.
+      hint={website.value ? null : "Optional. Left empty, the receptionist is given no website."}
+      source={btSourceOf(website)}
+      disputed={btDispute(website, btConflictOn("website"), BT_TAKE_THEIRS)}
+      gate={btChangeGate("website")}
+      initial={typed || ""}
+      check={window.__businessTabSave.CHECK_OF.website}
+      commit={btWordsSaved("website")}
+      body={btTextBox({ placeholder: "https://example.com", inputMode: "url", autoComplete: "url", hint: "Optional. Given when someone asks." })}
+    />
+  );
+};
+
+/**
+ * Where a customer books. Whether this workspace is asked for one at all is how its customers buy (0008, the first
+ * run's decision 2): the row's check, its empty state and its hint all follow the one answer.
+ */
+const BtBookingLinkRow = ({ brain, base = null, canEdit, flash, saver }) => {
+  const S = window.__businessTabSave;
+  const link = btFactOf("booking_link", brain.booking_link);
+  const sellsNow = S.answer();
+  const tab = window.__businessTab || {};
+  const linkWords = tab.bookingLinkRowWords ? tab.bookingLinkRowWords(sellsNow) : {};
+  return (
+    <window.BtRow
+      brain={brain}
+      base={base}
+      canEdit={canEdit}
+      flash={flash}
+      saver={saver}
+      id="booking_link"
+      label="Booking link"
+      value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
+      empty={linkWords.empty}
+      // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
+      hint={linkWords.hint}
+      source={btSourceOf(link)}
+      disputed={btDispute(link, btConflictOn("booking_link"), BT_TAKE_THEIRS)}
+      gate={btChangeGate("booking link")}
+      initial={brain.booking_link || ""}
+      check={(d) => S.CHECK_OF.booking_link(d, sellsNow)}
+      commit={btWordsSaved("booking_link")}
+      body={btTextBox({ placeholder: "https://your-booking-page.com", inputMode: "url", autoComplete: "url", hint: linkWords.hint })}
+    />
+  );
+};
+
+/**
  * Who you are (spec §4.2): the seven facts a customer asks for by name, each with where it came from, and the
  * disagreements factConflicts finds drawn on the row each is about, where the banner above the card used to hold them.
  *
@@ -120,44 +233,26 @@ const BT_TAKE_GOOGLES = { draft: (v) => v, from: ["verified"] };
  */
 const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   const F = ((window.__FACTS || {}).facts) || {};
-  const conflicts = ((window.__FACTS || {}).conflicts) || [];
-  const conflictOn = (key) => conflicts.find((k) => k.fact === key) || null;
   const profile = brain.profile || {};
   // The brain the rows' saves go on (the saver's base), which is what they will say is worked out on.
   const goesOn = (base && base.brain) || brain;
-  // A fact as the settings read resolved it. A read that carried no facts (an older server) falls back to what is
-  // typed in the brain, with no source claimed for it: a fact with no source is not a fact, but a stored value is
-  // still what the receptionist says.
-  const factOf = (key, typed) => F[key] || (typed ? { value: typed, source: null } : { value: null, source: null });
-  const chip = (f) => (f.value ? f.source : null);
   const shared = { brain, base, canEdit, flash, saver };
   // The page's row, read as the card draws (business-tab-gestures.jsx loads before this file).
   const Row = window.BtRow;
-  const gate = (thing) => window.gate("settings", `change the ${thing}`);
   // Each row's check and patch, and what its draft stores (business-tab-save.jsx).
   const S = window.__businessTabSave;
   const phoneShown = window.phoneShown;
 
-  const name = factOf("business_name", brain.business_name);
-  const address = factOf("address", profile.address);
-  const website = factOf("website", profile.website);
-  const link = factOf("booking_link", brain.booking_link);
-  // Whether this workspace is asked for a link at all, by how its customers buy (0008, the first run's decision 2): the
-  // row's check, its empty state and its hint all follow the one answer.
-  const sellsNow = S.answer();
-  const tab = window.__businessTab || {};
-  const linkWords = tab.bookingLinkRowWords ? tab.bookingLinkRowWords(sellsNow) : {};
+  const name = btFactOf("business_name", brain.business_name);
   const line = F.voice_line || null;
   const voiceLine = (line && line.value) || "";
   const lineShown = phoneShown(voiceLine);
   // The number the business keeps and forwards to the receptionist, which a transfer must never ring.
   const keptLine = (F.kept_line && F.kept_line.value) || null;
-  const pub = factOf("phone_display", brain.phone_display);
-  const transfer = factOf("handoff_number", profile.handoff_number);
+  const pub = btFactOf("phone_display", brain.phone_display);
+  const transfer = btFactOf("handoff_number", profile.handoff_number);
   const handoff = transfer.value || null;
 
-  // A row of words: its draft, trimmed, through the row's patch, and the words every such row says once it is saved.
-  const words = (id) => (d) => ({ change: S.PATCH_OF[id](S.trimmed(d)), said: window.BT_SAVED });
   // The two numbers store what their own rules make of a draft, the one it gives out beside the line it answers.
   const published = (d) => S.STORED_AS.phone_display(d, voiceLine);
   const transferOf = S.STORED_AS.handoff_number;
@@ -178,65 +273,20 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         label="Name"
         value={name.value}
         empty="Not set"
-        source={chip(name)}
-        disputed={btDispute(name, conflictOn("business_name"), BT_TAKE_GOOGLES)}
-        gate={gate("name")}
+        source={btSourceOf(name)}
+        disputed={btDispute(name, btConflictOn("business_name"), BT_TAKE_GOOGLES)}
+        gate={btChangeGate("name")}
         initial={brain.business_name || ""}
         check={S.CHECK_OF.name}
-        commit={words("name")}
+        commit={btWordsSaved("name")}
         body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
       />
 
-      <Row
-        {...shared}
-        id="address"
-        label="Address"
-        value={address.value}
-        empty="Not set"
-        source={chip(address)}
-        disputed={btDispute(address, conflictOn("address"), BT_TAKE_THEIRS)}
-        gate={gate("address")}
-        initial={profile.address || ""}
-        commit={words("address")}
-        body={btTextBox({ placeholder: "123 Example St, Brooklyn, NY 11208", autoComplete: "street-address", hint: "Given when someone asks how to find you." })}
-      />
+      <BtAddressRow {...shared} />
 
-      <Row
-        {...shared}
-        id="website"
-        label="Website"
-        value={website.value ? <span className="bt-one-line">{website.value}</span> : null}
-        empty="Not set"
-        // What empty means, and only what is exact: the prompt names a website only when one is typed here. Not that it
-        // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
-        // customers and the carriers to the page we publish, /b/<slug>: no receptionist is told that page, and the
-        // carriers are filed the business record's own website (Connections), or that page when the record has none.
-        hint={website.value ? null : "Optional. Left empty, the receptionist is given no website."}
-        source={chip(website)}
-        disputed={btDispute(website, conflictOn("website"), BT_TAKE_THEIRS)}
-        gate={gate("website")}
-        initial={profile.website || ""}
-        check={S.CHECK_OF.website}
-        commit={words("website")}
-        body={btTextBox({ placeholder: "https://example.com", inputMode: "url", autoComplete: "url", hint: "Optional. Given when someone asks." })}
-      />
+      <BtWebsiteRow {...shared} />
 
-      <Row
-        {...shared}
-        id="booking_link"
-        label="Booking link"
-        value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
-        empty={linkWords.empty}
-        // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
-        hint={linkWords.hint}
-        source={chip(link)}
-        disputed={btDispute(link, conflictOn("booking_link"), BT_TAKE_THEIRS)}
-        gate={gate("booking link")}
-        initial={brain.booking_link || ""}
-        check={(d) => S.CHECK_OF.booking_link(d, sellsNow)}
-        commit={words("booking_link")}
-        body={btTextBox({ placeholder: "https://your-booking-page.com", inputMode: "url", autoComplete: "url", hint: linkWords.hint })}
-      />
+      <BtBookingLinkRow {...shared} />
 
       {/* THREE numbers, named for what each one does. They were one row called "Phone line" showing a typed string,
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers
@@ -273,9 +323,9 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         named="number customers are told to call"
         value={pub.value}
         empty="No number to give out"
-        source={chip(pub)}
-        disputed={btDispute(pub, conflictOn("phone_display"), { label: "Publish the line instead", draft: () => ({ own: true, typed: "" }) })}
-        gate={gate("number customers are told to call")}
+        source={btSourceOf(pub)}
+        disputed={btDispute(pub, btConflictOn("phone_display"), { label: "Publish the line instead", draft: () => ({ own: true, typed: "" }) })}
+        gate={btChangeGate("number customers are told to call")}
         initial={{ own: !brain.phone_display, typed: brain.phone_display || "" }}
         storedAs={published}
         check={(d) => S.CHECK_OF.phone_display(d, voiceLine)}
@@ -301,9 +351,9 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         channel={voiceLine ? "voice" : null}
         value={transfer.value ? phoneShown(transfer.value) : null}
         empty="Takes a message instead"
-        source={chip(transfer)}
-        disputed={btDispute(transfer, conflictOn("handoff_number"), BT_TAKE_NOTHING)}
-        gate={gate("transfer number")}
+        source={btSourceOf(transfer)}
+        disputed={btDispute(transfer, btConflictOn("handoff_number"), BT_TAKE_NOTHING)}
+        gate={btChangeGate("transfer number")}
         initial={phoneShown(profile.handoff_number) || ""}
         storedAs={transferOf}
         check={(d) => S.CHECK_OF.handoff_number(d, voiceLine, keptLine)}
@@ -330,4 +380,5 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
   );
 };
 
-Object.assign(window, { BtWhoCard: BtWho, btPublishedBox });
+// The three rows the first run's Check draws too (first-run.jsx).
+Object.assign(window, { BtWhoCard: BtWho, btPublishedBox, BtAddressRow, BtWebsiteRow, BtBookingLinkRow });

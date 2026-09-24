@@ -5,12 +5,17 @@
  * Nothing here is stored. The step a workspace is on is worked out from Setup's view model on every draw, so the first
  * run resumes from what is true: a line bought in another tab moves the owner on, and a fact taken away in Settings
  * brings them back. Every sentence the first run says is here; the page composes (first-run.jsx).
+ *
+ * The business step is Find while there is a listing to link, and Check after (canvas R2, V2): what the receptionist
+ * answers from, in the Business tab's own rows, and how customers buy. The receptionist it checks is set up from what is
+ * known (first-receptionist.ts), on an owner's press.
  */
 import { formatPhoneDisplay } from "./phone";
 import { greetingFor } from "./greeting";
 import { initialsOf } from "./viewmodels";
 import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business-tab";
-import type { Hours } from "./config";
+import { DAY_NAMES, type Hours } from "./config";
+import { bookingLinkOptional } from "./deals";
 import type { SetupDto, SetupRowVM, SetupState, SetupVM } from "./setup";
 
 /** The first run's address: `#/start`, and `#/start/<step>` for a step already reached. */
@@ -136,9 +141,64 @@ export const FIRST_RUN_WORDS = {
     terms: "Terms of service",
     privacy: "Privacy policy",
   },
+  /** Check, the business step once Find is not shown (canvas R2, V2): what the receptionist answers from. */
+  check: {
+    /** A listing on record: what was found there. */
+    found: "Here's what we found",
+    foundLead: "Your receptionist answers from this. Fix anything that's off.",
+    /** None: the basics, asked (V2). */
+    basics: "Tell us the basics",
+    basicsLead: "Your receptionist answers from this. You can add more later in Settings › Business.",
+    /** No receptionist yet: the owner's one press, and where it starts from. */
+    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
+    makeNamed: (name: string | null) =>
+      `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
+    make: "Set up your receptionist",
+    making: "Setting up…",
+    notMade: "Not set up",
+    ownerSetsUp: "An owner sets up the receptionist here.",
+    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
+    reading: "Reading your receptionist…",
+    failedWhat: "your receptionist",
+    /** The onward, once what it answers from is checked. */
+    looksRight: "Looks right",
+    /** Not on Google, said, where Google can be searched: the way back to Find. */
+    findIt: "On Google after all? Find it",
+    /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
+    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+  },
 } as const;
 
+/**
+ * The days whose hours Google gives in a way the week cannot hold (hoursFromGoogle's `unsure`: past midnight, around
+ * the clock), said under the hours on Check; null for none.
+ */
+export function unsureHoursWords(days: readonly string[]): string | null {
+  if (!days.length) return null;
+  if (days.length >= 7) return "Google's hours for every day could not be copied: add yours.";
+  const names = days.map((d) => (DAY_NAMES as Record<string, string>)[d] ?? d);
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `Google's hours for ${list} could not be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
+}
+
 export type FirstRunStepState = "done" | "current" | "ahead";
+
+/**
+ * Check (canvas R2, V2, P2): the business step once Find is not shown and the settings can be read. The page draws the
+ * Business tab's own rows over the settings read's brain (first-run.jsx FrCheck); these are the words around them.
+ */
+export interface FirstRunCheckVM {
+  /** A receptionist is set up, so there are rows to draw. */
+  made: boolean;
+  /** None yet and an owner is looking: the one press that sets it up from what is known, the step's coral button. */
+  make: { sentence: string; cta: string; busy: string } | null;
+  /** None yet and someone else is looking: who sets it up. */
+  waiting: string | null;
+  /** The days Google's hours could not be copied for, said under the hours; null for none. */
+  unsure: string | null;
+  /** Not on Google, said, where Google can be searched and an owner is looking: the way back to Find. */
+  find: { label: string; to: string } | null;
+}
 
 export interface FirstRunStepVM {
   key: FirstRunStepKey;
@@ -179,9 +239,13 @@ export interface FirstRunVM {
   findDone: string | null;
   /**
    * Once the shown step asks nothing more: on to where the workspace is, or Finish to Today from Live. `leaves` is a
-   * way out of the first run; a step's own move is not one, and replaces the address so Back leaves.
+   * way out of the first run; a step's own move is not one, and replaces the address so Back leaves. Check's onward is
+   * shown before its step is done, `held` with the facts row's own sentence for what is still missing; every other
+   * onward is shown only once there is nothing to hold it.
    */
-  onward: { label: string; to: string; leaves: boolean } | null;
+  onward: { label: string; to: string; leaves: boolean; held: string | null } | null;
+  /** The business step is Check (FirstRunCheckVM); null for any other step, for Find, and for settings that cannot be read. */
+  check: FirstRunCheckVM | null;
 }
 
 /** Who is looking at the first run, for the business step's Find. */
@@ -239,28 +303,76 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
   // off, unless Find was asked for by name.
   const google = rowOf(vm, "google");
   const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
-  // One coral button a step: its first open row's while it asks something, else Continue or Finish. Find's own button
-  // is the step's while it shows: no onward beside it, and no rows.
-  const onward = find
-    ? null
-    : final
-      ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true }
-      : shown.state === "done"
-        ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false }
-        : null;
-  const primary = onward || find ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
-  const W = FIRST_RUN_WORDS.find;
+  // Check, once Find is not shown: every other business step, unless the settings cannot be read, where Setup's facts
+  // row is the owner's way to ask for the repair (only Chanlytics can make one).
+  const C = FIRST_RUN_WORDS.check;
+  const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
+  const made = vm.check.receptionist === "set";
+  const check: FirstRunCheckVM | null = onCheck
+    ? {
+        made,
+        make:
+          !made && who?.owner
+            ? {
+                sentence: vm.check.listed ? C.makeListed : C.makeNamed(businessNameOf(null, who.workspaceName)),
+                cta: C.make,
+                busy: C.making,
+              }
+            : null,
+        waiting: !made && !who?.owner ? C.ownerSetsUp : null,
+        unsure: made ? unsureHoursWords(vm.check.unsure) : null,
+        find: vm.findable && who?.owner ? { label: C.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+      }
+    : null;
+  // What the step on screen is, said once: its heading, its lead and its one coral button (onward). Find's button is
+  // its own, so no onward beside it. Check's is Looks right, held until the step is done, and none while there is no
+  // receptionist to check (its press is the button then). Live's is Finish; any other step's is Continue once it is
+  // done, and its first open row's while it asks something (primaryRow).
+  const F = FIRST_RUN_WORDS.find;
+  const facts = rowOf(vm, "facts");
+  const face: Pick<FirstRunVM, "heading" | "lead" | "onward"> = find
+    ? {
+        heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
+        lead: who?.receptionistName ? F.leadOnRecord : F.lead,
+        onward: null,
+      }
+    : check
+      ? {
+          heading: vm.check.listed ? C.found : C.basics,
+          lead: vm.check.listed ? C.foundLead : C.basicsLead,
+          onward: made
+            ? {
+                label: C.looksRight,
+                to: FIRST_RUN_ROUTE,
+                leaves: false,
+                held: shown.state === "done" ? null : (facts?.sentence ?? null),
+              }
+            : null,
+        }
+      : final
+        ? {
+            heading: FIRST_RUN_WORDS.liveHeading,
+            lead: vm.readiness.sentence,
+            onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null },
+          }
+        : {
+            heading: def.name,
+            lead: def.lead,
+            onward:
+              shown.state === "done"
+                ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null }
+                : null,
+          };
+  const onward = face.onward;
+  const primary =
+    onward || find || check ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: find
-      ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName))
-      : final
-        ? FIRST_RUN_WORDS.liveHeading
-        : def.name,
-    lead: find ? (who?.receptionistName ? W.leadOnRecord : W.lead) : final ? vm.readiness.sentence : def.lead,
+    heading: face.heading,
+    lead: face.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round((shown.number / FIRST_RUN_STEPS.length) * 100),
     primaryRow: primary ? primary.id : null,
@@ -268,6 +380,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
     onward,
     find,
     findDone: find && findAsked ? shown.to : null,
+    check,
   };
 }
 
@@ -353,6 +466,11 @@ export interface ReceptionistCardInputs {
   workspaceName: string | null;
   /** The workspace's clock, which the hours are in. */
   tz: string;
+  /**
+   * How the workspace's customers buy (tenants.sells_by), null where it was never said. Required: a business that
+   * quotes has no booking link by right (deals.ts bookingLinkOptional), and is reached for a quote instead.
+   */
+  sellsBy: string | null;
 }
 
 export interface ReceptionistCardVM {
@@ -378,6 +496,11 @@ const linkShown = (url: string): string => url.replace(/^https?:\/\/(www\.)?/i, 
 
 /** The owner's receptionist, so far: who it is, whether it answers, what it greets with and what it knows. */
 export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardVM {
+  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
+    throw new TypeError(
+      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it.",
+    );
+  }
   const b = i.brain;
   const p = b?.profile ?? null;
   // The name the phone greets with is the receptionist's own (voice call-start reads the brain), never the
@@ -395,6 +518,8 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
   const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
   const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
   const show = (n: string | null) => (n ? (formatPhoneDisplay(n) ?? n) : null);
+  // A business that quotes, with no link, is reached for a quote: its receptionist takes their details (decision 2).
+  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
   return {
     caption: "Your receptionist, so far",
     initials: name ? initialsOf(name) : "",
@@ -410,7 +535,9 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
         label: "Knows",
         value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null,
       },
-      { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      quotes
+        ? { key: "books", label: "For a quote", value: "Takes their details" }
+        : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
       { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
       // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
       {

@@ -245,6 +245,7 @@ import {
   toDealReportVM,
   type DealReportVM,
   type CalendarVM,
+  type ListRule,
 } from "@chanlytics/contracts";
 import {
   BROADCAST_CHUNK,
@@ -802,6 +803,8 @@ export interface PeopleSurface {
     byHand: boolean;
     /** A smart list's rule as the chips its page shows; null for a list kept by hand, or a rule that can't be read. */
     rule: string[] | null;
+    /** The rule itself, as read (asListRule): what a copy keeps and a profile's "why" reads. Null as `rule` is. */
+    spec: ListRule | null;
     /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
     unknown: string | null;
     /** Its line on the rail (contracts savedListTip): why it can't be counted, what a hand list is for, or its rule. */
@@ -832,6 +835,11 @@ export interface PeopleSurface {
   page: { q: string | null; offset: number; limit: number; total: number; has_more: boolean } | null;
   /** What this member's pages remember in this workspace (memberships.views). */
   views: Record<string, unknown>;
+  /**
+   * Whether they were read: false when the read failed, and `views` is then none of them. A save of one page replaces
+   * its whole view, so Today's pins are not changed over a read that failed (it would wipe the ones not shown).
+   */
+  viewsRead: boolean;
   fetchedAt: number;
 }
 
@@ -853,6 +861,7 @@ let peopleLoaded: {
   /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
   followUp: FollowUpFactsDto | null;
   views: Record<string, unknown>;
+  viewsRead: boolean;
 } | null = null;
 
 /**
@@ -949,6 +958,7 @@ function publishPeople(): void {
           action: savedListAction(l.id, members),
           byHand: l.rule == null,
           rule: rule ? listRuleParts(rule, listName) : null,
+          spec: rule,
           unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
         };
       })
@@ -961,6 +971,7 @@ function publishPeople(): void {
     attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,
+    viewsRead: peopleLoaded.viewsRead,
     fetchedAt: now.getTime(),
   };
 }
@@ -1110,7 +1121,7 @@ export const peopleOverride: SurfaceOverride = {
       // them took the whole surface down, and with it People, every profile and Lists.
       read("GET segments").catch((e: unknown) => e as Error),
       // A member's own views; a route that is not there yet reads as none.
-      read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
+      read("GET views").catch(() => ({ views: {} as Record<string, unknown>, failed: true as const })),
       workspaceZone(),
     ]);
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
@@ -1131,6 +1142,7 @@ export const peopleOverride: SurfaceOverride = {
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }
           : (viewsData.views ?? {}),
+      viewsRead: !("failed" in viewsData),
     };
     const w = window as unknown as {
       __peopleMore?: () => Promise<void>;
@@ -1581,7 +1593,7 @@ export const playbooksOverride: SurfaceOverride = {
         ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
         // An archived list is offered to no new playbook (00169); the ones on it say so on their card.
         ...listsKept
-          .filter((l) => !l.archived)
+          .filter((l) => !l.archived && !l.viewer)
           .map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
       ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",

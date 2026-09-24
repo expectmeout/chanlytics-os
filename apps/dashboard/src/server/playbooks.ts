@@ -18,6 +18,8 @@ import {
   playbookRunReach,
   triggerOffered,
   dealsAreOn,
+  ruleNeedsViewer,
+  viewerListWords,
   type DealPaceVM,
   type FollowUpFactsDto,
   type PersonRowDto,
@@ -263,7 +265,7 @@ export async function triggerPools(
    * The workspace's own lists, each counted under "list:<id>"; null when they could not be read. An archived one
    * (00169) is here for the playbooks that still name it, and offered to no new one.
    */
-  lists: { id: string; name: string; smart: boolean; archived: boolean }[] | null;
+  lists: { id: string; name: string; smart: boolean; archived: boolean; viewer?: boolean }[] | null;
   /** People's lists a playbook may run on here (none that is about whoever is looking), each counted under "seg:<id>". */
   people: { key: string; label: string; group: string }[];
 }> {
@@ -369,11 +371,18 @@ export async function triggerPools(
     const m = membersOf(d, vms, listCtx);
     pools[d.token] = m.state === "ok" ? count("saved_list", m.ids) : null;
   }
-  let lists: { id: string; name: string; smart: boolean; archived: boolean }[] | null = null;
+  let lists: { id: string; name: string; smart: boolean; archived: boolean; viewer?: boolean }[] | null = null;
   const people = builtins.map((d) => ({ key: d.ref.id, label: d.label, group: d.group }));
   try {
     const kept = await savedListsFor(ctx.supabase, tenantId);
-    lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null, archived: !!l.archived_at }));
+    lists = kept.map((l) => ({
+      id: l.id,
+      name: l.name,
+      smart: l.rule != null,
+      archived: !!l.archived_at,
+      // About whoever is looking: counted for no playbook, and offered to none.
+      viewer: ruleNeedsViewer(l.rule),
+    }));
     for (const l of kept) {
       const def = resolveList({ kind: "saved", id: l.id }, kept);
       const m = def ? membersOf(def, vms, listCtx, kept) : null;
@@ -517,6 +526,9 @@ export async function checkPlaybookInput(
         if (!list || list.tenant_id !== tenantId) return null;
         // An archived list is off People's rail (00169): a playbook is put on it again once it is restored.
         if (list.archived_at) throw new AppError("validation", archivedListWords(list.name, "run"));
+        // A rule about whoever is looking can't be counted with no one looking: refused in words, never a run that
+        // skips every day.
+        if (ruleNeedsViewer(list.rule)) throw new AppError("validation", viewerListWords(list.name));
         return list.name;
       },
       // How its customers buy (0008): a proposal follow-up is made only where deals are on (0006).

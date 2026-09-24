@@ -1,4 +1,4 @@
-/* global React, HeroBrief, TodaySetup, AgentCommand, TodayDay, TodayCard, TodayLeaks, TodayAway */
+/* global React, HeroBrief, TodaySetup, AgentCommand, TodayDay, TodayCard, TodayLeaks, TodayAway, TodayPins */
 // Today. Three bands, in this order, and the order is the argument: the work first, then the day's own card, then
 // what is left over. Analysis never outranks a person who has been waiting eleven days.
 //
@@ -7,6 +7,7 @@
 //   then the queue (8 of 12)     |
 //   (TodaySetup, only while something is left, in the queue's column: canvas R10)
 //   the day's card (12)
+//   the lists this member pinned (12, one row, only when something is)
 //   worth a look (7)             | while you were away (5)
 //
 // The seeded panels that stood here (a fake live call, invented appointments, an 8-agent fleet, a pinned dock, a
@@ -23,6 +24,7 @@ const DashboardA = () => (
       <TodayDay />
     </div>
     <TodayCard />
+    <TodayPins />
     <div className="dash-a-v2-foot">
       <TodayLeaks />
       <TodayAway />

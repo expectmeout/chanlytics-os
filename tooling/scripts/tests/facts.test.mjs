@@ -302,7 +302,7 @@ test("the field that caused this says what it is", () => {
   // business-tab-page.test.mjs runs the save when it fails.
   // Absent means the line, so clearing the box removes the key: the row's patch, run in business-tab-page.test.mjs.
   assert.ok(
-    pane.includes('btDispute(pub, conflictOn("phone_display")'),
+    pane.includes('btDispute(pub, btConflictOn("phone_display")'),
     "and a serious disagreement is said out loud, on the row it is about",
   );
 });
@@ -442,25 +442,9 @@ test("a config change records who and what, and neither is the values", async ()
   assert.equal(lastChangedName({ display_name: "  ", email: "bo.chen@example.com" }), "bo.chen");
   assert.equal(lastChangedName({ display_name: null, email: null }), "a member");
 
-  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
-  assert.ok(
-    route.includes('kind: "settings.changed"'),
-    "the change lands in the ledger every other consequential act does",
-  );
-  assert.ok(
-    route.includes(
-      "data: { fields, by: ctx.userId, version: result.row.version, ...(ctx.via ? { via: ctx.via } : {}) },",
-    ),
-    "fields and author, never the values; a card's mark when a card was tapped",
-  );
-  assert.ok(
-    !/data: \{[^}]*config/.test(route),
-    "REGRESSION: an audit row must not copy the business's own words into a second place",
-  );
-  assert.ok(
-    route.includes("putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId)"),
-    "and the row itself records its author",
-  );
+  // The change lands in the ledger every other consequential act does, and the config row records its author:
+  // settings-routes.test.mjs runs the PUT and reads both rows it wrote (its fields, its author and its version, and
+  // never the business's own words), and first-receptionist.test.mjs the first receptionist's.
 
   const mig = readRaw("supabase/migrations/00085_config_audit.sql");
   assert.ok(
