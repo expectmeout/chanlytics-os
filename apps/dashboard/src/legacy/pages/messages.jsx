@@ -556,7 +556,7 @@ const MessagesReal = () => {
                 <Icon name="search" size={13} />
                 <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the words" aria-label="Search the templates' words" data-testid="templates-search" />
               </label>
-              {hasWhatsApp && <button className="btn btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
+              {hasWhatsApp && <button className="btn btn-primary" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New<span className="cm-act-noun"> template</span></button>}
             </>
           )}
         />

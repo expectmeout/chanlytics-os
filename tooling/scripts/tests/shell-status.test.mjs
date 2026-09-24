@@ -1042,8 +1042,10 @@ test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no prima
       "https://book.example/luna",
       "a ready Calendar books through its own link",
     );
+    // Ready, New playbook is the page's own, at the right of its one line beside Broadcasts' and Templates' acts
+    // (outbound-real.jsx pb-new), and the top bar carries none: the page draws only once the playbooks are read.
     win.__PLAYBOOKS = { rows: [] };
-    assert.equal(textOf(right("#/outbound")).trim(), "New playbook", "ready Playbooks open the composer");
+    assert.equal(right("#/outbound"), null, "ready Playbooks keep their act on the page, not in the top bar");
   } finally {
     for (const k of ["__DEMO_MODE", "__CALENDAR", "__PLAYBOOKS"]) delete win[k];
     delete globalThis.OutboundPage;

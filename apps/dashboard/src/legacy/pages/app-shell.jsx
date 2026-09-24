@@ -626,15 +626,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "outbound";
     crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
-    // A real workspace's button opens the composer on the page, once the
-    // playbooks have loaded; until then there is nothing to press, where the
-    // demo's Ask detour opened Ask over the skeleton or the failure pane
-    // (N10). The seeded page keeps it.
-    primaryAction = window.__PLAYBOOKS ? (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
-        <Icon name="plus" size={12} /> New playbook
-      </button>
-    ) : window.__DEMO_MODE ? (
+    // A real workspace's New playbook is the page's own, at the right of its one
+    // line, where Broadcasts and Templates keep theirs (outbound-real.jsx): the
+    // page draws only once the playbooks have loaded, so there is never a button
+    // over the skeleton or the failure pane, where the demo's Ask detour opened
+    // Ask (N10). The seeded page keeps its detour here.
+    primaryAction = !window.__PLAYBOOKS && window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>

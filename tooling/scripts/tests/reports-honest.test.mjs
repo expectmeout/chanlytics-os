@@ -325,11 +325,12 @@ test("Playbooks shows every moment, not only the ones somebody made: an empty on
   // A moment with nobody in it today is still a moment worth setting up; it says
   // so in words rather than showing a 0 that reads as broken.
   assert.ok(/nobody today/i.test(textOf(slots[1])), textOf(slots[1]));
-  // Out of a fixed set, the number that matters is which moments are covered.
-  assert.ok(
-    textOf(byTestId(tree, "pb-standing")).includes("two set up, two not yet"),
-    textOf(byTestId(tree, "pb-standing")),
-  );
+  // Out of a fixed set, the number that matters is which moments are covered: the head's one line counts the
+  // playbooks by how they stand and the rest as not set up. It was "The four moments… — two set up, two not yet"
+  // over a tally of big figures that said it again (23 Sep, Campaigns made compact).
+  const standing = textOf(byTestId(tree, "pb-standing"));
+  assert.ok(/2running/.test(standing) && /2not set up/.test(standing), standing);
+  assert.ok(!/set up, .* not yet/.test(standing), `said once: ${standing}`);
 
   // On a first day every moment is offered, and that is the empty state: the
   // generic "No playbook yet" card does not also appear.
