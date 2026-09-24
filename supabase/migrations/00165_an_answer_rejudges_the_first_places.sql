@@ -16,7 +16,9 @@
 --   * only on a round running at that plan version; a judgment kept once by
 --     its op_id, its tokens added, as lead_collect_commit keeps them;
 --   * never over the owner's own decision (Keep or Put back: kept_at;
---     Exclude: excluded_by 'owner'; a lead already worked or a person), and
+--     Exclude: excluded_by 'owner'; a lead worked in any way the undo door
+--     reads as touched: its stage, a person, a contact, an outcome, a wrong
+--     number), and
 --     never twice (the member's judgment carries the version it was judged
 --     under, which a replay finds already there);
 --   * a place leaving Excluded is filled with what its listing shows and its
@@ -87,8 +89,13 @@ begin
     select * into m from public.lead_search_members
      where search_id = v_round.search_id and lead_id = l.id for update;
     if not found or m.round_id is distinct from v_round.id or m.blanked_at is not null then continue; end if;
-    -- The owner's own decision stands, and so does a lead they have already worked.
-    if m.kept_at is not null or m.excluded_by = 'owner' or l.stage <> 'ready' or l.contact_id is not null then continue; end if;
+    -- The owner's own decision stands, and so does a lead they have already worked: untouched as
+    -- lead_search_undo reads it (00142), and nothing less.
+    if m.kept_at is not null or coalesce(m.excluded_by, '') = 'owner'
+       or l.stage <> 'ready' or l.contact_id is not null or l.contacted_at is not null
+       or l.last_outcome is not null or l.phone_wrong then
+      continue;
+    end if;
     -- Judged under this plan already: a replay, or a second job's pass.
     if coalesce((m.judgment->>'plan_version')::integer, 1) >= p_plan_version then continue; end if;
 

@@ -1670,15 +1670,15 @@ test(
     const chain = place(951, "excluded");
     Object.assign(chain.place, { email: null, email_state: "none", about: null });
     ok(
-      await commit(run.id, "w9", run.gen, 0, 3, {
-        places: [chain, place(952, "qualified"), place(953, "review")],
+      await commit(run.id, "w9", run.gen, 0, 4, {
+        places: [chain, place(952, "qualified"), place(953, "review"), place(954, "qualified")],
         usage_usd: 0,
-        items_seen: 3,
+        items_seen: 4,
         round: { state: "probing" },
       }),
     );
     ok(
-      await commit(run.id, "w9", run.gen, 3, 3, {
+      await commit(run.id, "w9", run.gen, 4, 4, {
         places: [],
         round: {
           state: "waiting_on_owner",
@@ -1689,6 +1689,9 @@ test(
     const [l1, l2, l3] = await Promise.all(["0951", "0952", "0953"].map((n) => leadByPlace(`ChIJfixture${n}`)));
     // The owner keeps the one under review while the question waits: their decision, which no re-judge undoes.
     ok(await owner.client.rpc("lead_member_keep", { p_search_id: made.search_id, p_lead_id: l3.id }));
+    // And marks another's number wrong: a lead they have worked, which no re-judge takes back either.
+    const l4 = await leadByPlace("ChIJfixture0954");
+    ok(await db.from("leads").update({ phone_wrong: true }).eq("id", l4.id));
     const month = ok(await db.from("lead_rounds").select("month").eq("id", roundId).single()).month;
     const before = await counter("allowance", month);
     const r = ok(
@@ -1725,6 +1728,7 @@ test(
       { place: back.place, member: judged("qualified") },
       { place: place(952, "excluded").place, member: judged("excluded") },
       { place: place(953, "excluded").place, member: judged("excluded") },
+      { place: place(954, "excluded").place, member: judged("excluded") },
     ];
     const judgment = {
       op_id: "op-rejudge-1",
@@ -1772,10 +1776,12 @@ test(
       "and keeps nothing a left-out place never keeps (PRD 0.4)",
     );
     assert.deepEqual([m3.class, m3.kept_at !== null], ["qualified", true], "the owner's Keep stands");
+    const m4 = await member(made.search_id, l4.id);
+    assert.deepEqual([m4.class, m4.counted, m4.version], ["qualified", true, 1], "and so does a lead they worked");
     assert.deepEqual(m1.judgment.shares, [], "the shares the collect marked are kept under the new judgment");
 
     const round = ok(await db.from("lead_rounds").select("allowance_used, judge_tokens").eq("id", roundId).single());
-    assert.equal(round.allowance_used, 1, "one in, one out: the round's reservation is used as before");
+    assert.equal(round.allowance_used, 2, "one in, one out: the round's reservation is used as before");
     assert.equal(round.judge_tokens, tokens + 30, "the judge's answer is kept once, with its tokens");
     assert.deepEqual(await counter("allowance", month), before, "and the month's counter says the same");
     assert.deepEqual(

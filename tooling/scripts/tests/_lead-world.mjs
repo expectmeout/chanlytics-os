@@ -319,7 +319,16 @@ export function leadWorld({
         if (!lead || lead.blanked_at || lead.erased_at) continue;
         const m = T.lead_search_members.find((y) => y.search_id === round.search_id && y.lead_id === lead.id);
         if (!m || m.round_id !== round.id || m.blanked_at) continue;
-        if (m.kept_at || m.excluded_by === "owner" || lead.stage !== "ready" || lead.contact_id) continue;
+        if (
+          m.kept_at ||
+          m.excluded_by === "owner" ||
+          lead.stage !== "ready" ||
+          lead.contact_id ||
+          lead.contacted_at ||
+          lead.last_outcome ||
+          lead.phone_wrong
+        )
+          continue;
         if ((m.judgment?.plan_version ?? 1) >= p_plan_version) continue;
         const was = m.class;
         const cls = x.member.class ?? "review";

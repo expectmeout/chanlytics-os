@@ -6126,6 +6126,22 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
+function judgeQuestions(plan) {
+  const out = {};
+  out[LEAD_KIND_KEY] = `the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`;
+  for (const c of plan.criteria) {
+    const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
+    out[c.key] = `${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`;
+  }
+  for (const e of plan.exclusions)
+    out[e.key] = `the place is NOT ${e.text} [required; fail when the place is what is left out]`;
+  return out;
+}
+function judgeAsked(plan) {
+  const out = {};
+  for (const [key, q] of Object.entries(judgeQuestions(plan))) out[key] = sha256Hex(q).slice(0, 16);
+  return out;
+}
 var AnswerSchema2 = z92.object({
   places: z92.array(
     z92.object({
@@ -42772,9 +42788,9 @@ function runStateOf(status) {
       return "running";
   }
 }
-function termsShortOf(runs, askedOf) {
+function termsShortOf(runs, askedOf2) {
   return runs.map((r) => {
-    const asked = askedOf(r);
+    const asked = askedOf2(r);
     return asked !== null && r.items_seen < asked;
   });
 }
@@ -43142,6 +43158,12 @@ function nearbyFor(plan, members) {
   if (!geo.center) return [];
   return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15e3), take: 3, state: plan.area.state });
 }
+var ASKED = /* @__PURE__ */ new WeakMap();
+var askedOf = (plan) => {
+  let a = ASKED.get(plan);
+  if (!a) ASKED.set(plan, a = judgeAsked(plan));
+  return a;
+};
 function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf) {
   const loc = c.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
@@ -43204,7 +43226,14 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       mark_path: null
     },
     member: {
-      judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
+      judgment: {
+        op_id: opId,
+        term,
+        answer: a,
+        model,
+        reasons: verdict.reasons,
+        ...a ? { asked: askedOf(plan) } : {}
+      },
       class: verdict.class,
       excluded_by: verdict.excluded_by,
       fit: verdict.fit,
@@ -43517,10 +43546,17 @@ async function rejudgeProbe(p, round) {
     if (await runIdFor(round.id, "probe", r.term) !== r.id) continue;
     for (let from = 0; ; from += PAGE_ITEMS) {
       if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
-      const { items } = await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields]);
+      let items;
+      try {
+        items = (await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
+      } catch (e) {
+        if (isRefused(e)) break;
+        throw e;
+      }
       for (const it of items) {
         const mapped = card.mapItem(it);
-        if (mapped) listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
+        if (mapped && !listed.has(mapped.placeId))
+          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
       }
       if (items.length < PAGE_ITEMS) break;
     }
@@ -43528,23 +43564,25 @@ async function rejudgeProbe(p, round) {
   const found = pending.flatMap((m) => {
     const x = listed.get(m.place_id);
     if (!x) out.unread += 1;
-    return x ? [{ m, ...x }] : [];
+    return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
   });
   if (!found.length) return out;
   const supp = await p.db.suppressed(round.tenant_id, {
-    emails: found.flatMap((x) => x.clean.emails),
+    emails: found.flatMap((x) => shareKeysOf(x.clean).emails),
     placeIds: found.map((x) => x.clean.raw.placeId)
   });
-  const geo = centerOf(plan, members);
+  const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };
   const keys = keysOf(plan);
+  const nowAsked = askedOf(plan);
   const reuse = [];
   const judge = [];
   for (const x of found) {
     if (supp.placeIds.has(x.clean.raw.placeId)) continue;
     x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
-    const stored = x.m.judgment.answer;
-    const answers = new Set((stored?.criteria ?? []).map((c) => c.key));
-    (keys.every((k) => answers.has(k)) ? reuse : judge).push(x);
+    const j = x.m.judgment;
+    const answers = new Set((j.answer?.criteria ?? []).map((c) => c.key));
+    const same = keys.every((k) => answers.has(k) && j.asked?.[k] === nowAsked[k]);
+    (same ? reuse : judge).push(x);
   }
   const place = (x, answer, opId, model) => {
     const rule = geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location) ? { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null } : null;
@@ -43577,7 +43615,11 @@ async function rejudgeProbe(p, round) {
       p.judge,
       plan,
       batch.map((x, ref) => factsOf(ref, x.clean)),
-      opIdFor(`rejudge:${round.id}:${round.plan_version}`, i, 0)
+      opIdFor(
+        `rejudge:${round.id}:${round.plan_version}:${batch.map((x) => x.clean.raw.placeId).sort().join(",")}`,
+        0,
+        0
+      )
     );
     if (judged.refused) continue;
     const places = batch.map(

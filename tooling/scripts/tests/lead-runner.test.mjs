@@ -421,7 +421,7 @@ test("a change that asks something new judges the first places once under it, a 
   assert.equal(w.judge.calls.length, before, "and never again");
 });
 
-test("a place the source no longer lists is left as it was, and said", async () => {
+test("a dataset the source no longer has leaves its places as they were, said, and the round runs on", async () => {
   const { w, p } = await asked();
   const plan = w.round().plan;
   w.rpcs.lead_round_answer({
@@ -429,14 +429,56 @@ test("a place the source no longer lists is left as it was, and said", async () 
     p_answer: "include",
     p_plan: { ...plan, version: 2, exclusions: [] },
   });
-  // The datasets expired: nothing to read the places from.
-  for (const r of w.runs()) r.dataset_id = null;
-  const out = await rejudgeProbe(p("job-3"), w.round());
-  assert.deepEqual([out.changed, out.unread], [0, 24]);
-  assert.ok(
-    chainsOf(w).every((m) => m.class === "excluded"),
-    "nothing is decided from a place nobody read",
+  // The first term's dataset expired: the provider refuses the read, as it does for a 404.
+  w.apify.faults.listItems = new ApifyRefused(404, "the provider refused: record-not-found");
+  const out = await startRound(p("job-3"), w.round().id, "job-3", true);
+  assert.equal(out.kind, "started", "the main phase starts all the same");
+  // It stays gone: the next pass is refused the same read.
+  w.apify.faults.listItems = new ApifyRefused(404, "the provider refused: record-not-found");
+  const again = await rejudgeProbe(p("job-4"), w.round());
+  assert.equal(again.changed, 0, "what the second dataset listed was already re-judged");
+  assert.equal(again.unread, 13, "and the first term's thirteen, which nobody could read, are said, not decided");
+  const unreadChains = chainsOf(w).filter((m) => m.judgment.term === "personal trainer");
+  assert.deepEqual(
+    unreadChains.map((m) => m.class),
+    ["excluded"],
+    "the one chain the first term listed is left as it was",
   );
+});
+
+// "Change what I asked" can keep every key and change what the search is for: an answer to "is this one of the
+// personal trainers?" is not an answer to "is this one of the wedding planners?".
+test("a change that keeps the keys but not the questions judges again", async () => {
+  const { w, p } = await asked();
+  const paid = w.judge.calls.length;
+  const plan = w.round().plan;
+  w.rpcs.lead_round_answer({
+    p_round_id: w.round().id,
+    p_answer: "include",
+    p_plan: { ...plan, version: 2, name: "Strength coaches in Austin" },
+  });
+  const out = await rejudgeProbe(p("job-3"), w.round());
+  assert.deepEqual([out.reused, out.judged], [0, 24], "every key, but a different question under the kind");
+  assert.equal(w.judge.calls.length - paid, 1);
+});
+
+// A city ask has no centre while it probes, so no probe place was ever out of its area; the answer must not invent one.
+test("an Include measures the first places as the probe did: a city ask's far place is not sent to review", async () => {
+  const x = await probed();
+  const [r1, r2] = x.w.runs();
+  x.w.apify.state.datasets[r1.dataset_id][0].location = { lat: 30.62, lng: -97.74 }; // 40 km north
+  await collect(x.p("c1"), r1.id, "p0", "c1");
+  await collect(x.p("c2"), r2.id, "p0", "c2");
+  const far = x.w.members().find((m) => x.w.T.leads.find((l) => l.id === m.lead_id)?.lat === 30.62);
+  assert.equal(far.class, "qualified", "the probe judged it, and it passed");
+  const plan = x.w.round().plan;
+  x.w.rpcs.lead_round_answer({
+    p_round_id: x.w.round().id,
+    p_answer: "include",
+    p_plan: { ...plan, version: 2, exclusions: [] },
+  });
+  await rejudgeProbe(x.p("job-3"), x.w.round());
+  assert.deepEqual([far.class, far.counted], ["qualified", true], "still a counted lead");
 });
 
 test("a probe that fits well goes on: the round runs and the main phase is scheduled as a resume of the same round, sized from the yield", async () => {

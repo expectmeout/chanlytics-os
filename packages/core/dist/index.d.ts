@@ -1341,6 +1341,8 @@ interface MemberJudgment {
     reasons: string[];
     /** The version of the plan the class was decided under; absent is 1. An answer that changed the plan re-judges below it. */
     plan_version?: number;
+    /** What each key asked when the judge answered (contracts judgeAsked): an answer is reused only for the same question. */
+    asked?: Record<string, string>;
 }
 interface CollectPlace {
     place: LeadColumns;

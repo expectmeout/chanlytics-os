@@ -174,13 +174,26 @@ export function leadDb(db: Db): LeadDb {
       const leads = must<
         Pick<
           Database["public"]["Tables"]["leads"]["Row"],
-          "id" | "lat" | "lng" | "phone_e164" | "email" | "email_state" | "place_id" | "stage" | "contact_id"
+          | "id"
+          | "lat"
+          | "lng"
+          | "phone_e164"
+          | "email"
+          | "email_state"
+          | "place_id"
+          | "stage"
+          | "contact_id"
+          | "contacted_at"
+          | "last_outcome"
+          | "phone_wrong"
         >[]
       >(
         "leads read",
         await db
           .from("leads")
-          .select("id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id")
+          .select(
+            "id, lat, lng, phone_e164, email, email_state, place_id, stage, contact_id, contacted_at, last_outcome, phone_wrong",
+          )
           .in(
             "id",
             members.map((m) => m.lead_id),
@@ -206,11 +219,17 @@ export function leadDb(db: Db): LeadDb {
           email_state: (l?.email_state ?? "none") as LeadMemberRow["email_state"],
           term: typeof j?.term === "string" ? j.term : null,
           place_id: l?.place_id ?? null,
-          // The owner's own decision (00140's member doors) or a lead they have worked: lead_round_rejudge skips it too.
+          // The owner's own decision (00140's member doors) or a lead worked in any way lead_search_undo reads as
+          // touched (00142): lead_round_rejudge skips the same.
           decided:
             m.kept_at !== null ||
             m.excluded_by === "owner" ||
-            (!!l && ((l.stage ?? "ready") !== "ready" || l.contact_id !== null)),
+            (!!l &&
+              (l.stage !== "ready" ||
+                l.contact_id !== null ||
+                l.contacted_at !== null ||
+                l.last_outcome !== null ||
+                l.phone_wrong)),
         };
       });
     },

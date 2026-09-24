@@ -29,6 +29,7 @@ import {
   LEAD_ESTIMATE_MARGIN,
   LEAD_JUDGE_BATCH,
   classify,
+  judgeAsked,
   type JudgePlaceAnswer,
   type LeadEmailState,
   type LeadRoundState,
@@ -323,6 +324,14 @@ export function nearbyFor(plan: LeadSearchPlan, members: LeadMemberRow[]): LeadA
   return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15_000), take: 3, state: plan.area.state });
 }
 
+/** What each key asked under a plan, worked out once per plan (judgeAsked hashes every question). */
+const ASKED = new WeakMap<LeadSearchPlan, Record<string, string>>();
+const askedOf = (plan: LeadSearchPlan): Record<string, string> => {
+  let a = ASKED.get(plan);
+  if (!a) ASKED.set(plan, (a = judgeAsked(plan)));
+  return a;
+};
+
 /** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
 export function memberOf(
   plan: LeadSearchPlan,
@@ -408,7 +417,14 @@ export function memberOf(
       mark_path: null,
     },
     member: {
-      judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
+      judgment: {
+        op_id: opId,
+        term,
+        answer: a,
+        model,
+        reasons: verdict.reasons,
+        ...(a ? { asked: askedOf(plan) } : {}),
+      },
       class: verdict.class,
       excluded_by: verdict.excluded_by,
       fit: verdict.fit,
@@ -824,10 +840,18 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
     if ((await runIdFor(round.id, "probe", r.term)) !== r.id) continue;
     for (let from = 0; ; from += PAGE_ITEMS) {
       if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
-      const { items } = await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields]);
+      let items: unknown[];
+      try {
+        items = (await p.apify.listItems(r.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
+      } catch (e) {
+        // A dataset the source no longer has (expired, deleted): its places stay as they were, and the round runs on.
+        if (isRefused(e)) break;
+        throw e;
+      }
       for (const it of items) {
         const mapped = card.mapItem(it);
-        if (mapped) listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
+        if (mapped && !listed.has(mapped.placeId))
+          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r.term });
       }
       if (items.length < PAGE_ITEMS) break;
     }
@@ -835,25 +859,31 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
   const found = pending.flatMap((m) => {
     const x = listed.get(m.place_id as string);
     if (!x) out.unread += 1;
-    return x ? [{ m, ...x }] : [];
+    // The term that found it is the one it was judged under.
+    return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
   });
   if (!found.length) return out;
   // What the collect filtered before it judged, filtered again, so a stored answer's email index still points at
   // the same address.
   const supp = await p.db.suppressed(round.tenant_id, {
-    emails: found.flatMap((x) => x.clean.emails),
+    emails: found.flatMap((x) => shareKeysOf(x.clean).emails),
     placeIds: found.map((x) => x.clean.raw.placeId),
   });
-  const geo = centerOf(plan, members);
+  // The probe's own geometry, as its collect measured: a city ask has no centre yet, so no place is out of its area.
+  const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };
   const keys = keysOf(plan);
+  const nowAsked = askedOf(plan);
   const reuse: typeof found = [];
   const judge: typeof found = [];
   for (const x of found) {
     if (supp.placeIds.has(x.clean.raw.placeId)) continue;
     x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
-    const stored = (x.m.judgment as Partial<MemberJudgment>).answer;
-    const answers = new Set((stored?.criteria ?? []).map((c) => c.key));
-    (keys.every((k) => answers.has(k)) ? reuse : judge).push(x);
+    const j = x.m.judgment as Partial<MemberJudgment>;
+    const answers = new Set((j.answer?.criteria ?? []).map((c) => c.key));
+    // Reused only where every key was answered AND asked in the very same words; an answer kept before the
+    // questions were kept with it (no `asked`) is judged again.
+    const same = keys.every((k) => answers.has(k) && j.asked?.[k] === nowAsked[k]);
+    (same ? reuse : judge).push(x);
   }
 
   const place = (
@@ -897,7 +927,14 @@ export async function rejudgeProbe(p: LeadPorts, round: LeadRoundRow): Promise<R
       p.judge,
       plan,
       batch.map((x, ref) => factsOf(ref, x.clean)),
-      opIdFor(`rejudge:${round.id}:${round.plan_version}`, i, 0),
+      opIdFor(
+        `rejudge:${round.id}:${round.plan_version}:${batch
+          .map((x) => x.clean.raw.placeId)
+          .sort()
+          .join(",")}`,
+        0,
+        0,
+      ),
     );
     if (judged.refused) continue;
     const places = batch.map((x, ref) =>
