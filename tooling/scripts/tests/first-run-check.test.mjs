@@ -352,6 +352,52 @@ test("a business Google lists no kind for is offered no services, and still the 
   assert.ok(byTestId(tree, "fr-chips-languages"));
 });
 
+/* ------------------------------------ the booking page the website names ------------------------------------ */
+
+const FOUND = "https://calendly.com/harbor-moving-example/estimate";
+
+test("a business that books is offered the booking page its website names, and Use it saves it as the row would", () => {
+  const sent = saving();
+  let tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
+  const offer = byTestId(tree, "fr-found-link");
+  assert.equal(textOf(offer).replace(FOUND, " "), "Found on your website Use it");
+  assert.equal(textOf(byTestId(tree, "fr-found-link-value")), FOUND);
+  press(byTestId(tree, "fr-found-link-use"));
+  assert.equal(sent.at(-1).config.brain.booking_link, FOUND, "the booking link, through the tab's one saver");
+  tree = redraw();
+  assert.equal(byTestId(tree, "fr-found-link"), null, "gone at once: the link is on the config the next save goes on");
+});
+
+test("nothing is offered over a link the record holds, or to a business that quotes and is asked for none", () => {
+  assert.equal(
+    byTestId(
+      draw({ setup: dto({}, { bookingPage: FOUND }), link: "https://book.example.com/harbor" }),
+      "fr-found-link",
+    ),
+    null,
+  );
+  assert.equal(byTestId(draw({ setup: dto({}, { bookingPage: FOUND }), sellsBy: "proposal" }), "fr-found-link"), null);
+  assert.equal(byTestId(draw(), "fr-found-link"), null, "nothing found, nothing offered");
+});
+
+test("a role that may not change the business sees Use it gated, and a press sends nothing", () => {
+  const sent = saving();
+  const was = { canDo: W.canDo, gate: W.gate };
+  const told = [];
+  W.canDo = (a) => a !== "settings";
+  W.gate = (perm, doing) => (perm === "settings" ? { "aria-disabled": true, onClick: () => told.push(doing) } : {});
+  try {
+    const tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
+    const use = byTestId(tree, "fr-found-link-use");
+    assert.equal(use.props["aria-disabled"], true);
+    press(use);
+    assert.equal(sent.length, 0);
+    assert.deepEqual(told, ["change the booking link"], "the gate's own press, which says why");
+  } finally {
+    Object.assign(W, was);
+  }
+});
+
 test("the services row opens the Business tab's own sheet over the first run", () => {
   let tree = draw();
   assert.equal(byTestId(tree, "rec-sheet-services"), null);

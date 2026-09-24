@@ -179,6 +179,9 @@ const frSendAnswer = (answer, flash, done = null) => {
   return true;
 };
 
+// What a first-run save says: only a refusal, in the saver's words. A save that took is seen where it landed.
+const frRefusals = (flash) => (f) => { if (f && f.tone === "danger") flash(f); };
+
 // The two lists a chip changes, as the Business tab's folds hold them (draftOf): what a row of each is, and the name it
 // goes by.
 const FR_LISTS = {
@@ -199,7 +202,7 @@ const frChipPress = ({ list, chip, flash, words }) => {
   const S = window.__businessTabSave;
   const L = FR_LISTS[list];
   const same = (r) => window.__businessTab.sameListed(L.nameOf(r), chip.name);
-  const refusals = (f) => { if (f && f.tone === "danger") flash(f); };
+  const refusals = frRefusals(flash);
   // `edit` is run once, now, on the list as the next save finds it, and hands back the list the press leaves.
   const send = (edit, done = null) => {
     const opened = S.draftOf(list, S.saver.base());
@@ -228,6 +231,43 @@ const frChipPress = ({ list, chip, flash, words }) => {
     },
   );
 };
+
+/**
+ * "Use it": the booking page the business's website names, saved as the booking link row saves its own (PATCH_OF,
+ * through the tab's one saver), never over a link the config holds when the save goes. A role that may not change the
+ * business sends nothing, whatever pressed it.
+ */
+const frUseLink = (link, flash) => {
+  if (window.canDo && !window.canDo("settings")) return;
+  const S = window.__businessTabSave;
+  S.saver.save({
+    row: "booking_link",
+    change: (b, p) => (b.booking_link ? b : S.PATCH_OF.booking_link(link)(b, p)),
+    said: null,
+    done: null,
+    flash: frRefusals(flash),
+  });
+};
+
+/**
+ * The booking page the business's website names (3c-4), under the booking link row while the config the next save goes
+ * on holds none: where it was found, the page, and "Use it", gated as a change to the settings. Hookless.
+ */
+const FrFoundLink = ({ link, words, flash }) => (
+  <div className="fr-found" data-testid="fr-found-link">
+    <span className="fr-found-k">{words.found}</span>
+    <span className="fr-found-v" data-testid="fr-found-link-value">{link}</span>
+    <button
+      type="button"
+      className="btn btn-sm"
+      onClick={() => frUseLink(link, flash)}
+      {...window.gate("settings", "change the booking link")}
+      data-testid="fr-found-link-use"
+    >
+      {words.use}
+    </button>
+  </div>
+);
 
 /**
  * One list of chips, under its own words: a toggle each (aria-pressed), gated as a change to the settings (`doing` says
@@ -309,6 +349,9 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
   const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
   // What it offers and the languages it speaks, as chips over the config the next save goes on: a tap is on at once.
   const brainNow = (base && base.brain) || brain;
+  // The booking page the website names, offered while no link is on the config the next save goes on: a press on it,
+  // or a link typed into the row, takes it away at once.
+  const offered = check.bookingPage && !brainNow.booking_link ? check.bookingPage : null;
   const chips = window.__firstRun.chips({
     type: check.type,
     services: (brainNow.profile || {}).services,
@@ -342,6 +385,7 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
           </div>
         ) : null}
         {linkRow ? <window.BtBookingLinkRow {...rows} /> : null}
+        {linkRow && offered ? <FrFoundLink link={offered} words={W.bookingPage} flash={flash} /> : null}
         <window.BtRulesRow {...rows} config={settings.config} />
       </section>
       <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
