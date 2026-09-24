@@ -17,6 +17,8 @@ const useArRef = React.useRef;
 
 /** Folded turns shown above the line before "+N earlier in this conversation". */
 const AR_FOLDED = 3;
+// A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
+const AR_LIFT_MS = 400;
 
 const arRoute = () => {
   const h = (window.location.hash || "").replace(/^#\/?/, "");
@@ -102,6 +104,8 @@ const AskReal = ({ open, onClose }) => {
   const turnSeq = useArRef(0);
   // What the shell asked for as it opened the Line, kept until the Line is open (the wiring audit's N3).
   const asked = useArRef(null);
+  // A hold on the mic in progress, or just lifted: the click its lift makes is not a press (see pressMic).
+  const held = useArRef(false);
   const t = window.askText(lang);
   const route = arRoute();
   const surface = A ? A.surfaceFor(route.page) : "other";
@@ -112,20 +116,21 @@ const AskReal = ({ open, onClose }) => {
     onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
       if (heard) { if (!typing.current) submit(heard); return; }
-      if (error === "blocked") flash({ msg: <>{t.micBlocked}</> });
-      else if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
-      else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
+      // Each said once: a second press refreshes the toast that says it (`once`), never a second beneath it.
+      if (error === "blocked") flash({ once: "ask-mic", msg: <>{t.micBlocked}</> });
+      else if (error === "not-allowed") flash({ once: "ask-mic", msg: <>{t.micDenied}</> });
+      else if (error && error !== "aborted" && error !== "no-speech") flash({ once: "ask-mic", msg: <>{t.micFailed}</> });
     },
   });
   // A Space held on an empty line talks (6.6); where the browser cannot listen, it says so.
   const hold = H.useHoldSpace({
     empty: () => !query && !live,
-    talk: { start: () => (talk.canTalk ? talk.start() : flash({ msg: <>{t.noVoice}</> })), stop: talk.stop },
+    talk: { start: () => (talk.canTalk ? talk.start() : flash({ once: "ask-mic", msg: <>{t.noVoice}</> })), stop: talk.stop },
   });
   // A phone's three listen to a press held a beat, with a buzz where the browser has one (S11, S16); where the browser
-  // cannot listen, they say so as the mic does.
+  // cannot listen, they say so (the field's button is Send alone there).
   const buzz = (ms) => { try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch { /* none here */ } };
-  const holdThree = H.useHoldPress({ talk: { start: () => (talk.canTalk ? talk.start() : flash({ msg: <>{t.noVoice}</> })), stop: talk.stop }, onHold: () => buzz(8) });
+  const holdThree = H.useHoldPress({ talk: { start: () => (talk.canTalk ? talk.start() : flash({ once: "ask-mic", msg: <>{t.noVoice}</> })), stop: talk.stop }, onHold: () => buzz(8) });
 
   // Ask's mood, said once for every face: listening while held, reading until the first words, answering while they
   // stream or are read aloud, at rest otherwise. Said while the Line is closed too, so a turn left running still shows.
@@ -521,54 +526,67 @@ const AskReal = ({ open, onClose }) => {
     }
   };
 
-  // Held to talk. The mic keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
-  // turned into "Let go to ask" over it; a phone buzzes as it starts (S16).
+  // Held to talk. The button keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
+  // turned into "Let go to ask" over it; a phone buzzes as it starts (S16). The recogniser may end on its own before
+  // the finger lifts (a pause ends it on Android Chrome and iOS Safari) and the words heard are asked then, so by the
+  // lift the same held element is Stop, or Send with words heard and an error: the click a lift makes must not press
+  // it. `held` marks the hold; the click that follows its lift is swallowed once, and a lift that makes no click on
+  // the button (the finger let go elsewhere, no capture) is forgotten a beat later.
   const pressMic = (e) => {
     const el = e && e.currentTarget;
     if (el && el.setPointerCapture && e.pointerId != null) { try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ } }
+    held.current = true;
     if (phone) buzz(8);
     talk.start(e);
   };
-  const talkButton = talk.canTalk ? (
-    <button
-      type="button"
-      className={`ask-line-btn ask-talk${talk.listening ? " on" : ""}`}
-      data-testid="ask-talk"
-      aria-pressed={talk.listening}
-      aria-label={t.talk}
-      title={t.talk}
-      onPointerDown={pressMic}
-      onPointerUp={talk.stop}
-      onPointerLeave={talk.stop}
-      onPointerCancel={talk.stop}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <Icon name="wave" size={14} />
-    </button>
-  ) : (
-    <button type="button" className="ask-line-btn ask-talk off" data-testid="ask-talk-off" aria-label={t.noVoice} title={t.noVoice} onClick={() => flash({ msg: <>{t.noVoice}</> })}>
-      <Icon name="wave" size={14} />
-    </button>
-  );
+  const liftMic = () => {
+    talk.stop();
+    window.setTimeout(() => { held.current = false; }, AR_LIFT_MS);
+  };
+  const pressed = (act) => () => {
+    if (held.current) { held.current = false; return; }
+    if (act) act();
+  };
   const reading = speech.speakingId === "line";
-  // Send: an ink circle that fills once there are words; while a turn runs the same circle is Stop (spec 4.2, S12).
-  const sendButton = (
-    <button type="button" className="ask-send" onClick={() => submit()} disabled={!query.trim()} aria-label={t.askSend} title={t.askSend} data-testid="ask-send">
-      <Icon name="arrow-up" size={15} />
+  // One button at the field's end (S12): the mic with no words (hold to talk), Send once there are words, Stop while
+  // a turn runs. One element in one place, keyed, so the finger a hold captured is still held as the words heard fill
+  // the field; where the browser cannot listen there is no mic, only Send, faint until there are words.
+  const hasWords = !!query.trim();
+  const role = live ? "stop" : talk.listening || (!hasWords && talk.canTalk) ? "talk" : "send";
+  const one = role === "stop"
+    ? { onClick: pressed(stop), "aria-label": t.stopAnswer, title: t.stopAnswer, "data-testid": "ask-stop", icon: "stop" }
+    : role === "talk"
+      ? {
+          className: `ask-send talk${talk.listening ? " on" : ""}`,
+          "aria-pressed": talk.listening,
+          "aria-label": t.talk,
+          title: t.talk,
+          "data-testid": "ask-talk",
+          icon: "mic",
+          onPointerDown: pressMic,
+          onPointerUp: liftMic,
+          onPointerLeave: liftMic,
+          onPointerCancel: liftMic,
+          onClick: pressed(null),
+          onContextMenu: (e) => e.preventDefault(),
+        }
+      : { onClick: pressed(() => submit()), disabled: !hasWords, "aria-label": t.askSend, title: t.askSend, "data-testid": "ask-send", icon: "arrow-up" };
+  const { icon, className: oneClass = "ask-send", ...oneProps } = one;
+  const oneButton = (
+    <button key="one" type="button" className={oneClass} {...oneProps}>
+      <Icon key={icon} name={icon} size={icon === "stop" ? 14 : 15} />
     </button>
   );
-  // A phone's foot keeps the mic and Send beside an answer too; its Clear is the head's (spec 5.1, 5.5).
-  const right = live ? (
-    <button type="button" className="ask-send" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
-      <Icon name="stop" size={14} />
-    </button>
-  ) : drawn && !phone ? (
+  // With an answer drawn on a desktop, Copy, Read aloud and Clear stand before it (keyed, so it stays the same
+  // element); a phone's foot keeps only the one button beside an answer, its Clear is the head's (spec 5.1, 5.5).
+  const right = drawn && !phone ? (
     <>
-      <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
+      <button key="copy" type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
         <Icon name="content" size={14} />
       </button>
       {speech.canSpeak ? (
         <button
+          key="read"
           type="button"
           className={`ask-line-btn quiet${reading ? " on" : ""}`}
           onClick={() => { if (!speech.toggle("line", words, lang)) flash({ msg: <>{t.noSpeech}</> }); }}
@@ -580,16 +598,13 @@ const AskReal = ({ open, onClose }) => {
           <Icon name={reading ? "pause" : "headphones"} size={14} />
         </button>
       ) : null}
-      <button type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
+      <button key="clear" type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
         <Icon name="x" size={14} />
       </button>
-      {sendButton}
+      {oneButton}
     </>
   ) : (
-    <>
-      {talkButton}
-      {sendButton}
-    </>
+    <>{oneButton}</>
   );
 
   let body = null;
@@ -687,7 +702,7 @@ const AskReal = ({ open, onClose }) => {
   const foot = phone && talk.listening ? (
     <div className="ask-letgo-wrap">
       <button type="button" className="btn btn-ghost" onClick={() => { typing.current = true; talk.stop(); }} data-testid="ask-type-instead">{t.typeInstead}</button>
-      <button type="button" className="ask-letgo" aria-pressed="true" onPointerUp={talk.stop} data-testid="ask-letgo"><Icon name="wave" size={18} />{t.letGo}</button>
+      <button type="button" className="ask-letgo" aria-pressed="true" onPointerUp={liftMic} data-testid="ask-letgo"><Icon name="mic" size={18} />{t.letGo}</button>
     </div>
   ) : null;
 

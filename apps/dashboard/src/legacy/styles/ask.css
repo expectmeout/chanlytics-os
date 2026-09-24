@@ -38,10 +38,15 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-line-btn:hover, .ask-line-btn:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; }
 .ask-line-btn.quiet { width: 32px; height: 32px; border-color: transparent; color: var(--ink-dim); }
 .ask-line-btn.on { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-/* Send: faint with no words, ink with words; Stop takes its place while a turn runs (S12). */
-.ask-send { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+/* One button at the field's end (S12): the mic with no words, Send with words, Stop while a turn runs. An ink circle,
+   faint only where there is neither a voice nor words, coral while it listens; its glyph blooms in as the role turns and
+   the ground crosses over. A hold on the mic never scrolls or selects through it. */
+.ask-send { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
 .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
+.ask-send.talk.on, .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); }
+.ask-send .icon { animation: ask-bloom 160ms var(--ease-out) both; }
+@keyframes ask-bloom { from { transform: scale(.55); opacity: 0; } }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */
 .ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: 12.5px; color: var(--accent-ink); animation: wash-in 160ms var(--ease-out) both; }
 .ask-stage.live .ask-reading { padding-top: 6px; }
@@ -57,12 +62,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* What a screen reader hears once an answer is whole: its headline (spec 6.10). Not drawn. */
 .ask-said { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Hold to talk: the Stage's. */
-.ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
-.ask-talk:hover { color: var(--ink); background: var(--bg-hover); }
-.ask-talk.on { background: var(--accent-soft); color: var(--accent); }
-.ask-talk.off { opacity: .5; }
-.ask-talk:disabled { opacity: .4; cursor: default; }
 /* A chip of words to pick (the peek's tones, leads-peek.jsx). */
 .ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
 .ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }
@@ -267,13 +266,13 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-chips { justify-content: center; }
   /* The delete question sits under the middle, over the foot. */
   .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
-  /* The foot: the band as the field, last in the column, the mic and Send inside it (spec 5.1). */
+  /* The foot: the band as the field, last in the column, the one button inside it (spec 5.1). */
   .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
-  /* While it listens the band stays drawn under the pill, hidden: the mic in it holds the finger until the lift. */
+  /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
   .ask-line-input { font-size: 16px; height: 44px; }
-  .ask-talk { width: 40px; height: 40px; }
+  .ask-send { width: 36px; height: 36px; }
   /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
   .ask-letgo-wrap { order: 9; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 12px; }
   .ask-letgo { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: 16px; font-weight: 600; touch-action: none; user-select: none; }
@@ -287,6 +286,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 
 /* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
 @media (prefers-reduced-motion: reduce) {
-  .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
+  .ask-cursor, .ask-reading, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line, .ask-send .icon { animation: none; }
   .ask-fold-chev, .ask-stage, .ask-send, .ask-hero-stage { transition: none; }
 }

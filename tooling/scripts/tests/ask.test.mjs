@@ -805,14 +805,10 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   );
 });
 
-test("the Line's mic says when it cannot listen, and the eval checks that an Open asked for is followed", () => {
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(
-    ui.includes('data-testid="ask-talk-off"'),
-    "where the browser cannot listen, the mic says so instead of vanishing",
-  );
+test("the eval checks that an Open asked for is followed", () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
-  // ask-palette.test.mjs ("open, show or see", "a turn since the Line").
+  // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
+  // one button is Send alone, executed there too ("one button at the field's end").
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
 });
