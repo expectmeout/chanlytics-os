@@ -679,3 +679,24 @@ test("REGRESSION (S23): the attention row's buttons say they are busy and take n
   assert.equal(byTestId(tree, "row-cta").props.disabled, false, "and it presses as ever when nothing is on its way");
   assert.equal(byTestId(tree, "row-cta").props["aria-busy"], undefined);
 });
+
+test("inside the app the billing page keeps its status and says where billing lives; the three Stripe doors are not drawn (App Store 3.1.3(f))", () => {
+  asRole("owner");
+  stripe();
+  billing({ status: "none" });
+  globalThis.window.__IN_APP = { version: "1.0.0", platform: "ios" };
+  try {
+    const tree = render(Billing, { flash() {} });
+    assert.equal(byTestId(tree, "billing-checkout"), null, "no Start the trial");
+    assert.equal(byTestId(tree, "billing-portal"), null, "no Manage billing");
+    assert.equal(byTestId(tree, "billing-resume"), null);
+    assert.equal(textOf(byTestId(tree, "billing-in-app")), "Billing is managed from Chanlytics on the web.");
+    assert.ok(byTestId(tree, "billing-headline"), "the status stays");
+    assert.ok(!textOf(tree).includes("Stripe"), "and no door names Stripe");
+  } finally {
+    delete globalThis.window.__IN_APP;
+  }
+  const tree = render(Billing, { flash() {} });
+  assert.ok(byTestId(tree, "billing-checkout"), "on the web the door is back");
+  assert.equal(byTestId(tree, "billing-in-app"), null);
+});

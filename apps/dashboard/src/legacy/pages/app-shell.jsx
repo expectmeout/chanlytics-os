@@ -881,7 +881,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
                 : content}
           </ShellErrorBoundary>
         </div>
-        <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
+        {/* Inside the app the native tab bar stands here (window.__IN_APP, stamped before paint). */}
+        {!window.__IN_APP && (
+          <PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />
+        )}
         {!askOpen && !navOpen && (
           <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
             {PhoneFace

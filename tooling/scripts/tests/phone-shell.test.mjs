@@ -112,3 +112,27 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   assert.ok(boot.includes('process.env.NODE_ENV === "production"'), "no worker on a dev origin");
   assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));
 });
+
+test("inside the app the shell draws no phone tab bar (the native one stands there) and the page's bottom inset is the shell's", () => {
+  const shell = readRaw("apps/dashboard/src/legacy/pages/app-shell.jsx");
+  assert.ok(
+    shell.includes("{!window.__IN_APP && (") && shell.includes("<PhoneTabs page={page}"),
+    "the tab bar is drawn only outside the app",
+  );
+  const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
+  assert.ok(
+    css.includes("html.in-app .phone-tabs { display: none; }"),
+    "belt and braces for the frame before the shell reads the global",
+  );
+  assert.ok(
+    css.includes("html.in-app .main-scroll { padding-bottom: var(--app-inset-bottom, 0px); }"),
+    "the room under every surface is the shell's tab bar, not the web's",
+  );
+  assert.ok(
+    css.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
+    "the ✦ sits above the native bar",
+  );
+  assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  const layout = readRaw("apps/dashboard/app/layout.tsx");
+  assert.ok(layout.includes("__html: inAppBootScript()"), "stamped before first paint, beside the theme");
+});
