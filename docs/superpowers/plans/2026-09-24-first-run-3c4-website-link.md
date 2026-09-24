@@ -192,6 +192,8 @@ Tasks 1 to 6 as planned, with these differences:
 - **The kit draws the offer.** It is the booking link row's disagreement (`other`), with the row's own check, save
   and gate. Its press is offered only to a role that may change the business, like any disagreement's press.
   `FrFoundLink` and its CSS are gone.
+  - Found on the probe: the kit marked every row with another answer as "doesn't match". An empty row has nothing to
+    disagree with, so its other answer now only fills it, and the row carries no mark (`record-row.jsx`).
 - **Named once:**
   - `onDomain` is the one host rule for the booking platforms, the lead finder's platforms and its junk email
     domains. The junk email domains are now built from the booking platforms too.

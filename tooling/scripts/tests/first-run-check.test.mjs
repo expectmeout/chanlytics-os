@@ -368,6 +368,11 @@ test("a business that books is offered the booking page its website names, in th
   const sent = saving();
   let tree = draw({ setup: dto({}, { bookingPage: FOUND }) });
   assert.deepEqual(offerOf(tree).said, `Found on your website: ${FOUND}`);
+  assert.equal(
+    all(byTestId(tree, "rec-row-booking_link"), (n) => n.props && n.props["data-state"] === "disputed").length,
+    0,
+    "an empty row offered a page disagrees with nothing",
+  );
   press(offerOf(tree).use);
   assert.equal(
     sent.at(-1).config.brain.booking_link,
