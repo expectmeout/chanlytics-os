@@ -580,6 +580,49 @@ test("the first workspace of an account that arrived through a provider meets th
   }
 });
 
+test("create once (F5): the invite code sign-up checked and kept opens the first workspace with nothing typed twice; a kept code that is wrong does not", async () => {
+  const rpcs = {
+    create_workspace: (a) => ({
+      id: C,
+      slug: "harbor-one",
+      name: a.p_name,
+      status: "active",
+      timezone: a.p_timezone ?? "America/New_York",
+    }),
+  };
+  let n = 0;
+  // An account that has just proved its inbox: no membership yet, and what sign-up kept on it.
+  const arriving = (pending) => {
+    const c = { ...ctxFor({ memberships: [] }, {}, rpcs), userId: `kept-${++n}` };
+    c.supabase.auth = { updateUser: async () => ({ data: {}, error: null }) };
+    c.metadata = { pending_workspace: pending };
+    return c;
+  };
+  const had = process.env.SIGNUP_CODE;
+  try {
+    process.env.SIGNUP_CODE = "let-me-in";
+    const made = await create.POST.run(
+      send("POST", { name: "Harbor One" }),
+      arriving({ name: "Harbor One", timezone: null, code: "let-me-in" }),
+    );
+    assert.equal(made.workspace.name, "Harbor One", "sign-up's own code opens it");
+    await refused(
+      create.POST.run(send("POST", { name: "Harbor One" }), arriving({ name: "Harbor One", code: "guess" })),
+      "forbidden",
+      403,
+      "invite code is not right",
+    );
+    await refused(
+      create.POST.run(send("POST", { name: "Harbor One" }), arriving({ name: "Harbor One" })),
+      "forbidden",
+      403,
+    );
+  } finally {
+    if (had === undefined) delete process.env.SIGNUP_CODE;
+    else process.env.SIGNUP_CODE = had;
+  }
+});
+
 test("the name Google gave stands in until the person gives one, and is never made from the email", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants(), profiles: [] };
   const rpcs = { is_platform_admin: () => false };

@@ -14882,8 +14882,17 @@ function pendingWorkspaceOf(metadata) {
   const r = PendingWorkspaceSchema.safeParse(metadata[PENDING_WORKSPACE_KEY]);
   return r.success ? r.data : null;
 }
+function pendingCodeOf(metadata) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const p = metadata[PENDING_WORKSPACE_KEY];
+  const code2 = p && typeof p === "object" ? p.code : null;
+  if (typeof code2 !== "string" || code2.length > 80) return null;
+  return code2.trim() || null;
+}
 var SIGNUP_WORDS = {
   title: "Create your workspace",
+  /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
+  making: "Making your workspace\u2026",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
@@ -20208,6 +20217,7 @@ export {
   partialSay,
   passwordProblem,
   pausedVoiceFacts,
+  pendingCodeOf,
   pendingWorkspaceOf,
   peopleAggregates,
   peopleFromItems,

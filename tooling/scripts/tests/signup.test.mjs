@@ -153,10 +153,10 @@ test("the wiring: two public paths, the guards on the route, a service role that
   );
   assert.ok(server.includes("await anon.auth.signUp({"), "the ordinary sign-up call, on the public key");
   assert.ok(
-    server.includes(
-      "options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },",
-    ),
-    "what the form said rides on the user, for the create screen to open with",
+    server.includes("[PENDING_WORKSPACE_KEY]: {") &&
+      server.includes("timezone: input.timezone ?? null,") &&
+      server.includes("...(input.code ? { code: input.code } : {}),"),
+    "what the form said rides on the user, for the create screen to open with -- and the code it checked, so nothing is typed twice",
   );
   assert.ok(
     !server.includes("create_workspace") && !server.includes("deleteUser") && !server.includes("emitEvent"),

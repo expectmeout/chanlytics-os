@@ -18,6 +18,10 @@ import {
   openWeekWords,
   servicesWords,
   FIRST_RUN_STEPS,
+  pendingCodeOf,
+  pendingWorkspaceOf,
+  PENDING_WORKSPACE_KEY,
+  SIGNUP_WORDS,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -275,4 +279,22 @@ test("the rows a member put off are ids from their saved view, and nothing else"
   assert.deepEqual(setupLaterOf({ later: "calendar" }), []);
   assert.deepEqual(setupLaterOf(null), []);
   assert.deepEqual(setupLaterOf({ later: ["x".repeat(41)] }), [], "an id is short");
+});
+
+/* ---- create once (F5): what sign-up kept makes the first workspace ---- */
+
+test("the invite code sign-up checked is kept beside the name, and never read back as part of the form", () => {
+  const meta = {
+    [PENDING_WORKSPACE_KEY]: { name: "Luna Studio", timezone: "America/New_York", code: " LUNA-2026 " },
+  };
+  assert.equal(pendingCodeOf(meta), "LUNA-2026");
+  assert.deepEqual(
+    pendingWorkspaceOf(meta),
+    { name: "Luna Studio", timezone: "America/New_York" },
+    "the page never sees it",
+  );
+  assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { name: "Luna Studio" } }), null);
+  assert.equal(pendingCodeOf(null), null);
+  assert.equal(pendingCodeOf({ [PENDING_WORKSPACE_KEY]: { code: "x".repeat(81) } }), null);
+  assert.equal(SIGNUP_WORDS.making, "Making your workspace…");
 });

@@ -102,9 +102,24 @@ export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
   return r.success ? r.data : null;
 }
 
+/**
+ * The invite code sign-up checked, kept beside the name so the first workspace is made from sign-up's answers alone:
+ * the create route checks it again, as it checks one typed. It is never part of the form -- pendingWorkspaceOf reads
+ * the name and the clock only, and zod drops the rest -- and nothing but that check reads it.
+ */
+export function pendingCodeOf(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const p = (metadata as Record<string, unknown>)[PENDING_WORKSPACE_KEY];
+  const code = p && typeof p === "object" ? (p as { code?: unknown }).code : null;
+  if (typeof code !== "string" || code.length > 80) return null;
+  return code.trim() || null;
+}
+
 /** What the page says, in one place. The sentence after a submit is the same whether or not the address was known. */
 export const SIGNUP_WORDS = {
   title: "Create your workspace",
+  /** The create screen while it makes the workspace from what sign-up kept: nothing is asked twice. */
+  making: "Making your workspace…",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
