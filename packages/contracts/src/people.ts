@@ -22,6 +22,15 @@ import { replyWindow, waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
+  forWords,
+  nextStepOf,
+  stepDayOf,
+  type PersonNextStepVM,
+  type StepColumns,
+  type StepDayVM,
+  type StepDue,
+} from "./steps";
+import {
   initialsOf,
   isIdentifierName,
   writtenChannelOf,
@@ -127,6 +136,15 @@ export interface PersonRowDto {
   deal_proposal_url?: string | null;
   deal_valid_until?: string | null;
   deal_lost_reason?: string | null;
+  /** Their next step (00166): the earliest open note with a day. Absent on a row read before the columns existed. */
+  step_id?: StepColumns["step_id"];
+  step_body?: StepColumns["step_body"];
+  step_due_on?: StepColumns["step_due_on"];
+  step_for_user_id?: StepColumns["step_for_user_id"];
+  step_deal_id?: StepColumns["step_deal_id"];
+  /** Who that step is for, attached by the API from the team as a note's is: their name, and whether it is the reader. */
+  step_for_name?: StepColumns["step_for_name"];
+  step_for_me?: StepColumns["step_for_me"];
 }
 
 export interface PersonIdentityDto {
@@ -532,6 +550,14 @@ export interface PersonNoteDto {
   version: number;
   created_at: string;
   updated_at: string;
+  /** Its day, when it is a step (00166): by the business's calendar. Absent on a read before the column existed. */
+  due_on?: string | null;
+  /** When the step was done, and by whom: their name on the team, and whether it was the reader. */
+  done_at?: string | null;
+  done_by_name?: string | null;
+  done_by_me?: boolean;
+  /** The deal it moves, when it names one. */
+  deal_id?: string | null;
 }
 
 /** A member of the team a note can be for, the reader marked. */
@@ -563,6 +589,13 @@ export interface PersonNoteVM {
   /** Changed after it was written. */
   edited: boolean;
   version: number;
+  /**
+   * Its day, when it is a step (0007, amended): the day as every page says it, "Due Thu" or "Done", and, done, who
+   * did it and when. Null for a note.
+   */
+  step: { day: StepDayVM; due: StepDue; words: string; done: boolean; doneWords: string | null } | null;
+  /** The deal it moves, when it names one. */
+  dealId: string | null;
 }
 
 /** How long a note may be, in characters: the table's CHECK (00157). */
@@ -597,6 +630,24 @@ export const NOTE_WORDS = {
   showAll: (n: number) => `Show all ${n}`,
   showFewer: "Show fewer",
   left: (n: number) => `${n} left`,
+  // A note with a day is a step (0007, amended).
+  addDay: "Add a day",
+  due: "Due",
+  noDay: "No day",
+  pickDay: "Pick a day",
+  done: "Done",
+  undo: "Undo",
+  change: "Change",
+  stepTeamOnly: "A step is for the team only",
+  setNext: "Set a next step",
+  next: "Next step",
+  stepsDue: "Steps due",
+  stepAdded: "Step added",
+  stepSaved: "Step saved",
+  stepDone: "Step done",
+  stepReopened: "Step open again",
+  setTheNext: "Set the next one",
+  andMore: (n: number) => `and ${n} more`,
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */
@@ -609,6 +660,8 @@ export const NOTE_REFUSALS: Record<string, string> = {
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
   bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done.",
 };
 
 const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
@@ -618,6 +671,22 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   call: "After a call",
   thread: "After a conversation",
 };
+
+/** A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. */
+function noteStepOf(n: PersonNoteDto, tz: string, nowMs: number): PersonNoteVM["step"] {
+  const day = stepDayOf(n.due_on, tz, nowMs);
+  if (!day) return null;
+  const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
+  if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
+  const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  return {
+    day,
+    due: day.due,
+    words: NOTE_WORDS.done,
+    done: true,
+    doneWords: `${NOTE_WORDS.done} by ${who} · ${clockShort(doneMs, tz, nowMs)}`,
+  };
+}
 
 /**
  * A person's notes for their page (0007): the receptionist's suggestions first, since they wait for someone, then
@@ -651,7 +720,7 @@ export function personNotesVM(
               : (n.author_name ?? "").trim() || "A former teammate",
         when: clockShort(t, tz, nowMs),
         whenFull: `${clockDateYear(t, tz)} · ${clockTime(t, tz)}`,
-        forWho: n.for_me ? "For you" : n.for_user_id && n.for_name ? `For ${n.for_name}` : null,
+        forWho: forWords(n.for_me, n.for_user_id, n.for_name),
         forMe: n.for_me,
         forUserId: n.for_user_id,
         teamOnly: n.team_only,
@@ -660,6 +729,8 @@ export function personNotesVM(
         mine: n.mine && n.author_kind === "member",
         edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
         version: n.version,
+        step: noteStepOf(n, tz, nowMs),
+        dealId: n.deal_id ?? null,
       };
     });
 }
@@ -1222,6 +1293,8 @@ export interface PersonRowVM {
   consultationTitle: string | null;
   /** Their next visit, when it is a consultation (0008): when it starts, and whether it takes the day. Null otherwise. */
   consultAhead: { startMs: number; allDay: boolean } | null;
+  /** Their next step (0007, amended): the earliest open note with a day; null without one. */
+  nextStep: PersonNextStepVM | null;
 }
 
 /**
@@ -1353,6 +1426,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
       v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs)
         ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
         : null,
+    nextStep: nextStepOf(r, tz, nowMs),
   };
 }
 
@@ -1396,6 +1470,14 @@ export const PEOPLE_LISTS: readonly {
     group: "attention",
     onProfile: false,
     test: (v) => v.state === "waiting_on_you",
+  },
+  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
+  {
+    id: "steps_due",
+    label: "Steps due",
+    group: "attention",
+    onProfile: false,
+    test: (v) => !!v.nextStep && v.nextStep.due !== "ahead",
   },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {

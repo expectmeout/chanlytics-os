@@ -489,3 +489,136 @@ test(
     assert.deepEqual(clock, { sweep: "notes", jobname: "notes-sweep", judged_by: "request" });
   },
 );
+
+test(
+  "a note may have a day (00166): the team's, done by anyone who acts with the version they saw, on the person's own deal, their earliest open one in people_list, gone with them",
+  { skip },
+  async () => {
+    const id = await person({ display_name: "Ivo", phone_e164: "+15550100381" });
+    const other = await person({ display_name: "Uma", phone_e164: "+15550100382" });
+    const deal = async (contact) =>
+      (await maria.as.rpc("deal_record", { p_contact_id: contact, p_stage: "proposed", p_service: "Website" })).data
+        .deal.id;
+    const dealId = await deal(id);
+    const theirs = await deal(other);
+
+    // A day makes the note a step, and a step is the team's whatever the page sent.
+    const { data: a, error } = await maria.as.rpc("person_note_add", {
+      p_contact_id: id,
+      p_body: "Call about the timeline",
+      p_for_user_id: sam.id,
+      p_team_only: false,
+      p_due_on: "2026-10-02",
+      p_deal_id: dealId,
+    });
+    assert.equal(error, null, error?.message);
+    assert.deepEqual([a.note.due_on, a.note.team_only, a.note.deal_id], ["2026-10-02", true, dealId]);
+    const { data: ev } = await db.from("events").select("data").eq("subject_id", id).eq("kind", "contact.noted");
+    assert.deepEqual([ev[0].data.due_on, ev[0].data.deal_id], ["2026-10-02", dealId], "the event names the day");
+    assert.ok(!JSON.stringify(ev[0].data).includes("timeline"), "and never the words");
+    const { data: bad } = await maria.as.rpc("person_note_add", {
+      p_contact_id: id,
+      p_body: "Chase it",
+      p_due_on: "2026-10-03",
+      p_deal_id: theirs,
+    });
+    assert.equal(bad.error, "bad_deal", "a deal of someone else's");
+
+    // The table holds both rules whoever writes: a step not the team's, and done on a note with no day.
+    const { error: notTeams } = await db.from("person_notes").update({ team_only: false }).eq("id", a.note.id);
+    assert.match(notTeams?.message ?? "", /person_notes_step_is_the_teams/);
+    const { data: plain } = await maria.as.rpc("person_note_add", { p_contact_id: id, p_body: "Likes oat milk" });
+    const { error: doneNote } = await db
+      .from("person_notes")
+      .update({ done_at: new Date().toISOString() })
+      .eq("id", plain.note.id);
+    assert.match(doneNote?.message ?? "", /person_notes_done_is_a_step/);
+    assert.equal((await maria.as.rpc("person_note_done", { p_note_id: plain.note.id })).data.error, "not_a_step");
+
+    // Sam, whom it is for, does it -- not its author -- with the version the page saw; a stale press moves nothing,
+    // a press that changes nothing writes nothing, and a viewer marks nothing.
+    const stale = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_version: a.note.version + 5 });
+    assert.equal(stale.data.error, "moved");
+    const { data: done } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_version: a.note.version });
+    assert.ok(done.note.done_at);
+    assert.deepEqual([done.note.done_by, done.note.version], [sam.id, a.note.version + 1]);
+    // Done twice is done once, even pressed with the version the first press saw: a second press on its way, or a
+    // teammate ticking the same step, is not told someone changed it.
+    const { data: again } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_version: a.note.version });
+    assert.equal(again.error, undefined, "a no-op is not a conflict");
+    assert.equal(again.note.version, done.note.version, "done twice is done once");
+    const { data: kinds } = await db
+      .from("events")
+      .select("kind")
+      .eq("subject_id", id)
+      .in("kind", ["contact.note_done", "contact.note_undone"]);
+    assert.deepEqual(
+      kinds.map((k) => k.kind),
+      ["contact.note_done"],
+    );
+    assert.equal(
+      (await viewer.as.rpc("person_note_done", { p_note_id: a.note.id, p_done: false })).data.error,
+      "not_found",
+    );
+    const { data: undone } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_done: false });
+    assert.deepEqual([undone.note.done_at, undone.note.done_by], [null, null], "open again");
+
+    // people_list carries the earliest open step: by its day, and a done one is never next.
+    const { data: b } = await maria.as.rpc("person_note_add", {
+      p_contact_id: id,
+      p_body: "Send the revised quote",
+      p_due_on: "2026-09-30",
+    });
+    const next = async () => (await maria.as.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: id })).data[0];
+    let row = await next();
+    assert.deepEqual(
+      [row.step_id, row.step_body, row.step_due_on, row.step_for_user_id, row.step_deal_id],
+      [b.note.id, "Send the revised quote", "2026-09-30", null, null],
+    );
+    await maria.as.rpc("person_note_done", { p_note_id: b.note.id });
+    row = await next();
+    assert.deepEqual([row.step_id, row.step_for_user_id, row.step_deal_id], [a.note.id, sam.id, dealId]);
+
+    // Its author changes it. A day the page does not send is kept, so a page from before this release cannot take it;
+    // a cleared day takes its done with it, and the note is no longer the team's by force.
+    const { data: e1 } = await maria.as.rpc("person_note_edit", {
+      p_note_id: a.note.id,
+      p_body: "Call about the timeline, and the logo",
+      p_for_user_id: sam.id,
+      p_team_only: false,
+      p_version: undone.note.version,
+    });
+    assert.deepEqual([e1.note.due_on, e1.note.team_only, e1.note.deal_id], ["2026-10-02", true, dealId]);
+    const { data: e2 } = await maria.as.rpc("person_note_edit", {
+      p_note_id: b.note.id,
+      p_body: "Send the revised quote",
+      p_team_only: false,
+      p_clear_due: true,
+    });
+    assert.deepEqual([e2.note.due_on, e2.note.done_at, e2.note.done_by, e2.note.team_only], [null, null, null, false]);
+    const e3 = await maria.as.rpc("person_note_edit", { p_note_id: a.note.id, p_body: "x", p_deal_id: theirs });
+    assert.equal(e3.data.error, "bad_deal");
+
+    // A step for a teammate rings them, as a note does (00158): once, on the new step, not on its change of words.
+    const { data: rung } = await db
+      .from("notifications")
+      .select("recipient_user_id")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "note_for_you")
+      .eq("subject_id", id);
+    assert.deepEqual(
+      rung.map((x) => x.recipient_user_id),
+      [sam.id],
+    );
+
+    // A deal that goes leaves the step, without it.
+    await db.from("deals").delete().eq("id", dealId);
+    const { data: kept } = await db.from("person_notes").select("deal_id, due_on").eq("id", a.note.id).single();
+    assert.deepEqual([kept.deal_id, kept.due_on], [null, "2026-10-02"]);
+
+    // An erasure takes every step with every note.
+    await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    const { data: left } = await db.from("person_notes").select("id").eq("contact_id", id);
+    assert.deepEqual(left, []);
+  },
+);

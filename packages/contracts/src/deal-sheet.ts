@@ -35,7 +35,8 @@ import {
   type DealVM,
 } from "./deals";
 import { normalizeLink, whyNotALink } from "./link";
-import { mayReach, proposalAction, proposalMessage } from "./people";
+import { mayReach, proposalAction, proposalMessage, type PersonNoteVM } from "./people";
+import type { StepDayVM } from "./steps";
 import { stateTone, type Tone } from "./tone";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
@@ -52,6 +53,8 @@ export function isDealSheetMode(s: unknown): s is DealSheetMode {
  */
 export interface DealPerson {
   name: string;
+  /** Their notes as the page says them (personNotesVM): a step that names a deal is that deal's next step. */
+  noteList?: readonly Pick<PersonNoteVM, "id" | "version" | "body" | "step" | "dealId" | "forWho" | "mine">[];
   /** The profile's service names: the sheet asks which only past one. */
   services?: readonly string[];
   /** The deal the page shows (pickCurrentDeal's). */
@@ -325,6 +328,19 @@ export interface DealCardVM {
   next: DealAct | null;
   /** The other moves, quiet. */
   more: DealAct[];
+  /** Its next step (0007, amended): the earliest open step that names it; null for none, and the card offers one. */
+  step: DealCardStepVM | null;
+}
+
+/** A deal's next step, as its card says it: the words, the day, who it is for, and what its Done is sent with. */
+export interface DealCardStepVM {
+  id: string;
+  version: number;
+  words: string;
+  day: StepDayVM;
+  forWho: string | null;
+  /** The reader wrote it, so the reader may change it. */
+  mine: boolean;
 }
 
 /** Where no deal is open: one slim line, and the one act that fits it. */
@@ -459,6 +475,32 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
     more: others.filter((o) => o.mode !== nextMode),
+    step: dealStepOf(p.noteList, deal.id),
+  };
+}
+
+/**
+ * A deal's next step (0007, amended): the earliest open step that names it, by its day and then as written, as
+ * people_list picks a person's. A step that names no deal is the person's, said in their notes, never on a card.
+ */
+export function dealStepOf(notes: DealPerson["noteList"], dealId: string | null): DealCardStepVM | null {
+  if (!dealId) return null;
+  // The notes come newest first, so among steps due the same day the one written first sits later in the list.
+  const open = (notes ?? [])
+    .map((n, i) => ({ n, i, step: n.step }))
+    .filter(
+      (x): x is typeof x & { step: NonNullable<typeof x.step> } => x.n.dealId === dealId && !!x.step && !x.step.done,
+    )
+    .sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || b.i - a.i);
+  const first = open[0];
+  if (!first) return null;
+  return {
+    id: first.n.id,
+    version: first.n.version,
+    words: first.n.body,
+    day: first.step.day,
+    forWho: first.n.forWho,
+    mine: first.n.mine,
   };
 }
 

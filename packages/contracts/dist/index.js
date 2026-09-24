@@ -374,6 +374,8 @@ var EVENT_KINDS = [
   "contact.note_suggested",
   "contact.note_kept",
   "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -4207,6 +4209,74 @@ function toBookingReportVM(dto) {
   };
 }
 
+// src/steps.ts
+function stepDayOf(day, tz, nowMs) {
+  if (!day || !isRealDate(day)) return null;
+  const at2 = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at2)) return null;
+  const today = zoneDayKey(nowMs, tz);
+  const due = day < today ? "past" : day === today ? "today" : "ahead";
+  const near = clockNear(at2, tz, nowMs);
+  return { day, due, near, words: due === "past" ? `Overdue since ${near}` : `Due ${near}` };
+}
+function forWords(forMe, forUserId, forName) {
+  if (forMe) return "For you";
+  const name = (forName ?? "").trim();
+  return forUserId && name ? `For ${name}` : null;
+}
+function nextStepOf(r, tz, nowMs) {
+  const words4 = r.step_body?.trim();
+  if (!r.step_id || !words4) return null;
+  const day = stepDayOf(r.step_due_on, tz, nowMs);
+  if (!day) return null;
+  return {
+    id: r.step_id,
+    words: words4,
+    day,
+    due: day.due,
+    forWho: forWords(r.step_for_me, r.step_for_user_id, r.step_for_name),
+    forMe: !!r.step_for_me,
+    dealId: r.step_deal_id ?? null
+  };
+}
+function dayPlus(key, n) {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + n)).toISOString().slice(0, 10);
+}
+function weekdayOf(key) {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
+}
+var WEEKDAYS2 = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function stepDays(nowMs, tz) {
+  const today = zoneDayKey(nowMs, tz);
+  const wd = weekdayOf(today);
+  const out = [];
+  const add = (key, label) => {
+    if (out.some((c) => c.key === key)) return;
+    const long = WEEKDAYS2[weekdayOf(key)];
+    out.push({ key, label, title: `${long}, ${clockDate(wallClockAt(tz, key, 12, 0), tz, nowMs)}` });
+  };
+  add(today, "Today");
+  add(dayPlus(today, 1), "Tomorrow");
+  const toFriday = wd >= 1 && wd <= 5 ? 5 - wd : -1;
+  for (let i = 2; i <= toFriday; i++) add(dayPlus(today, i), WEEKDAYS2[weekdayOf(dayPlus(today, i))].slice(0, 3));
+  add(dayPlus(today, wd === 0 ? 1 : 8 - wd), "Next week");
+  out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
+  return out;
+}
+function todayStepsDue(rows, nowMs, tz, max = 3) {
+  const due = rows.map((row2) => {
+    const s = row2.nextStep;
+    const day = s ? stepDayOf(s.day.day, tz, nowMs) : null;
+    return s && day && day.due !== "ahead" ? { row: row2, step: { ...s, day, due: day.due } } : null;
+  }).filter((x) => x !== null).sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || a.row.name.localeCompare(b.row.name));
+  const cap2 = Math.max(0, max);
+  return {
+    rows: due.slice(0, cap2),
+    count: due.length,
+    more: due.length > cap2 ? `and ${due.length - cap2} more` : null
+  };
+}
+
 // src/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
@@ -7588,7 +7658,25 @@ var NOTE_WORDS = {
   dismissed: "Dismissed",
   showAll: (n) => `Show all ${n}`,
   showFewer: "Show fewer",
-  left: (n) => `${n} left`
+  left: (n) => `${n} left`,
+  // A note with a day is a step (0007, amended).
+  addDay: "Add a day",
+  due: "Due",
+  noDay: "No day",
+  pickDay: "Pick a day",
+  done: "Done",
+  undo: "Undo",
+  change: "Change",
+  stepTeamOnly: "A step is for the team only",
+  setNext: "Set a next step",
+  next: "Next step",
+  stepsDue: "Steps due",
+  stepAdded: "Step added",
+  stepSaved: "Step saved",
+  stepDone: "Step done",
+  stepReopened: "Step open again",
+  setTheNext: "Set the next one",
+  andMore: (n) => `and ${n} more`
 };
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -7598,7 +7686,9 @@ var NOTE_REFUSALS = {
   not_yours: "Only the person who wrote this note can change it.",
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note."
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
 };
 var NOTE_FROM = {
   page: null,
@@ -7607,6 +7697,20 @@ var NOTE_FROM = {
   call: "After a call",
   thread: "After a conversation"
 };
+function noteStepOf(n, tz, nowMs) {
+  const day = stepDayOf(n.due_on, tz, nowMs);
+  if (!day) return null;
+  const doneMs = n.done_at ? Date.parse(n.done_at) : NaN;
+  if (!Number.isFinite(doneMs)) return { day, due: day.due, words: day.words, done: false, doneWords: null };
+  const who = n.done_by_me ? "you" : (n.done_by_name ?? "").trim() || "a former teammate";
+  return {
+    day,
+    due: day.due,
+    words: NOTE_WORDS.done,
+    done: true,
+    doneWords: `${NOTE_WORDS.done} by ${who} \xB7 ${clockShort(doneMs, tz, nowMs)}`
+  };
+}
 function personNotesVM(notes, tz, nowMs) {
   const at2 = (iso) => {
     const t = Date.parse(iso);
@@ -7622,7 +7726,7 @@ function personNotesVM(notes, tz, nowMs) {
       who: n.author_kind === "receptionist" ? "The receptionist" : n.mine ? "You" : (n.author_name ?? "").trim() || "A former teammate",
       when: clockShort(t, tz, nowMs),
       whenFull: `${clockDateYear(t, tz)} \xB7 ${clockTime(t, tz)}`,
-      forWho: n.for_me ? "For you" : n.for_user_id && n.for_name ? `For ${n.for_name}` : null,
+      forWho: forWords(n.for_me, n.for_user_id, n.for_name),
       forMe: n.for_me,
       forUserId: n.for_user_id,
       teamOnly: n.team_only,
@@ -7630,7 +7734,9 @@ function personNotesVM(notes, tz, nowMs) {
       from: n.author_kind === "receptionist" ? NOTE_FROM[n.source] : null,
       mine: n.mine && n.author_kind === "member",
       edited: n.version > 1 && n.state === "kept" && n.author_kind === "member",
-      version: n.version
+      version: n.version,
+      step: noteStepOf(n, tz, nowMs),
+      dealId: n.deal_id ?? null
     };
   });
 }
@@ -7939,7 +8045,8 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     consultationVisit: !!(v?.next?.consultation || v?.last?.consultation),
     consultedMs: v?.last?.consultation ? ts(v.last.end) : null,
     consultationTitle: v?.last?.consultation ? v.last.title : v?.next?.consultation ? v.next.title : null,
-    consultAhead: v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs) ? { startMs: nextVisitMs, allDay: !!v.next.all_day } : null
+    consultAhead: v?.next?.consultation && nextVisitMs !== null && Number.isFinite(nextVisitMs) ? { startMs: nextVisitMs, allDay: !!v.next.all_day } : null,
+    nextStep: nextStepOf(r, tz, nowMs)
   };
 }
 var PEOPLE_LIST_GROUPS = [
@@ -7955,6 +8062,14 @@ var PEOPLE_LISTS = [
     group: "attention",
     onProfile: false,
     test: (v) => v.state === "waiting_on_you"
+  },
+  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
+  {
+    id: "steps_due",
+    label: "Steps due",
+    group: "attention",
+    onProfile: false,
+    test: (v) => !!v.nextStep && v.nextStep.due !== "ahead"
   },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {
@@ -11367,6 +11482,90 @@ function lineCredentialFailure(lastError) {
 }
 var LINE_CREDENTIALS_SENTENCE = "the vault that keeps the line's credentials";
 
+// src/step-sheet.ts
+var STEP_SHEET_WORDS = {
+  titles: { add: "Set a next step", edit: "Change the step" },
+  what: { label: "What to do", placeholder: "Call about the timeline" },
+  when: { label: "When", pick: "The day" },
+  for: { label: "For", anyone: "Anyone on the team", me: "Me" },
+  teamOnly: "A step is for the team only: the receptionist never reads it.",
+  save: { add: "Set it", edit: "Save" },
+  saving: "Saving\u2026",
+  reading: "Reading\u2026",
+  gone: "This person is not in your workspace.",
+  noStep: "This step is no longer here.",
+  done: { add: "Next step set", edit: "Step saved" },
+  failed: "Could not save this step.",
+  // The limit is passed in rather than read here: a literal that reads another module's constant is kept by every
+  // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
+  problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max) => `At most ${max} characters.` },
+  discard: {
+    question: "Discard your changes?",
+    detail: "Nothing here has been saved.",
+    yes: "Yes, discard",
+    no: "Keep editing"
+  }
+};
+function stepSheetFor(p, ask, nowMs, tz) {
+  const W = STEP_SHEET_WORDS;
+  const note = ask.noteId ? (p.noteList ?? []).find((n) => n.id === ask.noteId) ?? null : null;
+  const mode = ask.noteId ? "edit" : "add";
+  const dealId = note ? note.dealId : ask.dealId ?? null;
+  const service = dealId ? (p.deals ?? []).find((d) => d.id === dealId)?.service ?? null : null;
+  const days = stepDays(nowMs, tz);
+  const day = note?.step ? note.step.day.day : null;
+  return {
+    mode,
+    title: W.titles[mode],
+    sub: service ? `${p.name} \xB7 ${service}` : p.name,
+    days,
+    team: [
+      { id: "", label: W.for.anyone },
+      ...(p.noteTeam ?? []).map((m) => ({ id: m.id, label: m.me ? W.for.me : m.name }))
+    ],
+    draft: {
+      what: note ? note.body : "",
+      day,
+      picking: !!day && !days.some((c) => c.key === day),
+      forId: note ? note.forUserId : null
+    },
+    note: note ? { id: note.id, version: note.version } : null,
+    dealId,
+    blocked: ask.noteId && !note ? W.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours ?? null : null,
+    save: W.save[mode]
+  };
+}
+function stepSheetBody(sheet, draft) {
+  const P = STEP_SHEET_WORDS.problems;
+  const what = draft.what.trim();
+  if (!what) return { body: null, problem: { field: "what", words: P.what } };
+  if (what.length > NOTE_MAX) return { body: null, problem: { field: "what", words: P.tooLong(NOTE_MAX) } };
+  if (!draft.day || !isRealDate(draft.day)) return { body: null, problem: { field: "day", words: P.day } };
+  return {
+    problem: null,
+    body: {
+      body: what,
+      due_on: draft.day,
+      for_user_id: draft.forId || null,
+      team_only: true,
+      ...sheet.dealId ? { deal_id: sheet.dealId } : {},
+      ...sheet.note ? { note_id: sheet.note.id, version: sheet.note.version } : {}
+    }
+  };
+}
+function stepSheetDirty(draft, opened) {
+  return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null);
+}
+function stepSheetMerge(draft, opened, fresh) {
+  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
+  return {
+    what: draft.what !== opened.what ? draft.what : fresh.what,
+    day: dayTyped ? draft.day : fresh.day,
+    picking: dayTyped ? draft.picking : fresh.picking,
+    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId
+  };
+}
+
 // src/template-languages.ts
 var L = (id, name, region, native) => ({
   id,
@@ -13497,12 +13696,12 @@ function priorOf(n, previous, pick) {
 }
 var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-var weekdayOf = (day) => (dayDate(day).getDay() + 6) % 7;
+var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
 function weekOf(series) {
   const total = [0, 0, 0, 0, 0, 0, 0];
   const seen = [0, 0, 0, 0, 0, 0, 0];
   for (const d of series) {
-    const w = weekdayOf(d.day);
+    const w = weekdayOf2(d.day);
     total[w] += (d.messages_in || 0) + (d.calls || 0);
     seen[w] += 1;
   }
@@ -17063,6 +17262,8 @@ var WORDS = {
   "contact.note_suggested": "The receptionist suggested a note",
   "contact.note_kept": "A suggested note was kept",
   "contact.note_dismissed": "A suggested note was dismissed",
+  "contact.note_done": "A step was done",
+  "contact.note_undone": "A step was opened again",
   "contact.email_set": "A person's email address changed",
   "contact.proposal_set": "A person's proposal link changed",
   // A deal is a record (0004): each move of one, in the owner's words.
@@ -18537,7 +18738,24 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
     flags,
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
-    more: others.filter((o) => o.mode !== nextMode)
+    more: others.filter((o) => o.mode !== nextMode),
+    step: dealStepOf(p.noteList, deal.id)
+  };
+}
+function dealStepOf(notes, dealId) {
+  if (!dealId) return null;
+  const open = (notes ?? []).map((n, i) => ({ n, i, step: n.step })).filter(
+    (x) => x.n.dealId === dealId && !!x.step && !x.step.done
+  ).sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || b.i - a.i);
+  const first = open[0];
+  if (!first) return null;
+  return {
+    id: first.n.id,
+    version: first.n.version,
+    words: first.n.body,
+    day: first.step.day,
+    forWho: first.n.forWho,
+    mine: first.n.mine
   };
 }
 function quietOf(p, nowMs, tz) {
@@ -20042,6 +20260,7 @@ export {
   SPEND_NUMBER,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
+  STEP_SHEET_WORDS,
   ServiceSchema,
   SignupSchema,
   TEMPLATE_BODY_MAX,
@@ -20222,6 +20441,7 @@ export {
   dealSheetMessage,
   dealSheetRefusal,
   dealSinceMs,
+  dealStepOf,
   dealsAreOn,
   dedupeFeed,
   defaultParamSpecs,
@@ -20277,6 +20497,7 @@ export {
   fmtSeconds,
   foldName,
   footerOf,
+  forWords,
   formatPhoneDisplay,
   formatWaited,
   forwardingCodes,
@@ -20452,6 +20673,7 @@ export {
   newReceptionistDefaults,
   nextOpenMoment,
   nextRunLabel,
+  nextStepOf,
   nextThemePref,
   noNumberWords,
   noProposalSince,
@@ -20688,6 +20910,12 @@ export {
   stateLabel,
   stateOf,
   stateTone,
+  stepDayOf,
+  stepDays,
+  stepSheetBody,
+  stepSheetDirty,
+  stepSheetFor,
+  stepSheetMerge,
   suggestLocalPart,
   telHref,
   templateBlocked,
@@ -20755,6 +20983,7 @@ export {
   todayRunApproved,
   todayRunWords,
   todayRunsSub,
+  todayStepsDue,
   tomorrowAtIn,
   trialOffer,
   trialWords,

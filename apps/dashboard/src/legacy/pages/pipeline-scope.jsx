@@ -237,9 +237,15 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
       );
     };
     read();
+    // A deal recorded or moved, and a step set, changed or done (the card in the peek draws its next step): read again.
     const onDeal = (e) => { if (e && e.detail && e.detail.personId === id) read(); };
     window.addEventListener("deal:recorded", onDeal);
-    return () => { live = false; window.removeEventListener("deal:recorded", onDeal); };
+    window.addEventListener("note:saved", onDeal);
+    return () => {
+      live = false;
+      window.removeEventListener("deal:recorded", onDeal);
+      window.removeEventListener("note:saved", onDeal);
+    };
   }, [peekId, peekTry]);
   // The peek's head is the row's, wherever the row now stands: a move regroups them, and the peek says the new group.
   const peekRow = React.useMemo(() => {
@@ -507,6 +513,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
             onOpenPage={() => pageRef.current(peekVm.id)}
             onOpenThread={() => nav(window.CHANLY.R.thread(peekVm.thread))}
             onCompose={(text) => pipeComposeIn(person, text, nav)}
+            flash={plFlash}
           />
         ) : null}
         {/* A phone's views: the rail's rows as a sheet, a pick closes it. */}

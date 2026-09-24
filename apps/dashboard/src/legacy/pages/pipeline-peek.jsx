@@ -88,7 +88,7 @@ const PipelinePeekFacts = ({ facts }) => (facts.length ? (
 // The deal as the person page says it, once the person has landed: their card per open deal, or the quiet line. A
 // person still on their way is said after the standard's beat (route-reading); one that could not be read, by the
 // house's FailedRead with its Retry.
-const PipelinePeekDeal = ({ person, failed, canRecord, onRetry, onCompose }) => {
+const PipelinePeekDeal = ({ person, failed, canRecord, onRetry, onCompose, flash = null }) => {
   const W = window.__pipeline.words.peek;
   const kit = window.__deal;
   if (failed !== null && !person) return <window.FailedRead kind="card" what={W.what} why={failed || null} onRetry={onRetry} testid="pipeline-peek-failed" />;
@@ -101,10 +101,10 @@ const PipelinePeekDeal = ({ person, failed, canRecord, onRetry, onCompose }) => 
   if (!vm) return <window.FailedRead kind="card" what={W.what} testid="pipeline-peek-failed" />;
   return vm.quiet
     ? <window.PersonDealQuiet p={person} q={vm.quiet} canRecord={canRecord} onCompose={onCompose} />
-    : <div className="cl-prof-deal-list">{vm.cards.map((c) => <window.PersonDealOne key={c.id || c.title} p={person} c={c} W={kit.cardWords} canRecord={canRecord} onCompose={onCompose} />)}</div>;
+    : <div className="cl-prof-deal-list">{vm.cards.map((c) => <window.PersonDealOne key={c.id || c.title} p={person} c={c} W={kit.cardWords} canRecord={canRecord} onCompose={onCompose} flash={flash} />)}</div>;
 };
 
-const PipelinePeek = ({ vm, person = null, failed = null, canRecord = false, phone = false, onClose, onRetry, onOpenPage, onOpenThread, onCompose }) => {
+const PipelinePeek = ({ vm, person = null, failed = null, canRecord = false, phone = false, onClose, onRetry, onOpenPage, onOpenThread, onCompose, flash = null }) => {
   if (!vm) return null;
   const W = window.__pipeline.words.peek;
   // On a phone, where the peek is the whole screen, a pull down from the top of what it shows is its Close (data-bits
@@ -127,7 +127,7 @@ const PipelinePeek = ({ vm, person = null, failed = null, canRecord = false, pho
         <button type="button" className="pk-x" id="pipeline-peek-close" aria-label={W.close} data-testid="pipeline-peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
       </div>
       <div className="pk-body pipe-peek-body">
-        <PipelinePeekDeal person={person} failed={failed} canRecord={canRecord} onRetry={onRetry} onCompose={onCompose} />
+        <PipelinePeekDeal person={person} failed={failed} canRecord={canRecord} onRetry={onRetry} onCompose={onCompose} flash={flash} />
         {detail ? <PipelinePeekReach rows={detail.reach} /> : null}
         <PipelinePeekFacts facts={vm.facts} />
         {detail ? <PipelinePeekHistory items={detail.history} /> : null}

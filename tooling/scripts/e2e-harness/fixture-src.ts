@@ -51,6 +51,8 @@ interface Scenario {
 const w = window as unknown as Record<string, any>;
 const S = w.__HX_SCENARIO as Scenario;
 const WORKSPACE = w.__HX_WORKSPACE as { id: string; slug: string; name: string };
+/** Who the harness signs in as (scenarios.mjs OWNER). */
+const OWNER = w.__HX_OWNER as { id: string; name: string; email: string };
 const zone = S.zone;
 
 /* ---- the shell ---- */
@@ -68,10 +70,10 @@ w.__WORKSPACES = [
 ];
 w.__ACTIVE_WORKSPACE = WORKSPACE.id;
 w.__ME = {
-  id: "u-e2e-owner",
-  display_name: "E2E Owner",
-  name: "E2E Owner",
-  email: "e2e-owner@example.com",
+  id: OWNER.id,
+  display_name: OWNER.name,
+  name: OWNER.name,
+  email: OWNER.email,
   role: "owner",
   platform_admin: false,
 };
@@ -115,7 +117,7 @@ w.__unknownDetails = C.unknownDetails;
 // A broken configuration in Setup's words, and Autonomy's hard limits (seed-globals.ts publishes both).
 w.__brokenConfigWords = C.BROKEN_CONFIG_WORDS;
 w.__hardLimits = C.hardLimitsWords;
-w.__lastChanged = () => "Last changed by E2E Owner";
+w.__lastChanged = () => `Last changed by ${OWNER.name}`;
 // The workspace's zone is saved through PATCH workspaces, never the settings saver. Refused here.
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
@@ -135,7 +137,7 @@ w.__SETTINGS = {
   role: S.role,
   broken: null,
   prompt: preview(S.config.brain),
-  updatedBy: "E2E Owner",
+  updatedBy: OWNER.name,
   updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
 };
 // What the receptionist is told, as the prompt sheet reads it: inbox-verbs.ts composedPrompt's three lines, written out
@@ -186,7 +188,7 @@ const setupDto = {
   lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
   activations: (["voice", "whatsapp"] as const)
     .filter((k) => channel(k).active)
-    .map((k) => ({ capability: k, activated_at: answered, activated_by: "u-e2e-owner", deactivated_at: null })),
+    .map((k) => ({ capability: k, activated_at: answered, activated_by: OWNER.id, deactivated_at: null })),
 };
 w.__SETUP = {
   dto: setupDto,

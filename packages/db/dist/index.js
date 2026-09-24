@@ -98,6 +98,8 @@ var EVENT_KINDS = [
   "contact.note_suggested",
   "contact.note_kept",
   "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -1110,7 +1112,9 @@ var NOTE_REFUSALS = {
   not_yours: "Only the person who wrote this note can change it.",
   moved: "Someone changed this note since you opened it. Read it again, then save.",
   decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note."
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
 };
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
@@ -2643,7 +2647,9 @@ var WATCHED = [
   { table: "lead_rounds", event: "*" },
   { table: "lead_search_members", event: "*" },
   // a deal recorded or moved by a teammate, or by a payment: People (and its Pipeline) repaints (00156, 0008)
-  { table: "deals", event: "*" }
+  { table: "deals", event: "*" },
+  // a note written, a step set or done by a teammate: People's next steps and a person's page repaint (00157, 00166)
+  { table: "person_notes", event: "*" }
 ];
 function subscribeMessagesInserts(client, onInsert, opts = {}) {
   const topic = `db-changes:${opts.topic ?? "bridge"}`;

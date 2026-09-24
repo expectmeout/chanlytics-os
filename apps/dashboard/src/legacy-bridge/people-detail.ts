@@ -6,6 +6,13 @@ import {
   DEAL_SHEET_WORDS,
   NOTE_MAX,
   NOTE_WORDS,
+  stepDayOf,
+  stepDays,
+  stepSheetBody,
+  stepSheetDirty,
+  stepSheetFor,
+  stepSheetMerge,
+  STEP_SHEET_WORDS,
   TIMELINE_FILTERS,
   dealCardsOf,
   dealMenuActs,
@@ -390,14 +397,34 @@ export interface NoteBody {
   team_only?: boolean;
   note_id?: string;
   version?: number;
+  /** Its day, which makes it a step (00166); a change that names none keeps the one it has, `clear_due` takes it. */
+  due_on?: string | null;
+  deal_id?: string | null;
+  clear_due?: boolean;
 }
 
+// Each note write answers when the server takes it, and People (a row carries its next step) is read again behind it:
+// the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
-  return api()("POST contacts/[id]/notes", { params: { id }, body });
+  return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind" });
+}
+
+/** A step done, or open again (00166): any owner or operator, with the version the page saw. */
+export async function markStepDone(
+  id: string,
+  noteId: string,
+  done = true,
+  version?: number,
+): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
+  return api()("POST contacts/[id]/notes/done", {
+    params: { id },
+    body: { note_id: noteId, done, ...(version !== undefined ? { version } : {}) },
+    refresh: "behind",
+  });
 }
 
 export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
-  return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId } });
+  return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId }, refresh: "behind" });
 }
 
 export async function decidePersonNote(
@@ -414,6 +441,17 @@ declare global {
       write: typeof writePersonNote;
       remove: typeof removePersonNote;
       decide: typeof decidePersonNote;
+      /** A step done, or open again (00166). */
+      done: typeof markStepDone;
+      /** The days a step's picker offers, and a day as every page says it (contracts steps.ts). */
+      days: typeof stepDays;
+      dayOf: typeof stepDayOf;
+      /** The step sheet's words, what it opens with, what it sends, and whether anything was typed (step-sheet.ts). */
+      sheet: typeof stepSheetFor;
+      sheetBody: typeof stepSheetBody;
+      sheetDirty: typeof stepSheetDirty;
+      sheetMerge: typeof stepSheetMerge;
+      sheetWords: typeof STEP_SHEET_WORDS;
       words: typeof NOTE_WORDS;
       max: number;
     };
@@ -501,6 +539,14 @@ export function installPeopleCourier(): void {
     write: writePersonNote,
     remove: removePersonNote,
     decide: decidePersonNote,
+    done: markStepDone,
+    days: stepDays,
+    dayOf: stepDayOf,
+    sheet: stepSheetFor,
+    sheetBody: stepSheetBody,
+    sheetDirty: stepSheetDirty,
+    sheetMerge: stepSheetMerge,
+    sheetWords: STEP_SHEET_WORDS,
     words: NOTE_WORDS,
     max: NOTE_MAX,
   };

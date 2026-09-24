@@ -238,60 +238,73 @@ Branch `design/a-note-may-have-a-day`. For a customer: a note can take a day and
 not; steps show on the person's page, the deal card, the Pipeline (a column, a view, the peek, the board), Today's day
 panel and the thread; Done keeps it in the log; a step for a teammate rings them, as a note does.
 
-### Task 4.1 · Migration `<next free number>_a_note_may_have_a_day.sql`
+Built in two pull requests, each whole: **4a** (this branch) the schema, the doors, contracts, the routes and the
+bridge, the person's page (the notes card, the deal card, the step sheet) and Steps due in People's rail; **4b**
+(`design/steps-everywhere`) the Pipeline, Today, the thread and Ask.
 
-- [ ] `person_notes`: `due_on date`, `done_at timestamptz`, `done_by uuid references auth.users (id) on delete set
+### Task 4.1 · Migration `00166_a_note_may_have_a_day.sql` (00162 went to the phone app, #959; 00163 and 00164 to
+production first from other branches; #967 holds 00165)
+
+- [x] `person_notes`: `due_on date`, `done_at timestamptz`, `done_by uuid references auth.users (id) on delete set
   null`, `deal_id uuid references public.deals (id) on delete set null`; CHECK `due_on is null or team_only` (a step is
   the team's; the receptionist never reads it); CHECK `done_at is null or due_on is not null`; an index on
-  `(tenant_id, contact_id)` where `due_on is not null and done_at is null`.
-- [ ] `person_note_add` and `person_note_edit`: drop and recreate with `p_due_on date default null`, `p_deal_id uuid
+  `(tenant_id, contact_id)` where `due_on is not null and done_at is null` (built with `due_on` in it, for the lateral
+  read's order).
+- [x] `person_note_add` and `person_note_edit`: drop and recreate with `p_due_on date default null`, `p_deal_id uuid
   default null` (the deal must be this person's: `bad_deal`), and on edit `p_clear_due boolean default false`; a day sets
   `team_only`. `person_note_done(p_note_id uuid, p_done boolean default true, p_version integer default null)`: a step
-  only (`not_a_step`), the version checked (`moved`), `done_at`/`done_by` set or cleared, one event.
-- [ ] `people_list` v5 (drop, recreate from the newest): `step_id`, `step_body`, `step_due_on`, `step_for_user_id`,
+  only (`not_a_step`), the version checked (`moved`), `done_at`/`done_by` set or cleared, one event. Built: a change
+  that names no day keeps the one it has (a page from before cannot take it away); done is by any owner or
+  operator; a press that changes nothing writes nothing; each event kind written out (`contact.note_done`,
+  `contact.note_undone`), so the lint and the log read them.
+- [x] `people_list` v5 (drop, recreate from the newest): `step_id`, `step_body`, `step_due_on`, `step_for_user_id`,
   `step_deal_id`: the earliest open step (by day, then written).
-- [ ] Grants and comments as the doors before; every statement re-runnable.
+- [x] Grants and comments as the doors before; every statement re-runnable.
 
 ### Task 4.2 · Generated sets and types, the db tests
 
-- [ ] On the isolated stack: reset, `gen:schema-sets`, `check-db-types` (write, then `--check`).
-- [ ] `person-notes.db.test.mjs`: a step is Team only, the CHECKs refuse the rest, done and undone, the version, a
+- [x] On the isolated stack: reset, `gen:schema-sets`, `check-db-types` (write, then `--check`).
+- [x] `person-notes.db.test.mjs`: a step is Team only, the CHECKs refuse the rest, done and undone, the version, a
   deal of someone else's refused, `people_list`'s step columns, erasure takes steps.
 
 ### Task 4.3 · Contracts
 
-- [ ] `PersonNoteDto` gains `due_on`, `done_at`, `done_by_name`, `deal_id`; `PersonNoteVM.step: { day, words, due:
+- [x] `PersonNoteDto` gains `due_on`, `done_at`, `done_by_name`, `deal_id`; `PersonNoteVM.step: { day, words, due:
   "past" | "today" | "ahead", done, doneWords } | null`.
-- [ ] `PersonRowVM.nextStep: { id, words, day, due, forWho, dealId } | null` from `step_*`.
-- [ ] `stepDays(nowMs, tz)`: Today, Tomorrow, the next weekday names to Friday, Next week (Monday), and Pick a day.
-- [ ] `todayStepsDue(rows, nowMs, tz, max = 3)`: the rows whose next step is today or past, the oldest first, and
+- [x] `PersonRowVM.nextStep: { id, words, day, due, forWho, dealId } | null` from `step_*`; who it is for comes from the
+  team, attached by the list route (`step_for_name`, `step_for_me`) and read only when a step is for someone.
+- [x] `stepDays(nowMs, tz)`: Today, Tomorrow, the next weekday names to Friday, Next week (Monday), and Pick a day.
+- [x] `todayStepsDue(rows, nowMs, tz, max = 3)`: the rows whose next step is today or past, the oldest first, and
   "and N more".
-- [ ] `NOTE_WORDS`: Add a day, Due, Done, Undo, For, "A step is for the team only", Set a next step, Next step.
-- [ ] `PEOPLE_LISTS` gains `steps_due` ("Steps due", Attention, every workspace).
-- [ ] Tests for each.
+- [x] `NOTE_WORDS`: Add a day, Due, Done, Undo, For, "A step is for the team only", Set a next step, Next step.
+- [x] `PEOPLE_LISTS` gains `steps_due` ("Steps due", Attention, every workspace).
+- [x] Tests for each (`steps.test.mjs`).
 
 ### Task 4.4 · Routes and the bridge
 
-- [ ] `POST contacts/[id]/notes` takes `due_on` (a real day), `deal_id`, `clear_due`; `POST contacts/[id]/notes/done`
+- [x] `POST contacts/[id]/notes` takes `due_on` (a real day), `deal_id`, `clear_due`; `POST contacts/[id]/notes/done`
   `{ note_id, done, version }`; `route-policy.json`; `gen-route-types`.
-- [ ] `window.__personNotes.done`; the refresh map re-reads People and the person; `packages/db` realtime watches
+- [x] `window.__personNotes.done`; the refresh map re-reads People and the person; `packages/db` realtime watches
   `person_notes`, and People refreshes on it.
 
 ### Task 4.5 · The pages
 
-- [ ] Notes (`client-profile.jsx` `PersonNotes`): the composer's Day beside For (a day turns Team only on and holds it
+- [x] Notes (`client-profile.jsx` `PersonNotes`): the composer's Day beside For (a day turns Team only on and holds it
   there); a step shows its day and a Done box; done, it is struck through with who and when.
-- [ ] `components/step-sheet.jsx` (`window.openStepSheet({ personId, dealId, noteId })`, a host in the shell): the
+- [x] `components/step-sheet.jsx` (`window.openStepSheet({ personId, dealId, noteId })`, a host in the shell): the
   words, the day (`stepDays`, or a date), For; Save writes through `__personNotes.write`. Done, the toast offers Set the
-  next one.
-- [ ] The deal card: Next · words · day · for whom, with Done and Change; Set a next step (dashed) with none.
-- [ ] The Pipeline: the Next step column (sortable, `next`), the Steps due view in the rail, the peek's next row, the
+  next one. Built with contracts `step-sheet.ts` (its words, what it opens with, the body, what is wrong first); it
+  saves with the version it opened over; `step-sheet.test.mjs`.
+- [x] The deal card: Next · words · day · for whom, with Done and Change; Set a next step (dashed) with none. The
+  step is contracts `dealStepOf`: the earliest open one that names the deal; a step about the person stays in the notes.
+- [ ] (4b) The Pipeline: the Next step column (sortable, `next`), the Steps due view in the rail, the peek's next row, the
   board card's line.
-- [ ] Today (`dashboard-a-day.jsx`): steps due at the head of the day panel, three at most, "and N more" to
+- [ ] (4b) Today (`dashboard-a-day.jsx`): steps due at the head of the day panel, three at most, "and N more" to
   `clients/seg:steps_due`.
-- [ ] The thread: a step due under the deal chip, with Done.
-- [ ] Ask: `propose_deal` gains `next_step` and `next_step_due`; the commit writes the note after the deal.
-- [ ] `0007` amended ("A note may have a day"); the look; the gate; the PR; the push; merge.
+- [ ] (4b) The thread: a step due under the deal chip, with Done.
+- [ ] (4b) Ask: `propose_deal` gains `next_step` and `next_step_due`; the commit writes the note after the deal.
+- [x] `0007` amended ("A note may have a day"); the look (the person's page at 1280 and 390 on the harness's
+  pipeline record, which now carries a step); the gate; the PR; the push; merge. (4a)
 
 ---
 

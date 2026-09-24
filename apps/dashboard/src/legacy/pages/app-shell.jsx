@@ -909,6 +909,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       <ShortcutsSheet />
       {/* The one deal sheet (0008), opened from anywhere by window.openDealSheet: the person's card, the thread. */}
       {window.DealSheetHost ? <window.DealSheetHost /> : null}
+      {/* And the one step sheet (0007, amended), opened by window.openStepSheet: a deal's next step, set or changed. */}
+      {window.StepSheetHost ? <window.StepSheetHost /> : null}
     </div>
   );
 };

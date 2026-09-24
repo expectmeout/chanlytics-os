@@ -856,8 +856,8 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   assert.ok(bookedList.test(booked) && !bookedList.test(gap));
   assert.ok(askedList.test(gap) && !askedList.test(booked) && !askedList.test(visited));
   assert.deepEqual(
-    [...PEOPLE_LISTS].map((l) => l.id).slice(0, 7),
-    ["needs_you", "waiting_on_you", "new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
+    [...PEOPLE_LISTS].map((l) => l.id).slice(0, 8),
+    ["needs_you", "waiting_on_you", "steps_due", "new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
     "attention, then the journey",
   );
   const agg = peopleAggregates([booked, gap, visited, stale, noCal], NOW);
@@ -946,10 +946,13 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
+  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(
-    readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes(
-      "const [out, sellsBy] = await Promise.all([withVisits(ctx, tenantId, rows), sellsByOf(ctx, tenantId)]);",
-    ),
+    [
+      "const [out, sellsBy, nameSteps] = await Promise.all([",
+      "withVisits(ctx, tenantId, rows),",
+      "sellsByOf(ctx, tenantId),",
+    ].every((line) => route.includes(line)),
     "the list carries visits and the calendar's state, a page at a time",
   );
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
@@ -1131,7 +1134,8 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "attention").map((l) => l.id),
-    ["needs_you", "waiting_on_you"],
+    // And a step whose day has come (0007, amended): every workspace's.
+    ["needs_you", "waiting_on_you", "steps_due"],
   );
   assert.deepEqual(
     PEOPLE_LISTS.filter((l) => l.group === "reach").map((l) => l.id),

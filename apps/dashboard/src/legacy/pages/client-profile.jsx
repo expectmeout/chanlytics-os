@@ -642,8 +642,10 @@ const PersonEmail = ({ p, canEdit, flash }) => {
 
 // A person's notes (0007): each one dated and signed, newest first, the receptionist's suggestions above them until
 // someone keeps or dismisses them. A member writes one, optionally for a teammate ("For Maria") and optionally for the
-// team only (the receptionist never reads it); its author changes it; its author or an owner deletes it. Every word
-// is contracts' (NOTE_WORDS, personNotesVM, through window.__personNotes); the page re-reads the person after a write.
+// team only (the receptionist never reads it); its author changes it; its author or an owner deletes it. A note may
+// have a day (0007, amended): then it is a step, the team's only, with a Done box anyone who acts may tick, and done
+// it says who did it and when. Every word is contracts' (NOTE_WORDS, personNotesVM, stepDays, through
+// window.__personNotes); the page re-reads the person after a write.
 const NOTE_FALLBACK_WORDS = {
   placeholder: "Add a note…", add: "Add note", save: "Save", cancel: "Cancel", edit: "Edit", remove: "Delete",
   askRemove: "Delete this note?", more: "More for this note", edited: "edited",
@@ -656,7 +658,7 @@ const NOTE_FALLBACK_WORDS = {
 const NOTES_SHOWN = 3;
 
 // Who a note is for and whether the receptionist reads it: the composer's and the editor's two controls, one shape.
-const NoteAudience = ({ team, forId, teamOnly, onFor, onTeamOnly, disabled, W }) => (
+const NoteAudience = ({ team, forId, teamOnly, onFor, onTeamOnly, disabled, W, lockTeam = false }) => (
   <span className="cl-prof-note-aud">
     {team.length > 1 && (
       <select
@@ -671,12 +673,44 @@ const NoteAudience = ({ team, forId, teamOnly, onFor, onTeamOnly, disabled, W })
         {team.map((m) => <option key={m.id} value={m.id}>{`${W.forLabel} ${m.me ? "me" : m.name}`}</option>)}
       </select>
     )}
-    <label className="cl-prof-note-team" title={W.teamOnlyHint}>
-      <input type="checkbox" checked={!!teamOnly} disabled={disabled} onChange={(e) => onTeamOnly(e.target.checked)} data-testid="person-note-team-only" />
+    <label className="cl-prof-note-team" title={lockTeam ? W.stepTeamOnly : W.teamOnlyHint}>
+      <input type="checkbox" checked={!!teamOnly || lockTeam} disabled={disabled || lockTeam} onChange={(e) => onTeamOnly(e.target.checked)} data-testid="person-note-team-only" />
       <span>{W.teamOnly}</span>
     </label>
   </span>
 );
+
+// A note's day (0007, amended): with one, the note is a step, and the team's. The days are the picker's (contracts
+// stepDays); Pick a day opens the date field, and the first choice takes the day away. Hookless.
+const NoteDay = ({ day, picking, days, onDay, disabled, W }) => {
+  const listed = !!day && days.some((c) => c.key === day);
+  return (
+    <span className="cl-prof-note-day">
+      <select
+        className="cl-prof-note-for"
+        value={picking || (day && !listed) ? "pick" : day || ""}
+        disabled={disabled}
+        aria-label={W.due}
+        data-testid="person-note-day"
+        onChange={(e) => onDay(e.target.value === "pick" ? { picking: true, day } : { picking: false, day: e.target.value || null })}
+      >
+        <option value="">{day || picking ? W.noDay : W.addDay}</option>
+        {days.map((c) => <option key={c.key} value={c.key} title={c.title}>{c.label}</option>)}
+      </select>
+      {picking || (day && !listed) ? (
+        <input
+          type="date"
+          className="cl-prof-note-for cl-prof-note-date"
+          value={day || ""}
+          disabled={disabled}
+          aria-label={W.pickDay}
+          data-testid="person-note-date"
+          onChange={(e) => onDay({ picking: true, day: e.target.value || null })}
+        />
+      ) : null}
+    </span>
+  );
+};
 
 const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   const N = window.__personNotes || null;
@@ -684,35 +718,53 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   const MAX = (N && N.max) || 600;
   const notes = p.noteList || [];
   const team = p.noteTeam || [];
-  const [draft, setDraft] = useStateP({ text: "", forId: null, teamOnly: false });
+  const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  const days = N && N.days ? N.days(Date.now(), tz) : [];
+  const stepping = !!(N && N.days && N.done);
+  const EMPTY = { text: "", forId: null, teamOnly: false, day: null, picking: false };
+  const [draft, setDraft] = useStateP(EMPTY);
   const [editing, setEditing] = useStateP(null);
   const [asking, setAsking] = useStateP(null);
   const [busy, setBusy] = useStateP(false);
   const [all, setAll] = useStateP(false);
-  useEffectP(() => { setDraft({ text: "", forId: null, teamOnly: false }); setEditing(null); setAsking(null); }, [p.id]);
+  useEffectP(() => { setDraft(EMPTY); setEditing(null); setAsking(null); }, [p.id]);
 
-  const run = async (fn, done) => {
+  const run = async (fn, done, action = null) => {
     if (!N || busy) return false;
     setBusy(true);
     const r = await fn();
     setBusy(false);
     if (!r || !r.ok) { flash({ tone: "danger", msg: <>{(r && r.message) || "Could not save this note."}</> }); return false; }
-    flash({ msg: <>{done}</> });
+    flash({ msg: <>{done}</>, ...(action ? { action } : {}) });
     onChanged();
     return true;
   };
   const add = async () => {
     const text = draft.text.trim();
-    if (!text) return;
-    const ok = await run(() => N.write(p.id, { body: text, for_user_id: draft.forId, team_only: draft.teamOnly }), W.added);
-    if (ok) setDraft({ text: "", forId: null, teamOnly: false });
+    // Pick a day with none picked yet: nothing is added, from the button or the keyboard, until one is.
+    if (!text || (draft.picking && !draft.day)) return;
+    const day = draft.day;
+    const ok = await run(
+      () => N.write(p.id, { body: text, for_user_id: draft.forId, team_only: draft.teamOnly || !!day, ...(day ? { due_on: day } : {}) }),
+      day ? W.stepAdded : W.added,
+    );
+    if (ok) setDraft(EMPTY);
   };
   const saveEdit = async () => {
     const text = editing.text.trim();
-    if (!text) return;
+    if (!text || (editing.picking && !editing.day)) return;
+    const day = editing.day;
     const ok = await run(
-      () => N.write(p.id, { body: text, for_user_id: editing.forId, team_only: editing.teamOnly, note_id: editing.id, version: editing.version }),
-      W.saved,
+      () => N.write(p.id, {
+        body: text,
+        for_user_id: editing.forId,
+        team_only: editing.teamOnly || !!day,
+        note_id: editing.id,
+        version: editing.version,
+        // A day kept or changed is sent; one taken away is cleared, and a note that never had one says nothing of it.
+        ...(day ? { due_on: day } : editing.hadDay ? { clear_due: true } : {}),
+      }),
+      day ? W.stepSaved : W.saved,
     );
     if (ok) setEditing(null);
   };
@@ -721,6 +773,12 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
     if (ok) setAsking(null);
   };
   const decide = (n, keep) => run(() => N.decide(p.id, { note_id: n.id, keep }), keep ? W.kept : W.dismissed);
+  // A step done, or open again, by anyone who acts. Done, the toast offers the next one, on the same deal.
+  const toggleDone = (n) => {
+    const done = !n.step.done;
+    const next = done && window.openStepSheet ? { label: W.setTheNext, onClick: () => window.openStepSheet({ personId: p.id, dealId: n.dealId }) } : null;
+    return run(() => N.done(p.id, n.id, done, n.version), done ? W.stepDone : W.stepReopened, next);
+  };
 
   const waiting = notes.filter((n) => n.suggested);
   const kept = notes.filter((n) => !n.suggested);
@@ -743,11 +801,12 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }}
           />
           <div className="cl-prof-note-bar">
-            <NoteAudience team={team} forId={editing.forId} teamOnly={editing.teamOnly} disabled={busy} W={W}
+            <NoteAudience team={team} forId={editing.forId} teamOnly={editing.teamOnly} disabled={busy} W={W} lockTeam={!!editing.day}
               onFor={(forId) => setEditing({ ...editing, forId })} onTeamOnly={(teamOnly) => setEditing({ ...editing, teamOnly })} />
+            {stepping ? <NoteDay day={editing.day} picking={editing.picking} days={days} disabled={busy} W={W} onDay={(d) => setEditing({ ...editing, ...d })} /> : null}
             <span className="cl-prof-name-acts">
               <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(null)}>{W.cancel}</button>
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy || !editing.text.trim()} onClick={saveEdit} data-testid="person-note-save">{W.save}</button>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy || !editing.text.trim() || (editing.picking && !editing.day)} onClick={saveEdit} data-testid="person-note-save">{W.save}</button>
             </span>
           </div>
         </li>
@@ -755,18 +814,45 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
     }
     const mayRemove = canEdit && (n.mine || isOwner);
     const acts = [
-      ...(canEdit && n.mine ? [{ label: W.edit, icon: "edit", onClick: () => setEditing({ id: n.id, text: n.body, forId: n.forUserId, teamOnly: n.teamOnly, version: n.version }) }] : []),
+      ...(canEdit && n.mine ? [{ label: W.edit, icon: "edit", onClick: () => {
+        const day = n.step ? n.step.day.day : null;
+        setEditing({ id: n.id, text: n.body, forId: n.forUserId, teamOnly: n.teamOnly, version: n.version, day, hadDay: !!day, picking: !!day && !days.some((c) => c.key === day) });
+      } }] : []),
       ...(mayRemove ? [{ label: W.remove, icon: "x", danger: true, onClick: () => setAsking(n.id) }] : []),
     ];
     return (
-      <li key={n.id} className={`cl-pnote${n.forMe ? " is-for-me" : ""}`} data-testid="person-note">
-        <div className="cl-prof-note-body">{n.body}</div>
+      <li key={n.id} className={`cl-pnote${n.forMe ? " is-for-me" : ""}${n.step ? " is-step" : ""}${n.step && n.step.done ? " is-done" : ""}`} data-testid="person-note">
+        {n.step ? (
+          <div className="cl-prof-note-step">
+            {canEdit && stepping ? (
+              <label className="cl-prof-note-done-hit">
+                <input
+                  type="checkbox"
+                  className="cl-prof-note-done"
+                  checked={n.step.done}
+                  disabled={busy}
+                  aria-label={n.step.done ? `${W.undo}: ${n.body}` : `${W.done}: ${n.body}`}
+                  onChange={() => toggleDone(n)}
+                  data-testid="person-note-done"
+                />
+              </label>
+            ) : null}
+            <div className="cl-prof-note-body">{n.body}</div>
+          </div>
+        ) : (
+          <div className="cl-prof-note-body">{n.body}</div>
+        )}
         <div className="cl-prof-note-meta">
+          {n.step ? (
+            <span className="cl-prof-note-due" data-due={n.step.done ? "done" : n.step.due} data-testid="person-note-due">
+              {n.step.done ? n.step.doneWords : n.step.words}
+            </span>
+          ) : null}
           <span className="cl-prof-note-who">{n.who}</span>
           <span title={n.whenFull}>{n.when}</span>
           {n.edited && <span>{W.edited}</span>}
           {n.forWho && <span className="cl-prof-note-for-who">{n.forWho}</span>}
-          {n.teamOnly && <span className="cl-prof-note-lock" title={W.teamOnlyHint}><Icon name="lock" size={10} /> {W.teamOnly}</span>}
+          {n.teamOnly && !n.step && <span className="cl-prof-note-lock" title={W.teamOnlyHint}><Icon name="lock" size={10} /> {W.teamOnly}</span>}
           {acts.length > 0 && asking !== n.id && (
             <span className="cl-prof-note-more">
               <MoreMenu items={acts} title={W.more} size={12} escape btnClass="btn btn-ghost btn-icon btn-sm" />
@@ -804,11 +890,12 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
           />
           {draft.text && (
             <div className="cl-prof-note-bar">
-              <NoteAudience team={team} forId={draft.forId} teamOnly={draft.teamOnly} disabled={busy} W={W}
+              <NoteAudience team={team} forId={draft.forId} teamOnly={draft.teamOnly} disabled={busy} W={W} lockTeam={!!draft.day}
                 onFor={(forId) => setDraft({ ...draft, forId })} onTeamOnly={(teamOnly) => setDraft({ ...draft, teamOnly })} />
+              {stepping ? <NoteDay day={draft.day} picking={draft.picking} days={days} disabled={busy} W={W} onDay={(d) => setDraft({ ...draft, ...d })} /> : null}
               <span className="cl-prof-name-acts">
                 {left < 60 && <span className="cl-prof-aut-hint">{W.left(left)}</span>}
-                <button type="button" className="btn btn-sm btn-primary" disabled={busy || !draft.text.trim()} onClick={add} data-testid="person-notes-save">{W.add}</button>
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy || !draft.text.trim() || (draft.picking && !draft.day)} onClick={add} data-testid="person-notes-save">{W.add}</button>
               </span>
             </div>
           )}
@@ -1234,11 +1321,16 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     window.addEventListener("surface:clients", load);
     return () => window.removeEventListener("surface:clients", load);
   }, [load]);
-  // A deal recorded or moved in the sheet (components/deal-sheet.jsx), from here or from their thread: read them again.
+  // A deal recorded or moved in the sheet (components/deal-sheet.jsx), from here or from their thread, and a step
+  // set, changed or done from the step sheet or the deal card (components/step-sheet.jsx): read them again.
   useEffectP(() => {
     const onDeal = (e) => { if (e && e.detail && e.detail.personId === id) load(); };
     window.addEventListener("deal:recorded", onDeal);
-    return () => window.removeEventListener("deal:recorded", onDeal);
+    window.addEventListener("note:saved", onDeal);
+    return () => {
+      window.removeEventListener("deal:recorded", onDeal);
+      window.removeEventListener("note:saved", onDeal);
+    };
   }, [id, load]);
 
   const { vm, loading, missing, error } = st;
@@ -1530,7 +1622,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-body">
           {/* Their deal (0008), first, where the work with them is: a card per open deal and its one next act, or one
               quiet line. Nothing where deals are off. Its sends are the More menu's own path (openWith). */}
-          {window.PersonDealCard ? <window.PersonDealCard p={p} canRecord={canRecord} onCompose={openWith} /> : null}
+          {window.PersonDealCard ? <window.PersonDealCard p={p} canRecord={canRecord} onCompose={openWith} flash={ppFlash} /> : null}
           {comingUp.length > 0 && (
             <section className="cl-prof-section cl-prof-up" aria-labelledby="person-coming-up-title" data-testid="person-coming-up">
               <h2 className="cl-prof-section-title" id="person-coming-up-title">Coming up</h2>

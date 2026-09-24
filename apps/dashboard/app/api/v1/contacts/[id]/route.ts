@@ -22,7 +22,7 @@ import type {
 import { personLike, personVisits } from "@/server/calendar";
 import { personRuns } from "@/server/broadcasts";
 import { leadOfPerson } from "@/server/leads";
-import { personNotesRead } from "@/server/person-notes";
+import { personNotesRead, stepFor } from "@/server/person-notes";
 import { DEAL_DTO_COLUMNS, sellsByOf } from "@/server/deals";
 
 const digits = (s: string) => s.replace(/\D/g, "");
@@ -506,7 +506,12 @@ export const GET = read({
     const { byConv, escalations, decisions } = thread;
 
     const person: PersonDetailDto = {
-      row: { ...row, effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null },
+      row: {
+        ...row,
+        effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null,
+        // Who their next step is for (00166), from the team the notes were read with.
+        ...stepFor(row, notes.team, ctx.userId),
+      },
       identities: idents.data ?? [],
       conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], ctx.userId)),
       calls: (calls.data ?? []).map(toCallDto),

@@ -27,6 +27,8 @@ import "@/legacy/components/record-fold.jsx";
 import "@/legacy/components/record-sheet.jsx";
 // The one deal sheet (0008): after the kit it is drawn with, before the pages that open it and the shell that holds it.
 import "@/legacy/components/deal-sheet.jsx";
+// The step sheet (0007, amended): after the deal sheet, whose select it draws who a step is for with.
+import "@/legacy/components/step-sheet.jsx";
 import "@/legacy/components/message-preview.jsx";
 import "@/legacy/components/template-chips.jsx";
 import "@/legacy/components/campaign-bits.jsx";

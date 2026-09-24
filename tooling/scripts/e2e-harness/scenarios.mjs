@@ -25,6 +25,7 @@ import {
   PROFILE_LIMITS,
   dealsAreOn,
   feedSourceLabel,
+  zoneDayKey,
   isConsultationTitle,
   newReceptionistDefaults,
   proposalMessage,
@@ -33,6 +34,8 @@ import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };
+/** Who the harness signs in as: the server's session, the runner's address and the fixture's __ME are this one. */
+export const OWNER = { id: "u-e2e-owner", name: "E2E Owner", email: "e2e-owner@example.com" };
 
 export const SCENARIOS = ["nightly", "salon", "pipeline"];
 
@@ -263,7 +266,7 @@ const dealColumns = (d) => Object.fromEntries(DEAL_COLUMNS.map((k) => [`deal_${k
  * One row as GET contacts hands it over: people_list's columns in its order, every one on every row, then the reply
  * mode listPeople adds and the visits withVisits lays on it. The message columns are the thread's.
  */
-function personRow(who, thread, deal, visits) {
+function personRow(who, thread, deal, visits, step = null) {
   const first = thread.messages[0];
   const last = thread.messages.at(-1);
   const said = thread.messages.filter((x) => x.direction === "inbound").at(-1);
@@ -310,6 +313,12 @@ function personRow(who, thread, deal, visits) {
     queued_reply_at: null,
     came_from: "whatsapp",
     ...dealColumns(deal),
+    // Their next step (00166): the earliest open note with a day, every column null for someone with none.
+    step_id: step?.id ?? null,
+    step_body: step?.body ?? null,
+    step_due_on: step?.due_on ?? null,
+    step_for_user_id: step?.for_user_id ?? null,
+    step_deal_id: step?.deal_id ?? null,
     effective_reply_mode: "auto",
     visits,
   };
@@ -359,6 +368,8 @@ function pipeline(name, nowMs) {
       deal: dealOf(nowMs, 4, "proposed", { proposedDays: 5, service: "Website", cents: 480_000 }),
       heardDays: 1,
       said: "Thanks, looking it over. One question on the timeline",
+      // A step on her deal, due in two days: the person page's notes and her deal card say it.
+      step: { body: "Call about the timeline", inDays: 2 },
     },
     {
       n: 5,
@@ -394,10 +405,33 @@ function pipeline(name, nowMs) {
     const thread = threadOf(who, nowMs - 90 * DAY_MS, heardMs, c.said ?? "Sounds good, talk soon", c.deal);
     const next = c.next ?? null;
     const last = c.last ?? null;
-    const row = personRow(who, thread, c.deal ?? null, { ...feed, next: marked(next), last: marked(last) });
+    // A step as the person read lists a note (contracts PersonNoteDto), written by the one signed in.
+    const step = c.step
+      ? {
+          id: uuidOf("a0e5f000", c.n),
+          body: c.step.body,
+          author_kind: "member",
+          author_name: OWNER.name,
+          mine: true,
+          for_user_id: null,
+          for_name: null,
+          for_me: false,
+          team_only: true,
+          state: "kept",
+          source: "page",
+          version: 1,
+          created_at: iso(nowMs - DAY_MS),
+          updated_at: iso(nowMs - DAY_MS),
+          due_on: zoneDayKey(nowMs + c.step.inDays * DAY_MS, TIMEZONE),
+          done_at: null,
+          done_by_name: null,
+          done_by_me: false,
+          deal_id: c.deal?.id ?? null,
+        }
+      : null;
+    const row = personRow(who, thread, c.deal ?? null, { ...feed, next: marked(next), last: marked(last) }, step);
     people.push(row);
-    // The person read as GET contacts/:id composes it (contracts PersonDetailDto). The team a note can be for is not
-    // read here -- note_team is absent, as when the team cannot be read: nothing on this record writes a note.
+    // The person read as GET contacts/:id composes it (contracts PersonDetailDto), their notes and the team with it.
     details[row.id] = {
       row,
       identities: [{ channel: "whatsapp", external_id: who.phone.slice(1), created_at: row.first_contact_at }],
@@ -410,7 +444,9 @@ function pipeline(name, nowMs) {
       // The feed's own visits, unmarked, as personVisits reads them, with every one of theirs for the timeline.
       visits: { ...feed, next, last, all: [last, next].filter(Boolean) },
       notes: null,
-      person_notes: [],
+      person_notes: step ? [step] : [],
+      // The team a note can be for: the one signed in, as the notes read names them.
+      note_team: [{ id: OWNER.id, name: OWNER.name, me: true }],
       proposal_url: null,
       booking_link: config.brain.booking_link?.trim() || null,
       consent_history: [],
