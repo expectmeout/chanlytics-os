@@ -3,8 +3,10 @@
  *
  * Two calls, pinned to the documented shapes. Text Search finds the business
  * from its name and address and asks for Pro fields only (a name, an
- * address, a link — never the rating, which would bill the Enterprise SKU
- * for a search the owner confirms by eye anyway). Place Details reads what
+ * address, a link and the kind of place, which tells two listings of one name
+ * apart — never the rating, which would bill the Enterprise SKU for a search
+ * the owner confirms by eye anyway; Google's Text Search (New) field list,
+ * checked on 24 Sep 2026, has primaryTypeDisplayName under Pro). Place Details reads what
  * the listing says: the rating, the count, and the five reviews Google shows
  * first — `reviews` is the Enterprise + Atmosphere field, the one that
  * costs, and it is asked for once a day per workspace.
@@ -25,7 +27,8 @@ import { E164, type GoogleListingFacts, type GooglePeriod, type GooglePoint } fr
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
 export const PLACES_SEARCH_MASK =
-  "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+  "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus," +
+  "places.primaryTypeDisplayName";
 export const PLACES_DETAILS_MASK =
   "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews," +
   "regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName," +
@@ -60,6 +63,8 @@ export interface PlaceCandidate {
   address: string | null;
   maps_uri: string | null;
   business_status: string | null;
+  /** Google's name for the kind of place ("Moving company"), when it gives one. */
+  category: string | null;
 }
 
 export interface PlaceReview {
@@ -140,6 +145,7 @@ function candidateOf(p: Obj): PlaceCandidate | null {
     address: str(p.formattedAddress),
     maps_uri: str(p.googleMapsUri),
     business_status: str(p.businessStatus),
+    category: localized(p.primaryTypeDisplayName).text,
   };
 }
 

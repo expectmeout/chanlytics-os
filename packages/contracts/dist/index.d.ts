@@ -3172,6 +3172,8 @@ interface GoogleCandidateDto {
     name: string;
     address: string | null;
     maps_uri: string | null;
+    /** Google's name for the kind of place ("Moving company"), when it gives one: it tells two listings of one name apart. */
+    category: string | null;
 }
 /** A location of the connected account, for the owner to choose. */
 interface GoogleLocationDto {

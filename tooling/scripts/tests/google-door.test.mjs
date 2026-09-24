@@ -536,6 +536,7 @@ test("search: a few words become Google's Text Search -- the key in a header, th
             address: "1 Main St, Brooklyn, NY 11201",
             maps_uri: "https://maps.google.com/?cid=1",
             business_status: "OPERATIONAL",
+            category: "Moving company",
           },
           {
             place_id: PLACE2,
@@ -543,6 +544,7 @@ test("search: a few words become Google's Text Search -- the key in a header, th
             address: "9 Dock Rd, Brooklyn, NY 11231",
             maps_uri: null,
             business_status: "OPERATIONAL",
+            category: null,
           },
         ],
       },
@@ -557,6 +559,10 @@ test("search: a few words become Google's Text Search -- the key in a header, th
   assert.ok(
     !req.headers["X-Goog-FieldMask"].includes("rating"),
     "the search stays on the Pro SKU: the rating is read from the listing once a day, not on every search",
+  );
+  assert.ok(
+    req.headers["X-Goog-FieldMask"].includes("places.primaryTypeDisplayName"),
+    "the kind of place, which tells two listings of one name apart, is a Pro field like the name",
   );
   assert.deepEqual(JSON.parse(req.body), {
     textQuery: "Harbor Moving, Brooklyn",

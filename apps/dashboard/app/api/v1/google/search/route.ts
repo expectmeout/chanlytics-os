@@ -61,6 +61,8 @@ export const POST = write({
         name: c.name,
         address: c.address ?? null,
         maps_uri: c.maps_uri ?? null,
+        // An edge from before the kind of place sends none: either deploy order draws the candidate, without it.
+        category: c.category ?? null,
       })),
     };
   },

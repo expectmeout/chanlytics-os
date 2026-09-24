@@ -1977,8 +1977,10 @@ declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
  *
  * Two calls, pinned to the documented shapes. Text Search finds the business
  * from its name and address and asks for Pro fields only (a name, an
- * address, a link — never the rating, which would bill the Enterprise SKU
- * for a search the owner confirms by eye anyway). Place Details reads what
+ * address, a link and the kind of place, which tells two listings of one name
+ * apart — never the rating, which would bill the Enterprise SKU for a search
+ * the owner confirms by eye anyway; Google's Text Search (New) field list,
+ * checked on 24 Sep 2026, has primaryTypeDisplayName under Pro). Place Details reads what
  * the listing says: the rating, the count, and the five reviews Google shows
  * first — `reviews` is the Enterprise + Atmosphere field, the one that
  * costs, and it is asked for once a day per workspace.
@@ -1997,7 +1999,7 @@ declare function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResult>;
  */
 
 declare const PLACES_BASE = "https://places.googleapis.com/v1";
-declare const PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+declare const PLACES_SEARCH_MASK: string;
 declare const PLACES_DETAILS_MASK: string;
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 declare const PLACES_SEARCH_LIMIT = 5;
@@ -2023,6 +2025,8 @@ interface PlaceCandidate {
     address: string | null;
     maps_uri: string | null;
     business_status: string | null;
+    /** Google's name for the kind of place ("Moving company"), when it gives one. */
+    category: string | null;
 }
 interface PlaceReview {
     review_id: string;

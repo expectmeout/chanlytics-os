@@ -4373,7 +4373,7 @@ async function runA2PSaga(start, p) {
 
 // src/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
-var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus";
+var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus,places.primaryTypeDisplayName";
 var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
 var PLACES_SEARCH_LIMIT = 5;
 var PLACES_TIMEOUT_MS = 1e4;
@@ -4421,7 +4421,8 @@ function candidateOf(p) {
     name,
     address: str2(p.formattedAddress),
     maps_uri: str2(p.googleMapsUri),
-    business_status: str2(p.businessStatus)
+    business_status: str2(p.businessStatus),
+    category: localized(p.primaryTypeDisplayName).text
   };
 }
 function reviewIdOf(name) {
