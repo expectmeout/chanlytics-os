@@ -542,7 +542,10 @@ test(
     const { data: done } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_version: a.note.version });
     assert.ok(done.note.done_at);
     assert.deepEqual([done.note.done_by, done.note.version], [sam.id, a.note.version + 1]);
-    const { data: again } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id });
+    // Done twice is done once, even pressed with the version the first press saw: a second press on its way, or a
+    // teammate ticking the same step, is not told someone changed it.
+    const { data: again } = await sam.as.rpc("person_note_done", { p_note_id: a.note.id, p_version: a.note.version });
+    assert.equal(again.error, undefined, "a no-op is not a conflict");
     assert.equal(again.note.version, done.note.version, "done twice is done once");
     const { data: kinds } = await db
       .from("events")

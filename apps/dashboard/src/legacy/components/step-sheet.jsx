@@ -12,9 +12,11 @@
 // before a round trip and the body the notes route takes are contracts' (step-sheet.ts, through
 // window.__personNotes). It holds the fold registry under its own id (`step-sheet`), as the deal sheet does: one editor
 // open at a time anywhere in the app, and Cancel asks once when something was typed. Save writes through
-// window.__personNotes.write with the version the sheet opened over, so a teammate's change since is refused rather
+// window.__personNotes.write with the version the sheet was read at, so a teammate's change since is refused rather
 // than written over; then the sheet closes, says so, and dispatches `note:saved` with the person's id, which the
-// person page reloads on.
+// person page reloads on. Whenever the person is read again with the sheet open (after a refusal, or over the tab's
+// held copy), what was typed stays, every field left alone takes the fresh value, and the step's version is the
+// fresh one (contracts stepSheetMerge), so a second Save changes only what was typed here.
 
 const { useState: useSsState, useEffect: useSsEffect, useRef: useSsRef } = React;
 
@@ -135,8 +137,8 @@ const StepSheetHost = () => {
     return { ...SS_CLOSED, ask, person, draft: made ? made.draft : null, opened: made ? made.draft : null, note: made ? made.note : null };
   };
   // The person read, through the profile's own courier, each time the sheet opens and after a refusal. A sheet opened
-  // before they were read fills in as they land; after that, what was typed and the version it was opened over stay,
-  // and only the person (the team, the step's day as said today) is taken fresh.
+  // before they were read fills in as they land; read again, what was typed stays and the rest, the step's version
+  // among it, is the fresh read's. A save still out keeps its draft: its refusal reads them again.
   const read = (ask) => {
     const W = window.__personNotes ? window.__personNotes.sheetWords : null;
     if (!window.__personDetail) {
@@ -147,7 +149,12 @@ const StepSheetHost = () => {
       (vm) => setSt((s) => {
         if (s.ask !== ask) return s;
         if (!vm) return s.person ? s : { ...s, failed: W ? W.gone : "" };
-        return s.person ? { ...s, person: vm } : begin(ask, vm);
+        if (!s.person) return begin(ask, vm);
+        if (s.busy) return { ...s, person: vm };
+        const fresh = begin(ask, vm);
+        if (!s.draft || !s.opened || !fresh.draft) return { ...fresh, problem: s.problem };
+        const draft = ssWorked(() => window.__personNotes.sheetMerge(s.draft, s.opened, fresh.draft)) || fresh.draft;
+        return { ...s, person: vm, draft, opened: fresh.draft, note: fresh.note };
       }),
       (e) => setSt((s) => (s.ask !== ask || s.person ? s : { ...s, failed: (e && e.message) || "" })),
     );

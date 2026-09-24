@@ -149,3 +149,19 @@ export function stepSheetDirty(draft: StepDraft, opened: StepDraft): boolean {
     (draft.forId || null) !== (opened.forId || null)
   );
 }
+
+/**
+ * The sheet read again while it is open -- after a refusal, or over the tab's held copy of the person: what was typed
+ * stays, and every field left as it opened takes the fresh value, as the deal sheet's dealSheetMerge does. The day and
+ * whether the date field is open are one field. With the step's fresh version, a second Save after a refusal changes
+ * only what was typed here.
+ */
+export function stepSheetMerge(draft: StepDraft, opened: StepDraft, fresh: StepDraft): StepDraft {
+  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
+  return {
+    what: draft.what !== opened.what ? draft.what : fresh.what,
+    day: dayTyped ? draft.day : fresh.day,
+    picking: dayTyped ? draft.picking : fresh.picking,
+    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId,
+  };
+}

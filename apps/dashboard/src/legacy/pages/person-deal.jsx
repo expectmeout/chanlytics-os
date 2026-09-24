@@ -33,6 +33,9 @@ const pdRun = (p, a, dealId, onCompose) => {
   if (window.openDealSheet) window.openDealSheet({ personId: p.id, mode: a.mode, dealId: a.mode === "propose" ? null : dealId, ...(a.mode === "propose" && a.service ? { service: a.service } : {}) });
 };
 
+// A step's Done while its press is on its way: a second press waits for the first, which answers for both.
+const PD_STEP_PRESSED = new Set();
+
 // A deal's next step, or the way to set one. Hookless.
 const PersonDealStep = ({ p, c, canRecord, flash }) => {
   const N = window.__personNotes;
@@ -47,7 +50,10 @@ const PersonDealStep = ({ p, c, canRecord, flash }) => {
     ) : null;
   }
   const done = async () => {
-    const r = await N.done(p.id, s.id, true, s.version);
+    if (PD_STEP_PRESSED.has(s.id)) return;
+    PD_STEP_PRESSED.add(s.id);
+    let r;
+    try { r = await N.done(p.id, s.id, true, s.version); } finally { PD_STEP_PRESSED.delete(s.id); }
     const next = sheet({ dealId: c.id });
     if (flash) flash(r && r.ok ? { msg: <>{S.stepDone}</>, ...(next ? { action: { label: S.setTheNext, onClick: next } } : {}) } : { tone: "danger", msg: <>{(r && r.message) || S.stepDone}</> });
     window.dispatchEvent(new CustomEvent("note:saved", { detail: { personId: p.id } }));

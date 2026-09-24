@@ -741,7 +741,8 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   };
   const add = async () => {
     const text = draft.text.trim();
-    if (!text) return;
+    // Pick a day with none picked yet: nothing is added, from the button or the keyboard, until one is.
+    if (!text || (draft.picking && !draft.day)) return;
     const day = draft.day;
     const ok = await run(
       () => N.write(p.id, { body: text, for_user_id: draft.forId, team_only: draft.teamOnly || !!day, ...(day ? { due_on: day } : {}) }),
@@ -751,7 +752,7 @@ const PersonNotes = ({ p, canEdit, isOwner, flash, onChanged }) => {
   };
   const saveEdit = async () => {
     const text = editing.text.trim();
-    if (!text) return;
+    if (!text || (editing.picking && !editing.day)) return;
     const day = editing.day;
     const ok = await run(
       () => N.write(p.id, {

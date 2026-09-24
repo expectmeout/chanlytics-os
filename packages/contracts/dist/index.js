@@ -10752,6 +10752,15 @@ function stepSheetBody(sheet, draft) {
 function stepSheetDirty(draft, opened) {
   return draft.what.trim() !== opened.what.trim() || draft.day !== opened.day || (draft.forId || null) !== (opened.forId || null);
 }
+function stepSheetMerge(draft, opened, fresh) {
+  const dayTyped = draft.day !== opened.day || draft.picking !== opened.picking;
+  return {
+    what: draft.what !== opened.what ? draft.what : fresh.what,
+    day: dayTyped ? draft.day : fresh.day,
+    picking: dayTyped ? draft.picking : fresh.picking,
+    forId: (draft.forId || null) !== (opened.forId || null) ? draft.forId : fresh.forId
+  };
+}
 
 // src/template-languages.ts
 var L = (id, name, region, native) => ({
@@ -20667,6 +20676,7 @@ export {
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,
+  stepSheetMerge,
   suggestLocalPart,
   telHref,
   templateBlocked,

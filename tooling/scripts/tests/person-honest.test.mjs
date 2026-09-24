@@ -2564,6 +2564,11 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
     byTestId(tree, "person-note-day").props.onChange({ target: { value: "pick" } });
     tree = draw();
     assert.equal(byTestId(tree, "person-notes-save").props.disabled, true, "no day picked yet");
+    // Nor from the keyboard: Ctrl+Enter adds nothing until a day is picked (it was a plain note the receptionist read).
+    const writes = sent.length;
+    byTestId(tree, "person-notes-input").props.onKeyDown({ key: "Enter", ctrlKey: true, metaKey: false });
+    await settle();
+    assert.equal(sent.length, writes, "the keyboard waits for a day as the button does");
     byTestId(tree, "person-note-date").props.onChange({ target: { value: "2026-12-01" } });
     tree = draw();
     press(byTestId(tree, "person-notes-save"));
@@ -2644,9 +2649,15 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     assert.match(textOf(byTestId(step, "person-deal-nextstep-day")), /^Due /);
     assert.match(textOf(step), new RegExp(`^${S.next}`));
     assert.match(textOf(step), /For Sam/);
+    // A second press while the first is on its way reaches the door once: the first answers for both.
+    press(byTestId(step, "person-deal-nextstep-done"));
     press(byTestId(step, "person-deal-nextstep-done"));
     await settle();
-    assert.deepEqual(sent.at(-1), ["done", "p1", "n-soon", true, 1]);
+    assert.deepEqual(
+      sent.filter((x) => x[0] === "done"),
+      [["done", "p1", "n-soon", true, 1]],
+      "one press, however many",
+    );
     assert.deepEqual(heard.at(-1), { personId: "p1" }, "the page reads them again");
     press(byTestId(step, "person-deal-nextstep-change"));
     assert.deepEqual(asked.at(-1), { personId: "p1", noteId: "n-soon" });

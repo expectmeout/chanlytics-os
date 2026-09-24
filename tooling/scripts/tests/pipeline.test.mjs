@@ -1717,6 +1717,9 @@ test("the peek reads the person again when a deal is recorded on them, opens on 
   assert.deepEqual(reads, ["cat"], "someone else's deal is not this peek's");
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "cat" } });
   assert.deepEqual(reads, ["cat", "cat"], "a deal recorded on them reads them again");
+  // And a step set, changed or done on them (the card in the peek draws their next step).
+  globalThis.window.dispatchEvent({ type: "note:saved", detail: { personId: "cat" } });
+  assert.deepEqual(reads, ["cat", "cat", "cat"], "a step saved on them reads them again");
   // A read that failed, with nothing held: said, with Retry.
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
   tree = draw();
@@ -1729,7 +1732,7 @@ test("the peek reads the person again when a deal is recorded on them, opens on 
   assert.ok(retry, "with its Retry");
   click(retry);
   draw();
-  assert.deepEqual(reads, ["cat", "cat", "nia", "nia"]);
+  assert.deepEqual(reads, ["cat", "cat", "cat", "nia", "nia"]);
 });
 
 test("on a desk the rows can be a board: every group a column, the cards, a drop that asks the sheet, a refused one that asks nothing, and the choice kept", async () => {

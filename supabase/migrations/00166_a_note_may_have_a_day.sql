@@ -216,9 +216,10 @@ comment on function public.person_note_edit(uuid, text, uuid, boolean, integer, 
   'Its author changes a member''s note (0007): the words, who it is for, team only, its day (kept unless sent or cleared; a day keeps it the team''s) and its deal; a stale version answers {error: moved}. Answers {note} or {error}.';
 
 -- A step is done, or open again: by any acting member, since a step for Maria
--- is Maria's to do. Only a step (not_a_step); the version the page saw
--- refuses a stale press (moved). Pressing what already holds changes nothing
--- and writes nothing.
+-- is Maria's to do. Only a step (not_a_step). Pressing what already holds
+-- changes nothing and writes nothing, whatever version it saw: two teammates
+-- ticking the same step, or a second press on its way, are both done. Only a
+-- press that would change it is held to the version the page saw (moved).
 create or replace function public.person_note_done(
   p_note_id uuid,
   p_done    boolean default true,
@@ -244,11 +245,11 @@ begin
   if v_row.due_on is null then
     return jsonb_build_object('error', 'not_a_step');
   end if;
-  if p_version is not null and p_version <> v_row.version then
-    return jsonb_build_object('error', 'moved', 'version', v_row.version);
-  end if;
   if (v_row.done_at is not null) = v_done then
     return jsonb_build_object('note', to_jsonb(v_row));
+  end if;
+  if p_version is not null and p_version <> v_row.version then
+    return jsonb_build_object('error', 'moved', 'version', v_row.version);
   end if;
   update person_notes n
      set done_at = case when v_done then now() end,

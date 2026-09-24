@@ -11,6 +11,7 @@ import {
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,
+  stepSheetMerge,
   STEP_SHEET_WORDS,
   TIMELINE_FILTERS,
   dealCardsOf,
@@ -402,8 +403,10 @@ export interface NoteBody {
   clear_due?: boolean;
 }
 
+// Each note write answers when the server takes it, and People (a row carries its next step) is read again behind it:
+// the whole list was being read before a note said it was added. The page reads the person itself.
 export async function writePersonNote(id: string, body: NoteBody): Promise<ApiResult<{ note: PersonNoteDto | null }>> {
-  return api()("POST contacts/[id]/notes", { params: { id }, body });
+  return api()("POST contacts/[id]/notes", { params: { id }, body, refresh: "behind" });
 }
 
 /** A step done, or open again (00166): any owner or operator, with the version the page saw. */
@@ -416,11 +419,12 @@ export async function markStepDone(
   return api()("POST contacts/[id]/notes/done", {
     params: { id },
     body: { note_id: noteId, done, ...(version !== undefined ? { version } : {}) },
+    refresh: "behind",
   });
 }
 
 export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
-  return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId } });
+  return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId }, refresh: "behind" });
 }
 
 export async function decidePersonNote(
@@ -446,6 +450,7 @@ declare global {
       sheet: typeof stepSheetFor;
       sheetBody: typeof stepSheetBody;
       sheetDirty: typeof stepSheetDirty;
+      sheetMerge: typeof stepSheetMerge;
       sheetWords: typeof STEP_SHEET_WORDS;
       words: typeof NOTE_WORDS;
       max: number;
@@ -540,6 +545,7 @@ export function installPeopleCourier(): void {
     sheet: stepSheetFor,
     sheetBody: stepSheetBody,
     sheetDirty: stepSheetDirty,
+    sheetMerge: stepSheetMerge,
     sheetWords: STEP_SHEET_WORDS,
     words: NOTE_WORDS,
     max: NOTE_MAX,
