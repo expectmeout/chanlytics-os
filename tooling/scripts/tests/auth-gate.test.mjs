@@ -113,7 +113,11 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   // so its reader is often a REVIEWER — and a reviewer who gets a login screen
   // has been shown a business that cannot be looked up, which is error 30919
   // with extra steps. Caught on production, where the page 307'd to /login.
-  assert.deepEqual(prefixes, ["/yes/", "/b/"]);
+  //
+  // `/.well-known/` joined with the phone app: a phone's OS fetches the app-links
+  // files with no session before it lets a link open the app, and the one route
+  // under the prefix answers a store's file or 404, nothing else (app-links.ts).
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be

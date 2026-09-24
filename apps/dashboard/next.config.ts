@@ -72,6 +72,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return {
+      // The two files a phone's OS reads before it lets a link open the app. One route renders both
+      // (app/api/app-links/[store]); the proxy leaves /.well-known/ public.
+      beforeFiles: [
+        { source: "/.well-known/apple-app-site-association", destination: "/api/app-links/apple" },
+        { source: "/.well-known/assetlinks.json", destination: "/api/app-links/android" },
+      ],
+    };
+  },
   async redirects() {
     return [
       // A workspace's public pages move with its slug; a carrier filing does not.
