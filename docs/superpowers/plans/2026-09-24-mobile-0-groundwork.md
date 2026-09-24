@@ -37,7 +37,7 @@ merge), no new dependencies.
 - Modify: `packages/contracts/src/chrome.ts` (after `themeBootScript`)
 - Test: `tooling/scripts/tests/in-app.test.mjs`
 
-- [ ] **Step 1: Write the failing test** `tooling/scripts/tests/in-app.test.mjs`:
+- [x] **Step 1: Write the failing test** `tooling/scripts/tests/in-app.test.mjs`:
 
 ```js
 /**
@@ -83,9 +83,9 @@ test("the boot script stamps the document before paint, from the same regex, and
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail.** `corepack pnpm test tooling/scripts/tests/in-app.test.mjs` — fails: `inAppFrom` is not exported.
+- [x] **Step 2: Run it to see it fail.** `corepack pnpm test tooling/scripts/tests/in-app.test.mjs` — fails: `inAppFrom` is not exported.
 
-- [ ] **Step 3: Add to `packages/contracts/src/chrome.ts`**, after `themeBootScript`:
+- [x] **Step 3: Add to `packages/contracts/src/chrome.ts`**, after `themeBootScript`:
 
 ```ts
 /**
@@ -118,9 +118,9 @@ export function inAppBootScript(): string {
 }
 ```
 
-- [ ] **Step 4: Run it to see it pass.** Same command — 2 pass.
-- [ ] **Step 5: Rebuild the contracts dist** (the app imports the dist): `corepack pnpm --filter @chanlytics/contracts build`.
-- [ ] **Step 6: Commit** `feat(contracts): the document can know it is inside the app`.
+- [x] **Step 4: Run it to see it pass.** Same command — 2 pass.
+- [x] **Step 5: Rebuild the contracts dist** (the app imports the dist): `corepack pnpm --filter @chanlytics/contracts build`.
+- [x] **Step 6: Commit** `feat(contracts): the document can know it is inside the app`.
 
 ---
 
@@ -133,7 +133,7 @@ export function inAppBootScript(): string {
 - Modify: `apps/dashboard/src/legacy/styles/mobile.css` (end of file: the in-app inset)
 - Test: `tooling/scripts/tests/settings-doors.test.mjs` (a new case), `tooling/scripts/tests/phone-shell.test.mjs` (a new case)
 
-- [ ] **Step 1: Write the failing tests.** In `settings-doors.test.mjs`, after the S20 case:
+- [x] **Step 1: Write the failing tests.** In `settings-doors.test.mjs`, after the S20 case:
 
 ```js
 test("inside the app the billing page keeps its status and says where billing lives; the three Stripe doors are not drawn (App Store 3.1.3(f))", () => {
@@ -180,16 +180,16 @@ test("inside the app the shell draws no phone tab bar (the native one stands the
 });
 ```
 
-- [ ] **Step 2: Run them to see them fail.** `corepack pnpm test tooling/scripts/tests/settings-doors.test.mjs tooling/scripts/tests/phone-shell.test.mjs`.
+- [x] **Step 2: Run them to see them fail.** `corepack pnpm test tooling/scripts/tests/settings-doors.test.mjs tooling/scripts/tests/phone-shell.test.mjs`.
 
-- [ ] **Step 3: `layout.tsx`** — import `inAppBootScript` beside `themeBootScript`; after the theme script line add:
+- [x] **Step 3: `layout.tsx`** — import `inAppBootScript` beside `themeBootScript`; after the theme script line add:
 
 ```tsx
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
         <script dangerouslySetInnerHTML={{ __html: inAppBootScript() }} />
 ```
 
-- [ ] **Step 4: `app-shell.jsx:816`** becomes:
+- [x] **Step 4: `app-shell.jsx:816`** becomes:
 
 ```jsx
         {/* Inside the app the native tab bar stands here (window.__IN_APP, stamped before paint). */}
@@ -198,7 +198,7 @@ test("inside the app the shell draws no phone tab bar (the native one stands the
         )}
 ```
 
-- [ ] **Step 5: `billing-real.jsx:113-115`** — the three buttons become:
+- [x] **Step 5: `billing-real.jsx:113-115`** — the three buttons become:
 
 ```jsx
             {window.__IN_APP ? (
@@ -213,7 +213,7 @@ test("inside the app the shell draws no phone tab bar (the native one stands the
             )}
 ```
 
-- [ ] **Step 6: `mobile.css`**, at the end of the file:
+- [x] **Step 6: `mobile.css`**, at the end of the file:
 
 ```css
 /* ====================================================================
@@ -228,8 +228,8 @@ html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }
 html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
 ```
 
-- [ ] **Step 7: Run the two tests to see them pass.**
-- [ ] **Step 8: Commit** `feat(shell): inside the app, no web tab bar, no Stripe doors, the shell's inset`.
+- [x] **Step 7: Run the two tests to see them pass.**
+- [x] **Step 8: Commit** `feat(shell): inside the app, no web tab bar, no Stripe doors, the shell's inset`.
 
 ---
 
@@ -244,7 +244,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
 - Modify: `tooling/scripts/tests/auth-gate.test.mjs:116` (the prefixes pin)
 - Test: `tooling/scripts/tests/app-links.test.mjs`
 
-- [ ] **Step 1: Write the failing test** `tooling/scripts/tests/app-links.test.mjs`:
+- [x] **Step 1: Write the failing test** `tooling/scripts/tests/app-links.test.mjs`:
 
 ```js
 /**
@@ -309,9 +309,9 @@ test("the route answers the file as JSON, cacheable for an hour, and 404 until c
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail.**
+- [x] **Step 2: Run it to see it fail.**
 
-- [ ] **Step 3: Create `apps/dashboard/src/server/app-links.ts`:**
+- [x] **Step 3: Create `apps/dashboard/src/server/app-links.ts`:**
 
 ```ts
 /**
@@ -368,7 +368,7 @@ export function appLinksFor(store: string, env: { apple?: string; android?: stri
 }
 ```
 
-- [ ] **Step 4: Create `apps/dashboard/app/api/app-links/[store]/route.ts`:**
+- [x] **Step 4: Create `apps/dashboard/app/api/app-links/[store]/route.ts`:**
 
 ```ts
 import { NextResponse } from "next/server";
@@ -388,7 +388,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ store: string 
 }
 ```
 
-- [ ] **Step 5: `next.config.ts`** — after `headers()`:
+- [x] **Step 5: `next.config.ts`** — after `headers()`:
 
 ```ts
   async rewrites() {
@@ -403,9 +403,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ store: string 
   },
 ```
 
-- [ ] **Step 6: `proxy.ts:61`** → `const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/"];` and, in `auth-gate.test.mjs`, the pin `assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/"]);` with a comment: `/.well-known/` joined with the phone app: the OS fetches the app-links files with no session, and the route under it answers a store's file or 404, nothing else.
+- [x] **Step 6: `proxy.ts:61`** → `const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/"];` and, in `auth-gate.test.mjs`, the pin `assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/"]);` with a comment: `/.well-known/` joined with the phone app: the OS fetches the app-links files with no session, and the route under it answers a store's file or 404, nothing else.
 
-- [ ] **Step 7: `apps/dashboard/.env.example`**, a new group at the end:
+- [x] **Step 7: `apps/dashboard/.env.example`**, a new group at the end:
 
 ```
 # The phone app's links (app/api/app-links): which apps may open this domain's
@@ -416,8 +416,8 @@ APP_LINKS_APPLE=
 APP_LINKS_ANDROID=
 ```
 
-- [ ] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/app-links.test.mjs tooling/scripts/tests/auth-gate.test.mjs tooling/scripts/tests/env-manifest.test.mjs` — pass.
-- [ ] **Step 9: Commit** `feat(dashboard): the domain publishes its app links`.
+- [x] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/app-links.test.mjs tooling/scripts/tests/auth-gate.test.mjs tooling/scripts/tests/env-manifest.test.mjs` — pass.
+- [x] **Step 9: Commit** `feat(dashboard): the domain publishes its app links`.
 
 ---
 
@@ -432,7 +432,7 @@ APP_LINKS_ANDROID=
 - Modify: `apps/dashboard/proxy.ts:31` (`/auth/native`), `tooling/scripts/tests/auth-gate.test.mjs:190` (the paths pin, "thirteen")
 - Test: `tooling/scripts/tests/native-sign-in.test.mjs`
 
-- [ ] **Step 1: Write the failing test** `tooling/scripts/tests/native-sign-in.test.mjs`:
+- [x] **Step 1: Write the failing test** `tooling/scripts/tests/native-sign-in.test.mjs`:
 
 ```js
 /**
@@ -482,9 +482,9 @@ test("the network a request came from, and its hashed key, the way sign-up reads
 });
 ```
 
-- [ ] **Step 2: Run it to see it fail.**
+- [x] **Step 2: Run it to see it fail.**
 
-- [ ] **Step 3: Create `apps/dashboard/src/server/request-ip.ts`** (the signup route's two helpers, moved, one derivation):
+- [x] **Step 3: Create `apps/dashboard/src/server/request-ip.ts`** (the signup route's two helpers, moved, one derivation):
 
 ```ts
 import { createHash } from "node:crypto";
@@ -502,7 +502,7 @@ export function ipOf(req: Request): string {
 
 In `signup/route.ts` delete the local `hash` and `ipOf`, import `{ ipOf, hashKey as hash }` from `@/server/request-ip`.
 
-- [ ] **Step 4: Create `apps/dashboard/src/server/native-sign-in.ts`:**
+- [x] **Step 4: Create `apps/dashboard/src/server/native-sign-in.ts`:**
 
 ```ts
 import { safeNext } from "./oauth-callback";
@@ -547,7 +547,7 @@ export function nativeSignInPlan(body: unknown): NativePlan {
 }
 ```
 
-- [ ] **Step 5: Create `apps/dashboard/app/auth/native/route.ts`:**
+- [x] **Step 5: Create `apps/dashboard/app/auth/native/route.ts`:**
 
 ```ts
 import { NextResponse } from "next/server";
@@ -602,10 +602,10 @@ async function readBody(request: Request): Promise<unknown> {
 }
 ```
 
-- [ ] **Step 6: `rate-limit.ts`** — beside `profile_set`: `native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },` with the comment: The native app's sign-in door: per network, a token that does not verify costs a call each time.
-- [ ] **Step 7: `proxy.ts`** — add `"/auth/native",` after `"/auth/callback",`. In `auth-gate.test.mjs` the pinned list gains `"/auth/native"` (sorted after `/auth/callback`), the test's title says thirteen, and a comment: The native app's door joined with the phone app: the app posts an identity token and has no session yet, exactly as the callback has none. Exact path.
-- [ ] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/native-sign-in.test.mjs tooling/scripts/tests/auth-gate.test.mjs tooling/scripts/tests/signup.test.mjs tooling/scripts/tests/rate-limit.test.mjs` — pass (rate-limit's test may enumerate buckets; follow its message if it pins the list).
-- [ ] **Step 9: Commit** `feat(auth): a native identity token has a door into the cookie session`.
+- [x] **Step 6: `rate-limit.ts`** — beside `profile_set`: `native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },` with the comment: The native app's sign-in door: per network, a token that does not verify costs a call each time.
+- [x] **Step 7: `proxy.ts`** — add `"/auth/native",` after `"/auth/callback",`. In `auth-gate.test.mjs` the pinned list gains `"/auth/native"` (sorted after `/auth/callback`), the test's title says thirteen, and a comment: The native app's door joined with the phone app: the app posts an identity token and has no session yet, exactly as the callback has none. Exact path.
+- [x] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/native-sign-in.test.mjs tooling/scripts/tests/auth-gate.test.mjs tooling/scripts/tests/signup.test.mjs tooling/scripts/tests/rate-limit.test.mjs` — pass (rate-limit's test may enumerate buckets; follow its message if it pins the list).
+- [x] **Step 9: Commit** `feat(auth): a native identity token has a door into the cookie session`.
 
 ---
 
@@ -620,7 +620,7 @@ async function readBody(request: Request): Promise<unknown> {
 - Modify: `apps/dashboard/src/server/rate-limit.ts` (`device_register`), `tooling/scripts/tests/route-policy.json` (regenerated), `apps/dashboard/src/client/routes.generated.ts` (regenerated)
 - Test: `tooling/scripts/tests/push.test.mjs` (contracts), `tooling/scripts/tests/account-routes.test.mjs` (two cases)
 
-- [ ] **Step 1: The migration** `supabase/migrations/00162_a_phone_can_be_told.sql`:
+- [x] **Step 1: The migration** `supabase/migrations/00162_a_phone_can_be_told.sql`:
 
 ```sql
 -- 00162 · A phone can be told.
@@ -710,7 +710,7 @@ alter table public.jobs add constraint jobs_kind_check
   check (kind in ('outbound_send', 'broadcast_send', 'line_provision', 'email_ingest', 'lead_round_start', 'lead_collect', 'lead_check', 'push_send'));
 ```
 
-- [ ] **Step 2: Contracts.** In `enums.ts` `JOB_KINDS`, after `"lead_check"`:
+- [x] **Step 2: Contracts.** In `enums.ts` `JOB_KINDS`, after `"lead_check"`:
 
 ```ts
   /**
@@ -819,7 +819,7 @@ In `notifications.ts`, the bell's `message:` derivation (the `.split("\n").find(
 
 `schema-sets.ts`: import `PUSH_PLATFORMS` from `./push` and, in the jobs group, `Holds<Exactly<Of<typeof PUSH_PLATFORMS>, SchemaSet<"push_devices.platform">>>,`.
 
-- [ ] **Step 3: The database types.** In `packages/db/src/database.types.ts`, a `push_devices` block in table order (after `policies`, before the next table), and the two functions in `Functions` in name order:
+- [x] **Step 3: The database types.** In `packages/db/src/database.types.ts`, a `push_devices` block in table order (after `policies`, before the next table), and the two functions in `Functions` in name order:
 
 ```ts
       push_devices: {
@@ -867,7 +867,7 @@ In `notifications.ts`, the bell's `message:` derivation (the `.split("\n").find(
 
 CI's `database.yml` regenerates from a replay and diffs; a hand edit that drifts fails there, which is the check.
 
-- [ ] **Step 4: Write the failing tests.** `tooling/scripts/tests/push.test.mjs`:
+- [x] **Step 4: Write the failing tests.** `tooling/scripts/tests/push.test.mjs`:
 
 ```js
 /**
@@ -948,9 +948,9 @@ test("a phone is registered on the account through the definer door, and forgott
 
 (`run` is how the file calls every route; read its other cases for the exact helper name before writing this one.)
 
-- [ ] **Step 5: Run them to see them fail.**
+- [x] **Step 5: Run them to see them fail.**
 
-- [ ] **Step 6: The route** `apps/dashboard/app/api/v1/me/devices/route.ts`:
+- [x] **Step 6: The route** `apps/dashboard/app/api/v1/me/devices/route.ts`:
 
 ```ts
 import { write, account } from "@/server/route";
@@ -1000,9 +1000,9 @@ export const DELETE = write({
 
 `rate-limit.ts`: `device_register: { limit: 60, windowMs: 3_600_000, noun: "device registrations" },` with the comment: The phone app registers its push token on launch; sixty an hour is a loop, not a person.
 
-- [ ] **Step 7: Regenerate** `UPDATE_ROUTE_POLICY=1 corepack pnpm test tooling/scripts/tests/route-policy.test.mjs` then `node tooling/scripts/gen-route-types.mjs`; rebuild the contracts dist (`corepack pnpm --filter @chanlytics/contracts build`) and db (`corepack pnpm --filter @chanlytics/db build`).
-- [ ] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/push.test.mjs tooling/scripts/tests/account-routes.test.mjs tooling/scripts/tests/route-policy.test.mjs tooling/scripts/tests/route-types.test.mjs tooling/scripts/tests/migrations.test.mjs tooling/scripts/tests/notifications-durable.test.mjs` and `corepack pnpm typecheck` — pass.
-- [ ] **Step 9: Commit** `feat(push): a phone can be registered (00162, push_devices, me/devices)`.
+- [x] **Step 7: Regenerate** `UPDATE_ROUTE_POLICY=1 corepack pnpm test tooling/scripts/tests/route-policy.test.mjs` then `node tooling/scripts/gen-route-types.mjs`; rebuild the contracts dist (`corepack pnpm --filter @chanlytics/contracts build`) and db (`corepack pnpm --filter @chanlytics/db build`).
+- [x] **Step 8: Run** `corepack pnpm test tooling/scripts/tests/push.test.mjs tooling/scripts/tests/account-routes.test.mjs tooling/scripts/tests/route-policy.test.mjs tooling/scripts/tests/route-types.test.mjs tooling/scripts/tests/migrations.test.mjs tooling/scripts/tests/notifications-durable.test.mjs` and `corepack pnpm typecheck` — pass.
+- [x] **Step 9: Commit** `feat(push): a phone can be registered (00162, push_devices, me/devices)`.
 
 ---
 
@@ -1015,7 +1015,7 @@ export const DELETE = write({
 - Modify: `apps/edge/lib/ops/notify.ts` (`recordNotification` returns the id; `notify` schedules `push_send`)
 - Test: `tooling/scripts/tests/push-send.test.mjs`, `tooling/scripts/tests/notify-transport.test.mjs` (a case), `tooling/scripts/tests/expo-push.test.mjs`
 
-- [ ] **Step 1: Write the failing tests.** `tooling/scripts/tests/push-send.test.mjs`:
+- [x] **Step 1: Write the failing tests.** `tooling/scripts/tests/push-send.test.mjs`:
 
 ```js
 /**
@@ -1171,9 +1171,9 @@ test("a kept row of a kind a phone hears about schedules one push_send naming it
 
 (`TENANT` and the platform env the file's other cases set: reuse them as they are.)
 
-- [ ] **Step 2: Run them to see them fail.**
+- [x] **Step 2: Run them to see them fail.**
 
-- [ ] **Step 3: `packages/jobs/src/handlers.ts`.** Import `pushFor` and `type PushMessage` from `@chanlytics/contracts`. On `JobContext`, after `leads`:
+- [x] **Step 3: `packages/jobs/src/handlers.ts`.** Import `pushFor` and `type PushMessage` from `@chanlytics/contracts`. On `JobContext`, after `leads`:
 
 ```ts
   /**
@@ -1243,7 +1243,7 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 
 `HANDLERS` gains `push_send: pushSend,`. In `ledger.ts` `RETRY_WAITS_MS` gains `push_send: [2 * 60_000, 10 * 60_000],` with a comment: the provider's bad minute, then its short outage, each wait outlasting the lease (jobs-ledger.test.mjs holds every wait above it).
 
-- [ ] **Step 4: The transport** `apps/edge/lib/ops/push.ts`:
+- [x] **Step 4: The transport** `apps/edge/lib/ops/push.ts`:
 
 ```ts
 /**
@@ -1318,7 +1318,7 @@ EXPO_ACCESS_TOKEN=
 
 `tick.ts`: import `expoPush` from `../../lib/ops/push.js` and add `push: expoPush(),` to the dispatch context beside `page`.
 
-- [ ] **Step 5: `notify.ts`.** `recordNotification` returns `Promise<string | null>`: the insert gains `.select("id").single()` and returns `data.id` (null on any failure, still logged). `notify` keeps the returned id and, after the row:
+- [x] **Step 5: `notify.ts`.** `recordNotification` returns `Promise<string | null>`: the insert gains `.select("id").single()` and returns `data.id` (null on any failure, still logged). `notify` keeps the returned id and, after the row:
 
 ```ts
   // A phone is told from the row, by the ledger: never in this request, and never lost with the mail.
@@ -1336,9 +1336,9 @@ EXPO_ACCESS_TOKEN=
 
 where `keptKind` is the kind `recordNotification` decided (return `{ id, kind }` so the two are one decision), `isPushKind` comes from `../packages/contracts.js` and `scheduleJob` from `../packages/jobs.js`.
 
-- [ ] **Step 6: Rebuild dists** `corepack pnpm --filter @chanlytics/jobs build` (contracts and db were rebuilt in Task 5; jobs bundles core).
-- [ ] **Step 7: Run** `corepack pnpm test tooling/scripts/tests/push-send.test.mjs tooling/scripts/tests/expo-push.test.mjs tooling/scripts/tests/notify-transport.test.mjs tooling/scripts/tests/notify-addressing.test.mjs tooling/scripts/tests/jobs-tick.test.mjs tooling/scripts/tests/edge-env.test.mjs tooling/scripts/tests/env-manifest.test.mjs` — pass.
-- [ ] **Step 8: Commit** `feat(push): a kept notification reaches every phone of the people it is for`.
+- [x] **Step 6: Rebuild dists** `corepack pnpm --filter @chanlytics/jobs build` (contracts and db were rebuilt in Task 5; jobs bundles core).
+- [x] **Step 7: Run** `corepack pnpm test tooling/scripts/tests/push-send.test.mjs tooling/scripts/tests/expo-push.test.mjs tooling/scripts/tests/notify-transport.test.mjs tooling/scripts/tests/notify-addressing.test.mjs tooling/scripts/tests/jobs-tick.test.mjs tooling/scripts/tests/edge-env.test.mjs tooling/scripts/tests/env-manifest.test.mjs` — pass.
+- [x] **Step 8: Commit** `feat(push): a kept notification reaches every phone of the people it is for`.
 
 ---
 
@@ -1346,11 +1346,11 @@ where `keptKind` is the kind `recordNotification` decided (return `{ id, kind }`
 
 **Files:** none new.
 
-- [ ] **Step 1: Format** the non-legacy files touched: `corepack pnpm exec prettier --write <each .ts/.mjs file from Tasks 1–6>` (legacy JSX and CSS are ignored by `.prettierignore`).
-- [ ] **Step 2: Dists.** `node tooling/scripts/check-dist.mjs` after committing the sources; commit every dist with a real diff (`git diff -w --ignore-cr-at-eol --stat -- packages/*/dist`), restore the ones whose diff is line endings alone.
-- [ ] **Step 3: Whole suite** `corepack pnpm test` — expect the baseline plus the new tests, 0 fail. `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm format:check`.
-- [ ] **Step 4: Migration number.** `MSYS_NO_PATHCONV=1 git ls-tree -r --name-only origin/main -- supabase/migrations | tail -3` and the open PRs' branches: `00162` must be free. `corepack pnpm test tooling/scripts/tests/migrations.test.mjs`.
-- [ ] **Step 5: Push and open the PR** with the body below; CI must be green; a PR touching `supabase/migrations/` is not auto-merged — the production push is a separate step (`db push --linked --dry-run`, then `--yes`, BEFORE merge since the code reads the new schema).
+- [x] **Step 1: Format** the non-legacy files touched: `corepack pnpm exec prettier --write <each .ts/.mjs file from Tasks 1–6>` (legacy JSX and CSS are ignored by `.prettierignore`).
+- [x] **Step 2: Dists.** `node tooling/scripts/check-dist.mjs` after committing the sources; commit every dist with a real diff (`git diff -w --ignore-cr-at-eol --stat -- packages/*/dist`), restore the ones whose diff is line endings alone.
+- [x] **Step 3: Whole suite** `corepack pnpm test` — expect the baseline plus the new tests, 0 fail. `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm format:check`.
+- [x] **Step 4: Migration number.** `MSYS_NO_PATHCONV=1 git ls-tree -r --name-only origin/main -- supabase/migrations | tail -3` and the open PRs' branches: `00162` must be free. `corepack pnpm test tooling/scripts/tests/migrations.test.mjs`.
+- [x] **Step 5: Push and open the PR** with the body below; CI must be green; a PR touching `supabase/migrations/` is not auto-merged — the production push is a separate step (`db push --linked --dry-run`, then `--yes`, BEFORE merge since the code reads the new schema).
 
 PR body:
 
@@ -1374,3 +1374,18 @@ Ruben's steps after merge: Sign in with Apple on the hosted Supabase project (Pr
 - **Spec coverage.** §1 in-app mode: Tasks 1–2. §2 app links: Task 3. §3 the native door: Task 4. §4 devices: Task 5. §5 the job: Task 6. Decisions 1–5 are stated in the code comments of Tasks 4, 5 and 6.
 - **Placeholders.** Two spots defer to the file being edited (the account-routes `run` helper's name, the fake db's rows property): both are read-before-write notes, not gaps; the code is complete.
 - **Type consistency.** `PushMessage` is defined in contracts (Task 5) and read by jobs and the edge (Task 6); `PushPort`/`PushReceipt` live in jobs and are imported by the edge transport; `pushFor(n, tokens)` takes `{id, tenant_id, title, body, route}` in both the contracts test and the handler; `parseDevice` returns `{ok, device | reason}` in the route and the test; `nativeSignInPlan` returns `{signIn, to, refused}` in the route and the test.
+
+## As built (24 Sep 2026, branch `feat/mobile-groundwork`)
+
+Every task shipped as written, with these departures:
+
+- **Retry waits are two minutes, then ten** (`push_send` in `RETRY_WAITS_MS`), not one and five: `jobs-ledger.test.mjs` holds every wait above the 90 s lease, as the lead kinds are.
+- **The ✦'s in-app lift lives in `ask.css`**, not `mobile.css`: `ask.test.mjs` holds every palette rule there ("the palette's rules live in ask.css alone"). `phone-shell.test.mjs` keeps the other three in-app rules.
+- **The in-app assertions joined the phone-shell tests that already read the shell and its sheet** rather than a new test, so the source-scan ratchet's count for that file stayed at 12.
+- **`route-policy.json` took only the two new rows**: a regeneration on Windows reorders three existing entries (readdir order), so the rows were inserted by hand after `PUT me` and the test confirms the content.
+- **A failure's alert now leaves a `push_send` row**, so the tick door's three counting tests name it (`[kind, tenant, state]`) instead of counting three states; the mass-failure case sees 29 push rows, one per kept row.
+- **`store-retired.test.mjs`** lists `push_send` and no longer pins 00151's CHECK to the current set (held at compile time and by CI's replay); it now holds what 00151 promised, no retired kind.
+- **`notifications-durable.test.mjs`** follows notify's new row-first shape (`const kept = await recordNotification(..., db)`).
+- `must()` on a list read answers `T | null`, so the handler reads readers and phones with `?? []`.
+
+Gates: `corepack pnpm test` 4714 tests, 0 fail (baseline 4693); `-r typecheck`, `lint` (0 errors), `format:check`, `check-dist` in sync; migration 00162 free on every remote branch and open PR on 24 Sep.
