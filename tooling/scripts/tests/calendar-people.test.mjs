@@ -548,9 +548,10 @@ test("the wiring: the board and the profile read one match; both receptionists a
   assert.ok(!svc.includes("personInTitle"), "the old name-only match is gone");
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(
-    route.includes("const visits = await personVisits(ctx, tenantId, personLike(row)).catch(") &&
+    route.includes("const visitsRead = personVisits(") &&
+      route.includes('"person_visits_failed"') &&
       route.includes("visits: visits ?? undefined,"),
-    "never fatal to the profile",
+    "never fatal to the profile (read in the same round as the rest: person-read-one-round.test.mjs)",
   );
   const edge = readCode("apps/edge/lib/calendar/availability.ts");
   assert.ok(
