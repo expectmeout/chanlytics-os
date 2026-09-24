@@ -138,6 +138,8 @@
    the question in the accent, or one of the nine endings. The phone's own
    stacking of these is in the 900px block at the foot of this file. */
 
+/* The question a search asked, over the input that answers it (Change what I asked). */
+.lf-answering { margin: 0 0 8px; color: var(--ink-dim); font-size: var(--text-sm); line-height: 1.4; }
 .lf-strip {
   position: relative; margin: 10px var(--gutter-page) 0; display: flex; align-items: center; flex-wrap: wrap;
   gap: 6px 10px; padding: 4px 6px 4px 14px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px;
@@ -515,12 +517,14 @@
   .fr-sug .reach { margin-left: 0; }
   .fr-line-form .inp { min-width: 0; height: 40px; }
 
-  /* A running search is two lines; the question is a card with two 44px
-     answers and Stop here under them. */
+  /* A running search is two lines; the question is a card with its four
+     answers two by two, each 44px. */
   .lf-strip { flex-direction: column; align-items: flex-start; gap: 2px; }
   .lf-strip .sp { display: none; }
   .lf-strip .lf-acts { display: flex; width: 100%; gap: 8px; margin-top: 8px; }
-  .lf-strip.ask .lf-acts .btn { flex: 1; min-height: 44px; justify-content: center; }
+  /* Four answers, two by two: in one row each was a word wide at 375. */
+  .lf-strip.ask .lf-acts { flex-wrap: wrap; }
+  .lf-strip.ask .lf-acts .btn { flex: 1 1 calc(50% - 4px); min-height: 44px; justify-content: center; }
   .lf-strip.ask .lf-acts .lnk { flex-basis: 100%; text-align: left; }
   /* The band under what happened, the three piles sharing the width; the step under them. */
   .lf-strip-said { max-width: 100%; }

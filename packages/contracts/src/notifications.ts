@@ -198,7 +198,11 @@ export function agoLabel(atMs: number, now: number): string {
 }
 
 /** The kinds a device is woken for; an invitation can wait for the bell. */
-export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draft", "missed_call"];
+/**
+ * A search waiting on its question is one of them: it waits a day and then ends, and nothing else tells the owner
+ * while the tab is not in view (the bridge alerts on kept rows of these kinds as on derived ones).
+ */
+export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draft", "missed_call", "leads_question"];
 
 /* ------------------------------------------------- rows the workspace keeps */
 
@@ -280,46 +284,51 @@ export interface NotificationsDto {
   seen_at: string | null;
 }
 
-const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; action: string; to: string }> = {
-  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
-  /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
-  number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-  /**
-   * A template's news is not the number's news. Both arrive on the same
-   * webhook, and for a while both were kind "number" — so "Template … approved"
-   * was drawn with a shield, in warn amber, over a door to Connections: good
-   * news wearing a warning's colour and pointing at the wrong page. Since Today
-   * sorts warnings above everything else, it also outranked real news.
-   *
-   * Two kinds rather than one kind and a tone column, because which of the two
-   * a change is belongs to the change (waba-events.ts describeWabaChange), and
-   * how it should read belongs here. Never inferred from the title.
-   */
-  template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
-  sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-  /** A JOB that did not finish, and nothing else. See JobNewsKind. */
-  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  /** A broadcast that ran to completion: good news, on the page it happened on. */
-  broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
-  /** A broadcast that did not go out, or stopped partway. */
-  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
-  playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
-  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
-  /** A search that finished: good news, on the page the leads are on. */
-  leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
-  /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
-  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads" },
-  /** A review on Google: good news with somewhere to read it. */
-  review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
-  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
-  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
-  /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
-  note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
-  alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
-};
+/**
+ * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
+ * Leads" would say where it is without saying what it wants.
+ */
+const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; action: string; to: string; own?: true }> =
+  {
+    handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+    deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+    call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+    /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
+    number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+    /**
+     * A template's news is not the number's news. Both arrive on the same
+     * webhook, and for a while both were kind "number" — so "Template … approved"
+     * was drawn with a shield, in warn amber, over a door to Connections: good
+     * news wearing a warning's colour and pointing at the wrong page. Since Today
+     * sorts warnings above everything else, it also outranked real news.
+     *
+     * Two kinds rather than one kind and a tone column, because which of the two
+     * a change is belongs to the change (waba-events.ts describeWabaChange), and
+     * how it should read belongs here. Never inferred from the title.
+     */
+    template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
+    template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
+    sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+    /** A JOB that did not finish, and nothing else. See JobNewsKind. */
+    job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+    /** A broadcast that ran to completion: good news, on the page it happened on. */
+    broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
+    /** A broadcast that did not go out, or stopped partway. */
+    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
+    playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+    calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+    /** A search that finished: good news, on the page the leads are on. */
+    leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
+    /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
+    leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads", own: true },
+    /** A review on Google: good news with somewhere to read it. */
+    review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
+    /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
+    billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
+    /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
+    note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
+    alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
+  };
 
 /** The verb for a row that names its own route; the kind's verb otherwise. */
 const ROUTE_VERBS: Array<[RegExp, string]> = [
@@ -340,6 +349,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
+  // Leads is a scope of People, and its rows name it: a finished search said "Open People" over a door to Leads.
+  [/^clients\/leads/, "Open Leads"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
   [/^today/, "Open Today"],
@@ -400,7 +411,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         to: n.route ?? look.to,
         icon: look.icon,
         tone: look.tone,
-        action: verbForRoute(n.route) ?? look.action,
+        action: look.own ? look.action : (verbForRoute(n.route) ?? look.action),
         unread: at > seen && !n.read,
         about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null,
       };

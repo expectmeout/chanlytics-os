@@ -29,6 +29,7 @@ import {
   type FeedCall,
   type FeedInvite,
   type FeedThread,
+  type NotificationItem,
   type NotificationReadState,
   type NotificationRow,
   type NotificationsDto,
@@ -218,16 +219,30 @@ export function installNotifications(
   // Device alerts. The keys seen at the first computation are the backlog
   // and never alert; only what appears AFTER, while the app is not in view.
   let known: Set<string> | null = null;
+  // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
+  // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
+  // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
+  let knownKept: Set<string> | null = null;
+  const freshKept = (): NotificationItem[] => {
+    const dto = win.__NOTIFICATIONS?.dto;
+    if (!dto) return [];
+    const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
+    const keys = new Set(rows.map((r) => r.key));
+    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
+    knownKept = keys;
+    return out;
+  };
   const notice = () => {
     const now = Date.now();
     const items = feedFromGlobals(win, now);
     const keys = new Set(items.map((i) => i.key));
+    const kept = freshKept();
     if (known === null) {
       known = keys;
       emit();
       return;
     }
-    const fresh = items.filter((i) => !known!.has(i.key) && ALERT_KINDS.includes(i.kind));
+    const fresh = [...items.filter((i) => !known!.has(i.key) && ALERT_KINDS.includes(i.kind)), ...kept];
     known = keys;
     emit();
     if (!fresh.length) return;

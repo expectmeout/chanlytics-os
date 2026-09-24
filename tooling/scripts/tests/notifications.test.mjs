@@ -117,7 +117,11 @@ test("this device's read state: seen moves the line, read and dismissed are by k
   assert.equal(agoLabel(NOW - 5 * 60_000, NOW), "5m");
   assert.equal(agoLabel(NOW - 3 * 3_600_000, NOW), "3h");
   assert.equal(agoLabel(NOW - 2 * 86_400_000, NOW), "2d");
-  assert.deepEqual([...ALERT_KINDS], ["needs_you", "held_draft", "missed_call"], "an invitation can wait for the bell");
+  assert.deepEqual(
+    [...ALERT_KINDS],
+    ["needs_you", "held_draft", "missed_call", "leads_question"],
+    "an invitation can wait for the bell; a search waiting a day on its question cannot",
+  );
 });
 
 test("the bridge: reads the globals, keeps state per workspace and device, alerts only for what appears after the first look and only in the background", async () => {
@@ -195,6 +199,103 @@ test("the bridge: reads the globals, keeps state per workspace and device, alert
   );
   api.restore("needs:t2");
   assert.equal(api.feed().length, 4);
+});
+
+// A search waits a day on its question and then ends; the bell's row is the trigger's (a KEPT row), and the device
+// was only ever woken for DERIVED rows, so the owner away from the tab heard nothing.
+test("a kept row of an alerting kind wakes the device like a derived one: not the backlog, only new, only in the background", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/notifications.ts")).href
+  );
+  const store = new Map();
+  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  const handlers = {};
+  const fired = [];
+  class FakeNotification {
+    static permission = "granted";
+    constructor(title, opts) {
+      fired.push({ title, tag: opts.tag, body: opts.body });
+      this.close = () => {};
+    }
+    static async requestPermission() {
+      return "granted";
+    }
+  }
+  const kept = (id, kind, title, body, route) => ({
+    id,
+    kind,
+    title,
+    body,
+    route,
+    subject_type: "lead_round",
+    subject_id: id,
+    created_at: new Date().toISOString(),
+    read: false,
+    dismissed: false,
+  });
+  const win = {
+    addEventListener: (ev, fn) => {
+      handlers[ev] = fn;
+    },
+    document: { visibilityState: "hidden" },
+    focus: () => {},
+    location: { hash: "" },
+    Notification: FakeNotification,
+    INBOX_DATA: { THREADS: [] },
+    __LIVE: { now: [], recent: [] },
+    __TEAM_INVITES: [],
+  };
+  const api = mod.installNotifications(win, storage);
+  await api.setAlerts(true);
+  handlers["surface:inbox"](); // a first look before the bell's own rows have loaded
+  const Q1 = "11111111-1111-4111-8111-111111111111";
+  const Q2 = "22222222-2222-4222-8222-222222222222";
+  win.__NOTIFICATIONS = {
+    dto: {
+      seen_at: null,
+      notifications: [
+        kept(
+          Q1,
+          "leads_question",
+          "Your search for florists is waiting for your answer",
+          "Most of the first 25 are chains.",
+          "clients/leads:s-1:c-excluded",
+        ),
+      ],
+    },
+  };
+  handlers["surface:notifications"]();
+  assert.deepEqual(fired, [], "the rows there when the bell first loads are the backlog");
+  win.__NOTIFICATIONS.dto.notifications.unshift(
+    kept(
+      Q2,
+      "leads_question",
+      "Your search for wedding photographers is waiting for your answer",
+      "Some of the first 16 are large studio chains.",
+      "clients/leads:s-2:c-excluded",
+    ),
+    kept(
+      "33333333-3333-4333-8333-333333333333",
+      "leads_ready",
+      "Your search for bakers is done",
+      "9 found.",
+      "clients/leads:s-3",
+    ),
+  );
+  handlers["surface:notifications"]();
+  assert.deepEqual(
+    fired,
+    [
+      {
+        title: "Your search for wedding photographers is waiting for your answer",
+        tag: `n:${Q2}`,
+        body: "Some of the first 16 are large studio chains.",
+      },
+    ],
+    "the new question only; a finished search waits for the bell",
+  );
+  handlers["surface:notifications"]();
+  assert.equal(fired.length, 1, "told once");
 });
 
 test("two devices agree after Mark all read: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {

@@ -1102,6 +1102,7 @@ const LeadsScope = (p) => {
                 onApprove={p.onFinderApprove}
                 onBack={p.onFinderBack}
                 onClose={p.onCloseFinder}
+                answering={p.finderAnswering}
               />
             );
             return phone ? <LeadFinderSheet onClose={p.onCloseFinder}>{finder}</LeadFinderSheet> : finder;

@@ -43072,7 +43072,8 @@ async function startRound(p, roundId, owner, resume = false) {
     const judged = members.filter(wasJudged);
     const counted = members.filter((m) => m.counted).length;
     const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
-    ask = mainAsk(plan, targetOf(round) - counted, y, round.question?.dropTerm ?? null);
+    const dropTerm = round.answered === "keep" ? round.question?.dropTerm ?? null : null;
+    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
   }
   const caps = runCaps(plan, ask.perTerm, leftUsd);
   const wanted = [];
@@ -43441,6 +43442,7 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
   if (phase === "probe") {
+    if (round.state !== "queued" && round.state !== "probing") return null;
     if (counted >= targetOf(round)) return toChecks;
     const judged = members.filter(wasJudged);
     const a = afterProbe(
@@ -43449,7 +43451,14 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
       p.now()
     );
     if (a.kind === "ask")
-      return { round: { state: "waiting_on_owner", question: a.question, ending: null }, next: null };
+      return {
+        round: { state: "waiting_on_owner", question: a.question, ending: null },
+        next: null,
+        // Once the question is committed: it waits a day on a person who may not be looking at the page.
+        after: async () => {
+          await p.tell?.({ kind: "question", roundId: round.id }).catch(() => void 0);
+        }
+      };
     return {
       round: { state: "running", question: null, ending: null, target: targetOf(round) },
       next: null,

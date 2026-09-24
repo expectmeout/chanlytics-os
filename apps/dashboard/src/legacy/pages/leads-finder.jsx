@@ -129,6 +129,16 @@ const LeadsFirstDay = ({
 const leadFinderAsk = (words) => `On People › Leads, find businesses I could reach: ${String(words || "").trim()}`;
 
 /**
+ * The one turn that amends a search waiting on its question: which search, what it asked, what the owner first
+ * asked for, and their answer. The card that comes back is the same search with the answer applied; the page sends
+ * it as the round's next version (leadFinderApprove), never as a new search.
+ */
+const leadFinderAmendAsk = (a, words) =>
+  `On People › Leads, my search for ${a.name} stopped to ask: “${a.question}” ` +
+  `I had asked for: “${a.asked}”${a.leavingOut && a.leavingOut.length ? `, leaving out ${a.leavingOut.join(", ")}` : ""}. ` +
+  `My answer: ${String(words || "").trim()}. Propose the same search with my answer applied, and keep everything I did not change.`;
+
+/**
  * One Ask turn, through window.__ask.send (legacy-bridge/ask/api.ts). The
  * SendEvent shapes are that file's: thread, trace, delta, final, error. The
  * finder listens for the trace line while it waits and for the `final`
@@ -150,7 +160,10 @@ const leadFinderPlan = async (words, set) => {
   }
   let card = null;
   let said = "";
-  await A.send({ text: leadFinderAsk(words), threadId: null, scope: null, surface: "clients" }, (ev) => {
+  // Opened under a search's question (the page's `more`, answer mode), the turn amends that search.
+  const answering = set.more && set.more.answer ? set.more : null;
+  const text = answering ? leadFinderAmendAsk(answering, words) : leadFinderAsk(words);
+  await A.send({ text, threadId: null, scope: null, surface: "clients" }, (ev) => {
     if (!ev || !ev.t) return;
     if (ev.t === "trace") set.trace(ev.text);
     else if (ev.t === "final") {
@@ -160,8 +173,10 @@ const leadFinderPlan = async (words, set) => {
     } else if (ev.t === "error") said = ev.text || "";
   });
   if (card) {
+    const p = (card.payload || {}).plan || null;
     set.proposal(card);
-    set.plan((card.payload || {}).plan || null);
+    // An answer is the round's next version at the count the round reserved: the card shows what will be sent.
+    set.plan(answering && p ? { ...p, version: answering.baseVersion + 1, count: answering.count } : p);
     set.stage("plan");
     return card;
   }
@@ -183,15 +198,20 @@ const leadFinderApprove = async (proposal, plan, set) => {
   set.stage("starting");
   set.refusal(null);
   let r;
-  if (proposal) {
+  if (set.more && set.more.answer && window.__leadSearchAnswer) {
+    // An answer amends the round that is waiting, whatever card it came from: Change what I asked comes back from
+    // Ask as a proposal, and committing that started a second search while the first waited a day and died. It is
+    // sent as the version after the round's, at the count the round reserved, however many words were picked on
+    // the card (each pick made a version of its own, which the door refused). If the round stopped waiting
+    // meanwhile the route says so, and that is what is shown (section 7.2).
+    const m = set.more;
+    const base = typeof m.baseVersion === "number" ? m.baseVersion : plan.version - 1;
+    r = await window.__leadSearchAnswer(m.searchId, "include", { ...plan, version: base + 1, count: m.count || plan.count });
+  } else if (proposal) {
     const A = window.__ask;
     r = A && typeof A.commit === "function"
       ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
       : { ok: false, message: "Claude isn't available here yet — try again in a moment." };
-  } else if (set.more && set.more.answer && window.__leadSearchAnswer) {
-    // Include amends the plan of a round that is still waiting, so the answer carries the version the owner
-    // approved (section 7.2). If it stopped waiting meanwhile the route says so, and that is what is shown.
-    r = await window.__leadSearchAnswer(set.more.searchId, "include", plan);
   } else if (set.more && window.__leadSearchMore) {
     r = await window.__leadSearchMore(set.more.searchId, set.more.purpose || "topup", plan);
   } else {
@@ -259,13 +279,15 @@ const LeadPick = ({ id, label, cls, title, open, options, onOpen, onPick }) => (
  * (sections 8.3, 0.1, 0.2). A picked word re-plans here, on the page, through
  * planVersionOf and planWords: no model call, ever.
  */
-const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick = null, onPick = () => {}, onChange, onApprove, onBack }) => {
+const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick = null, onPick = () => {}, onChange, onApprove, onBack, answering = null }) => {
   const C = window.__LEAD_VM || {};
   if (!plan) return null;
   const f = facts || { dupes: 0, leadsLeft: 0, bound: null, prior: null, priorOf: null, cannotSee: null, renewsOn: "", nearby: [] };
   const change = (over) => onChange(C.planVersionOf(plan, over));
   const likely = C.leadPlanLikely(plan, f);
-  const ask = C.leadPlanAsk(plan, f);
+  // An answer spends from the round's own reservation: its count is the one reserved, and the month's clamp is not
+  // this round's to apply (nothing new is reserved).
+  const ask = answering ? { count: plan.count, label: "Update the search", covers: null } : C.leadPlanAsk(plan, f);
   const cannot = f.cannotSee && plan.criteria.some((c) => c.key === f.cannotSee.key && c.standard === "seen") ? f.cannotSee : null;
   const options = (id) => {
     if (id === "count") {
@@ -294,7 +316,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
     ];
   };
   const words = C.planWords(plan).map((w, i) => {
-    if (!w.pick) return <span key={`w${i}`}>{w.text}</span>;
+    if (!w.pick || (answering && w.pick === "count")) return <span key={`w${i}`}>{w.text}</span>;
     const id = w.pick === "criterion" ? w.key : w.pick === "where" ? "area" : w.pick;
     return (
       <LeadPick
@@ -363,7 +385,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
           <Icon name="sparkle" size={13} />{busy ? "Starting…" : ask.label}
         </button>
         <button type="button" className="btn btn-ghost" data-testid="plan-back" onClick={onBack}>Change what I asked</button>
-        {view && view.title ? <span className="lf-said" data-testid="plan-title">{view.title}</span> : null}
+        {view && view.title && !answering ? <span className="lf-said" data-testid="plan-title">{view.title}</span> : null}
       </div>
     </div>
   );
@@ -382,7 +404,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
  */
 const LeadFinder = ({
   open, stage, words, proposal, plan = null, facts = null, refusal, busy, trace, suggestions, talk, pick = null,
-  onWords, onPlan, onChangePlan = () => {}, onApprove, onBack, onClose, onPick = () => {},
+  onWords, onPlan, onChangePlan = () => {}, onApprove, onBack, onClose, onPick = () => {}, answering = null,
 }) => {
   if (!open) return null;
   const card = proposal && proposal.payload ? proposal.payload : {};
@@ -391,11 +413,14 @@ const LeadFinder = ({
   const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
   const typed = !!(words || "").trim();
-  const ideas = composing && !typed && suggestions && suggestions.items ? suggestions.items.slice(0, 3) : [];
+  const ideas = composing && !typed && !answering && suggestions && suggestions.items ? suggestions.items.slice(0, 3) : [];
+  // Under a search's question the input is the owner's answer to it, and the question stays in view above it.
+  const hint = answering ? "Tell Claude what you meant" : "Describe the businesses you want";
   // One line: the spark, the words, and what can be pressed. What used to be a footer is said where it is used --
   // the keys on the button they press, the consent rule behind the lock beside it -- so the bar is one row tall.
   return (
-    <div className="lf-panel pl-finder" role="dialog" aria-label="Find leads" data-testid="lead-finder">
+    <div className="lf-panel pl-finder" role="dialog" aria-label={answering ? "Change the search" : "Find leads"} data-testid="lead-finder">
+      {answering && composing ? <p className="lf-answering" data-testid="finder-answering">{answering.question}</p> : null}
       <div className={`lf-compose${thinking ? " thinking" : ""}`}>
         <span className={`lf-spark ${thinking ? "live" : ""}`}><Icon name="sparkle" size={16} /></span>
         <input
@@ -403,8 +428,8 @@ const LeadFinder = ({
           type="text"
           value={words || ""}
           maxLength={400}
-          placeholder="Describe the businesses you want"
-          aria-label="Describe the businesses you want"
+          placeholder={hint}
+          aria-label={hint}
           data-testid="finder-input"
           disabled={!composing}
           onChange={(e) => onWords(e.target.value)}
@@ -468,6 +493,7 @@ const LeadFinder = ({
           onChange={onChangePlan}
           onApprove={onApprove}
           onBack={onBack}
+          answering={answering}
         />
       ) : null}
     </div>
@@ -544,16 +570,22 @@ const ldStripOf = (s, now, nearby) => {
   // just paid for.
 
   if (r.state === "waiting_on_owner" && r.question) {
-    const out = ldLeftOut(plan, r.question.criterion_key);
+    // Include lifts one of the plan's own exclusions. A key the plan does not hold as one -- gone, empty, or a
+    // requirement -- has nothing to lift, and a button that cannot work is not drawn: "Include what I left out" once
+    // stood here, lifted nothing, and the door refused the unchanged plan. The no that changes the search is
+    // Change what I asked, which the page opens under the question.
+    const key = r.question.criterion_key;
+    const lifted = key && (plan.exclusions || []).some((x) => x.key === key) ? ldLeftOut(plan, key) : null;
     return {
       state: "question",
       alert: true,
       title: r.question.sentence,
-      parts: ["Nothing is spent while this waits. Answer and it carries on."],
+      parts: C.LEAD_QUESTION_WAIT_LINE ? [C.LEAD_QUESTION_WAIT_LINE] : [],
       progress,
       actions: [
         { id: "keep", label: "Yes, keep going", primary: true },
-        { id: "include", label: out ? `Include ${out}` : "Include what I left out", arg: r.question.criterion_key },
+        ...(lifted ? [{ id: "include", label: `Include ${lifted}`, arg: key }] : []),
+        { id: "change", label: "Change what I asked" },
         { id: "stop_here", label: "Stop here" },
       ],
     };
@@ -672,4 +704,4 @@ const LeadStrip = ({ vm, onAction, children = null }) => {
   );
 };
 
-Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, LEAD_ROUND_MAKERS });
+Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, leadFinderAmendAsk, LEAD_ROUND_MAKERS });
