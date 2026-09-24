@@ -2851,7 +2851,10 @@ function dayProblems(h, day) {
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    out.push({ path: [open ? "close" : "open"], message: `${name} needs both an opening and a closing time, or neither.` });
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
   }
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
@@ -2875,7 +2878,11 @@ function dayProblems(h, day) {
 }
 function checkDay(h, day, ctx) {
   for (const p of dayProblems(h, day)) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure(c, n, ctx) {
@@ -16961,32 +16968,24 @@ function closuresAheadWords(closures, tz, now) {
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
 var count = (n) => n.toLocaleString("en-US");
-var CHIPS_SHOWN = 4;
+var CHIPS_SHOWN = 3;
 function chipsMoreWords(n) {
-  return `+${count(n)} more`;
+  return `+${count(n)}`;
 }
 var SERVICE_CHIPS = CHIPS_SHOWN;
-var CONSULT = /\bconsult/i;
-var inSentence = (note) => /^[A-Z][a-z]/.test(note) ? `${note[0].toLowerCase()}${note.slice(1)}` : note;
 function servicesWords(services) {
   const list2 = (Array.isArray(services) ? services : []).filter(
     (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
   );
   const n = list2.length;
-  if (!n) return { count: 0, line: null, priced: null, chips: [], more: null };
-  const notes = list2.map((s) => typeof s.price_note === "string" ? s.price_note.trim() : "");
-  const naming = notes.filter((note) => note !== "" && violatesNoPrices(note)).length;
-  const first = notes[0] ?? "";
-  const oneNote = first !== "" && notes.every((note) => note.toLowerCase() === first.toLowerCase());
-  const priced = naming ? `${count(naming)} ${naming === 1 ? "names" : "name"} a price.` : oneNote && CONSULT.test(first) ? n === 1 ? `${first[0].toUpperCase()}${first.slice(1)} \u2014 it names no price.` : `Every one ${inSentence(first)} \u2014 none names a price.` : "None names a price.";
+  if (!n) return { count: 0, line: null, chips: [], more: null };
   const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
     takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
   }));
   return {
     count: n,
-    line: `${count(n)} on record`,
-    priced,
+    line: count(n),
     chips,
     more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
   };
@@ -17144,14 +17143,14 @@ function transferWords(hasHandoffNumber) {
 function handoffCallWords(i) {
   return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
 }
-var HANDOFF_REASONS_SHOWN = 64;
 function handoffWords(reasons, transfer) {
   const list2 = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === "string" && r.trim() !== "").map((r) => r.trim());
   const n = list2.length;
   const number = typeof transfer === "string" ? transfer.trim() : "";
+  const phone = number ? `transfers to ${number}` : "takes a message";
   return {
-    chat: n ? `on ${plural9(n, "reason", "reasons")} \u2014 ${cutAtWord(list2.join(" \xB7 "), HANDOFF_REASONS_SHOWN)}` : `when ${HANDED_OVER_ANYWAY}`,
-    phone: number ? `transfers to ${number}` : "takes a message"
+    line: `${n ? `For ${plural9(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
+    phone
   };
 }
 var NOTE_CHIPS = CHIPS_SHOWN;

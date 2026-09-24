@@ -1514,7 +1514,10 @@ function dayProblems(h, day) {
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    out.push({ path: [open ? "close" : "open"], message: `${name} needs both an opening and a closing time, or neither.` });
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
   }
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
@@ -1538,7 +1541,11 @@ function dayProblems(h, day) {
 }
 function checkDay(h, day, ctx) {
   for (const p of dayProblems(h, day)) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure(c, n, ctx) {
@@ -3657,7 +3664,10 @@ function dayProblems2(h, day) {
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    out.push({ path: [open ? "close" : "open"], message: `${name} needs both an opening and a closing time, or neither.` });
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
   }
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
@@ -3681,7 +3691,11 @@ function dayProblems2(h, day) {
 }
 function checkDay2(h, day, ctx) {
   for (const p of dayProblems2(h, day)) {
-    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
+    ctx.addIssue({
+      code: z32.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure2(c, n, ctx) {
@@ -6813,7 +6827,10 @@ function dayProblems3(h, day) {
   const open = h.open ?? void 0;
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
-    out.push({ path: [open ? "close" : "open"], message: `${name} needs both an opening and a closing time, or neither.` });
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
   }
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
@@ -6837,7 +6854,11 @@ function dayProblems3(h, day) {
 }
 function checkDay3(h, day, ctx) {
   for (const p of dayProblems3(h, day)) {
-    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["brain", "profile", "hours", day, ...p.path], message: p.message });
+    ctx.addIssue({
+      code: z33.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
   }
 }
 function checkClosure3(c, n, ctx) {

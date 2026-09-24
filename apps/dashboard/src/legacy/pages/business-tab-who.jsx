@@ -222,7 +222,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         label="Booking link"
         value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
         empty="Not set"
-        // Said once, plainly, rather than discovered by a customer.
+        // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
         hint="Sent instead of confirming an appointment itself."
         source={chip(link)}
         disputed={btDispute(link, conflictOn("booking_link"), BT_TAKE_THEIRS)}

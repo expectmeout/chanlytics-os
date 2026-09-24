@@ -176,24 +176,15 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   ]);
 });
 
-test("hand-off is one row naming both channels", () => {
+test("hand-off is one row, one line: the reasons counted and what a call does", () => {
   const row = byTestId(drawTab({ profile: melany }), "rec-row-escalate_when");
-  assert.match(textOf(row), /WhatsApp/);
-  assert.match(textOf(row), /Phone/);
-  assert.match(textOf(row), /transfer/i);
-  // Each line is contracts' (handoffWords), under its channel's chip, and the number is the resolved fact, written for
-  // people as the Who you are row writes it.
+  // The line is contracts' (handoffWords), and the number is the resolved fact, written for people as the Who you are
+  // row writes it. The reasons themselves are the fold's: quoted on the row they were two lines and an ellipsis.
   const words = handoffWords(melany.escalate_when, "+1 (646) 932-5775");
-  assert.equal(
-    textOf(find(byTestId(row, "rec-handoff-chat"), (n) => classes(n).includes("bt-handoff-words"))),
-    words.chat,
-  );
-  assert.equal(
-    textOf(find(byTestId(row, "rec-handoff-phone"), (n) => classes(n).includes("bt-handoff-words"))),
-    words.phone,
-  );
-  assert.equal(words.phone, "transfers to +1 (646) 932-5775");
-  assert.match(words.chat, /^on 2 reasons — They ask for a person/);
+  assert.equal(textOf(byTestId(row, "rec-handoff-line")), words.line);
+  assert.equal(words.line, "For 2 reasons · on a call, transfers to +1 (646) 932-5775");
+  assert.doesNotMatch(textOf(row), /They ask for a person|WhatsApp|Phone/);
+  assert.equal(all(row, (n) => classes(n).includes("rec-row-hint")).length, 0, "the row states its fact and stops");
   // No number: it takes a message, as the Who you are row says.
   const none = byTestId(
     drawTab({
@@ -202,12 +193,12 @@ test("hand-off is one row naming both channels", () => {
     }),
     "rec-row-escalate_when",
   );
-  assert.match(textOf(byTestId(none, "rec-handoff-phone")), /takes a message$/);
+  assert.match(textOf(byTestId(none, "rec-handoff-line")), /takes a message$/);
   // The number is read as the Who you are row reads it, the resolved fact first: the two rows never say two things.
   const tree = drawTab({ facts: { handoff_number: { value: null, source: "absent" } } });
   assert.match(textOf(byTestId(tree, "rec-row-handoff_number")), /Takes a message instead/);
   assert.match(
-    textOf(byTestId(tree, "rec-handoff-phone")),
+    textOf(byTestId(tree, "rec-handoff-line")),
     /takes a message$/,
     "not the number the profile still holds",
   );
@@ -291,10 +282,10 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   const stored = structuredClone(W.__SETTINGS.config);
   const row = byTestId(tree, "rec-row-languages");
   assert.match(textOf(row), /English, Spanish/);
-  // The old form's words. On WhatsApp the composer says only "You speak: …"; "whichever the caller uses" is a call's
-  // line, so the canvas's "It replies in whichever the customer uses" said more than chat is told.
-  assert.match(textOf(row), /It answers in whichever of these a customer uses\./);
-  assert.doesNotMatch(textOf(row), /It replies in whichever the customer uses/);
+  // The list is the fact, and the row stops there (24 Sep): "It answers in whichever of these a customer uses." stood
+  // under every filled list, a sentence about what a list of languages is. The fold's sentence says it, once.
+  assert.doesNotMatch(textOf(row), /whichever/);
+  assert.equal(all(row, (n) => classes(n).includes("rec-row-hint")).length, 0);
   openFold(tree, "languages");
   tree = redrawTab(flash);
   assert.deepEqual(tokensOf(tree), ["English", "Spanish"]);
@@ -436,7 +427,7 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     "Never quotes a price",
     "Cannot book anything",
     "Says it's an assistant",
-    "Won't look at photos",
+    chipsMoreWords(1),
   ]);
   // Past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit), the rest are said as "+N more",
   // in contracts' own words: five chips wrapped three deep at a phone's width.
@@ -445,10 +436,9 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
-    "No health advice",
-    chipsMoreWords(1),
+    chipsMoreWords(2),
   ]);
-  assert.equal(chipsMoreWords(1), "+1 more");
+  assert.equal(chipsMoreWords(2), "+2");
   openFold(tree, "guardrails");
   tree = redrawTab();
   // One element per rule, holding its label, its hint and its switch, so Phase 4 draws its strength into it.
@@ -546,7 +536,7 @@ test("absent means on: a record that stores no rules opens with three on, and a 
     "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
-    "Won't look at photos",
+    chipsMoreWords(1),
   ]);
   openFold(tree, "guardrails");
   tree = redrawTab();
@@ -627,8 +617,8 @@ test("at rest the rules are ONE row: the words are contracts', and no strength i
   assert.deepEqual(
     all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf),
     rulesKept({ rules: guardrailsInForce(melany.guardrails), vision: false, composes: true })
-      .slice(0, 4)
-      .concat(chipsMoreWords(1)),
+      .slice(0, 3)
+      .concat(chipsMoreWords(2)),
     "the words are contracts', capped by the kit",
   );
   const words = textOf(row);
@@ -876,7 +866,7 @@ test("a workspace that takes no calls is told nothing a call does: no call sente
     profile: without(melany, "handoff_number"),
     facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
   });
-  assert.match(textOf(byTestId(tree0, "rec-handoff-phone")), /takes a message$/);
+  assert.match(textOf(byTestId(tree0, "rec-handoff-line")), /takes a message$/);
   assert.match(textOf(byTestId(tree0, "rec-row-handoff_number")), /Takes a message instead/);
   openFold(tree0, "escalate_when");
   const tree = redrawTab();
@@ -926,11 +916,11 @@ test("more reasons than the profile keeps are refused under the reasons' box", (
 
 /* ------------------------------------ the things it should know ------------------------------------ */
 
-test("the notes at rest are their titles as chips, four and how many more, and None with an act to add one", () => {
+test("the notes at rest are their titles as chips, three and how many more, and None with an act to add one", () => {
   let row = byTestId(drawTab({ profile: { ...melany, notes: notesOf(6) } }), "rec-row-notes");
   const vm = notesWords(notesOf(6));
   assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), [...vm.chips, vm.more]);
-  assert.equal(vm.more, "+2 more");
+  assert.equal(vm.more, "+3");
   row = byTestId(drawTab({ profile: without(melany, "notes") }), "rec-row-notes");
   assert.match(textOf(row), /None/);
   assert.equal(textOf(byTestId(row, "rec-row-act-notes")).trim(), "Add one");
