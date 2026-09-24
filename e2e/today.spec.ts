@@ -87,13 +87,11 @@ test.describe("Today on a real workspace", () => {
     await door.click();
     await expect(page).toHaveURL(/#\/reports/);
     await page.waitForLoadState("networkidle");
-    // Reports' messages tile, over the same range, prints the same count.
-    await expect(
-      page
-        .getByTestId("rp-tile-messages")
-        .locator(".rp-tile-value")
-        .or(page.locator('[data-testid="rp-tile-messages"]')),
-    ).toContainText(m![2]);
+    // Reports' messages tile, over the same range, prints the same count (the tiles are one list since #928, each
+    // named by data-tile).
+    await expect(page.getByTestId("reports-tiles").locator('[data-tile="messages"] .rpt-tile-value')).toContainText(
+      m![2],
+    );
   });
 
   test("the day beside the queue: at most five rows and a line to the Calendar; nothing without a feed", async ({

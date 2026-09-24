@@ -92,6 +92,8 @@ async function freshLoad(page: Page, hash: string): Promise<void> {
  * Robin's thread, opened from the bucket the page files it under. The pane
  * shows a thread of the selected bucket only, so finding the row there is
  * itself what the page says about the thread. Retried while a load settles.
+ * Since #852 Needs you holds what waits on you and nothing else: a thread you
+ * hold, by a reply or a take-over, is Handled however it is flagged.
  */
 async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"): Promise<Locator> {
   const list = page.locator(".ix-list");
@@ -212,7 +214,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       escalationId = opened.id;
 
       await freshLoad(page, "#/inbox");
-      const pane = await openRobin(page, "Needs you");
+      // Yours since the reply, so Handled (#852), with the failure said on the thread itself.
+      const pane = await openRobin(page, "Handled");
       await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
       const flag = pane.getByText(/Flagged for a human/);
       await expect(flag).toContainText("Reply failed to deliver");
@@ -280,7 +283,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
       // One rule (standing.ts): a thread you took by replying is yours, not the queue's, escalation or not; the
-      // Inbox lists it under Needs you as an escalated thread, Today's queue does not repeat it. What Today
+      // Inbox lists it under Handled as yours (#852), Today's queue does not repeat it. What Today
       // must never be quiet about is the failure itself: the recap's warning line, with the door to the thread.
       await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
       const failed = page
@@ -294,7 +297,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
       await freshLoad(page, "#/inbox");
-      let pane = await openRobin(page, "Needs you");
+      let pane = await openRobin(page, "Handled");
       // Snooze is in the thread's menu: the header had it as a button too, beside the menu that held it.
       await pane.getByRole("button", { name: "Actions", exact: true }).click();
       await pane.getByRole("menuitem", { name: "Snooze" }).click();
@@ -311,7 +314,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       let pane = await openRobin(page, "Needs you");
       await pane.getByRole("button", { name: "I'll answer this" }).click();
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
-      pane = await openRobin(page, "Needs you");
+      // Taken over, it is yours: Handled (#852).
+      pane = await openRobin(page, "Handled");
       await expect(pane.getByText(/You have it/)).toBeVisible();
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
@@ -336,14 +340,14 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
 
       await freshLoad(page, "#/inbox");
-      const pane = await openRobin(page, "Needs you");
+      const pane = await openRobin(page, "Handled");
       await expect(pane.getByText(/Flagged for a human/)).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
       await expect(pane.getByText(/You have it/)).toBeVisible();
     });
 
     await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
-      let pane = await openRobin(page, "Needs you");
+      let pane = await openRobin(page, "Handled");
       await pane.getByRole("button", { name: /^Hand back to/ }).click();
       await expect(page.getByText(/handed back/)).toBeVisible();
       pane = await openRobin(page, "Handled");

@@ -146,8 +146,9 @@ test.describe("Leads on a real workspace", () => {
   });
 
   test("Not a fit, then Undo, leaves the lead as it was and no row behind", async ({ page }) => {
-    const sent = await watch(page, "**/api/v1/leads/*/stage");
-    const undone = await watch(page, "**/api/v1/lead-operations/*/undo");
+    // Every act carries ?workspace= (the scoped client), so a glob ends in *, as the other specs' do.
+    const sent = await watch(page, "**/api/v1/leads/*/stage*");
+    const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
     await page.goto("/#/clients/leads:l-nurture");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".cl-table tbody tr", { hasText: HYDE_PARK });
@@ -171,8 +172,8 @@ test.describe("Leads on a real workspace", () => {
   });
 
   test("Put back, then Undo, leaves the left-out place as it was", async ({ page }) => {
-    const put = await watch(page, "**/api/v1/leads/*/put-back");
-    const undone = await watch(page, "**/api/v1/lead-operations/*/undo");
+    const put = await watch(page, "**/api/v1/leads/*/put-back*");
+    const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
     await openSeededSearch(page);
     await page.getByTestId("lead-class-excluded").click();
     const row = page.locator(".cl-table tbody tr", { hasText: FITCORP });
@@ -186,8 +187,8 @@ test.describe("Leads on a real workspace", () => {
   });
 
   test("Keep on a Needs review row counts it this month, and Undo gives it back", async ({ page }) => {
-    const kept = await watch(page, "**/api/v1/leads/*/keep");
-    const undone = await watch(page, "**/api/v1/lead-operations/*/undo");
+    const kept = await watch(page, "**/api/v1/leads/*/keep*");
+    const undone = await watch(page, "**/api/v1/lead-operations/*/undo*");
     await openSeededSearch(page);
     await page.getByTestId("lead-class-review").click();
     const row = page.locator(".cl-table tbody tr", { hasText: KETTLEBELL });

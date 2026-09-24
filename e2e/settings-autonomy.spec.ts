@@ -59,7 +59,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
       await expect(row.locator(".pol-dash")).toHaveCount(2);
       await expect(row.locator(".pol-dot")).toHaveCount(2);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
-      await expect(row).toContainText("on WhatsApp and on the phone");
+      // The note lives behind the row's info mark since #620: the row reads as its label and the two dashes, and the
+      // mark's tip says what each mode does and on which lines.
+      await expect(row.locator(".set-mark")).toHaveAttribute("data-tip", /on WhatsApp and on the phone/);
     }
     // The rows that run playbooks say what each mode does to a run, and their dots are live.
     for (const label of ["Re-engage quiet customers", "Standing offers"]) {

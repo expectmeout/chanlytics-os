@@ -63,8 +63,9 @@ test.describe("Consent for one person", () => {
     expect(seen[0].method).toBe("PUT");
     expect(seen[0].url).toContain("workspace=");
     expect(seen[0].body).toEqual({ consent: "opted_in", source: "in_person" });
-    // The second answer, offers, is its own control with its own words.
-    await expect(page.getByTestId("consent-marketing")).toContainText("Offers and news");
+    // The second answer, offers, is its own control with its own words: since #907 its row's label ("Offers and news")
+    // is the record kit's, outside the control, and the control says what the answer is for.
+    await expect(page.getByTestId("consent-marketing")).toContainText("Separate and optional");
   });
 
   test("the People rail offers the list a broadcast may reach", async ({ page }) => {
