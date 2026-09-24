@@ -152,7 +152,6 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "PROFILE_LIMITS",
     "PROMPT_NOW",
     "PROMPT_READERS",
-    "RULES_WITHOUT_FIELDS_WORDS",
     "TONE_PRESETS",
     "VISION_STRENGTH",
     "abilityRows",
@@ -187,6 +186,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "promptTotalWords",
     "ruleStrength",
     "rulesKept",
+    "rulesWithoutFieldsWords",
     "saveIssues",
     "sellsBySaved",
     "sellsByVM",
@@ -244,7 +244,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     handoffWords(STORED.profile.escalate_when, "+1 (212) 555-0142"),
   );
   assert.equal(tab.fallbacksWords(null).own, fallbacksWords(null).own);
-  for (const calls of [true, false]) assert.deepEqual(tab.standingLine(STORED, calls), standingLine(STORED, calls));
+  for (const calls of [true, false])
+    assert.deepEqual(tab.standingLine(STORED, calls, null), standingLine(STORED, calls, null));
   // The When you're open card's two sentences with a number in them.
   assert.equal(tab.openWeekWords(STORED.profile.hours, TZ), openWeekWords(STORED.profile.hours, TZ));
   const at = new Date("2026-09-21T12:00:00Z");
@@ -298,6 +299,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     whatsappLive: true,
     hasCalendarFeed: true,
     hasBookingLink: true,
+    linkOptional: false,
     hasBookingTemplate: true,
     hasHandoffNumber: true,
     hasEscalateWhen: true,

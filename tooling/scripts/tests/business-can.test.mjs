@@ -37,6 +37,7 @@ const MARISA_INPUTS = {
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
+  linkOptional: false,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,

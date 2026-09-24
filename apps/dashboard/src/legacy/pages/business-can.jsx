@@ -165,6 +165,8 @@ const BtCanCard = ({ brain, config, canEdit }) => {
           whatsappLive: live("whatsapp"),
           hasCalendarFeed: !!(config && config.calendar && config.calendar.ical_url),
           hasBookingLink: !!brain.booking_link,
+          // Whether the workspace is asked for one at all, by how its customers buy (contracts bookingLinkOptional).
+          linkOptional: tab.bookingLinkOptional(window.btSellsByNow ? window.btSellsByNow() : null),
           // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
           // The list is known to be one by now: a failed read is said above, not read as "no approved message".
           hasBookingTemplate: !!tab.bookingTemplate(templates),

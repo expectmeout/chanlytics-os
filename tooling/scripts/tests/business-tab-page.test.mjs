@@ -84,7 +84,7 @@ after(() => unmount());
 test("the standing line says what contracts said, and never writes its own", () => {
   const tree = drawTab({ profile: marisa });
   const band = byTestId(tree, "rec-standing");
-  const vm = standingLine(W.__SETTINGS.config.brain, true);
+  const vm = standingLine(W.__SETTINGS.config.brain, true, null);
   assert.match(textOf(band), new RegExp(escape(vm.can)));
   assert.match(textOf(band), new RegExp(escape(vm.wont)));
   assert.equal(vm.missing, null, "Marisa's record is missing nothing");
@@ -95,12 +95,12 @@ test("M-1: the band names a call's correction only on a workspace that answers c
   // correction (contracts, policy.ts). One sentence for both was exact on one channel and flattering on the other.
   const withCall = drawTab({ profile: marisa });
   const heard = textOf(byTestId(withCall, "rec-standing"));
-  assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true).wont)));
+  assert.match(heard, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, true, null).wont)));
   assert.match(heard, /on a call caught afterwards rather than prevented/i);
   // A workspace with no phone line is told nothing about a line it does not have.
   const chatOnly = drawTab({ profile: marisa, facts: { voice_line: { value: null, source: "absent" } } });
   const alone = textOf(byTestId(chatOnly, "rec-standing"));
-  assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false).wont)));
+  assert.match(alone, new RegExp(escape(standingLine(W.__SETTINGS.config.brain, false, null).wont)));
   assert.doesNotMatch(alone, /on a call/i);
   // Still one clause either way: the band says what it can, what it will not, and the one gap.
   for (const t of [withCall, chatOnly]) {
@@ -1840,7 +1840,7 @@ test("a name the workspace goes by is shown against the business's, and never of
 
 test("the standing line's door opens the row it names, and that row asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "address"), facts: { address: { value: null, source: "absent" } } });
-  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true, null).missing;
   assert.equal(gap.row, "address");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(textOf(door), gap.sentence, "the gap's own words are its door");
@@ -1883,7 +1883,7 @@ test("the standing line's door opens the row it names, and that row asks before 
   const toTone = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   assert.equal(
     heard(toTone),
-    `${standingLine(W.__SETTINGS.config.brain, true).missing.sentence} Give it one Its voice`,
+    `${standingLine(W.__SETTINGS.config.brain, true, null).missing.sentence} Give it one Its voice`,
   );
   press(toTone);
   assert.equal(W.__recordFolds.open(), "tone");

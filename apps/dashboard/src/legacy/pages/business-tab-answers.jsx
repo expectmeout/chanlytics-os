@@ -595,7 +595,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
           ) : null,
           name: "Change the rules it always keeps",
         }}
-        body={(f) => <BtaRules {...f} unread={composes ? null : tab.RULES_WITHOUT_FIELDS_WORDS || null} />}
+        body={(f) => <BtaRules {...f} unread={composes ? null : tab.rulesWithoutFieldsWords(brain)} />}
       />
 
       <Fold

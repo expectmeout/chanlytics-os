@@ -33,6 +33,8 @@ import {
   type PolicyMode,
 } from "./config";
 import { hardLimitsWords } from "./policy";
+import { bookingLinkOptional } from "./deals";
+import { offersBookingLink } from "./no-booking-link";
 import { BOOKING_DEFAULTS, dayIntervals } from "./availability";
 import { closureDatesLabel, closuresFrom } from "./calendar";
 import { zoneDayKey } from "./clock";
@@ -292,7 +294,7 @@ export interface StandingVM {
    * decision, 20 Sep 2026). Null with nothing to price.
    *
    * On a workspace that answers calls it names the difference between the two channels once,
-   * because the promise lands differently on each: see WONT_PRICE below.
+   * because the promise lands differently on each: see wontPrice below.
    */
   wont: string | null;
   /** The single most useful gap, and the row that fixes it. Null when there is none. */
@@ -334,9 +336,8 @@ const has = (v: unknown): boolean =>
  *
  * Still ONE clause either way: the standing line is three, and a fourth would make it a paragraph (spec 4.1).
  */
-const WONT_PRICE = "It offers a consult or the booking link instead of a price.";
-const WONT_PRICE_ON_A_CALL =
-  "It offers a consult or the booking link instead of a price — in chat before the reply is sent, on a call caught afterwards rather than prevented.";
+const wontPrice = (link: boolean, calls: boolean): string =>
+  `It offers ${link ? "a consult or the booking link" : "a consult"} instead of a price${calls ? " — in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
 
 /**
  * Three clauses, worst last.
@@ -349,15 +350,25 @@ const WONT_PRICE_ON_A_CALL =
  * `calls` is whether the workspace answers a phone line at all, and it is required and checked as it runs, like
  * `abilityRows`' inputs: the page that calls this is untyped JSX, and a workspace whose call was left out would read
  * the chat sentence on the phone -- which is the wording M-1 was raised about in the first place.
+ *
+ * `sellsBy` is the workspace's answer to how its customers buy, null where it was never said, and required for the
+ * same reason: a business that quotes has no booking link by right (deals.ts bookingLinkOptional), and one left out
+ * would be told its missing link is the gap to fix.
  */
-export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
+export function standingLine(i: StandingInputs, calls: boolean, sellsBy: string | null): StandingVM {
   if (typeof calls !== "boolean") {
     throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
+  }
+  if (sellsBy !== null && typeof sellsBy !== "string") {
+    throw new TypeError(
+      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it.",
+    );
   }
   const p = i.profile ?? {};
   const gaps: { sentence: string; row: string }[] = [];
   if (!has(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!has(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!has(i.booking_link) && !bookingLinkOptional(sellsBy))
+    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
@@ -380,8 +391,9 @@ export function standingLine(i: StandingInputs, calls: boolean): StandingVM {
   // Both offers, because the two channels do different things: chat's replacement offers a
   // consult (layerTwo), and a call's correction offers the booking link (frameGuardrail).
   // "A consult" alone was true on WhatsApp and not on the phone. And on a workspace with a call,
-  // WHEN each happens differs too, which is the rest of WONT_PRICE_ON_A_CALL's clause.
-  const wont = has(p.services) ? (calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE) : null;
+  // WHEN each happens differs too, which is the rest of the clause on a call. With no link, both
+  // offer only the consult (priceNextStep, no-booking-link.ts), so the clause names only that.
+  const wont = has(p.services) ? wontPrice(has(i.booking_link), calls) : null;
 
   return { can, wont, missing: gaps[0] ?? null };
 }
@@ -986,6 +998,17 @@ export function fallbacksWords(
  */
 export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
   `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
+const RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() =>
+  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by what to do with no booking link and any rules your Autonomy tab adds.`)();
+
+/**
+ * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
+ * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
+ * rule too, by the resolver's own test (offersBookingLink).
+ */
+export function rulesWithoutFieldsWords(brain: { booking_link?: string | null } | null | undefined): string {
+  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+}
 
 /**
  * What the receptionist can do, and what it cannot.
@@ -1015,6 +1038,11 @@ export interface AbilityInputs {
   whatsappLive: boolean;
   hasCalendarFeed: boolean;
   hasBookingLink: boolean;
+  /**
+   * The workspace is not asked for a booking link: it says some customers get a proposal first (deals.ts
+   * bookingLinkOptional), and with none its receptionist takes their details instead (the first run's decision 2).
+   */
+  linkOptional: boolean;
   /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
   hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
@@ -1059,6 +1087,7 @@ const BOOLEAN_INPUTS: Record<
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
+  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -1159,7 +1188,9 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // (steps.ts layerTwo) -- a price or services reply still carries it, which is why the
   // sentence says "when someone asks to book" and not "it sends no link".
   const bookingDetail = !i.hasBookingLink
-    ? "No booking link yet, so there is nothing to send."
+    ? i.linkOptional
+      ? "No booking link, so it takes their details for you to follow up with a quote."
+      : "No booking link yet, so there is nothing to send."
     : !i.whatsappLive
       ? i.voiceLive
         ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
@@ -1214,7 +1245,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
-      missing: !i.hasBookingLink,
+      missing: !i.hasBookingLink && !i.linkOptional,
     },
     {
       id: "transfer",
