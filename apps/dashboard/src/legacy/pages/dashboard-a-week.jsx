@@ -133,7 +133,8 @@ const TodayAway = () => {
       <div className="tsec-head">
         <span className="tsec-title">While you were away</span>
         <span className={`tq-count ${total ? "" : "calm"}`}>{total}</span>
-        {total > 0 && <button className="btn btn-ghost btn-sm" onClick={() => api.seenAll()}>Mark all read</button>}
+        {/* The page's last section: as its rows go, the page holds still under the thumb (data-bits holdStill). */}
+        {total > 0 && <button className="btn btn-ghost btn-sm" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => api.seenAll()) : api.seenAll())}>Mark all read</button>}
       </div>
       {empty ? (
         <div className="tq-empty" data-testid="today-away-empty"><Icon name={empty.icon} size={14} /> {empty.text}</div>
@@ -152,7 +153,7 @@ const TodayAway = () => {
                   </span>
                   <span className="ta-msg">{g.count > 1 ? `newest: ${n.title}` : n.message}</span>
                 </button>
-                <button className="ta-x" onClick={() => drop(g)} title={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"} aria-label={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}>
+                <button className="ta-x" onClick={(e) => (window.holdStill ? window.holdStill(e && e.currentTarget, () => drop(g)) : drop(g))} title={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"} aria-label={g.count > 1 ? `Dismiss all ${g.count}` : "Dismiss"}>
                   <Icon name="x" size={12} />
                 </button>
               </div>

@@ -498,6 +498,18 @@
   border: 1px solid var(--line);
 }
 .ix-th-meta { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
+/* Who the conversation is with (inbox-thread.jsx IxWho): the face, the name and the line under it, as one link to their
+   page where they have one. The whole block is the press, the row's full height; a pointer underlines the name, and a
+   quiet chevron after it says it goes somewhere. */
+.ix-th-who { display: flex; align-items: center; gap: 12px; min-width: 0; align-self: stretch; color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
+.ix-th-who > .ix-th-id { min-width: 0; }
+.ix-th-name-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-th-go { display: inline-flex; flex: none; color: var(--ink-faint); transition: color var(--duration-fast) var(--ease-out); }
+a.ix-th-who { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+a.ix-th-who:hover .ix-th-name-words { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
+a.ix-th-who:hover .ix-th-go { color: var(--ink-dim); }
+a.ix-th-who:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+a.ix-th-who:active { opacity: 0.72; }
 
 .ix-th-channels-meta { display: flex; gap: 4px; margin-right: 12px; }
 .ix-channel-chip {

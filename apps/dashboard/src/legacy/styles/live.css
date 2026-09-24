@@ -193,6 +193,15 @@
   margin-top: 3px;
 }
 .lm-head-meta > * { white-space: nowrap; }
+/* The caller's name opens their page and their number rings them: links in the words' own ink, underlined under a
+   pointer, pressed with a thumb's reach that does not make the line taller. */
+.lm-head-who, .lm-head-tel { color: inherit; text-decoration: none; border-radius: var(--radius-xs); -webkit-tap-highlight-color: transparent; }
+.lm-head-who:hover, .lm-head-tel:hover { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
+.lm-head-who:focus-visible, .lm-head-tel:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (pointer: coarse) {
+  .lm-head-who, .lm-head-tel { position: relative; }
+  .lm-head-who::after, .lm-head-tel::after { content: ""; position: absolute; inset: -12px -6px; }
+}
 .lm-callid { font-size: 10.5px; color: var(--ink-faint); }
 /* The controls are a row that can wrap -- the confirmation "End the call? … Yes, end it" is wider than a
    phone's line. It was an unstyled block of inline buttons that would not shrink, which is what pushed the

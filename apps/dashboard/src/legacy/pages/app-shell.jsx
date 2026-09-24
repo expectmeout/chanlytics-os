@@ -472,7 +472,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const held = !client && window.__peekPerson ? window.__peekPerson(param) : null;
     const real = realWorkspace();
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, client ? client.name : held ? held.name : "Profile"];
+    // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none).
+    crumbs = [{ label: "People", to: "clients", go: backToPeople }, client ? client.name : held ? held.name : "Profile"];
     pane = true;
     content = client || people || real
       ? <ClientProfile id={param} onBack={backToPeople} real={real} />

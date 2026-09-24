@@ -553,6 +553,99 @@ const leaving = (key) => {
 };
 Object.assign(window, { touchSwipe, leaving, leaveOverlay });
 
+// ---- A switch holds still ---------------------------------------------------------------------------------------
+// A tab, a filter or a fold changes what is drawn beside it, and on a phone the page moved under the thumb that pressed
+// it: the person's History tabs went 328px down the screen for Consent and 439px for Visits (23 Sep), because a shorter
+// list made the page shorter and the browser pulled the scroll back to fit. `holdStill(control, change)` runs the change
+// and keeps the control where it was on the screen:
+// - before it, the region the control changes (the nearest `[data-holds]` around it, else its section, never wider
+//   than what scrolls) is held at least as tall as the screen below the region's top, so the page cannot get shorter
+//   than what is on the screen. A region with more to say than that is simply taller. The hold is an inline
+//   min-height that gives itself back as the page is scrolled up, never more than keeps what is on the screen where
+//   it is, and is gone once the region is below the screen or taller than it on its own: no blank stays at the foot.
+// - after it, drawn at once, a control that moved anyway (what changed was above it: a list shrinking over its "Show
+//   fewer") is scrolled back to where it was.
+// Where nothing scrolls, or the control is gone after the change, the change just runs.
+const holdScroller = (from) => {
+  for (let n = from && from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "visible";
+    if ((over === "auto" || over === "scroll") && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return null;
+};
+// The region a switch changes, inside what scrolls: a section that holds the scroller itself would hold nothing.
+const holdRegion = (control, box) => {
+  const named = control.closest("[data-holds]") || control.closest("section") || control.parentElement;
+  if (!named || !box.contains(named) || named === box) {
+    let n = control;
+    while (n.parentElement && n.parentElement !== box) n = n.parentElement;
+    return n;
+  }
+  return named;
+};
+const holds = new WeakMap();
+const holdStill = (control, change) => {
+  const run = () => { if (typeof change === "function") change(); };
+  if (!control || !control.isConnected || !control.getBoundingClientRect) { run(); return; }
+  const box = holdScroller(control);
+  const was = control.getBoundingClientRect().top;
+  if (box) {
+    const region = holdRegion(control, box);
+    const floor = () => box.getBoundingClientRect().bottom;
+    // Measured with any earlier hold still in place: let go of first, the region could shrink and pull the scroll back
+    // before the new hold is set.
+    let held = Math.round(floor() - region.getBoundingClientRect().top);
+    const earlier = holds.get(region);
+    if (earlier) earlier(held > 0);
+    if (held > 0 && region.style) {
+      // A min-height is the content's, unless the region sizes its border box: its padding and border are on top.
+      const cs = window.getComputedStyle(region);
+      const edges = cs.boxSizing === "border-box" ? 0
+        : ["paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth"].reduce((sum, k) => sum + (parseFloat(cs[k]) || 0), 0);
+      held = Math.max(0, held - edges);
+      region.style.minHeight = `${held}px`;
+      // `keep`: a newer hold takes the region over, and its height is already set.
+      const release = (keep = false) => {
+        if (!keep) region.style.minHeight = "";
+        box.removeEventListener("scroll", onScroll);
+        holds.delete(region);
+      };
+      // Scrolled up, the hold gives back what the screen no longer needs; once the region is under the screen, or taller
+      // than the hold on its own, it is let go of.
+      const onScroll = () => {
+        if (!region.isConnected) { release(); return; }
+        const need = Math.round(floor() - region.getBoundingClientRect().top) - edges;
+        if (need <= 0 || region.offsetHeight > held + edges + 1) { release(); return; }
+        if (need < held) { held = need; region.style.minHeight = `${need}px`; }
+      };
+      box.addEventListener("scroll", onScroll, { passive: true });
+      holds.set(region, release);
+    }
+  }
+  // Drawn now, so where the control landed is read before anything is painted.
+  const flush = window.ReactDOM && window.ReactDOM.flushSync;
+  if (flush) flush(run); else run();
+  if (!box || !control.isConnected) return;
+  const moved = control.getBoundingClientRect().top - was;
+  if (Math.abs(moved) >= 1) box.scrollTop += moved;
+};
+
+// ---- A door is a link -------------------------------------------------------------------------------------------------
+// A name, a face or a chip with a page of its own is a link to that page: `<a {...window.routeDoor(to, go)}>`. Its
+// address is in the href, so a long press, a middle click or a new tab opens it too, and a plain press takes the app's
+// own way there (`go`, else CHANLY.nav), which keeps Back the app's. A thread's person was reachable only through its
+// Actions menu, "Open profile", under a name that looked like a link and was not one.
+const routeDoor = (to, go = null) => ({
+  href: `#/${to}`,
+  onClick: (e) => {
+    if (e && (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (go) go(to);
+    else if (window.CHANLY) window.CHANLY.nav(to);
+  },
+});
+Object.assign(window, { holdStill, routeDoor });
+
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
 // gate(action, doing?) spreads onto a committing control's opening tag AFTER its
 // handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab
