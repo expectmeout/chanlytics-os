@@ -18,6 +18,11 @@
  * sends only if a person approves it, to a number nobody has, and fails
  * harmlessly at Meta.
  *
+ * The calls ring the workspace's own voice line, its oldest active
+ * tenant_channels row of kind 'voice': they carry that row's agent id and
+ * dial its number.
+ * `--apply` refuses a workspace without one.
+ *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TENANT_ID, OWNER_USER_ID,
  *      FILLER_PHOTO (optional jpeg path; default tooling/scripts/fixtures/filler-photo.jpg).
  */
@@ -38,8 +43,6 @@ const PURGE = process.argv.includes("--purge");
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PHOTO = process.env.FILLER_PHOTO || join(HERE, "fixtures", "filler-photo.jpg");
 const TZ = "America/New_York";
-const AGENT = "agent_242005d0ce9352af2cef792432";
-const SALON = "+19175746416";
 
 /* ------------------------------- the clock -------------------------------- */
 const NOW = new Date();
@@ -1088,6 +1091,18 @@ async function apply() {
   }
   const tenant = (await select("tenants", `select=name&id=eq.${TENANT}`))[0];
   const business = tenant?.name ?? "the business";
+  // The calls ring this workspace's own line, picked as the edge's ensureVoiceAgent picks it. ingest_call files a call
+  // under whichever channel carries its agent id, so another workspace's id would put these calls on that one's line.
+  const voice = (
+    await select(
+      "tenant_channels",
+      `select=external_id,number_e164&tenant_id=eq.${TENANT}&kind=eq.voice&status=eq.active&order=created_at&limit=1`,
+    )
+  )[0];
+  if (!voice) {
+    console.error("refusing: this workspace has no active voice line to file the calls under");
+    process.exit(1);
+  }
   const cfg = await select("tenant_config", `select=*&tenant_id=eq.${TENANT}&limit=1`).catch(() => []);
   const link =
     String(JSON.stringify(cfg)).match(/https?:\/\/[^"\\\s]*booksy[^"\\\s]*|booksy\.com[^"\\\s]*/)?.[0] ??
@@ -1164,10 +1179,10 @@ async function apply() {
         const r = await rpc("ingest_call", {
           p_tenant_id: TENANT,
           p_retell_call_id: retellId,
-          p_agent_id: AGENT,
+          p_agent_id: voice.external_id,
           p_from_e164: p.phone,
           p_from_raw: p.phone,
-          p_to_e164: SALON,
+          p_to_e164: voice.number_e164,
           p_direction: "inbound",
           p_call_type: "phone_call",
           p_status: "ended",
