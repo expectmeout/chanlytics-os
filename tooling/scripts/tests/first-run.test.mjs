@@ -598,7 +598,21 @@ const W = FIRST_RUN_WORDS.check;
 test("Check is the business step once Find is not shown: what Google found, in the Business tab's rows, and Looks right held until the step is done", () => {
   const fr = firstRunOf(setupSteps(harbor(), NOW), null, OWNER);
   assert.equal(fr.find, false, "the listing is linked");
-  assert.deepEqual(fr.check, { made: true, make: null, waiting: null, unsure: null, find: null, type: null });
+  assert.deepEqual(fr.check, {
+    made: true,
+    make: null,
+    waiting: null,
+    unsure: null,
+    find: null,
+    type: null,
+    bookingPage: null,
+  });
+  const found = "https://calendly.com/harbor-moving-example/estimate";
+  assert.equal(
+    firstRunOf(setupSteps(harbor({}, { bookingPage: found }), NOW), null, OWNER).check.bookingPage,
+    found,
+    "the booking page the website names, carried to Check to offer",
+  );
   assert.equal(fr.heading, "Here's what we found");
   assert.equal(fr.lead, "Your receptionist answers from this. Fix anything that's off.");
   assert.equal(fr.primaryRow, null, "the rows are the Business tab's; Looks right is the step's button");
@@ -642,6 +656,7 @@ test("Check with no receptionist yet: an owner is offered the one press, from Go
     unsure: null,
     find: null,
     type: null,
+    bookingPage: null,
   });
   assert.equal(listed.onward, null, "the press is the step's one button");
   const noGoogle = { ready: false, places: false, listing: null };

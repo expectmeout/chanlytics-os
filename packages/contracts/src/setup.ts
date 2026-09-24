@@ -312,6 +312,8 @@ export interface SetupVM {
     unsure: NonNullable<SetupGoogleFacts["unsure"]>;
     /** Google's kind of place, which Check's service chips suggest by (check-chips.ts); null without one. */
     type: string | null;
+    /** The booking page the listing's website names, while the record holds no booking link; null without one. */
+    bookingPage: string | null;
   };
 }
 
@@ -1359,6 +1361,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
       type: i.google?.type ?? null,
+      bookingPage: i.google?.bookingPage ?? null,
     },
   };
 }

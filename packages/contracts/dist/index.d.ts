@@ -3279,6 +3279,11 @@ interface SetupGoogleFacts {
     unsure?: Day[];
     /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
     type?: string | null;
+    /**
+     * Where customers book, as the listing's website says it (the facts' booking_page), while the record holds no
+     * booking link: Check offers it for the owner to take. Absent reads as none.
+     */
+    bookingPage?: string | null;
 }
 /** Google shows this many reviews of a listing, the most relevant first. */
 declare const GOOGLE_SHOWN_REVIEWS = 5;
@@ -3931,6 +3936,8 @@ interface SetupVM {
         unsure: NonNullable<SetupGoogleFacts["unsure"]>;
         /** Google's kind of place, which Check's service chips suggest by (check-chips.ts); null without one. */
         type: string | null;
+        /** The booking page the listing's website names, while the record holds no booking link; null without one. */
+        bookingPage: string | null;
     };
 }
 /**
@@ -18100,6 +18107,11 @@ declare const FIRST_RUN_WORDS: {
             readonly otherLanguage: "+ Other";
             readonly removed: (name: string) => string;
         };
+        /** The booking page the business's website names, offered under the booking link row (3c-4). */
+        readonly bookingPage: {
+            readonly found: "Found on your website";
+            readonly use: "Use it";
+        };
     };
 };
 /**
@@ -18132,6 +18144,8 @@ interface FirstRunCheckVM {
     } | null;
     /** Google's kind of place, which the service chips suggest by (FIRST_RUN_HELPERS.chips); null without one. */
     type: string | null;
+    /** The booking page the business's website names, while the record holds no booking link: offered, never saved. */
+    bookingPage: string | null;
 }
 interface FirstRunStepVM {
     key: FirstRunStepKey;
@@ -18373,6 +18387,11 @@ declare const FIRST_RUN_HELPERS: {
                 readonly ownService: "+ Your own";
                 readonly otherLanguage: "+ Other";
                 readonly removed: (name: string) => string;
+            };
+            /** The booking page the business's website names, offered under the booking link row (3c-4). */
+            readonly bookingPage: {
+                readonly found: "Found on your website";
+                readonly use: "Use it";
             };
         };
     };

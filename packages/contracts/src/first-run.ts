@@ -175,6 +175,8 @@ export const FIRST_RUN_WORDS = {
       otherLanguage: "+ Other",
       removed: (name: string) => `Removed ${name}`,
     },
+    /** The booking page the business's website names, offered under the booking link row (3c-4). */
+    bookingPage: { found: "Found on your website", use: "Use it" },
   },
 } as const;
 
@@ -209,6 +211,8 @@ export interface FirstRunCheckVM {
   find: { label: string; to: string } | null;
   /** Google's kind of place, which the service chips suggest by (FIRST_RUN_HELPERS.chips); null without one. */
   type: string | null;
+  /** The booking page the business's website names, while the record holds no booking link: offered, never saved. */
+  bookingPage: string | null;
 }
 
 export interface FirstRunStepVM {
@@ -334,6 +338,7 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
         unsure: made ? unsureHoursWords(vm.check.unsure) : null,
         find: vm.findable && who?.owner ? { label: C.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
         type: vm.check.type,
+        bookingPage: vm.check.bookingPage,
       }
     : null;
   // What the step on screen is, said once: its heading, its lead and its one coral button (onward). Find's button is

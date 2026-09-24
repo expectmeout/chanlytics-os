@@ -277,6 +277,11 @@ export interface SetupGoogleFacts {
   unsure?: Day[];
   /** Google's kind of place (the facts' primary_type, e.g. "moving_company"): what Check's service chips suggest by. */
   type?: string | null;
+  /**
+   * Where customers book, as the listing's website says it (the facts' booking_page), while the record holds no
+   * booking link: Check offers it for the owner to take. Absent reads as none.
+   */
+  bookingPage?: string | null;
 }
 
 /** Google shows this many reviews of a listing, the most relevant first. */

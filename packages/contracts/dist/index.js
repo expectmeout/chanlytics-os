@@ -6407,7 +6407,9 @@ var FIRST_RUN_WORDS = {
       ownService: "+ Your own",
       otherLanguage: "+ Other",
       removed: (name) => `Removed ${name}`
-    }
+    },
+    /** The booking page the business's website names, offered under the booking link row (3c-4). */
+    bookingPage: { found: "Found on your website", use: "Use it" }
   }
 };
 function unsureHoursWords(days) {
@@ -6462,7 +6464,8 @@ function firstRunOf(vm, at2, who) {
     waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
     unsure: made ? unsureHoursWords(vm.check.unsure) : null,
     find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
-    type: vm.check.type
+    type: vm.check.type,
+    bookingPage: vm.check.bookingPage
   } : null;
   const F = FIRST_RUN_WORDS.find;
   const facts = rowOf(vm, "facts");
@@ -14054,7 +14057,8 @@ function setupSteps(i, nowMs = Date.now()) {
       receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
-      type: i.google?.type ?? null
+      type: i.google?.type ?? null,
+      bookingPage: i.google?.bookingPage ?? null
     }
   };
 }
