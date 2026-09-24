@@ -1435,11 +1435,17 @@ export interface PlaybooksSurface {
   /** Whether a visit trigger can run: the workspace's calendar state. */
   calendar: "ok" | "unavailable" | "none";
   triggers: PlaybookTriggerOption[];
-  /** The lists a playbook may run on, each with its own count; empty when there are none or they were not read. */
+  /**
+   * Every list a playbook may run on (decision 0009), each by its token (`seg:<id>` for People's, `list:<id>` for the
+   * workspace's own) with its own count: People's first, then the workspace's. Empty when none could be read.
+   */
   lists: {
+    /** The list's token: what the composer picks and the card links by. */
     id: string;
     name: string;
     smart: boolean;
+    /** One of People's lists, not the workspace's own. */
+    builtin: boolean;
     candidates: number | null;
     held: number | null;
     named: PlaybookNamed | null;
@@ -1503,20 +1509,24 @@ export const playbooksOverride: SurfaceOverride = {
     if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
-    // A playbook on one of the workspace's lists is counted by its list ("list:<id>"), and named for it.
+    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
     const listsKept = pb.lists ?? [];
-    const keyOf = (p: { trigger: string; list_id?: string | null }) =>
-      p.trigger === "saved_list" ? `list:${p.list_id ?? ""}` : p.trigger;
+    const peopleLists = pb.people_lists ?? [];
+    const keyOf = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
+      p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
+    const listNameOf = (p: { list_id?: string | null; list_key?: string | null }) =>
+      p.list_key
+        ? (peopleLists.find((l) => l.key === p.list_key)?.label ?? null)
+        : (listsKept.find((l) => l.id === p.list_id)?.name ?? null);
     // The moments offered here (0006): a proposal's only where deals are on, as the route counts them.
     const offered = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, !!pb.deals_on));
     (window as unknown as { __PLAYBOOKS?: PlaybooksSurface }).__PLAYBOOKS = {
       rows: pb.playbooks.map((p) => {
         const t = triggerOf(p.trigger);
-        const kept = p.trigger === "saved_list" ? listsKept.find((l) => l.id === p.list_id) : undefined;
         return {
           ...p,
           triggerLabel:
-            p.trigger === "saved_list" ? (kept?.name ?? "A list that was deleted") : (t?.label ?? p.trigger),
+            p.trigger === "saved_list" ? (listNameOf(p) ?? "A list that was deleted") : (t?.label ?? p.trigger),
           triggerHint: t?.hint ?? "",
           schedule: scheduleLine(p),
           next: nextRunLabel(p, tz, now),
@@ -1529,12 +1539,10 @@ export const playbooksOverride: SurfaceOverride = {
       }),
       timezone: tz,
       countsRead: offered.every((t) => t.kind === "saved" || !!pb.pools?.[t.id]),
-      lists: listsKept.map((l) => ({
-        ...l,
-        candidates: pool(`list:${l.id}`),
-        held: held(`list:${l.id}`),
-        named: named(`list:${l.id}`),
-      })),
+      lists: [
+        ...peopleLists.map((l) => ({ id: `seg:${l.key}`, name: l.label, smart: true, builtin: true })),
+        ...listsKept.map((l) => ({ id: `list:${l.id}`, name: l.name, smart: l.smart, builtin: false })),
+      ].map((l) => ({ ...l, candidates: pool(l.id), held: held(l.id), named: named(l.id) })),
       calendar: pb.calendar ?? "none",
       triggers: offered.map((t) => ({
         id: t.id,

@@ -6564,6 +6564,1350 @@ declare function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number
 declare function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM;
 
 /**
+ * The language a list is written in: who is on it, judged over the facts a person's row carries, so the People rail, a
+ * broadcast's audience, a playbook's run and the assistant count one list the same way. The built-in lists are written
+ * in it too (lists.ts), so an owner's list can say anything a built-in says (decision 0009).
+ *
+ * The owner says it in plain English ("regulars who haven't been in since spring"); a model writes it in this
+ * vocabulary and nothing else (LIST_DRAFT_JSON_SCHEMA, listDraftFieldLines), and the page shows it back as chips
+ * (listRuleParts). A rule names only what the row can answer. What the row cannot answer -- a staff member, a tag, what
+ * was said in a thread -- is not a field, and the draft says so rather than guessing.
+ *
+ * Every day fact is a count of the workspace's own dates, worked out once when the row is built (people.ts
+ * toPersonRowVM), so judging a rule needs no clock: the row is the moment it was read, for the person who is looking.
+ */
+
+/**
+ * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
+ * on the profile, deals on here, and someone looking (for "me"). Derived from a rule, never written beside it.
+ */
+type ListNeed = "calendar" | "consult" | "deals" | "viewer";
+/** The order a list's unmet needs are said in: the first one is the reason it cannot be counted. */
+declare const LIST_NEEDS: readonly ListNeed[];
+type FieldKind = "days" | "yesno" | "channel" | "came_from" | "count" | "purpose" | "standing" | "assigned" | "deal_stage" | "list";
+/**
+ * Every fact a rule may name: its id, its label (a chip's first words), its kind, what it always needs, and the line
+ * the drafting model reads about it. The model's instructions are written from this table, never typed beside it.
+ */
+declare const LIST_RULE_FIELDS: readonly {
+    id: string;
+    label: string;
+    kind: FieldKind;
+    needs: readonly ListNeed[];
+    draft: string;
+}[];
+declare const LIST_PURPOSES: readonly ["offers", "messages"];
+declare const LIST_STANDINGS: readonly ["needs_you", "waiting_on_you"];
+declare const LIST_ASSIGNED: readonly ["me", "teammate", "nobody"];
+declare const LIST_DEAL_STAGES: readonly ["consultation", "proposed", "won", "lost", "ended"];
+/** How many conditions a rule may hold, and how many facts one "any" group. */
+declare const LIST_RULE_MAX = 12;
+declare const LIST_ANY_MAX = 6;
+declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"last_visit">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"next_visit">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"booked">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"asked_not_booked">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"last_heard">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"first_contact">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"channel">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    channel: z.ZodEnum<{
+        whatsapp: "whatsapp";
+        voice: "voice";
+        sms: "sms";
+        email: "email";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"came_from">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    from: z.ZodEnum<{
+        whatsapp: "whatsapp";
+        sms: "sms";
+        email: "email";
+        manual: "manual";
+        lead: "lead";
+        call: "call";
+        import: "import";
+        calendar: "calendar";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        at_least: "at_least";
+        at_most: "at_most";
+    }>;
+    n: z.ZodNumber;
+    field: z.ZodLiteral<"calls">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        at_least: "at_least";
+        at_most: "at_most";
+    }>;
+    n: z.ZodNumber;
+    field: z.ZodLiteral<"conversations">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"has_chat">;
+}, z.core.$strict>, z.ZodObject<{
+    to: z.ZodEnum<{
+        offers: "offers";
+        messages: "messages";
+    }>;
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"said_yes">;
+}, z.core.$strict>, z.ZodObject<{
+    to: z.ZodEnum<{
+        offers: "offers";
+        messages: "messages";
+    }>;
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"can_receive">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"stopped">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"standing">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        needs_you: "needs_you";
+        waiting_on_you: "waiting_on_you";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"assigned">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        me: "me";
+        teammate: "teammate";
+        nobody: "nobody";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"deal_stage">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        ended: "ended";
+        proposed: "proposed";
+        won: "won";
+        lost: "lost";
+        consultation: "consultation";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"consultation">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"step_due">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"in_list">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    list: z.ZodString;
+}, z.core.$strict>], "field">;
+type ListFact = z.infer<typeof ListFactSchema>;
+/** Any one of a few facts: "reaches you by WhatsApp or by text". One level deep. */
+declare const AnySchema: z.ZodObject<{
+    any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"next_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"asked_not_booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_heard">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"first_contact">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"channel">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        channel: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            voice: "voice";
+            sms: "sms";
+            email: "email";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"came_from">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        from: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            sms: "sms";
+            email: "email";
+            manual: "manual";
+            lead: "lead";
+            call: "call";
+            import: "import";
+            calendar: "calendar";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"calls">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"conversations">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"has_chat">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"said_yes">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"can_receive">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"stopped">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"standing">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            needs_you: "needs_you";
+            waiting_on_you: "waiting_on_you";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"assigned">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            me: "me";
+            teammate: "teammate";
+            nobody: "nobody";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"deal_stage">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            ended: "ended";
+            proposed: "proposed";
+            won: "won";
+            lost: "lost";
+            consultation: "consultation";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"consultation">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"step_due">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"in_list">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        list: z.ZodString;
+    }, z.core.$strict>], "field">>;
+}, z.core.$strict>;
+type ListAny = z.infer<typeof AnySchema>;
+declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
+    any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"next_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"asked_not_booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_heard">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"first_contact">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"channel">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        channel: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            voice: "voice";
+            sms: "sms";
+            email: "email";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"came_from">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        from: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            sms: "sms";
+            email: "email";
+            manual: "manual";
+            lead: "lead";
+            call: "call";
+            import: "import";
+            calendar: "calendar";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"calls">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"conversations">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"has_chat">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"said_yes">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"can_receive">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"stopped">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"standing">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            needs_you: "needs_you";
+            waiting_on_you: "waiting_on_you";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"assigned">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            me: "me";
+            teammate: "teammate";
+            nobody: "nobody";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"deal_stage">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            ended: "ended";
+            proposed: "proposed";
+            won: "won";
+            lost: "lost";
+            consultation: "consultation";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"consultation">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"step_due">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"in_list">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        list: z.ZodString;
+    }, z.core.$strict>], "field">>;
+}, z.core.$strict>, z.ZodDiscriminatedUnion<[z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"last_visit">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"next_visit">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"booked">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"asked_not_booked">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"last_heard">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodOptional<z.ZodNumber>;
+    field: z.ZodLiteral<"first_contact">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"channel">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    channel: z.ZodEnum<{
+        whatsapp: "whatsapp";
+        voice: "voice";
+        sms: "sms";
+        email: "email";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"came_from">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    from: z.ZodEnum<{
+        whatsapp: "whatsapp";
+        sms: "sms";
+        email: "email";
+        manual: "manual";
+        lead: "lead";
+        call: "call";
+        import: "import";
+        calendar: "calendar";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        at_least: "at_least";
+        at_most: "at_most";
+    }>;
+    n: z.ZodNumber;
+    field: z.ZodLiteral<"calls">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodEnum<{
+        at_least: "at_least";
+        at_most: "at_most";
+    }>;
+    n: z.ZodNumber;
+    field: z.ZodLiteral<"conversations">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"has_chat">;
+}, z.core.$strict>, z.ZodObject<{
+    to: z.ZodEnum<{
+        offers: "offers";
+        messages: "messages";
+    }>;
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"said_yes">;
+}, z.core.$strict>, z.ZodObject<{
+    to: z.ZodEnum<{
+        offers: "offers";
+        messages: "messages";
+    }>;
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"can_receive">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"stopped">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"standing">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        needs_you: "needs_you";
+        waiting_on_you: "waiting_on_you";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"assigned">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        me: "me";
+        teammate: "teammate";
+        nobody: "nobody";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"deal_stage">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    value: z.ZodEnum<{
+        ended: "ended";
+        proposed: "proposed";
+        won: "won";
+        lost: "lost";
+        consultation: "consultation";
+    }>;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"consultation">;
+}, z.core.$strict>, z.ZodObject<{
+    op: z.ZodLiteral<"is">;
+    yes: z.ZodBoolean;
+    field: z.ZodLiteral<"step_due">;
+}, z.core.$strict>, z.ZodObject<{
+    field: z.ZodLiteral<"in_list">;
+    op: z.ZodEnum<{
+        is: "is";
+        is_not: "is_not";
+    }>;
+    list: z.ZodString;
+}, z.core.$strict>], "field">]>;
+type ListCondition = ListFact | ListAny;
+/** Every condition must hold. One to LIST_RULE_MAX of them; a list of everyone is Everyone. */
+declare const ListRuleSchema: z.ZodObject<{
+    v: z.ZodOptional<z.ZodLiteral<2>>;
+    all: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
+        any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            op: z.ZodEnum<{
+                never: "never";
+                more_than: "more_than";
+                within: "within";
+                ever: "ever";
+                this_week: "this_week";
+            }>;
+            days: z.ZodOptional<z.ZodNumber>;
+            field: z.ZodLiteral<"last_visit">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodEnum<{
+                never: "never";
+                more_than: "more_than";
+                within: "within";
+                ever: "ever";
+                this_week: "this_week";
+            }>;
+            days: z.ZodOptional<z.ZodNumber>;
+            field: z.ZodLiteral<"next_visit">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"booked">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"asked_not_booked">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodEnum<{
+                never: "never";
+                more_than: "more_than";
+                within: "within";
+                ever: "ever";
+                this_week: "this_week";
+            }>;
+            days: z.ZodOptional<z.ZodNumber>;
+            field: z.ZodLiteral<"last_heard">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodEnum<{
+                never: "never";
+                more_than: "more_than";
+                within: "within";
+                ever: "ever";
+                this_week: "this_week";
+            }>;
+            days: z.ZodOptional<z.ZodNumber>;
+            field: z.ZodLiteral<"first_contact">;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"channel">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            channel: z.ZodEnum<{
+                whatsapp: "whatsapp";
+                voice: "voice";
+                sms: "sms";
+                email: "email";
+            }>;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"came_from">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            from: z.ZodEnum<{
+                whatsapp: "whatsapp";
+                sms: "sms";
+                email: "email";
+                manual: "manual";
+                lead: "lead";
+                call: "call";
+                import: "import";
+                calendar: "calendar";
+            }>;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodEnum<{
+                at_least: "at_least";
+                at_most: "at_most";
+            }>;
+            n: z.ZodNumber;
+            field: z.ZodLiteral<"calls">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodEnum<{
+                at_least: "at_least";
+                at_most: "at_most";
+            }>;
+            n: z.ZodNumber;
+            field: z.ZodLiteral<"conversations">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"has_chat">;
+        }, z.core.$strict>, z.ZodObject<{
+            to: z.ZodEnum<{
+                offers: "offers";
+                messages: "messages";
+            }>;
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"said_yes">;
+        }, z.core.$strict>, z.ZodObject<{
+            to: z.ZodEnum<{
+                offers: "offers";
+                messages: "messages";
+            }>;
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"can_receive">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"stopped">;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"standing">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            value: z.ZodEnum<{
+                needs_you: "needs_you";
+                waiting_on_you: "waiting_on_you";
+            }>;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"assigned">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            value: z.ZodEnum<{
+                me: "me";
+                teammate: "teammate";
+                nobody: "nobody";
+            }>;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"deal_stage">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            value: z.ZodEnum<{
+                ended: "ended";
+                proposed: "proposed";
+                won: "won";
+                lost: "lost";
+                consultation: "consultation";
+            }>;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"consultation">;
+        }, z.core.$strict>, z.ZodObject<{
+            op: z.ZodLiteral<"is">;
+            yes: z.ZodBoolean;
+            field: z.ZodLiteral<"step_due">;
+        }, z.core.$strict>, z.ZodObject<{
+            field: z.ZodLiteral<"in_list">;
+            op: z.ZodEnum<{
+                is: "is";
+                is_not: "is_not";
+            }>;
+            list: z.ZodString;
+        }, z.core.$strict>], "field">>;
+    }, z.core.$strict>, z.ZodDiscriminatedUnion<[z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"next_visit">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"asked_not_booked">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"last_heard">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodOptional<z.ZodNumber>;
+        field: z.ZodLiteral<"first_contact">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"channel">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        channel: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            voice: "voice";
+            sms: "sms";
+            email: "email";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"came_from">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        from: z.ZodEnum<{
+            whatsapp: "whatsapp";
+            sms: "sms";
+            email: "email";
+            manual: "manual";
+            lead: "lead";
+            call: "call";
+            import: "import";
+            calendar: "calendar";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"calls">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodEnum<{
+            at_least: "at_least";
+            at_most: "at_most";
+        }>;
+        n: z.ZodNumber;
+        field: z.ZodLiteral<"conversations">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"has_chat">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"said_yes">;
+    }, z.core.$strict>, z.ZodObject<{
+        to: z.ZodEnum<{
+            offers: "offers";
+            messages: "messages";
+        }>;
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"can_receive">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"stopped">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"standing">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            needs_you: "needs_you";
+            waiting_on_you: "waiting_on_you";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"assigned">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            me: "me";
+            teammate: "teammate";
+            nobody: "nobody";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"deal_stage">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        value: z.ZodEnum<{
+            ended: "ended";
+            proposed: "proposed";
+            won: "won";
+            lost: "lost";
+            consultation: "consultation";
+        }>;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"consultation">;
+    }, z.core.$strict>, z.ZodObject<{
+        op: z.ZodLiteral<"is">;
+        yes: z.ZodBoolean;
+        field: z.ZodLiteral<"step_due">;
+    }, z.core.$strict>, z.ZodObject<{
+        field: z.ZodLiteral<"in_list">;
+        op: z.ZodEnum<{
+            is: "is";
+            is_not: "is_not";
+        }>;
+        list: z.ZodString;
+    }, z.core.$strict>], "field">]>>;
+}, z.core.$strict>;
+type ListRule = {
+    v?: 2;
+    all: ListCondition[];
+};
+/** A stored rule in version 2, or null when it is not one this build reads: such a list cannot be counted (lists.ts). */
+declare function asListRule(raw: unknown): ListRule | null;
+/**
+ * A rule the drafting model wrote (LIST_DRAFT_JSON_SCHEMA, whose every property is optional): each fact cut down to the
+ * keys its field reads, an "any" group to its facts, then read strictly (asListRule). A stored rule is never read this
+ * leniently: the model fills in what it may, a stored rule says what it means.
+ */
+declare function draftListRule(all: readonly unknown[]): ListRule | null;
+/** Every fact in a rule, the ones inside an "any" group too. */
+declare function ruleFacts(rule: ListRule): ListFact[];
+/** What one fact needs: its field's needs, and a value's own (waiting on YOU, a consultation). */
+declare function factNeeds(f: ListFact): ListNeed[];
+/** What a rule needs, in LIST_NEEDS' order. A list it reads adds that list's needs (lists.ts listNeeds). */
+declare function ruleNeeds(rule: ListRule): ListNeed[];
+/** The lists a rule reads, by token (in_list). */
+declare function ruleLists(rule: ListRule): string[];
+/** Whether a person is on a list another list's rule reads: the judge answers it before this runs (lists.ts). */
+type InList = (token: string, personId: string) => boolean;
+/** Whether a person is on a list by its rule: every condition holds, an "any" group when one of its facts does. */
+declare function listRuleMatches(rule: ListRule, v: PersonRowVM, inList?: InList): boolean;
+/**
+ * One fact in the page's words: a chip. `listName` says a list another list reads by its name; without it the chip
+ * says "another list".
+ */
+declare function listFactWords(f: ListFact, listName?: (token: string) => string | null): string;
+/** One condition in the page's words: a fact, or an "any" group's facts joined by "or". */
+declare function listConditionWords(c: ListCondition, listName?: (token: string) => string | null): string;
+/** A rule as the chips the page shows it in, one per condition, in its order. */
+declare function listRuleParts(rule: ListRule, listName?: (token: string) => string | null): string[];
+/** The facts a person meets, in the page's words: why a smart list has them (a profile's "because" line). */
+declare function listRuleWhy(rule: ListRule, v: PersonRowVM, listName?: (token: string) => string | null): string;
+/**
+ * The drafting model's lines about the vocabulary, one per field, from LIST_RULE_FIELDS: the fields and their ops as
+ * the schema reads them, so the prompt cannot name a field the schema refuses.
+ */
+declare function listDraftFieldLines(): string[];
+/**
+ * The shape the model answers a plain-English description in: the rule, a name for the list, and what in the words
+ * the vocabulary cannot say (a staff member, a tag, what was said), which the page shows rather than drops. A condition
+ * is a fact, or `any`: two or more facts of which one must hold. A draft never reads another list.
+ */
+declare const LIST_DRAFT_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly additionalProperties: false;
+    readonly required: readonly ["name", "all", "cannot"];
+    readonly properties: {
+        readonly name: {
+            readonly type: "string";
+        };
+        readonly cannot: {
+            readonly type: "string";
+        };
+        readonly all: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "object";
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly any: {
+                        readonly type: "array";
+                        readonly items: {
+                            readonly type: "object";
+                            readonly additionalProperties: false;
+                            readonly required: readonly ["field", "op"];
+                            readonly properties: {
+                                readonly field: {
+                                    readonly type: "string";
+                                    readonly enum: string[];
+                                };
+                                readonly op: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["more_than", "within", "never", "ever", "this_week", "at_least", "at_most", "is", "is_not"];
+                                };
+                                readonly days: {
+                                    readonly type: "integer";
+                                };
+                                readonly n: {
+                                    readonly type: "integer";
+                                };
+                                readonly yes: {
+                                    readonly type: "boolean";
+                                };
+                                readonly channel: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["whatsapp", "sms", "voice", "email"];
+                                };
+                                readonly from: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["whatsapp", "sms", "email", "call", "calendar", "manual", "import", "lead"];
+                                };
+                                readonly to: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["offers", "messages"];
+                                };
+                                readonly value: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
+                                };
+                            };
+                        };
+                    };
+                    readonly field: {
+                        readonly type: "string";
+                        readonly enum: string[];
+                    };
+                    readonly op: {
+                        readonly type: "string";
+                        readonly enum: readonly ["more_than", "within", "never", "ever", "this_week", "at_least", "at_most", "is", "is_not"];
+                    };
+                    readonly days: {
+                        readonly type: "integer";
+                    };
+                    readonly n: {
+                        readonly type: "integer";
+                    };
+                    readonly yes: {
+                        readonly type: "boolean";
+                    };
+                    readonly channel: {
+                        readonly type: "string";
+                        readonly enum: readonly ["whatsapp", "sms", "voice", "email"];
+                    };
+                    readonly from: {
+                        readonly type: "string";
+                        readonly enum: readonly ["whatsapp", "sms", "email", "call", "calendar", "manual", "import", "lead"];
+                    };
+                    readonly to: {
+                        readonly type: "string";
+                        readonly enum: readonly ["offers", "messages"];
+                    };
+                    readonly value: {
+                        readonly type: "string";
+                        readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
+                    };
+                };
+            };
+        };
+    };
+};
+declare const ListDraftAnswerSchema: z.ZodObject<{
+    name: z.ZodString;
+    cannot: z.ZodString;
+    all: z.ZodArray<z.ZodUnknown>;
+}, z.core.$strip>;
+type ListDraftAnswer = z.infer<typeof ListDraftAnswerSchema>;
+
+/**
+ * One idea of a list (decision 0009): a rule over facts. A built-in is a rule the product ships; a saved list is a rule
+ * the owner writes, or the people the owner put on it. Every consumer holds a reference, `ListRef`, written as the
+ * address writes it (`seg:<built-in id>`, `list:<saved list id>`), and asks this module who is on it.
+ *
+ * Who is on a list is `listMembers`: the people, or "unknown" with the reason it cannot be counted -- a calendar that
+ * was not read, deals that are off here, no one looking for a list about "me", a rule this build cannot read, or a list
+ * it reads that is gone. Can't tell is never drawn as nobody.
+ */
+
+type ListRef = {
+    kind: "builtin";
+    id: string;
+} | {
+    kind: "saved";
+    id: string;
+};
+/**
+ * A list's token, as the address writes it after `clients/`: `seg:<built-in id>` or `list:<saved list id>`. `state:`
+ * (People's old standing tabs) reads as `seg:`, since Needs you and Waiting on you are lists.
+ */
+declare function listToken(ref: ListRef): string;
+/** A token back to its reference, or null for anything else. */
+declare function parseListToken(token: string | null | undefined): ListRef | null;
+type PeopleListGroup = "attention" | "journey" | "reach";
+/** The rail's three quiet labels: what needs a person, where each person is on the way to a booking, who can be reached. */
+declare const PEOPLE_LIST_GROUPS: readonly {
+    id: PeopleListGroup;
+    label: string;
+}[];
+interface BuiltinSpec {
+    id: string;
+    label: string;
+    group: PeopleListGroup;
+    rule: ListRule;
+    /**
+     * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
+     * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
+     */
+    onProfile?: false;
+}
+/**
+ * The lists the product ships, each a rule in the language an owner writes theirs in (decision 0009). Their ids never
+ * change: a sent broadcast's audience names them. The journey lists that read the calendar exist only when one is
+ * read, the deal lists only where deals are on: what each needs comes from its rule (listNeeds).
+ */
+declare const BUILTIN_LISTS: readonly BuiltinSpec[];
+/**
+ * The built-ins in the shape the pages have always read: each with its gates and its test, now all from its rule. The
+ * test judges a row as it was built (for its viewer, at its moment); what a list needs is for its reader to check
+ * (listMembers does).
+ */
+declare const PEOPLE_LISTS: readonly {
+    id: string;
+    label: string;
+    group: PeopleListGroup;
+    rule: ListRule;
+    needsCalendar?: boolean;
+    needsConsultFirst?: boolean;
+    needsDeals?: boolean;
+    needsViewer?: boolean;
+    onProfile?: false;
+    test: (vm: PersonRowVM) => boolean;
+}[];
+/** What a workspace and a reader can give a list: the rows' calendar, deals, a consult-first service, and a viewer. */
+interface ListContext {
+    calendar: "ok" | "unavailable" | "none";
+    dealsOn: boolean;
+    consultFirst: boolean;
+    /** The rows were built for someone looking (toPersonRowVM's viewer): "me" means them. A playbook has no one. */
+    viewer: boolean;
+}
+/** Why a list cannot be counted: an unmet need, a rule this build cannot read, or a list it reads that is gone. */
+type ListUnknownReason = ListNeed | "rule" | "list";
+type Membership = {
+    state: "ok";
+    ids: Set<string>;
+} | {
+    state: "unknown";
+    reason: ListUnknownReason;
+};
+/** The first need a context cannot meet, in LIST_NEEDS' order; null when it meets them all. */
+declare function unmetNeed(needs: readonly ListNeed[], ctx: ListContext): ListNeed | null;
+/** A saved list as packages/db reads it: its people by hand, or its rule (stored JSON, read by asListRule). */
+interface SavedListLike {
+    id: string;
+    ids: readonly string[];
+    rule?: unknown;
+}
+/**
+ * The lists a rule may read, resolved by token: a built-in, a saved list, or null when it is gone. `readable` is false
+ * for a saved list whose rule this build cannot read: it is not a list kept by hand, and a list that reads it cannot be
+ * counted either.
+ */
+type ListLookup = (token: string) => {
+    rule: ListRule | null;
+    ids: readonly string[];
+    readable: boolean;
+} | null;
+/**
+ * Who is on a list: a rule over the rows, or the people put on it by hand crossed with the rows (an erased person
+ * never counts). Unknown, with the reason, when the rule cannot be read, when the context cannot meet what it needs,
+ * or when a list it reads is gone or cannot be counted itself. A list reads another only one level deep: a list that
+ * reads a list that reads a list is unknown, never a guess.
+ */
+declare function listMembers(list: {
+    ids: readonly string[];
+    rule?: unknown;
+}, rows: readonly PersonRowVM[], ctx: ListContext, lookup?: ListLookup): Membership;
+/**
+ * Who is on a saved list, as a set: the people, or nobody when it cannot be counted. For a reader that only enrols (a
+ * send, a playbook's pool) and says its own refusal when nobody is there; the pages read `listMembers` and say why.
+ */
+declare function savedListIds(list: SavedListLike, rows: readonly PersonRowVM[], ctx: ListContext, lookup?: ListLookup): Set<string>;
+/** A lookup over the saved lists a reader holds, for the lists a rule reads. */
+declare function savedListLookup(saved: readonly SavedListLike[]): ListLookup;
+/** What a list needs, the lists it reads included: a list about a calendar list needs the calendar too. */
+declare function listNeeds(rule: ListRule | null, lookup?: ListLookup): ListNeed[];
+/**
+ * A list, resolved: what every consumer reads, whichever kind it is. A saved list's rule is null when it is kept by
+ * hand (`byHand`) or when this build cannot read it (`readable` false: it cannot be counted, and is never drawn as a
+ * list kept by hand).
+ */
+interface ListDef {
+    ref: ListRef;
+    token: string;
+    label: string;
+    group: PeopleListGroup | "saved";
+    rule: ListRule | null;
+    byHand: boolean;
+    readable: boolean;
+    /** A hand list's people, as stored; empty for a rule. */
+    ids: readonly string[];
+    needs: ListNeed[];
+    onProfile: boolean;
+    archived: boolean;
+}
+/** A saved list as a reader holds it (packages/db SavedListRow): a name, its people or its rule, whether archived. */
+interface SavedListRowLike extends SavedListLike {
+    name: string;
+    archived_at?: string | null;
+}
+/**
+ * Every list a reader may offer: the built-ins whose needs this context meets (a calendar list without a calendar is
+ * not offered, as before), then the workspace's own lists that are not archived, whatever they need -- one it cannot
+ * count is still the owner's, and says why.
+ */
+declare function listsFor(ctx: ListContext, saved: readonly SavedListRowLike[]): ListDef[];
+/** One list by its reference: a built-in whatever it needs, a saved list archived or not; null when there is none. */
+declare function resolveList(ref: ListRef | null, saved: readonly SavedListRowLike[]): ListDef | null;
+/** Who is on a resolved list (listMembers), with the saved lists its rule may read. */
+declare function membersOf(def: ListDef, rows: readonly PersonRowVM[], ctx: ListContext, saved?: readonly SavedListRowLike[]): Membership;
+/**
+ * Why a list cannot be counted, in the page's words: what it needs and does not have, and what to do about it where
+ * there is something to do.
+ */
+declare function listUnknownWords(reason: ListUnknownReason, calendar: ListContext["calendar"]): string;
+
+/**
  * What starts a playbook. A list trigger sends to a list that keeps itself
  * current; the cadence trigger to everyone, on a rhythm; a visit trigger to
  * the people the calendar names for one day — the day before an appointment,
@@ -6623,11 +7967,11 @@ declare const PLAYBOOK_TRIGGERS: readonly [{
     readonly hint: "No visit in 45 days, and nothing booked";
 }, {
     readonly id: "saved_list";
-    readonly label: "One of your lists";
+    readonly label: "On a list";
     readonly list: null;
     readonly cls: "campaign";
     readonly kind: "saved";
-    readonly hint: "Everyone on a list you keep";
+    readonly hint: "Everyone on a list: one of People's, or one you keep";
 }, {
     readonly id: "proposal_waiting";
     readonly label: "Proposal follow-up";
@@ -6750,8 +8094,10 @@ interface PlaybookDto {
     id: string;
     name: string;
     trigger: PlaybookTrigger;
-    /** The list a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
+    /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
     list_id: string | null;
+    /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */
+    list_key?: string | null;
     template_id: string;
     template_name: string;
     template_language: string;
@@ -6766,6 +8112,17 @@ interface PlaybookDto {
     last_run_at: string | null;
     created_at: string;
 }
+/**
+ * The list a playbook runs on, as a reference (lists.ts): a saved_list playbook's People list by its id, or one of the
+ * workspace's own; null for every other trigger, and for one whose list is gone.
+ */
+declare function playbookListRef(p: {
+    trigger: string;
+    list_id?: string | null;
+    list_key?: string | null;
+}): ListRef | null;
+/** The classes a playbook on a list may run under, the first its own: an offer, or a win-back. */
+declare const LIST_PLAYBOOK_CLASSES: readonly ["campaign", "reengage"];
 /**
  * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up
  * from any playbook, one since deleted too (packages/db touchIndex): a follow-up is owed once per proposal (0006).
@@ -10186,1350 +11543,6 @@ declare function stepSheetDirty(draft: StepDraft, opened: StepDraft): boolean;
  * only what was typed here.
  */
 declare function stepSheetMerge(draft: StepDraft, opened: StepDraft, fresh: StepDraft): StepDraft;
-
-/**
- * The language a list is written in: who is on it, judged over the facts a person's row carries, so the People rail, a
- * broadcast's audience, a playbook's run and the assistant count one list the same way. The built-in lists are written
- * in it too (lists.ts), so an owner's list can say anything a built-in says (decision 0009).
- *
- * The owner says it in plain English ("regulars who haven't been in since spring"); a model writes it in this
- * vocabulary and nothing else (LIST_DRAFT_JSON_SCHEMA, listDraftFieldLines), and the page shows it back as chips
- * (listRuleParts). A rule names only what the row can answer. What the row cannot answer -- a staff member, a tag, what
- * was said in a thread -- is not a field, and the draft says so rather than guessing.
- *
- * Every day fact is a count of the workspace's own dates, worked out once when the row is built (people.ts
- * toPersonRowVM), so judging a rule needs no clock: the row is the moment it was read, for the person who is looking.
- */
-
-/**
- * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
- * on the profile, deals on here, and someone looking (for "me"). Derived from a rule, never written beside it.
- */
-type ListNeed = "calendar" | "consult" | "deals" | "viewer";
-/** The order a list's unmet needs are said in: the first one is the reason it cannot be counted. */
-declare const LIST_NEEDS: readonly ListNeed[];
-type FieldKind = "days" | "yesno" | "channel" | "came_from" | "count" | "purpose" | "standing" | "assigned" | "deal_stage" | "list";
-/**
- * Every fact a rule may name: its id, its label (a chip's first words), its kind, what it always needs, and the line
- * the drafting model reads about it. The model's instructions are written from this table, never typed beside it.
- */
-declare const LIST_RULE_FIELDS: readonly {
-    id: string;
-    label: string;
-    kind: FieldKind;
-    needs: readonly ListNeed[];
-    draft: string;
-}[];
-declare const LIST_PURPOSES: readonly ["offers", "messages"];
-declare const LIST_STANDINGS: readonly ["needs_you", "waiting_on_you"];
-declare const LIST_ASSIGNED: readonly ["me", "teammate", "nobody"];
-declare const LIST_DEAL_STAGES: readonly ["consultation", "proposed", "won", "lost", "ended"];
-/** How many conditions a rule may hold, and how many facts one "any" group. */
-declare const LIST_RULE_MAX = 12;
-declare const LIST_ANY_MAX = 6;
-declare const ListFactSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"last_visit">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"next_visit">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"booked">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"asked_not_booked">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"last_heard">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"first_contact">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"channel">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    channel: z.ZodEnum<{
-        whatsapp: "whatsapp";
-        voice: "voice";
-        sms: "sms";
-        email: "email";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"came_from">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    from: z.ZodEnum<{
-        whatsapp: "whatsapp";
-        sms: "sms";
-        email: "email";
-        manual: "manual";
-        lead: "lead";
-        call: "call";
-        import: "import";
-        calendar: "calendar";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        at_least: "at_least";
-        at_most: "at_most";
-    }>;
-    n: z.ZodNumber;
-    field: z.ZodLiteral<"calls">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        at_least: "at_least";
-        at_most: "at_most";
-    }>;
-    n: z.ZodNumber;
-    field: z.ZodLiteral<"conversations">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"has_chat">;
-}, z.core.$strict>, z.ZodObject<{
-    to: z.ZodEnum<{
-        offers: "offers";
-        messages: "messages";
-    }>;
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"said_yes">;
-}, z.core.$strict>, z.ZodObject<{
-    to: z.ZodEnum<{
-        offers: "offers";
-        messages: "messages";
-    }>;
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"can_receive">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"stopped">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"standing">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        needs_you: "needs_you";
-        waiting_on_you: "waiting_on_you";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"assigned">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        me: "me";
-        teammate: "teammate";
-        nobody: "nobody";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"deal_stage">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        ended: "ended";
-        proposed: "proposed";
-        won: "won";
-        lost: "lost";
-        consultation: "consultation";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"consultation">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"step_due">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"in_list">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    list: z.ZodString;
-}, z.core.$strict>], "field">;
-type ListFact = z.infer<typeof ListFactSchema>;
-/** Any one of a few facts: "reaches you by WhatsApp or by text". One level deep. */
-declare const AnySchema: z.ZodObject<{
-    any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"next_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"asked_not_booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_heard">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"first_contact">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"channel">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            voice: "voice";
-            sms: "sms";
-            email: "email";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"came_from">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        from: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            sms: "sms";
-            email: "email";
-            manual: "manual";
-            lead: "lead";
-            call: "call";
-            import: "import";
-            calendar: "calendar";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"calls">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"conversations">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"has_chat">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"said_yes">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"can_receive">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"stopped">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"standing">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            needs_you: "needs_you";
-            waiting_on_you: "waiting_on_you";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"assigned">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            me: "me";
-            teammate: "teammate";
-            nobody: "nobody";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"deal_stage">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            ended: "ended";
-            proposed: "proposed";
-            won: "won";
-            lost: "lost";
-            consultation: "consultation";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"consultation">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"step_due">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"in_list">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        list: z.ZodString;
-    }, z.core.$strict>], "field">>;
-}, z.core.$strict>;
-type ListAny = z.infer<typeof AnySchema>;
-declare const ListConditionSchema: z.ZodUnion<readonly [z.ZodObject<{
-    any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"next_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"asked_not_booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_heard">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"first_contact">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"channel">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            voice: "voice";
-            sms: "sms";
-            email: "email";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"came_from">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        from: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            sms: "sms";
-            email: "email";
-            manual: "manual";
-            lead: "lead";
-            call: "call";
-            import: "import";
-            calendar: "calendar";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"calls">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"conversations">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"has_chat">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"said_yes">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"can_receive">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"stopped">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"standing">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            needs_you: "needs_you";
-            waiting_on_you: "waiting_on_you";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"assigned">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            me: "me";
-            teammate: "teammate";
-            nobody: "nobody";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"deal_stage">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            ended: "ended";
-            proposed: "proposed";
-            won: "won";
-            lost: "lost";
-            consultation: "consultation";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"consultation">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"step_due">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"in_list">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        list: z.ZodString;
-    }, z.core.$strict>], "field">>;
-}, z.core.$strict>, z.ZodDiscriminatedUnion<[z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"last_visit">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"next_visit">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"booked">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"asked_not_booked">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"last_heard">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        never: "never";
-        more_than: "more_than";
-        within: "within";
-        ever: "ever";
-        this_week: "this_week";
-    }>;
-    days: z.ZodOptional<z.ZodNumber>;
-    field: z.ZodLiteral<"first_contact">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"channel">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    channel: z.ZodEnum<{
-        whatsapp: "whatsapp";
-        voice: "voice";
-        sms: "sms";
-        email: "email";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"came_from">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    from: z.ZodEnum<{
-        whatsapp: "whatsapp";
-        sms: "sms";
-        email: "email";
-        manual: "manual";
-        lead: "lead";
-        call: "call";
-        import: "import";
-        calendar: "calendar";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        at_least: "at_least";
-        at_most: "at_most";
-    }>;
-    n: z.ZodNumber;
-    field: z.ZodLiteral<"calls">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodEnum<{
-        at_least: "at_least";
-        at_most: "at_most";
-    }>;
-    n: z.ZodNumber;
-    field: z.ZodLiteral<"conversations">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"has_chat">;
-}, z.core.$strict>, z.ZodObject<{
-    to: z.ZodEnum<{
-        offers: "offers";
-        messages: "messages";
-    }>;
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"said_yes">;
-}, z.core.$strict>, z.ZodObject<{
-    to: z.ZodEnum<{
-        offers: "offers";
-        messages: "messages";
-    }>;
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"can_receive">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"stopped">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"standing">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        needs_you: "needs_you";
-        waiting_on_you: "waiting_on_you";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"assigned">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        me: "me";
-        teammate: "teammate";
-        nobody: "nobody";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"deal_stage">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    value: z.ZodEnum<{
-        ended: "ended";
-        proposed: "proposed";
-        won: "won";
-        lost: "lost";
-        consultation: "consultation";
-    }>;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"consultation">;
-}, z.core.$strict>, z.ZodObject<{
-    op: z.ZodLiteral<"is">;
-    yes: z.ZodBoolean;
-    field: z.ZodLiteral<"step_due">;
-}, z.core.$strict>, z.ZodObject<{
-    field: z.ZodLiteral<"in_list">;
-    op: z.ZodEnum<{
-        is: "is";
-        is_not: "is_not";
-    }>;
-    list: z.ZodString;
-}, z.core.$strict>], "field">]>;
-type ListCondition = ListFact | ListAny;
-/** Every condition must hold. One to LIST_RULE_MAX of them; a list of everyone is Everyone. */
-declare const ListRuleSchema: z.ZodObject<{
-    v: z.ZodOptional<z.ZodLiteral<2>>;
-    all: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
-        any: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
-            op: z.ZodEnum<{
-                never: "never";
-                more_than: "more_than";
-                within: "within";
-                ever: "ever";
-                this_week: "this_week";
-            }>;
-            days: z.ZodOptional<z.ZodNumber>;
-            field: z.ZodLiteral<"last_visit">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodEnum<{
-                never: "never";
-                more_than: "more_than";
-                within: "within";
-                ever: "ever";
-                this_week: "this_week";
-            }>;
-            days: z.ZodOptional<z.ZodNumber>;
-            field: z.ZodLiteral<"next_visit">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"booked">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"asked_not_booked">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodEnum<{
-                never: "never";
-                more_than: "more_than";
-                within: "within";
-                ever: "ever";
-                this_week: "this_week";
-            }>;
-            days: z.ZodOptional<z.ZodNumber>;
-            field: z.ZodLiteral<"last_heard">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodEnum<{
-                never: "never";
-                more_than: "more_than";
-                within: "within";
-                ever: "ever";
-                this_week: "this_week";
-            }>;
-            days: z.ZodOptional<z.ZodNumber>;
-            field: z.ZodLiteral<"first_contact">;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"channel">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            channel: z.ZodEnum<{
-                whatsapp: "whatsapp";
-                voice: "voice";
-                sms: "sms";
-                email: "email";
-            }>;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"came_from">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            from: z.ZodEnum<{
-                whatsapp: "whatsapp";
-                sms: "sms";
-                email: "email";
-                manual: "manual";
-                lead: "lead";
-                call: "call";
-                import: "import";
-                calendar: "calendar";
-            }>;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodEnum<{
-                at_least: "at_least";
-                at_most: "at_most";
-            }>;
-            n: z.ZodNumber;
-            field: z.ZodLiteral<"calls">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodEnum<{
-                at_least: "at_least";
-                at_most: "at_most";
-            }>;
-            n: z.ZodNumber;
-            field: z.ZodLiteral<"conversations">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"has_chat">;
-        }, z.core.$strict>, z.ZodObject<{
-            to: z.ZodEnum<{
-                offers: "offers";
-                messages: "messages";
-            }>;
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"said_yes">;
-        }, z.core.$strict>, z.ZodObject<{
-            to: z.ZodEnum<{
-                offers: "offers";
-                messages: "messages";
-            }>;
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"can_receive">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"stopped">;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"standing">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            value: z.ZodEnum<{
-                needs_you: "needs_you";
-                waiting_on_you: "waiting_on_you";
-            }>;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"assigned">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            value: z.ZodEnum<{
-                me: "me";
-                teammate: "teammate";
-                nobody: "nobody";
-            }>;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"deal_stage">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            value: z.ZodEnum<{
-                ended: "ended";
-                proposed: "proposed";
-                won: "won";
-                lost: "lost";
-                consultation: "consultation";
-            }>;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"consultation">;
-        }, z.core.$strict>, z.ZodObject<{
-            op: z.ZodLiteral<"is">;
-            yes: z.ZodBoolean;
-            field: z.ZodLiteral<"step_due">;
-        }, z.core.$strict>, z.ZodObject<{
-            field: z.ZodLiteral<"in_list">;
-            op: z.ZodEnum<{
-                is: "is";
-                is_not: "is_not";
-            }>;
-            list: z.ZodString;
-        }, z.core.$strict>], "field">>;
-    }, z.core.$strict>, z.ZodDiscriminatedUnion<[z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"next_visit">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"asked_not_booked">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"last_heard">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            never: "never";
-            more_than: "more_than";
-            within: "within";
-            ever: "ever";
-            this_week: "this_week";
-        }>;
-        days: z.ZodOptional<z.ZodNumber>;
-        field: z.ZodLiteral<"first_contact">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"channel">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        channel: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            voice: "voice";
-            sms: "sms";
-            email: "email";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"came_from">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        from: z.ZodEnum<{
-            whatsapp: "whatsapp";
-            sms: "sms";
-            email: "email";
-            manual: "manual";
-            lead: "lead";
-            call: "call";
-            import: "import";
-            calendar: "calendar";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"calls">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodEnum<{
-            at_least: "at_least";
-            at_most: "at_most";
-        }>;
-        n: z.ZodNumber;
-        field: z.ZodLiteral<"conversations">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"has_chat">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"said_yes">;
-    }, z.core.$strict>, z.ZodObject<{
-        to: z.ZodEnum<{
-            offers: "offers";
-            messages: "messages";
-        }>;
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"can_receive">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"stopped">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"standing">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            needs_you: "needs_you";
-            waiting_on_you: "waiting_on_you";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"assigned">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            me: "me";
-            teammate: "teammate";
-            nobody: "nobody";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"deal_stage">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        value: z.ZodEnum<{
-            ended: "ended";
-            proposed: "proposed";
-            won: "won";
-            lost: "lost";
-            consultation: "consultation";
-        }>;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"consultation">;
-    }, z.core.$strict>, z.ZodObject<{
-        op: z.ZodLiteral<"is">;
-        yes: z.ZodBoolean;
-        field: z.ZodLiteral<"step_due">;
-    }, z.core.$strict>, z.ZodObject<{
-        field: z.ZodLiteral<"in_list">;
-        op: z.ZodEnum<{
-            is: "is";
-            is_not: "is_not";
-        }>;
-        list: z.ZodString;
-    }, z.core.$strict>], "field">]>>;
-}, z.core.$strict>;
-type ListRule = {
-    v?: 2;
-    all: ListCondition[];
-};
-/** A stored rule in version 2, or null when it is not one this build reads: such a list cannot be counted (lists.ts). */
-declare function asListRule(raw: unknown): ListRule | null;
-/**
- * A rule the drafting model wrote (LIST_DRAFT_JSON_SCHEMA, whose every property is optional): each fact cut down to the
- * keys its field reads, an "any" group to its facts, then read strictly (asListRule). A stored rule is never read this
- * leniently: the model fills in what it may, a stored rule says what it means.
- */
-declare function draftListRule(all: readonly unknown[]): ListRule | null;
-/** Every fact in a rule, the ones inside an "any" group too. */
-declare function ruleFacts(rule: ListRule): ListFact[];
-/** What one fact needs: its field's needs, and a value's own (waiting on YOU, a consultation). */
-declare function factNeeds(f: ListFact): ListNeed[];
-/** What a rule needs, in LIST_NEEDS' order. A list it reads adds that list's needs (lists.ts listNeeds). */
-declare function ruleNeeds(rule: ListRule): ListNeed[];
-/** The lists a rule reads, by token (in_list). */
-declare function ruleLists(rule: ListRule): string[];
-/** Whether a person is on a list another list's rule reads: the judge answers it before this runs (lists.ts). */
-type InList = (token: string, personId: string) => boolean;
-/** Whether a person is on a list by its rule: every condition holds, an "any" group when one of its facts does. */
-declare function listRuleMatches(rule: ListRule, v: PersonRowVM, inList?: InList): boolean;
-/**
- * One fact in the page's words: a chip. `listName` says a list another list reads by its name; without it the chip
- * says "another list".
- */
-declare function listFactWords(f: ListFact, listName?: (token: string) => string | null): string;
-/** One condition in the page's words: a fact, or an "any" group's facts joined by "or". */
-declare function listConditionWords(c: ListCondition, listName?: (token: string) => string | null): string;
-/** A rule as the chips the page shows it in, one per condition, in its order. */
-declare function listRuleParts(rule: ListRule, listName?: (token: string) => string | null): string[];
-/** The facts a person meets, in the page's words: why a smart list has them (a profile's "because" line). */
-declare function listRuleWhy(rule: ListRule, v: PersonRowVM, listName?: (token: string) => string | null): string;
-/**
- * The drafting model's lines about the vocabulary, one per field, from LIST_RULE_FIELDS: the fields and their ops as
- * the schema reads them, so the prompt cannot name a field the schema refuses.
- */
-declare function listDraftFieldLines(): string[];
-/**
- * The shape the model answers a plain-English description in: the rule, a name for the list, and what in the words
- * the vocabulary cannot say (a staff member, a tag, what was said), which the page shows rather than drops. A condition
- * is a fact, or `any`: two or more facts of which one must hold. A draft never reads another list.
- */
-declare const LIST_DRAFT_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly additionalProperties: false;
-    readonly required: readonly ["name", "all", "cannot"];
-    readonly properties: {
-        readonly name: {
-            readonly type: "string";
-        };
-        readonly cannot: {
-            readonly type: "string";
-        };
-        readonly all: {
-            readonly type: "array";
-            readonly items: {
-                readonly type: "object";
-                readonly additionalProperties: false;
-                readonly properties: {
-                    readonly any: {
-                        readonly type: "array";
-                        readonly items: {
-                            readonly type: "object";
-                            readonly additionalProperties: false;
-                            readonly required: readonly ["field", "op"];
-                            readonly properties: {
-                                readonly field: {
-                                    readonly type: "string";
-                                    readonly enum: string[];
-                                };
-                                readonly op: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["more_than", "within", "never", "ever", "this_week", "at_least", "at_most", "is", "is_not"];
-                                };
-                                readonly days: {
-                                    readonly type: "integer";
-                                };
-                                readonly n: {
-                                    readonly type: "integer";
-                                };
-                                readonly yes: {
-                                    readonly type: "boolean";
-                                };
-                                readonly channel: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["whatsapp", "sms", "voice", "email"];
-                                };
-                                readonly from: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["whatsapp", "sms", "email", "call", "calendar", "manual", "import", "lead"];
-                                };
-                                readonly to: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["offers", "messages"];
-                                };
-                                readonly value: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
-                                };
-                            };
-                        };
-                    };
-                    readonly field: {
-                        readonly type: "string";
-                        readonly enum: string[];
-                    };
-                    readonly op: {
-                        readonly type: "string";
-                        readonly enum: readonly ["more_than", "within", "never", "ever", "this_week", "at_least", "at_most", "is", "is_not"];
-                    };
-                    readonly days: {
-                        readonly type: "integer";
-                    };
-                    readonly n: {
-                        readonly type: "integer";
-                    };
-                    readonly yes: {
-                        readonly type: "boolean";
-                    };
-                    readonly channel: {
-                        readonly type: "string";
-                        readonly enum: readonly ["whatsapp", "sms", "voice", "email"];
-                    };
-                    readonly from: {
-                        readonly type: "string";
-                        readonly enum: readonly ["whatsapp", "sms", "email", "call", "calendar", "manual", "import", "lead"];
-                    };
-                    readonly to: {
-                        readonly type: "string";
-                        readonly enum: readonly ["offers", "messages"];
-                    };
-                    readonly value: {
-                        readonly type: "string";
-                        readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
-                    };
-                };
-            };
-        };
-    };
-};
-declare const ListDraftAnswerSchema: z.ZodObject<{
-    name: z.ZodString;
-    cannot: z.ZodString;
-    all: z.ZodArray<z.ZodUnknown>;
-}, z.core.$strip>;
-type ListDraftAnswer = z.infer<typeof ListDraftAnswerSchema>;
-
-/**
- * One idea of a list (decision 0009): a rule over facts. A built-in is a rule the product ships; a saved list is a rule
- * the owner writes, or the people the owner put on it. Every consumer holds a reference, `ListRef`, written as the
- * address writes it (`seg:<built-in id>`, `list:<saved list id>`), and asks this module who is on it.
- *
- * Who is on a list is `listMembers`: the people, or "unknown" with the reason it cannot be counted -- a calendar that
- * was not read, deals that are off here, no one looking for a list about "me", a rule this build cannot read, or a list
- * it reads that is gone. Can't tell is never drawn as nobody.
- */
-
-type ListRef = {
-    kind: "builtin";
-    id: string;
-} | {
-    kind: "saved";
-    id: string;
-};
-/**
- * A list's token, as the address writes it after `clients/`: `seg:<built-in id>` or `list:<saved list id>`. `state:`
- * (People's old standing tabs) reads as `seg:`, since Needs you and Waiting on you are lists.
- */
-declare function listToken(ref: ListRef): string;
-/** A token back to its reference, or null for anything else. */
-declare function parseListToken(token: string | null | undefined): ListRef | null;
-type PeopleListGroup = "attention" | "journey" | "reach";
-/** The rail's three quiet labels: what needs a person, where each person is on the way to a booking, who can be reached. */
-declare const PEOPLE_LIST_GROUPS: readonly {
-    id: PeopleListGroup;
-    label: string;
-}[];
-interface BuiltinSpec {
-    id: string;
-    label: string;
-    group: PeopleListGroup;
-    rule: ListRule;
-    /**
-     * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-     * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
-     */
-    onProfile?: false;
-}
-/**
- * The lists the product ships, each a rule in the language an owner writes theirs in (decision 0009). Their ids never
- * change: a sent broadcast's audience names them. The journey lists that read the calendar exist only when one is
- * read, the deal lists only where deals are on: what each needs comes from its rule (listNeeds).
- */
-declare const BUILTIN_LISTS: readonly BuiltinSpec[];
-/**
- * The built-ins in the shape the pages have always read: each with its gates and its test, now all from its rule. The
- * test judges a row as it was built (for its viewer, at its moment); what a list needs is for its reader to check
- * (listMembers does).
- */
-declare const PEOPLE_LISTS: readonly {
-    id: string;
-    label: string;
-    group: PeopleListGroup;
-    rule: ListRule;
-    needsCalendar?: boolean;
-    needsConsultFirst?: boolean;
-    needsDeals?: boolean;
-    needsViewer?: boolean;
-    onProfile?: false;
-    test: (vm: PersonRowVM) => boolean;
-}[];
-/** What a workspace and a reader can give a list: the rows' calendar, deals, a consult-first service, and a viewer. */
-interface ListContext {
-    calendar: "ok" | "unavailable" | "none";
-    dealsOn: boolean;
-    consultFirst: boolean;
-    /** The rows were built for someone looking (toPersonRowVM's viewer): "me" means them. A playbook has no one. */
-    viewer: boolean;
-}
-/** Why a list cannot be counted: an unmet need, a rule this build cannot read, or a list it reads that is gone. */
-type ListUnknownReason = ListNeed | "rule" | "list";
-type Membership = {
-    state: "ok";
-    ids: Set<string>;
-} | {
-    state: "unknown";
-    reason: ListUnknownReason;
-};
-/** The first need a context cannot meet, in LIST_NEEDS' order; null when it meets them all. */
-declare function unmetNeed(needs: readonly ListNeed[], ctx: ListContext): ListNeed | null;
-/** A saved list as packages/db reads it: its people by hand, or its rule (stored JSON, read by asListRule). */
-interface SavedListLike {
-    id: string;
-    ids: readonly string[];
-    rule?: unknown;
-}
-/**
- * The lists a rule may read, resolved by token: a built-in, a saved list, or null when it is gone. `readable` is false
- * for a saved list whose rule this build cannot read: it is not a list kept by hand, and a list that reads it cannot be
- * counted either.
- */
-type ListLookup = (token: string) => {
-    rule: ListRule | null;
-    ids: readonly string[];
-    readable: boolean;
-} | null;
-/**
- * Who is on a list: a rule over the rows, or the people put on it by hand crossed with the rows (an erased person
- * never counts). Unknown, with the reason, when the rule cannot be read, when the context cannot meet what it needs,
- * or when a list it reads is gone or cannot be counted itself. A list reads another only one level deep: a list that
- * reads a list that reads a list is unknown, never a guess.
- */
-declare function listMembers(list: {
-    ids: readonly string[];
-    rule?: unknown;
-}, rows: readonly PersonRowVM[], ctx: ListContext, lookup?: ListLookup): Membership;
-/**
- * Who is on a saved list, as a set: the people, or nobody when it cannot be counted. For a reader that only enrols (a
- * send, a playbook's pool) and says its own refusal when nobody is there; the pages read `listMembers` and say why.
- */
-declare function savedListIds(list: SavedListLike, rows: readonly PersonRowVM[], ctx: ListContext, lookup?: ListLookup): Set<string>;
-/** A lookup over the saved lists a reader holds, for the lists a rule reads. */
-declare function savedListLookup(saved: readonly SavedListLike[]): ListLookup;
-/** What a list needs, the lists it reads included: a list about a calendar list needs the calendar too. */
-declare function listNeeds(rule: ListRule | null, lookup?: ListLookup): ListNeed[];
-/**
- * A list, resolved: what every consumer reads, whichever kind it is. A saved list's rule is null when it is kept by
- * hand (`byHand`) or when this build cannot read it (`readable` false: it cannot be counted, and is never drawn as a
- * list kept by hand).
- */
-interface ListDef {
-    ref: ListRef;
-    token: string;
-    label: string;
-    group: PeopleListGroup | "saved";
-    rule: ListRule | null;
-    byHand: boolean;
-    readable: boolean;
-    /** A hand list's people, as stored; empty for a rule. */
-    ids: readonly string[];
-    needs: ListNeed[];
-    onProfile: boolean;
-    archived: boolean;
-}
-/** A saved list as a reader holds it (packages/db SavedListRow): a name, its people or its rule, whether archived. */
-interface SavedListRowLike extends SavedListLike {
-    name: string;
-    archived_at?: string | null;
-}
-/**
- * Every list a reader may offer: the built-ins whose needs this context meets (a calendar list without a calendar is
- * not offered, as before), then the workspace's own lists that are not archived, whatever they need -- one it cannot
- * count is still the owner's, and says why.
- */
-declare function listsFor(ctx: ListContext, saved: readonly SavedListRowLike[]): ListDef[];
-/** One list by its reference: a built-in whatever it needs, a saved list archived or not; null when there is none. */
-declare function resolveList(ref: ListRef | null, saved: readonly SavedListRowLike[]): ListDef | null;
-/** Who is on a resolved list (listMembers), with the saved lists its rule may read. */
-declare function membersOf(def: ListDef, rows: readonly PersonRowVM[], ctx: ListContext, saved?: readonly SavedListRowLike[]): Membership;
-/**
- * Why a list cannot be counted, in the page's words: what it needs and does not have, and what to do about it where
- * there is something to do.
- */
-declare function listUnknownWords(reason: ListUnknownReason, calendar: ListContext["calendar"]): string;
 
 /**
  * The pool every list is judged over (decision 0009): everyone, with their appointments, as the People page, a send, a
@@ -18034,4 +18047,4 @@ declare const FIRST_RUN_HELPERS: {
     readonly landedKey: "chanlytics.setup.landed";
 };
 
-export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVITY_KINDS, ACTIVITY_NOISE_PREFIXES, ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_SCOPE_KINDS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, AUDIENCE_KINDS, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationRecord, type ActivityPageDto, type ActivityRowDto, type DecisionVerb as ActivityVerb, type ActorType, type AmountFact, AppError, type ApprovalVM, type AskAnswer, type AskAnswerRead, type AskBreakdown, type AskBreakdownPart, type AskCitation, type AskCitationKind, type AskFigure, type AskIntent, type AskItem, type AskLanguage, type AskMessageVM, type AskOpen, type AskOpeningsView, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskWaiting, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BOOKING_LINK_NEEDED, BOOKING_RULE_HINTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROKEN_CONFIG_WORDS, BUILTIN_LISTS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALL_HEARTBEAT_MS, CALL_KEY_PREFIX, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CAPABILITY_KINDS, CARRIERS, CARRIER_WORDS, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHIPS_SHOWN, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FIRST_DEAL_HINT, CONSULT_FOLLOW_DAYS, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarPeekDealVM, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type CheckoutReturn, type CleanedEmails, type Closure, ClosureSchema, type ClosuresAheadVM, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, type Crumb, type CsvCell, DAYS, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeskSignVM, E164, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVERYONE_LABEL, type EmailSetupDto, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_MAX_BYTES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_WORDS, FOLLOWUP_ECHO, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, type Fact, type FactConflict, type FactSource, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type FollowUpFactsDto, type FollowUpStand, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GET_YES_ROUTE, GOOGLE_SHOWN_REVIEWS, GREETING_DEFAULT, GUARDRAIL_KEYS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, HANDOFF_FORWARDS_BACK, HELD_REASONS, type HandoffWordsVM, type Holds, type Hours, type HoursRun, HoursSchema, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdentityInput, type IdentityWords, type InApp, type InAppPlatform, type InList, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, InviteCodeSchema, JOB_KINDS, JOB_STATES, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobKind, type JobNews, type JobNewsKind, type JobState, type JourneyListLike, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JumpEntry, type KnownFacts, LANGUAGE_GROUP_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_REASON, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FIRST_DAY_FOOT, LEAD_FIRST_DAY_SUB, LEAD_FIRST_DAY_TITLE, LEAD_FITS, LEAD_FIT_WORDS, LEAD_FREE_MAIL, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_QUESTION_WAIT_MS, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_JSON_SCHEMA, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_WORDS, LIMIT_TIERS, LINE_CREDENTIALS_SENTENCE, LINE_STEP_WORDS, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_NEEDS, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LanguageChoice, type LanguageGroup, type LastChangedBy, type LeadArea, type LeadBand, type LeadCallOutcome, type LeadCardBrief, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadClass, type LeadClassification, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFit, type LeadList, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, type LeadPeekReach, type LeadPeekVM, type LeadPinnable, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSlot, type LeadSlotState, type LeadSort, type LeadStage, type LeadStageInput, LeadStageInputSchema, LeadSuggestAnswerSchema, type LeadSuggestionsDto, type LeadWay, type LeadWayFacts, type LeadWeekRow, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LineDto, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MailboxDto, type MatchVia, type MediaVM, type Membership, type MembershipRole, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsChannelDto, type MetricsSummaryDto, NEEDS_KEY_PREFIX, NEEDS_TITLE, NEW_WINDOW_DAYS, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, type NameableContact, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NotesWordsVM, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OWN_MESSAGE_REFUSALS, type Ok, type Opening, type OwnAddresses, type OwnFacts, type OwnMessageVM, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERM_DOING, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, POLICY_MODE_WORDS, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PersonActVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, type PersonMode, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitsDto, type PipelineChip, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookReach, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PreflightFacts, type PreflightProblem, type PreviewPerson, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposeLeadSearch, ProposeLeadSearchSchema, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, RATE_HITS_RETENTION_HOURS, RECENT_MAX, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RETENTION_DAYS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_REPORT_STEPS, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyWhyVM, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDto, type ReportFactVM, type ReportHoursVM, type ReportLinesVM, type ReportPointVM, type ReportSpeedPointVM, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RolePerm, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunPersonVM, type RunPlan, type RunReach, type RunReplyVM, type RunReportVM, type RunTone, SAME_SITTING_MS, SCHEMA_SETS, SELLS_BY, SELLS_BY_FIRST, SELLS_BY_QUESTION, SELLS_BY_REFUSAL, SELLS_BY_WORDS, SENDING_HOURS_WORDS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEND_LEADS, SPEND_NUMBER, STARTER_LANGUAGES, STARTER_TEMPLATES, STEP_SHEET_WORDS, type SavedListLike, type SavedListRowLike, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SellsBy, type SellsByVM, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type Standing, type StandingInput, type StandingInputs, type StandingVM, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type StateKind, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepNoteBody, type StepPerson, type StepSheetVM, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, TEMPLATE_BODY_MAX, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_OPTIONS, TIMELINE_FILTERS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_QUEUE_MAX, TODAY_STEPS_MAX, TONES, TONE_PRESETS, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateLanguage, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TextingTermsVM, type Theme, type ThemePref, type TimelineFilterId, type TimelineKind, type ToastShape, type ToastTone, type TodayAwayVM, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type Tone, type Touches, type TypedFacts, VISION_STRENGTH, type Visit, type VisitDto, type Visits, WABA_FIELDS, WAITING_AFTER_DAYS, WA_WINDOW_MS, WEEKDAY_KEYS, WHATSAPP_LANGUAGES, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WeekTileLike, type WhoseWords, type Within, abandonedCall, abilityRows, activityTone, activityWords, addressAlreadyKnown, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, allVisitsIn, amountTotalsWords, amountWords, answerForCards, answerFromV1, answerText, answerWords, applyReadState, applySettingsChange, asListRule, asPersonMode, askIntent, askJump, askUndoOpen, attentionOf, attentionRow, audienceMembers, audiencePreview, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, billingPill, blockShareWords, bookedAfterAsk, bookingHeld, bookingLinkAction, bookingRuleRefusal, bookingRulesWords, bookingTemplate, brainMetaOf, breathEndsAt, breathHolds, broadcastFailureFix, broadcastFailureWords, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, calendarOwnerOf, calendarPeekDeal, callMoodTone, callOfKey, callOutcomeOf, callOutcomeWords, callsAnswer, callsToday, cameFromOf, cannotRows, capabilityStatus, cardOpenRoute, changedConfigFields, channelFor, channelKindWords, channelsOf, checkNoteSuggestion, checkedWords, chipsMoreWords, citationRoute, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanParam, cleanTimezone, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentPageMetadata, consentPageVM, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationOfNeedsKey, coversSpan, csvCell, customerWords, dailyLimit, dataSentences, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayPlusInZone, dayProblems, dayWords, dealCardsOf, dealFactsOf, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dealsAreOn, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, draftListRule, draftSendsAtMs, dueStepDay, durationLabel, eligibleFor, eligibleForPlaybook, emailLeftOutOf, emailNotConfirmed, emailWires, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endingOfRound, erasedEmailHash, erasedPhoneHash, err, estimateRoundUsd, eventText, exampleParams, extractContacts, factConflicts, factNeeds, failedAnswer, fallbackMessages, fallbacksWords, feedBodyProblem, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, filterOpenings, filterTimeline, findLanguages, firstLine, firstNameOf, firstRunKicker, firstRunOf, firstRunStepOf, firstRunStepRoute, firstWorkspaceDoor, fmtClock, fmtDay, fmtSeconds, foldName, followUpIsFor, followUpNames, followUpRunAt, followUpStandOf, followUpWords, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromZonedInput, gainedOver, googleAudienceWords, googleCallbackUrl, greetingFor, groundCitations, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, handoffCallWords, handoffChatWords, handoffE164, handoffWords, hardLimitsWords, hasProfile, heardSinceProposal, heardWords, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, identityWords, inAppBootScript, inAppFrom, inLocalWeek, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, instructionsDraft, instructionsWords, inviteState, invoiceStatusWords, isActivityNoise, isBaselinePrompt, isCarrier, isCheckoutReturn, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isForwardingMode, isHeldDraft, isIdentifierName, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isPipelineView, isPushKind, isRealDate, isReplyTo, isSellsBy, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, isUsablePassword, isYes, judgeAsked, judgeOpId, judgeQuestions, judgeSystemPrompt, judgeUserContent, knownForwarding, knownTimezones, languageLabel, languageLabels, languageName, languageTag, languageWords, lastChangedName, lastChangedWords, leadAllowanceFact, leadAnd, leadAskedFor, leadBand, leadCheckAgainCents, leadDraftFooter, leadEndingLine, leadExclusionWord, leadHoursShort, leadKindWord, leadLowShare, leadLowerFirst, leadMapAcross, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadPinTone, leadPlanAsk, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReviewCosts, leadReviewGroups, leadSearchWords, leadSlots, leadSuppressionHash, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWeekBars, leadWeekSummary, leadWhere, leadsFirstDayWays, leadsRoute, leadsStanding, lineCredentialFailure, lineRetryRefusal, lineStuckProvisioning, linkHost, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listToken, listUnknownWords, listingLine, listsFor, liveBar, liveStillUp, localDate, localDaysBetween, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReach, mayReceive, maySpend, mediaKind, mediaVM, medianWait, memberWords, membersOf, messageAt, messageAuthor, messageLanguageChoices, messageStatusLabel, messageText, messageVia, messageWords, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, needsAnswer, needsConsultation, newReceptionistDefaults, nextOpenMoment, nextRunLabel, nextStepOf, nextThemePref, noNumberWords, noProposalSince, normalizeAnswer, normalizeEmail, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, noteSuggestSystemPrompt, noteSuggestUserContent, notesWords, numberHealth, offerFor, offerLead, offeringHorizon, offersBookingLink, offersYesRefusal, ok, oneDoor, openWeekWords, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, outcomeMove, overLimitRefusal, ownAddressesOf, ownMessageRefusal, ownWordsOf, pageTitle, paramLabel, parseAmount, parseBrainOutput, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseParamSpec, parseParamSpecs, parsePipelineRoute, parseTenantConfig, parseTenantConfigResult, partialSay, passwordProblem, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, peopleVisitsOf, personActs, personInText, personInitials, personLikeOf, personName, personNotesVM, personStanding, personStateFor, phoneTail, pickCurrentDeal, pipelineBoardMore, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelineRail, pipelineRoute, pipelineSorted, pipelineViewLabel, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planLeadSearch, planLeavingOut, planMinutes, planRun, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords, platformActionWarning, platformHealthOf, platformHealthWords, platformLineActions, platformNumber, platformQueue, platformRows, platformSummary, playbookName, playbookNoNumberWords, playbookReach, playbookReachDoor, playbookRunReach, playbookRunStop, playbooksStillSending, pointsDelta, policyAskClass, policyClassOfIntent, policyClassOffered, policyLinks, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, previewHorizon, priceNextStep, priceWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptTotalWords, proposalAction, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalsWaiting, proseAnswer, providerNameOf, purposeOfPlaybook, purposeOfTemplate, pushFor, quantile, questionAfterProbe, ratingWords, reachLines, reachedCustomer, readAgoLabel, reasonShort, receiptWords, recencyCells, receptionistCardOf, receptionistOn, refusalOf, registrationPathOf, registrationPreflight, renderTemplate, repliesWords, replyDelayMs, replyWaitsOnYou, replyWhy, replyWindow, reportFacts, reportHourWords, requestCodeWords, resendLeft, resolveFacts, resolveList, resolveParams, resolveSystemPrompt, resolveTheme, retentionWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rightNowCounts, rightNowLine, roleGate, ruleFacts, ruleLists, ruleNeeds, ruleParts, ruleStrength, rulesKept, rulesLine, runDueNow, runningTotal, runsWords, saidYesTo, saidYesWords, sameAddress, sameName, samePhone, sameQuestion, savedListAction, savedListIds, savedListLookup, scheduleLine, scopeFromRoute, seasonHorizon, sellsBySaved, sellsByVM, sendFailureIsOurs, sendableTemplates, serverNotificationRows, serviceOf, serviceUndoName, servicesFoundWords, servicesSaveWords, servicesToldWords, servicesWords, setupCardOf, setupLaterOf, setupRoute, setupSteps, sha256Hex, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnFirstRun, signupPosture, siteHost, slotChoices, slotLabels, slotToWrite, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, stageArgs, standingLine, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterText, startersOffered, stateCode, stateLabel, stateOf, stateTone, stepDayOf, stepDays, stepIsDue, stepSheetBody, stepSheetDirty, stepSheetFor, stepSheetMerge, suggestLocalPart, telHref, templateBlocked, templateComponents, templateFooter, templateLanguage, templateLinkButton, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateSends, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, threadChannelOf, threadChannelWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toRunReportVM, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayDay, todayLeaks, todayPeriodLine, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, tomorrowAtIn, trialOffer, trialWords, triggerOf, triggerOffered, tzClock, unknownDetails, unmetNeed, unreadCount, usPhone, usableDeviceTimezone, v1FromAnswer, validateTemplateDraft, verbForRoute, verbalOptInScript, verifyCodeWords, violatesNoPrices, visitAnswersAsk, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitStartTime, visitTime, visitTitleFor, visitsIn, visitsOf, waWindow, waitAfterDays, waitedLabel, waitingOnProposal, wallClockAt, weekOf, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, whyNotForward, whyNotLook, whyNotReceive, windowFor, withFirstAlertAddress, withVisitsOf, workspaceHotkey, writtenChannelOf, writtenOutDetail, yesWaitWords, yesWaits, zoneDayKey, zoneMidnight, zoneOffsetMs, zonedInputValue };
+export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVITY_KINDS, ACTIVITY_NOISE_PREFIXES, ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_SCOPE_KINDS, ASK_SURFACES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, AUDIENCE_KINDS, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationRecord, type ActivityPageDto, type ActivityRowDto, type DecisionVerb as ActivityVerb, type ActorType, type AmountFact, AppError, type ApprovalVM, type AskAnswer, type AskAnswerRead, type AskBreakdown, type AskBreakdownPart, type AskCitation, type AskCitationKind, type AskFigure, type AskIntent, type AskItem, type AskLanguage, type AskMessageVM, type AskOpen, type AskOpeningsView, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskWaiting, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BOOKING_LINK_NEEDED, BOOKING_RULE_HINTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROKEN_CONFIG_WORDS, BUILTIN_LISTS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALL_HEARTBEAT_MS, CALL_KEY_PREFIX, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CAPABILITY_KINDS, CARRIERS, CARRIER_WORDS, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHIPS_SHOWN, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FIRST_DEAL_HINT, CONSULT_FOLLOW_DAYS, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarPeekDealVM, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type CheckoutReturn, type CleanedEmails, type Closure, ClosureSchema, type ClosuresAheadVM, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, type Crumb, type CsvCell, DAYS, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeskSignVM, E164, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVERYONE_LABEL, type EmailSetupDto, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_MAX_BYTES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_WORDS, FOLLOWUP_ECHO, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, type Fact, type FactConflict, type FactSource, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type FollowUpFactsDto, type FollowUpStand, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GET_YES_ROUTE, GOOGLE_SHOWN_REVIEWS, GREETING_DEFAULT, GUARDRAIL_KEYS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, HANDOFF_FORWARDS_BACK, HELD_REASONS, type HandoffWordsVM, type Holds, type Hours, type HoursRun, HoursSchema, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdentityInput, type IdentityWords, type InApp, type InAppPlatform, type InList, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, InviteCodeSchema, JOB_KINDS, JOB_STATES, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobKind, type JobNews, type JobNewsKind, type JobState, type JourneyListLike, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JumpEntry, type KnownFacts, LANGUAGE_GROUP_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_REASON, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FIRST_DAY_FOOT, LEAD_FIRST_DAY_SUB, LEAD_FIRST_DAY_TITLE, LEAD_FITS, LEAD_FIT_WORDS, LEAD_FREE_MAIL, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_QUESTION_WAIT_MS, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_JSON_SCHEMA, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_WORDS, LIMIT_TIERS, LINE_CREDENTIALS_SENTENCE, LINE_STEP_WORDS, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_NEEDS, LIST_PLAYBOOK_CLASSES, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LanguageChoice, type LanguageGroup, type LastChangedBy, type LeadArea, type LeadBand, type LeadCallOutcome, type LeadCardBrief, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadClass, type LeadClassification, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFit, type LeadList, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, type LeadPeekReach, type LeadPeekVM, type LeadPinnable, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSlot, type LeadSlotState, type LeadSort, type LeadStage, type LeadStageInput, LeadStageInputSchema, LeadSuggestAnswerSchema, type LeadSuggestionsDto, type LeadWay, type LeadWayFacts, type LeadWeekRow, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LineDto, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MailboxDto, type MatchVia, type MediaVM, type Membership, type MembershipRole, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsChannelDto, type MetricsSummaryDto, NEEDS_KEY_PREFIX, NEEDS_TITLE, NEW_WINDOW_DAYS, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, type NameableContact, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NotesWordsVM, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OWN_MESSAGE_REFUSALS, type Ok, type Opening, type OwnAddresses, type OwnFacts, type OwnMessageVM, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERM_DOING, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, POLICY_MODE_WORDS, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PersonActVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, type PersonMode, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitsDto, type PipelineChip, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookReach, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PreflightFacts, type PreflightProblem, type PreviewPerson, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposeLeadSearch, ProposeLeadSearchSchema, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, RATE_HITS_RETENTION_HOURS, RECENT_MAX, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RETENTION_DAYS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_REPORT_STEPS, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyWhyVM, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDto, type ReportFactVM, type ReportHoursVM, type ReportLinesVM, type ReportPointVM, type ReportSpeedPointVM, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RolePerm, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunPersonVM, type RunPlan, type RunReach, type RunReplyVM, type RunReportVM, type RunTone, SAME_SITTING_MS, SCHEMA_SETS, SELLS_BY, SELLS_BY_FIRST, SELLS_BY_QUESTION, SELLS_BY_REFUSAL, SELLS_BY_WORDS, SENDING_HOURS_WORDS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEND_LEADS, SPEND_NUMBER, STARTER_LANGUAGES, STARTER_TEMPLATES, STEP_SHEET_WORDS, type SavedListLike, type SavedListRowLike, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SellsBy, type SellsByVM, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type Standing, type StandingInput, type StandingInputs, type StandingVM, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type StateKind, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepNoteBody, type StepPerson, type StepSheetVM, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, TEMPLATE_BODY_MAX, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_OPTIONS, TIMELINE_FILTERS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_QUEUE_MAX, TODAY_STEPS_MAX, TONES, TONE_PRESETS, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateLanguage, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TextingTermsVM, type Theme, type ThemePref, type TimelineFilterId, type TimelineKind, type ToastShape, type ToastTone, type TodayAwayVM, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type Tone, type Touches, type TypedFacts, VISION_STRENGTH, type Visit, type VisitDto, type Visits, WABA_FIELDS, WAITING_AFTER_DAYS, WA_WINDOW_MS, WEEKDAY_KEYS, WHATSAPP_LANGUAGES, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WeekTileLike, type WhoseWords, type Within, abandonedCall, abilityRows, activityTone, activityWords, addressAlreadyKnown, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, allVisitsIn, amountTotalsWords, amountWords, answerForCards, answerFromV1, answerText, answerWords, applyReadState, applySettingsChange, asListRule, asPersonMode, askIntent, askJump, askUndoOpen, attentionOf, attentionRow, audienceMembers, audiencePreview, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, billingPill, blockShareWords, bookedAfterAsk, bookingHeld, bookingLinkAction, bookingRuleRefusal, bookingRulesWords, bookingTemplate, brainMetaOf, breathEndsAt, breathHolds, broadcastFailureFix, broadcastFailureWords, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, calendarOwnerOf, calendarPeekDeal, callMoodTone, callOfKey, callOutcomeOf, callOutcomeWords, callsAnswer, callsToday, cameFromOf, cannotRows, capabilityStatus, cardOpenRoute, changedConfigFields, channelFor, channelKindWords, channelsOf, checkNoteSuggestion, checkedWords, chipsMoreWords, citationRoute, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanParam, cleanTimezone, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentPageMetadata, consentPageVM, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationOfNeedsKey, coversSpan, csvCell, customerWords, dailyLimit, dataSentences, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayPlusInZone, dayProblems, dayWords, dealCardsOf, dealFactsOf, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dealsAreOn, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, draftListRule, draftSendsAtMs, dueStepDay, durationLabel, eligibleFor, eligibleForPlaybook, emailLeftOutOf, emailNotConfirmed, emailWires, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endingOfRound, erasedEmailHash, erasedPhoneHash, err, estimateRoundUsd, eventText, exampleParams, extractContacts, factConflicts, factNeeds, failedAnswer, fallbackMessages, fallbacksWords, feedBodyProblem, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, filterOpenings, filterTimeline, findLanguages, firstLine, firstNameOf, firstRunKicker, firstRunOf, firstRunStepOf, firstRunStepRoute, firstWorkspaceDoor, fmtClock, fmtDay, fmtSeconds, foldName, followUpIsFor, followUpNames, followUpRunAt, followUpStandOf, followUpWords, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromZonedInput, gainedOver, googleAudienceWords, googleCallbackUrl, greetingFor, groundCitations, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, handoffCallWords, handoffChatWords, handoffE164, handoffWords, hardLimitsWords, hasProfile, heardSinceProposal, heardWords, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, identityWords, inAppBootScript, inAppFrom, inLocalWeek, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, instructionsDraft, instructionsWords, inviteState, invoiceStatusWords, isActivityNoise, isBaselinePrompt, isCarrier, isCheckoutReturn, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isForwardingMode, isHeldDraft, isIdentifierName, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isPipelineView, isPushKind, isRealDate, isReplyTo, isSellsBy, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, isUsablePassword, isYes, judgeAsked, judgeOpId, judgeQuestions, judgeSystemPrompt, judgeUserContent, knownForwarding, knownTimezones, languageLabel, languageLabels, languageName, languageTag, languageWords, lastChangedName, lastChangedWords, leadAllowanceFact, leadAnd, leadAskedFor, leadBand, leadCheckAgainCents, leadDraftFooter, leadEndingLine, leadExclusionWord, leadHoursShort, leadKindWord, leadLowShare, leadLowerFirst, leadMapAcross, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadPinTone, leadPlanAsk, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReviewCosts, leadReviewGroups, leadSearchWords, leadSlots, leadSuppressionHash, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWeekBars, leadWeekSummary, leadWhere, leadsFirstDayWays, leadsRoute, leadsStanding, lineCredentialFailure, lineRetryRefusal, lineStuckProvisioning, linkHost, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listToken, listUnknownWords, listingLine, listsFor, liveBar, liveStillUp, localDate, localDaysBetween, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReach, mayReceive, maySpend, mediaKind, mediaVM, medianWait, memberWords, membersOf, messageAt, messageAuthor, messageLanguageChoices, messageStatusLabel, messageText, messageVia, messageWords, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, needsAnswer, needsConsultation, newReceptionistDefaults, nextOpenMoment, nextRunLabel, nextStepOf, nextThemePref, noNumberWords, noProposalSince, normalizeAnswer, normalizeEmail, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, noteSuggestSystemPrompt, noteSuggestUserContent, notesWords, numberHealth, offerFor, offerLead, offeringHorizon, offersBookingLink, offersYesRefusal, ok, oneDoor, openWeekWords, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, outcomeMove, overLimitRefusal, ownAddressesOf, ownMessageRefusal, ownWordsOf, pageTitle, paramLabel, parseAmount, parseBrainOutput, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseParamSpec, parseParamSpecs, parsePipelineRoute, parseTenantConfig, parseTenantConfigResult, partialSay, passwordProblem, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, peopleVisitsOf, personActs, personInText, personInitials, personLikeOf, personName, personNotesVM, personStanding, personStateFor, phoneTail, pickCurrentDeal, pipelineBoardMore, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelineRail, pipelineRoute, pipelineSorted, pipelineViewLabel, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planLeadSearch, planLeavingOut, planMinutes, planRun, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords, platformActionWarning, platformHealthOf, platformHealthWords, platformLineActions, platformNumber, platformQueue, platformRows, platformSummary, playbookListRef, playbookName, playbookNoNumberWords, playbookReach, playbookReachDoor, playbookRunReach, playbookRunStop, playbooksStillSending, pointsDelta, policyAskClass, policyClassOfIntent, policyClassOffered, policyLinks, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, previewHorizon, priceNextStep, priceWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptTotalWords, proposalAction, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalsWaiting, proseAnswer, providerNameOf, purposeOfPlaybook, purposeOfTemplate, pushFor, quantile, questionAfterProbe, ratingWords, reachLines, reachedCustomer, readAgoLabel, reasonShort, receiptWords, recencyCells, receptionistCardOf, receptionistOn, refusalOf, registrationPathOf, registrationPreflight, renderTemplate, repliesWords, replyDelayMs, replyWaitsOnYou, replyWhy, replyWindow, reportFacts, reportHourWords, requestCodeWords, resendLeft, resolveFacts, resolveList, resolveParams, resolveSystemPrompt, resolveTheme, retentionWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, rightNowCounts, rightNowLine, roleGate, ruleFacts, ruleLists, ruleNeeds, ruleParts, ruleStrength, rulesKept, rulesLine, runDueNow, runningTotal, runsWords, saidYesTo, saidYesWords, sameAddress, sameName, samePhone, sameQuestion, savedListAction, savedListIds, savedListLookup, scheduleLine, scopeFromRoute, seasonHorizon, sellsBySaved, sellsByVM, sendFailureIsOurs, sendableTemplates, serverNotificationRows, serviceOf, serviceUndoName, servicesFoundWords, servicesSaveWords, servicesToldWords, servicesWords, setupCardOf, setupLaterOf, setupRoute, setupSteps, sha256Hex, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnFirstRun, signupPosture, siteHost, slotChoices, slotLabels, slotToWrite, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, stageArgs, standingLine, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterText, startersOffered, stateCode, stateLabel, stateOf, stateTone, stepDayOf, stepDays, stepIsDue, stepSheetBody, stepSheetDirty, stepSheetFor, stepSheetMerge, suggestLocalPart, telHref, templateBlocked, templateComponents, templateFooter, templateLanguage, templateLinkButton, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateSends, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, threadChannelOf, threadChannelWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toRunReportVM, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayDay, todayLeaks, todayPeriodLine, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, tomorrowAtIn, trialOffer, trialWords, triggerOf, triggerOffered, tzClock, unknownDetails, unmetNeed, unreadCount, usPhone, usableDeviceTimezone, v1FromAnswer, validateTemplateDraft, verbForRoute, verbalOptInScript, verifyCodeWords, violatesNoPrices, visitAnswersAsk, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitStartTime, visitTime, visitTitleFor, visitsIn, visitsOf, waWindow, waitAfterDays, waitedLabel, waitingOnProposal, wallClockAt, weekOf, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, whyNotForward, whyNotLook, whyNotReceive, windowFor, withFirstAlertAddress, withVisitsOf, workspaceHotkey, writtenChannelOf, writtenOutDetail, yesWaitWords, yesWaits, zoneDayKey, zoneMidnight, zoneOffsetMs, zonedInputValue };

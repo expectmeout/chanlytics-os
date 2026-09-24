@@ -19,6 +19,7 @@ import { visitStartTime, type VisitDto } from "./calendar-people";
 import { shiftKey, zoneMidnight } from "./calendar";
 import { clockNear, wallClockAt, zoneDayKey } from "./clock";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS, waitingOnProposal, type DealPaceVM } from "./deals";
+import type { ListRef } from "./lists";
 
 const DAY_MS = 86_400_000;
 
@@ -83,14 +84,15 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "list",
     hint: "No visit in 45 days, and nothing booked",
   },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
   {
     id: "saved_list",
-    label: "One of your lists",
+    label: "On a list",
     list: null,
     cls: "campaign",
     kind: "saved",
-    hint: "Everyone on a list you keep",
+    hint: "Everyone on a list: one of People's, or one you keep",
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
   // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
@@ -242,8 +244,10 @@ export interface PlaybookDto {
   id: string;
   name: string;
   trigger: PlaybookTrigger;
-  /** The list a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
+  /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger, and for one whose list was deleted. */
   list_id: string | null;
+  /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */
+  list_key?: string | null;
   template_id: string;
   template_name: string;
   template_language: string;
@@ -258,6 +262,24 @@ export interface PlaybookDto {
   last_run_at: string | null;
   created_at: string;
 }
+
+/**
+ * The list a playbook runs on, as a reference (lists.ts): a saved_list playbook's People list by its id, or one of the
+ * workspace's own; null for every other trigger, and for one whose list is gone.
+ */
+export function playbookListRef(p: {
+  trigger: string;
+  list_id?: string | null;
+  list_key?: string | null;
+}): ListRef | null {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+
+/** The classes a playbook on a list may run under, the first its own: an offer, or a win-back. */
+export const LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"] as const;
 
 /**
  * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up

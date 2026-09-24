@@ -1,11 +1,14 @@
 import {
   AppError,
+  BUILTIN_LISTS,
+  LIST_PLAYBOOK_CLASSES,
   FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_NEEDS_LINK,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
   playbookName,
+  ruleNeeds,
   triggerOf,
   triggerOffered,
   type ParamSpec,
@@ -19,8 +22,10 @@ import type { TemplateValuesPorts } from "./ports";
 export interface PlaybookInput {
   name: string;
   trigger: PlaybookTrigger;
-  /** The list a saved_list playbook runs on; null for every other trigger. */
+  /** The list of the workspace's own a saved_list playbook runs on; null for every other trigger. */
   list_id: string | null;
+  /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. Never both. */
+  list_key: string | null;
   template_id: string;
   template_name: string;
   template_language: string;
@@ -70,14 +75,32 @@ export async function checkPlaybook(
   // a moment that needs deals asks whether they are on.
   if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
     throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS);
-  // A playbook on one of the workspace's lists names it, and the list must be this workspace's.
+  // A playbook on a list names it (decision 0009): one of People's by its id (list_key), or one of the workspace's own
+  // (list_id), which must be this workspace's. A run has no one looking, so a list about "me" is never one it runs on.
   let listName: string | null = null;
-  const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
+  const listKey = trig.kind === "saved" && typeof body?.list_key === "string" && body.list_key ? body.list_key : null;
+  const listId = trig.kind === "saved" && !listKey && typeof body?.list_id === "string" ? body.list_id : null;
   if (trig.kind === "saved") {
-    if (!listId || !UUID.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
-    listName = await ports.listName(listId);
-    if (!listName) throw new AppError("not_found", "List not found.", 404);
+    if (listKey) {
+      const b = BUILTIN_LISTS.find((l) => l.id === listKey);
+      if (!b) throw new AppError("validation", "Pick the list it runs on.");
+      if (ruleNeeds(b.rule).includes("viewer"))
+        throw new AppError(
+          "validation",
+          `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`,
+        );
+      listName = b.label;
+    } else {
+      if (!listId || !UUID.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
+      listName = await ports.listName(listId);
+      if (!listName) throw new AppError("not_found", "List not found.", 404);
+    }
   }
+  // A playbook on a list sends an offer or a win-back, under that class's autonomy row; every other moment its own.
+  const cls =
+    trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
+      ? (body!.policy_class as PlaybookPolicyClass)
+      : trig.cls;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
@@ -95,11 +118,12 @@ export async function checkPlaybook(
     name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     list_id: listId,
+    list_key: listKey,
     template_id: tpl.id,
     template_name: tpl.name,
     template_language: tpl.language,
     params: specs,
-    policy_class: trig.cls,
+    policy_class: cls,
     run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS.min, PLAYBOOK_HOURS.max, "The hour"),
     cap_per_run: int(body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun, 1, 500, "The cap"),
     gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),

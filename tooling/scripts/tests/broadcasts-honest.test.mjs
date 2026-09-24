@@ -3358,7 +3358,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
   );
 });
 
-test("a playbook may run on one of the workspace's lists: the composer picks the list with its own count, and the save names it", async () => {
+test("a playbook may run on any list: the composer picks one of the workspace's or one of People's, with its own count, and the save names it (decision 0009)", async () => {
   const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
   const named = { pool: 5, noYes: 2, stopped: 0, noNumber: 0, saidYes: 3 };
   const surface = playbooksSurface({
@@ -3376,12 +3376,15 @@ test("a playbook may run on one of the workspace's lists: the composer picks the
         held: null,
       },
     ],
+    // Each list by its token: People's first, then the workspace's own (surface-data.ts).
     lists: [
-      { id: "l1", name: "Regulars", smart: false, candidates: 3, held: 0, named },
+      { id: "seg:lapsed", name: "Lapsed", smart: true, builtin: true, candidates: 2, held: 0, named },
+      { id: "list:l1", name: "Regulars", smart: false, builtin: false, candidates: 3, held: 0, named },
       {
-        id: "l2",
+        id: "list:l2",
         name: "Texters",
         smart: true,
+        builtin: false,
         candidates: 1,
         held: 0,
         named: { ...named, pool: 1, saidYes: 1, noYes: 0 },
@@ -3403,14 +3406,16 @@ test("a playbook may run on one of the workspace's lists: the composer picks the
     const lists = picker(tree, "pb-list");
     assert.ok(lists, "a list to pick, under the moment");
     assert.deepEqual(
-      lists.props.choices.map((c) => [c.id, c.label, c.sub, c.hint]),
+      lists.props.choices.map((c) => [c.id, c.label, c.group, c.sub, c.hint]),
       [
-        ["l1", "Regulars", "Kept by hand", "3 today"],
-        ["l2", "Texters", "Keeps itself current", "1 today"],
+        ["seg:lapsed", "Lapsed", "people", "One of People's lists", "2 today"],
+        ["list:l1", "Regulars", "own", "Kept by hand", "3 today"],
+        ["list:l2", "Texters", "own", "Keeps itself current", "1 today"],
       ],
     );
-    assert.equal(lists.props.value, "l1", "the first list kept, until another is picked");
-    lists.props.onPick("l2");
+    assert.equal(lists.props.value, "list:l1", "the first list the workspace keeps, until another is picked");
+    assert.ok(picker(tree, "pb-list-class"), "and what it sends: an offer or a win-back");
+    lists.props.onPick("list:l2");
     frames.begin();
     tree = globalThis.window.OutboundPage({});
     picker(tree, "pb-template").props.onPick("fall_offer");
@@ -3420,6 +3425,25 @@ test("a playbook may run on one of the workspace's lists: the composer picks the
     assert.equal(bodies.length, 1, "saved");
     assert.equal(bodies[0].trigger, "saved_list");
     assert.equal(bodies[0].list_id, "l2", "the list picked, named on the playbook");
+    assert.equal(bodies[0].list_key, undefined);
+    assert.equal(bodies[0].policy_class, "campaign", "an offer, until the owner says a win-back");
+    // One of People's lists, sent as a win-back: its id, and the class. A fresh composer, the first one saved and closed.
+    tree = composerOf(surface);
+    picker(tree, "pb-list").props.onPick("seg:lapsed");
+    frames.begin();
+    tree = globalThis.window.OutboundPage({});
+    picker(tree, "pb-template").props.onPick("fall_offer");
+    frames.begin();
+    tree = globalThis.window.OutboundPage({});
+    picker(tree, "pb-list-class").props.onPick("reengage");
+    frames.begin();
+    tree = globalThis.window.OutboundPage({});
+    await press(byTestId(tree, "pb-save"));
+    assert.equal(bodies.length, 2, "saved again");
+    assert.deepEqual(
+      [bodies[1].list_key, bodies[1].list_id, bodies[1].policy_class],
+      ["lapsed", undefined, "reengage"],
+    );
   } finally {
     globalThis.window.__playbooks = was;
   }

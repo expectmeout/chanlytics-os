@@ -10144,14 +10144,15 @@ var PLAYBOOK_TRIGGERS = [
     kind: "list",
     hint: "No visit in 45 days, and nothing booked"
   },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
   {
     id: "saved_list",
-    label: "One of your lists",
+    label: "On a list",
     list: null,
     cls: "campaign",
     kind: "saved",
-    hint: "Everyone on a list you keep"
+    hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
   // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
@@ -10208,6 +10209,13 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
 }
@@ -21079,6 +21087,7 @@ export {
   LIST_DEAL_STAGES,
   LIST_DRAFT_JSON_SCHEMA,
   LIST_NEEDS,
+  LIST_PLAYBOOK_CLASSES,
   LIST_PURPOSES,
   LIST_RULE_FIELDS,
   LIST_RULE_MAX,
@@ -21811,6 +21820,7 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookListRef,
   playbookName,
   playbookNoNumberWords,
   playbookReach,

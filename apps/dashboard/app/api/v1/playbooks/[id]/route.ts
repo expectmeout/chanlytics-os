@@ -51,8 +51,9 @@ export const PUT = write({
       .update({
         name: v.name,
         trigger: v.trigger,
-        // A playbook moved off a list leaves it (list_id null); one never on a list names no column 00155 adds.
-        ...(v.list_id || p.trigger === "saved_list" ? { list_id: v.list_id } : {}),
+        // A playbook moved off a list leaves it (both null); one never on a list names no column 00155 or 00168 adds. A
+        // playbook on a list names exactly one of the two (playbooks_one_list).
+        ...(v.list_id || v.list_key || p.trigger === "saved_list" ? { list_id: v.list_id, list_key: v.list_key } : {}),
         template_id: v.template_id,
         template_name: v.template_name,
         template_language: v.template_language,

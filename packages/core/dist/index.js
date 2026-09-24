@@ -5993,14 +5993,15 @@ var PLAYBOOK_TRIGGERS = [
     kind: "list",
     hint: "No visit in 45 days, and nothing booked"
   },
-  // One of the workspace's own lists, kept by hand or by a rule; the card says which.
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
   {
     id: "saved_list",
-    label: "One of your lists",
+    label: "On a list",
     list: null,
     cls: "campaign",
     kind: "saved",
-    hint: "Everyone on a list you keep"
+    hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
   // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
@@ -6051,6 +6052,13 @@ function playbookRunStop(o) {
   if (!o.canSend) return "number_flagged";
   return null;
 }
+function playbookListRef(p) {
+  if (triggerOf(p.trigger)?.kind !== "saved") return null;
+  if (p.list_key) return { kind: "builtin", id: p.list_key };
+  if (p.list_id) return { kind: "saved", id: p.list_id };
+  return null;
+}
+var LIST_PLAYBOOK_CLASSES = ["campaign", "reengage"];
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -10045,8 +10053,14 @@ async function runPlaybook(ports, cmd) {
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");
-  const listIds = trig?.kind === "saved" ? p.list_id ? ctx.lists.get(p.list_id) ?? null : null : null;
-  if (trig?.kind === "saved" && !listIds) return off("no_list");
+  let listIds = null;
+  if (trig?.kind === "saved") {
+    const ref = playbookListRef(p);
+    const m = ref ? ctx.listMembers(ref) : null;
+    if (!m) return off("no_list");
+    if (m.state === "unknown") return off(m.reason === "calendar" ? "no_calendar" : "list_uncounted");
+    listIds = m.ids;
+  }
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
   const drawn = playbookRunReach(
     ctx.people,
@@ -10398,12 +10412,25 @@ async function checkPlaybook(ports, body) {
   if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
     throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS2);
   let listName = null;
-  const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
+  const listKey = trig.kind === "saved" && typeof body?.list_key === "string" && body.list_key ? body.list_key : null;
+  const listId = trig.kind === "saved" && !listKey && typeof body?.list_id === "string" ? body.list_id : null;
   if (trig.kind === "saved") {
-    if (!listId || !UUID3.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
-    listName = await ports.listName(listId);
-    if (!listName) throw new AppError("not_found", "List not found.", 404);
+    if (listKey) {
+      const b = BUILTIN_LISTS2.find((l) => l.id === listKey);
+      if (!b) throw new AppError("validation", "Pick the list it runs on.");
+      if (ruleNeeds2(b.rule).includes("viewer"))
+        throw new AppError(
+          "validation",
+          `${b.label} is about whoever is looking, and a playbook runs with no one looking. Pick another list.`
+        );
+      listName = b.label;
+    } else {
+      if (!listId || !UUID3.test(listId)) throw new AppError("validation", "Pick the list it runs on.");
+      listName = await ports.listName(listId);
+      if (!listName) throw new AppError("not_found", "List not found.", 404);
+    }
   }
+  const cls = trig.kind === "saved" && LIST_PLAYBOOK_CLASSES.includes(String(body?.policy_class)) ? body.policy_class : trig.cls;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
@@ -10419,11 +10446,12 @@ async function checkPlaybook(ports, body) {
     name: name || playbookName(listName ? { id: trig.id, label: listName } : trig, tpl).slice(0, PLAYBOOK_NAME_MAX),
     trigger: trig.id,
     list_id: listId,
+    list_key: listKey,
     template_id: tpl.id,
     template_name: tpl.name,
     template_language: tpl.language,
     params: specs,
-    policy_class: trig.cls,
+    policy_class: cls,
     run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS2.min, PLAYBOOK_HOURS2.max, "The hour"),
     cap_per_run: int(body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun, 1, 500, "The cap"),
     gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),
