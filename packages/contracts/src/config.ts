@@ -546,9 +546,9 @@ export const BrainConfigSchema = z
      */
     phone_display: z.string().min(3).max(40).optional(),
     /**
-     * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-     * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-     * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+     * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+     * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+     * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
      */
     booking_link: z.string().url().max(500).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's
@@ -852,13 +852,6 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 }
 
 /**
- * What a save with no booking link is refused in: here, and in the Business tab's own check before it
- * (business-tab-save.jsx btCheckBookingLink, which business-tab-create.test holds to these words). Said as what the
- * link is for, because a receptionist with none is read and answered since decision 2 -- it is the save that asks.
- */
-export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-
-/**
  * The same config, with the rules that only apply on the way IN.
  *
  * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
@@ -866,10 +859,6 @@ export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to sen
  * stricter.
  */
 export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  // Read without one since decision 2; saved with one until the first run's Check asks how customers buy (3c).
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
-  }
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({

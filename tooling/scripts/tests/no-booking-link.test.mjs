@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import {
+  bookingLinkOptional,
   composeSystemPrompt,
   describeOpenings,
   describeVisits,
@@ -46,15 +47,14 @@ const PROFILE = {
   guardrails: { never_quote_prices: true, never_confirm_booking: true, no_health_advice: true },
 };
 
-test("the read takes a receptionist with no booking link; the save still refuses one, at the field, in the Business tab's words", () => {
+test("the read and the save both take a receptionist with no booking link; who is asked for one is the pages', by how customers buy", () => {
   const read = parseTenantConfigResult({ brain: QUOTES });
   assert.equal(read.ok, true, read.ok ? "" : read.issues.join("; "));
   assert.equal(read.config.brain.booking_link, undefined);
-  const saved = TenantConfigWriteSchema.safeParse({ brain: QUOTES });
-  assert.equal(saved.success, false, "nothing saves one until the first run's Check asks how customers buy");
-  assert.deepEqual(
-    saved.error.issues.map((i) => [i.path.join("."), i.message]),
-    [["brain.booking_link", "The receptionist needs a booking link to send anyone who wants to book."]],
+  assert.equal(
+    TenantConfigWriteSchema.safeParse({ brain: QUOTES }).success,
+    true,
+    "a business that quotes saves one (decision 2), and the save cannot see how customers buy",
   );
   assert.equal(TenantConfigWriteSchema.safeParse({ brain: BOOKS }).success, true, "one with a link saves as before");
   assert.equal(TenantConfigWriteSchema.safeParse({}).success, true, "and a config with no receptionist yet");
@@ -62,6 +62,16 @@ test("the read takes a receptionist with no booking link; the save still refuses
     parseTenantConfigResult({ brain: { ...BOOKS, booking_link: "not-a-url" } }).ok,
     false,
     "a link that is there is still read as a link",
+  );
+  assert.equal(
+    TenantConfigWriteSchema.safeParse({ brain: { ...QUOTES, booking_link: "" } }).success,
+    false,
+    "and an empty one is not no link: the pages remove the key rather than store it empty",
+  );
+  assert.deepEqual(
+    ["proposal", "booking", null, undefined].map((answer) => bookingLinkOptional(answer)),
+    [true, false, false, false],
+    "asked of a business that books or has not said; never of one that quotes",
   );
 });
 

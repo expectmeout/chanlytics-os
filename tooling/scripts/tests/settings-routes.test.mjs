@@ -411,7 +411,7 @@ test("the settings write: the owner's, the workspace named, the body { config, v
   );
 });
 
-test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; the save still refuses it, by field", async () => {
+test("a receptionist with no booking link (one that quotes each job) is read as one, prompt and all, so the Business tab can say so; and saved as one", async () => {
   const brain = {
     business_name: "Harbor Moving",
     system_prompt: "You are the receptionist for Harbor Moving, which quotes each move before it is booked.",
@@ -436,13 +436,11 @@ test("a receptionist with no booking link (one that quotes each job) is read as 
     read.prompt.voice.includes("Booking: there is no booking link, so never use send_booking_link."),
     "what the receptionist is told, as the tab shows it",
   );
-  await refused(
-    settings.PUT.run(send("PUT", { config: { brain }, version: 4 }, inA), ctxFor(tables)),
-    "validation",
-    400,
-    "Config rejected — brain.booking_link: The receptionist needs a booking link to send anyone who wants to book.",
-  );
-  assert.equal(tables.tenant_config[0].version, 4, "and nothing is saved");
+  // Decision 2's writing half: who is asked for a link is the pages' question, by how customers buy, since the
+  // config cannot say; a receptionist without one is read and answered either way (the first run's 3b).
+  const saved = await settings.PUT.run(send("PUT", { config: { brain }, version: 4 }, inA), ctxFor(tables));
+  assert.equal(saved.version, 5);
+  assert.equal(saved.config.brain.booking_link, undefined);
 });
 
 test("the autonomy matrix: the workspace's own rows, read by every member; changed by an operator, in the words each refusal has; a delay edit keeps the mode, and limits are merged never replaced; the dial and the day's budget travel the same way", async () => {
