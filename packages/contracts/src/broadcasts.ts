@@ -24,7 +24,8 @@
  */
 import { templateTitle } from "./template-library";
 import { clockDate, clockWhen } from "./clock";
-import { PEOPLE_LISTS, mayReceive, noNumberWords, saidYesTo, type PersonRowVM } from "./people";
+import { mayReceive, noNumberWords, saidYesTo, type PersonRowVM } from "./people";
+import { PEOPLE_LISTS } from "./lists";
 import { firstNameOf, type ParamSpec } from "./templates";
 import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
 import type { RunReach } from "./playbooks";

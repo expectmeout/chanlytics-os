@@ -23,10 +23,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const {
   asListRule,
+  listMembers,
   listRuleMatches,
   listRuleParts,
-  ruleNeedsCalendar,
+  listUnknownWords,
+  ruleNeeds,
   savedListIds,
+  savedListLookup,
   playbookRunReach,
   triggerOf,
   LIST_RULE_FIELDS,
@@ -36,25 +39,42 @@ const {
 const NOW = Date.parse("2026-09-20T15:00:00Z");
 const D = 86_400_000;
 
-/** A person as the People page reads them, with the facts a rule may name. */
+/**
+ * A person as the People page reads them, with the facts a rule may name: each worked out once when the row is built
+ * (people.ts toPersonRowVM), in the workspace's own dates, so a rule needs no clock (decision 0009).
+ */
 const vm = (id, over = {}) => ({
   id,
   channels: ["whatsapp"],
   cameFrom: null,
   calls: 0,
   threads: 1,
+  hasChat: true,
   booked: false,
   askedNotBooked: false,
   lastVisitDays: null,
   nextVisitDays: null,
+  nextVisitThisWeek: false,
+  heardDays: 3,
+  firstDays: 60,
   lastContact: { ts: NOW - 3 * D },
-  firstContact: { ts: NOW - 60 * D },
+  firstContact: { ts: NOW - 60 * D, evidence: true },
   phone: `+1305555${id.padStart(4, "0")}`,
   state: "active",
+  standing: null,
+  assigned: "nobody",
+  dealStage: null,
+  consultationVisit: false,
+  stepDue: false,
   consent: { state: "opted_in", marketing: "opted_in", dnc: false },
+  saidYes: { offers: true, messages: true },
+  canReceive: { offers: true, messages: true },
+  stopped: false,
   ...over,
 });
 const rule = (...all) => ({ all });
+/** What a workspace and a reader give a list: here, everything. */
+const ALL = { calendar: "ok", dealsOn: true, consultFirst: true, viewer: true };
 
 /* ----------------------------------------- the vocabulary ----------------------------------------- */
 
@@ -64,65 +84,99 @@ test("a rule holds over the facts a row carries: a visit's days, when they were 
   const never = vm("3");
   const r = rule({ field: "last_visit", op: "more_than", days: 45 });
   assert.deepEqual(
-    [lapsed, recent, never].map((v) => listRuleMatches(r, v, NOW)),
+    [lapsed, recent, never].map((v) => listRuleMatches(r, v)),
     [true, false, false],
     "a person with no visit is not 'more than 45 days' from one",
   );
-  assert.equal(listRuleMatches(rule({ field: "last_visit", op: "within", days: 14 }), recent, NOW), true);
+  assert.equal(listRuleMatches(rule({ field: "last_visit", op: "within", days: 14 }), recent), true);
+  // Never and ever: the absence of a moment is a fact of its own (decision 0009).
+  assert.deepEqual(
+    [lapsed, never].map((v) => listRuleMatches(rule({ field: "last_visit", op: "never" }), v)),
+    [false, true],
+  );
+  assert.deepEqual(
+    [lapsed, never].map((v) => listRuleMatches(rule({ field: "last_visit", op: "ever" }), v)),
+    [true, false],
+  );
+  // Last heard from is THEIR word: the days since they wrote or called (heardDays), never our own send.
   assert.equal(
-    listRuleMatches(
-      rule({ field: "last_heard", op: "more_than", days: 30 }),
-      vm("4", { lastContact: { ts: NOW - 40 * D } }),
-      NOW,
-    ),
+    listRuleMatches(rule({ field: "last_heard", op: "more_than", days: 30 }), vm("4", { heardDays: 40 })),
     true,
   );
   assert.equal(
-    listRuleMatches(
-      rule({ field: "last_heard", op: "more_than", days: 30 }),
-      vm("5", { lastContact: { ts: null } }),
-      NOW,
-    ),
+    listRuleMatches(rule({ field: "last_heard", op: "more_than", days: 30 }), vm("5", { heardDays: null })),
     false,
+    "never heard from is not quiet",
   );
+  assert.equal(listRuleMatches(rule({ field: "last_heard", op: "never" }), vm("5", { heardDays: null })), true);
+  // First contact within N days only on a real date: an import's floor says it was earlier.
+  const fresh = vm("6", { firstDays: 2, firstContact: { ts: NOW - 2 * D, evidence: true } });
+  const floor = vm("6b", { firstDays: 2, firstContact: { ts: NOW - 2 * D, evidence: false } });
+  assert.equal(listRuleMatches(rule({ field: "first_contact", op: "within", days: 7 }), fresh), true);
+  assert.equal(listRuleMatches(rule({ field: "first_contact", op: "within", days: 7 }), floor), false);
+  // The next visit this week: Monday to Sunday, by the workspace's clock (the row says it).
   assert.equal(
-    listRuleMatches(
-      rule({ field: "first_contact", op: "within", days: 7 }),
-      vm("6", { firstContact: { ts: NOW - 2 * D } }),
-      NOW,
-    ),
+    listRuleMatches(rule({ field: "next_visit", op: "this_week" }), vm("6c", { nextVisitThisWeek: true })),
     true,
   );
   const sms = vm("7", { channels: ["sms", "voice"] });
-  assert.equal(listRuleMatches(rule({ field: "channel", op: "is", channel: "sms" }), sms, NOW), true);
-  assert.equal(listRuleMatches(rule({ field: "channel", op: "is_not", channel: "whatsapp" }), sms, NOW), true);
+  assert.equal(listRuleMatches(rule({ field: "channel", op: "is", channel: "sms" }), sms), true);
+  assert.equal(listRuleMatches(rule({ field: "channel", op: "is_not", channel: "whatsapp" }), sms), true);
   const lead = vm("8", { cameFrom: { key: "lead", label: "A lead you found" } });
-  assert.equal(listRuleMatches(rule({ field: "came_from", op: "is", from: "lead" }), lead, NOW), true);
-  assert.equal(listRuleMatches(rule({ field: "came_from", op: "is_not", from: "lead" }), vm("9"), NOW), true);
-  assert.equal(listRuleMatches(rule({ field: "calls", op: "at_least", n: 2 }), vm("10", { calls: 3 }), NOW), true);
-  assert.equal(
-    listRuleMatches(rule({ field: "conversations", op: "at_most", n: 0 }), vm("11", { threads: 1 }), NOW),
-    false,
-  );
+  assert.equal(listRuleMatches(rule({ field: "came_from", op: "is", from: "lead" }), lead), true);
+  assert.equal(listRuleMatches(rule({ field: "came_from", op: "is_not", from: "lead" }), vm("9")), true);
+  assert.equal(listRuleMatches(rule({ field: "calls", op: "at_least", n: 2 }), vm("10", { calls: 3 })), true);
+  assert.equal(listRuleMatches(rule({ field: "conversations", op: "at_most", n: 0 }), vm("11", { threads: 1 })), false);
+  // Version 1's offers_yes reads as said yes to offers: the consent rule's own answer (saidYesTo).
   assert.equal(
     listRuleMatches(
-      rule({ field: "offers_yes", op: "is", yes: false }),
-      vm("12", { consent: { state: "opted_in", marketing: "unknown", dnc: false } }),
-      NOW,
+      asListRule(rule({ field: "offers_yes", op: "is", yes: false })),
+      vm("12", { saidYes: { offers: false, messages: true } }),
     ),
     true,
   );
-  assert.equal(listRuleMatches(rule({ field: "booked", op: "is", yes: true }), vm("13", { booked: true }), NOW), true);
-  // Every condition must hold.
+  assert.equal(listRuleMatches(rule({ field: "booked", op: "is", yes: true }), vm("13", { booked: true })), true);
+  // The facts the built-ins are written in.
+  const waiting = vm("16", { standing: "waiting_on_you", assigned: "me" });
+  assert.equal(listRuleMatches(rule({ field: "standing", op: "is", value: "waiting_on_you" }), waiting), true);
+  assert.equal(listRuleMatches(rule({ field: "assigned", op: "is_not", value: "teammate" }), waiting), true);
+  assert.equal(
+    listRuleMatches(rule({ field: "deal_stage", op: "is", value: "lost" }), vm("17", { dealStage: "lost" })),
+    true,
+  );
+  assert.equal(listRuleMatches(rule({ field: "can_receive", op: "is", to: "offers", yes: true }), vm("18")), true);
+  assert.equal(listRuleMatches(rule({ field: "stopped", op: "is", yes: true }), vm("19", { stopped: true })), true);
+  assert.equal(listRuleMatches(rule({ field: "step_due", op: "is", yes: true }), vm("20", { stepDue: true })), true);
+  assert.equal(listRuleMatches(rule({ field: "has_chat", op: "is", yes: false }), vm("21", { hasChat: false })), true);
+  // Every condition must hold; an "any" group when one of its facts does.
   const both = rule({ field: "last_visit", op: "more_than", days: 45 }, { field: "channel", op: "is", channel: "sms" });
-  assert.equal(listRuleMatches(both, vm("14", { lastVisitDays: 60, channels: ["sms"] }), NOW), true);
-  assert.equal(listRuleMatches(both, vm("15", { lastVisitDays: 60 }), NOW), false);
+  assert.equal(listRuleMatches(both, vm("14", { lastVisitDays: 60, channels: ["sms"] })), true);
+  assert.equal(listRuleMatches(both, vm("15", { lastVisitDays: 60 })), false);
+  const either = rule({
+    any: [
+      { field: "channel", op: "is", channel: "sms" },
+      { field: "channel", op: "is", channel: "email" },
+    ],
+  });
+  assert.deepEqual(
+    [vm("22", { channels: ["sms"] }), vm("23", { channels: ["email"] }), vm("24")].map((v) =>
+      listRuleMatches(either, v),
+    ),
+    [true, true, false],
+  );
 });
 
-test("a rule is read strictly and said in the page's words; one that reads the calendar says so", () => {
+test("a rule is read strictly and said in the page's words; what it needs comes from its facts", () => {
   assert.equal(asListRule({ all: [] }), null, "a list of everyone is Everyone, not a rule");
   assert.equal(asListRule({ all: [{ field: "stylist", op: "is" }] }), null, "no field the row cannot answer");
   assert.equal(asListRule({ all: [{ field: "last_visit", op: "more_than", days: 0 }] }), null);
+  assert.equal(asListRule({ all: [{ field: "last_visit", op: "more_than" }] }), null, "more than how many days");
+  assert.equal(
+    asListRule({ all: [{ field: "last_visit", op: "this_week" }] }),
+    null,
+    "only the next visit is this week",
+  );
+  assert.equal(asListRule({ all: [{ any: [{ field: "booked", op: "is", yes: true }] }] }), null, "an any of one");
   assert.equal(asListRule("anything"), null);
   const r = asListRule({
     all: [
@@ -132,44 +186,165 @@ test("a rule is read strictly and said in the page's words; one that reads the c
       { field: "calls", op: "at_least", n: 1 },
     ],
   });
+  assert.equal(r.v, 2, "read as version 2");
+  assert.deepEqual(r.all[2], { field: "said_yes", op: "is", to: "offers", yes: true }, "v1's offers_yes, upgraded");
   assert.deepEqual(listRuleParts(r), [
     "Last visit more than 60 days ago",
     "Reaches you by Text",
     "Said yes to offers",
     "At least 1 call",
   ]);
-  assert.equal(ruleNeedsCalendar(r), true);
-  assert.equal(ruleNeedsCalendar(rule({ field: "channel", op: "is", channel: "sms" })), false);
+  assert.deepEqual(
+    listRuleParts(
+      asListRule(
+        rule(
+          { field: "last_heard", op: "never" },
+          {
+            any: [
+              { field: "channel", op: "is", channel: "sms" },
+              { field: "channel", op: "is", channel: "email" },
+            ],
+          },
+        ),
+      ),
+    ),
+    ["Never heard from", "Reaches you by Text, or Reaches you by Email"],
+  );
+  assert.deepEqual(ruleNeeds(r), ["calendar"]);
+  assert.deepEqual(ruleNeeds(rule({ field: "channel", op: "is", channel: "sms" })), []);
+  assert.deepEqual(ruleNeeds(rule({ field: "deal_stage", op: "is", value: "consultation" })), [
+    "calendar",
+    "consult",
+    "deals",
+  ]);
+  assert.deepEqual(ruleNeeds(rule({ field: "standing", op: "is", value: "waiting_on_you" })), ["viewer"]);
+  assert.deepEqual(
+    ruleNeeds(rule({ field: "assigned", op: "is", value: "nobody" })),
+    [],
+    "nobody needs no one looking",
+  );
   assert.deepEqual(
     LIST_DRAFT_JSON_SCHEMA.properties.all.items.properties.field.enum,
-    LIST_RULE_FIELDS.map((f) => f.id),
-    "the model is offered exactly the fields a rule may name",
+    LIST_RULE_FIELDS.map((f) => f.id).filter((id) => id !== "in_list"),
+    "the model is offered exactly the fields a rule may name, and never another list",
   );
 });
 
-test("who is on a list: the ids kept on it, or who its rule holds for today; nobody when the rule cannot be read, or reads a calendar that could not be", () => {
+test("who is on a list: the ids kept on it, or who its rule holds for today; unknown, with its reason, when it can't be counted", () => {
   const rows = [vm("1", { lastVisitDays: 60 }), vm("2", { lastVisitDays: 5 }), vm("3", { channels: ["sms"] })];
   assert.deepEqual(
-    [...savedListIds({ ids: ["2", "9"], rule: null }, rows, NOW, true)],
-    ["2", "9"],
-    "kept by hand: its ids",
+    [...savedListIds({ ids: ["2", "9"], rule: null }, rows, ALL)],
+    ["2"],
+    "kept by hand: its ids that are people here (an erased person never counts)",
   );
   const lapsed = rule({ field: "last_visit", op: "more_than", days: 45 });
-  assert.deepEqual([...savedListIds({ ids: [], rule: lapsed }, rows, NOW, true)], ["1"]);
+  assert.deepEqual([...savedListIds({ ids: [], rule: lapsed }, rows, ALL)], ["1"]);
+  // Can't tell is not nobody (decision 0009): the judge says why, and only a reader that enrols reads it as nobody.
+  const noCalendar = { ...ALL, calendar: "unavailable" };
+  assert.deepEqual(listMembers({ ids: [], rule: lapsed }, rows, noCalendar), { state: "unknown", reason: "calendar" });
+  assert.deepEqual([...savedListIds({ ids: [], rule: lapsed }, rows, noCalendar)], [], "the send enrols nobody");
+  assert.match(listUnknownWords("calendar", "unavailable"), /can't be read right now/);
+  assert.match(listUnknownWords("calendar", "none"), /Connect it/);
   assert.deepEqual(
-    [...savedListIds({ ids: [], rule: lapsed }, rows, NOW, false)],
-    [],
-    "a calendar that could not be read names nobody, never everyone else",
-  );
-  assert.deepEqual(
-    [...savedListIds({ ids: [], rule: rule({ field: "channel", op: "is", channel: "sms" }) }, rows, NOW, false)],
+    [...savedListIds({ ids: [], rule: rule({ field: "channel", op: "is", channel: "sms" }) }, rows, noCalendar)],
     ["3"],
+    "a rule that reads no calendar needs none",
   );
+  assert.deepEqual(listMembers({ ids: ["1"], rule: { all: "nope" } }, rows, ALL), { state: "unknown", reason: "rule" });
+  const mine = rule({ field: "assigned", op: "is", value: "me" });
+  assert.deepEqual(listMembers({ ids: [], rule: mine }, rows, { ...ALL, viewer: false }), {
+    state: "unknown",
+    reason: "viewer",
+  });
   assert.deepEqual(
-    [...savedListIds({ ids: ["1"], rule: { all: "nope" } }, rows, NOW, true)],
-    [],
-    "an unreadable rule has nobody on it",
+    listMembers({ ids: [], rule: rule({ field: "deal_stage", op: "is", value: "won" }) }, rows, {
+      ...ALL,
+      dealsOn: false,
+    }),
+    {
+      state: "unknown",
+      reason: "deals",
+    },
   );
+  // A list may read another, one level deep: a built-in, or a saved list whose rule reads none.
+  const VIP = "11111111-1111-4111-8111-111111111111";
+  const saved = [{ id: VIP, name: "VIPs", ids: ["1", "3"], rule: null }];
+  const onVip = rule(
+    { field: "in_list", op: "is", list: `list:${VIP}` },
+    { field: "channel", op: "is", channel: "sms" },
+  );
+  assert.deepEqual([...savedListIds({ ids: [], rule: onVip }, rows, ALL, savedListLookup(saved))], ["3"]);
+  assert.deepEqual(listMembers({ ids: [], rule: onVip }, rows, ALL), { state: "unknown", reason: "list" }, "gone");
+  const onLapsed = rule({ field: "in_list", op: "is_not", list: "seg:lapsed" });
+  assert.deepEqual([...savedListIds({ ids: [], rule: onLapsed }, rows, ALL)].sort(), ["2", "3"]);
+  const deep = [{ id: VIP, name: "VIPs", ids: [], rule: onLapsed }];
+  assert.deepEqual(
+    listMembers({ ids: [], rule: onVip }, rows, ALL, savedListLookup(deep)),
+    { state: "unknown", reason: "list" },
+    "a list that reads a list that reads a list is never a guess",
+  );
+});
+
+test("a stored rule is read strictly: a part, a version or a shape this build does not read is a list it cannot count, never a broader one", () => {
+  const { draftListRule } = contracts;
+  const booked = { field: "booked", op: "is", yes: true };
+  const stopped = { field: "stopped", op: "is", yes: true };
+  assert.equal(asListRule({ v: 3, all: [booked] }), null, "a version this build does not read");
+  assert.equal(asListRule({ all: [booked], none: [stopped] }), null, "a part it does not know");
+  assert.equal(
+    asListRule({ all: [{ field: "last_visit", op: "within", days: 30, service: "balayage" }] }),
+    null,
+    "a fact that says more than its field",
+  );
+  assert.equal(
+    asListRule({ all: [{ any: [booked, stopped], field: "calls", op: "at_least", n: 1 }] }),
+    null,
+    "a condition that is both a fact and an any group",
+  );
+  // The model's draft is cut down to what each field reads first (every property of its schema is optional).
+  assert.deepEqual(draftListRule([{ field: "booked", op: "is", yes: true, days: null, channel: "sms" }]), {
+    v: 2,
+    all: [booked],
+  });
+  assert.deepEqual(
+    draftListRule([
+      {
+        any: [
+          { field: "channel", op: "is", channel: "sms", n: 0 },
+          { field: "channel", op: "is", channel: "email" },
+        ],
+      },
+    ]),
+    {
+      v: 2,
+      all: [
+        {
+          any: [
+            { field: "channel", op: "is", channel: "sms" },
+            { field: "channel", op: "is", channel: "email" },
+          ],
+        },
+      ],
+    },
+  );
+});
+
+test("a list that reads a list whose rule can't be read cannot be counted either: never counted as a list kept by hand", () => {
+  const rows = [vm("1"), vm("2")];
+  const B = "22222222-2222-4222-8222-222222222222";
+  const saved = [{ id: B, name: "Future", ids: [], rule: { v: 3, all: [{ field: "future_fact", op: "is" }] } }];
+  for (const op of ["is", "is_not"]) {
+    assert.deepEqual(
+      listMembers(
+        { ids: [], rule: rule({ field: "in_list", op, list: `list:${B}` }) },
+        rows,
+        ALL,
+        savedListLookup(saved),
+      ),
+      { state: "unknown", reason: "list" },
+      `in_list ${op}`,
+    );
+  }
 });
 
 /* ---------------------------------------- playbooks on a list ---------------------------------------- */
@@ -322,6 +497,7 @@ const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/segments/draft/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
+const { cleanListRule } = await import(at("apps/dashboard/src/server/lists.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -363,7 +539,8 @@ test("the lists carry their rule; a smart list is made with one, and a rule the 
     send("POST", { name: "Text only", rule: { all: [{ field: "channel", op: "is", channel: "sms" }] } }),
     ctxFor(t),
   );
-  assert.deepEqual(made.rule, { all: [{ field: "channel", op: "is", channel: "sms" }] });
+  // Stored as version 2, the version it was judged in (decision 0009).
+  assert.deepEqual(made.rule, { v: 2, all: [{ field: "channel", op: "is", channel: "sms" }] });
   assert.deepEqual(t.segments.find((s) => s.id === made.id).rule, made.rule, "stored as it was judged");
   await assert.rejects(
     lists.POST.run(send("POST", { name: "Stylists", rule: { all: [{ field: "stylist", op: "is" }] } }), ctxFor(t)),
@@ -390,7 +567,7 @@ test("nobody is put on or taken off a smart list by hand; its rule changes, a ha
     id: S2,
     name: "Drifting",
     ids: [],
-    rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+    rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] },
   });
   assert.deepEqual(t.segments.find((s) => s.id === S2).rule.all[0].days, 60);
 });
@@ -414,7 +591,7 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
   );
   assert.deepEqual(out, {
     name: "Drifting regulars",
-    rule: { all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+    rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] },
     cannot: "who their stylist is",
   });
   assert.equal(calls[0].purpose, "list_draft", "counted as the assistant's, under its own purpose");
@@ -536,4 +713,29 @@ test("either deploy order: on a database 00155 has not reached, every list reads
   assert.deepEqual(await savedListsFor(db, "t1"), [{ id: "s1", name: "Regulars", ids: ["c1"], rule: null }]);
   assert.deepEqual(await savedListFor(db, "t1", "s1"), { id: "s1", name: "Regulars", ids: ["c1"], rule: null });
   assert.deepEqual(await listRow(db, "s1"), { id: "s1", tenant_id: "t1", name: "Regulars", rule: null });
+});
+
+test("a rule may read another list only one level deep, only one there is, never itself, never one this version can't read", () => {
+  const A1 = "33333333-3333-4333-8333-333333333333";
+  const B1 = "44444444-4444-4444-8444-444444444444";
+  const C1 = "55555555-5555-4555-8555-555555555555";
+  const reads = (id) => ({ all: [{ field: "in_list", op: "is", list: `list:${id}` }] });
+  const saved = [
+    { id: A1, rule: null },
+    { id: B1, rule: reads(A1) },
+    { id: C1, rule: { v: 3, all: [{ field: "future_fact" }] } },
+  ];
+  assert.deepEqual(cleanListRule(reads(A1), saved).all[0].list, `list:${A1}`, "a hand list, one level");
+  assert.ok(cleanListRule({ all: [{ field: "in_list", op: "is_not", list: "seg:lapsed" }] }, saved), "a built-in");
+  assert.throws(() => cleanListRule(reads(B1), saved), /reads another list itself/);
+  assert.throws(() => cleanListRule(reads(C1), saved), /this version can't read/);
+  assert.throws(() => cleanListRule(reads("66666666-6666-4666-8666-666666666666"), saved), /a list there isn't/);
+  assert.throws(() => cleanListRule(reads(A1), saved, A1), /can't read itself/);
+  assert.throws(
+    () => cleanListRule({ all: [{ field: "in_list", op: "is", list: "seg:nope" }] }, saved),
+    /a list there isn't/,
+  );
+  // A list another list reads may not start reading lists itself: one level deep either way.
+  const D1 = "77777777-7777-4777-8777-777777777777";
+  assert.throws(() => cleanListRule(reads(D1), [...saved, { id: D1, rule: null }], A1), /Another list reads this one/);
 });

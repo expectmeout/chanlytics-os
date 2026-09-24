@@ -9,6 +9,7 @@ import {
   purposeOfTemplate,
   PLAYBOOK_TRIGGERS,
   savedListIds,
+  savedListLookup,
   playbookRunReach,
   toPersonRowVM,
   triggerOffered,
@@ -342,8 +343,15 @@ export async function triggerPools(
   try {
     const kept = await savedListsFor(ctx.supabase, tenantId);
     lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null }));
-    for (const l of kept)
-      pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, now.getTime(), calendar === "ok"));
+    // A playbook has no one looking: a list about "me" is not one it can run on (lists.ts ListContext).
+    const listCtx = {
+      calendar,
+      dealsOn: deals.on,
+      consultFirst: (pv?.rules?.consult_first ?? []).length > 0,
+      viewer: false,
+    };
+    const lookup = savedListLookup(kept);
+    for (const l of kept) pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, listCtx, lookup));
   } catch (e) {
     console.error(
       "playbook_pools_lists_failed",

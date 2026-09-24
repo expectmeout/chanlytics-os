@@ -1,4 +1,10 @@
-import { dealsAreOn, toPersonRowVM, type PersonRowDto, type PersonRowVM } from "@chanlytics/contracts";
+import {
+  dealsAreOn,
+  toPersonRowVM,
+  type ListContext,
+  type PersonRowDto,
+  type PersonRowVM,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { everyone } from "./people";
 import { withVisits, type PeopleVisits } from "./calendar";
@@ -20,10 +26,12 @@ export interface AudiencePool {
   /** The same people as the page reads them: what every audience and list predicate in contracts is judged on. */
   rows: PersonRowVM[];
   calendar: PeopleVisits["calendar"];
-  /** The profile lists a consult-first service (0004): the "Consultation booked" list exists only then. */
+  /** The profile lists a consult-first service (0004): the Consultations list can be counted only then. */
   consult_first: boolean;
   /** Deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). The deal lists exist only then. */
   deals_on: boolean;
+  /** What this pool can give a list (lists.ts): its calendar, deals, a consult-first service, and the member asking. */
+  listCtx: ListContext;
 }
 
 export async function audiencePool(ctx: RouteContext, tenantId: string, tz: string, now: Date): Promise<AudiencePool> {
@@ -31,12 +39,15 @@ export async function audiencePool(ctx: RouteContext, tenantId: string, tz: stri
     everyone(ctx, tenantId).then((rows) => withVisits(ctx, tenantId, rows, now)),
     sellsByOf(ctx, tenantId),
   ]);
+  const deals_on = dealsAreOn(sellsBy);
   return {
     people,
-    rows: people.map((r) => toPersonRowVM(r, tz, now)),
+    // For the member asking: a teammate's thread is theirs, and a list about "me" is about them.
+    rows: people.map((r) => toPersonRowVM(r, tz, now, ctx.userId ?? null)),
     calendar,
     consult_first,
-    deals_on: dealsAreOn(sellsBy),
+    deals_on,
+    listCtx: { calendar: calendar.state, dealsOn: deals_on, consultFirst: consult_first, viewer: !!ctx.userId },
   };
 }
 

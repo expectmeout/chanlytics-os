@@ -41,6 +41,7 @@ import {
   numberHealth,
   parseTenantConfig,
   savedListIds,
+  savedListLookup,
   toPersonRowVM,
   toVisitDto,
   visitsIn,
@@ -197,8 +198,24 @@ export async function loadTenantRunContext(
     people: vms,
     calendar,
     visits,
-    // Who is on each list, the way the People rail and the send count it (contracts savedListIds).
-    lists: new Map((kept.data ?? []).map((l) => [l.id, savedListIds(l, vms, now.getTime(), calendar === "ok")])),
+    // Who is on each list, the way the People rail and the send count it (contracts savedListIds). A run has no one
+    // looking, so a list about "me" is nobody here, as its needs say (lists.ts ListContext).
+    lists: new Map(
+      (kept.data ?? []).map((l) => [
+        l.id,
+        savedListIds(
+          l,
+          vms,
+          {
+            calendar,
+            dealsOn,
+            consultFirst: (cfgParsed?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
+            viewer: false,
+          },
+          savedListLookup(kept.data ?? []),
+        ),
+      ]),
+    ),
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
     touches: { byThis, byAny, followUps },

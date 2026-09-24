@@ -682,8 +682,17 @@ export interface BookingReportVM {
  */
 export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: number): boolean {
   if (!visits) return false;
-  if (visits.next) return true;
-  return !!visits.last && visits.last.start >= askedMs - 86_400_000;
+  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+}
+
+/**
+ * The same rule over the moments a person's row keeps (people.ts): a visit ahead, or a last visit that began no more
+ * than a day before they asked. Reports' booking line and People's "Asked, never booked" both read it, so Today's line
+ * that prints the two numbers side by side counts one rule twice, never two rules once (decision 0009).
+ */
+export function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
+  if (nextStartMs !== null) return true;
+  return lastStartMs !== null && lastStartMs >= askedMs - 86_400_000;
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {

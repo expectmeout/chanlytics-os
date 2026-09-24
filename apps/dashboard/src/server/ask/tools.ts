@@ -6,6 +6,7 @@ import {
   PEOPLE_LISTS,
   nextStepOf,
   savedListIds,
+  savedListLookup,
   audiencePreview,
   type AudienceKind,
   numberHealth,
@@ -124,7 +125,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "search_people",
     description:
-      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, never on the calendar), quiet, phoned_only, opted_in, opted_out, steps_due (a next step whose day has come), consultation_booked, proposal_out (a proposal waiting on their answer), clients, deal_ended (where deals are on here). Each person says their next step, when they have one.",
+      "Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one of People's smart lists: needs_you, waiting_on_you, new_week, booked, asked_never_booked (wrote or called this month, and nothing on the calendar since answers it), quiet, phoned_only, opted_in, opted_out, steps_due (a next step whose day has come), consultation_booked (the Pipeline's Consultations), proposal_out (a proposal waiting on their answer), clients, deal_passed, deal_ended (where deals are on here). Each person says their next step, when they have one.",
     input_schema: obj({ query: { type: "string" }, list: { type: "string" } }, ["query"]),
   },
   {
@@ -607,7 +608,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   if (list?.needsCalendar && calendar.state !== "ok")
     return { error: "that list needs the calendar connected under Settings › Business", people: [] };
   // The deal lists exist only where deals are on here (dealsAreOn, 0008), as on the page and in list_audiences. The
-  // refusal names the condition that failed: Consultation booked needs the consult-first service itself as well.
+  // refusal names the condition that failed: Consultations needs the consult-first service itself as well.
   if (list?.needsConsultFirst && !pool.consult_first)
     return {
       error: "that list exists only where the profile lists a consult-first service under Settings › Business",
@@ -737,7 +738,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     proposal_url: own.data?.proposal_url ?? null,
     deals_on: dealsAreOn(sellsBy),
   };
-  const vm = toPersonVM(detail, t.timezone, t.now);
+  const vm = toPersonVM(detail, t.timezone, t.now, t.ctx.userId ?? null);
   t.read.person.add(id);
   for (const c of detail.conversations) {
     t.read.thread.add(c.id);
@@ -1022,7 +1023,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
       kind: "saved",
       audience_id: s.id,
       label: s.name,
-      ...sizes("saved", null, savedListIds(s, rows, t.now.getTime(), pool.calendar.state === "ok")),
+      ...sizes("saved", null, savedListIds(s, rows, pool.listCtx, savedListLookup(lists))),
     })),
   ];
   const cfg = (

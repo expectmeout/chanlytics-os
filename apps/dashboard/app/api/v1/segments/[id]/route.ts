@@ -1,5 +1,13 @@
 import { AppError } from "@chanlytics/contracts";
-import { addToList, deleteList, dropFromList, listMemberIds, renameList, setListRule } from "@chanlytics/db";
+import {
+  addToList,
+  deleteList,
+  dropFromList,
+  listMemberIds,
+  renameList,
+  savedListsFor,
+  setListRule,
+} from "@chanlytics/db";
 import { write } from "@/server/route";
 import { listScope } from "@/server/verbs";
 import { jsonBody } from "@/server/request-guards";
@@ -31,7 +39,11 @@ export const PUT = write({
     const add = cleanIdList(body?.add, "add");
     const remove = cleanIdList(body?.remove, "remove");
     const rename = body?.name !== undefined ? cleanListName(body.name) : null;
-    const rule = cleanListRule(body?.rule);
+    const rule = cleanListRule(
+      body?.rule,
+      body?.rule != null ? await savedListsFor(ctx.supabase, list.tenant_id) : [],
+      list.id,
+    );
     if (!rename && !add.length && !remove.length && !rule) throw new AppError("validation", "Nothing to change.");
     const smart = list.rule != null;
     if (smart && (add.length || remove.length))

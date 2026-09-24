@@ -985,10 +985,10 @@ test("a row knows when its next or last visit was a consultation", () => {
   assert.equal(titleOf(null), null);
 });
 
-test("the Journey continues past the booking: four lists, each gated on deals being on", () => {
+test("the Journey continues past the booking: five lists, each gated on deals being on, each the Pipeline's own group", () => {
   const { PEOPLE_LISTS, peopleListAction, toPersonRowVM } = contracts;
   const byId = Object.fromEntries(PEOPLE_LISTS.map((l) => [l.id, l]));
-  for (const id of ["consultation_booked", "proposal_out", "clients", "deal_ended"]) {
+  for (const id of ["consultation_booked", "proposal_out", "clients", "deal_passed", "deal_ended"]) {
     assert.ok(byId[id], id);
     assert.equal(byId[id].group, "journey");
     assert.equal(byId[id].needsDeals, true);
@@ -1004,12 +1004,30 @@ test("the Journey continues past the booking: four lists, each gated on deals be
   assert.equal(byId.proposal_out.test(client), false);
   assert.equal(byId.clients.test(client), true);
   assert.equal(byId.deal_ended.test(ended), true);
-  const consult = { ...vmOf({}), consultationVisit: true };
+  // Passed has a list of its own, as the Pipeline's closed group shows it (decision 0009).
+  const passed = vmOf(cols({ deal_stage: "lost", deal_decided_at: daysAgo(1) }));
+  assert.equal(byId.deal_passed.test(passed), true);
+  assert.equal(byId.deal_ended.test(passed), false, "passed is not ended");
+  assert.equal(byId.deal_passed.label, "Passed");
+  // Consultations is the Pipeline's own group (deals.ts dealStageOf): a consultation ahead of someone with nothing open.
+  const ahead = {
+    id: "v",
+    start: daysAgo(-2),
+    end: daysAgo(-2),
+    title: "Discovery call",
+    all_day: false,
+    via: "phone",
+    consultation: true,
+  };
+  const cal = (next) => ({ timezone: TZ, source: "your calendar", state: "ok", next, last: null });
+  const consult = vmOf({ visits: cal(ahead) });
+  assert.equal(consult.dealStage, "consultation");
   assert.equal(byId.consultation_booked.test(consult), true);
+  assert.equal(byId.consultation_booked.label, "Consultations", "the Pipeline's own word for the group");
   assert.equal(
-    byId.consultation_booked.test({ ...consult, deal: proposed.deal }),
+    byId.consultation_booked.test(vmOf({ ...cols(), visits: cal(ahead) })),
     false,
-    "past the consultation once a proposal is out",
+    "past the consultation once a proposal is out: the Pipeline's Proposals",
   );
   assert.equal(peopleListAction("clients", [client]), null, "a client list has no step to push");
   assert.equal(peopleListAction("proposal_out", [proposed]).cta, "Open the Inbox");

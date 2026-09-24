@@ -33,6 +33,8 @@ const person = (id, over = {}) => ({
   },
   lastContact: { ts: NOW.getTime() - 40 * D, label: "" },
   ...over,
+  // They wrote last when they were last in touch: Quiet 30+ days reads the days since (lists.ts).
+  heardDays: over.heardDays ?? Math.round((NOW.getTime() - (over.lastContact?.ts ?? NOW.getTime() - 40 * D)) / D),
 });
 /** A person as people_list answers, with a calendar: the visit run reads their visits. */
 const iso = (msAgo) => new Date(NOW.getTime() - msAgo).toISOString();
@@ -276,7 +278,7 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
     person("a"),
     person("b", { lastContact: { ts: NOW.getTime() - 90 * D, label: "" } }),
     person("c", { consent: { state: "unknown", dnc: false } }),
-    person("d", { state: "active" }),
+    person("d", { state: "active", heardDays: 3 }),
   ];
   const { ports, of } = fakes();
   const r = await runPlaybook(ports, cmd({ ctx: context({ people: rows }) }));
@@ -311,7 +313,10 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
   );
   const nobody = fakes();
   assert.deepEqual(
-    await runPlaybook(nobody.ports, cmd({ ctx: context({ people: [person("d", { state: "active" })] }) })),
+    await runPlaybook(
+      nobody.ports,
+      cmd({ ctx: context({ people: [person("d", { state: "active", heardDays: 3 })] }) }),
+    ),
     { outcome: "empty", eligible: 0, mode: "auto" },
   );
   assert.deepEqual(nobody.log, [
@@ -339,7 +344,7 @@ test("a run counts everyone its moment named, each once, under the first rule th
     quiet("h", 45),
     // No number AND no yes: counted once, under the first rule the run applies.
     quiet("i", 80, { phone: null, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
-    person("j", { state: "active" }),
+    person("j", { state: "active", heardDays: 3 }),
   ];
   const touches = {
     byThis: new Map([["p1", new Map([["e", NOW.getTime() - 10 * D]])]]),
