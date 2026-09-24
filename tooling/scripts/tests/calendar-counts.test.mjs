@@ -607,6 +607,9 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
       broadcast_recipients: [
         { tenant_id: T, broadcast_id: "f1", contact_id: "p2", state: "sent", sent_at: iso(NOW.getTime() - 5 * DAY) },
       ],
+      deals: [
+        { id: "d2", tenant_id: T, contact_id: "p2", stage: "proposed", proposed_at: iso(NOW.getTime() - 20 * DAY) },
+      ],
     }),
     { people_list: pagedList(all) },
   );
@@ -616,7 +619,11 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
   const unread = {
     ...ctx,
     supabase: fakeDb(
-      tables(null),
+      tables(null, "owner", {
+        deals: [
+          { id: "d2", tenant_id: T, contact_id: "p2", stage: "proposed", proposed_at: iso(NOW.getTime() - 20 * DAY) },
+        ],
+      }),
       { "broadcasts.select": { message: "canceling statement due to statement timeout" } },
       { people_list: pagedList(all) },
     ),

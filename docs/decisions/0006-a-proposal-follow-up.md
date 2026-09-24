@@ -1,12 +1,13 @@
 # 0006 · A proposal waiting gets a follow-up
 
-**Status:** decided; built in part (6a of the Pipeline, worked, 24 September
+**Status:** built (the Pipeline, worked, PR 6: 6a #974 and 6b, 24 September
 2026): the trigger, its class, 00167, the run and the link it freezes on each
-recipient, and the Playbooks page, the Autonomy row, the starter and Ask's words
-of its class, each only where deals are on; one per workspace. The wait is the workspace's pace
+recipient; the Playbooks page, the Autonomy row, the starter and Ask, each only
+where deals are on; one per workspace. The wait is the workspace's pace
 ([0008](0008-a-proposal-is-part-of-the-deal.md), amended), a week until it has
-one. Today's leak counting only the people the playbook will not reach, Ask's
-proposal of one and the Pipeline's words are 6b. Written against commit `e3d9dc6c` (PR #885,
+one. Where a follow-up runs, each proposal waiting says on the Pipeline when its
+run goes ("Follow-up tomorrow", "Follow-up to approve tomorrow" under ask), and
+Today's leak counts only the people it will not reach. Written against commit `e3d9dc6c` (PR #885,
 23 September 2026), and verified against the code at it. Where this note and
 the code disagree, the code wins. It is the second item
 [0004](0004-deals-record.md) held for later: _"a follow-up playbook, which needs

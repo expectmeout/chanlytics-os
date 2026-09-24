@@ -2320,3 +2320,84 @@ test("propose_deal carries a next step with its day: the card says it, the body 
     assert.match(r.result, why);
   }
 });
+
+test("the proposal follow-up in Ask (0006): listed where deals are on and counted as the page counts it; proposed there once, with its link; refused where deals are off", async () => {
+  const DAY = 86_400_000;
+  const luis = peopleListRow({
+    id: LUIS,
+    display_name: "Luis Mora",
+    phone_e164: "+15555550101",
+    deal_id: "dl1",
+    deal_stage: "proposed",
+    deal_proposed_at: iso(NOW.getTime() - 10 * DAY),
+    deal_proposal_url: "https://docs.example.com/proposal/luis",
+    last_inbound_at: iso(NOW.getTime() - 40 * DAY),
+    latest_wa_inbound_at: iso(NOW.getTime() - 40 * DAY),
+  });
+  const deals = [
+    { id: "dl1", tenant_id: A, contact_id: LUIS, stage: "proposed", proposed_at: iso(NOW.getTime() - 10 * DAY) },
+  ];
+  const on = (over = {}) =>
+    tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }], deals, ...over });
+  const context = (t) => newToolContext(ctxFor(t, { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
+  const listed = async (t) => JSON.parse((await runTool(context(t), { name: "list_playbooks", input: {} })).result);
+  const counts = (read) => {
+    const x = read.triggers.find((y) => y.trigger === "proposal_waiting");
+    return x && [x.said_yes_now, x.can_be_sent_now];
+  };
+  assert.deepEqual(counts(await listed(on())), [1, 1], "Luis waits, with his link and a yes");
+  // Followed up already, by a playbook since deleted: counted out, as the page counts him.
+  const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
+  const followed = on({
+    broadcasts: [
+      {
+        id: "old-run",
+        tenant_id: A,
+        playbook_id: null,
+        state: "sent",
+        scheduled_for: iso(NOW.getTime() - 3 * DAY),
+        created_at: iso(NOW.getTime() - 3 * DAY),
+        run_for: null,
+        params: link,
+      },
+    ],
+    broadcast_recipients: [
+      { tenant_id: A, broadcast_id: "old-run", contact_id: LUIS, state: "sent", sent_at: iso(NOW.getTime() - 3 * DAY) },
+    ],
+  });
+  assert.deepEqual(counts(await listed(followed)), [1, 0]);
+  assert.equal(counts(await listed(tables({ deals }))), undefined, "deals off: not listed");
+  // Proposed where deals are on, with its link; never where they are off, and never a second.
+  const tpl = {
+    id: TPL,
+    tenant_id: A,
+    channel: "whatsapp",
+    name: "proposal_follow_up",
+    language: "en_US",
+    meta_status: "approved",
+    category: "UTILITY",
+    variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+    body_preview: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}.",
+    hidden_at: null,
+  };
+  const propose = (t) => buildProposal(context(t), "propose_playbook", { trigger: "proposal_waiting" });
+  // Said before anything else is read: a workspace whose customers book holds no follow-up's starter, and was told the
+  // starter was not approved yet.
+  assert.match((await propose(tables({ deals }))).result, /need deals/);
+  assert.match((await propose(tables({ deals, templates: [tpl] }))).result, /need deals/);
+  assert.match(
+    (await propose(on({ templates: [tpl], playbooks: [{ id: "pb", tenant_id: A, trigger: "proposal_waiting" }] })))
+      .result,
+    /already has a proposal follow-up/,
+  );
+  const made = await propose(on({ templates: [tpl] }));
+  assert.equal(made.isError, false, made.result);
+  assert.deepEqual(
+    [made.proposal.payload.policy_class, made.proposal.payload.params, made.proposal.payload.candidates],
+    ["follow_up", link, 1],
+  );
+  // The card counts as the page does: Luis had his follow-up, so a run reaches nobody.
+  const again = await propose({ ...followed, templates: [tpl] });
+  assert.equal(again.isError, false, again.result);
+  assert.equal(again.proposal.payload.candidates, 0);
+});

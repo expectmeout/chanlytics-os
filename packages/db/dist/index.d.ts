@@ -6127,11 +6127,15 @@ declare function deleteList(db: Db$2, id: string): Promise<{
  */
 
 type Db$1 = SupabaseClient<Database>;
-/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
+/**
+ * One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), whether it went
+ * (sent, rather than on its way or waiting), and whether the run was a proposal follow-up.
+ */
 interface Touch {
     contact_id: string;
     playbook_id: string | null;
     at: string;
+    sent: boolean;
     follow_up: boolean;
 }
 /**

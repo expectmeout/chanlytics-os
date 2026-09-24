@@ -49,7 +49,16 @@ export const PIPELINE_GROUPS: readonly PipelineGroupKey[] = ["consultations", "p
  */
 export type PipelineSource = Pick<
   PersonRowVM,
-  "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz" | "nextStep"
+  | "id"
+  | "name"
+  | "deal"
+  | "askedMs"
+  | "consultedMs"
+  | "lastVisitMs"
+  | "consultAhead"
+  | "calendarTz"
+  | "nextStep"
+  | "followUp"
 >;
 
 /** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
@@ -223,6 +232,11 @@ export const PIPELINE_WORDS = {
   /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
   nothingBack: "Nothing back",
   /**
+   * A proposal waiting that the follow-up has in hand (0006): the day its run goes, and, where its runs wait for a
+   * person, that the owner approves it. "Nothing back" stays for the ones it will not reach.
+   */
+  followUp: (when: string, asks: boolean) => (asks ? `Follow-up to approve ${when}` : `Follow-up ${when}`),
+  /**
    * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
    * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
    */
@@ -282,7 +296,10 @@ function proposalChip(
   nowMs: number,
   pace: DealPaceVM | null,
 ): PipelineChip | null {
-  if (waitingOnProposal(r, nowMs, pace)) return { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+  if (waitingOnProposal(r, nowMs, pace))
+    return r.followUp?.kind === "will"
+      ? { words: PIPELINE_WORDS.followUp(clockNear(r.followUp.atMs, tz, nowMs), r.followUp.asks), tone: "info" }
+      : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };

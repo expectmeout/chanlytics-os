@@ -30,7 +30,9 @@ import {
   toReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
+  dealPaceOf,
   policyClassOffered,
+  triggerOffered,
   dayInZone,
   isDayKey,
   shiftKey,
@@ -53,7 +55,7 @@ import {
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListsFor } from "@chanlytics/db";
+import { listPolicies, savedListsFor, touchIndex } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import {
   CALL_COLUMNS,
@@ -64,10 +66,10 @@ import {
   toConversationDto,
 } from "../dto";
 import { audiencePoolOnce } from "../audience";
-import { sellsByOf } from "../deals";
+import { dealPaceRead, sellsByOf } from "../deals";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
-import { listPlaybooks } from "../playbooks";
+import { listPlaybooks, proposalTouches } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
@@ -1069,12 +1071,18 @@ const MODE_WORDS: Record<string, string> = {
  * composer's chips carry.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [rows, facts, policies, pool] = await Promise.all([
+  const [rows, facts, policies, pool, paceRead, proposals] = await Promise.all([
     listPlaybooks(t.ctx, t.tenantId),
     tenantFacts(t.ctx.supabase, t.tenantId),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    // A proposal's moment is counted as the page counts it (0006): by the workspace's pace, leaving out whoever
+    // already had their follow-up, from any playbook. Unreadable, that moment is not counted.
+    dealPaceRead(t.ctx, t.tenantId, t.now),
+    proposalTouches(t.ctx, t.tenantId, t.now).catch(() => undefined),
   ]);
+  const pace = pool.deals_on ? dealPaceOf(paceRead) : null;
+  const followUps = proposals === undefined ? null : touchIndex(proposals ?? []).followUps;
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
@@ -1089,6 +1097,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
   // to send to read as nobody's yes.
   const moment = (trigger: string) => {
+    const deal = triggerOf(trigger)?.kind === "deal";
+    if (deal && !followUps) return { said_yes_now: null, can_be_sent_now: null };
     const drawn = playbookRunReach(
       vm,
       {
@@ -1097,10 +1107,9 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         gap_days: 0,
         cadence_days: 0,
       },
-      untouched,
+      deal && followUps ? { ...untouched, followUps } : untouched,
       t.now.getTime(),
-      // No proposal's moment is listed here (below), so none waits on a pace.
-      null,
+      pace,
     );
     return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
   };
@@ -1133,8 +1142,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
     })),
-    // Every moment but a proposal's, which the Playbooks page sets up and counts by the workspace's pace (0006).
-    triggers: PLAYBOOK_TRIGGERS.filter((x) => x.kind !== "deal").map((x) => ({
+    // The moments offered here (0006): a proposal's only where deals are on.
+    triggers: PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pool.deals_on)).map((x) => ({
       trigger: x.id,
       label: x.label,
       when: x.hint,
@@ -1142,7 +1151,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ...moment(x.id),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have. Nothing here has run because you read it.`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.${pool.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs, and null means that could not be read." : ""} Nothing here has run because you read it.`,
   };
 }
 

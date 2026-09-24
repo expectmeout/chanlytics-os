@@ -949,9 +949,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(
     [
-      "const [out, sellsBy, nameSteps, pace] = await Promise.all([",
+      "const [out, sellsBy, nameSteps, pace, followUp] = await Promise.all([",
       "withVisits(ctx, tenantId, rows),",
-      "sellsByOf(ctx, tenantId),",
+      "const buys = sellsByOf(ctx, tenantId);",
     ].every((line) => route.includes(line)),
     "the list carries visits and the calendar's state, a page at a time",
   );

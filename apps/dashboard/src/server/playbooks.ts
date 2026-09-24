@@ -12,13 +12,14 @@ import {
   triggerOffered,
   dealsAreOn,
   type DealPaceVM,
+  type FollowUpFactsDto,
   type PersonRowDto,
   type PlaybookDto,
   type PlaybookPolicyClass,
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
-import { listRow, savedListsFor, touchIndex, touchesSince } from "@chanlytics/db";
+import { listRow, savedListsFor, touchIndex, touchesSince, type Touch } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
@@ -78,6 +79,73 @@ export async function recentTouches(ctx: RouteContext, tenantId: string, now: Da
     if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
   }
   return touched;
+}
+
+/**
+ * Every touch since the oldest proposal out, or the week's breath if that is longer ago, and no further back than
+ * the sweep reads (contracts PLAYBOOK_TOUCH_WINDOW_MS): who had a proposal follow-up, from any playbook, and who heard
+ * from any run this week (0006). The Playbooks counts, the People read's follow-up facts and Ask read them alike.
+ * Null where no proposal is out: the follow-up has nobody to say anything of. A read that fails throws.
+ */
+export async function proposalTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Touch[] | null> {
+  const { data, error } = await ctx.supabase
+    .from("deals")
+    .select("proposed_at")
+    .eq("tenant_id", tenantId)
+    .eq("stage", "proposed")
+    .order("proposed_at")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const since = Math.max(
+    Math.min(Date.parse(data.proposed_at), now.getTime() - PLAYBOOK_BREATH_MS),
+    now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS,
+  );
+  return touchesSince(ctx.supabase, tenantId, new Date(since), now);
+}
+
+/**
+ * The proposal follow-up as People and Today read it (0006, contracts FollowUpFactsDto): its playbook's clock,
+ * whether its class asks, and from every run since the oldest proposal out (proposalTouches) who had theirs, who is
+ * in a run on its way or waiting, and who heard from any run this week. Null where no follow-up runs -- none made,
+ * paused, or its class set to never -- and where no proposal is out: every row then says what it said. A class with
+ * no row runs as ask, as the run reads it (core run-playbook). A read that fails throws.
+ */
+export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpFactsDto | null> {
+  const [pb, cls] = await Promise.all([
+    ctx.supabase
+      .from("playbooks")
+      .select("state, run_hour, last_run_for")
+      .eq("tenant_id", tenantId)
+      .eq("trigger", "proposal_waiting")
+      .maybeSingle(),
+    ctx.supabase
+      .from("policies")
+      .select("mode")
+      .eq("tenant_id", tenantId)
+      .eq("class", "follow_up")
+      .is("subject_type", null)
+      .maybeSingle(),
+  ]);
+  if (pb.error) throw new Error(pb.error.message);
+  if (cls.error) throw new Error(cls.error.message);
+  const mode = cls.data?.mode ?? "ask";
+  if (!pb.data || pb.data.state !== "running" || mode === "never") return null;
+  const touches = await proposalTouches(ctx, tenantId, now);
+  if (!touches) return null;
+  const had: Record<string, string> = {};
+  const queued: Record<string, string> = {};
+  const heard: Record<string, string> = {};
+  const latest = (m: Record<string, string>, t: Touch) => {
+    if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
+  };
+  const week = now.getTime() - PLAYBOOK_BREATH_MS;
+  for (const t of touches) {
+    if (t.follow_up) latest(t.sent ? had : queued, t);
+    if (Date.parse(t.at) >= week) latest(heard, t);
+  }
+  return { run_hour: pb.data.run_hour, last_run_for: pb.data.last_run_for, asks: mode === "ask", had, queued, heard };
 }
 
 /** A cap no workspace reaches: the pool is counted, not capped. */
@@ -156,28 +224,21 @@ export async function triggerPools(
   const vms = rows.map((r) =>
     toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
   );
-  // Who already had their proposal's follow-up, from any playbook (packages/db touchIndex): no run reaches them again
-  // for that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on and a
-  // proposal is out, from the oldest one, no further back than the sweep reads; unreadable, the moment is not counted.
-  const out = vms.flatMap((r) => (r.deal?.stage === "proposed" && r.deal.sinceMs !== null ? [r.deal.sinceMs] : []));
-  const followUps =
-    deals.on && out.length
-      ? await touchesSince(
-          ctx.supabase,
-          tenantId,
-          new Date(Math.max(Math.min(...out), now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS)),
-          now,
-        ).then(
-          (t) => touchIndex(t).followUps,
-          (e: unknown) => {
-            console.error(
-              "playbook_pools_follow_ups_failed",
-              JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-            );
-            return null;
-          },
-        )
-      : new Map<string, number>();
+  // Who already had their proposal's follow-up, from any playbook (proposalTouches, touchIndex): no run reaches them
+  // again for that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are
+  // on; unreadable, the moment is not counted.
+  const followUps = deals.on
+    ? await proposalTouches(ctx, tenantId, now).then(
+        (t) => touchIndex(t ?? []).followUps,
+        (e: unknown) => {
+          console.error(
+            "playbook_pools_follow_ups_failed",
+            JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+          );
+          return null;
+        },
+      )
+    : new Map<string, number>();
   const breath = {
     byThis: new Map<string, number>(),
     byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),

@@ -3080,3 +3080,26 @@ test("the peek's card judges its wait by People's pace, as the rows beside it do
   assert.ok(card, "the person page's own card, in the peek");
   assert.equal(byTestId(card, "person-deal-flag"), null, "nine days is within People's pace: nothing back is not said");
 });
+
+test("a proposal waiting that the follow-up has in hand says the day its run goes, and whether it waits on the owner (0006); the rest keep Nothing back", () => {
+  const with_ = (id, followUp) => fixture().map((r) => (r.id === id ? { ...r, followUp } : r));
+  const said = (rows, id) => {
+    const c = chipOf(pipelineOf(rows, NOW, TZ, null), id);
+    return [c.words, c.tone];
+  };
+  const tomorrow = NOW + 86_400_000;
+  assert.deepEqual(said(with_("wes", { kind: "will", atMs: tomorrow, asks: false }), "wes"), [
+    "Follow-up tomorrow",
+    "info",
+  ]);
+  assert.deepEqual(said(with_("wes", { kind: "will", atMs: tomorrow, asks: true }), "wes"), [
+    "Follow-up to approve tomorrow",
+    "info",
+  ]);
+  assert.deepEqual(
+    said(with_("wes", { kind: "had", atMs: NOW - 86_400_000 }), "wes"),
+    ["Nothing back", "warn"],
+    "its one nudge went: the owner's now",
+  );
+  assert.deepEqual(said(fixture(), "wes"), ["Nothing back", "warn"], "no follow-up running: as it was");
+});

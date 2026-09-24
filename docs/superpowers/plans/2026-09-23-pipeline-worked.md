@@ -359,9 +359,17 @@ workspace's pace (PR 5) rather than a fixed week. The Pipeline then says when a 
   for every playbook, a run stopped after it sent still holds whoever it reached, and a waiting run whose day has
   passed holds nobody, as the approval sheet always said. Ask lists the moment in 6b, with its proposal. The look:
   the Playbooks page, its composer and a follow-up's row on the mockup with a deals-on surface.
-- [ ] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
+- [x] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
   where deals are on; the Pipeline says when a proposal's follow-up goes, in words true under ask; its tests, the
-  look, the gate, the PR, the push, merge; 0006's status: built.
+  look, the gate, the PR, the push, merge; 0006's status: built. Built: one rule, contracts `followUpStandOf`
+  (named by `followUpNames`, the run's own; a yes and a number; had it; in a run made; else the next run, or the
+  first after the week's breath, by `followUpRunAt`), over facts the People read answers with its first page where
+  deals are on and a follow-up runs under a mode other than never (server `followUpFacts`, from `proposalTouches`,
+  the one read the Playbooks counts and Ask share); the People surface lays each row's standing on it, and the
+  Pipeline's chip and Today's leak read it there. The chip says the day, never the hour, since the breath and the
+  cap can move a person a run; under ask, "to approve". The leak names two of the ones it will not reach, "Yours
+  to follow up", and opens the Pipeline's waiting view. Ask lists the moment counted the page's way and proposes
+  one, refused where deals are off and where one exists.
 
 ---
 

@@ -53,7 +53,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   calendar:
     "The owner's calendar as the receptionist reads it: an iCal feed of what is taken, the business's hours and closures, and the booking rules. The receptionist offers only the open windows and sends the booking link; it never books, moves or cancels anything itself.",
   playbook:
-    "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned) or the month's offer (everyone who said yes, on a cadence). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
+    "A standing rule that sends one approved WhatsApp template to newly eligible people who said yes: win-back (quiet 30 days), welcome (new this week), save our number (only ever phoned), the month's offer (everyone who said yes, on a cadence), and, where deals are on, the proposal follow-up (one nudge per proposal waiting past the workspace's pace, with its link, once). It runs at its hour by the business's clock, reaches a person once within its gap, one playbook message per person per week, under its class's autonomy mode — auto sends the run, veto sends it 30 minutes later unless stopped, ask leaves it waiting for a person on Today, never runs nothing.",
 };
 
 export const ASK_RULES = [

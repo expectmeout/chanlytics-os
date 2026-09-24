@@ -1649,3 +1649,98 @@ test("both People reads answer the workspace's pace where deals are on: its last
     logged.join("\n"),
   );
 });
+
+test("the proposal follow-up's facts (0006): answered with People's first page where deals are on and a follow-up runs -- its clock, whether it asks, who had theirs, who is in a run, who heard this week; null otherwise", async () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
+  const run = (id, over) => ({
+    id,
+    tenant_id: A,
+    playbook_id: "pb-follow",
+    state: "sent",
+    scheduled_for: iso(now - 2 * DAY),
+    created_at: iso(now - 2 * DAY),
+    run_for: null,
+    params: link,
+    ...over,
+  });
+  const policy = (mode) => ({
+    tenant_id: A,
+    class: "follow_up",
+    mode,
+    subject_type: null,
+    subject_id: null,
+    limits: {},
+  });
+  const playbook = (over = {}) => ({
+    id: "pb-follow",
+    tenant_id: A,
+    trigger: "proposal_waiting",
+    state: "running",
+    run_hour: 10,
+    last_run_for: null,
+    ...over,
+  });
+  const world = (over = {}) => ({
+    memberships: both("viewer", "viewer"),
+    policies: [policy("ask")],
+    tenant_config: [],
+    contacts: [contact(P1, A)],
+    tenants: [{ id: A, slug: "harbor", sells_by: "proposal", timezone: "America/New_York" }],
+    playbooks: [playbook()],
+    deals: [{ id: D1, tenant_id: A, contact_id: P1, stage: "proposed", proposed_at: iso(now - 20 * DAY) }],
+    broadcasts: [
+      run("sent-run", {}),
+      run("queued-run", { state: "scheduled", scheduled_for: iso(now + 3_600_000) }),
+      run("winback", { playbook_id: "pb-win", params: [{ kind: "first_name" }] }),
+    ],
+    broadcast_recipients: [
+      { tenant_id: A, broadcast_id: "sent-run", contact_id: P1, state: "sent", sent_at: iso(now - 2 * DAY) },
+      { tenant_id: A, broadcast_id: "queued-run", contact_id: P2, state: "queued", sent_at: null },
+      { tenant_id: A, broadcast_id: "winback", contact_id: P3, state: "sent", sent_at: iso(now - 2 * DAY) },
+    ],
+    ...over,
+  });
+  const rpcs = { people_list: (a) => (a.p_tenant_id === A ? [personRow(P1)] : []) };
+  const read = async (w, q = "") => (await contacts.GET.run(get(inA + q), ctxFor(w, {}, rpcs))).follow_up;
+  const f = await read(world());
+  assert.deepEqual([f.run_hour, f.last_run_for, f.asks], [10, null, true]);
+  assert.deepEqual(Object.keys(f.had), [P1], "the follow-up that went");
+  assert.deepEqual(Object.keys(f.queued), [P2], "the one in a run on its way");
+  assert.deepEqual(
+    Object.keys(f.heard).sort(),
+    [P1, P2, P3].sort(),
+    "everyone any run reached this week, for the breath",
+  );
+  assert.equal((await read(world({ policies: [policy("auto")] }))).asks, false, "auto: its runs go");
+  assert.equal((await read(world({ policies: [] }))).asks, true, "a class with no row runs as ask");
+  assert.equal(await read(world({ policies: [policy("never")] })), null, "its class set to never: none runs");
+  assert.equal(await read(world({ playbooks: [playbook({ state: "paused" })] })), null, "paused");
+  assert.equal(await read(world({ playbooks: [] })), null, "none made");
+  assert.equal(await read(world({ deals: [] })), null, "no proposal out: nobody to say anything of");
+  assert.equal(
+    await read(world({ tenants: [{ id: A, slug: "harbor", sells_by: "booking", timezone: "America/New_York" }] })),
+    null,
+    "deals off",
+  );
+  assert.equal(await read(world(), "&q=ro"), null, "a search reads none: People keeps its first page's");
+  // A read that fails costs the facts, never the list, and says so in the log.
+  const logged = [];
+  const keep = console.error;
+  console.error = (...a) => logged.push(a.join(" "));
+  try {
+    const r = await contacts.GET.run(get(inA), {
+      ...ctxFor(world(), {}, rpcs),
+      supabase: fakeDb(world(), { "playbooks.select": { message: "statement timeout" } }, rpcs),
+    });
+    assert.deepEqual([r.follow_up, r.people.length], [null, 1]);
+  } finally {
+    console.error = keep;
+  }
+  assert.ok(
+    logged.some((l) => l.startsWith("follow_up_facts_failed")),
+    logged.join("\n"),
+  );
+});

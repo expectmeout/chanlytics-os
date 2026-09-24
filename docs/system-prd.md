@@ -750,7 +750,10 @@ A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch 
 follow-up (0006, 00167) is offered only where deals are on: it names whoever is waiting on a proposal by Today's own
 rule and the workspace's pace, with a link to carry, and reaches each once per proposal (no gap), whichever
 playbook sent the follow-up; one per workspace. It is conversational, as a reminder is, carries the proposal's link
-in a slot or is not made, and keeps that link on each recipient row as a visit run keeps its words.
+in a slot or is not made, and keeps that link on each recipient row as a visit run keeps its words. Where one runs,
+each proposal waiting it will reach says so on the Pipeline, by the day its run goes ("Follow-up tomorrow"; "Follow-up
+to approve tomorrow" under ask), Today's proposals-waiting row counts only the ones it will not reach, and Ask lists
+and proposes it.
 
 ## S-15 · Calendar and availability
 

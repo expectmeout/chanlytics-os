@@ -1216,3 +1216,51 @@ test("the consultations row sits after the unanswered and before the proposals w
     ["never-booked", "unanswered", "consults-waiting", "proposals-waiting", "quiet"],
   );
 });
+
+test("proposals waiting with the follow-up on (0006): the ones it has in hand are no leak; the row counts who it will not reach, names two, and opens the Pipeline's waiting view", () => {
+  const out = (id, name, followUp) => ({
+    id,
+    name,
+    consent: { state: "opted_in" },
+    askedMs: null,
+    deal: { stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
+    followUp,
+  });
+  const will = { kind: "will", atMs: NOW.getTime() + 86_400_000, asks: true };
+  const had = { kind: "had", atMs: NOW.getTime() - 86_400_000 };
+  const people = (rows) => ({
+    lists: [list("proposal_out", "Proposal out", rows.length, act("Open the Inbox", "inbox"))],
+    aggregates: { total: rows.length },
+    rows,
+    dealsOn: true,
+  });
+  const leakOf = (rows) =>
+    todayLeaksV2(reports({ booking: { present: false } }), people(rows), [], 4, NOW.getTime()).rows.find(
+      (r) => r.id === "proposals-waiting",
+    );
+  const mixed = leakOf([
+    out("p1", "Ana Ruiz", will),
+    out("p2", "Bo Chen", will),
+    out("p3", "Cy Park", had),
+    out("p4", "Di Lee", null),
+  ]);
+  assert.equal(mixed.text, "2 proposals went out more than a week ago with nothing back.");
+  assert.equal(mixed.math, "4 on Proposal out · nothing heard since it went · the follow-up has 2 more");
+  assert.deepEqual(
+    mixed.people.map((p) => [p.name, p.to]),
+    [
+      ["Cy Park", "clients/p3"],
+      ["Di Lee", "clients/p4"],
+    ],
+    "the two it will not reach: their one nudge already gone, or none it can send",
+  );
+  assert.equal(mixed.peopleLead, "Yours to follow up");
+  assert.equal(mixed.cta.to, "clients/pipeline:v-waiting", "where each row says which is which");
+  assert.equal(leakOf([out("p1", "Ana Ruiz", will)]), undefined, "all in the follow-up's hands: no row");
+  const plain = leakOf([out("p1", "Ana Ruiz", null)]);
+  assert.deepEqual(
+    [plain.people, plain.peopleLead, plain.cta.to, plain.math],
+    [[], null, "clients/seg:proposal_out", "1 on Proposal out · nothing heard since it went"],
+    "no follow-up running: the row as it was",
+  );
+});

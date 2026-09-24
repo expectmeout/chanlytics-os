@@ -194,6 +194,8 @@ import {
   type TodayVM,
   toPersonRowVM,
   dealPaceOf,
+  followUpStandOf,
+  type FollowUpFactsDto,
   type DealPaceVM,
   peopleAggregates,
   PEOPLE_LISTS,
@@ -807,6 +809,8 @@ let peopleLoaded: {
   consultFirst: boolean;
   /** The workspace's pace, as the list read answered it (00167); null without one. */
   dealPace: DealPaceVM | null;
+  /** The proposal follow-up, as the list read answered it (0006); null where none runs. */
+  followUp: FollowUpFactsDto | null;
   views: Record<string, unknown>;
 } | null = null;
 
@@ -825,7 +829,14 @@ function publishPeople(): void {
   if (!peopleLoaded) return;
   const { tz, dealsOn, consultFirst } = peopleLoaded;
   const now = new Date();
-  const rows = peopleLoaded.people.map((r) => personRowOf(r, tz, now, dealsOn));
+  // Each row's standing with the proposal follow-up, where one runs (0006, contracts followUpStandOf): the
+  // Pipeline's chip and Today's leak read it off the row, judged by the pace and at the moment the rows are.
+  const fu = dealsOn ? peopleLoaded.followUp : null;
+  const pace = dealsOn ? peopleLoaded.dealPace : null;
+  const rows = peopleLoaded.people.map((r) => {
+    const vm = personRowOf(r, tz, now, dealsOn);
+    return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace) } : vm;
+  });
   const calendar = peopleLoaded.calendar;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
@@ -1041,6 +1052,7 @@ export const peopleOverride: SurfaceOverride = {
       dealsOn: !!data.deals_on,
       consultFirst: !!data.consult_first,
       dealPace: dealPaceOf(data.deal_pace),
+      followUp: data.follow_up ?? null,
       views:
         overlapped || keptViews.made !== savesBefore
           ? { ...(viewsData.views ?? {}), ...keptViews.views }

@@ -42,6 +42,7 @@ import {
   type DealVM,
 } from "./deals";
 import { clipAtWord } from "./viewmodels";
+import { pipelineRoute } from "./pipeline";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
 import { formatPhoneDisplay } from "./phone";
@@ -1818,7 +1819,8 @@ export interface PeopleListsLike {
    * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
    */
   rows: ReadonlyArray<
-    Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs">>
+    Pick<PersonRowVM, "consent"> &
+      Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "followUp">>
   >;
   /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
   dealsOn?: boolean;
@@ -1966,7 +1968,12 @@ export function todayLeaks(
   );
   // Past the workspace's pace by a fifth once it has one (0008, amended), a week until then: the Pipeline's own rule.
   const pace = people?.dealPace ?? null;
-  const waiting = proposalsWaiting(dealRows, dealsAt, pace);
+  const out = proposalsWaiting(dealRows, dealsAt, pace);
+  // Where a follow-up runs (0006), the ones it has in hand are not a leak: the row counts only the people it will not
+  // reach -- no link, no yes, no number, or their one nudge already gone -- names two of them, and its door is the
+  // Pipeline's own waiting view, where each row says which is which.
+  const inHand = out.filter((r) => r.followUp?.kind === "will").length;
+  const waiting = out.filter((r) => r.followUp?.kind !== "will");
   const po = list("proposal_out");
   if (people && people.dealsOn && waiting.length >= 1) {
     const n = waiting.length;
@@ -1978,7 +1985,8 @@ export function todayLeaks(
     const since = pace
       ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} · nothing heard since it went`
       : "nothing heard since it went";
-    const math = po ? `${po.count} on Proposal out · ${since}` : since;
+    const counted = po ? `${po.count} on Proposal out · ${since}` : since;
+    const math = inHand ? `${counted} · the follow-up has ${inHand} more` : counted;
     found.set("proposals-waiting", {
       id: "proposals-waiting",
       tone: "warn",
@@ -1986,10 +1994,19 @@ export function todayLeaks(
       icon: "clock",
       text,
       math,
-      people: [],
-      peopleLead: null,
+      people: inHand
+        ? waiting
+            .slice(0, 2)
+            .flatMap((r) =>
+              r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : [],
+            )
+        : [],
+      peopleLead: inHand ? "Yours to follow up" : null,
       ask: askWhy(text, math),
-      cta: { label: "See who", to: po ? `clients/seg:${po.id}` : "clients" },
+      cta: {
+        label: "See who",
+        to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients",
+      },
       also: null,
     });
   }

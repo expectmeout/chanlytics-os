@@ -17,6 +17,7 @@ import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
 import { shiftKey, zoneMidnight } from "./calendar";
+import { wallClockAt, zoneDayKey } from "./clock";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS, waitingOnProposal, type DealPaceVM } from "./deals";
 
 const DAY_MS = 86_400_000;
@@ -164,6 +165,43 @@ export const FOLLOW_UP_ONE =
  */
 export const PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 
+/**
+ * Who the proposal follow-up names (0006): waiting on a proposal, by Today's own rule and the workspace's pace, with a
+ * link to carry -- without one the nudge would be a bare "just checking in", which is a person's to write -- and out
+ * no longer than the touches are read, so its follow-up, whenever it went, is still seen. The run's reach
+ * (playbookRunReach) and each person's standing (followUpStandOf) both ask it.
+ */
+export function followUpNames(
+  r: Pick<PersonRowVM, "deal" | "askedMs">,
+  nowMs: number,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
+): boolean {
+  return (
+    waitingOnProposal(r, nowMs, pace) &&
+    !!r.deal?.proposal?.url &&
+    nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS
+  );
+}
+
+/**
+ * The proposal follow-up as People and Today read it (0006), answered by the People read where deals are on and a
+ * follow-up runs under a mode other than never: its clock, whether its runs wait for a person, and, from any
+ * playbook's runs since the oldest proposal out, who had theirs and who is in a run on its way or waiting; and who
+ * heard from any run this week, whom the week's breath holds. Contact id -> when.
+ */
+export interface FollowUpFactsDto {
+  run_hour: number;
+  last_run_for: string | null;
+  /** Its class is ask: each run waits for a person on Today. */
+  asks: boolean;
+  had: Record<string, string>;
+  queued: Record<string, string>;
+  heard: Record<string, string>;
+}
+
+/** Where one person stands with the follow-up: in a run to come -- when, and whether it waits on the owner -- or had it. */
+export type FollowUpStand = { kind: "will"; atMs: number; asks: boolean } | { kind: "had"; atMs: number };
+
 export interface PlaybookDto {
   id: string;
   name: string;
@@ -306,15 +344,7 @@ export function playbookRunReach(
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
         : t.kind === "deal"
-          ? // Waiting on a proposal, by Today's own rule and the workspace's pace, with a link to carry -- without one
-            // the nudge would be a bare "just checking in", which is a person's to write -- and out no longer than the
-            // touches are read, so its follow-up, whenever it went, is still seen (0006).
-            rows.filter(
-              (r) =>
-                waitingOnProposal(r, nowMs, pace) &&
-                !!r.deal?.proposal?.url &&
-                nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS,
-            )
+          ? rows.filter((r) => followUpNames(r, nowMs, pace))
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
@@ -410,6 +440,64 @@ export function localDate(tz: string, now: Date): string {
 
 export function localHour(tz: string, now: Date): number {
   return parts(tz, now).hour;
+}
+
+/**
+ * When the follow-up's first run at or after `fromMs` goes (0006): once a day at its hour by the business's clock,
+ * tomorrow's when it already ran today; and on a day it has not run whose hour has passed, within the hour while the
+ * hours are open, as the sweep runs a due playbook (runDueNow). A day to come runs at its hour.
+ */
+export function followUpRunAt(
+  f: Pick<FollowUpFactsDto, "run_hour" | "last_run_for">,
+  tz: string,
+  fromMs: number,
+  nowMs: number,
+): number {
+  const from = Math.max(fromMs, nowMs);
+  const today = zoneDayKey(nowMs, tz);
+  const day = zoneDayKey(from, tz);
+  if (day === today) {
+    if (f.last_run_for !== today) {
+      const at = wallClockAt(tz, today, f.run_hour, 0);
+      if (from <= at) return at;
+      if (localHour(tz, new Date(from)) <= PLAYBOOK_HOURS.max) return from;
+    }
+    return wallClockAt(tz, shiftKey(today, 1), f.run_hour, 0);
+  }
+  const at = wallClockAt(tz, day, f.run_hour, 0);
+  return from <= at ? at : wallClockAt(tz, shiftKey(day, 1), f.run_hour, 0);
+}
+
+/**
+ * Where one person stands with the follow-up (0006), by its run's own rules: named (followUpNames), with the yes to
+ * hearing from the business and a number (whyNotReceive), and whether a follow-up for this proposal went or is in a
+ * run already made. Otherwise in a run to come: the next, or the first after the week's breath lets them go. Null
+ * for anyone it will not reach: not waiting, no link, no yes, no number, or asked to stop. The cap is not counted: a
+ * run over it reaches the rest the day after.
+ */
+export function followUpStandOf(
+  r: Pick<PersonRowVM, "id" | "deal" | "askedMs" | "consent" | "phone">,
+  f: FollowUpFactsDto,
+  tz: string,
+  nowMs: number,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
+): FollowUpStand | null {
+  if (!followUpNames(r, nowMs, pace)) return null;
+  if (whyNotReceive(r, purposeOfPlaybook("follow_up")) !== null) return null;
+  const since = r.deal?.sinceMs ?? Number.POSITIVE_INFINITY;
+  const when = (m: Record<string, string>): number | null => {
+    const ms = m[r.id] ? Date.parse(m[r.id]) : Number.NaN;
+    return Number.isFinite(ms) ? ms : null;
+  };
+  // One follow-up per proposal: this proposal's went, or is in a run on its way or waiting for a person.
+  const had = when(f.had);
+  if (had !== null && had >= since) return { kind: "had", atMs: had };
+  const queued = when(f.queued);
+  if (queued !== null && queued >= since) return { kind: "will", atMs: queued, asks: f.asks };
+  // One playbook message a person a week, across every playbook: the week's breath holds them to its end.
+  const heard = when(f.heard);
+  const free = heard !== null ? heard + PLAYBOOK_BREATH_MS : nowMs;
+  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
 }
 
 /**

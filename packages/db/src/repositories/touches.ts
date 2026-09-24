@@ -18,11 +18,15 @@ import { readAllRows } from "../paged";
 
 type Db = SupabaseClient<Database>;
 
-/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
+/**
+ * One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), whether it went
+ * (sent, rather than on its way or waiting), and whether the run was a proposal follow-up.
+ */
 export interface Touch {
   contact_id: string;
   playbook_id: string | null;
   at: string;
+  sent: boolean;
   follow_up: boolean;
 }
 
@@ -110,7 +114,13 @@ export async function touchesSince(db: Db, tenantId: string, since: Date, now: D
       if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
-      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at, follow_up: followUp.has(run.id) });
+      out.push({
+        contact_id: r.contact_id,
+        playbook_id: run.playbook_id,
+        at,
+        sent: r.state === "sent",
+        follow_up: followUp.has(run.id),
+      });
     }
   }
   return out;
