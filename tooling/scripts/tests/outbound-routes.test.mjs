@@ -990,3 +990,45 @@ test("one playbook: pause and resume on the ledger, the same state a no-op, a re
     "Playbook not found.",
   );
 });
+
+test("one proposal follow-up per workspace (00167): the database's refusal of a second is said in words, never a 500", async () => {
+  const { FOLLOW_UP_ONE } = await import("@chanlytics/contracts");
+  const tables = {
+    memberships: both("viewer", "operator"),
+    playbooks: [],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago", sells_by: "proposal" }],
+    templates: [
+      tpl(T1, B, {
+        name: "proposal_follow_up",
+        variables: [{ position: 1 }, { position: 2 }, { position: 3 }],
+      }),
+    ],
+    decisions: [],
+  };
+  const body = {
+    trigger: "proposal_waiting",
+    template_id: T1,
+    params: ["@first_name", "@business_name", "@proposal_link"],
+  };
+  const second = {
+    ...ctxFor(tables),
+    supabase: fakeDb(tables, {
+      "playbooks.insert": {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"',
+      },
+    }),
+  };
+  await refused(playbooks.POST.run(send("POST", body, inB), second), "conflict", 409, FOLLOW_UP_ONE);
+  // The first is made, under its own class.
+  const made = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
+  assert.deepEqual(
+    [
+      tables.playbooks.find((p) => p.id === made.id)?.trigger,
+      tables.playbooks.find((p) => p.id === made.id)?.policy_class,
+    ],
+    ["proposal_waiting", "follow_up"],
+  );
+});

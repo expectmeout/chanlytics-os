@@ -349,10 +349,16 @@ workspace's pace (PR 5) rather than a fixed week. The Pipeline then says when a 
   row as ask), the class and its words, the trigger, the starter, the slot, the run and the link it freezes, the
   check that makes one. Built: offered only where deals are on, by one rule each (contracts `triggerOffered`,
   `policyClassOffered`, `startersOffered`): the Playbooks page and its counts, the Autonomy row beside Win-back,
-  the starter set, Run now's words, Ask's reads; the wait is the workspace's pace, which the edge reads through
-  packages/db `yesesSince`, as People's reads now do, and an unreadable pace is a week's, said in the log; a
-  follow-up playbook where deals were turned off runs nothing and says why (`deals_off`). The look: the
-  Playbooks page, its composer and a follow-up's row on the mockup with a deals-on surface.
+  the starter set, Run now's words, Ask's words of its class; the wait is the workspace's pace, which the edge
+  reads through packages/db `yesesSince`, as People's reads now do, and an unreadable pace is a week's, said in
+  the log; a follow-up playbook where deals were turned off runs nothing, and its card says why (`deals_off`).
+  The review's round: one follow-up playbook per workspace (00167's index, refused in words); a follow-up is
+  counted from any playbook's run that carries a proposal's link, one since deleted too (packages/db
+  `touchIndex` `followUps`), and only for a proposal out no longer than the touches are read; a follow-up needs
+  its link, and a message with no slot for it is not offered; the card counts only who has not had theirs; and,
+  for every playbook, a run stopped after it sent still holds whoever it reached, and a waiting run whose day has
+  passed holds nobody, as the approval sheet always said. Ask lists the moment in 6b, with its proposal. The look:
+  the Playbooks page, its composer and a follow-up's row on the mockup with a deals-on surface.
 - [ ] (6b) Today's leak counts only the people the playbook will not reach; Ask's `propose_playbook` gains it
   where deals are on; the Pipeline says when a proposal's follow-up goes, in words true under ask; its tests, the
   look, the gate, the PR, the push, merge; 0006's status: built.

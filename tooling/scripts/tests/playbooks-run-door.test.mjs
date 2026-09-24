@@ -644,3 +644,81 @@ test("a proposal follow-up (0006): where deals are on, a run reaches the proposa
   ]);
   nothingMade(w.tables);
 });
+
+test("a proposal is followed up once, whoever sent it (0006): not again after the playbook that did was deleted, nor after its run was stopped once it had sent; a waiting run whose day has passed holds nobody", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
+  const out = person("c1", {
+    deal_id: "deal-c1",
+    deal_stage: "proposed",
+    deal_proposed_at: iso(20 * D),
+    deal_proposal_url: "https://docs.example.com/proposal/c1",
+  });
+  const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
+  // Ten days ago: past the week's breath, so only the once-per-proposal rule can hold them back.
+  const run = (id, over) => ({
+    id,
+    tenant_id: A,
+    name: "Proposal follow-up",
+    template_id: "tpl-follow",
+    template_name: "proposal_follow_up",
+    template_language: "en_US",
+    params: link,
+    audience: null,
+    state: "sent",
+    scheduled_for: iso(10 * D),
+    created_at: iso(10 * D),
+    recipient_count: 1,
+    playbook_id: null,
+    run_for: localDate(TZ, new Date(Date.now() - 10 * D)),
+    ...over,
+  });
+  const set = (w, broadcast, recipient) => {
+    workspace(w.tables, A, "ask", { sells_by: "proposal" });
+    w.tables.templates.push({
+      tenant_id: A,
+      channel: "whatsapp",
+      name: "proposal_follow_up",
+      language: "en_US",
+      meta_status: "approved",
+    });
+    w.tables.playbooks.push(
+      playbook(A, P, {
+        name: "Proposal follow-up",
+        trigger: "proposal_waiting",
+        template_id: "tpl-follow",
+        template_name: "proposal_follow_up",
+        params: link,
+        policy_class: "follow_up",
+      }),
+    );
+    w.tables.broadcasts.push(broadcast);
+    w.tables.broadcast_recipients.push({ tenant_id: A, broadcast_id: broadcast.id, contact_id: "c1", ...recipient });
+  };
+  // Followed up by a playbook since deleted: its run's playbook is gone, its link is not.
+  let w = world({ people: { [A]: [out] } });
+  set(w, run("old-run", {}), { state: "sent", sent_at: iso(10 * D) });
+  assert.deepEqual(await answer(await knock(press)), [200, { ok: true, outcome: "empty", eligible: 0, mode: "ask" }]);
+  // Followed up by a run that was stopped after it sent to them.
+  w = world({ people: { [A]: [out] } });
+  set(w, run("stopped", { state: "canceled", playbook_id: P }), { state: "sent", sent_at: iso(10 * D) });
+  assert.deepEqual(await answer(await knock(press)), [200, { ok: true, outcome: "empty", eligible: 0, mode: "ask" }]);
+  // Held three days ago for a person who never approved it: that run can never go, so today's run starts over.
+  w = world({ people: { [A]: [out] } });
+  set(
+    w,
+    run("held", {
+      state: "pending_approval",
+      playbook_id: P,
+      scheduled_for: iso(3 * D),
+      created_at: iso(3 * D),
+      run_for: localDate(TZ, new Date(Date.now() - 3 * D)),
+    }),
+    {
+      state: "queued",
+      sent_at: null,
+    },
+  );
+  const [status, body] = await answer(await knock(press));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([body.outcome, body.eligible], ["sent", 1], "reached: nothing was sent to them");
+});

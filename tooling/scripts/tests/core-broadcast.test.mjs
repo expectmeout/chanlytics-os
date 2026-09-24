@@ -438,3 +438,41 @@ test("a resumed batch reads the message a dying run left rather than sending it 
     "and the run completes",
   );
 });
+
+test("a proposal follow-up's send (0006): the link each person's run froze fills its slot, the purpose is the template's own, and no link holds the person", async () => {
+  const follow = broadcast({
+    name: "Proposal follow-up",
+    template_name: "proposal_follow_up",
+    params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+    playbook_id: "pb1",
+  });
+  const words = {
+    meta_status: "approved",
+    body_preview: "Hi {{1}}, the proposal from {{2}}: {{3}}.",
+    category: "utility",
+  };
+  const batch = [
+    { contact_id: "k1", facts: { proposal_link: "https://docs.example.com/proposal/1" } },
+    { contact_id: "k2", facts: null },
+  ];
+  const utility = fakes({ broadcast: follow, template: words, batch });
+  await sendBroadcastBatch(utility.ports, cmd());
+  const sent = utility.log.filter((l) => l[0] === "deliver").map((l) => l[1]);
+  assert.deepEqual(
+    sent.map((d) => [d.contactId, d.purpose, d.template.params]),
+    [["k1", "conversational", ["Ada", "Marisa's", "https://docs.example.com/proposal/1"]]],
+    "a utility follow-up asks for the yes to hearing from them, with the proposal's own link",
+  );
+  assert.deepEqual(
+    utility.marks().find((m) => m[0] === "k2"),
+    ["k2", "skipped", "missing_value"],
+    "no link, no bare nudge",
+  );
+  // Meta filed it as marketing: the send asks for the offers yes, at the door (deliver.ts), whatever the class says.
+  const marketing = fakes({ broadcast: follow, template: { ...words, category: "marketing" }, batch: [batch[0]] });
+  await sendBroadcastBatch(marketing.ports, cmd());
+  assert.deepEqual(
+    marketing.log.filter((l) => l[0] === "deliver").map((l) => l[1].purpose),
+    ["marketing"],
+  );
+});

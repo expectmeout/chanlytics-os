@@ -67,7 +67,7 @@ const person = (id, over = {}) => ({
   ...over,
 });
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
-const noTouch = { byThis: new Map(), byAny: new Map() };
+const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
 
 test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue limit for offers and does not apply; the list is in visit order", () => {
   const TZ = "America/New_York";
@@ -322,13 +322,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
   // The run's branches are run: core-run-playbook.test.mjs. The touches the loader and the Playbooks page read
-  // (packages/db touchesSince) stay pinned here; send-rails.test.mjs runs them.
-  const r = readCode("packages/db/src/repositories/touches.ts");
-  assert.ok(
-    r.includes('.in("state", ["sent", "queued"])') &&
-      r.includes('.filter((b) => b.state !== "canceled" && b.state !== "failed");'),
-    "a message on its way is a touch too, so two playbooks never both pick the same person in a week",
-  );
+  // (packages/db touchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.ok(
@@ -646,8 +640,8 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     [3, 1, 1, 1],
     "no link, a reply since, too soon or another stage is not a proposal waiting; a stop and no yes are counted",
   );
-  // The same proposal, followed up yesterday: never twice.
-  const sent = { byThis: new Map([["a", NOW - DAY]]), byAny: new Map([["a", NOW - DAY]]) };
+  // The same proposal, followed up yesterday -- by this playbook or another, one since deleted too: never twice.
+  const sent = { byThis: new Map(), byAny: new Map([["a", NOW - DAY]]), followUps: new Map([["a", NOW - DAY]]) };
   const again = playbookRunReach(rows, follow, sent, NOW, null);
   assert.deepEqual([again.reach.will, again.reach.heardThis], [0, 1], "a playbook message since the proposal: heard");
   // A week on, past the week's breath: still nobody, since one follow-up was owed for this proposal.
@@ -658,10 +652,30 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     "a second run a week later: nobody",
   );
   // The follow-up of an earlier proposal is not this one's.
-  const before = { byThis: new Map([["a", NOW - 20 * DAY]]), byAny: new Map([["a", NOW - 20 * DAY]]) };
+  const before = {
+    byThis: new Map(),
+    byAny: new Map([["a", NOW - 20 * DAY]]),
+    followUps: new Map([["a", NOW - 20 * DAY]]),
+  };
   assert.deepEqual(
     playbookRunReach(rows, follow, before, NOW, null).eligible.map((r) => r.id),
     ["a"],
+  );
+  // Nor is a message this playbook sent before it was a follow-up: only a follow-up is one.
+  const gapOnly = { byThis: new Map([["a", NOW - DAY]]), byAny: new Map(), followUps: new Map() };
+  assert.deepEqual(
+    playbookRunReach(rows, follow, gapOnly, NOW, null).eligible.map((r) => r.id),
+    ["a"],
+  );
+  // Out longer than the touches are read, its follow-up could no longer be seen: it is not followed up again. Out a
+  // little less, with nothing heard since either, it is.
+  const unheard = { askedMs: NOW - 500 * DAY };
+  assert.deepEqual(
+    [
+      playbookRunReach([out("h", 400, unheard)], follow, noTouch, NOW, null).reach.pool,
+      playbookRunReach([out("i", 360, unheard)], follow, noTouch, NOW, null).reach.pool,
+    ],
+    [0, 1],
   );
   // The workspace's pace: where a proposal waits fourteen days, ten is not yet waiting; where it waits three, four is.
   assert.equal(playbookRunReach(rows, follow, noTouch, NOW, { waitDays: 14 }).reach.pool, 0, "the pace's own wait");
@@ -678,6 +692,11 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
     reachLines(again.reach, follow).lines.map((l) => l.words),
     ["1 never said yes to hearing from you", "1 had this proposal's follow-up already", "1 asked you to stop"],
     "its yes is to hearing from them, never to offers; and the follow-up it already had, never a gap",
+  );
+  assert.deepEqual(
+    [reachLines(again.reach, follow).held, reachLines(again.reach, follow).lines[1].tone],
+    [0, "plain"],
+    "a follow-up already had is done for that proposal, never the amber of waiting for time",
   );
 });
 

@@ -4,7 +4,7 @@ import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
 import { tenantFacts } from "@/server/tenant";
-import { checkPlaybookInput, listPlaybooks, recentTouches, triggerPools } from "@/server/playbooks";
+import { checkPlaybookInput, listPlaybooks, playbookWriteError, recentTouches, triggerPools } from "@/server/playbooks";
 import { dealPaceRead, sellsByOf } from "@/server/deals";
 
 /**
@@ -75,7 +75,8 @@ export const POST = write({
       })
       .select("id")
       .single();
-    if (error || !made) throw new Error(error?.message ?? "playbook not created");
+    if (error) throw playbookWriteError(error);
+    if (!made) throw new Error("playbook not created");
     const decisionId = await recordDecision(ctx, member.tenantId, "playbook", made.id, "start_playbook", {
       name: v.name,
       trigger: v.trigger,

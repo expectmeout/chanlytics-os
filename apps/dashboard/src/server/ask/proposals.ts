@@ -947,7 +947,11 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now).then((pool) => pool.rows),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
   ]);
-  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const untouched = {
+    byThis: new Map<string, number>(),
+    byAny: new Map<string, number>(),
+    followUps: new Map<string, number>(),
+  };
   // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).
   const drawn = playbookRunReach(

@@ -99,7 +99,11 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       gap_days: p.gap_days,
       cadence_days: p.cadence_days,
     },
-    { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
+    {
+      byThis: ctx.touches.byThis.get(p.id) ?? new Map(),
+      byAny: ctx.touches.byAny,
+      followUps: ctx.touches.followUps,
+    },
     now.getTime(),
     ctx.pace,
     listIds,

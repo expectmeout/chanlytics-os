@@ -1490,6 +1490,23 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
+      return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
 var DAY_MS7 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
@@ -1502,6 +1519,27 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -1667,6 +1705,7 @@ var PendingWorkspaceSchema = z8.object({
   // never fails over a zone a stranger's device reported.
   timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
+var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
   try {
@@ -2343,18 +2382,18 @@ var NOTES_READ = 12;
 var NOTES_BUDGET = 1200;
 function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (Array.isArray(lead.noteList)) {
-    const parts = [];
+    const parts2 = [];
     let used = 0;
     for (const n of lead.noteList) {
       const body = n.body.replace(/\s+/g, " ").trim();
       if (!body) continue;
       const t = Date.parse(n.at);
       const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
-      if (parts.length && used + part.length > NOTES_BUDGET) break;
-      parts.push(part);
+      if (parts2.length && used + part.length > NOTES_BUDGET) break;
+      parts2.push(part);
       used += part.length + 2;
     }
-    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
+    return parts2.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts2.join("; ")}` : null;
   }
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
@@ -2597,26 +2636,41 @@ async function deleteList(db, id) {
 
 // src/repositories/touches.ts
 var RUN_IDS_PER_QUERY = 200;
-async function touchesSince(db, tenantId, since) {
-  const runs = (await readAllRows(
-    "broadcasts",
-    (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
-  )).filter((b) => b.state !== "canceled" && b.state !== "failed");
+var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
+async function touchesSince(db, tenantId, since, now) {
+  const [all, zone] = await Promise.all([
+    readAllRows(
+      "broadcasts",
+      (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
+    ),
+    db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
+      (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE,
+      () => null
+    )
+  ]);
+  const today = zone ? localDate(zone, now) : null;
+  const runs = all.filter(
+    (b) => !(b.state === "pending_approval" && today !== null && b.run_for !== null && b.run_for < today)
+  );
   const ofRun = new Map(runs.map((b) => [b.id, b]));
+  const followUp = new Set(
+    runs.filter((b) => parseParamSpecs(b.params).some((s) => s.kind === "proposal_link")).map((b) => b.id)
+  );
   const ids = runs.map((b) => b.id);
   const out = [];
   const sinceMs = since.getTime();
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows(
       "broadcast_recipients",
-      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at, state").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
       if (!run) continue;
+      if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
-      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at });
+      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at, follow_up: followUp.has(run.id) });
     }
   }
   return out;
@@ -2624,6 +2678,7 @@ async function touchesSince(db, tenantId, since) {
 function touchIndex(touches) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
+  const followUps = /* @__PURE__ */ new Map();
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -2632,8 +2687,9 @@ function touchIndex(touches) {
       byThis.set(t.playbook_id, m);
     }
     byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
+    if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
   }
-  return { byThis, byAny };
+  return { byThis, byAny, followUps };
 }
 
 // src/repositories/deals.ts

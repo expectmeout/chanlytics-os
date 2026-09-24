@@ -247,6 +247,7 @@ import {
   type SendPurpose,
 } from "@chanlytics/contracts";
 import {
+  FOLLOW_UP_NEEDS_DEALS,
   PLAYBOOK_TRIGGERS,
   nextRunLabel,
   scheduleLine,
@@ -1308,12 +1309,15 @@ export interface PlaybookCardVM extends PlaybookDto {
   next: string;
   /** How many on the trigger's list a run reaches right now -- a recorded yes and
    *  a number to send to -- clear of the week's breath, before the gap, which
-   *  only the run applies. Null when the server could not count the moment. */
+   *  only the run applies; a follow-up's, clear of the proposals already
+   *  followed up. Null when the server could not count the moment. */
   candidates: number | null;
   /** How many more it would reach but heard from a broadcast of any kind this week, and wait. Null with `candidates`. */
   held: number | null;
   /** Everyone its moment names, and who of them no run reaches whatever the week: the card's grey. Null when not read. */
   named: PlaybookNamed | null;
+  /** Why it runs nothing here, where its moment is not offered (a proposal follow-up where deals are off, 0006). */
+  off: string | null;
 }
 
 /**
@@ -1441,6 +1445,8 @@ export const playbooksOverride: SurfaceOverride = {
           candidates: pool(keyOf(p)),
           held: held(keyOf(p)),
           named: named(keyOf(p)),
+          // A follow-up made while deals were on runs nothing once they are off: the card says why (0006).
+          off: t && !triggerOffered(t, !!pb.deals_on) ? FOLLOW_UP_NEEDS_DEALS : null,
         };
       }),
       timezone: tz,

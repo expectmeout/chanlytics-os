@@ -3,7 +3,7 @@ import type { Json } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { playbookScope, recordDecision } from "@/server/verbs";
-import { checkPlaybookInput } from "@/server/playbooks";
+import { checkPlaybookInput, playbookWriteError } from "@/server/playbooks";
 
 /**
  * One playbook.
@@ -64,7 +64,7 @@ export const PUT = write({
         cadence_days: v.cadence_days,
       })
       .eq("id", id);
-    if (error) throw new Error(error.message);
+    if (error) throw playbookWriteError(error);
     return { id, name: v.name, state: p.state };
   },
 });

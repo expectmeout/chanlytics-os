@@ -30,9 +30,7 @@ import {
   toReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
-  dealPaceOf,
   policyClassOffered,
-  triggerOffered,
   dayInZone,
   isDayKey,
   shiftKey,
@@ -66,7 +64,7 @@ import {
   toConversationDto,
 } from "../dto";
 import { audiencePoolOnce } from "../audience";
-import { dealPaceRead, sellsByOf } from "../deals";
+import { sellsByOf } from "../deals";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks } from "../playbooks";
@@ -1071,20 +1069,21 @@ const MODE_WORDS: Record<string, string> = {
  * composer's chips carry.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [rows, facts, policies, pool, paceRead] = await Promise.all([
+  const [rows, facts, policies, pool] = await Promise.all([
     listPlaybooks(t.ctx, t.tenantId),
     tenantFacts(t.ctx.supabase, t.tenantId),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
-    // The pace the page and the sweep count a proposal's moment by (0006).
-    dealPaceRead(t.ctx, t.tenantId, t.now),
   ]);
-  const pace = pool.deals_on ? dealPaceOf(paceRead) : null;
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
   const vm = pool.rows;
-  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const untouched = {
+    byThis: new Map<string, number>(),
+    byAny: new Map<string, number>(),
+    followUps: new Map<string, number>(),
+  };
   // Who each moment names that said the yes its template needs, and who of them
   // a run reaches, by the runner's own draw before anyone has heard from a
   // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
@@ -1100,7 +1099,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       },
       untouched,
       t.now.getTime(),
-      pace,
+      // No proposal's moment is listed here (below), so none waits on a pace.
+      null,
     );
     return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
   };
@@ -1133,8 +1133,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
     })),
-    // The moments offered here (0006): a proposal's only where deals are on.
-    triggers: PLAYBOOK_TRIGGERS.filter((x) => triggerOffered(x, pool.deals_on)).map((x) => ({
+    // Every moment but a proposal's, which the Playbooks page sets up and counts by the workspace's pace (0006).
+    triggers: PLAYBOOK_TRIGGERS.filter((x) => x.kind !== "deal").map((x) => ({
       trigger: x.id,
       label: x.label,
       when: x.hint,

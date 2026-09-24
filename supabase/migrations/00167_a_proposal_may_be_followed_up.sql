@@ -7,7 +7,10 @@
 -- back (contracts waitingOnProposal). It is conversational, as a visit
 -- reminder is: it answers the person's own request.
 --
--- The three CHECKs widen; provision_tenant seeds the class as ask for a new
+-- The three CHECKs widen; one follow-up playbook per workspace, since two
+-- would each owe every proposal its nudge and the sweep runs a workspace's due
+-- playbooks over one reading of who was touched, so both could send in the
+-- same hour; provision_tenant seeds the class as ask for a new
 -- workspace (its body is 00073's with one more row); and every workspace on
 -- record gets its row as ask, as 00071 gave each one reviews. A class with no
 -- row runs as ask already (core run-playbook), so either deploy order holds.
@@ -35,6 +38,10 @@ alter table public.playbooks drop constraint if exists playbooks_trigger_check;
 alter table public.playbooks add constraint playbooks_trigger_check
   check (trigger in ('quiet_30', 'new_week', 'phoned_only', 'everyone_monthly', 'visit_tomorrow', 'visited', 'lapsed',
                      'saved_list', 'proposal_waiting'));
+
+-- One proposal follow-up per workspace. The route says so in words (server/playbooks.ts playbookWriteError).
+create unique index if not exists playbooks_one_follow_up on public.playbooks (tenant_id)
+  where trigger = 'proposal_waiting';
 
 -- Every workspace on record: ask.
 insert into public.policies (tenant_id, class, mode, limits)

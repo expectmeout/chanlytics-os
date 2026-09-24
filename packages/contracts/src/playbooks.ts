@@ -149,6 +149,21 @@ export function policyClassOffered(cls: string, dealsOn: boolean): boolean {
 /** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
 export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Business, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
 
+/** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
+export const FOLLOW_UP_NEEDS_LINK =
+  "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
+
+/** Why a second proposal follow-up is refused (00167): two would each owe every proposal its nudge. */
+export const FOLLOW_UP_ONE =
+  "This workspace already has a proposal follow-up. Change that one rather than starting another.";
+
+/**
+ * How far back a touch can still hold somebody back: the longest gap a playbook may set (365 days, core
+ * check-playbook), plus the week's breath. The sweep reads its touches this far back, and a proposal is followed up
+ * only while its follow-up would still be among them (0006): past it, a second nudge could not be told from a first.
+ */
+export const PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
+
 export interface PlaybookDto {
   id: string;
   name: string;
@@ -170,10 +185,15 @@ export interface PlaybookDto {
   created_at: string;
 }
 
-/** When a person last heard from this playbook, and from any playbook. contact id → ms. */
+/**
+ * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up
+ * from any playbook, one since deleted too (packages/db touchIndex): a follow-up is owed once per proposal (0006).
+ * contact id → ms.
+ */
 export interface Touches {
   byThis: Map<string, number>;
   byAny: Map<string, number>;
+  followUps: Map<string, number>;
 }
 
 /**
@@ -286,9 +306,15 @@ export function playbookRunReach(
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
         : t.kind === "deal"
-          ? // Waiting on a proposal, by Today's own rule and the workspace's pace, and with a link to carry: without
-            // one the nudge would be a bare "just checking in", which is a person's to write (0006).
-            rows.filter((r) => waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url)
+          ? // Waiting on a proposal, by Today's own rule and the workspace's pace, with a link to carry -- without one
+            // the nudge would be a bare "just checking in", which is a person's to write -- and out no longer than the
+            // touches are read, so its follow-up, whenever it went, is still seen (0006).
+            rows.filter(
+              (r) =>
+                waitingOnProposal(r, nowMs, pace) &&
+                !!r.deal?.proposal?.url &&
+                nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS,
+            )
           : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
@@ -318,11 +344,12 @@ export function playbookRunReach(
     return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
-  // One follow-up per proposal (0006): this playbook's last message since the proposal went is the one it owed.
+  // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
+  // too, is the one it owed. Every other moment keeps to its own gap.
   const heardThis = (r: PersonRowVM, mine: number): boolean =>
     t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
   const picked = allowed.filter((r) => {
-    const mine = touches.byThis.get(r.id);
+    const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
     if (mine !== undefined && heardThis(r, mine)) {
       reach.heardThis += 1;
       return false;
@@ -678,6 +705,8 @@ export function reachLines(
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) : null;
+  // A follow-up is owed once per proposal (0006): one already had is done, never waited out.
+  const once = t?.kind === "deal";
   const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
     {
@@ -689,14 +718,12 @@ export function reachLines(
     { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
     {
       n: reach.heardThis,
-      // A follow-up is owed once per proposal (0006): its last one is why, never a gap.
-      words:
-        t?.kind === "deal"
-          ? "had this proposal's follow-up already"
-          : gap
-            ? `heard from this playbook in the last ${gap} days`
-            : "heard from this playbook lately",
-      tone: "warn",
+      words: once
+        ? "had this proposal's follow-up already"
+        : gap
+          ? `heard from this playbook in the last ${gap} days`
+          : "heard from this playbook lately",
+      tone: once ? "plain" : "warn",
       door: null,
     },
     { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
@@ -728,7 +755,7 @@ export function reachLines(
     .filter((r) => r.n > 0)
     .sort((a, b) => b.n - a.n || a.rank - b.rank)
     .map(({ n, words, tone, door }) => ({ n, words: `${n} ${words}`, tone, door }));
-  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+  return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
 }
 
 /**

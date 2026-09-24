@@ -2,8 +2,8 @@
 
 **Status:** decided; built in part (6a of the Pipeline, worked, 24 September
 2026): the trigger, its class, 00167, the run and the link it freezes on each
-recipient, and the Playbooks page, the Autonomy row, the starter and Ask's reads,
-each only where deals are on. The wait is the workspace's pace
+recipient, and the Playbooks page, the Autonomy row, the starter and Ask's words
+of its class, each only where deals are on; one per workspace. The wait is the workspace's pace
 ([0008](0008-a-proposal-is-part-of-the-deal.md), amended), a week until it has
 one. Today's leak counting only the people the playbook will not reach, Ask's
 proposal of one and the Pipeline's words are 6b. Written against commit `e3d9dc6c` (PR #885,

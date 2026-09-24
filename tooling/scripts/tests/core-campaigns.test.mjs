@@ -10,6 +10,7 @@ import {
   BROADCAST_MAX_RECIPIENTS,
   EVERYONE_LABEL,
   FOLLOW_UP_NEEDS_DEALS,
+  FOLLOW_UP_NEEDS_LINK,
   broadcastName,
   emptyAudienceRefusal,
   noNumberWords,
@@ -831,6 +832,17 @@ test("the playbook's check: the trigger first, then the template through the one
     [made.name, made.policy_class, made.params],
     ["Proposal follow-up", "follow_up", [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }]],
     "its own starter: the moment's name, its own class, and the link each person's proposal carries",
+  );
+  // A follow-up with no slot filled by the link would be a bare "just checking in": refused.
+  await refused(
+    checkPlaybook(fakes({ template: template({ variables: ["1"] }), dealsOn: true }).ports, {
+      trigger: "proposal_waiting",
+      template_id: T1,
+      params: ["@first_name"],
+    }),
+    "validation",
+    400,
+    FOLLOW_UP_NEEDS_LINK,
   );
   // A win-back never asks whether deals are on (the port throws if it is asked), and cannot carry a proposal's link.
   await refused(

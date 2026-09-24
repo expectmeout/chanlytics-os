@@ -2348,6 +2348,7 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -5532,6 +5533,8 @@ function triggerOffered(t, dealsOn) {
   return t.kind !== "deal" || dealsOn;
 }
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS72;
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -5556,9 +5559,12 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS72)) && !r.booked;
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? (
-    // Waiting on a proposal, by Today's own rule and the workspace's pace, and with a link to carry: without
-    // one the nudge would be a bare "just checking in", which is a person's to write (0006).
-    rows.filter((r) => waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url)
+    // Waiting on a proposal, by Today's own rule and the workspace's pace, with a link to carry -- without one
+    // the nudge would be a bare "just checking in", which is a person's to write -- and out no longer than the
+    // touches are read, so its follow-up, whenever it went, is still seen (0006).
+    rows.filter(
+      (r) => waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url && nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS2
+    )
   ) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
@@ -5580,7 +5586,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS72;
   const heardThis = (r, mine) => t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
   const picked = allowed.filter((r) => {
-    const mine = touches.byThis.get(r.id);
+    const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
     if (mine !== void 0 && heardThis(r, mine)) {
       reach.heardThis += 1;
       return false;
@@ -7801,6 +7807,7 @@ var SENDING_HOURS_WORDS3 = {
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS73;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -9021,7 +9028,11 @@ async function runPlaybook(ports, cmd) {
       gap_days: p.gap_days,
       cadence_days: p.cadence_days
     },
-    { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
+    {
+      byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
+      byAny: ctx.touches.byAny,
+      followUps: ctx.touches.followUps
+    },
     now.getTime(),
     ctx.pace,
     listIds
@@ -9375,6 +9386,8 @@ async function checkPlaybook(ports, body) {
     visits: trig.kind === "visit",
     proposal: trig.kind === "deal"
   });
+  if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
+    throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
     // list's own name for a playbook on a list.

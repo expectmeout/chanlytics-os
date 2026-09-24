@@ -1,7 +1,10 @@
 import "server-only";
 import {
+  AppError,
+  FOLLOW_UP_ONE,
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
+  PLAYBOOK_TOUCH_WINDOW_MS,
   PLAYBOOK_TRIGGERS,
   savedListIds,
   playbookRunReach,
@@ -15,7 +18,7 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
-import { listRow, savedListsFor, touchesSince } from "@chanlytics/db";
+import { listRow, savedListsFor, touchIndex, touchesSince } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
@@ -70,7 +73,7 @@ export interface PlaybookTotals {
  */
 export async function recentTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Record<string, string>> {
   const touched: Record<string, string> = {};
-  for (const t of await touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS))) {
+  for (const t of await touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
     const was = touched[t.contact_id];
     if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
   }
@@ -153,9 +156,32 @@ export async function triggerPools(
   const vms = rows.map((r) =>
     toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
   );
+  // Who already had their proposal's follow-up, from any playbook (packages/db touchIndex): no run reaches them again
+  // for that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on and a
+  // proposal is out, from the oldest one, no further back than the sweep reads; unreadable, the moment is not counted.
+  const out = vms.flatMap((r) => (r.deal?.stage === "proposed" && r.deal.sinceMs !== null ? [r.deal.sinceMs] : []));
+  const followUps =
+    deals.on && out.length
+      ? await touchesSince(
+          ctx.supabase,
+          tenantId,
+          new Date(Math.max(Math.min(...out), now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS)),
+          now,
+        ).then(
+          (t) => touchIndex(t).followUps,
+          (e: unknown) => {
+            console.error(
+              "playbook_pools_follow_ups_failed",
+              JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+            );
+            return null;
+          },
+        )
+      : new Map<string, number>();
   const breath = {
     byThis: new Map<string, number>(),
     byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
+    followUps: followUps ?? new Map<string, number>(),
   };
   // One pass per moment, the runner's own: who it would pick, who waits for the
   // week's breath, and who it names and leaves out whatever the week. A moment
@@ -187,10 +213,13 @@ export async function triggerPools(
       pools[t.id] = null;
       continue;
     }
-    // A proposal's moment where deals are off: its run is off (0006), so it reaches nobody, and nobody is counted.
-    pools[t.id] = triggerOffered(t, deals.on)
-      ? count(t.id as PlaybookDto["trigger"], null)
-      : { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+    // A proposal's moment is not counted where deals are off -- its run is off, and the card says why (0006) -- nor
+    // where who already had a follow-up could not be read.
+    if (t.kind === "deal" && (!triggerOffered(t, deals.on) || !followUps)) {
+      pools[t.id] = null;
+      continue;
+    }
+    pools[t.id] = count(t.id as PlaybookDto["trigger"], null);
   }
   // Each list the workspace keeps, counted as a playbook on it would count it: who is on it (savedListIds), then the
   // runner's own rules.
@@ -283,6 +312,16 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
 }
 
 export type { PlaybookInput };
+
+/**
+ * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167:
+ * two would each owe every proposal its nudge, 0006); any other refusal as it came.
+ */
+export function playbookWriteError(error: { code?: string; message: string }): Error {
+  return error.code === "23505" && error.message.includes("playbooks_one_follow_up")
+    ? new AppError("conflict", FOLLOW_UP_ONE, 409)
+    : new Error(error.message);
+}
 
 /** Everything a playbook names, checked the way the send route checks a broadcast: core's checkPlaybook over this workspace's template and link. */
 export async function checkPlaybookInput(

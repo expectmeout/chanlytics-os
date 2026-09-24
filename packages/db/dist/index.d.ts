@@ -6116,32 +6116,43 @@ declare function deleteList(db: Db$2, id: string): Promise<{
  * Who a run of any kind reached, or is about to: the touches a playbook's gap and the week's breath hold people back
  * by (contracts eligibleForPlaybook), read by the edge's hourly sweep and the dashboard's Playbooks page alike.
  *
- * Each read them itself, the same rule twice: a run canceled or failed touched nobody; a person sent to, or queued
- * for a run on its way, was touched from the moment it went or is due; a broadcast sent by hand counts for the breath
- * and for no playbook's gap. The two agreed until one of them changed, which is the day the page's "waits for the
- * breath" would stop being the sweep's.
+ * Each read them itself, the same rule twice, until one of them changed, which is the day the page's "waits for the
+ * breath" would stop being the sweep's. The rule, once: a person sent to, or queued for a run on its way, was touched
+ * from the moment it went or is due. A run canceled or failed touched only the people it had already sent to: stopped
+ * halfway, it had reached them, and read as reaching nobody it messaged them again. A run waiting for a person whose
+ * day has passed touched nobody: it can never be approved (core approveRun), and the approval sheet says the next run
+ * starts over. A broadcast sent by hand counts for the breath and for no playbook's gap. A run that carries a
+ * proposal's link is a proposal follow-up (0006), owed once per proposal whichever playbook sent it, one since deleted
+ * too.
  */
 
 type Db$1 = SupabaseClient<Database>;
-/** One person touched by one run: the run's playbook, if it was a playbook's, and when (sent, or due). */
+/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
 interface Touch {
     contact_id: string;
     playbook_id: string | null;
     at: string;
+    follow_up: boolean;
 }
-/** The touches by person: the latest by any run (the breath), and the latest by each playbook (its gap). Epoch ms. */
+/**
+ * The touches by person: the latest by any run (the breath), the latest by each playbook (its gap), and the latest
+ * proposal follow-up by any playbook (the follow-up's once per proposal). Epoch ms.
+ */
 interface TouchIndex {
     byThis: Map<string, Map<string, number>>;
     byAny: Map<string, number>;
+    followUps: Map<string, number>;
 }
 /**
- * Every touch since `since`. Runs are read by when they were made, from `since` on; a touch is dated by when it went,
- * or when its run is due, and one before `since` holds nobody back. Paged throughout: past a thousand touches, the
- * breath and each gap silently stopped holding and the people a read could no longer see were messaged again. A read
- * that fails THROWS -- "nobody was touched" is the reading that messages people twice.
+ * Every touch since `since`, as of `now`. Runs are read by when they were made, from `since` on; a touch is dated by
+ * when it went, or when its run is due, and one before `since` holds nobody back. Paged throughout: past a thousand
+ * touches, the breath and each gap silently stopped holding and the people a read could no longer see were messaged
+ * again. A read that fails THROWS -- "nobody was touched" is the reading that messages people twice. The workspace's
+ * zone, read beside the runs, says which day is today for a run waiting for a person; unreadable, every waiting run
+ * still holds its people, which never messages anyone twice either.
  */
-declare function touchesSince(db: Db$1, tenantId: string, since: Date): Promise<Touch[]>;
-/** The touches by person, the way a run draws with them: the latest by any run, and the latest by each playbook. */
+declare function touchesSince(db: Db$1, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
+/** The touches by person, the way a run draws with them: the latest by any run, by each playbook, and follow-up. */
 declare function touchIndex(touches: readonly Touch[]): TouchIndex;
 
 /**

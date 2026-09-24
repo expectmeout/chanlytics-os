@@ -783,7 +783,8 @@ export function slotChoices(
 /**
  * What each slot of a template may take on a moment (slotChoices), or null
  * when one of them can take nothing there: the visit reminder, whose time and
- * service no list has, is not a message a win-back can send.
+ * service no list has, is not a message a win-back can send. Nor is a message
+ * with no slot for the proposal's link one the follow-up can send (0006).
  */
 export function templateSlots(
   t: { name: string; variables: unknown },
@@ -793,7 +794,8 @@ export function templateSlots(
   const each = defaultSlotKinds(t).map((k) =>
     slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal }),
   );
-  return each.every((c) => c.length > 0) ? each : null;
+  if (!each.every((c) => c.length > 0)) return null;
+  return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
 }
 
 /**

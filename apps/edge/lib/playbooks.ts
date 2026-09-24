@@ -31,6 +31,7 @@ import { logger } from "./log.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
   PACE_WINDOW_DAYS,
+  PLAYBOOK_TOUCH_WINDOW_MS,
   dealPaceFrom,
   dealPaceOf,
   dealsAreOn,
@@ -47,12 +48,6 @@ import {
   type PersonVisitsDto,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
-
-/**
- * How far back a touch can still hold somebody back: the longest gap a
- * playbook may set (365 days, check-playbook.ts), plus the week's breath.
- */
-const TOUCH_WINDOW_MS = (365 + 7) * 24 * 3600 * 1000;
 
 type Db = SupabaseClient<Database>;
 
@@ -118,7 +113,8 @@ export async function loadTenantRunContext(
     // The failure is CAUGHT to an error rather than to nobody touched, which re-messages everyone it can no longer
     // see; and returned as this tenant's error, never thrown. The hourly sweep reads `{ error }` to count one
     // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
-    touchesSince(db, tenantId, new Date(now.getTime() - TOUCH_WINDOW_MS)).then(
+    // How far back: contracts PLAYBOOK_TOUCH_WINDOW_MS, which the Playbooks page's follow-up count reads by too.
+    touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
@@ -149,8 +145,9 @@ export async function loadTenantRunContext(
   >;
   const s = (k: string) => (typeof cfg[k] === "string" ? (cfg[k] as string) : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
-  // hand counts for the breath (byAny) and for no playbook's gap (touchIndex).
-  const { byThis, byAny } = touchIndex(touched.data ?? []);
+  // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
+  // follow-up's once per proposal (touchIndex, 0006).
+  const { byThis, byAny, followUps } = touchIndex(touched.data ?? []);
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.
@@ -204,7 +201,7 @@ export async function loadTenantRunContext(
     lists: new Map((kept.data ?? []).map((l) => [l.id, savedListIds(l, vms, now.getTime(), calendar === "ok")])),
     modes: new Map(policies.map((r) => [r.class, r.mode])),
     health: numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
-    touches: { byThis, byAny },
+    touches: { byThis, byAny, followUps },
     dealsOn,
     pace: dealsOn && yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
   };

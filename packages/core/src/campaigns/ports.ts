@@ -90,8 +90,8 @@ export interface RunContext {
   people: PersonRowVM[];
   modes: Map<string, string>;
   health: NumberHealth;
-  /** When each person last heard from each playbook, and from any; contact id → ms. */
-  touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number> };
+  /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
+  touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number>; followUps: Map<string, number> };
   /** The workspace's calendar: a visit playbook runs only when it is "ok". */
   calendar: "ok" | "unavailable" | "none";
   /** Each person's next and last visit from that calendar, for the words a visit run keeps. */

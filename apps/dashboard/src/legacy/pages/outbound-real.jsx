@@ -202,7 +202,7 @@ const PlaybookTile = ({ p, canAct, onEdit, flash, open = false, onOpen, focus = 
             ? (open
                 ? <span className="pb-tile-next">Approve it and it goes at {hour}</span>
                 : <button type="button" className="pb-tile-next" onClick={onOpen} data-testid="pb-tile-approve">Approve it and it goes at {hour}</button>)
-            : <span className="pb-tile-next">{paused ? "Not running" : <><span className="pb-next-k">Next run </span>{p.next}</>}</span>}
+            : <span className="pb-tile-next">{paused ? "Not running" : p.off ? "Not while deals are off" : <><span className="pb-next-k">Next run </span>{p.next}</>}</span>}
         </span>
         <span className="pb-row-runs">
           <window.CmSpark values={spark} label={spark.length ? `The last ${spark.length} runs sent ${spark.join(", ")}` : null} />
@@ -787,16 +787,18 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false, bare = false })
             {counted && (
               <>
                 {" "}&mdash;{" "}
-                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : trig && trig.kind === "deal" ? "Everyone whose proposal waits with nothing back, with its link — before the week's breath · click to open them in the Pipeline" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
-                  {noNumber || `${pbPeople(p.candidates)} on the list said yes`}
+                <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : trig && trig.kind === "deal" ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
+                  {noNumber || `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" && window.__poolWords ? window.__poolWords(p.trigger) : "on the list"} said yes`}
                 </button>
                 {/* Why a list with people on it can still offer nobody: one message per
                     person per week, across playbooks. A bare "0 people" read as broken. */}
                 {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}
               </>
             )}. {p.schedule}.{" "}
-            {/* "Next run paused" was the words when it is. */}
-            {p.state === "paused"
+            {/* "Next run paused" was the words when it is. A follow-up where deals are off says why it runs nothing. */}
+            {p.off
+              ? <>{p.off}</>
+              : p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
               // The hour was in bold on its own, which promised a send. It keeps
               // the hour and says what the hour will do.

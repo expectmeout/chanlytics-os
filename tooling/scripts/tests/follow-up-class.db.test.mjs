@@ -120,5 +120,9 @@ test(
     assert.match(cls.error?.message ?? "", /playbooks_policy_class_check/, "a playbook never runs under money");
     const policy = await db.from("policies").insert({ tenant_id: tenantId, class: "nudges", mode: "ask" });
     assert.match(policy.error?.message ?? "", /policies_class_check/, "a class nobody wrote");
+    // One follow-up per workspace: a second would owe every proposal a second nudge.
+    const second = await db.from("playbooks").insert(row({ name: "Proposal follow-up, again" }));
+    assert.equal(second.error?.code, "23505", second.error?.message);
+    assert.match(second.error?.message ?? "", /playbooks_one_follow_up/, "the name the route says it in words by");
   },
 );

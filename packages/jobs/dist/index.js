@@ -1574,6 +1574,7 @@ var SENDING_HOURS_WORDS = {
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -8240,6 +8241,7 @@ var SENDING_HOURS_WORDS2 = {
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS72;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
@@ -10997,6 +10999,7 @@ var SENDING_HOURS_WORDS3 = {
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS73;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -12826,6 +12829,7 @@ var SENDING_HOURS_WORDS22 = {
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS722;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS722;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
@@ -14542,6 +14546,7 @@ var SENDING_HOURS_WORDS32 = {
 var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS732;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS732;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
@@ -16821,6 +16826,7 @@ var SENDING_HOURS_WORDS4 = {
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS74;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS74;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,

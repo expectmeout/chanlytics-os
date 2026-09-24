@@ -588,12 +588,44 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
     [1, 1],
     "the pace's own wait: ten days out is not yet waiting where a proposal waits fourteen",
   );
-  const off = await triggerPools(ctx, T, {}, TZ, NOW, NO_DEALS);
-  assert.deepEqual(
-    off.pools.proposal_waiting,
-    { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 },
-    "deals off: its run is off, so it reaches nobody and nobody is counted",
+  // Who already had their proposal's follow-up -- here from a playbook since deleted, whose run was stopped after it
+  // sent to them -- is no one a run reaches again: the count leaves them out as the run does.
+  const followed = ctxFor(
+    tables(null, "owner", {
+      broadcasts: [
+        {
+          id: "f1",
+          tenant_id: T,
+          playbook_id: null,
+          state: "canceled",
+          scheduled_for: iso(NOW.getTime() - 5 * DAY),
+          created_at: iso(NOW.getTime() - 5 * DAY),
+          run_for: null,
+          params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+        },
+      ],
+      broadcast_recipients: [
+        { tenant_id: T, broadcast_id: "f1", contact_id: "p2", state: "sent", sent_at: iso(NOW.getTime() - 5 * DAY) },
+      ],
+    }),
+    { people_list: pagedList(all) },
   );
+  const done = (await triggerPools(followed, T, {}, TZ, NOW, { on: true, pace: null })).pools.proposal_waiting;
+  assert.deepEqual([done.pool, done.candidates], [2, 1], "the one who had their follow-up is not counted as due");
+  // Who had one could not be read: the moment is not counted, never counted as if nobody had.
+  const unread = {
+    ...ctx,
+    supabase: fakeDb(
+      tables(null),
+      { "broadcasts.select": { message: "canceling statement due to statement timeout" } },
+      { people_list: pagedList(all) },
+    ),
+  };
+  const blind = await triggerPools(unread, T, {}, TZ, NOW, { on: true, pace: null });
+  assert.equal(blind.pools.proposal_waiting, null);
+  assert.ok(blind.pools.quiet_30, "and every other moment is");
+  const off = await triggerPools(ctx, T, {}, TZ, NOW, NO_DEALS);
+  assert.equal(off.pools.proposal_waiting, null, "deals off: its run is off, and the card says why rather than a zero");
   assert.deepEqual(off.pools.quiet_30, week.pools.quiet_30, "every other moment counts alike");
   // The route: whether deals are on here, and the pool by the pace its own read gives (no yeses: a week).
   const on = tables(null, "owner", {
@@ -604,9 +636,5 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
   const read = await playbooksRoute.GET.run(new Request(url), ctxFor(on, { people_list: pagedList(all) }));
   assert.deepEqual([read.deals_on, read.pools.proposal_waiting.pool], [true, 2]);
   const booked = await playbooksRoute.GET.run(new Request(url), ctxFor(tables(null), { people_list: pagedList(all) }));
-  assert.deepEqual(
-    [booked.deals_on, booked.pools.proposal_waiting.pool],
-    [false, 0],
-    "a workspace whose customers book",
-  );
+  assert.deepEqual([booked.deals_on, booked.pools.proposal_waiting], [false, null], "a workspace whose customers book");
 });
