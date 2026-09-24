@@ -4,6 +4,7 @@ import {
   parseParamSpecs,
   planRun,
   playbookRunReach,
+  playbookRunStop,
   proposalFactsFor,
   triggerOf,
   triggerOffered,
@@ -73,8 +74,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   } catch (e) {
     return { outcome: "failed", error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
-  if (!tpl || tpl.meta_status !== "approved") return off("template_not_approved");
-  if (!ctx.health.canSend) return off("number_flagged");
+  // The run's own stops (contracts playbookRunStop), which the follow-up's words on People and Today ask too.
+  const stop = playbookRunStop({ templateStatus: tpl?.meta_status ?? null, canSend: ctx.health.canSend });
+  if (stop) return off(stop);
   // One run per local day: a second ask says so and records nothing twice.
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
   // A visit playbook, or one on a list that reads the calendar (Lapsed), without a calendar has nothing to read: off,

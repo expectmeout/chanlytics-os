@@ -39,6 +39,7 @@ import { normalizeLink, whyNotALink } from "./link";
 import { mayReach, proposalAction, proposalMessage, type PersonNoteVM } from "./people";
 import type { StepDayVM } from "./steps";
 import { stateTone, type Tone } from "./tone";
+import { followUpWords, type FollowUpStand } from "./playbooks";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
 export const DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"] as const;
@@ -64,6 +65,11 @@ export interface DealPerson {
   deals?: readonly DealVM[];
   /** The workspace's pace, read with the person (dealPaceOf): when their proposal waits, and what its card says. */
   dealPace: DealPaceVM | null;
+  /**
+   * Where they stand with the proposal follow-up (0006, playbooks followUpStandOf), from People's row where one runs:
+   * their current deal's card says when its run goes, and leads with no nudge of its own. Absent elsewhere.
+   */
+  followUp?: FollowUpStand | null;
   replyVia: "WhatsApp" | "Text" | "Email" | null;
   replyWindow: { open: boolean; hoursLeft: number } | null;
   consent: { state: string; dnc: boolean };
@@ -207,6 +213,11 @@ function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null }
  * client has none; a pass is proposed again; an end, or no deal at all, starts a proposal. `deal` is the card's (a
  * person may hold one open deal per service); the person's current one by default.
  */
+/** The follow-up's standing, where it is of this deal: the person's current one, the one the follow-up names. */
+function followUpOn(p: DealPerson, deal: DealVM): FollowUpStand | null {
+  return deal === p.deal || (deal.id !== null && deal.id === p.deal?.id) ? (p.followUp ?? null) : null;
+}
+
 export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = p.deal): DealAct | null {
   if (!deal || deal.stage === "ended") return act("propose", { service: consultedService(p) });
   if (deal.stage === "won") return null;
@@ -218,7 +229,13 @@ export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = 
   const sent = sentOf(p, deal);
   const words = (text: string) => (send.can ? { text } : { hint: DEAL_ACT_HINTS.approved });
   if (!sent && send.reach) return act("send", words(proposalMessage(url)));
-  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
+  // The proposal follow-up has them in hand (0006): its run nudges them, and a second, by hand, would be two.
+  if (
+    sent &&
+    send.reach &&
+    followUpOn(p, deal)?.kind !== "will" &&
+    waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)
+  )
     return act("follow-up", words(proposalFollowUp(url)));
   return act("won");
 }
@@ -465,8 +482,18 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
     // Nothing back past the workspace's pace (a week without one): a proposal that went, or one recorded without a
     // link (it went some other way). A link that never went has not waited on anyone.
-    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
-      flags.push({ words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" });
+    if (
+      (sent || !deal.proposal) &&
+      waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)
+    ) {
+      // Where the follow-up has them in hand (0006), the day its run goes, as their row on the Pipeline says it.
+      const fu = followUpOn(p, deal);
+      flags.push(
+        fu?.kind === "will"
+          ? { words: followUpWords(fu, tz, nowMs), tone: "info" }
+          : { words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" },
+      );
+    }
   }
   const others: DealAct[] = won ? [act("ended")] : [act("won"), act("lost"), act("edit")];
   const nextMode = next ? next.mode : null;

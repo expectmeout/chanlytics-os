@@ -3305,7 +3305,16 @@ test("each row's standing with the proposal follow-up (0006): worked out where t
       deal_proposal_url: `https://docs.example.com/proposal/${n}`,
       ...over,
     });
-  const facts = { run_hour: 10, last_run_for: null, asks: true, had: { p2: iso(now - DAY) }, queued: {}, heard: {} };
+  const facts = {
+    run_hour: 10,
+    last_run_for: null,
+    asks: true,
+    purpose: "conversational",
+    had: { p2: iso(now - DAY) },
+    queued: {},
+    held: {},
+    heard: {},
+  };
   const people = [out(1), out(2), out(3, { deal_proposal_url: null })];
   wire({ people, per: 2, dealsOn: true, followUp: facts });
   await peopleOverride.apply();

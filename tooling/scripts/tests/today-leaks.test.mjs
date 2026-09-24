@@ -1257,6 +1257,17 @@ test("proposals waiting with the follow-up on (0006): the ones it has in hand ar
   assert.equal(mixed.peopleLead, "Yours to follow up");
   assert.equal(mixed.cta.to, "clients/pipeline:v-waiting", "where each row says which is which");
   assert.equal(leakOf([out("p1", "Ana Ruiz", will)]), undefined, "all in the follow-up's hands: no row");
+  // Never named: someone who asked to stop, or is on do-not-contact -- a follow-up is not theirs to be sent at all.
+  const stops = leakOf([
+    out("p1", "Ana Ruiz", will),
+    { ...out("p5", "Ed Voss", null), consent: { state: "opted_out" } },
+    { ...out("p6", "Flo Hart", null), consent: { state: "opted_in", dnc: true } },
+    out("p4", "Di Lee", null),
+  ]);
+  assert.deepEqual(
+    stops.people.map((p) => p.name),
+    ["Di Lee"],
+  );
   const plain = leakOf([out("p1", "Ana Ruiz", null)]);
   assert.deepEqual(
     [plain.people, plain.peopleLead, plain.cta.to, plain.math],

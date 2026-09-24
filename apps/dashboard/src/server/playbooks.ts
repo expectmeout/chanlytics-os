@@ -5,6 +5,8 @@ import {
   parseParamSpecs,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_TOUCH_WINDOW_MS,
+  playbookRunStop,
+  purposeOfTemplate,
   PLAYBOOK_TRIGGERS,
   savedListIds,
   playbookRunReach,
@@ -19,11 +21,19 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
-import { listRow, savedListsFor, touchIndex, touchesSince, type Touch } from "@chanlytics/db";
+import {
+  followUpTouchesSince,
+  listRow,
+  readAllRows,
+  savedListsFor,
+  touchIndex,
+  touchesSince,
+  type Touch,
+} from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
-import { templateValuePorts } from "@/server/campaign-ports";
+import { createBroadcastPorts, templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
 import { sellsByOf } from "@/server/deals";
 
@@ -81,42 +91,62 @@ export async function recentTouches(ctx: RouteContext, tenantId: string, now: Da
   return touched;
 }
 
-/**
- * Every touch since the oldest proposal out, or the week's breath if that is longer ago, and no further back than
- * the sweep reads (contracts PLAYBOOK_TOUCH_WINDOW_MS): who had a proposal follow-up, from any playbook, and who heard
- * from any run this week (0006). The Playbooks counts, the People read's follow-up facts and Ask read them alike.
- * Null where no proposal is out: the follow-up has nobody to say anything of. A read that fails throws.
- */
-export async function proposalTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Touch[] | null> {
-  const { data, error } = await ctx.supabase
-    .from("deals")
-    .select("proposed_at")
-    .eq("tenant_id", tenantId)
-    .eq("stage", "proposed")
-    .order("proposed_at")
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  const since = Math.max(
-    Math.min(Date.parse(data.proposed_at), now.getTime() - PLAYBOOK_BREATH_MS),
-    now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS,
+/** The proposals out here (0006): who holds one, and when the oldest went. Null with none. A read that fails throws. */
+async function proposalsOut(
+  ctx: RouteContext,
+  tenantId: string,
+): Promise<{ contacts: Set<string>; oldestMs: number } | null> {
+  const rows = await readAllRows<{ id: string; contact_id: string; proposed_at: string }>("deals", (from, to) =>
+    ctx.supabase
+      .from("deals")
+      .select("id, contact_id, proposed_at")
+      .eq("tenant_id", tenantId)
+      .eq("stage", "proposed")
+      .order("id")
+      .range(from, to),
   );
-  return touchesSince(ctx.supabase, tenantId, new Date(since), now);
+  if (!rows.length) return null;
+  return {
+    contacts: new Set(rows.map((d) => d.contact_id)),
+    oldestMs: Math.min(...rows.map((d) => Date.parse(d.proposed_at))),
+  };
+}
+
+/** The proposal follow-ups' touches since the oldest proposal out, no further back than the sweep reads (0006). */
+function followUpTouchesFor(
+  ctx: RouteContext,
+  tenantId: string,
+  now: Date,
+  out: { oldestMs: number },
+): Promise<Touch[]> {
+  const since = Math.max(out.oldestMs, now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS);
+  return followUpTouchesSince(ctx.supabase, tenantId, new Date(since), now);
+}
+
+/**
+ * Who had a proposal follow-up, or is in a run made for one, from any playbook, one since deleted too (packages/db
+ * touchIndex followUps): whom the run leaves out, and so the Playbooks counts and Ask (0006). None out, none. A read
+ * that fails throws.
+ */
+export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<Map<string, number>> {
+  const out = await proposalsOut(ctx, tenantId);
+  return out ? touchIndex(await followUpTouchesFor(ctx, tenantId, now, out)).followUps : new Map<string, number>();
 }
 
 /**
  * The proposal follow-up as People and Today read it (0006, contracts FollowUpFactsDto): its playbook's clock,
- * whether its class asks, and from every run since the oldest proposal out (proposalTouches) who had theirs, who is
- * in a run on its way or waiting, and who heard from any run this week. Null where no follow-up runs -- none made,
- * paused, or its class set to never -- and where no proposal is out: every row then says what it said. A class with
- * no row runs as ask, as the run reads it (core run-playbook). A read that fails throws.
+ * whether its class asks, what its template is for, and, of the people who hold a proposal out, who had theirs, who
+ * is in a run on its way or waiting for a person, and whom the week's breath holds. Null wherever the run itself
+ * would send nothing before drawing anyone -- none made, paused, its class set to never, the workspace paused by
+ * billing, no WhatsApp number, its template not one Meta approved, its number flagged (contracts playbookRunStop) --
+ * and where no proposal is out: every row then says what it said. A class with no row runs as ask, as the run reads
+ * it (core run-playbook). A read that fails throws.
  */
 export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpFactsDto | null> {
-  const [pb, cls] = await Promise.all([
+  const [pb, cls, tenant, number, out] = await Promise.all([
     ctx.supabase
       .from("playbooks")
-      .select("state, run_hour, last_run_for")
+      .select("state, run_hour, last_run_for, template_name, template_language")
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
       .maybeSingle(),
@@ -127,25 +157,52 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
       .eq("class", "follow_up")
       .is("subject_type", null)
       .maybeSingle(),
+    ctx.supabase.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    // The number as the send screen reads it (campaign ports): none, or its health.
+    createBroadcastPorts(ctx, tenantId).number(),
+    proposalsOut(ctx, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   if (cls.error) throw new Error(cls.error.message);
+  if (tenant.error) throw new Error(tenant.error.message);
   const mode = cls.data?.mode ?? "ask";
-  if (!pb.data || pb.data.state !== "running" || mode === "never") return null;
-  const touches = await proposalTouches(ctx, tenantId, now);
-  if (!touches) return null;
+  const p = pb.data;
+  if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !number || !out)
+    return null;
+  const tpl = await ctx.supabase
+    .from("templates")
+    .select("meta_status, category")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("name", p.template_name)
+    .eq("language", p.template_language)
+    .maybeSingle();
+  if (tpl.error) throw new Error(tpl.error.message);
+  if (playbookRunStop({ templateStatus: tpl.data?.meta_status ?? null, canSend: number.canSend })) return null;
+  const [followUps, recent] = await Promise.all([
+    followUpTouchesFor(ctx, tenantId, now, out),
+    touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now),
+  ]);
   const had: Record<string, string> = {};
   const queued: Record<string, string> = {};
+  const held: Record<string, string> = {};
   const heard: Record<string, string> = {};
   const latest = (m: Record<string, string>, t: Touch) => {
     if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
   };
-  const week = now.getTime() - PLAYBOOK_BREATH_MS;
-  for (const t of touches) {
-    if (t.follow_up) latest(t.sent ? had : queued, t);
-    if (Date.parse(t.at) >= week) latest(heard, t);
-  }
-  return { run_hour: pb.data.run_hour, last_run_for: pb.data.last_run_for, asks: mode === "ask", had, queued, heard };
+  // Only who holds a proposal out: the rows the facts are for.
+  for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
+  for (const t of recent) if (out.contacts.has(t.contact_id)) latest(heard, t);
+  return {
+    run_hour: p.run_hour,
+    last_run_for: p.last_run_for,
+    asks: mode === "ask",
+    purpose: purposeOfTemplate(tpl.data?.category),
+    had,
+    queued,
+    held,
+    heard,
+  };
 }
 
 /** A cap no workspace reaches: the pool is counted, not capped. */
@@ -224,20 +281,17 @@ export async function triggerPools(
   const vms = rows.map((r) =>
     toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
   );
-  // Who already had their proposal's follow-up, from any playbook (proposalTouches, touchIndex): no run reaches them
-  // again for that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are
-  // on; unreadable, the moment is not counted.
+  // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
+  // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
+  // unreadable, the moment is not counted.
   const followUps = deals.on
-    ? await proposalTouches(ctx, tenantId, now).then(
-        (t) => touchIndex(t ?? []).followUps,
-        (e: unknown) => {
-          console.error(
-            "playbook_pools_follow_ups_failed",
-            JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
-          );
-          return null;
-        },
-      )
+    ? await proposalFollowUps(ctx, tenantId, now).catch((e: unknown) => {
+        console.error(
+          "playbook_pools_follow_ups_failed",
+          JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+        );
+        return null;
+      })
     : new Map<string, number>();
   const breath = {
     byThis: new Map<string, number>(),

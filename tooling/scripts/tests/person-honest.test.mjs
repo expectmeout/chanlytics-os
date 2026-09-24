@@ -2023,6 +2023,22 @@ test("where only an approved message can reach them, the card's follow-up opens 
       const stopped = (await profile(quiet(rowOver)))();
       assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
     }
+    // Where their People row says the proposal follow-up has them (0006): the day its run goes, and the card leads
+    // with no nudge of its own.
+    const keep = globalThis.window.__PEOPLE;
+    try {
+      const draw = await profile(quiet());
+      globalThis.window.__PEOPLE = {
+        ...(keep || {}),
+        rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
+      };
+      const inHand = draw();
+      assert.equal(textOf(byTestId(inHand, "person-deal-next")), "Mark as client");
+      const flag = find(inHand, (n) => n.type === globalThis.window.StatePill && n.props.testid === "person-deal-flag");
+      assert.deepEqual([flag.props.value, flag.props.label], ["info", "Follow-up to approve today"]);
+    } finally {
+      globalThis.window.__PEOPLE = keep;
+    }
   } finally {
     delete globalThis.sessionStorage;
   }

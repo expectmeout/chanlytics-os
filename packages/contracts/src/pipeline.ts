@@ -37,6 +37,7 @@ import {
 } from "./deals";
 import { repliesWords, type PersonRowVM, type PersonVM } from "./people";
 import { stepDayOf, stepIsDue, type StepDue } from "./steps";
+import { followUpWords } from "./playbooks";
 import type { Tone } from "./tone";
 
 export type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
@@ -232,11 +233,6 @@ export const PIPELINE_WORDS = {
   /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
   nothingBack: "Nothing back",
   /**
-   * A proposal waiting that the follow-up has in hand (0006): the day its run goes, and, where its runs wait for a
-   * person, that the owner approves it. "Nothing back" stays for the ones it will not reach.
-   */
-  followUp: (when: string, asks: boolean) => (asks ? `Follow-up to approve ${when}` : `Follow-up ${when}`),
-  /**
    * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
    * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
    */
@@ -298,7 +294,7 @@ function proposalChip(
 ): PipelineChip | null {
   if (waitingOnProposal(r, nowMs, pace))
     return r.followUp?.kind === "will"
-      ? { words: PIPELINE_WORDS.followUp(clockNear(r.followUp.atMs, tz, nowMs), r.followUp.asks), tone: "info" }
+      ? { words: followUpWords(r.followUp, tz, nowMs), tone: "info" }
       : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };

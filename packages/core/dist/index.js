@@ -2131,6 +2131,7 @@ var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -5320,6 +5321,20 @@ var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
 function followUpNames(r, nowMs, pace) {
   return waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url && nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS2;
 }
+function breathEndsAt(atMs) {
+  return atMs + PLAYBOOK_BREATH_MS2;
+}
+function breathHolds(atMs, nowMs) {
+  return nowMs < breathEndsAt(atMs);
+}
+function followUpIsFor(r, atMs) {
+  return atMs >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY);
+}
+function playbookRunStop(o) {
+  if (o.templateStatus !== "approved") return "template_not_approved";
+  if (!o.canSend) return "number_flagged";
+  return null;
+}
 function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
   const reach = {
     pool: 0,
@@ -5362,7 +5377,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS52;
-  const heardThis = (r, mine) => t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
+  const heardThis = (r, mine) => t.kind === "deal" ? followUpIsFor(r, mine) : nowMs - mine < gapMs;
   const picked = allowed.filter((r) => {
     const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
     if (mine !== void 0 && heardThis(r, mine)) {
@@ -5370,7 +5385,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
       return false;
     }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS2) {
+    if (any !== void 0 && breathHolds(any, nowMs)) {
       reach.heardAny += 1;
       return false;
     }
@@ -5414,6 +5429,7 @@ function parts(tz, now) {
 function localDate(tz, now) {
   return parts(tz, now).date;
 }
+var SWEEP_TICK_MS2 = 5 * 6e4;
 function nextOpenMoment(tz, when) {
   const { date, hour } = parts(tz, when);
   if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
@@ -7586,6 +7602,7 @@ var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -9008,8 +9025,8 @@ async function runPlaybook(ports, cmd) {
   } catch (e) {
     return { outcome: "failed", error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
-  if (!tpl || tpl.meta_status !== "approved") return off("template_not_approved");
-  if (!ctx.health.canSend) return off("number_flagged");
+  const stop = playbookRunStop({ templateStatus: tpl?.meta_status ?? null, canSend: ctx.health.canSend });
+  if (stop) return off(stop);
   if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok") return off("no_calendar");

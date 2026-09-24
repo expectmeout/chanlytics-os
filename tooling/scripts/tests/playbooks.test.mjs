@@ -733,8 +733,10 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
     run_hour: 11,
     last_run_for: null,
     asks: true,
+    purpose: "conversational",
     had: {},
     queued: {},
+    held: {},
     heard: {},
     ...over,
   });
@@ -749,24 +751,42 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
       ...over,
     });
   const stand = (r, f = facts()) => followUpStandOf(r, f, tz, now, null);
-  // In its next run: today at eleven, which waits for the owner under ask.
-  assert.deepEqual(stand(out("a")), { kind: "will", atMs: Date.parse("2026-09-08T15:00:00Z"), asks: true });
+  // The sweep ticks at five past each hour (00048's cron): a run at eleven goes at its 11:05 tick.
+  const at = (s) => Date.parse(s);
+  // In its next run: today's, which waits for the owner under ask.
+  assert.deepEqual(stand(out("a")), { kind: "will", atMs: at("2026-09-08T15:05:00Z"), asks: true });
   assert.equal(stand(out("a"), facts({ asks: false })).asks, false, "auto: it goes");
   // It ran today: tomorrow's.
-  assert.equal(stand(out("a"), facts({ last_run_for: "2026-09-08" })).atMs, Date.parse("2026-09-09T15:00:00Z"));
-  // A playbook reached them four days ago: the week's breath holds them to Friday's run; ending after Friday's hour,
+  assert.equal(stand(out("a"), facts({ last_run_for: "2026-09-08" })).atMs, at("2026-09-09T15:05:00Z"));
+  // A playbook reached them four days ago: the week's breath holds them to Friday's run; ending after Friday's tick,
   // to Saturday's.
-  assert.equal(stand(out("a"), facts({ heard: { a: iso(now - 4 * DAY) } })).atMs, Date.parse("2026-09-11T15:00:00Z"));
+  assert.equal(stand(out("a"), facts({ heard: { a: iso(now - 4 * DAY) } })).atMs, at("2026-09-11T15:05:00Z"));
   assert.equal(
     stand(out("a"), facts({ heard: { a: iso(now - 4 * DAY + 3 * HOUR) } })).atMs,
-    Date.parse("2026-09-12T15:00:00Z"),
+    at("2026-09-12T15:05:00Z"),
   );
-  // Already in a run on its way, or waiting for the owner: that run.
+  // The breath ending later today: today's run where it ends before the tick, tomorrow's where it ends after.
+  assert.equal(
+    stand(out("a"), facts({ heard: { a: iso(now - 7 * DAY + HOUR / 2) } })).atMs,
+    at("2026-09-08T15:05:00Z"),
+  );
+  assert.equal(
+    stand(out("a"), facts({ heard: { a: iso(now - 7 * DAY + 2 * HOUR) } })).atMs,
+    at("2026-09-09T15:05:00Z"),
+  );
+  // Already in a run: on its way, it goes; made to wait for the owner, it waits, whatever the class says now.
   assert.deepEqual(stand(out("a"), facts({ queued: { a: iso(now - HOUR) } })), {
+    kind: "will",
+    atMs: now - HOUR,
+    asks: false,
+  });
+  assert.deepEqual(stand(out("a"), facts({ asks: false, held: { a: iso(now - HOUR) } })), {
     kind: "will",
     atMs: now - HOUR,
     asks: true,
   });
+  // A run made for an older proposal is not this one's: the next run is.
+  assert.equal(stand(out("a"), facts({ held: { a: iso(now - 20 * DAY) } })).atMs, at("2026-09-08T15:05:00Z"));
   // This proposal's follow-up went: had it. An older proposal's is not this one's.
   assert.deepEqual(stand(out("a"), facts({ had: { a: iso(now - 2 * DAY) } })), { kind: "had", atMs: now - 2 * DAY });
   assert.equal(stand(out("a"), facts({ had: { a: iso(now - 20 * DAY) } })).kind, "will");
@@ -777,9 +797,18 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
   assert.equal(stand(out("d", { phone: null })), null);
   assert.equal(stand(out("e", { consent: { ...yes, state: "opted_out" } })), null);
   assert.equal(stand(out("f", { askedMs: now - DAY })), null, "they wrote since: not waiting");
-  // The run's own day: its hour passed today and it has not run, within the hour while the hours are open; after
-  // them, tomorrow at its hour.
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, now, now), now);
-  const late = Date.parse("2026-09-09T01:30:00Z"); // half past nine at night in New York, still the 8th
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, late, late), Date.parse("2026-09-09T13:00:00Z"));
+  // A follow-up whose template Meta filed as marketing reaches only whoever said yes to offers too, as its send judges.
+  const noOffers = out("g", { consent: { ...yes, marketing: "unknown" } });
+  assert.equal(stand(noOffers).kind, "will", "a utility template: their yes to hearing from you is enough");
+  assert.equal(stand(noOffers, facts({ purpose: "marketing" })), null);
+  assert.equal(stand(out("h"), facts({ purpose: "marketing" })).kind, "will", "a yes to offers too: it reaches them");
+  // The run's own day, as the sweep keeps it: its hour passed today and it has not run, the next tick while the hours
+  // are open, the last at five past eight at night; after them, tomorrow at its hour's tick.
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, now, now), now + 5 * 60_000);
+  const eight = at("2026-09-09T00:03:00Z"); // three past eight at night in New York, still the 8th
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, eight, eight), at("2026-09-09T00:05:00Z"));
+  const halfPast = at("2026-09-09T00:30:00Z"); // half past eight: the hours' last tick has gone
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, halfPast, halfPast), at("2026-09-09T13:05:00Z"));
+  const late = at("2026-09-09T01:30:00Z"); // half past nine at night
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, late, late), at("2026-09-09T13:05:00Z"));
 });

@@ -1322,6 +1322,7 @@ function parts(tz, now) {
 function localDate(tz, now) {
   return parts(tz, now).date;
 }
+var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -2638,11 +2639,18 @@ async function deleteList(db, id) {
 var RUN_IDS_PER_QUERY = 200;
 var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
 async function touchesSince(db, tenantId, since, now) {
+  return touchesOf(db, tenantId, since, now, false);
+}
+async function followUpTouchesSince(db, tenantId, since, now) {
+  return touchesOf(db, tenantId, since, now, true);
+}
+var FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
+async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   const [all, zone] = await Promise.all([
-    readAllRows(
-      "broadcasts",
-      (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
-    ),
+    readAllRows("broadcasts", (from, to) => {
+      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString());
+      return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
+    }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
       (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE,
       () => null
@@ -2675,6 +2683,7 @@ async function touchesSince(db, tenantId, since, now) {
         playbook_id: run.playbook_id,
         at,
         sent: r.state === "sent",
+        held: run.state === "pending_approval",
         follow_up: followUp.has(run.id)
       });
     }
@@ -2800,6 +2809,7 @@ export {
   dropFromList,
   emitEvent,
   everyoneIn,
+  followUpTouchesSince,
   getTenantConfig,
   ingestCall,
   ingestInbound,

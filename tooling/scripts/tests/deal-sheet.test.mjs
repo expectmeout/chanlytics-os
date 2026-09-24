@@ -898,6 +898,48 @@ test("the card says each open deal once: its steps, its link and whether it went
   );
 });
 
+test("where the proposal follow-up has them in hand (0006), the card says the day its run goes and leads with no nudge of its own; had it, or on another deal, the card says what it said", () => {
+  // By email, nothing back since it went: the card's own nudge, until the follow-up has them.
+  const quiet = (
+    followUp,
+    { deals = [dealDto()], lastIn = 12 * D, sent = [sentMsg(9 * D, { channel: "email" })] } = {},
+  ) => ({
+    ...person({
+      deals,
+      rowOver: { last_inbound_at: at(lastIn), latest_wa_inbound_at: null, message_channels: ["email"] },
+      messages: [msg("m1", lastIn, { channel: "email" }), ...sent],
+    }),
+    followUp,
+  });
+  const will = { kind: "will", atMs: NOW + 3 * H, asks: true };
+  let [card] = dealCardsOf(quiet(will), NOW, ZONE).cards;
+  assert.deepEqual(card.flags, [{ words: "Follow-up to approve today", tone: "info" }]);
+  assert.equal(card.next.id, "won", "the run follows up: a nudge of the card's own would be a second");
+  assert.ok(![card.next, ...card.more].some((a) => a.id === "follow-up"));
+  assert.equal(dealNextAct(quiet(will), NOW).id, "won");
+  [card] = dealCardsOf(quiet({ ...will, asks: false, atMs: NOW + D }), NOW, ZONE).cards;
+  assert.deepEqual(card.flags, [{ words: "Follow-up tomorrow", tone: "info" }], "auto: it goes");
+  // Had theirs, and still nothing back: the card's own, as before.
+  [card] = dealCardsOf(quiet({ kind: "had", atMs: NOW - 2 * D }), NOW, ZONE).cards;
+  assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn" }]);
+  assert.equal(card.next.id, "follow-up");
+  // Their row's standing is their current deal's: an older proposal beside it keeps its own words.
+  const SEO = "https://docs.example.com/p/dani-seo";
+  const both = quiet(will, {
+    deals: [
+      dealDto(),
+      dealDto({ id: "d2", service: "SEO", proposed_at: at(12 * D), created_at: at(12 * D), proposal_url: SEO }),
+    ],
+    lastIn: 14 * D,
+    sent: [sentMsg(12 * D, { channel: "email", body: proposalMessage(SEO) }), sentMsg(9 * D, { channel: "email" })],
+  });
+  assert.equal(both.deal.id, "d1", "their current deal: the newest proposal, as their row's");
+  assert.deepEqual(Object.fromEntries(dealCardsOf(both, NOW, ZONE).cards.map((c) => [c.title, c.flags])), {
+    "Ad management": [{ words: "Follow-up to approve today", tone: "info" }],
+    SEO: [{ words: "Nothing back in 12 days", tone: "warn" }],
+  });
+});
+
 /* ------------------------------------ the sheet, drawn by the shell's host ------------------------------------ */
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });

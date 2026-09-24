@@ -751,9 +751,11 @@ follow-up (0006, 00167) is offered only where deals are on: it names whoever is 
 rule and the workspace's pace, with a link to carry, and reaches each once per proposal (no gap), whichever
 playbook sent the follow-up; one per workspace. It is conversational, as a reminder is, carries the proposal's link
 in a slot or is not made, and keeps that link on each recipient row as a visit run keeps its words. Where one runs,
-each proposal waiting it will reach says so on the Pipeline, by the day its run goes ("Follow-up tomorrow"; "Follow-up
-to approve tomorrow" under ask), Today's proposals-waiting row counts only the ones it will not reach, and Ask lists
-and proposes it.
+each proposal waiting it will reach says so on the Pipeline and on its deal card, by the day its run goes
+("Follow-up tomorrow"; "Follow-up to approve tomorrow" under ask), and the card then offers no follow-up of its
+own. It says so only where its run would send: its template approved, its number not flagged, the workspace not
+paused, a WhatsApp number, and a yes to offers where Meta filed the message as marketing. Today's proposals-waiting
+row counts only the ones it will not reach, never naming someone who asked to stop, and Ask lists and proposes it.
 
 ## S-15 · Calendar and availability
 

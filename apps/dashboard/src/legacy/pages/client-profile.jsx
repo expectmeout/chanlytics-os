@@ -1368,6 +1368,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   }
 
   const p = vm;
+  // Where the proposal follow-up has them in hand (0006), their People row says so: the deal card then says when its
+  // run goes, and leads with no nudge of its own. People unread, the card says what it said.
+  const peopleRow = window.__PEOPLE && window.__PEOPLE.rows ? window.__PEOPLE.rows.find((r) => r.id === id) : null;
+  const dealP = peopleRow && peopleRow.followUp ? { ...p, followUp: peopleRow.followUp } : p;
   const tone = p.rightNow.tone;
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
   const canRecord = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
@@ -1622,7 +1626,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-body">
           {/* Their deal (0008), first, where the work with them is: a card per open deal and its one next act, or one
               quiet line. Nothing where deals are off. Its sends are the More menu's own path (openWith). */}
-          {window.PersonDealCard ? <window.PersonDealCard p={p} canRecord={canRecord} onCompose={openWith} flash={ppFlash} /> : null}
+          {window.PersonDealCard ? <window.PersonDealCard p={dealP} canRecord={canRecord} onCompose={openWith} flash={ppFlash} /> : null}
           {comingUp.length > 0 && (
             <section className="cl-prof-section cl-prof-up" aria-labelledby="person-coming-up-title" data-testid="person-coming-up">
               <h2 className="cl-prof-section-title" id="person-coming-up-title">Coming up</h2>

@@ -9473,6 +9473,20 @@ var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
 function followUpNames(r, nowMs, pace) {
   return waitingOnProposal(r, nowMs, pace) && !!r.deal?.proposal?.url && nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS;
 }
+function breathEndsAt(atMs) {
+  return atMs + PLAYBOOK_BREATH_MS;
+}
+function breathHolds(atMs, nowMs) {
+  return nowMs < breathEndsAt(atMs);
+}
+function followUpIsFor(r, atMs) {
+  return atMs >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY);
+}
+function playbookRunStop(o) {
+  if (o.templateStatus !== "approved") return "template_not_approved";
+  if (!o.canSend) return "number_flagged";
+  return null;
+}
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
   return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
 }
@@ -9518,7 +9532,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS5;
-  const heardThis = (r, mine) => t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
+  const heardThis = (r, mine) => t.kind === "deal" ? followUpIsFor(r, mine) : nowMs - mine < gapMs;
   const picked = allowed.filter((r) => {
     const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
     if (mine !== void 0 && heardThis(r, mine)) {
@@ -9526,7 +9540,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
       return false;
     }
     const any = touches.byAny.get(r.id);
-    if (any !== void 0 && nowMs - any < PLAYBOOK_BREATH_MS) {
+    if (any !== void 0 && breathHolds(any, nowMs)) {
       reach.heardAny += 1;
       return false;
     }
@@ -9573,36 +9587,46 @@ function localDate(tz, now) {
 function localHour(tz, now) {
   return parts(tz, now).hour;
 }
+var SWEEP_TICK_MS = 5 * 6e4;
+var HOUR_MS2 = 36e5;
+function sweepTickAtOrAfter(ms2) {
+  return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS2) * HOUR_MS2 + SWEEP_TICK_MS;
+}
 function followUpRunAt(f, tz, fromMs, nowMs) {
-  const from = Math.max(fromMs, nowMs);
   const today = zoneDayKey(nowMs, tz);
-  const day = zoneDayKey(from, tz);
-  if (day === today) {
-    if (f.last_run_for !== today) {
-      const at3 = wallClockAt(tz, today, f.run_hour, 0);
-      if (from <= at3) return at3;
-      if (localHour(tz, new Date(from)) <= PLAYBOOK_HOURS.max) return from;
-    }
-    return wallClockAt(tz, shiftKey(today, 1), f.run_hour, 0);
+  const p = { state: "running", run_hour: f.run_hour, last_run_for: f.last_run_for };
+  if (f.last_run_for !== today) {
+    const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
+    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
   }
-  const at2 = wallClockAt(tz, day, f.run_hour, 0);
-  return from <= at2 ? at2 : wallClockAt(tz, shiftKey(day, 1), f.run_hour, 0);
+  let day = shiftKey(today, 1);
+  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
+    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
+    if (fromMs <= tick) return tick;
+  }
+  return sweepTickAtOrAfter(fromMs);
 }
 function followUpStandOf(r, f, tz, nowMs, pace) {
   if (!followUpNames(r, nowMs, pace)) return null;
   if (whyNotReceive(r, purposeOfPlaybook("follow_up")) !== null) return null;
-  const since = r.deal?.sinceMs ?? Number.POSITIVE_INFINITY;
+  if (f.purpose === "marketing" && whyNotReceive(r, "marketing") !== null) return null;
   const when = (m) => {
     const ms2 = m[r.id] ? Date.parse(m[r.id]) : Number.NaN;
     return Number.isFinite(ms2) ? ms2 : null;
   };
   const had = when(f.had);
-  if (had !== null && had >= since) return { kind: "had", atMs: had };
+  if (had !== null && followUpIsFor(r, had)) return { kind: "had", atMs: had };
   const queued = when(f.queued);
-  if (queued !== null && queued >= since) return { kind: "will", atMs: queued, asks: f.asks };
+  if (queued !== null && followUpIsFor(r, queued)) return { kind: "will", atMs: queued, asks: false };
+  const held = when(f.held);
+  if (held !== null && followUpIsFor(r, held)) return { kind: "will", atMs: held, asks: true };
   const heard = when(f.heard);
-  const free = heard !== null ? heard + PLAYBOOK_BREATH_MS : nowMs;
+  const free = heard !== null ? breathEndsAt(heard) : nowMs;
   return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
+}
+function followUpWords(s, tz, nowMs) {
+  const day = clockNear(s.atMs, tz, nowMs);
+  return s.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
 }
 function nextOpenMoment(tz, when) {
   const { date, hour } = parts(tz, when);
@@ -13119,6 +13143,9 @@ function sentOf(p, deal) {
   if (deal.proposal && deal.proposal.sent !== void 0) return deal.proposal.sent ?? null;
   return p.proposal && p.proposal.url === url ? p.proposal.sent ?? null : null;
 }
+function followUpOn(p, deal) {
+  return deal === p.deal || deal.id !== null && deal.id === p.deal?.id ? p.followUp ?? null : null;
+}
 function dealNextAct(p, nowMs, deal = p.deal) {
   if (!deal || deal.stage === "ended") return act("propose", { service: consultedService(p) });
   if (deal.stage === "won") return null;
@@ -13130,7 +13157,7 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   const sent = sentOf(p, deal);
   const words4 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
   if (!sent && send.reach) return act("send", words4(proposalMessage(url)));
-  if (sent && send.reach && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
+  if (sent && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
     return act("follow-up", words4(proposalFollowUp(url)));
   return act("won");
 }
@@ -13229,8 +13256,12 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
     if (p.dealPace) facts.push(p.dealPace.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
-    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
-      flags.push({ words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" });
+    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)) {
+      const fu = followUpOn(p, deal);
+      flags.push(
+        fu?.kind === "will" ? { words: followUpWords(fu, tz, nowMs), tone: "info" } : { words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" }
+      );
+    }
   }
   const others = won ? [act("ended")] : [act("won"), act("lost"), act("edit")];
   const nextMode = next ? next.mode : null;
@@ -13665,11 +13696,6 @@ var PIPELINE_WORDS = {
   /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
   nothingBack: "Nothing back",
   /**
-   * A proposal waiting that the follow-up has in hand (0006): the day its run goes, and, where its runs wait for a
-   * person, that the owner approves it. "Nothing back" stays for the ones it will not reach.
-   */
-  followUp: (when, asks) => asks ? `Follow-up to approve ${when}` : `Follow-up ${when}`,
-  /**
    * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
    * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
    */
@@ -13710,7 +13736,7 @@ var daysWords = (days) => days === null ? "" : `${days} d`;
 var zoneOf = (r, tz) => r.calendarTz || tz;
 function proposalChip(r, d, tz, nowMs, pace) {
   if (waitingOnProposal(r, nowMs, pace))
-    return r.followUp?.kind === "will" ? { words: PIPELINE_WORDS.followUp(clockNear(r.followUp.atMs, tz, nowMs), r.followUp.asks), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
+    return r.followUp?.kind === "will" ? { words: followUpWords(r.followUp, tz, nowMs), tone: "info" } : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
   if (heardSinceProposal(r) && r.askedMs !== null)
     return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
   if (d.validUntil) return { words: d.validUntil.words, tone: d.validUntil.lapsed ? "warn" : "plain" };
@@ -15376,7 +15402,8 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs =
       icon: "clock",
       text,
       math,
-      people: inHand ? waiting.slice(0, 2).flatMap(
+      // Never someone who asked to stop: a follow-up is not theirs to be sent, by hand or at all.
+      people: inHand ? waiting.filter((r) => !isOptedOutContact({ consent: r.consent.state, dnc: r.consent.dnc })).slice(0, 2).flatMap(
         (r) => r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : []
       ) : [],
       peopleLead: inHand ? "Yours to follow up" : null,
@@ -20627,6 +20654,8 @@ export {
   bookingRulesWords,
   bookingTemplate,
   brainMetaOf,
+  breathEndsAt,
+  breathHolds,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
@@ -20789,9 +20818,11 @@ export {
   fmtDay,
   fmtSeconds,
   foldName,
+  followUpIsFor,
   followUpNames,
   followUpRunAt,
   followUpStandOf,
+  followUpWords,
   footerOf,
   forWords,
   formatPhoneDisplay,
@@ -21071,6 +21102,7 @@ export {
   playbookReach,
   playbookReachDoor,
   playbookRunReach,
+  playbookRunStop,
   playbooksStillSending,
   pointsDelta,
   policyAskClass,

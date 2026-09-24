@@ -55,7 +55,7 @@ import {
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListsFor, touchIndex } from "@chanlytics/db";
+import { listPolicies, savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import {
   CALL_COLUMNS,
@@ -69,7 +69,7 @@ import { audiencePoolOnce } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { listSearches } from "../leads";
 import { metricsSummaryFor } from "../metrics";
-import { listPlaybooks, proposalTouches } from "../playbooks";
+import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { calendarWeek } from "../calendar";
 import { tenantFacts } from "../tenant";
 import { openingsFor } from "./openings";
@@ -1071,7 +1071,7 @@ const MODE_WORDS: Record<string, string> = {
  * composer's chips carry.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [rows, facts, policies, pool, paceRead, proposals] = await Promise.all([
+  const [rows, facts, policies, pool, paceRead, followUps] = await Promise.all([
     listPlaybooks(t.ctx, t.tenantId),
     tenantFacts(t.ctx.supabase, t.tenantId),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
@@ -1079,10 +1079,9 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     // A proposal's moment is counted as the page counts it (0006): by the workspace's pace, leaving out whoever
     // already had their follow-up, from any playbook. Unreadable, that moment is not counted.
     dealPaceRead(t.ctx, t.tenantId, t.now),
-    proposalTouches(t.ctx, t.tenantId, t.now).catch(() => undefined),
+    proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null),
   ]);
   const pace = pool.deals_on ? dealPaceOf(paceRead) : null;
-  const followUps = proposals === undefined ? null : touchIndex(proposals ?? []).followUps;
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.

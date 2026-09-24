@@ -68,12 +68,12 @@ import {
   triggerOf,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListFor, touchIndex } from "@chanlytics/db";
+import { listPolicies, savedListFor } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
 import { audiencePoolOnce } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
-import { checkPlaybookInput, proposalTouches } from "../playbooks";
+import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
 
 /**
@@ -960,19 +960,19 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   }
 
   const deal = trig.kind === "deal";
-  const [rows, policies, paceRead, proposals] = await Promise.all([
+  const [rows, policies, paceRead, followUps] = await Promise.all([
     audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now).then((pool) => pool.rows),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
-    deal ? proposalTouches(t.ctx, t.tenantId, t.now).catch(() => undefined) : Promise.resolve(null),
+    deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(new Map<string, number>()),
   ]);
-  if (proposals === undefined)
+  if (!followUps)
     return refuse("who already had a proposal follow-up could not be read just now; say so, and try again in a moment");
   const untouched = {
     byThis: new Map<string, number>(),
     byAny: new Map<string, number>(),
-    followUps: touchIndex(proposals ?? []).followUps,
+    followUps,
   };
   // Who a run reaches now, and who its moment names said the yes it needs: the card said "0 on the list said yes
   // now" about a list whose yes had no number to send to. Said in the send screen's words (saidYesWords).

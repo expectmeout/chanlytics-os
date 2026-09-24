@@ -725,7 +725,7 @@ const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge
 installClock();
 
 /** People over the wire, as GET contacts answers: whether deals are on here, and any view saved (which lands in `viewSaves`). */
-const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPace = null }) => {
+const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPace = null, followUp = null }) => {
   const seen = { viewSaves: [] };
   globalThis.window.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
@@ -746,6 +746,7 @@ const wire = ({ people, dealsOn, total = people.length, hasMore = false, dealPac
           booking_link: null,
           deals_on: dealsOn,
           deal_pace: dealPace,
+          follow_up: followUp,
         },
       });
     if (u.pathname === "/api/v1/segments") return json(200, { ok: true, data: { lists: [] } });
@@ -935,8 +936,15 @@ const peopleNow = () => {
 };
 
 /** People published by the real surface over the wire, and a page with nothing drawn yet. */
-const fresh = async ({ people = peopleNow(), dealsOn = true, total, hasMore, dealPace = null } = {}) => {
-  const seen = wire({ people, dealsOn, total, hasMore, dealPace });
+const fresh = async ({
+  people = peopleNow(),
+  dealsOn = true,
+  total,
+  hasMore,
+  dealPace = null,
+  followUp = null,
+} = {}) => {
+  const seen = wire({ people, dealsOn, total, hasMore, dealPace, followUp });
   await quietly(() => peopleOverride.apply());
   cells = [];
   went.length = 0;
@@ -3079,6 +3087,40 @@ test("the peek's card judges its wait by People's pace, as the rows beside it do
   const card = byTestId(peekOf(tree), "person-deal-card");
   assert.ok(card, "the person page's own card, in the peek");
   assert.equal(byTestId(card, "person-deal-flag"), null, "nine days is within People's pace: nothing back is not said");
+});
+
+test("the peek's card says the follow-up has them where their row does (0006): the day its run goes, and no nudge of its own", async () => {
+  // People's facts: a follow-up running under ask that has reached nobody yet. Wes's proposal went eleven days ago
+  // with its link, and nothing back: in its next run.
+  await fresh({
+    followUp: {
+      run_hour: 10,
+      last_run_for: null,
+      asks: true,
+      purpose: "conversational",
+      had: {},
+      queued: {},
+      held: {},
+      heard: {},
+    },
+  });
+  const W = globalThis.window;
+  assert.equal(W.__PEOPLE.rows.find((r) => r.id === "wes").followUp?.kind, "will", "their row: in a run to come");
+  W.__peekPerson = () => null;
+  W.__personDetail = (id) => {
+    const p = personFor(id);
+    const went = { at: new Date(Date.now() - 11 * 86_400_000).toISOString(), via: "WhatsApp" };
+    return Promise.resolve({ ...p, proposal: p.proposal ? { ...p.proposal, sent: went } : null });
+  };
+  W.openDealSheet = () => true;
+  let tree = draw();
+  find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
+  draw();
+  await tick();
+  tree = draw();
+  const card = byTestId(peekOf(tree), "person-deal-card");
+  assert.match(textOf(byTestId(card, "person-deal-flag")), /^Follow-up to approve /);
+  assert.equal(textOf(byTestId(card, "person-deal-next")), "Mark as client", "the run follows up: no second nudge");
 });
 
 test("a proposal waiting that the follow-up has in hand says the day its run goes, and whether it waits on the owner (0006); the rest keep Nothing back", () => {

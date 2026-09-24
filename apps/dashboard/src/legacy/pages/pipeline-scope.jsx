@@ -403,7 +403,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // The peek's card judges its wait by People's pace, as the rows beside it do: the person read has its own, which
   // a yes recorded on someone else since would leave behind.
   const peekRead = peek && peek.id === peekId ? peek.person : null;
-  const person = React.useMemo(() => (peekRead ? { ...peekRead, dealPace: pace } : null), [peekRead, pace]);
+  // And where it stands with the proposal follow-up (0006), as its row says: the card then says when the run goes,
+  // and leads with no nudge of its own.
+  const followUp = peekRow ? peekRow.row.person.followUp || null : null;
+  const person = React.useMemo(() => (peekRead ? { ...peekRead, dealPace: pace, followUp } : null), [peekRead, pace, followUp]);
   const line = loaded ? [...all.line, { words: loaded, view: null, tone: null }] : all.line;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">

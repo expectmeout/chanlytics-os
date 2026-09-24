@@ -43,6 +43,7 @@ import {
 } from "./deals";
 import { clipAtWord } from "./viewmodels";
 import { pipelineRoute } from "./pipeline";
+import { isOptedOutContact } from "./consent";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
 import { formatPhoneDisplay } from "./phone";
@@ -1994,8 +1995,10 @@ export function todayLeaks(
       icon: "clock",
       text,
       math,
+      // Never someone who asked to stop: a follow-up is not theirs to be sent, by hand or at all.
       people: inHand
         ? waiting
+            .filter((r) => !isOptedOutContact({ consent: r.consent.state, dnc: r.consent.dnc }))
             .slice(0, 2)
             .flatMap((r) =>
               r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : [],
