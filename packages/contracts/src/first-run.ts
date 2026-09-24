@@ -150,16 +150,16 @@ export const FIRST_RUN_WORDS = {
     basics: "Tell us the basics",
     basicsLead: "Your receptionist answers from this. You can add more later in Settings › Business.",
     /** No receptionist yet: the owner's one press, and where it starts from. */
-    makeListed:
-      "Your receptionist starts from your Google listing: its hours, address and website, which you can change here.",
+    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
     makeNamed: (name: string | null) =>
       `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
     make: "Set up your receptionist",
     making: "Setting up…",
     notMade: "Not set up",
     ownerSetsUp: "An owner sets up the receptionist here.",
-    /** Made, but the settings read has not brought it yet. */
+    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
     reading: "Reading your receptionist…",
+    failedWhat: "your receptionist",
     /** The onward, once what it answers from is checked. */
     looksRight: "Looks right",
     /** Not on Google, said, where Google can be searched: the way back to Find. */
@@ -324,54 +324,55 @@ export function firstRunOf(vm: SetupVM, at?: string | null, who?: FirstRunWho): 
         find: vm.findable && who?.owner ? { label: C.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
       }
     : null;
-  // One coral button a step: its first open row's while it asks something, else Continue or Finish. Find's own button
-  // is the step's while it shows: no onward beside it, and no rows. Check's is Looks right, held until the step is
-  // done, or its press while there is no receptionist to check.
+  // What the step on screen is, said once: its heading, its lead and its one coral button (onward). Find's button is
+  // its own, so no onward beside it. Check's is Looks right, held until the step is done, and none while there is no
+  // receptionist to check (its press is the button then). Live's is Finish; any other step's is Continue once it is
+  // done, and its first open row's while it asks something (primaryRow).
+  const F = FIRST_RUN_WORDS.find;
   const facts = rowOf(vm, "facts");
-  const onward = find
-    ? null
-    : final
-      ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null }
-      : check
-        ? made
-          ? {
-              label: C.looksRight,
-              to: FIRST_RUN_ROUTE,
-              leaves: false,
-              held: shown.state === "done" ? null : (facts?.sentence ?? null),
-            }
-          : null
-        : shown.state === "done"
-          ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null }
-          : null;
+  const face: Pick<FirstRunVM, "heading" | "lead" | "onward"> = find
+    ? {
+        heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
+        lead: who?.receptionistName ? F.leadOnRecord : F.lead,
+        onward: null,
+      }
+    : check
+      ? {
+          heading: vm.check.listed ? C.found : C.basics,
+          lead: vm.check.listed ? C.foundLead : C.basicsLead,
+          onward: made
+            ? {
+                label: C.looksRight,
+                to: FIRST_RUN_ROUTE,
+                leaves: false,
+                held: shown.state === "done" ? null : (facts?.sentence ?? null),
+              }
+            : null,
+        }
+      : final
+        ? {
+            heading: FIRST_RUN_WORDS.liveHeading,
+            lead: vm.readiness.sentence,
+            onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null },
+          }
+        : {
+            heading: def.name,
+            lead: def.lead,
+            onward:
+              shown.state === "done"
+                ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null }
+                : null,
+          };
+  const onward = face.onward;
   const primary =
     onward || find || check ? null : (shown.rows.find((r) => r.state !== "ready" && !r.later && r.verb) ?? null);
-  const W = FIRST_RUN_WORDS.find;
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: find
-      ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName))
-      : check
-        ? vm.check.listed
-          ? C.found
-          : C.basics
-        : final
-          ? FIRST_RUN_WORDS.liveHeading
-          : def.name,
-    lead: find
-      ? who?.receptionistName
-        ? W.leadOnRecord
-        : W.lead
-      : check
-        ? vm.check.listed
-          ? C.foundLead
-          : C.basicsLead
-        : final
-          ? vm.readiness.sentence
-          : def.lead,
+    heading: face.heading,
+    lead: face.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round((shown.number / FIRST_RUN_STEPS.length) * 100),
     primaryRow: primary ? primary.id : null,

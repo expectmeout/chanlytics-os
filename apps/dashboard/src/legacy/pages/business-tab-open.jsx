@@ -17,8 +17,8 @@
 // and the gestures every row and fold share are BtRow and BtFold (business-tab-gestures.jsx), read from window as each
 // card draws.
 //
-// The week's row is a component of its own (BtHoursRow), and so is the zone's (BtZoneRow): the first run's Check draws
-// both too (first-run.jsx), so the two screens never disagree.
+// The week's row is a component of its own (BtoHoursRow, published as BtHoursRow), and so is the zone's (BtoZone,
+// published as BtZoneRow): the first run's Check draws both too (first-run.jsx), so the two screens never disagree.
 //
 // Loaded after business-tab-gestures.jsx and before business-tab.jsx (both load lists), and read there as
 // window.BtOpenCard. Its top-level names are bto-prefixed, and no pattern in it holds an object rest, for the reasons
@@ -245,7 +245,7 @@ const btoWorkspaceZone = () => {
  * drawn under the row at rest, for a screen that has more to say of the week (the first run's Check names the days
  * whose hours Google gives in a way the week cannot hold).
  */
-const BtHoursRow = ({ brain, prompt = null, canEdit, flash, saver, note = null }) => {
+const BtoHoursRow = ({ brain, prompt = null, canEdit, flash, saver, note = null }) => {
   const tab = window.__businessTab || {};
   const toldIn = (prompt && prompt.tz) || btoWorkspaceZone();
   const hoursLine = btoHoursLine((brain.profile || {}).hours);
@@ -314,8 +314,10 @@ const btoZoneBox = (T) => ({ draft, set, field, readOnly, open }) => {
   );
 };
 
-const BtoZone = ({ brain, canEdit, gate, flash }) => {
+const BtoZone = ({ brain, canEdit, flash }) => {
   const current = btoWorkspaceZone();
+  // Its own gate, wherever it is drawn: the tab's card, the create card and the first run's Check say it alike.
+  const gate = window.gate("settings", "change the timezone");
   const T = window.__tz || {};
   const zone = window.__businessTabSave.zone;
   const Row = window.BtRow;
@@ -634,9 +636,9 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
         <span className="rec-card-sub">{tab.openWeekWords ? tab.openWeekWords(profile.hours, wsZone) : null}</span>
       </div>
 
-      <BtHoursRow brain={brain} prompt={prompt} {...shared} />
+      <BtoHoursRow brain={brain} prompt={prompt} {...shared} />
 
-      <BtoZone brain={brain} canEdit={canEdit} gate={gate("the timezone")} flash={flash} />
+      <BtoZone brain={brain} canEdit={canEdit} flash={flash} />
 
       <Fold
         {...shared}
@@ -674,4 +676,4 @@ const BtOpenCard = ({ brain, config = null, prompt = null, canEdit, flash, saver
 
 // The zone's row too, for the other places it is drawn: a workspace with no receptionist yet, whose day it decides all
 // the same (business-tab-create.jsx), and the first run's Check, beside the week (first-run.jsx), as the week's row is.
-Object.assign(window, { BtOpenCard, BtZoneRow: BtoZone, BtHoursRow });
+Object.assign(window, { BtOpenCard, BtZoneRow: BtoZone, BtHoursRow: BtoHoursRow });

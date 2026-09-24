@@ -442,20 +442,9 @@ test("a config change records who and what, and neither is the values", async ()
   assert.equal(lastChangedName({ display_name: "  ", email: "bo.chen@example.com" }), "bo.chen");
   assert.equal(lastChangedName({ display_name: null, email: null }), "a member");
 
-  // The row itself is written by one helper (server/settings-write.ts), which the first receptionist's route records
-  // with too; settings-routes.test.mjs runs the PUT and reads the row it wrote: its fields, its author and its version,
-  // and never the business's own words.
-  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
-  assert.ok(
-    route.includes(
-      "await recordSettingsChanged(ctx, member.tenantId, before?.config, parsed.data, result.row.version);",
-    ),
-    "the change lands in the ledger every other consequential act does",
-  );
-  assert.ok(
-    route.includes("putTenantConfig(ctx.supabase, member.tenantId, parsed.data as Json, body.version, ctx.userId)"),
-    "and the row itself records its author",
-  );
+  // The change lands in the ledger every other consequential act does, and the config row records its author:
+  // settings-routes.test.mjs runs the PUT and reads both rows it wrote (its fields, its author and its version, and
+  // never the business's own words), and first-receptionist.test.mjs the first receptionist's.
 
   const mig = readRaw("supabase/migrations/00085_config_audit.sql");
   assert.ok(

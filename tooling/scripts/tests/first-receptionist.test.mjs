@@ -1,8 +1,8 @@
 /**
- * The first receptionist (the first run's Check): POST /api/v1/settings/receptionist, run through route() with a
- * database in memory. It sets the receptionist up from what is known -- Google's listing when one is linked, the name
- * typed at sign-up otherwise -- and only where none is: what is proved is the policy it declares, what it writes, and
- * what it refuses to touch.
+ * The receptionist from what is known (the first run's Check): POST /api/v1/settings/receptionist, run through route()
+ * with a database in memory. It sets the receptionist up where there is none -- from Google's listing when one is
+ * linked, the name typed at sign-up otherwise -- and fills what Google says into one that states none of it: what is
+ * proved is the policy it declares, what it writes, and what it refuses to touch.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -77,7 +77,7 @@ test("the policy: a write, the workspace's, the owner's, counted with the settin
 test("with a listing linked and no receptionist, the receptionist is Google's: written at the next version, by its author, and recorded", async () => {
   const t = tables({ config: { notifications: { escalation_emails: ["ada@example.com"] } }, listing: LISTED });
   const out = await receptionist.POST.run(post(), ctxFor(t));
-  assert.deepEqual(out, { made: true });
+  assert.deepEqual(out, { wrote: true });
   const row = t.tenant_config[0];
   assert.deepEqual([row.version, row.updated_by], [5, USER]);
   const saved = parseTenantConfig(row.config);
@@ -109,22 +109,45 @@ test("with a listing linked and no receptionist, the receptionist is Google's: w
 
 test("not on Google, the receptionist is the name typed at sign-up, with the product's own prompt and messages", async () => {
   const t = tables();
-  assert.deepEqual(await receptionist.POST.run(post(), ctxFor(t)), { made: true });
+  assert.deepEqual(await receptionist.POST.run(post(), ctxFor(t)), { wrote: true });
   const saved = parseTenantConfig(t.tenant_config[0].config);
   assert.equal(saved.brain.business_name, "Harbor Moving");
   assert.deepEqual(saved.brain.fallbacks, FALLBACK_DEFAULTS);
   assert.equal(saved.brain.profile, undefined, "nothing is known beyond the name");
 });
 
-test("a receptionist already set up is never replaced, and a config that cannot be read is never written over", async () => {
+test("a receptionist already set up is never replaced: Google fills only what it states none of, and nothing when it states it all", async () => {
   const brain = {
     business_name: "Harbor Moving",
     system_prompt: "You are the receptionist for Harbor Moving, which quotes each move before it is booked.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
   };
-  const set = ctxFor(tables({ config: { brain }, listing: LISTED }));
-  assert.deepEqual(await receptionist.POST.run(post(), set), { made: false });
+  // Set up with the name alone (not on Google, said), and the listing linked after: Google's facts are filled in.
+  const t = tables({ config: { brain }, listing: LISTED });
+  assert.deepEqual(await receptionist.POST.run(post(), ctxFor(t)), { wrote: true });
+  const filled = parseTenantConfig(t.tenant_config[0].config).brain;
+  assert.equal(filled.business_name, "Harbor Moving", "its own name stays");
+  assert.equal(filled.system_prompt, brain.system_prompt, "and its own words");
+  assert.deepEqual(Object.keys(filled.profile).sort(), ["address", "hours", "website"]);
+  assert.deepEqual(
+    t.events.map((e) => e.data.fields),
+    [["address", "hours", "website"]],
+  );
+  // Everything Google gives is stated already: nothing written, and the owner's own facts stand.
+  const own = {
+    ...brain,
+    profile: {
+      address: "1 Dock St, Brooklyn, NY 11201",
+      website: "https://harbor-own.example.com/",
+      hours: { mon: {} },
+    },
+  };
+  const set = ctxFor(tables({ config: { brain: own }, listing: LISTED }));
+  assert.deepEqual(await receptionist.POST.run(post(), set), { wrote: false });
   assert.equal(writes(set), 0, "nothing written");
+  const unlinked = ctxFor(tables({ config: { brain } }));
+  assert.deepEqual(await receptionist.POST.run(post(), unlinked), { wrote: false }, "no listing: nothing to add");
+  assert.equal(writes(unlinked), 0);
   const broken = ctxFor(tables({ config: "nonsense", listing: LISTED }));
   await refused(receptionist.POST.run(post(), broken), "conflict", 409, "could not be read");
   assert.equal(writes(broken), 0);
@@ -138,7 +161,7 @@ test("only an owner sets it up", async () => {
   assert.equal(writes(ctx), 0);
 });
 
-test("a colleague who set one up first wins: the answer is that none was made; a save of something else is the settings' own conflict", async () => {
+test("a colleague who set one up first wins: nothing is written over theirs; a save of something else is the settings' own conflict", async () => {
   const brain = {
     business_name: "Harbor Moving Co",
     system_prompt: "You are the receptionist for Harbor Moving Co, answering customers in a warm, short way.",
@@ -157,7 +180,7 @@ test("a colleague who set one up first wins: the answer is that none was made; a
     return { t, ctx };
   };
   const first = race({ brain });
-  assert.deepEqual(await receptionist.POST.run(post(), first.ctx), { made: false });
+  assert.deepEqual(await receptionist.POST.run(post(), first.ctx), { wrote: false });
   assert.equal(
     parseTenantConfig(first.t.tenant_config[0].config).brain.business_name,
     "Harbor Moving Co",

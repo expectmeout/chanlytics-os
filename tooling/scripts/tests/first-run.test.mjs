@@ -32,6 +32,7 @@ import {
   newReceptionistDefaults,
   TenantConfigWriteSchema,
   unsureHoursWords,
+  googleFillsOf,
 } from "@chanlytics/contracts";
 import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from "@chanlytics/channels";
 
@@ -55,7 +56,16 @@ const VOICE = "+13055550124";
 const WA = "+13055550123";
 const HANDOFF = "+13055550100";
 const empty = (over = {}) => ({
-  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  business: {
+    name: null,
+    hours: false,
+    services: 0,
+    bookingLink: false,
+    address: false,
+    handoff: null,
+    broken: false,
+    receptionist: "none",
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
     voice: { present: false, active: false, number: null, lastInboundAt: null },
@@ -76,6 +86,7 @@ const facts = {
   address: true,
   handoff: HANDOFF,
   broken: false,
+  receptionist: "set",
 };
 const live = (over = {}) =>
   empty({
@@ -445,7 +456,7 @@ const googleSaid = (over = {}) => ({
 });
 const listed = (said = {}, over = {}) => ({
   name: "Harbor Moving & Storage",
-  address: "2150 NW 2nd Ave, Miami, FL 33127",
+  address: "12 Pier Rd, Brooklyn, NY 11231",
   facts: googleSaid(said),
   ...over,
 });
@@ -492,7 +503,7 @@ test("the first receptionist is what Google says: the listing's name, its week w
         sat: NINE_TO_SEVEN,
         sun: {},
       },
-      address: "2150 NW 2nd Ave, Miami, FL 33127",
+      address: "12 Pier Rd, Brooklyn, NY 11231",
       website: "https://harbor.example.com/",
     },
   });
@@ -523,6 +534,23 @@ test("what the record cannot hold is left out: a service area has no address, a 
     firstReceptionistOf({ workspaceName: null, listing: listed({ website: "harbor dot com" }) }).profile.website,
     undefined,
   );
+});
+
+test("a receptionist set up before its listing was linked takes what Google says where it states nothing, and never over what is there", () => {
+  const byName = firstReceptionistOf({ workspaceName: "Harbor Moving", listing: null });
+  const filled = googleFillsOf(byName, listed());
+  assert.equal(filled.business_name, "Harbor Moving", "its own name stays");
+  assert.deepEqual(Object.keys(filled.profile).sort(), ["address", "hours", "website"]);
+  assert.equal(filled.profile.address, "12 Pier Rd, Brooklyn, NY 11231");
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain: filled }).success);
+  const own = { ...byName, profile: { hours: { mon: NINE_TO_SEVEN }, website: "https://harbor-own.example.com/" } };
+  const kept = googleFillsOf(own, listed());
+  assert.deepEqual(kept.profile.hours, { mon: NINE_TO_SEVEN }, "the owner's week is theirs");
+  assert.equal(kept.profile.website, "https://harbor-own.example.com/");
+  assert.equal(kept.profile.address, "12 Pier Rd, Brooklyn, NY 11231", "and only what it lacks is filled");
+  const whole = { ...own, profile: { ...own.profile, address: "1 Dock St, Brooklyn, NY 11201" } };
+  assert.equal(googleFillsOf(whole, listed()), null, "nothing to add");
+  assert.equal(googleFillsOf(byName, null), null, "no listing, nothing to add");
 });
 
 test("not on Google, the first receptionist is the name typed at sign-up and nothing more; with no name at all there is none", () => {
@@ -558,6 +586,7 @@ const harbor = (business = {}, google = {}) =>
       address: true,
       handoff: null,
       broken: false,
+      receptionist: "set",
       ...business,
     },
     google: { ready: true, places: true, listing: LISTING, connected: false, unsure: [], ...google },
@@ -599,13 +628,12 @@ test("Check with nothing on Google asks for the basics, and offers Find again wh
 });
 
 test("Check with no receptionist yet: an owner is offered the one press, from Google or from the name typed at sign-up; anyone else is told an owner does it", () => {
-  const none = { name: null, hours: false, address: false };
+  const none = { name: null, hours: false, address: false, receptionist: "none" };
   const listed = firstRunOf(setupSteps(harbor(none), NOW), null, { ...OWNER, receptionistName: null });
   assert.deepEqual(listed.check, {
     made: false,
     make: {
-      sentence:
-        "Your receptionist starts from your Google listing: its hours, address and website, which you can change here.",
+      sentence: "Your receptionist starts from what your Google listing says, and you check it here.",
       cta: "Set up your receptionist",
       busy: "Setting up…",
     },
@@ -626,7 +654,7 @@ test("Check with no receptionist yet: an owner is offered the one press, from Go
 });
 
 test("a config that cannot be read is no Check: Setup's facts row asks for the repair, as it does on Setup", () => {
-  const fr = firstRunOf(setupSteps(harbor({ broken: true }), NOW), null, OWNER);
+  const fr = firstRunOf(setupSteps(harbor({ broken: true, receptionist: "broken" }), NOW), null, OWNER);
   assert.equal(fr.check, null);
   assert.equal(fr.heading, "Your business");
   assert.equal(fr.primaryRow, "facts");

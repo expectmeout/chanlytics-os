@@ -11,7 +11,16 @@ import { hookFrames } from "./_hook-frames.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const blank = {
-  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  business: {
+    name: null,
+    hours: false,
+    services: 0,
+    bookingLink: false,
+    address: false,
+    handoff: null,
+    broken: false,
+    receptionist: "none",
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
     voice: { present: false, active: false, number: null, lastInboundAt: null },
@@ -32,6 +41,7 @@ const withFacts = {
     address: true,
     handoff: null,
     broken: false,
+    receptionist: "set",
   },
 };
 const answering = {
@@ -74,7 +84,7 @@ globalThis.window = {
     later: async () => ({ ok: true, message: "" }),
     receptionist: async () => {
       receptionistAsked.push(1);
-      return receptionistSays ?? { ok: true, made: true, message: "" };
+      return receptionistSays ?? { ok: true, wrote: true, message: "" };
     },
   },
   __WORKSPACES: [{ id: "w1", name: "Harbor Moving", timezone: "America/New_York" }],
@@ -133,6 +143,11 @@ function mount() {
           cells[k] = typeof v === "function" ? v(cells[k]) : v;
         },
       ];
+    },
+    useRef: (init) => {
+      const k = frames.key();
+      if (!(k in cells)) cells[k] = { current: init };
+      return cells[k];
     },
     useReducer: (red, init) => {
       const k = frames.key();
@@ -408,7 +423,7 @@ test("Check with no receptionist: the owner's press asks for it, once while it i
   assert.equal(textOf(busy), "Setting up…");
   busy.props.onClick();
   assert.equal(receptionistAsked.length, before + 1, "a second press while it is out asks for nothing");
-  answer({ ok: false, made: false, message: "Only an owner can do this." });
+  answer({ ok: false, wrote: false, message: "Only an owner can do this." });
   await going;
   receptionistSays = null;
   assert.equal(textOf(flashes.at(-1).msg), "Not set up — Only an owner can do this.");

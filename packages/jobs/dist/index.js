@@ -2278,6 +2278,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 
 // ../channels/dist/index.js
 import { z as z10 } from "zod";
@@ -9325,6 +9326,7 @@ var K2 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -12463,6 +12465,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -14682,6 +14685,7 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
 z112.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -16770,6 +16774,7 @@ var K32 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -19430,6 +19435,7 @@ var K4 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

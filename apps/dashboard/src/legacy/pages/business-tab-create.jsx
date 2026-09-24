@@ -157,7 +157,7 @@ const BtCreateCard = ({ flash = () => {} }) => {
         body={(f) => <BtcFields {...f} line={line} handoff={handoff} kept={kept} buys={buys} />}
         after={buys ? (draft) => btcSendAnswer({ draft, stored, buys, flash }) : null}
       />
-      <window.BtZoneRow brain={{}} canEdit={canEdit} gate={window.gate("settings", "change the timezone")} flash={flash} />
+      <window.BtZoneRow brain={{}} canEdit={canEdit} flash={flash} />
     </section>
   );
 };

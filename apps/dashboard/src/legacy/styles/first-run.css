@@ -107,12 +107,12 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
 .fr-check { display: grid; gap: 16px; }
 .fr-check-card { padding-top: 6px; }
 .fr-check-card > .rec-row:first-child { border-top: 0; }
-.fr-check-buys { padding: 12px 0 14px; }
+.fr-check-buys { display: grid; gap: 10px; padding: 12px 0 14px; }
 .fr-check-note { margin: 0; font-size: 13px; line-height: var(--leading-relaxed); color: var(--ink-dim); }
-.fr-check-unsure { display: block; margin-top: 4px; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-muted); }
+.fr-check-unsure { flex: 1 1 100%; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-muted); }
 .fr-check-make { display: grid; gap: 14px; justify-items: start; }
 /* Looks right, held until the step is done: in reach, with why beside it. */
-.fr-held { flex: 1 1 auto; margin: 0 12px; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
+.fr-held { flex: 1 1 auto; font-size: 12.5px; line-height: var(--leading-normal); color: var(--ink-dim); text-align: right; }
 .fr-onward[aria-disabled="true"] { opacity: 0.5; cursor: default; }
 
 .fr-card { position: sticky; top: 24px; display: grid; gap: 8px; min-width: 0; }
@@ -178,6 +178,6 @@ button.fr-rail-btn:hover { background: var(--bg-sunken); color: var(--ink); }
   .fr-foot .fr-onward { flex: 1 1 auto; }
   /* Why Looks right is held, over it rather than squeezed beside it. */
   .fr-foot { flex-wrap: wrap; }
-  .fr-held { flex: 1 1 100%; order: -1; margin: 0; text-align: left; }
+  .fr-held { flex: 1 1 100%; order: -1; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .fr-bar > span { transition: none; } }

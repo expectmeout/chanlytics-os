@@ -188,3 +188,42 @@ committed dists. One new route (route policy, typed client). No migration, no en
   suite.
 - [ ] Look at Check on the probe, on a desktop and a phone: a listing's facts, the basics, a sheet open over it.
 - [ ] One review round and one fix round. Merge main, open the PR, watch CI, squash-merge, and check main's run.
+
+## As built (24 September 2026)
+
+Tasks 1 to 7 as planned, with these differences:
+- **The builder has its own module**, `contracts/first-receptionist.ts`, not `first-run.ts`. `google.ts`'s imports reach
+  back to `first-run.ts` through the leads, so the builder sits where nothing it imports imports it.
+- **The first run scrolls.** The probe showed that the app holds `html` and `body` to the viewport (legacy.css) and
+  that the first run's shell never scrolled itself, so anything taller than the screen was cut off. `.fr-shell` is the
+  page's scroll now, and a step's own move opens the next step at its top.
+
+**Fixed in the review round** (one whole-branch review, standards and spec, then one fix round):
+- **Check stays on screen until Looks right.** At `#/start` the first run opens where the workspace is. When a
+  service was saved in the sheet, the business step was done and the page went on to the phone under the owner, so
+  Looks right was never pressed and the answer to how customers buy was never sent. Once Check is drawn, the business
+  step is asked for by name until the owner moves.
+- **A role that may not change the business** goes on with Looks right and sends nothing: the workspace's door is
+  owner-only, and a refusal left the step with no way on.
+- **Google's facts reach a receptionist set up before the link.** Set up by hand, or with the name alone after "We're
+  not on Google" and then Find, it now takes what the listing says where it states nothing (`googleFillsOf`), never
+  over what is there. The route answers `{ wrote }`.
+- **One test of whether a receptionist is set up:** `receptionistOf(parsed)` in `config.ts`, which the setup read (as
+  `business.receptionist`) and the route both ask.
+- **The booking link row is drawn for a business that books** (the spec's "only for businesses that book"), and for
+  one that quotes only while it has a link to show. In its place, the row's own words say what it does without one.
+- **Words.** The press no longer promises "hours, address and website", which a service-area listing, or one Google
+  said little about, cannot back. The failed read's words are contracts'.
+- **Standards:**
+  - `BtoHoursRow`, `BtaLanguagesRow` and `BtaRulesRow` carry their files' prefixes and are published under the plain
+    names;
+  - the zone and services rows own their gates;
+  - one portal root for the kit (`recPortalRoot`);
+  - one cascade for a step's heading, lead and onward;
+  - the name's cap is the schema's own;
+  - gap, not margins;
+  - a made-up street in the fixtures;
+  - the ledger and setup-read pins are deleted, now that tests run that code (facts.test's baseline fell by one).
+- **Left as it is:** new code reads `tenants` and `google_listings` with the session client from `src/server`, as the
+  rest of the dashboard's server code does (`server/google.ts`, `server/deals.ts`). There is no repository for either
+  in `packages/db`.

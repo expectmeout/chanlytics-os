@@ -3004,6 +3004,10 @@ function parseTenantConfigResult(raw) {
     issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
   };
 }
+function receptionistOf(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
 function parseTenantConfig(raw) {
   const r2 = parseTenantConfigResult(raw);
   return r2.ok ? r2.config : null;
@@ -6207,14 +6211,15 @@ var FIRST_RUN_WORDS = {
     basics: "Tell us the basics",
     basicsLead: "Your receptionist answers from this. You can add more later in Settings \u203A Business.",
     /** No receptionist yet: the owner's one press, and where it starts from. */
-    makeListed: "Your receptionist starts from your Google listing: its hours, address and website, which you can change here.",
+    makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
     makeNamed: (name) => `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
     make: "Set up your receptionist",
     making: "Setting up\u2026",
     notMade: "Not set up",
     ownerSetsUp: "An owner sets up the receptionist here.",
-    /** Made, but the settings read has not brought it yet. */
+    /** Made, but the settings read has not brought it yet; and a read that failed, by what it could not read. */
     reading: "Reading your receptionist\u2026",
+    failedWhat: "your receptionist",
     /** The onward, once what it answers from is checked. */
     looksRight: "Looks right",
     /** Not on Google, said, where Google can be searched: the way back to Find. */
@@ -6276,22 +6281,39 @@ function firstRunOf(vm, at2, who) {
     unsure: made ? unsureHoursWords(vm.check.unsure) : null,
     find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null
   } : null;
+  const F = FIRST_RUN_WORDS.find;
   const facts = rowOf(vm, "facts");
-  const onward = find ? null : final ? { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null } : check ? made ? {
-    label: C2.looksRight,
-    to: FIRST_RUN_ROUTE,
-    leaves: false,
-    held: shown.state === "done" ? null : facts?.sentence ?? null
-  } : null : shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null;
+  const face = find ? {
+    heading: F.heading(businessNameOf(who?.receptionistName, who?.workspaceName)),
+    lead: who?.receptionistName ? F.leadOnRecord : F.lead,
+    onward: null
+  } : check ? {
+    heading: vm.check.listed ? C2.found : C2.basics,
+    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
+    onward: made ? {
+      label: C2.looksRight,
+      to: FIRST_RUN_ROUTE,
+      leaves: false,
+      held: shown.state === "done" ? null : facts?.sentence ?? null
+    } : null
+  } : final ? {
+    heading: FIRST_RUN_WORDS.liveHeading,
+    lead: vm.readiness.sentence,
+    onward: { label: FIRST_RUN_WORDS.finish, to: "today", leaves: true, held: null }
+  } : {
+    heading: def.name,
+    lead: def.lead,
+    onward: shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
+  };
+  const onward = face.onward;
   const primary = onward || find || check ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
-  const W = FIRST_RUN_WORDS.find;
   return {
     steps,
     current,
     complete: !open,
     shown,
-    heading: find ? W.heading(businessNameOf(who?.receptionistName, who?.workspaceName)) : check ? vm.check.listed ? C2.found : C2.basics : final ? FIRST_RUN_WORDS.liveHeading : def.name,
-    lead: find ? who?.receptionistName ? W.leadOnRecord : W.lead : check ? vm.check.listed ? C2.foundLead : C2.basicsLead : final ? vm.readiness.sentence : def.lead,
+    heading: face.heading,
+    lead: face.lead,
     phoneLine: firstRunKicker(shown.key),
     progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
     primaryRow: primary ? primary.id : null,
@@ -8920,7 +8942,7 @@ function saidYesTo(r2, purpose) {
     { proactive: true }
   ).ok;
 }
-function receptionistOf(r2, tz, nowMs) {
+function receptionistOf2(r2, tz, nowMs) {
   if (isOwned(r2, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
   if (r2.open_escalation_reason)
     return { tone: "escalated", label: `Escalated, ${reasonShort(r2.open_escalation_reason)}` };
@@ -8986,7 +9008,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r2, tz, nowMs),
+    receptionist: receptionistOf2(r2, tz, nowMs),
     firstContact: first,
     cameFrom: cameFromOf(r2),
     consent,
@@ -13779,8 +13801,7 @@ function setupSteps(i, nowMs = Date.now()) {
     } : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     check: {
-      // The brain's name is required, so a name read is a receptionist set up (server setup.ts reads it off the brain).
-      receptionist: i.business.broken ? "broken" : i.business.name ? "set" : "none",
+      receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? []
     }
@@ -20964,15 +20985,9 @@ function csvCell(v) {
 }
 
 // src/first-receptionist.ts
-var NAME_MAX = 120;
-function firstReceptionistOf(known) {
-  const resolved = resolveFacts(null, {
-    workspace: { name: known.workspaceName },
-    listing: known.listing ? { name: known.listing.name, address: known.listing.address } : null
-  }).business_name.value;
-  const name = (resolved ?? "").slice(0, NAME_MAX).trim();
-  if (!name) return null;
-  const facts = known.listing?.facts ?? null;
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+function googleProfileOf(listing) {
+  const facts = listing?.facts ?? null;
   const profile = {};
   const week = hoursFromGoogle(facts?.hours ?? null);
   if (Object.keys(week.hours).length) {
@@ -20980,18 +20995,36 @@ function firstReceptionistOf(known) {
       DAYS.filter((d) => !week.unsure.includes(d)).map((d) => [d, week.hours[d] ?? {}])
     );
   }
-  const address = (known.listing?.address ?? "").trim();
+  const address = (listing?.address ?? "").trim();
   if (address && !facts?.service_area_only && BusinessProfileSchema.shape.address.safeParse(address).success) {
     profile.address = address;
   }
   if (facts?.website && BusinessProfileSchema.shape.website.safeParse(facts.website).success) {
     profile.website = facts.website;
   }
+  return profile;
+}
+function firstReceptionistOf(known) {
+  const resolved = resolveFacts(null, {
+    workspace: { name: known.workspaceName },
+    listing: known.listing ? { name: known.listing.name, address: known.listing.address } : null
+  }).business_name.value;
+  const name = (resolved ?? "").slice(0, NAME_MAX).trim();
+  if (!name) return null;
+  const profile = googleProfileOf(known.listing);
   return {
     business_name: name,
     ...newReceptionistDefaults(name),
     ...Object.keys(profile).length ? { profile } : {}
   };
+}
+function googleFillsOf(brain, listing) {
+  const p = brain.profile ?? {};
+  const google = googleProfileOf(listing);
+  const states = (v) => typeof v === "string" ? v.trim() !== "" : !!v && typeof v === "object" && Object.keys(v).length > 0;
+  const fills = ["hours", "address", "website"].filter((k) => google[k] !== void 0 && !states(p[k]));
+  if (!fills.length) return null;
+  return { ...brain, profile: { ...p, ...Object.fromEntries(fills.map((k) => [k, google[k]])) } };
 }
 export {
   ABANDONED_MS,
@@ -21742,6 +21775,7 @@ export {
   gainedOver,
   googleAudienceWords,
   googleCallbackUrl,
+  googleFillsOf,
   greetingFor,
   groundCitations,
   groupTemplates,
@@ -22064,6 +22098,7 @@ export {
   receiptWords,
   recencyCells,
   receptionistCardOf,
+  receptionistOf,
   receptionistOn,
   refusalOf,
   registrationPathOf,

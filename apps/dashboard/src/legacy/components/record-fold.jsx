@@ -570,8 +570,14 @@ const recStill = (node, deep) => {
   copy.setAttribute("data-leaving", "true");
   return copy;
 };
+/**
+ * Where a sheet is drawn: the app's root, where no pane's layout reaches it (RecordSheet says why), or the first run's
+ * own shell, which is drawn in place of the app's chrome and has no .app-root (app-shell.jsx). One lookup, for a fold's
+ * sheet, its leaving and RecordSheet alike.
+ */
+const recPortalRoot = () => (document.querySelector ? document.querySelector(".app-root, .fr-shell") : null);
 const recSheetLeaves = (sheet, wash, top) => {
-  const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
+  const root = recPortalRoot();
   if (!root || !sheet || !sheet.cloneNode || recReducedMotion()) return;
   const washCopy = wash && wash.cloneNode ? recStill(wash, false) : null;
   const sheetCopy = recStill(sheet, true);
@@ -727,7 +733,7 @@ const RecordFold = ({
         </section>
       </>
     );
-    const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
+    const root = recPortalRoot();
     const drawn = root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
     // What the page draws at rest in the fold's place, its row, stays in the card behind the sheet (`behind`), at every
     // width the sheet is drawn at: a card a row shorter under the wash grew back as the sheet left, which its leaving
@@ -942,6 +948,7 @@ const UnsavedAsk = ({ onYes, onNo, busy = false, what = "sent", testid = null })
 
 Object.assign(window, {
   recPhoneQuery,
+  recPortalRoot,
   RecordFold, RecordInline, RecordSays, RecordFoot, useRecordFold, useRecFocusHold, useRecFocusOn, recKeys,
   useUnsavedWork, UnsavedAsk, tabDraft, __recordFolds: recFolds,
 });

@@ -91,7 +91,7 @@ globalThis.window = {
     if (u.pathname === "/api/v1/views") {
       return wire.viewsFail ? refused(500, "internal", "no") : ok(wire.views);
     }
-    if (u.pathname === "/api/v1/settings/receptionist") return wire.receptionist ?? ok({ made: true });
+    if (u.pathname === "/api/v1/settings/receptionist") return wire.receptionist ?? ok({ wrote: true });
     if (u.pathname === "/api/v1/views/setup") {
       if (wire.gate) await wire.gate();
       return wire.putOk ? ok({ views: {} }) : refused(429, "rate_limited", "Too many changes — try again in a minute.");
@@ -239,16 +239,16 @@ test("the first run's helpers are published for the pages that draw it", () => {
   assert.equal(w.__firstRun.words.title, "Setting up");
 });
 
-test("the first run asks for the receptionist through its route: made, one already set up, or refused in the route's words; and what a settings save reads again is read again", async () => {
-  assert.deepEqual(await w.__setup.receptionist(), { ok: true, made: true, message: "" });
+test("the first run asks for the receptionist through its route: written, nothing to add, or refused in the route's words; and what a settings save reads again is read again", async () => {
+  assert.deepEqual(await w.__setup.receptionist(), { ok: true, wrote: true, message: "" });
   assert.deepEqual(
     asked.find(([, p]) => p === "/api/v1/settings/receptionist"),
     ["POST", "/api/v1/settings/receptionist", {}],
   );
-  wire.receptionist = ok({ made: false });
-  assert.deepEqual(await w.__setup.receptionist(), { ok: true, made: false, message: "" });
+  wire.receptionist = ok({ wrote: false });
+  assert.deepEqual(await w.__setup.receptionist(), { ok: true, wrote: false, message: "" });
   wire.receptionist = refused(403, "forbidden", "Only an owner can do this.");
-  assert.deepEqual(await w.__setup.receptionist(), { ok: false, made: false, message: "Only an owner can do this." });
+  assert.deepEqual(await w.__setup.receptionist(), { ok: false, wrote: false, message: "Only an owner can do this." });
   wire.receptionist = null;
   const { AFTER } = await import("../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
   assert.deepEqual(

@@ -154,14 +154,41 @@ const FrFind = ({ W, flash, done, go, make }) => {
 };
 
 /**
- * Check (canvas R2, V2, P2): what the receptionist answers from, in the Business tab's own rows, over the settings read's
- * brain -- the week and its clock, where the business is, its website; how customers buy, the booking link and the rules
- * it keeps (the price rule shown as its default); what it offers and the languages it speaks. Each row saves through the
- * tab's one saver, and a sheet opens over the first run as it does over the tab. How customers buy is the tab's own
- * choice, drawn open and saved at once through the workspace's door; until it is said, the first answer is shown, and
- * Looks right sends it (FirstRun). With no receptionist yet: an owner's one press, or who sets it up.
+ * How customers buy, as the first run reads it: the answer stored (the workspace list's, as the first run reads its
+ * workspace), and the answer shown, which is the stored one or, until one is said, the first (contracts sellsByVM, whose
+ * words the choice draws). Null without the bridge.
  */
-const FrCheck = ({ check, W, flash, make, making, go }) => {
+const frAnswer = () => {
+  const tab = window.__businessTab || {};
+  const stored = (frWorkspace() || {}).sells_by || null;
+  const vm = tab.sellsByVM ? tab.sellsByVM(stored) : null;
+  return vm ? { stored, shown: vm.first, vm } : null;
+};
+
+/**
+ * An answer sent through the workspace's door, said as the Business tab says it (contracts sellsBySaved), with `done`
+ * run once it is taken. Nothing is sent that is stored already, or while one is out: answers whether it sent.
+ */
+const frSendAnswer = (answer, flash, done = null) => {
+  const B = window.__businessTabSave;
+  const tab = window.__businessTab || {};
+  const door = B && B.sellsBy;
+  const a = frAnswer();
+  if (!door || !a || answer === a.stored || door.pending()) return false;
+  door.save({ answer, said: tab.sellsBySaved ? tab.sellsBySaved(a.stored, answer) : null, done, flash });
+  return true;
+};
+
+/**
+ * Check (canvas R2, V2, P2): what the receptionist answers from, in the Business tab's own rows, over the settings read's
+ * brain -- the week and its clock, where the business is, its website; how customers buy, the booking link (for a
+ * business that books) and the rules it keeps (the price rule shown as its default); what it offers and the languages it
+ * speaks. Each row saves through the tab's one saver, and a sheet opens over the first run as it does over the tab. How
+ * customers buy is the tab's own choice, drawn open and saved at once through the workspace's door; until it is said,
+ * the first answer is shown, and Looks right sends it (FirstRun). With no receptionist yet: an owner's one press, or
+ * who sets it up. `canEdit` is whether the role may change the business, as the tab asks it.
+ */
+const FrCheck = ({ check, W, flash, make, making, go, canEdit }) => {
   const settings = window.__SETTINGS || null;
   const brain = (settings && settings.config && settings.config.brain) || null;
   if (!brain) {
@@ -179,52 +206,53 @@ const FrCheck = ({ check, W, flash, make, making, go }) => {
     }
     if (check.waiting) return <p className="fr-check-note" data-testid="fr-check-waiting">{check.waiting}</p>;
     if (window.__surfaceFailed && window.__surfaceFailed("admin", "workspace")) {
-      return <FailedRead kind="card" what="your receptionist" surface="settings" testid="fr-check-failed" retryTestid="fr-check-retry" />;
+      return <FailedRead kind="card" what={W.failedWhat} surface="settings" testid="fr-check-failed" retryTestid="fr-check-retry" />;
     }
     return <p className="fr-reading" data-testid="fr-check-reading">{W.reading}</p>;
   }
   const S = window.__businessTabSave;
   const saver = S.saver;
   const base = saver.base();
-  const canEdit = !window.canDo || window.canDo("settings");
   const rows = { brain, base, canEdit, flash, saver };
-  // How customers buy, as the workspace list carries it, and its words (contracts sellsByVM); without the bridge, no choice.
   const tab = window.__businessTab || {};
-  const stored = S.answer();
-  const buys = tab.sellsByVM ? tab.sellsByVM(stored) : null;
+  const answer = frAnswer();
   const door = S.sellsBy;
-  const choose = (next) => {
-    if (next === stored || !door || door.pending()) return;
-    door.save({ answer: next, said: tab.sellsBySaved ? tab.sellsBySaved(stored, next) : null, done: null, flash });
-  };
+  // The booking link is asked of a business that books (the spec's "only for businesses that book"). One that quotes
+  // has none by right (contracts bookingLinkOptional), and its row is drawn only while it has a link to show; in its
+  // place, what it does without one, in the row's own words (bookingLinkRowWords).
+  const quotes = !!(answer && tab.bookingLinkOptional && tab.bookingLinkOptional(answer.shown));
+  const linkRow = !quotes || !!brain.booking_link;
   const note = check.unsure ? <span className="fr-check-unsure" data-testid="fr-check-unsure">{check.unsure}</span> : null;
   return (
     <div className="fr-check" data-testid="fr-check">
       <section className="rec-card fr-check-card" aria-label={W.groups.facts}>
         <window.BtHoursRow brain={brain} prompt={settings.prompt || null} canEdit={canEdit} flash={flash} saver={saver} note={note} />
-        <window.BtZoneRow brain={brain} canEdit={canEdit} gate={window.gate("settings", "change the timezone")} flash={flash} />
+        <window.BtZoneRow brain={brain} canEdit={canEdit} flash={flash} />
         <window.BtAddressRow {...rows} />
         <window.BtWebsiteRow {...rows} />
       </section>
       <section className="rec-card fr-check-card" aria-label={W.groups.buys}>
-        {buys && window.btSellsByChoice ? (
+        {answer && window.btSellsByChoice ? (
           <div className="fr-check-buys">
             {window.btSellsByChoice({
               id: "fr-sells-by",
-              vm: buys,
-              value: stored || buys.first,
-              set: choose,
+              vm: answer.vm,
+              value: answer.shown,
+              set: (next) => frSendAnswer(next, flash),
               readOnly: !canEdit || !door || door.pending(),
               label: true,
               testid: "fr-sells-by",
             })}
+            {!linkRow && tab.bookingLinkRowWords ? (
+              <p className="fr-check-note" data-testid="fr-check-quotes">{tab.bookingLinkRowWords(answer.shown).hint}</p>
+            ) : null}
           </div>
         ) : null}
-        <window.BtBookingLinkRow {...rows} />
+        {linkRow ? <window.BtBookingLinkRow {...rows} /> : null}
         <window.BtRulesRow {...rows} config={settings.config} />
       </section>
       <section className="rec-card fr-check-card" aria-label={W.groups.offer}>
-        <window.BtServicesRow brain={brain} canEdit={canEdit} gate={window.gate("settings", "change your services")} saver={saver} />
+        <window.BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
         <window.BtLanguagesRow {...rows} />
       </section>
       {check.find ? (
@@ -291,6 +319,8 @@ const FirstRun = ({ param = null, onNavigate }) => {
   const [toastNode, flash] = window.usePPToast();
   // The ask for the receptionist, held here and lent to Find and Check: Find is gone by the time it answers.
   const [making, setMaking] = React.useState(false);
+  // Whether Check is on screen, so it stays there (below): kept across draws, as React keeps a ref.
+  const onCheck = React.useRef(false);
   // Check's rows save through the Business tab's saver and doors, which outlive the page: a save moving through any of
   // them draws the page again, as it draws the tab.
   const [, redraw] = React.useReducer((n) => n + 1, 0);
@@ -339,11 +369,24 @@ const FirstRun = ({ param = null, onNavigate }) => {
     receptionistName: S.dto.business.name,
     workspaceName: (frWorkspace() || {}).name || null,
   };
-  const fr = F.of(S.vm, param, who);
+  // Check stays on screen while the owner is on it. Its step is done the moment its last fact lands (a service saved in
+  // its sheet), and the first run, which opens where the workspace is, would go on to the phone under them; they go on
+  // with Looks right instead. So once Check is drawn, the business step is asked for by name until the owner moves.
+  const asked = F.of(S.vm, param, who);
+  const fr = !param && onCheck.current && asked.shown.key !== "business" ? F.of(S.vm, "business", who) : asked;
+  onCheck.current = !!fr.check;
   const card = F.receptionist(frCardInputs(S));
   const step = fr.shown;
-  // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run.
-  const go = (to) => onNavigate(to, { replace: true });
+  // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
+  const canEdit = !window.canDo || window.canDo("settings");
+  // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A
+  // move opens the next step at its top: the shell is the page's scroll (first-run.css).
+  const go = (to) => {
+    onCheck.current = false;
+    onNavigate(to, { replace: true });
+    const shell = document.querySelector ? document.querySelector(".fr-shell") : null;
+    if (shell && shell.scrollTo) shell.scrollTo(0, 0);
+  };
   // Set the receptionist up from what is known, where none is: once at a time, and a refusal said in its words.
   const make = async () => {
     if (making || !window.__setup || !window.__setup.receptionist) return;
@@ -361,18 +404,10 @@ const FirstRun = ({ param = null, onNavigate }) => {
       return;
     }
     // Looks right: the answer to how customers buy, as Check shows it, is sent where none is stored (as the create card
-    // sends it), and the step goes on once it is taken.
-    const B = window.__businessTabSave;
-    const tab = window.__businessTab || {};
-    const stored = B ? B.answer() : null;
-    const door = B && B.sellsBy;
-    if (stored || !door || !tab.sellsByVM) {
-      go(o.to);
-      return;
-    }
-    if (door.pending()) return;
-    const shown = tab.sellsByVM(null).first;
-    door.save({ answer: shown, said: tab.sellsBySaved ? tab.sellsBySaved(null, shown) : null, done: () => go(o.to), flash });
+    // sends it), and the step goes on once it is taken. A role that may not change the workspace sends nothing: the
+    // door would refuse it, and the step goes on as it is.
+    const a = frAnswer();
+    if (!canEdit || !a || a.stored || !frSendAnswer(a.shown, flash, () => go(o.to))) go(o.to);
   };
   return (
     <div className="fr-root" data-testid="first-run" data-step={step.key}>
@@ -400,7 +435,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
             {fr.lead ? <p className="fr-lead">{fr.lead}</p> : null}
           </div>
           {fr.find ? <FrFind W={W.find} flash={flash} done={fr.findDone} go={go} make={make} /> : null}
-          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} /> : null}
+          {fr.check ? <FrCheck check={fr.check} W={W.check} flash={flash} make={make} making={making} go={go} canEdit={canEdit} /> : null}
           {step.key === "try" && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
           {!fr.find && !fr.check && step.rows.length ? (
             <div className="fr-part">
@@ -434,7 +469,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
       </div>
       {/* The services list opens in a sheet, as it does on the Business tab, which draws it last of everything there. */}
       {fr.check && window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.BtServicesSheet ? (
-        <window.BtServicesSheet brain={window.__SETTINGS.config.brain} canEdit={!window.canDo || window.canDo("settings")} flash={flash} saver={window.__businessTabSave.saver} />
+        <window.BtServicesSheet brain={window.__SETTINGS.config.brain} canEdit={canEdit} flash={flash} saver={window.__businessTabSave.saver} />
       ) : null}
       {toastNode}
     </div>

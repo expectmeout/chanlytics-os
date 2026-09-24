@@ -2244,6 +2244,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {

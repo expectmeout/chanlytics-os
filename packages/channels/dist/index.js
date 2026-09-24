@@ -2307,6 +2307,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";

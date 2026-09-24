@@ -1,14 +1,15 @@
 import { write, workspace } from "@/server/route";
-import { makeFirstReceptionist } from "@/server/first-receptionist";
+import { receptionistFromWhatIsKnown } from "@/server/first-receptionist";
 
 /**
- * POST /api/v1/settings/receptionist — set the receptionist up from what is known: Google's listing when one is
- * linked, the name typed at sign-up otherwise (server/first-receptionist.ts). Only where none is set up: answers
- * `{ made }`, false when one already was. The first run asks for it; owners only, counted with the settings.
+ * POST /api/v1/settings/receptionist — the receptionist from what is known (server/first-receptionist.ts): set up
+ * where there is none, from Google's listing when one is linked and the name typed at sign-up otherwise; filled from
+ * Google where one states none of what the listing says. Answers `{ wrote }`, false when there was nothing to add.
+ * The first run asks for it; owners only, counted with the settings.
  */
 export const POST = write({
   scope: workspace,
   role: "owner",
   rate: "settings",
-  handle: ({ ctx, member }) => makeFirstReceptionist(ctx, member.tenantId),
+  handle: ({ ctx, member }) => receptionistFromWhatIsKnown(ctx, member.tenantId),
 });

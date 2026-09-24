@@ -34,6 +34,7 @@ import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "./people";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run";
+import type { ReceptionistState } from "./config";
 
 export interface SetupDto {
   business: {
@@ -46,6 +47,8 @@ export interface SetupDto {
     handoff: string | null;
     /** The config row exists but the parser refused it. */
     broken: boolean;
+    /** Whether the receptionist is set up, by the one test (config.ts receptionistOf): none, set, or broken. */
+    receptionist: ReceptionistState;
   };
   channels: {
     whatsapp: {
@@ -304,7 +307,7 @@ export interface SetupVM {
    * days whose hours it asks about (the setup read's google.unsure).
    */
   check: {
-    receptionist: "none" | "set" | "broken";
+    receptionist: ReceptionistState;
     listed: boolean;
     unsure: NonNullable<SetupGoogleFacts["unsure"]>;
   };
@@ -1350,8 +1353,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       : null,
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     check: {
-      // The brain's name is required, so a name read is a receptionist set up (server setup.ts reads it off the brain).
-      receptionist: i.business.broken ? "broken" : i.business.name ? "set" : "none",
+      receptionist: i.business.receptionist,
       listed: !!i.google?.listing,
       unsure: i.google?.unsure ?? [],
     },

@@ -50,10 +50,11 @@ export interface SetupApi {
   /** Put optional rows off, or take them back: this member's, saved to their view, on every device. */
   later(ids: string | string[], on: boolean): Promise<{ ok: boolean; message: string }>;
   /**
-   * Set the receptionist up from what is known: Google's listing when one is linked, the name typed at sign-up
-   * otherwise. Nothing where one is set up already (`made` false). Owners only; the route says so.
+   * The receptionist from what is known: set up where there is none, from Google's listing when one is linked and the
+   * name typed at sign-up otherwise; filled from Google where one states none of it. `wrote` is false when there was
+   * nothing to add. Owners only; the route says so.
    */
-  receptionist(): Promise<{ ok: boolean; made: boolean; message: string }>;
+  receptionist(): Promise<{ ok: boolean; wrote: boolean; message: string }>;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
   request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
@@ -199,7 +200,7 @@ export function installSetup(win: Window = window): void {
     },
     async receptionist() {
       const r = await api()("POST settings/receptionist", { body: {} });
-      return r.ok ? { ok: true, made: r.data.made, message: "" } : { ok: false, made: false, message: r.message };
+      return r.ok ? { ok: true, wrote: r.data.wrote, message: "" } : { ok: false, wrote: false, message: r.message };
     },
     async activate(kind) {
       const r = await api()("POST capabilities/[kind]", { params: { kind }, body: {} });

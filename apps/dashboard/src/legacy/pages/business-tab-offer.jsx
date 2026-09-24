@@ -113,7 +113,9 @@ const BtwSellsBy = ({ vm, answer, canEdit, gate, flash }) => {
  * about first. A role that may not change the business is offered no act, and nor is anyone while the sheet could not
  * open (BtSheet.opens: nothing read to save onto, or a list whose draft cannot be worked out), as a fold offers none then.
  */
-const BtwServicesRow = ({ brain, canEdit, gate, saver }) => {
+const BtwServicesRow = ({ brain, canEdit, saver }) => {
+  // Its own gate, wherever it is drawn: the tab's card and the first run's Check say it alike.
+  const gate = window.gate("settings", "change your services");
   const tab = window.__businessTab || {};
   const vm = tab.servicesWords ? tab.servicesWords((brain.profile || {}).services) : null;
   const has = !!(vm && vm.count);
@@ -254,7 +256,7 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
 
       {buys ? <BtwSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={gate("how customers buy")} flash={flash} /> : null}
 
-      <BtwServicesRow brain={brain} canEdit={canEdit} gate={gate("your services")} saver={saver} />
+      <BtwServicesRow brain={brain} canEdit={canEdit} saver={saver} />
 
       <Fold
         {...shared}

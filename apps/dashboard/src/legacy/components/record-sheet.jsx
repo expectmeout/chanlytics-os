@@ -171,7 +171,7 @@ const RecordSheet = ({
       </section>
     </>
   );
-  const root = document.querySelector ? document.querySelector(".app-root, .fr-shell") : null;
+  const root = window.recPortalRoot ? window.recPortalRoot() : null;
   return root && window.ReactDOM && window.ReactDOM.createPortal ? window.ReactDOM.createPortal(node, root) : node;
 };
 

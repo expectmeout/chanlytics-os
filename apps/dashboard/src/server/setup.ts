@@ -40,6 +40,7 @@ import type { Database } from "@chanlytics/db";
 import { getTenantConfig } from "@chanlytics/db";
 import {
   parseTenantConfigResult,
+  receptionistOf,
   starterByName,
   resolveFacts,
   factConflicts,
@@ -229,6 +230,8 @@ export async function setupDtoFor(
   const cfg = parsed && parsed.ok ? parsed.config : null;
   const brain = cfg?.brain ?? null;
   const profile = brain?.profile ?? null;
+  // Whether the receptionist is set up, by the one test the first receptionist's route asks too.
+  const receptionist = receptionistOf(parsed);
   const business: SetupDto["business"] = {
     name: brain?.business_name ?? null,
     hours: !!profile?.hours && Object.keys(profile.hours).length > 0,
@@ -236,7 +239,8 @@ export async function setupDtoFor(
     bookingLink: !!brain?.booking_link,
     address: !!profile?.address,
     handoff: profile?.handoff_number ?? null,
-    broken: !!parsed && !parsed.ok,
+    broken: receptionist === "broken",
+    receptionist,
   };
 
   // `channelFor`, not a bare `.find`. The query has no status filter and no order,

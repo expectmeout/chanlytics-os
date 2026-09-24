@@ -31,7 +31,16 @@ const WA = "+13055550123";
 const HANDOFF = "+13055550100";
 
 const empty = (over = {}) => ({
-  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  business: {
+    name: null,
+    hours: false,
+    services: 0,
+    bookingLink: false,
+    address: false,
+    handoff: null,
+    broken: false,
+    receptionist: "none",
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
     voice: { present: false, active: false, number: null, lastInboundAt: null },
@@ -52,6 +61,7 @@ const facts = {
   address: true,
   handoff: HANDOFF,
   broken: false,
+  receptionist: "set",
 };
 const live = (over = {}) =>
   empty({
@@ -282,7 +292,8 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   assert.deepEqual(setupSteps(empty(), NOW).check, { receptionist: "none", listed: false, unsure: [] });
   assert.equal(setupSteps(empty({ business: facts }), NOW).check.receptionist, "set");
   assert.equal(
-    setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW).check.receptionist,
+    setupSteps(empty({ business: { ...empty().business, broken: true, receptionist: "broken" } }), NOW).check
+      .receptionist,
     "broken",
     "only Chanlytics can repair it",
   );
@@ -333,6 +344,14 @@ test("what the first run's Check reads: whether a receptionist is set up, whethe
   const read = async (hours) =>
     (await setupDtoFor(fakeDb(tables(hours)), T, { kind: "back_office" }, new Date(NOW))).google;
   assert.deepEqual((await read(null)).unsure, ["fri", "sat"], "Friday and Saturday close after midnight");
+  const dto = await setupDtoFor(fakeDb(tables(null)), T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual(
+    [dto.business.receptionist, dto.business.broken],
+    ["set", false],
+    "by the one test (receptionistOf)",
+  );
+  const none = await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW));
+  assert.deepEqual([none.business.receptionist, none.business.broken], ["none", false]);
   assert.deepEqual((await read({ sat: {} })).unsure, ["fri"], "Saturday is stated, closed: it is not asked again");
   assert.deepEqual(
     (await setupDtoFor(fakeDb({}), T, { kind: "back_office" }, new Date(NOW))).google.unsure,

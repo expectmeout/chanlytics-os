@@ -834,11 +834,8 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(server.includes('edgeHeaders("/api/admin/google"') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
   const setup = readCode("apps/dashboard/src/server/setup.ts");
-  assert.ok(
-    setup.includes("listingFor(supabase, tenantId),") &&
-      setup.includes("listingFactsFor(supabase, tenantId),\n    googleReadiness(),") &&
-      setup.includes("ready: google.places || google.profile,"),
-  );
+  // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).
+  assert.ok(setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(
     bridge.includes('key: "google",') &&

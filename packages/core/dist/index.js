@@ -3052,6 +3052,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -7093,6 +7094,7 @@ function sha256Hex(text) {
 function judgeOpId(runId, fromOffset, batch) {
   return sha256Hex(`${runId}:${fromOffset}:${batch}`);
 }
+var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 
 // ../db/dist/index.js
 import { z as z11 } from "zod";
@@ -9192,6 +9194,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
+var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

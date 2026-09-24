@@ -902,6 +902,19 @@ export function parseTenantConfigResult(raw: unknown): TenantConfigParse {
   };
 }
 
+/** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
+export type ReceptionistState = "none" | "set" | "broken";
+
+/**
+ * The one test of whether a receptionist is set up, for Setup's read, the first run's Check and the first
+ * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
+ * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
+ */
+export function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
+
 /** Convenience for callers that genuinely cannot act on the difference. */
 export function parseTenantConfig(raw: unknown): TenantConfig | null {
   const r = parseTenantConfigResult(raw);

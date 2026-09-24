@@ -51,6 +51,7 @@ const dto = (business = {}, google = {}) => ({
     address: true,
     handoff: null,
     broken: false,
+    receptionist: "set",
     ...business,
   },
   channels: {
@@ -85,10 +86,10 @@ const page = () =>
  * Draw the first run over a workspace, as React replaces a tree: the last one unmounted, the fold registry told nothing
  * is open, and the tab's saver and doors reset, since they outlive every page drawn in the tab (the harness says why).
  */
-const draw = ({ setup = dto(), sellsBy = null, at = null, later = [] } = {}) => {
+const draw = ({ setup = dto(), sellsBy = null, at = null, later = [], link = undefined } = {}) => {
   param = at;
   W.__SETUP = surface(setup, later);
-  W.__SETTINGS = settings(HARBOR, {}, { business_name: "Harbor Moving", booking_link: undefined });
+  W.__SETTINGS = settings(HARBOR, {}, { business_name: "Harbor Moving", booking_link: link });
   W.__FACTS = facts({
     facts: {
       business_name: { value: "Harbor Moving", source: "typed" },
@@ -135,7 +136,7 @@ test("Check draws the Business tab's own rows over the settings read's brain, an
   assert.equal(byTestId(tree, "fr-rows"), null, "not Setup's rows");
 });
 
-test("a tap on how customers buy saves through the workspace's door, and the booking link's words follow the answer", async () => {
+test("a tap on how customers buy saves through the workspace's door, and the booking link follows the answer", async () => {
   const sent = courier();
   try {
     let tree = draw();
@@ -153,7 +154,12 @@ test("a tap on how customers buy saves through the workspace's door, and the boo
       answers(tree).map((r) => r.props["aria-checked"]),
       [false, true],
     );
-    assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /None — it takes their details instead/);
+    assert.equal(byTestId(tree, "rec-row-booking_link"), null, "a business that quotes is asked for no link");
+    assert.equal(
+      textOf(byTestId(tree, "fr-check-quotes")),
+      "Optional for a business that quotes: without one, it takes their details instead.",
+      "and is told what it does without one, in the row's own words",
+    );
     assert.equal(textOf(flashes.at(-1).msg), "Saved — deals are on.");
   } finally {
     delete W.__workspace;
@@ -170,6 +176,58 @@ test("a row saves through the Business tab's one saver, as it does on the tab", 
   saveRow(tree, "website");
   assert.equal(sent.at(-1).config.brain.profile.website, "https://harbor-moving.example.com");
   assert.equal(sent.at(-1).config.brain.business_name, "Harbor Moving", "on the brain as it is stored");
+});
+
+test("a business that quotes and has a link keeps its row: nothing it stored is hidden", () => {
+  const tree = draw({ sellsBy: "proposal", link: "https://book.example.com/harbor" });
+  assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /book\.example\.com\/harbor/);
+  assert.equal(byTestId(tree, "fr-check-quotes"), null);
+});
+
+test("Check stays on screen once its last fact lands, and Looks right goes on: the page does not move under the owner", async () => {
+  const sent = courier();
+  try {
+    let tree = draw();
+    assert.equal(textOf(byTestId(tree, "fr-held")), "Still missing: services.");
+    // A service saved in the sheet: Setup reads again, and the business step is done.
+    W.__SETUP = surface(dto({ services: 1 }));
+    tree = redraw();
+    assert.equal(textOf(byTestId(tree, "fr-heading")), "Here's what we found", "still Check, not the phone");
+    assert.equal(byTestId(tree, "fr-held"), null, "and Looks right is not held");
+    const before = replaced.length;
+    byTestId(tree, "fr-onward").props.onClick();
+    await settle();
+    assert.deepEqual(sent, [{ sells_by: "booking" }]);
+    assert.equal(replaced.length, before + 1);
+    tree = redraw();
+    assert.equal(
+      textOf(byTestId(tree, "fr-heading")),
+      "Your phone",
+      "once the owner goes on, the first run is where the workspace is",
+    );
+  } finally {
+    delete W.__workspace;
+  }
+});
+
+test("a role that may not change the business goes on with Looks right and sends nothing it would be refused", () => {
+  const sent = courier();
+  const was = W.canDo;
+  W.canDo = (a) => a !== "settings";
+  try {
+    const tree = draw({ setup: dto({ services: 2 }), at: "business" });
+    assert.equal(
+      answers(tree).every((r) => r.props["aria-disabled"] === true),
+      true,
+      "its choice is read, not pressed",
+    );
+    byTestId(tree, "fr-onward").props.onClick();
+    assert.deepEqual(sent, [], "nothing sent to a door that would refuse it");
+    assert.equal(replaced.at(-1), "start", "and the step goes on");
+  } finally {
+    W.canDo = was;
+    delete W.__workspace;
+  }
 });
 
 test("the services row opens the Business tab's own sheet over the first run", () => {

@@ -494,7 +494,7 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
 /* ------------------------------------ the rows drawn elsewhere too ------------------------------------ */
 
 /** The languages it answers in, as its row states them and its fold edits them; the first run's Check draws it too. */
-const BtLanguagesRow = ({ brain, canEdit, flash, saver }) => {
+const BtaLanguagesRow = ({ brain, canEdit, flash, saver }) => {
   const profile = brain.profile || {};
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const languages = (Array.isArray(profile.languages) ? profile.languages : []).filter((l) => typeof l === "string" && l.trim() !== "");
@@ -524,7 +524,7 @@ const BtLanguagesRow = ({ brain, canEdit, flash, saver }) => {
  * The rules it always keeps, as its row names them and its fold switches them; the first run's Check draws it too, as
  * the price rule shown as its default. `config` is the settings read's, `base` the config the next save goes on.
  */
-const BtRulesRow = ({ brain, base = null, config = null, canEdit, flash, saver }) => {
+const BtaRulesRow = ({ brain, base = null, config = null, canEdit, flash, saver }) => {
   const tab = window.__businessTab || {};
   const S = window.__businessTabSave;
   // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for three, off for
@@ -622,9 +622,9 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         body={(f) => <BtaVoice {...f} />}
       />
 
-      <BtLanguagesRow brain={brain} {...shared} />
+      <BtaLanguagesRow brain={brain} {...shared} />
 
-      <BtRulesRow brain={brain} base={base} config={config} {...shared} />
+      <BtaRulesRow brain={brain} base={base} config={config} {...shared} />
 
       <Fold
         {...shared}
@@ -702,4 +702,4 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
 // The two lists were also published for the old form to read as it loaded (BT_OFFERED_LANGUAGES, BT_FALLBACK_ROWS).
 // Task 3.7 deleted that form, and nothing else ever read them, so they are the card's own again.
 // And the two rows the first run's Check draws too (first-run.jsx).
-Object.assign(window, { BtAnswersCard, BtLanguagesRow, BtRulesRow });
+Object.assign(window, { BtAnswersCard, BtLanguagesRow: BtaLanguagesRow, BtRulesRow: BtaRulesRow });
