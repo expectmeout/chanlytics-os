@@ -23,7 +23,7 @@ import { personLike, personVisits } from "@/server/calendar";
 import { personRuns } from "@/server/broadcasts";
 import { leadOfPerson } from "@/server/leads";
 import { personNotesRead } from "@/server/person-notes";
-import { sellsByOf } from "@/server/deals";
+import { DEAL_DTO_COLUMNS, sellsByOf } from "@/server/deals";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -468,9 +468,7 @@ export const GET = read({
       // database: a table or a column that is not there costs the section, never the profile.
       sb
         .from("deals")
-        .select(
-          "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason",
-        )
+        .select(DEAL_DTO_COLUMNS)
         .eq("tenant_id", tenantId)
         .eq("contact_id", id)
         .order("created_at", { ascending: false })

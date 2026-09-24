@@ -15490,7 +15490,7 @@ declare const PIPELINE_WORDS: {
     /** Where there is nobody in any group. */
     readonly empty: {
         readonly title: "No deals yet.";
-        readonly body: "Start a proposal from someone's page.";
+        readonly body: "Proposals you start show here, with what they come to.";
     };
     /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
     readonly views: {
@@ -15515,6 +15515,8 @@ declare const PIPELINE_WORDS: {
     readonly nothingBack: "Nothing back";
     /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
     readonly rail: {
+        /** A phone's sheet of the rail's rows, behind the bar's list button. */
+        readonly sheet: "Show";
         readonly deals: "Deals";
         readonly all: "All deals";
         readonly waitingOnYou: "Waiting on you";

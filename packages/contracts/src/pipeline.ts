@@ -129,7 +129,7 @@ export const PIPELINE_WORDS = {
   show: "Show",
   hide: "Hide",
   /** Where there is nobody in any group. */
-  empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
+  empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
   /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
@@ -146,6 +146,8 @@ export const PIPELINE_WORDS = {
   nothingBack: "Nothing back",
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
+    /** A phone's sheet of the rail's rows, behind the bar's list button. */
+    sheet: "Show",
     deals: "Deals",
     all: "All deals",
     waitingOnYou: "Waiting on you",

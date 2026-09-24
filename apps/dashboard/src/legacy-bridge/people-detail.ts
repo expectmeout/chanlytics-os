@@ -311,15 +311,16 @@ export interface DealBody {
 export async function recordDeal(
   id: string,
   body: DealBody,
-): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string }>> {
+): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
   return api()("POST contacts/[id]/deal", {
     params: { id },
     body,
-    // The row moves as the door answers (0008): the deal it answers with goes onto the person's People row at once, and
-    // People and Reports are read again behind it, so the sheet closes when the server takes the move rather than once
-    // every person has been read again.
+    // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
+    // people_list's rule), which goes onto the row at once, and People and Reports are read again behind it, so the
+    // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it
+    // recorded: a move on someone's older deal is not the one their row shows.
     onAccepted: (d) => {
-      if (d && d.deal) placeDeal(id, d.deal);
+      if (d && d.current) placeDeal(id, d.current);
     },
     refresh: "behind",
   });

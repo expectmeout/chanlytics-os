@@ -348,8 +348,11 @@ A proposal with no link is a fact at rest, a plain "No link", never amber: the
 wait is what needs the owner, and "Nothing back" says it without the number,
 which the row's In stage already says. A recorded move lands on the row from
 the door's answer at once, and People is read again behind it
-(`placeDeal`, `refresh: "behind"`). Start a proposal after a consultation opens
-with the consult-first service the consultation named, wherever it is pressed.
+(`placeDeal`, `refresh: "behind"`): the door answers the deal the person's row
+shows now (`current`, people_list's own rule), which is not the deal it recorded
+when the move was on someone's older deal. A new proposal opens with the
+consult-first service their consultation named, from every door that starts
+one, unless they have that service open already.
 
 ### The board
 

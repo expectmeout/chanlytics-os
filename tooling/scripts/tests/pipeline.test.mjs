@@ -333,7 +333,11 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
   const vm = pipelineOf([toPersonRowVM(personRow(NOW, "nobody", "Nobody"), TZ, new Date(NOW))], NOW, TZ);
   assert.deepEqual([vm.groups, vm.summary, vm.empty], [[], [], true]);
   assert.deepEqual(pipelineOf([], NOW, TZ).empty, true);
-  assert.deepEqual(PIPELINE_WORDS.empty, { title: "No deals yet.", body: "Start a proposal from someone's page." });
+  // The page's own New proposal stands over the empty table, so the words say what will show, not where to start.
+  assert.deepEqual(PIPELINE_WORDS.empty, {
+    title: "No deals yet.",
+    body: "Proposals you start show here, with what they come to.",
+  });
   assert.deepEqual(PIPELINE_WORDS.columns, {
     person: "Person",
     service: "Service",
@@ -1032,7 +1036,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   const tree = draw();
   assert.equal(byTestId(tree, "pipeline-summary"), null, "a line with nothing in it is not drawn");
   assert.match(textOf(tree), /No deals yet\./);
-  assert.match(textOf(tree), /Start a proposal from someone's page\./);
+  assert.match(textOf(tree), /Proposals you start show here, with what they come to\./);
   assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 people/);
 });
 
@@ -1159,6 +1163,15 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   click(open);
   tree = draw();
   assert.ok(byTestId(tree, "pipeline-new"), "the picker");
+  // Focus goes by the record sheet's own rule (focusOn): the sheet keeps New proposal as what opened it, and gives
+  // focus back to it as it closes. An autoFocus ran before the sheet did and took the search box for the opener.
+  const sheetOf = (t) => find(t, (n) => n.type === globalThis.window.RecordSheet);
+  assert.deepEqual(sheetOf(tree).props.focusOn, { row: "search" });
+  assert.equal(byTestId(tree, "pipeline-new-search").props.autoFocus, false);
+  assert.ok(
+    find(tree, (n) => n.props?.["data-rec-row"] === "search"),
+    "the field it names",
+  );
   byTestId(tree, "pipeline-new-search").props.onChange({ target: { value: "wes" } });
   tree = draw();
   const picks = all(byTestId(tree, "pipeline-new-list"), (n) => n.props?.["data-testid"] === "pipeline-new-pick");
@@ -1186,6 +1199,8 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   tree = draw();
   click(byTestId(tree, "pipeline-new-add-open"));
   tree = draw();
+  assert.deepEqual(sheetOf(tree).props.focusOn, { row: "add" }, "Add someone new: the name takes focus");
+  assert.ok(find(byTestId(tree, "pipeline-new-add"), (n) => n.props?.["data-testid"] === "pipeline-new-name"));
   byTestId(tree, "pipeline-new-name").props.onChange({ target: { value: "Ana Ruiz" } });
   tree = draw();
   byTestId(tree, "pipeline-new-phone").props.onChange({ target: { value: "+1 786 555 0199" } });
@@ -1208,7 +1223,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   assert.equal(asked.length, 2);
 });
 
-test("on a phone: one bar with the switch and search and no list to pick, then the line and People's cards", () =>
+test("on a phone: one bar with the switch, the view's list button, search and New proposal's +, then the line and People's cards", () =>
   onPhone(async () => {
     await fresh();
     const tree = draw();
@@ -1250,9 +1265,19 @@ test("on a phone: one bar with the switch and search and no list to pick, then t
     const sheetTree = draw();
     const sheet = byTestId(sheetTree, "people-lists-sheet");
     assert.ok(sheet, "the rail's rows, as a sheet");
+    assert.deepEqual(
+      [sheet.props["aria-label"], textOf(byClass(sheet, "sb-sheet-title"))],
+      ["Show", "Show"],
+      "named for what it holds: the Pipeline's views, not People's lists",
+    );
     click(byTestId(sheet, "pipeline-rail-row-clients"));
     assert.equal(went.at(-1), "clients/pipeline:v-clients");
     assert.equal(byTestId(draw(), "people-lists-sheet"), null, "a pick closes it");
+    // New proposal's picker is a phone's sheet, whose search takes focus as it opens: that sheet has no focus rule.
+    click(byTestId(draw(), "pipeline-new-open"));
+    const picker = draw();
+    assert.ok(byTestId(picker, "pipeline-new-sheet"));
+    assert.equal(byTestId(picker, "pipeline-new-search").props.autoFocus, true);
   }));
 
 /* ------------------------------------------------------------------------------ the Pipeline as a workspace */
@@ -1853,43 +1878,64 @@ test("the Pipeline's rail: every group always, what waits only when some does, t
   );
 });
 
-test("a recorded move lands on the row as the door answers: the Pipeline regroups before People is read again", async () => {
+test("a recorded move lands on the row as the door answers: the Pipeline regroups while People is still being read again", async () => {
   await fresh();
   const { recordDeal } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const before = globalThis.window.__PEOPLE.rows.find((r) => r.id === "wes").deal;
   const now = Date.now();
-  const won = {
+  const dto = (over) => ({
     id: before.id,
     contact_id: "wes",
     service: "Color correction",
-    stage: "won",
+    stage: "proposed",
     proposed_at: iso(now - 11 * DAY),
-    decided_at: iso(now),
+    decided_at: null,
     ended_at: null,
     amount_cents: 120_000,
     per: "once",
     currency: "USD",
     note: null,
-    version: 2,
+    version: 1,
     created_at: iso(now - 11 * DAY),
     proposal_url: "https://docs.example.com/proposal",
     valid_until: null,
     lost_reason: null,
-  };
+    ...over,
+  });
+  const won = dto({ stage: "won", decided_at: iso(now), version: 2 });
   const old = globalThis.window.fetch;
   const asked = [];
+  let answer = { deal: won, from: "proposed", decision_id: "dec-1", current: won };
+  // The re-read behind the write (People and Reports, the refresh map's) is held until the test lets it land.
+  let land;
+  const held = new Promise((r) => {
+    land = r;
+  });
   globalThis.window.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     asked.push(`${init.method || "GET"} ${u.pathname}`);
     if (u.pathname === "/api/v1/contacts/wes/deal" && init.method === "POST")
-      return json(200, { ok: true, data: { deal: won, from: "proposed", decision_id: "dec-1" } });
-    return old(url, init);
+      return json(200, { ok: true, data: answer });
+    await held;
+    return json(503, { ok: false, error: { code: "unavailable", message: "held" } });
   };
+  // A runner, so the refresh map's re-read really runs: with none, a write has nothing to read again.
+  const stop = startSurfaces([], () => () => {});
+  const waited = () => new Promise((r) => setTimeout(() => r("still waiting"), 400));
   try {
-    const r = await recordDeal("wes", { stage: "won", deal_id: before.id, version: 1 });
+    const r = await Promise.race([recordDeal("wes", { stage: "won", deal_id: before.id, version: 1 }), waited()]);
+    assert.notEqual(
+      r,
+      "still waiting",
+      "the sheet is answered as the door takes the move, not once People is read again",
+    );
     assert.equal(r.ok, true);
-    assert.deepEqual(asked, ["POST /api/v1/contacts/wes/deal"], "nothing read: the door's own answer moved the row");
-    assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won");
+    assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won", "the row took it");
+    // The refresh map is loaded as it is first asked for, so the re-read starts a few ticks after the answer.
+    for (let i = 0; i < 30 && !asked.includes("GET /api/v1/contacts"); i += 1)
+      await new Promise((res) => setTimeout(res, 10));
+    assert.ok(asked.includes("GET /api/v1/contacts"), "and People is being read again behind it, not yet landed");
     const tree = draw();
     const clients = all(tree, (n) => n.type === "tbody" && n.props?.["data-section"] === "clients")[0];
     assert.deepEqual(
@@ -1897,11 +1943,90 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
       ["person-wes", "person-cat"],
       "Wes is a client, the newest first",
     );
-    // A closed deal that is not the one the row shows is not the row's to take: the re-read decides.
+    // A move on someone's older deal is not the deal their row shows: the row takes the door's `current`, never the
+    // deal it recorded. It took the recorded one, and jumped to Clients until the re-read.
+    answer = {
+      deal: dto({ id: "d-wes-older", service: "Ad management", stage: "won", amount_cents: 90_000, per: "month" }),
+      from: "won",
+      decision_id: "dec-2",
+      current: won,
+    };
+    const again = await Promise.race([
+      recordDeal("wes", { stage: "won", deal_id: "d-wes-older", version: 1, amount_cents: 90_000 }),
+      waited(),
+    ]);
+    assert.equal(again.ok, true);
+    const row = globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes");
+    assert.deepEqual([row.deal.id, row.deal.service], [before.id, "Color correction"], "the row's own deal stays");
+    // No `current` in the answer (a server from before it): the row waits for the re-read.
+    answer = { deal: dto({ stage: "lost", decided_at: iso(now), version: 3 }), from: "won", decision_id: "dec-3" };
+    await Promise.race([recordDeal("wes", { stage: "lost", deal_id: before.id, version: 2 }), waited()]);
+    assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won");
     const { placeDeal } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
-    assert.equal(placeDeal("cat", { ...won, id: "someone-else", contact_id: "cat", stage: "lost" }), false);
-    assert.equal(placeDeal("nobody-here", won), false);
+    assert.equal(placeDeal("nobody-here", won), false, "someone People does not hold: nothing to move");
   } finally {
+    land();
+    stop();
+    await new Promise((res) => setTimeout(res, 20));
     globalThis.window.fetch = old;
+  }
+});
+
+test("a person a link names stays open where this tab kept a cursor in that view: the address's person takes the cursor", async () => {
+  await fresh();
+  // The tab's place for the whole Pipeline (usePlPlace): the cursor was left on Wes.
+  globalThis.window.__tabMemory = {
+    place: (page, view) => (page === "pipeline" && view === "all" ? { q: "", cursor: "wes", top: 0 } : null),
+    keepPlace() {},
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  try {
+    let tree;
+    for (let i = 0; i < 4; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
+    assert.equal(textOf(byTestId(byTestId(tree, "pipeline-peek"), "pipeline-peek-name")), "Nia", "the link's person");
+    assert.deepEqual([went, replaced], [[], []], "and the address is left as the link said it");
+    assert.equal(press("j"), true);
+    for (let i = 0; i < 3; i += 1) tree = draw({ pipelineRoute: "pipeline:p-nia" });
+    assert.deepEqual(replaced, ["clients/pipeline:p-cat"], "the keys walk on from the person the link opened");
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});
+
+test("a view nobody touched is not written to the workspace: a first open saves nothing on the member's row", async () => {
+  const seen = await fresh();
+  for (let i = 0; i < 3; i += 1) draw();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(seen.viewSaves, [], "the defaults were written for a member who had saved nothing");
+  // A choice is theirs, and saved.
+  click(byTestId(draw(), "pipeline-view-board"));
+  draw();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(seen.viewSaves.at(-1).view.layout, "board");
+});
+
+test("a viewer sees New proposal and why they may not press it, and a press opens nothing", async () => {
+  await fresh();
+  const keep = globalThis.window.ST_STORE;
+  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
+  try {
+    let tree = draw();
+    const open = byTestId(tree, "pipeline-new-open");
+    assert.deepEqual([open.props["aria-disabled"], typeof open.props["aria-description"]], [true, "string"]);
+    let stopped = false;
+    open.props.onClick({
+      preventDefault() {},
+      stopPropagation() {
+        stopped = true;
+      },
+      currentTarget: {},
+    });
+    tree = draw();
+    assert.equal(stopped, true, "the gate's own press, which says why");
+    assert.equal(byTestId(tree, "pipeline-new"), null, "nothing opened");
+  } finally {
+    globalThis.window.ST_STORE = keep;
   }
 });

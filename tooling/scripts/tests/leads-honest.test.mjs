@@ -3584,3 +3584,22 @@ test("a converted lead whose person became a client reads Client, on the desktop
     globalThis.__phone = false;
   }
 });
+
+test("a lead a link names stays open where this tab kept a cursor in that view: the address's lead takes the cursor", () => {
+  const { navs, at, openPeek } = addressed();
+  // The tab's place for Leads (usePlPlace): the cursor was left on the first lead.
+  globalThis.window.__tabMemory = {
+    place: (page) => (page === "leads" ? { q: "", cursor: UA, top: 0 } : null),
+    keepPlace() {},
+    draft: () => null,
+    keepDraft() {},
+    dropDraft() {},
+  };
+  try {
+    for (let i = 0; i < 4; i += 1) at(`leads:p-${UB}`);
+    assert.equal(openPeek().vm.id, UB, "the link's lead, not the kept cursor's");
+    assert.deepEqual(navs, [], "and the address is left as the link said it");
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});

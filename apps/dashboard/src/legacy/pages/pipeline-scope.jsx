@@ -116,7 +116,9 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   // published them (fetchedAt), so the Pipeline groups and counts at that same moment, and a proposal's "8 d" in its
   // chip and its row never disagree across midnight.
   const nowMs = people.fetchedAt || Date.now();
-  const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, extraDefaults: { layout: pipeFirstLayout() } });
+  // The first layout, read once: usePlControls asks for its defaults as it mounts and again as People lands.
+  const [firstLayout] = React.useState(pipeFirstLayout);
+  const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, extraDefaults: { layout: firstLayout } });
   const { phone, searchOpen, setSearchOpen, toastNode, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX, extraView, setExtraView } = controls;
   const layout = extraView && PIPE_LAYOUTS.includes(extraView.layout) ? extraView.layout : "list";
   // The groups the member opened, or folded again, by key. One they never touched is as the Pipeline starts it.
@@ -135,6 +137,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
   const [newOpen, setNewOpen] = React.useState(false);
   const [newQ, setNewQ] = React.useState("");
   const [newAdd, setNewAdd] = React.useState(EMPTY_ADD);
+  const [newFocus, setNewFocus] = React.useState(null);
   const rows = people.rows;
   // The whole Pipeline says the line over the table and the rail's counts; the view and the words in the box choose
   // only which rows show under them.
@@ -229,7 +232,9 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
-      if (peekId !== addrPeek) { if (addrPeek) showPeek(addrPeek); else setPeekId(null); }
+      // The person the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
+      // otherwise walk the peek, and the address, off them on the next draw.
+      if (peekId !== addrPeek) { if (addrPeek) openPeek(addrPeek); else setPeekId(null); }
       return;
     }
     if (peekId === addrPeek) return;
@@ -271,7 +276,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
     if (mv && window.openDealSheet) window.openDealSheet({ personId: d.id, mode: mv.mode, dealId: mv.dealId });
   };
   // New proposal: who it is for, then the one deal sheet in its propose mode. Someone added is People's own add.
-  const openNew = () => { setNewQ(""); setNewAdd(EMPTY_ADD); setNewOpen(true); };
+  const openNew = () => { setNewQ(""); setNewAdd(EMPTY_ADD); setNewFocus({ row: "search" }); setNewOpen(true); };
   const pickForNew = (id) => {
     setNewOpen(false);
     setNewAdd(EMPTY_ADD);
@@ -424,7 +429,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
         ) : null}
         {/* A phone's views: the rail's rows as a sheet, a pick closes it. */}
         {phone && listsOpen && window.PeopleListsSheet ? (
-          <window.PeopleListsSheet onClose={() => setListsOpen(false)}>
+          <window.PeopleListsSheet title={words.rail.sheet} onClose={() => setListsOpen(false)}>
             <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
               <PipelineRailRows sections={rail} view={view} onPick={pickView} />
             </aside>
@@ -438,7 +443,8 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
             add={newAdd}
             onQ={setNewQ}
             onPick={pickForNew}
-            onAddOpen={() => setNewAdd({ ...EMPTY_ADD, open: true })}
+            onAddOpen={() => { setNewAdd({ ...EMPTY_ADD, open: true }); setNewFocus({ row: "add" }); }}
+            focusOn={newFocus}
             onAddDraft={(patch) => setNewAdd((d) => ({ ...d, ...patch }))}
             onAdd={addForNew}
             onClose={() => { setNewOpen(false); setNewAdd(EMPTY_ADD); }}

@@ -906,19 +906,17 @@ async function peopleMore(): Promise<void> {
 }
 
 /**
- * A deal the door has just answered with, laid on its person's People row at once (0008): the Pipeline moves the row
- * as the sheet closes, instead of once all of People has been read again. The row takes it when it is the deal the
- * row already shows, or an open one (proposed or won), which is the deal a People row shows first (people_list's
- * rule); the re-read the refresh map asks for behind it settles what this cannot know, a second open deal among it.
- * True when a row took it.
+ * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
+ * row shows after the write (server/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
+ * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
+ * deal: their row jumped to it until the re-read. True when a row took it.
  */
 export function placeDeal(personId: string, deal: DealDto | null | undefined): boolean {
   if (!peopleLoaded || !deal || !deal.id) return false;
   const i = peopleLoaded.people.findIndex((r) => r.id === personId);
   if (i < 0) return false;
   const row = peopleLoaded.people[i];
-  const open = deal.stage === "proposed" || deal.stage === "won";
-  if (row.deal_id !== deal.id && !open) return false;
   peopleLoaded.people[i] = {
     ...row,
     deal_id: deal.id,

@@ -166,16 +166,21 @@ const act = (id: DealActId, extra: { text?: string; hint?: string; service?: str
 
 /**
  * The consult-first service their consultation named: what a proposal started from it is for, by the Calendar's own
- * rule (deals.ts consultServiceOf), so Start a proposal opens with it wherever it is pressed. Null where the title
- * names none, or no service needs a consultation.
+ * rule (deals.ts consultServiceOf), so a new proposal opens with it wherever it is started -- the card, the thread,
+ * New proposal, a card dropped on the board. Null where the title names none, where no service needs a consultation,
+ * and where they have that service open already, which the door would refuse (already_open).
  */
 function consultedService(p: DealPerson): string | null {
   if (!p.consultationTitle) return null;
-  return consultServiceOf(
+  const named = consultServiceOf(
     p.consultationTitle,
     (p.services ?? []).map((name) => ({ name })),
     { consult_first: p.consultFirst ?? [] },
   );
+  const open = (p.deals ?? (p.deal ? [p.deal] : [])).some(
+    (d) => d.service === named && (d.stage === "proposed" || d.stage === "won"),
+  );
+  return named && !open ? named : null;
 }
 
 /** Whether a deal's proposal went: the deal's own word for it on a person's page, else the person's for its link. */
@@ -739,7 +744,7 @@ export function dealSheetFor(
     ...DRAFT_EMPTY,
     ...(mode === "propose"
       ? {
-          service: target.service?.trim() || "",
+          service: target.service?.trim() || consultedService(p) || "",
           // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
           link: !p.deal && p.proposal ? p.proposal.url : "",
         }

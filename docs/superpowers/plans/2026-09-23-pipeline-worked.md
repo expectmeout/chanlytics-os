@@ -150,6 +150,10 @@ own keys; `PL_VIEW_KEYS.pipeline`), `styles/clients.css`; test `pipeline.test.mj
 - [x] `legacy/CLAUDE.md` Pipeline paragraph; this plan's PR 1 ticks.
 - [x] The probe at 1280, 1440, 390, both themes; the gate; the PR; merge on green. The probe also found the table's
   foot counting the whole Pipeline in a view ("18 people" under Proposal out's six): it counts the view now.
+- [x] The review's one round: a linked person kept against a remembered cursor (Pipeline and Leads); the deal door
+  answers `current` (people_list's rule, `server/deals.ts currentDealOf`) for `placeDeal`, so a move on an older deal
+  never moves the row; New proposal's desk focus by the record sheet's `focusOn`; the consult-first prefill in
+  `dealSheetFor` for every door, not while that service is open; the phone sheet "Show"; the dead `keepsView`.
 
 ---
 

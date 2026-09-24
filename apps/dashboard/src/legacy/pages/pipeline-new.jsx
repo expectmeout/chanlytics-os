@@ -5,6 +5,11 @@
 // (plMatcher), the first eight; or Add someone new, by name and number, through People's own door and words
 // (plAddPerson). A pick, or an add, closes it and asks for the deal sheet in its propose mode. Hookless: what is open
 // and what was typed are PipelineScope's. Every word is contracts' (PIPELINE_WORDS.newProposal).
+//
+// Focus: on a desk the record sheet takes it as it opens and hands it to the field `focusOn` names (the search, then
+// the name as Add someone new opens), so the sheet keeps New proposal as what opened it and gives focus back to it.
+// An autoFocus there ran before the sheet did: the sheet took the search box for its opener, and closing dropped focus
+// on the page's body. A phone's sheet has no focus rule of its own, so there the fields autoFocus.
 
 const PIPE_NEW_MAX = 8;
 
@@ -14,15 +19,15 @@ const pipeNewMatches = (rows, q) => {
   return (match ? rows.filter(match) : rows).slice(0, PIPE_NEW_MAX);
 };
 
-const PipelineNewBody = ({ rows, q, add, onQ, onPick, onAddOpen, onAddDraft, onAdd }) => {
+const PipelineNewBody = ({ rows, q, add, onQ, onPick, onAddOpen, onAddDraft, onAdd, autoFocus = false }) => {
   const W = window.__pipeline.words.newProposal;
   const found = pipeNewMatches(rows, q);
   return (
     <div className="pipe-new" data-testid="pipeline-new">
       <p className="pipe-new-sub">{W.sub}</p>
-      <label className="pipe-new-search">
+      <label className="pipe-new-search" data-rec-row="search">
         <Icon name="search" size={13} />
-        <input type="search" autoFocus autoComplete="off" value={q} placeholder={W.search} aria-label={W.search} onChange={(e) => onQ(e.target.value)} data-testid="pipeline-new-search" />
+        <input type="search" autoFocus={autoFocus} autoComplete="off" value={q} placeholder={W.search} aria-label={W.search} onChange={(e) => onQ(e.target.value)} data-testid="pipeline-new-search" />
       </label>
       {found.length ? (
         <ul className="pipe-new-list" data-testid="pipeline-new-list">
@@ -44,10 +49,10 @@ const PipelineNewBody = ({ rows, q, add, onQ, onPick, onAddOpen, onAddDraft, onA
         <p className="pipe-new-none" data-testid="pipeline-new-none">{W.none}</p>
       )}
       {add.open ? (
-        <div className="pipe-new-add" data-testid="pipeline-new-add">
+        <div className="pipe-new-add" data-rec-row="add" data-testid="pipeline-new-add">
           <label className="rec-field">
             <span className="rec-field-label">{W.name} <span className="pipe-new-opt">({W.optional})</span></span>
-            <input className="rec-input" value={add.name} maxLength={80} autoComplete="name" readOnly={add.busy} onChange={(e) => onAddDraft({ name: e.target.value })} data-testid="pipeline-new-name" />
+            <input className="rec-input" autoFocus={autoFocus} value={add.name} maxLength={80} autoComplete="name" readOnly={add.busy} onChange={(e) => onAddDraft({ name: e.target.value })} data-testid="pipeline-new-name" />
           </label>
           <label className="rec-field">
             <span className="rec-field-label">{W.number}</span>
@@ -63,13 +68,13 @@ const PipelineNewBody = ({ rows, q, add, onQ, onPick, onAddOpen, onAddDraft, onA
   );
 };
 
-const PipelineNew = ({ phone = false, onClose, ...body }) => {
+const PipelineNew = ({ phone = false, onClose, focusOn = null, ...body }) => {
   const W = window.__pipeline.words.newProposal;
   if (phone && window.PhoneSheet) {
-    return <window.PhoneSheet title={W.title} onClose={onClose} testid="pipeline-new-sheet"><PipelineNewBody {...body} /></window.PhoneSheet>;
+    return <window.PhoneSheet title={W.title} onClose={onClose} testid="pipeline-new-sheet"><PipelineNewBody {...body} autoFocus /></window.PhoneSheet>;
   }
   if (!window.RecordSheet) return null;
-  return <window.RecordSheet id="pipeline-new" className="pipe-new-sheet" title={W.title} onClose={onClose} testid="pipeline-new-sheet"><PipelineNewBody {...body} /></window.RecordSheet>;
+  return <window.RecordSheet id="pipeline-new" className="pipe-new-sheet" title={W.title} onClose={onClose} focusOn={focusOn} testid="pipeline-new-sheet"><PipelineNewBody {...body} /></window.RecordSheet>;
 };
 
 Object.assign(window, { PipelineNew });

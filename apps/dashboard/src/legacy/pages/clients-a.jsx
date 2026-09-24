@@ -1087,7 +1087,7 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
 // On a phone the rail is not drawn, so its lists come up behind one tap on the standing line, as a sheet: the
 // same rows, the same counts and the same New list, and a pick closes it. They were a Lists tab of their own,
 // with a chip row above a second table of the same people.
-const PeopleListsSheet = ({ onClose, children }) => {
+const PeopleListsSheet = ({ onClose, title = "Lists", children }) => {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -1097,9 +1097,9 @@ const PeopleListsSheet = ({ onClose, children }) => {
     <>
       <div className="sb-sheet-backdrop" onClick={onClose} />
       {/* It goes the way it came as it closes, and a thumb pulls it down (data-bits leaving, touchSwipe). */}
-      <div className="sb-sheet pl-sheet" role="dialog" aria-label="Lists" data-testid="people-lists-sheet" ref={window.leaving ? window.leaving("people-lists") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
+      <div className="sb-sheet pl-sheet" role="dialog" aria-label={title} data-testid="people-lists-sheet" ref={window.leaving ? window.leaving("people-lists") : undefined} {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: plPhoneNow }) : {})}>
         <div className="sb-sheet-head">
-          <span className="sb-sheet-title">Lists</span>
+          <span className="sb-sheet-title">{title}</span>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} data-testid="people-lists-close">Done</button>
         </div>
         {children}
@@ -1309,7 +1309,7 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
 // state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
 // `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. As one
 // string, "All leads · 96" was drawn "All leads · …" on a 375px phone. `dealsOn` puts the Pipeline in the switch; with
-// no `onLists` there is no list to pick (the Pipeline is one view) and the bar draws no list button.
+// no `onLists` there is no list to pick and the bar draws no list button.
 const PeoplePhoneBar = ({ scope, onScope, dealsOn = false, listLabel = null, listCount = null, onLists = null, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
   const id = (part) => `${testid}-phone-${part}`;
   if (searchOpen || q) {
@@ -2102,12 +2102,10 @@ const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):no
  * - people: the People surface, which carries the workspace's copy of every view, Leads' included.
  * - sortFirst: `{ by, dir }`, the sort before anyone chose one.
  * - railRow: under Leads, the rail's row, which its saved view carries too.
- * - keepsView: false for a scope with no view of its own to keep (the Pipeline: its order is contracts' and its columns
- *   are fixed), which reads none and saves none, on this device or the workspace's.
  */
 // `extraDefaults`: the page's own keys in its saved view, beside the sort and the columns, with their defaults (the
 // Pipeline's `{ layout }`). A value of another type than its default's is not the member's choice, and the default stands.
-const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null, keepsView = true, extraDefaults = null }) => {
+const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null, extraDefaults = null }) => {
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
   // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
@@ -2139,7 +2137,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   // The view the workspace remembers for this member (memberships.views, read
   // with the surface) wins over what this device remembers; the device copy
   // stays as the fallback for a route that is not there yet.
-  const remembered = React.useMemo(() => (keepsView ? { ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) } : {}), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const remembered = React.useMemo(() => ({ ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   // The sort as the page starts it: the member's where it is one this page can draw, else the page's own first.
   const firstBy = plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : sortFirst.by;
   const firstDir = remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : sortFirst.dir;
@@ -2185,7 +2183,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const viewKnown = React.useRef(peopleLanded);
   const viewTouched = React.useRef(false);
   React.useEffect(() => {
-    if (!keepsView || viewKnown.current || !peopleLanded) return;
+    if (viewKnown.current || !peopleLanded) return;
     viewKnown.current = true;
     if (viewTouched.current || !serverView) return;
     const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
@@ -2199,7 +2197,6 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
     if (extra) setExtraViewState(extra);
   }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    if (!keepsView) return;
     const view = viewAs(sortBy, sortDir, colChoices, railRow, extraView);
     plSaveView(scope, view);
     // The workspace's copy, once per change and never for the view it already holds. The choices change only when
@@ -3111,7 +3108,9 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
       a.peek = addrPeek;
       a.asked = null;
       if (!addrPeek) a.pushed = false;
-      if (peekId !== addrPeek) { setPeekId(addrPeek); setPeekMode("info"); setArmed(null); setDraft(null); }
+      // The lead the address names takes the cursor too: the cursor this tab kept for the view (usePlPlace) would
+      // otherwise walk the peek, and the address, off it on the next draw.
+      if (peekId !== addrPeek) { setPeekId(addrPeek); if (addrPeek) setCursor(addrPeek); setPeekMode("info"); setArmed(null); setDraft(null); }
       return;
     }
     if (peekId === addrPeek) return;

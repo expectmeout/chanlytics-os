@@ -18039,11 +18039,15 @@ var act = (id, extra = {}) => ({
 });
 function consultedService(p) {
   if (!p.consultationTitle) return null;
-  return consultServiceOf(
+  const named = consultServiceOf(
     p.consultationTitle,
     (p.services ?? []).map((name) => ({ name })),
     { consult_first: p.consultFirst ?? [] }
   );
+  const open = (p.deals ?? (p.deal ? [p.deal] : [])).some(
+    (d) => d.service === named && (d.stage === "proposed" || d.stage === "won")
+  );
+  return named && !open ? named : null;
 }
 function sentOf(p, deal) {
   const url = deal.proposal?.url ?? null;
@@ -18355,7 +18359,7 @@ function dealSheetFor(mode, p, nowMs, tz, target = {}) {
   const draft = {
     ...DRAFT_EMPTY,
     ...mode === "propose" ? {
-      service: target.service?.trim() || "",
+      service: target.service?.trim() || consultedService(p) || "",
       // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
       link: !p.deal && p.proposal ? p.proposal.url : ""
     } : {},
@@ -18527,7 +18531,7 @@ var PIPELINE_WORDS = {
   show: "Show",
   hide: "Hide",
   /** Where there is nobody in any group. */
-  empty: { title: "No deals yet.", body: "Start a proposal from someone's page." },
+  empty: { title: "No deals yet.", body: "Proposals you start show here, with what they come to." },
   /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
   views: { label: "Show as", list: "List", board: "Board" },
   /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
@@ -18544,6 +18548,8 @@ var PIPELINE_WORDS = {
   nothingBack: "Nothing back",
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
+    /** A phone's sheet of the rail's rows, behind the bar's list button. */
+    sheet: "Show",
     deals: "Deals",
     all: "All deals",
     waitingOnYou: "Waiting on you",
