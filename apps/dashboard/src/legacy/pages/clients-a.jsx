@@ -677,7 +677,7 @@ const PL_LIST_TIP = {
 
 // What the page remembers between visits on this device, per scope: the sort and the columns
 // ({ sortBy, sortDir, columns }), and under Leads the rail's list too ({ list, sortBy, sortDir, columns }).
-const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view" };
+const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view", pipeline: "chanlytics-pipeline-view" };
 const plLoadView = (scope) => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEYS[scope] || PL_VIEW_KEYS.people) || "{}") }; } catch { return {}; }
 };
@@ -2105,7 +2105,9 @@ const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):no
  * - keepsView: false for a scope with no view of its own to keep (the Pipeline: its order is contracts' and its columns
  *   are fixed), which reads none and saves none, on this device or the workspace's.
  */
-const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null, keepsView = true }) => {
+// `extraDefaults`: the page's own keys in its saved view, beside the sort and the columns, with their defaults (the
+// Pipeline's `{ layout }`). A value of another type than its default's is not the member's choice, and the default stands.
+const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, railRow = null, keepsView = true, extraDefaults = null }) => {
   // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
   const [searchOpen, setSearchOpen] = useState(false);
   // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
@@ -2138,8 +2140,11 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   // with the surface) wins over what this device remembers; the device copy
   // stays as the fallback for a route that is not there yet.
   const remembered = React.useMemo(() => (keepsView ? { ...plLoadView(scope), ...((people.views && people.views[scope]) || {}) } : {}), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [sortBy, setSortBy] = useState(plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : sortFirst.by);
-  const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : sortFirst.dir);
+  // The sort as the page starts it: the member's where it is one this page can draw, else the page's own first.
+  const firstBy = plSortKeys(cols).includes(remembered.sortBy) ? remembered.sortBy : sortFirst.by;
+  const firstDir = remembered.sortDir === "asc" || remembered.sortDir === "desc" ? remembered.sortDir : sortFirst.dir;
+  const [sortBy, setSortBy] = useState(firstBy);
+  const [sortDir, setSortDir] = useState(firstDir);
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its
   // default (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
   const [colChoices, setColChoices] = useState(() => plColumnChoices(cols, remembered.columns));
@@ -2150,8 +2155,21 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   // saved before it went carries an attentionTab this ignores, and the next save drops it. Every save sends every key
   // the page owns, because member_view_set replaces the page's whole object (00113): a save of the sort alone would
   // lose the columns.
-  const viewAs = (by, dir, columns, row) => (scope === "leads" ? { list: row, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns });
-  const savedView = React.useRef(JSON.stringify(viewAs(remembered.sortBy, remembered.sortDir, plColumnChoices(cols, remembered.columns), remembered.list || "all")));
+  const pickExtra = (v) => {
+    if (!extraDefaults) return null;
+    const out = {};
+    for (const k of Object.keys(extraDefaults)) out[k] = v && typeof v[k] === typeof extraDefaults[k] ? v[k] : extraDefaults[k];
+    return out;
+  };
+  const [extraView, setExtraViewState] = useState(() => pickExtra(remembered));
+  const viewAs = (by, dir, columns, row, extra) => ({
+    ...(scope === "leads" ? { list: row, sortBy: by, sortDir: dir, columns } : { sortBy: by, sortDir: dir, columns }),
+    ...(extra || {}),
+  });
+  // What the server is taken to hold: the view as the page starts it, so a view nobody touched is never written back.
+  // It was the raw remembered view, whose missing sort compared unequal to the page's first one, so a member who had
+  // saved nothing wrote the defaults on every first open.
+  const savedView = React.useRef(JSON.stringify(viewAs(firstBy, firstDir, plColumnChoices(cols, remembered.columns), remembered.list || "all", pickExtra(remembered))));
   // One saver for the page's life, so its saves go one at a time (plViewSaver), and it saves THIS scope's view:
   // People's is views.people, the Leads scope's is views.leads, and the page is remounted when the scope changes.
   const viewSaver = React.useRef(null);
@@ -2173,14 +2191,16 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
     const by = plSortKeys(cols).includes(serverView.sortBy) ? serverView.sortBy : sortBy;
     const dir = serverView.sortDir === "asc" || serverView.sortDir === "desc" ? serverView.sortDir : sortDir;
     const columns = plColumnChoices(cols, serverView.columns);
-    savedView.current = JSON.stringify(viewAs(by, dir, columns, railRow));
+    const extra = pickExtra(serverView);
+    savedView.current = JSON.stringify(viewAs(by, dir, columns, railRow, extra));
     setSortBy(by);
     setSortDir(dir);
     setColChoices(columns);
+    if (extra) setExtraViewState(extra);
   }, [peopleLanded]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (!keepsView) return;
-    const view = viewAs(sortBy, sortDir, colChoices, railRow);
+    const view = viewAs(sortBy, sortDir, colChoices, railRow, extraView);
     plSaveView(scope, view);
     // The workspace's copy, once per change and never for the view it already holds. The choices change only when
     // what they say does (pickColumn keeps them for Person), so this runs once per change.
@@ -2189,7 +2209,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
     if (!viewKnown.current && !viewTouched.current) return;
     savedView.current = key;
     viewSaver.current(view);
-  }, [sortBy, sortDir, colChoices, railRow]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortBy, sortDir, colChoices, railRow, JSON.stringify(extraView)]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState("");
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
@@ -2219,6 +2239,8 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };
+  // One of the page's own keys, chosen: theirs, saved with the rest of the view.
+  const setExtraView = (patch) => { viewTouched.current = true; setExtraViewState((x) => ({ ...(x || {}), ...patch })); };
   // The columns drawn (every one this scope can show, those this member turned off marked for a desktop to hide).
   // Kept while nothing they are made of changed, so a memoised row sees the same list from one draw to the next.
   // On a phone both scopes draw one cell a row, People's: plCardCell for a person, ldCardCell (leads-scope.jsx) for a
@@ -2245,6 +2267,7 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
     sel, setSel, toggleSel, allMatching, setAllMatching, clearSelection,
     sortBy, setSortBy, sortDir, setSortDir, onSort, pickSort, colsOpen, setColsOpen, scrolledX, setScrolledX,
     columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef,
+    extraView, setExtraView,
   };
 };
 
@@ -2513,7 +2536,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   React.useEffect(() => {
     const cur = (window.location.hash || "").replace(/^#\/?/, "");
     if (!cur.startsWith("clients")) return;
-    if (/^clients\/(?!seg:|list:|state:|pipeline$)./.test(cur)) return;
+    if (/^clients\/(?!seg:|list:|state:|pipeline(:|$))./.test(cur)) return;
     const want = listId ? `seg:${listId}` : savedId ? `list:${savedId}` : tab !== "all" ? `state:${tab}` : "";
     const next = want ? `#/clients/${want}` : "#/clients";
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
@@ -3619,4 +3642,4 @@ window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads"). The Pipeline (pipeline-scope.jsx) is a third view
 // over the same list page, and takes its hooks, its person cell and its search from here: one rule each.
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });
+Object.assign(window, { plAddPerson, plAddedWords, PL_ADD_EMPTY, NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet, PeoplePhoneBar, PhoneSheet, PhoneSheetRow, plRowCard, RailSection, RailGroup, RailRow, railToggle, usePeople, usePlControls, usePlPlace, plNameCell, plFace, plIsNumber, plMatcher, plScopeRoute, plLoadedWords, PL_SEARCH_LABEL });

@@ -19,7 +19,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageTitle, shellStatusLine, toBillingVM, toLiveVM } from "@chanlytics/contracts";
+import {
+  pageTitle,
+  parsePipelineRoute,
+  pipelineViewLabel,
+  shellStatusLine,
+  toBillingVM,
+  toLiveVM,
+} from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 import { hookFrames } from "./_hook-frames.mjs";
 
@@ -1569,11 +1576,36 @@ test("People › Pipeline is the page's third scope at clients/pipeline: its cru
     assert.equal(stays(go("#/clients/pipeline")), true);
     assert.equal(stays(go("#/clients")), true, "and back");
     assert.equal(stays(go("#/clients/c-aisha")), false, "a person is somewhere else");
+    // Every view of the Pipeline, and a person open over one, is the page already there: it follows its address as a
+    // prop (contracts pipelineRoute), and the crumbs name the view.
+    const keepPipeline = win.__pipeline;
+    win.__pipeline = { parse: parsePipelineRoute, viewLabel: pipelineViewLabel };
+    try {
+      const viewed = mount("#/clients/pipeline:v-proposals:p-5b3c1a2e");
+      assert.equal(mountKey(viewed.tree), mountKey(tree), "one mount for the whole address family");
+      assert.deepEqual(
+        [page(viewed.tree).props.scope, page(viewed.tree).props.pipelineRoute],
+        ["pipeline", "pipeline:v-proposals:p-5b3c1a2e"],
+      );
+      assert.deepEqual(crumbs(viewed.tree), [
+        { label: "People", to: "clients" },
+        { label: "Pipeline", to: "clients/pipeline" },
+        "Proposal out",
+      ]);
+    } finally {
+      win.__pipeline = keepPipeline;
+    }
     // Where deals are off the address draws People, and says People.
     win.__PEOPLE = { rows: [], lists: [], saved: [], dealsOn: false };
     const off = mount("#/clients/pipeline");
     assert.deepEqual([page(off.tree).props.scope, page(off.tree).props.key], ["people", "people"]);
     assert.deepEqual(crumbs(off.tree), ["People"]);
+    const offView = mount("#/clients/pipeline:v-proposals");
+    assert.deepEqual(
+      [page(offView.tree).props.scope, page(offView.tree).props.pipelineRoute],
+      ["people", null],
+      "every view of it too",
+    );
   } finally {
     win.__PEOPLE = keepPeople;
   }

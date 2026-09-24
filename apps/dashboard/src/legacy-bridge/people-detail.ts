@@ -33,7 +33,7 @@ import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
 import { readCache } from "./read-cache";
-import { keepSavedView } from "./surface-data";
+import { keepSavedView, placeDeal } from "./surface-data";
 import { personRouteId } from "./surface-registry";
 import { getActiveWorkspace } from "./workspace";
 
@@ -312,7 +312,17 @@ export async function recordDeal(
   id: string,
   body: DealBody,
 ): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string }>> {
-  return api()("POST contacts/[id]/deal", { params: { id }, body });
+  return api()("POST contacts/[id]/deal", {
+    params: { id },
+    body,
+    // The row moves as the door answers (0008): the deal it answers with goes onto the person's People row at once, and
+    // People and Reports are read again behind it, so the sheet closes when the server takes the move rather than once
+    // every person has been read again.
+    onAccepted: (d) => {
+      if (d && d.deal) placeDeal(id, d.deal);
+    },
+    refresh: "behind",
+  });
 }
 
 /**

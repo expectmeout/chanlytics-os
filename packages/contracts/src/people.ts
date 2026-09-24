@@ -189,6 +189,8 @@ export interface PersonDetailDto {
   deals_on?: boolean;
   /** The profile's service names, for the page's picker when it lists more than one. */
   services?: string[];
+  /** The services that need a consultation first (booking_rules.consult_first): which one a consultation was for. */
+  consult_first?: string[];
   /** The workspace's booking link, for the profile's one-step send. */
   booking_link?: string | null;
   /** Every change to either answer, newest first: the ledger rows (contact.consent_changed), as evidence. */
@@ -1933,6 +1935,8 @@ export interface PersonVM extends PersonRowVM {
   dealsOn: boolean;
   /** The profile's service names; the picker appears only past one. */
   services: string[];
+  /** The services that need a consultation first: a proposal started from one names it (deal-sheet.ts). */
+  consultFirst: string[];
   /** "inbox/th-…" or null for a phone-only person. */
   openThread: string | null;
   /** The person's own setting (null = following the workspace) and the
@@ -2683,6 +2687,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     deals,
     dealsOn,
     services: d.services ?? [],
+    consultFirst: d.consult_first ?? [],
   };
   // The send's words follow the wire the page has settled on, exact window included.
   const whole = {

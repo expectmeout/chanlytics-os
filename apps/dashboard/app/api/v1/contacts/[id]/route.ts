@@ -491,8 +491,15 @@ export const GET = read({
     if (added.error) throw new Error(added.error.message);
     const bookingLink = (cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
     // The profile's services: the page's service picker.
-    const profile = (cfgRow.data?.config as { brain?: { profile?: { services?: { name: string }[] } } } | null)?.brain
-      ?.profile;
+    const profile = (
+      cfgRow.data?.config as {
+        brain?: { profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: unknown } } };
+      } | null
+    )?.brain?.profile;
+    // The services that need a consultation first: a proposal started after one names the service it was for (0008).
+    const consultFirst = Array.isArray(profile?.booking_rules?.consult_first)
+      ? (profile.booking_rules.consult_first as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);
     if (wsPol.error) throw new Error(wsPol.error.message);
@@ -521,6 +528,7 @@ export const GET = read({
       deals: deals ?? undefined,
       deals_on: dealsAreOn(sellsBy),
       services: (profile?.services ?? []).map((s) => s.name),
+      consult_first: consultFirst,
       added: added.data
         ? {
             at: added.data.created_at,

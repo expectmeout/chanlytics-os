@@ -1,18 +1,23 @@
 /* global React, Icon, StatePill */
 // People › Pipeline (docs/decisions/0008-a-proposal-is-part-of-the-deal.md): People's rows by where their deal stands
 // -- consultations, proposals out, clients, and those who passed or ended -- under one line that says what is out and
-// what it comes to. A view of People, never a page of its own: People's rail and switch, People's table in sections
+// what it comes to. A view of People, never a page of its own: People's switch, People's table in sections
 // (people-table.jsx), People's person cell and phone card, the list page's two hooks (clients-a.jsx usePlControls and
 // usePlPlace: the width, the words in the box, the keys, the place kept, the first rows), and the rows the People
 // surface already holds, so nothing is fetched. Every word is contracts' (pipeline.ts, window.__pipeline); the page
 // composes them and decides nothing. Drawn only where deals are on: anywhere else ClientsA draws People. Loaded before
 // clients-a.jsx, which draws it, and it reads what that file publishes only as it draws.
 //
-// And a workspace, not only a list ("the Pipeline is a workspace", 0008): a row opens its person's deal in a peek
-// beside the rows (pipeline-peek.jsx), with the card's own acts -- a send into their thread, every other move into the
-// one deal sheet -- and the two doors, their page and their thread; on a desk the rows can be a board instead
-// (pipeline-board.jsx), whose cards drop into another column to ask the sheet for that move (contracts pipelineMove);
-// and a teammate's move shows without a reload (the People surface repaints on the deals table).
+// A workspace, not only a list ("The Pipeline is a workspace", 0008):
+// - its own rail (contracts pipelineRail): its groups, what waits on the owner, and each service; on a phone the same
+//   rows behind the bar's list button, and the standing line's warn parts press to the same views;
+// - its address (contracts pipelineRoute: clients/pipeline:v-<view>:p-<person>), which the shell follows as a prop, so a
+//   refresh keeps the view and the person open over it, Back closes the peek, and any page can link to a deal;
+// - a row opens its person's deal in a peek beside the rows (pipeline-peek.jsx), with the card's own acts;
+// - on a desk the rows can be a board (pipeline-board.jsx), whose drops ask the one sheet for the move; the choice is
+//   the member's saved view, with People's and Leads' (usePlControls extraDefaults);
+// - New proposal (pipeline-new.jsx) picks or adds a person, then opens the one deal sheet;
+// - a teammate's move arrives on its own: the People surface repaints on the deals table.
 
 // The table's columns: People's own person cell, then the deal's service, its value in tabular figures, how long it has
 // stood where it is, and its one chip, whose heading only a screen reader hears (the house's .rec-sr): no one word is
@@ -57,12 +62,10 @@ const PIPE_SORT = { by: null, dir: "asc" };
 const pipeNoSort = () => {};
 const PIPE_CTX = {};
 
-// The view a member chose on this device, the list or the board: a desk's choice (a phone has the list), kept per
-// viewer in the browser's storage and read in a try, as Leads keeps its Values choice (a private window may refuse).
-const PIPE_VIEW_KEY = "pipeline.view";
-const PIPE_VIEWS = ["list", "board"];
-const pipeViewPref = () => { try { return window.localStorage && window.localStorage.getItem(PIPE_VIEW_KEY) === "board" ? "board" : "list"; } catch (e) { return "list"; } };
-const pipeKeepView = (v) => { try { if (window.localStorage) window.localStorage.setItem(PIPE_VIEW_KEY, v); } catch (e) { /* a private window: the choice lives for the page */ } };
+// The first layout a member who never chose one gets: what #941 kept in this browser, read once, else the list. The
+// choice itself is the member's saved view now (usePlControls extraDefaults), and nothing writes the old key again.
+const PIPE_LAYOUTS = ["list", "board"];
+const pipeFirstLayout = () => { try { return window.localStorage && window.localStorage.getItem("pipeline.view") === "board" ? "board" : "list"; } catch (e) { return "list"; } };
 // The peek's focus rule, the lead peek's: focus moves into the peek as it opens, and back to the row (the cursor's,
 // `person-<id>`, the table's own id from its noun) as it closes, so Tab carries on from where the member was.
 const pipePeekFocus = (peekId, cursor) => {
@@ -81,23 +84,43 @@ const pipeComposeIn = (person, text, nav) => {
   nav(person.openThread);
 };
 
-const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
+// The rail's rows, by section (contracts pipelineRail), each a pick of People's rail kit. What waits on the owner counts
+// in the warn ink (the kit's `asks`). Drawn on a desk's rail and in a phone's lists sheet alike.
+const PipelineRailRows = ({ sections, view, onPick }) => (
+  <>
+    {sections.map((s) => (
+      <window.RailSection key={s.key} label={s.label} testid={`pipeline-rail-${s.key}`}>
+        {s.rows.map((r) => (
+          <window.RailRow key={r.view} label={r.label} count={r.count} active={view === r.view} onPick={() => onPick(r.view)} className={r.tone === "warn" ? "asks" : ""} testid={`pipeline-rail-row-${r.view}`} />
+        ))}
+      </window.RailSection>
+    ))}
+  </>
+);
+
+const EMPTY_ADD = { open: false, name: "", phone: "", busy: false, error: null };
+
+const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRoute = null }) => {
   const { usePeople, usePlControls, usePlPlace } = window;
+  const P = window.__pipeline;
   const people = usePeople();
-  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
-  const words = window.__pipeline.words;
+  const nav = onNavigate || ((to, opts) => window.CHANLY.nav(to, opts));
+  const words = P.words;
+  // The view and the person the address names; the shell hands the page its param ("pipeline:v-…:p-…").
+  const addr = (P.parse && P.parse(pipelineRoute || "clients/pipeline")) || { view: "all", peek: null };
+  const view = addr.view;
+  const addrPeek = addr.peek;
   // The workspace's zone, as every day on People is said (legacy-bridge/zone.ts).
   const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
   // One clock with the rows: the surface said each row's wait, its "since" and its valid-until at the moment it
   // published them (fetchedAt), so the Pipeline groups and counts at that same moment, and a proposal's "8 d" in its
   // chip and its row never disagree across midnight.
   const nowMs = people.fetchedAt || Date.now();
-  const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, keepsView: false });
-  const { phone, searchOpen, setSearchOpen, toastNode, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX } = controls;
+  const controls = usePlControls({ scope: "pipeline", cols: pipeColumns(), phoneCols: pipePhoneColumns(), colCtx: PIPE_CTX, people, sortFirst: PIPE_SORT, extraDefaults: { layout: pipeFirstLayout() } });
+  const { phone, searchOpen, setSearchOpen, toastNode, q, setQ, searchRef, scrollRef, columns, scrolledX, setScrolledX, extraView, setExtraView } = controls;
+  const layout = extraView && PIPE_LAYOUTS.includes(extraView.layout) ? extraView.layout : "list";
   // The groups the member opened, or folded again, by key. One they never touched is as the Pipeline starts it.
   const [opened, setOpened] = React.useState({});
-  // The list or the board; the board is a desk's.
-  const [view, setView] = React.useState(pipeViewPref);
   // The peek: who is open beside the rows, and the person as read for it -- the tab's copy at once (__peekPerson),
   // read again behind it (__personDetail), and again after a deal is recorded on them. `peekTry` asks for the read
   // again after one failed.
@@ -107,15 +130,24 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
   // The board's drag: the card in hand (its row and the group it left) and the column under it.
   const [drag, setDrag] = React.useState(null);
   const [over, setOver] = React.useState(null);
+  // A phone's lists sheet (the rail's rows), and New proposal: open, the words in its box, and someone being added.
+  const [listsOpen, setListsOpen] = React.useState(false);
+  const [newOpen, setNewOpen] = React.useState(false);
+  const [newQ, setNewQ] = React.useState("");
+  const [newAdd, setNewAdd] = React.useState(EMPTY_ADD);
   const rows = people.rows;
-  // The whole Pipeline says the line over the table; the words in the box choose only which rows show under it.
-  const all = React.useMemo(() => window.__pipeline.of(rows, nowMs, tz), [rows, nowMs, tz]);
+  // The whole Pipeline says the line over the table and the rail's counts; the view and the words in the box choose
+  // only which rows show under them.
+  const all = React.useMemo(() => P.of(rows, nowMs, tz), [P, rows, nowMs, tz]);
+  const inView = React.useMemo(() => (view === "all" ? all : P.of(rows, nowMs, tz, view)), [P, all, rows, nowMs, tz, view]);
   const vm = React.useMemo(() => {
     const match = window.plMatcher(q);
-    return match ? window.__pipeline.of(rows.filter(match), nowMs, tz) : all;
-  }, [all, rows, nowMs, tz, q]);
+    return match ? P.of(rows.filter(match), nowMs, tz, view) : inView;
+  }, [P, inView, rows, nowMs, tz, view, q]);
+  const rail = P.rail ? P.rail(all, nowMs) : [];
+  const viewCount = inView.groups.reduce((n, g) => n + g.count, 0);
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
-  const summary = people.page && people.page.has_more ? [...all.summary, window.plLoadedWords(rows.length, people.page.total)] : all.summary;
+  const loaded = people.page && people.page.has_more ? window.plLoadedWords(rows.length, people.page.total) : null;
   const searching = !!q.trim();
   // A search opens every group: someone looked for is someone shown.
   const sections = vm.groups.map((g) => {
@@ -133,8 +165,11 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
   });
   const shown = sections.filter((s) => !s.collapsed).flatMap((s) => s.rows);
   const ids = shown.map((r) => r.id);
-  const total = all.groups.reduce((n, g) => n + g.count, 0);
-  const { cursor, setCursor, rowBudget, keysWith } = usePlPlace({ controls, page: "pipeline", view: "all", ids, noun: "person", selectionOf: "pipeline" });
+  // The table's foot counts the view it shows ("6 people" in Proposal out, "Showing 1 of 6" searched there), as the
+  // rail's row for it does; the line above stays the whole Pipeline's.
+  const total = viewCount;
+  // Each view keeps its own place (the words in the box, the cursor, the scroll), as each of People's lists does.
+  const { cursor, setCursor, rowBudget, keysWith } = usePlPlace({ controls, page: "pipeline", view, ids, noun: "person", selectionOf: `pipeline:${view}` });
   // What the peek opens with: the tab's copy of the person where they were read already (a row warms them under the
   // pointer and the cursor), set in the same draw that opens the peek, so a person the tab holds opens with their
   // card and never with a Reading… first.
@@ -145,9 +180,10 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
   // A row opens its peek, and takes the cursor with it, so the keys carry on from it.
   const openPeek = React.useCallback((id) => { showPeek(id); setCursor(id); }, [showPeek]); // eslint-disable-line react-hooks/exhaustive-deps
   const closePeek = React.useCallback(() => setPeekId(null), []);
+  const closeSheets = () => { setListsOpen(false); setNewOpen(false); };
   // What the keyboard's one listener reads: Enter opens the peek for the person under the cursor, Esc closes it, and
-  // J and K keep walking the rows behind it. Nothing here selects.
-  keysWith({ open: openPeek, canSelect: false, sheetOpen: false, closeSheet: null, peekOpen: !!peekId, closePeek });
+  // J and K keep walking the rows behind it. Nothing here selects. A phone's sheet holds the keys while it is up.
+  keysWith({ open: openPeek, canSelect: false, sheetOpen: listsOpen || newOpen, closeSheet: closeSheets, peekOpen: !!peekId, closePeek });
   // The peek follows the row cursor while it is open, as the lead's does.
   React.useEffect(() => { if (peekId && cursor && cursor !== peekId) showPeek(cursor); }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { pipePeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -178,7 +214,33 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
   }, [all, peekId]);
   // Someone who left the Pipeline (nothing to follow now) closes their peek.
   React.useEffect(() => { if (peekId && !peekRow) setPeekId(null); }, [peekId, peekRow]);
-  const peekVm = peekRow ? window.__pipeline.peek(peekRow.row, peekRow.group) : null;
+  const peekVm = peekRow ? P.peek(peekRow.row, peekRow.group) : null;
+  // The view and the person open over it are the address (contracts pipelineRoute), as Leads keeps its lead
+  // (clients-a.jsx peekAddr): when the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page
+  // follows it, and a view that changed under an open person closes their peek. When the PAGE moved, it says so:
+  // opening pushes an entry, the cursor walking the peek on replaces it, and closing goes back to the entry the opening
+  // made. A person who came with the address has no entry of the page's behind them, so they close by replacing.
+  const viewRoute = P.route({ view });
+  const peekAddr = React.useRef({ view: undefined, peek: undefined, asked: null, pushed: false });
+  React.useEffect(() => {
+    const a = peekAddr.current;
+    if (a.view !== viewRoute || a.peek !== addrPeek) {
+      a.view = viewRoute;
+      a.peek = addrPeek;
+      a.asked = null;
+      if (!addrPeek) a.pushed = false;
+      if (peekId !== addrPeek) { if (addrPeek) showPeek(addrPeek); else setPeekId(null); }
+      return;
+    }
+    if (peekId === addrPeek) return;
+    const want = P.route({ view, peek: peekId });
+    // Said once: a push is answered a task later (hashchange), and every draw until then finds the address as it was.
+    if (a.asked === want) return;
+    a.asked = want;
+    if (peekId && !addrPeek && !a.pushed) { a.pushed = true; nav(want); }
+    else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
+    else nav(want, { replace: true });
+  }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
   // A row press and a cell's doors, behind one function and one object for the page's life: the rows are memoised
   // (people-table.jsx PeopleRowMemo), and the shell hands the page a new onOpenProfile on every route change.
   const pageRef = React.useRef(onOpenProfile);
@@ -189,74 +251,101 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
     // Read a person before their row is pressed, as People's rows do: the peek then opens on the tab's copy.
     onWarm: (id) => { if (window.__warmPerson) window.__warmPerson(id); },
   }), [openPeek]);
+  // A view is a new place: the rail's pick, or a warn part of the line, pushes its address; the picked one again goes
+  // back to the whole Pipeline (the rail kit's railToggle).
+  const pickView = (v) => { closeSheets(); nav(P.route({ view: v === view ? "all" : v })); };
   // The board: every group as a column, those with nobody in them too, so a card has somewhere to drop.
   const canRecord = pipeCanRecord();
-  const board = !phone && view === "board" && !all.empty;
+  const board = !phone && layout === "board" && !all.empty;
   const boardColumns = board
     ? Object.keys(words.groups).map((key) => sections.find((s) => s.key === key) || { key, label: words.groups[key], meta: null, rows: [], collapsed: false, onToggle: null, toggle: null })
     : null;
-  const moveOf = window.__pipeline.move;
+  const moveOf = P.move;
   const dragEnd = () => { setDrag(null); setOver(null); };
-  // A drop asks the one sheet for the move; the sheet records it, and the rows follow the record (deal:recorded, and
-  // the People surface's own re-read).
+  // A drop asks the one sheet for the move; the sheet records it, and the rows follow the record (the door's answer
+  // lands on the row at once, People is read again behind it).
   const drop = (to) => {
     const d = drag;
     dragEnd();
     const mv = d ? moveOf(d.from, to, d.row) : null;
     if (mv && window.openDealSheet) window.openDealSheet({ personId: d.id, mode: mv.mode, dealId: mv.dealId });
   };
-  const Rail = window.PeopleRail;
+  // New proposal: who it is for, then the one deal sheet in its propose mode. Someone added is People's own add.
+  const openNew = () => { setNewQ(""); setNewAdd(EMPTY_ADD); setNewOpen(true); };
+  const pickForNew = (id) => {
+    setNewOpen(false);
+    setNewAdd(EMPTY_ADD);
+    if (window.openDealSheet) window.openDealSheet({ personId: id, mode: "propose" });
+  };
+  const addForNew = async () => {
+    const d = newAdd;
+    if (d.busy || !d.phone.trim() || !window.plAddPerson || !window.__addPerson) return;
+    setNewAdd({ ...d, busy: true, error: null });
+    const r = await window.plAddPerson(d);
+    if (!r.ok) { setNewAdd((x) => ({ ...x, busy: false, error: r.error })); return; }
+    if (controls.plFlash && window.plAddedWords) controls.plFlash({ msg: window.plAddedWords(d, r.existed) });
+    pickForNew(r.id);
+  };
+  const newGate = window.gate ? window.gate("approve", "start a proposal") : {};
+  const emptyWords = all.empty
+    ? { title: words.empty.title, body: words.empty.body }
+    : inView.empty
+      ? { title: words.board.nobody, action: { label: words.rail.all, onClick: () => pickView("all") } }
+      : null;
   const Bar = window.PeoplePhoneBar;
   const Table = window.PeopleTable;
   const Board = window.PipelineBoard;
   const Peek = window.PipelinePeek;
+  const New = window.PipelineNew;
   const onScope = (to) => nav(window.plScopeRoute(to));
   const person = peek && peek.id === peekId ? peek.person : null;
+  const line = loaded ? [...all.line, { words: loaded, view: null, tone: null }] : all.line;
   return (
     <div className="clients pipe-scope" data-testid="pipeline">
-      {/* People's rail with the switch at its head; its lists open on People. A phone's is the bar's switch. */}
+      {/* The Pipeline's own rail, with People's switch at its head. A phone's is the bar's switch and its list button. */}
       {!phone && (
-        <Rail
-          scope="pipeline"
-          dealsOn
-          onScope={onScope}
-          lists={people.lists}
-          groups={people.groups || undefined}
-          active={null}
-          onPick={(id) => nav(`clients/seg:${id}`)}
-          saved={people.saved || []}
-          activeSaved={null}
-          onPickSaved={(id) => nav(`clients/list:${id}`)}
-          savedRead={people.savedRead !== false}
-        />
+        <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
+          <window.PeopleScopeTabs scope="pipeline" onScope={onScope} dealsOn />
+          <PipelineRailRows sections={rail} view={view} onPick={pickView} />
+        </aside>
       )}
       <div className="cl-main">
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {/* A phone's one bar: the switch and search. The Pipeline is one view, so there is no list to pick. */}
+          {/* A phone's one bar: the switch, the view shown (its rows in a sheet), search, and New proposal's +. */}
           {phone && (
             <Bar
               scope="pipeline"
               dealsOn
               onScope={onScope}
+              listLabel={P.viewLabel(view)}
+              listCount={viewCount}
+              onLists={() => setListsOpen(true)}
+              listsOpen={listsOpen}
               q={q}
               onQ={setQ}
               searchRef={searchRef}
               searchOpen={searchOpen}
               onSearchOpen={setSearchOpen}
               searchLabel={window.PL_SEARCH_LABEL}
+              trailing={<button type="button" className="pp-bar-icon" aria-label={words.newProposal.button} onClick={openNew} data-testid="pipeline-new-open" {...newGate}><Icon name="plus" size={18} /></button>}
               testid="pipeline"
             />
           )}
-          {/* The line over the table, People's standing line in its parts: only the parts that have something. */}
-          {summary.length > 0 && (
+          {/* The line over the table, People's standing line in its parts: only the parts that have something, and those
+              that count what waits on the owner press to their view. */}
+          {line.length > 0 && (
             <div className="pl-standing" data-testid="pipeline-summary">
-              <span className="pl-standing-total">{summary[0]}</span>
-              {summary.slice(1).map((part, i) => (
-                <span key={i} className="pl-standing-part">
-                  <span className="pl-standing-dot" aria-hidden="true">·</span>
-                  <span className="pl-standing-reached">{part}</span>
-                </span>
-              ))}
+              {line.map((part, i) => {
+                const said = part.view
+                  ? <button type="button" className={`pl-standing-needs${view === part.view ? " on" : ""}`} aria-pressed={view === part.view} onClick={() => pickView(part.view)} data-testid={`pipeline-line-${part.view}`}>{part.words}</button>
+                  : <span className={i === 0 ? "pl-standing-total" : "pl-standing-reached"}>{part.words}</span>;
+                return i === 0 ? <React.Fragment key={i}>{said}</React.Fragment> : (
+                  <span key={i} className="pl-standing-part">
+                    <span className="pl-standing-dot" aria-hidden="true">·</span>
+                    {said}
+                  </span>
+                );
+              })}
             </div>
           )}
           {!phone && (
@@ -266,13 +355,15 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
                 <input ref={searchRef} placeholder={`${window.PL_SEARCH_LABEL}…`} aria-label={window.PL_SEARCH_LABEL} value={q} onChange={(e) => setQ(e.target.value)} data-testid="pipeline-search" />
                 <span className="kbd">/</span>
               </div>
-              {/* The list or the board: the house's small tab pair, a pressed state each, kept on this device. */}
               <div className="cl-controls-right">
+                {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
                 <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
-                  {PIPE_VIEWS.map((v) => (
-                    <button key={v} type="button" className={`cl-tab${view === v ? " active" : ""}`} aria-pressed={view === v} onClick={() => { setView(v); pipeKeepView(v); }} data-testid={`pipeline-view-${v}`}>{words.views[v]}</button>
+                  {PIPE_LAYOUTS.map((v) => (
+                    <button key={v} type="button" className={`cl-tab${layout === v ? " active" : ""}`} aria-pressed={layout === v} onClick={() => setExtraView({ layout: v })} data-testid={`pipeline-view-${v}`}>{words.views[v]}</button>
                   ))}
                 </div>
+                {/* The page's one filled button: shown to every role, and said why where the role may not press it. */}
+                <button type="button" className="btn btn-primary btn-sm pipe-new-btn" onClick={openNew} data-testid="pipeline-new-open" {...newGate}><Icon name="plus" size={12} /> {words.newProposal.button}</button>
               </div>
             </div>
           )}
@@ -312,7 +403,7 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
               rowClass={phone ? pipeCardRow : null}
               scrolled={scrolledX}
               onScrolled={setScrolledX}
-              empty={all.empty ? { title: words.empty.title, body: words.empty.body } : null}
+              empty={emptyWords}
             />
           )}
         </div>
@@ -329,6 +420,28 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null }) => {
             onOpenPage={() => pageRef.current(peekVm.id)}
             onOpenThread={() => nav(window.CHANLY.R.thread(peekVm.thread))}
             onCompose={(text) => pipeComposeIn(person, text, nav)}
+          />
+        ) : null}
+        {/* A phone's views: the rail's rows as a sheet, a pick closes it. */}
+        {phone && listsOpen && window.PeopleListsSheet ? (
+          <window.PeopleListsSheet onClose={() => setListsOpen(false)}>
+            <aside className="cl-rail pipe-rail" data-testid="pipeline-rail">
+              <PipelineRailRows sections={rail} view={view} onPick={pickView} />
+            </aside>
+          </window.PeopleListsSheet>
+        ) : null}
+        {newOpen && New ? (
+          <New
+            phone={phone}
+            rows={rows}
+            q={newQ}
+            add={newAdd}
+            onQ={setNewQ}
+            onPick={pickForNew}
+            onAddOpen={() => setNewAdd({ ...EMPTY_ADD, open: true })}
+            onAddDraft={(patch) => setNewAdd((d) => ({ ...d, ...patch }))}
+            onAdd={addForNew}
+            onClose={() => { setNewOpen(false); setNewAdd(EMPTY_ADD); }}
           />
         ) : null}
         {toastNode}

@@ -1248,7 +1248,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   );
   assert.ok(
     PEOPLE_PAGE.includes(
-      'const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view" };',
+      'const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view", pipeline: "chanlytics-pipeline-view" };',
     ) &&
       PEOPLE_PAGE.includes("plSaveView(scope, view);") &&
       PEOPLE_PAGE.includes("window.__saveView(page, view)"),
