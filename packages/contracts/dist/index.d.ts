@@ -12289,17 +12289,31 @@ interface AskWaiting {
         reach: number;
         to: string;
     }>;
+    /** Searches that stopped to ask, waiting on the owner (Today's queue's search rows). */
+    searches: Array<{
+        id: string;
+        name: string;
+        question: string;
+        to: string;
+    }>;
 }
-/** Right now, in a sentence: the people waiting, then the runs waiting for a yes -- two populations, two clauses. */
+/**
+ * Right now, in a sentence: the people waiting, then the runs waiting for a yes, then the searches waiting for an
+ * answer -- three populations, three clauses.
+ */
 declare function rightNowLine(w: AskWaiting | null, language: AskLanguage): string;
-/** The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past the rows) and runs waiting. */
+/**
+ * The counts rightNowLine's sentence is built from, so pills beside it never disagree: people waiting (drawn and past
+ * the rows), runs waiting and searches waiting.
+ */
 declare function rightNowCounts(w: AskWaiting | null): {
     people: number;
     runs: number;
+    searches: number;
 };
 /**
- * Who needs me: the sentence; the people, then the runs, as their own doors; the Inbox only for the people past what
- * is drawn. A queue not read yet says so, and points at Today.
+ * Who needs me: the sentence; the people, then the searches, then the runs, as their own doors; the Inbox only for
+ * the people past what is drawn. A queue not read yet says so, and points at Today.
  */
 declare function needsAnswer(w: AskWaiting | null, language: AskLanguage): AskAnswer;
 /** Did anyone call: today's missed calls as doors, or none, with the call on the line; Do opens Live. */

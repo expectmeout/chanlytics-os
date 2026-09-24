@@ -131,15 +131,17 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
 
 /**
  * Who is waiting on you: the people in Today's queue (a call worth a listen is not someone waiting) and how many more
- * wait past its six rows, and the playbook runs waiting for a yes, which the queue draws the same way
- * (dashboard-a-command.jsx runsPending). Null until Today's queue has been read: nobody is claimed to be waiting.
+ * wait past its six rows, the playbook runs waiting for a yes, which the queue draws the same way
+ * (dashboard-a-command.jsx runsPending), and the searches that stopped to ask, which the queue draws as its own
+ * rows. Null until Today's queue has been read: nobody is claimed to be waiting.
  */
 export function waitingFrom(win: Window): AskWaiting | null {
   const w = win as unknown as PaletteGlobals;
   const queue = w.TODAY_DATA?.queue;
   if (!queue) return null;
-  const people = (queue.rows ?? [])
-    .filter((r) => r.kind !== "call")
+  const rows = queue.rows ?? [];
+  const people = rows
+    .filter((r) => r.kind !== "call" && r.kind !== "search")
     .map((r) => ({
       id: r.conversationId ?? r.callId ?? r.id,
       kind: r.conversationId ? ("thread" as const) : ("call" as const),
@@ -149,9 +151,13 @@ export function waitingFrom(win: Window): AskWaiting | null {
       line: r.quoted ? `“${r.sentence}”` : r.sentence,
       to: r.cta.to,
     }));
+  const searches = rows
+    .filter((r) => r.kind === "search")
+    .map((r) => ({ id: r.id, name: r.who, question: r.sentence, to: r.cta.to }));
   return {
     people,
-    more: Math.max(0, (queue.waiting ?? people.length) - people.length),
+    // The queue's waiting counts the searches too; its cap can hide one, so more never goes negative.
+    more: Math.max(0, (queue.waiting ?? people.length) - people.length - searches.length),
     runs: (w.__BROADCASTS?.rows ?? [])
       .filter((r) => r.state === "pending_approval")
       .map((r) => ({
@@ -160,6 +166,7 @@ export function waitingFrom(win: Window): AskWaiting | null {
         reach: r.recipient_count,
         to: `broadcasts/run:${r.id}`,
       })),
+    searches,
   };
 }
 
@@ -199,7 +206,7 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** Right now, in a sentence: Today's queue itself (the Line, D7), on every page. */
     rightNow: (lang?: AskLanguage) => rightNowLine(waiting(), lang ?? lastLanguage()),
     /** The sentence and the counts it was built from (the Stage's pills, spec 4.3). */
-    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number } => {
+    rightNowParts: (lang?: AskLanguage): { sentence: string; people: number; runs: number; searches: number } => {
       const w = waiting();
       return { sentence: rightNowLine(w, lang ?? lastLanguage()), ...rightNowCounts(w) };
     },

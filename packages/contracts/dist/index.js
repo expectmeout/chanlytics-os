@@ -15415,6 +15415,7 @@ function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
 var TODAY_QUEUE_MAX = 6;
+var SEARCH_WARN_MS = 12 * 36e5;
 var QUOTE_MAX = 240;
 var NO_REPLY_AFTER_MS = 36e5;
 var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
@@ -16095,7 +16096,6 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       waitedMs: Number.NEGATIVE_INFINITY
     });
   }
-  const SEARCH_WARN_MS = 12 * 36e5;
   for (const s of searches ?? []) {
     const r2 = s.round;
     if (!r2 || r2.state !== "waiting_on_owner" || !r2.question) continue;
@@ -17347,12 +17347,15 @@ function rightNowLine(w, language) {
   const people = total ? es ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}` : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you` : "";
   const n = w.runs.length;
   const runs = n ? es ? `${n === 1 ? "un env\xEDo de playbook espera" : `${n} env\xEDos de playbook esperan`} tu aprobaci\xF3n` : `${n === 1 ? "one playbook run is" : `${n} playbook runs are`} waiting for your approval` : "";
-  if (!people && !runs) return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
-  const s = [people, runs].filter(Boolean).join("; ");
+  const k = w.searches.length;
+  const searchesLine = k ? es ? k === 1 ? `tu b\xFAsqueda de ${w.searches[0].name} espera tu respuesta` : `${k} b\xFAsquedas esperan tu respuesta` : k === 1 ? `your search for ${w.searches[0].name} is waiting for your answer` : `${k} searches are waiting for your answer` : "";
+  if (!people && !runs && !searchesLine)
+    return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  const s = [people, runs, searchesLine].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }
 function rightNowCounts(w) {
-  return w ? { people: w.people.length + w.more, runs: w.runs.length } : { people: 0, runs: 0 };
+  return w ? { people: w.people.length + w.more, runs: w.runs.length, searches: w.searches.length } : { people: 0, runs: 0, searches: 0 };
 }
 function needsAnswer(w, language) {
   const es = language === "es";
@@ -17367,6 +17370,12 @@ function needsAnswer(w, language) {
       meta: `${p.channel} \xB7 ${p.when}`,
       line: p.line,
       source: { kind: p.kind, id: p.id, label: p.who, to: p.to, door: true }
+    })),
+    ...w.searches.map((x) => ({
+      title: x.name,
+      meta: "Leads",
+      line: x.question,
+      source: { kind: "page", id: x.to, label: x.name, to: x.to, door: true }
     })),
     ...w.runs.map((r2) => ({
       title: r2.label,

@@ -442,16 +442,36 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
           quoted: true,
           cta: { label: "Reply", to: "inbox/th-c1" },
         },
+        {
+          id: "q-s-s1",
+          kind: "search",
+          conversationId: null,
+          callId: null,
+          who: "personal trainers",
+          channel: "Leads",
+          when: "waited 3h",
+          sentence: "Most of the first 25 are gyms, not trainers. Keep them?",
+          quoted: false,
+          cta: { label: "Answer", to: "clients/leads:s-s1:c-excluded" },
+        },
       ],
+      // The queue counts the search among those waiting; it is not a person, so it is not "1 more".
+      waiting: 2,
     },
   };
   try {
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    assert.equal(textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]), "Nora is waiting on you.");
-    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run.
-    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), ["1 needs you"]);
+    assert.equal(
+      textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]),
+      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+    );
+    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run, one search.
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), [
+      "1 needs you",
+      "1 search waiting",
+    ]);
     assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
@@ -472,11 +492,17 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     keyed(tree, "Enter");
     tree = await later(Palette, OPEN);
     assert.deepEqual(calls.sent, [], "a quick answer asks no model");
-    assert.equal(textOf(byTestId(tree, "ask-say")), "Nora is waiting on you.");
+    assert.equal(
+      textOf(byTestId(tree, "ask-say")),
+      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+    );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => textOf(n)),
-      ["NoraWhatsApp · waited 2h“Can I come at 3?”"],
-      "the person is her own door; there is no second one to the Inbox",
+      [
+        "NoraWhatsApp · waited 2h“Can I come at 3?”",
+        "personal trainersLeadsMost of the first 25 are gyms, not trainers. Keep them?",
+      ],
+      "the person and the search are their own doors; there is no second one to the Inbox",
     );
     assert.equal(byTestId(tree, "ask-open"), null);
     await closes();
