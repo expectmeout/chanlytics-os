@@ -656,6 +656,12 @@ function timezoneCity(tz) {
   return tail.replace(/_/g, " ");
 }
 
+// src/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+
 // src/availability.ts
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
@@ -1119,16 +1125,17 @@ function span(tz, start, end) {
   const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
   return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
 }
-function describeOpenings(openings, tz, opts = {}) {
+function describeOpenings(openings, tz, opts) {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const link = opts.hasBookingLink;
   if (!openings.length) {
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back, and send the booking link so they are told when a slot frees up.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. Offer to have someone call back${link ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
   }
   const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
   return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
 ${lines.join("\n")}
-Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides.`;
+` + (link ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
 }
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 var wordsOf = (s) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -1344,11 +1351,11 @@ function frameWhisper(text) {
 ${OPEN}${text.trim()}"
 Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
 }
-function frameGuardrail(rule) {
+function frameGuardrail(rule, hasBookingLink) {
   const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
   return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
 ${what}
-Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and offer the booking link. Do not repeat the figure, and never read this out.`;
+Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}. Do not repeat the figure, and never read this out.`;
 }
 function frameSteer(text) {
   return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
@@ -2796,7 +2803,12 @@ var BrainConfigSchema = z3.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z3.string().min(3).max(40).optional(),
-  booking_link: z3.string().url().max(500),
+  /**
+   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   */
+  booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
@@ -2935,6 +2947,13 @@ function checkClosure(c, n, ctx) {
   }
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "booking_link"],
+      message: "The receptionist needs a booking link before it can answer anyone."
+    });
+  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -3120,6 +3139,7 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const s = [];
+  const link = base.booking_link || null;
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -3133,7 +3153,7 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  s.push(`Booking link: ${base.booking_link}`);
+  if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
   const hrs = hoursLines(profile.hours);
   if (hrs.length) {
@@ -3210,8 +3230,8 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
-Ending: once the caller has said goodbye, use end_call.`
+` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.
+`) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -3232,24 +3252,28 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : `There is no booking link to send. When someone wants to book or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
   s.push(
     channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
-${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
+${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
+${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
   s.push(
     `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
     rules.push(
-      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link."
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${link ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}.`
     );
   }
   if (g.never_confirm_booking) {
-    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
+    );
   }
   if (g.disclose_ai) {
     rules.push(
@@ -3261,7 +3285,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   );
   if (g.no_health_advice) {
     rules.push(
-      "Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link."
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
     );
   }
   rules.push(...policyRules(policy, channel));
@@ -3283,7 +3307,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
     phone_display: facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
@@ -3326,7 +3350,7 @@ function fallbackMessages(brain, known) {
   const facts = resolveFacts(brain, known);
   const values = {
     business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value
   };
   const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
@@ -4066,12 +4090,12 @@ function visitStartTime(v, tz) {
 function visitLine(v, tz, nowMs) {
   return `${visitDay(v.start, tz, nowMs)} \xB7 ${visitTime(v, tz)}`;
 }
-function describeVisits(visits, tz, nowMs) {
+function describeVisits(visits, tz, nowMs, hasBookingLink) {
   const out = [];
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link \u2014 nothing is changed from here.`
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only \u2014 make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${hasBookingLink ? "send the booking link" : "say the team will follow up"} \u2014 nothing is changed from here.`
     );
   }
   if (visits.last) {
@@ -20487,6 +20511,7 @@ export {
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
   NO_FIELDS_COMPOSED_WORDS,
+  NO_LINK_DETAILS,
   NO_NUMBER_REACH,
   NO_REPLY_AFTER_MS,
   NoteSchema,
@@ -21073,6 +21098,7 @@ export {
   offerFor,
   offerLead,
   offeringHorizon,
+  offersBookingLink,
   offersYesRefusal,
   ok,
   oneDoor,

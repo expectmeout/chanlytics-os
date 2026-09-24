@@ -457,10 +457,13 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
         category: string | null;
         variables?: unknown;
     } | null>;
-    /** The facts a template's params come from, when the workspace has them. */
+    /**
+     * The facts a template's params come from, when the workspace has them: its name, and its booking link or null for
+     * a business that quotes each job (the first run's decision 2).
+     */
     templateFacts(tenantId: string): Promise<{
         business_name: string;
-        booking_link: string;
+        booking_link: string | null;
     } | null>;
     /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
     claimForReply(conversationId: string, untilIso: string, userId: string, nowIso: string): Promise<boolean>;

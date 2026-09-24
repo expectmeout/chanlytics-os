@@ -1466,7 +1466,12 @@ var BrainConfigSchema = z3.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z3.string().min(3).max(40).optional(),
-  booking_link: z3.string().url().max(500),
+  /**
+   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   */
+  booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
@@ -1581,6 +1586,13 @@ function checkClosure(c, n, ctx) {
   }
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["brain", "booking_link"],
+      message: "The receptionist needs a booking link before it can answer anyone."
+    });
+  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -3113,6 +3125,7 @@ function purposeOfPlaybook(policyClass) {
 }
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -3643,7 +3656,12 @@ var BrainConfigSchema2 = z32.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z32.string().min(3).max(40).optional(),
-  booking_link: z32.string().url().max(500),
+  /**
+   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   */
+  booking_link: z32.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z32.string().min(40).max(INSTRUCTIONS_MAX2),
@@ -3758,6 +3776,13 @@ function checkClosure2(c, n, ctx) {
   }
 }
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({
+      code: z32.ZodIssueCode.custom,
+      path: ["brain", "booking_link"],
+      message: "The receptionist needs a booking link before it can answer anyone."
+    });
+  }
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z32.ZodIssueCode.custom,
@@ -3919,6 +3944,7 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const s = [];
+  const link = base.booking_link || null;
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -3932,7 +3958,7 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  s.push(`Booking link: ${base.booking_link}`);
+  if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
   const hrs = hoursLines(profile.hours);
   if (hrs.length) {
@@ -4009,8 +4035,8 @@ Do this whenever the caller asks for a person, is upset, or asks something these
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.
-Ending: once the caller has said goodbye, use end_call.`
+` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.
+`) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
   if (profile.extra_instructions?.trim()) {
@@ -4031,24 +4057,28 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : `There is no booking link to send. When someone wants to book or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
   s.push(
     channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.` : `
-${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`
+${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
+${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
   s.push(
     `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link.`
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
     rules.push(
-      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link."
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${link ? "offer the booking link" : `take ${NO_LINK_DETAILS}`}.`
     );
   }
   if (g.never_confirm_booking) {
-    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
+    );
   }
   if (g.disclose_ai) {
     rules.push(
@@ -4060,7 +4090,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   );
   if (g.no_health_advice) {
     rules.push(
-      "Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link."
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
     );
   }
   rules.push(...policyRules(policy, channel));
@@ -4082,7 +4112,7 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
     phone_display: facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
@@ -4110,7 +4140,7 @@ function fallbackMessages(brain, known) {
   const facts = resolveFacts(brain, known);
   const values = {
     business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value
   };
   const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
@@ -6943,7 +6973,12 @@ var BrainConfigSchema3 = z33.object({
    * shopfront — and the pane says so in those words.
    */
   phone_display: z33.string().min(3).max(40).optional(),
-  booking_link: z33.string().url().max(500),
+  /**
+   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   */
+  booking_link: z33.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
   system_prompt: z33.string().min(40).max(INSTRUCTIONS_MAX3),
@@ -7058,6 +7093,13 @@ function checkClosure3(c, n, ctx) {
   }
 }
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({
+      code: z33.ZodIssueCode.custom,
+      path: ["brain", "booking_link"],
+      message: "The receptionist needs a booking link before it can answer anyone."
+    });
+  }
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z33.ZodIssueCode.custom,
@@ -8589,10 +8631,16 @@ async function replyToConversation(ports, cmd) {
         "validation",
         "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first."
       );
-    const params = resolveParams(inboxSlots(tpl), {
+    const slots = inboxSlots(tpl);
+    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+      throw new AppError(
+        "validation",
+        "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
+      );
+    const params = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
       businessName: facts.business_name,
-      bookingLink: facts.booking_link.replace(/^https?:[/][/]/, "")
+      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
