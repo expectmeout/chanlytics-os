@@ -231,23 +231,34 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
     border: 0; border-radius: 0; box-shadow: none; background: var(--bg);
     animation: wash-in var(--duration-base) var(--ease-out);
   }
+  /* It takes focus as it opens so no keyboard rises (S10); the whole screen needs no ring to say so. */
+  .ask-modal.ask-line:focus { outline: none; }
   /* The head: Earlier, and Clear in a conversation, at the left; the close at the right, a thumb's reach. */
   .ask-line-head { position: relative; flex: none; display: flex; align-items: center; gap: 4px; min-height: 52px; padding: 4px 6px 0 8px; }
   .ask-line-head .ask-line-btn { margin-left: auto; width: 44px; height: 44px; border-color: transparent; }
   .ask-line-head .btn-ghost { height: 36px; }
   .ask-line-head .btn-ghost[aria-pressed="true"] { color: var(--ink); background: var(--bg-hover); }
   /* The middle is one scroller (ask-real.jsx draws the folds and the hero in it), so they scroll with the answer. */
-  .ask-line .ask-folds { order: 0; max-height: none; flex: none; border-bottom: 0; }
+  .ask-line .ask-folds { max-height: none; border-bottom: 0; }
+  /* At rest and while it listens, what the middle holds stands centred; the auto margins fall to nothing once it
+     overflows, so a long list still scrolls from its top (spec 5.2). */
+  .ask-line-body.rest { display: flex; flex-direction: column; }
+  .ask-line-body.rest > :first-child { margin-top: auto; }
+  .ask-line-body.rest > :last-child { margin-bottom: auto; }
   .ask-hero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 20px 0; }
   /* The three: a hold listens (useHoldPress), so the stage takes no scroll, selection or tap flash of its own. The
      canvas fits its box every frame, so the squares shrink with the stage as an answer is written (spec 5.5, R3). */
   .ask-hero-stage { display: block; width: 100%; height: min(232px, 34dvh); border: 0; padding: 0; background: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: height 200ms var(--ease-out); }
   .ask-hero-canvas { display: block; width: 100%; height: 100%; }
   .ask-hero.small .ask-hero-stage { height: 78px; }
-  .ask-hero .ask-turn-q { margin: 0; text-align: center; }
+  /* The question under the three: 14px in ink after a 7px dark square while Ask reads (spec 5.4), 12.5px dim once
+     they have shrunk over the answer (spec 5.5). */
+  .ask-hero .ask-turn-q { margin: 0; text-align: center; font-size: 14px; color: var(--ink); }
+  .ask-hero .ask-turn-q::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; vertical-align: 1px; border-radius: 2px; background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
+  .ask-hero.small .ask-turn-q { font-size: 12.5px; color: var(--ink-dim); }
+  .ask-hero.small .ask-turn-q::before { content: none; }
   .ask-hero .ask-reading { padding: 0; justify-content: center; font-size: 13.5px; }
   .ask-heard { margin: 8px 0 0; text-align: center; font-size: 26px; font-weight: 500; line-height: 1.25; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
-  .ask-line .ask-line-body { flex: 1 1 auto; }
   /* The question is the hero's, said once: the turn's own copy and the one under it while Ask reads are not drawn. */
   .ask-line-body > .ask-turn > .ask-turn-q, .ask-trace .ask-turn-q { display: none; }
   /* At rest the home stands centred under the three: Right now, then the page's questions as chips (spec 5.2). A row
@@ -263,7 +274,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* The delete question sits under the middle, over the foot. */
   .ask-line .ask-confirm { order: 8; margin: 8px 12px 0; }
   /* The foot: the band as the field, last in the column, the mic and Send inside it (spec 5.1). */
-  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-bottom-color: var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
+  .ask-line .ask-stage { order: 9; margin: 8px 12px 10px; padding: 0 8px 0 16px; border: 1px solid var(--line); border-radius: var(--radius-xl); grid-template-rows: auto; }
+  /* While it listens the band stays drawn under the pill, hidden: the mic in it holds the finger until the lift. */
+  .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
   .ask-line-input { font-size: 16px; height: 44px; }
   .ask-talk { width: 40px; height: 40px; }

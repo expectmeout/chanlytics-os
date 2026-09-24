@@ -91,6 +91,10 @@ const AskReal = ({ open, onClose }) => {
   const inputRef = useArRef(null);
   const faceRef = useArRef(null);
   const bodyRef = useArRef(null);
+  // The dialog itself: where a phone's takeover puts focus as it opens (S10).
+  const dialogRef = useArRef(null);
+  // "Type instead" pressed while listening: what was heard stays in the field to finish, never asked (spec 5.3).
+  const typing = useArRef(false);
   // The thread list as it is being fetched on open: a question typed before it lands still finds its twin.
   const threadsReady = useArRef(null);
   // The current turn: a turn left behind (stopped, cleared, another opened, a later question) writes nothing.
@@ -106,7 +110,7 @@ const AskReal = ({ open, onClose }) => {
     disabled: !!live,
     onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
-      if (heard) { submit(heard); return; }
+      if (heard) { if (!typing.current) submit(heard); return; }
       if (error === "blocked") flash({ msg: <>{t.micBlocked}</> });
       else if (error === "not-allowed") flash({ msg: <>{t.micDenied}</> });
       else if (error && error !== "aborted" && error !== "no-speech") flash({ msg: <>{t.micFailed}</> });
@@ -207,9 +211,16 @@ const AskReal = ({ open, onClose }) => {
     if (!open) { setQuery(""); setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
   }, [open]);
 
-  // The field takes focus on a desktop; a phone's takeover opens with focus on nothing, so no keyboard rises until a
+  // The field takes focus on a desktop; a phone's takeover opens with focus on the dialog, so no keyboard rises until a
   // tap on the field asks for it (S10).
   H.useAskFocus(inputRef, open && !doomed && !arPhone(), [open, live, active, doomed, view, quick]);
+  H.useAskFocus(dialogRef, open && arPhone(), [open]);
+  // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.
+  useArEffect(() => {
+    if (talk.listening || !typing.current) return;
+    typing.current = false;
+    if (inputRef.current) inputRef.current.focus();
+  }, [talk.listening]);
 
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (Today's band). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
@@ -473,6 +484,14 @@ const AskReal = ({ open, onClose }) => {
     }
   };
 
+  // Held to talk. The mic keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
+  // turned into "Let go to ask" over it; a phone buzzes as it starts (S16).
+  const pressMic = (e) => {
+    const el = e && e.currentTarget;
+    if (el && el.setPointerCapture && e.pointerId != null) { try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ } }
+    if (phone) buzz(8);
+    talk.start(e);
+  };
   const talkButton = talk.canTalk ? (
     <button
       type="button"
@@ -481,7 +500,7 @@ const AskReal = ({ open, onClose }) => {
       aria-pressed={talk.listening}
       aria-label={t.talk}
       title={t.talk}
-      onPointerDown={talk.start}
+      onPointerDown={pressMic}
       onPointerUp={talk.stop}
       onPointerLeave={talk.stop}
       onPointerCancel={talk.stop}
@@ -585,8 +604,9 @@ const AskReal = ({ open, onClose }) => {
   // (ask.css hides the turn's own copy on a phone).
   const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
   const heroQ = !heroSmall ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
+  const restful = talk.listening || (showRows && view === "rows" && !query);
   const hero = phone ? (
-    <div className={`ask-hero${heroSmall ? " small" : ""}${talk.listening ? " listening" : ""}`} data-testid="ask-hero">
+    <div className={`ask-hero${heroSmall ? " small" : ""}`} data-testid="ask-hero">
       <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
         {AskFace ? <AskFace className="ask-hero-canvas" testId="ask-line-face" /> : null}
       </span>
@@ -625,10 +645,11 @@ const AskReal = ({ open, onClose }) => {
       })}
     </div>
   ) : null;
-  // While a phone listens its foot is the pill to let go of, with a way back to typing (spec 5.3).
+  // While a phone listens its foot is the pill to let go of, over the band (still drawn, hidden, so the mic that holds
+  // the finger is there for the lift), with a way back to typing that keeps the words heard (spec 5.3).
   const foot = phone && talk.listening ? (
     <div className="ask-letgo-wrap">
-      <button type="button" className="btn btn-ghost" onClick={() => { talk.stop(); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); }}>{t.typeInstead}</button>
+      <button type="button" className="btn btn-ghost" onClick={() => { typing.current = true; talk.stop(); }} data-testid="ask-type-instead">{t.typeInstead}</button>
       <button type="button" className="ask-letgo" aria-pressed="true" onPointerUp={talk.stop} data-testid="ask-letgo"><Icon name="wave" size={18} />{t.letGo}</button>
     </div>
   ) : null;
@@ -638,10 +659,12 @@ const AskReal = ({ open, onClose }) => {
     // a thumb pulls it down (touchSwipe). ask-overlay and ask-modal carry the motion (components.css, #922).
     <div className="ask-overlay ask-line-scrim" onClick={onClose} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
       <div
+        ref={dialogRef}
         className="ask-modal ask-real ask-line"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-label="Ask Chanlytics"
         data-testid="ask-real"
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
@@ -662,59 +685,62 @@ const AskReal = ({ open, onClose }) => {
         {!phone ? folds : null}
         {/* The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
             while Ask reads, one line in coral ink saying what it reads. On a phone the face and the line are the hero's,
-            and the band is the field at the foot (ask.css orders it last), or the pill to let go of while it listens. */}
-        {foot || (
-          <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
-            <div className="ask-stage-row">
-              {!phone ? (
-                <span className="ask-stage-face" ref={faceRef}>
-                  {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
-                </span>
-              ) : null}
-              {scope ? (
-                <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
-                  <Icon name={arScopeIcon(scope)} size={10} />
-                  <span>{scope.label}</span>
-                  <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
-                </span>
-              ) : null}
-              <input
-                ref={inputRef}
-                className="ask-line-input"
-                placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={onKey}
-                onKeyUp={(e) => hold.onKeyUp(e)}
-                role="combobox"
-                aria-expanded={showRows && rows.length > 0}
-                aria-controls={showRows ? "ask-rows" : undefined}
-                aria-activedescendant={activeId}
-                aria-autocomplete="list"
-                aria-label="Ask Chanlytics"
-                data-testid="ask-input"
-                maxLength={1000}
-                enterKeyHint="send"
-                autoCapitalize="sentences"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <span className="ask-line-right">{right}</span>
-            </div>
-            {live && !phone ? (
-              <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
-                <span className="ask-reading-dot" aria-hidden="true" />
-                {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
-              </p>
+            and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
+            listens. */}
+        {foot}
+        <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
+          <div className="ask-stage-row">
+            {!phone ? (
+              <span className="ask-stage-face" ref={faceRef}>
+                {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
+              </span>
             ) : null}
+            {scope ? (
+              <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
+                <Icon name={arScopeIcon(scope)} size={10} />
+                <span>{scope.label}</span>
+                <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+              </span>
+            ) : null}
+            <input
+              ref={inputRef}
+              className="ask-line-input"
+              placeholder={talk.listening ? t.listening : phone && live ? live.q : phone && quick && quick.pending ? quick.q : active ? t.follow : t.placeholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKey}
+              onKeyUp={(e) => hold.onKeyUp(e)}
+              role="combobox"
+              aria-expanded={showRows && rows.length > 0}
+              aria-controls={showRows ? "ask-rows" : undefined}
+              aria-activedescendant={activeId}
+              aria-autocomplete="list"
+              aria-label="Ask Chanlytics"
+              data-testid="ask-input"
+              maxLength={1000}
+              enterKeyHint="send"
+              autoCapitalize="sentences"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <span className="ask-line-right">{right}</span>
           </div>
-        )}
+          {live && !phone ? (
+            <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
+              <span className="ask-reading-dot" aria-hidden="true" />
+              {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
+            </p>
+          ) : null}
+        </div>
         {doomed ? (
           <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
         ) : null}
         {/* A phone's middle is one scroller (spec 5.1, 5.5): the folds, the hero and the rows or the answer scroll as one,
-            so a long answer is read with the three out of the way and the field stays at the foot. */}
-        {body || phone ? <div className="ask-line-body" ref={bodyRef}>{phone ? folds : null}{hero}{body}</div> : null}
+            so a long answer is read with the three out of the way and the field stays at the foot. At rest, and while
+            it listens, what it holds stands centred (`rest`, spec 5.2). */}
+        {body || phone ? (
+          <div className={`ask-line-body${restful ? " rest" : ""}`} ref={bodyRef}>{phone ? folds : null}{hero}{body}</div>
+        ) : null}
       </div>
       {toastNode}
     </div>

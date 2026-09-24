@@ -733,18 +733,12 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
 });
 
 test("voice and the phone: hold to talk uses the browser's recogniser, the origin may ask for the microphone, the phone's ✦ opens Ask above the tab bar", () => {
-  const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   const hooks = readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx");
   assert.ok(
     hooks.includes("const ahRecognizer = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;"),
   );
-  assert.ok(
-    ui.includes('data-testid="ask-talk"') &&
-      ui.includes("onPointerDown={talk.start}") &&
-      ui.includes("onPointerUp={talk.stop}"),
-    "press to start, release to stop",
-  );
-  assert.ok(ui.includes("if (heard) { submit(heard); return; }"), "what was heard is sent on its own");
+  // Press to start, release to stop, and what was heard sent on its own: executed in ask-palette.test.mjs ("on a
+  // phone the mic keeps the finger").
   assert.ok(
     hooks.includes('rec.lang = lang === "es" ? "es-ES" : (navigator.language || "en-US");'),
     "the recogniser listens in the palette's language",

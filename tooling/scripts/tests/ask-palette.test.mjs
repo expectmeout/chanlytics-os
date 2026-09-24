@@ -1017,11 +1017,12 @@ const phoneWindow = () => {
     restore: () => {
       globalThis.window.matchMedia = mm;
       globalThis.window.history = hist;
+      delete globalThis.window.location.href;
     },
   };
 };
 
-test("on a phone the Line is the screen: no focus on open, the three in the hero, one history entry, Back closes, × goes back", async () => {
+test("on a phone the Line is the screen: focus on the dialog, not the field, the three in the hero, one history entry, Back closes, × goes back", async () => {
   const ph = phoneWindow();
   let closed = 0;
   const props = {
@@ -1038,15 +1039,22 @@ test("on a phone the Line is the screen: no focus on open, the three in the hero
     assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
     assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
     assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
-    // The field is given something to focus; the Line's focus effect would reach it within 30ms on a desktop.
+    // The field and the dialog are given something to focus; the Line's focus effects reach them within 30ms.
     let focused = 0;
+    let dialogFocused = 0;
     inputOf(tree).props.ref.current = {
       focus: () => {
         focused++;
       },
     };
+    byTestId(tree, "ask-real").props.ref.current = {
+      focus: () => {
+        dialogFocused++;
+      },
+    };
     await new Promise((r) => setTimeout(r, 60));
     assert.equal(focused, 0, "no keyboard of its own: the field is not focused as the takeover opens (S10)");
+    assert.equal(dialogFocused, 1, "the dialog is (S10)");
     assert.deepEqual(
       ph.log,
       [["push", null, "https://app.chanlytics.com/w/studio#/today"]],
@@ -1095,6 +1103,109 @@ test("on a phone a place Ask goes to takes the takeover's entry: Back from there
   } finally {
     await closes();
     delete globalThis.window.appNavigate;
+    ph.restore();
+  }
+});
+
+test("on a desktop Ask pushes no entry of its own and focuses the field; a place it goes to is the shell's own push", async () => {
+  const hist = globalThis.window.history;
+  const nav = globalThis.window.CHANLY.nav;
+  const log = [];
+  const went = [];
+  globalThis.window.history = {
+    replaceState() {},
+    pushState: (s, t, u) => log.push(["push", s, u]),
+    back: () => log.push(["back"]),
+  };
+  globalThis.window.appNavigate = (to, o) => went.push([to, o]);
+  // As constants.jsx has it: CHANLY.nav is the shell's navigate, which pushes.
+  globalThis.window.CHANLY.nav = (to) => globalThis.window.appNavigate(to);
+  try {
+    ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    let focused = 0;
+    let dialogFocused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    byTestId(tree, "ask-real").props.ref.current = {
+      focus: () => {
+        dialogFocused++;
+      },
+    };
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(focused, 1, "the field takes focus on a desktop");
+    assert.equal(dialogFocused, 0, "not the dialog");
+    assert.equal(byTestId(tree, "ask-hero"), null, "and no hero stands");
+    typed(tree, "calendar");
+    tree = await later(Palette, OPEN);
+    press(byTestId(tree, "ask-row-jump"));
+    assert.deepEqual(went, [["calendar", undefined]], "the shell's own push, never a replace");
+    await closes();
+    assert.deepEqual(log, [], "no entry of Ask's own, and nothing taken back");
+  } finally {
+    await closes();
+    globalThis.window.history = hist;
+    globalThis.window.CHANLY.nav = nav;
+    delete globalThis.window.appNavigate;
+  }
+});
+
+test("on a phone the mic keeps the finger: the lift asks what was heard, and Type instead leaves it in the field", async () => {
+  const ph = phoneWindow();
+  const recs = [];
+  // The browser's recogniser, as far as the Line uses it: stopping it ends it, and what it heard comes back then.
+  globalThis.window.SpeechRecognition = class {
+    constructor() {
+      recs.push(this);
+    }
+    start() {}
+    stop() {
+      this.onend();
+    }
+  };
+  const hears = (rec, words) => {
+    const r = [{ transcript: words }];
+    r.isFinal = true;
+    rec.onresult({ results: [r] });
+  };
+  const captured = [];
+  const down = () => ({ ...pressOf(), pointerId: 7, currentTarget: { setPointerCapture: (id) => captured.push(id) } });
+  try {
+    const calls = ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[0], "how did the week go");
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(captured, [7], "the mic holds the finger");
+    assert.ok(byTestId(tree, "ask-letgo"), "Let go to ask, while it listens");
+    assert.ok(byTestId(tree, "ask-talk"), "over the band, still drawn, so the lift reaches the mic");
+    let focused = 0;
+    inputOf(tree).props.ref.current = {
+      focus: () => {
+        focused++;
+      },
+    };
+    press(byTestId(tree, "ask-type-instead"));
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, [], "REGRESSION: Type instead asked what was heard");
+    assert.equal(inputOf(tree).props.value, "how did the week go", "the words are the field's, to finish");
+    assert.equal(focused, 1, "and the field takes focus");
+    assert.equal(byTestId(tree, "ask-letgo"), null);
+
+    byTestId(tree, "ask-talk").props.onPointerDown(down());
+    hears(recs[1], "how did the weekend go");
+    tree = await later(Palette, OPEN);
+    byTestId(tree, "ask-talk").props.onPointerUp();
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["how did the weekend go"], "the lift off the mic asks");
+  } finally {
+    await closes();
+    delete globalThis.window.SpeechRecognition;
     ph.restore();
   }
 });
