@@ -461,7 +461,7 @@ test(
 );
 
 test(
-  "the bell rings twice: once when a round asks, once when it ends, and never for one that was stopped",
+  "the bell rings twice: once when a round asks, on the pile it asks about, once when it ends, and never for one stopped or left unanswered",
   { skip },
   async () => {
     const bell = async (kind) =>
@@ -473,18 +473,25 @@ test(
         .update({
           state: "waiting_on_owner",
           waiting_since: new Date().toISOString(),
+          // The shape the runner keeps (core ports.ts RoundQuestion, through lead_collect_commit).
           question: {
             sentence: "Most of the first 25 were chain gyms. Keep leaving them out?",
-            criterion_key: "chain",
+            criterionKey: "chain",
+            dropTerm: null,
+            asked_at: new Date().toISOString(),
           },
         })
         .eq("id", ids.round),
     );
     const asked = await bell("leads_question");
     assert.equal(asked.length, 1);
-    assert.equal(asked[0].title, "Your search for personal trainers needs you");
+    assert.equal(asked[0].title, "Your search for personal trainers is waiting for your answer");
     assert.equal(asked[0].body, "Most of the first 25 were chain gyms. Keep leaving them out?");
-    assert.equal(asked[0].route, `clients/leads:s-${ids.search}`);
+    assert.equal(
+      asked[0].route,
+      `clients/leads:s-${ids.search}:c-excluded`,
+      "the pile the question is about: the counted view is empty while it waits",
+    );
     ok(
       await db
         .from("lead_rounds")
@@ -533,6 +540,64 @@ test(
         .eq("id", stopped),
     );
     assert.deepEqual(await bell("leads_ready"), [], "nothing rings for a round the owner stopped");
+    // A question nobody answered ends its round by itself after a day. Its own row already asked, and the strip says
+    // "Stopped after a day without your answer": "is done · Nothing new was counted" over it was untrue.
+    const quiet = ok(
+      await db
+        .from("lead_searches")
+        .insert({
+          tenant_id: A,
+          via: "people",
+          card: "local_businesses",
+          name: "florists",
+          asked: "florists in Austin",
+          plan: { version: 1 },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const unanswered = ok(
+      await db
+        .from("lead_rounds")
+        .insert({
+          tenant_id: A,
+          search_id: quiet,
+          seq: 1,
+          purpose: "probe",
+          plan: { version: 1 },
+          plan_version: 1,
+          target: 50,
+          state: "queued",
+          month: "2026-09",
+          day: "2026-09-19",
+          platform_day: "2026-09-19",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    ok(await db.from("lead_rounds").update({ state: "probing" }).eq("id", unanswered));
+    ok(
+      await db
+        .from("lead_rounds")
+        .update({
+          state: "waiting_on_owner",
+          waiting_since: new Date().toISOString(),
+          question: {
+            sentence: "Most of the first 25 are chains.",
+            criterionKey: "chains",
+            dropTerm: null,
+            asked_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", unanswered),
+    );
+    ok(
+      await db
+        .from("lead_rounds")
+        .update({ state: "ended", ending: "question_unanswered", ended_at: new Date().toISOString() })
+        .eq("id", unanswered),
+    );
+    assert.deepEqual(await bell("leads_ready"), [], "nothing rings 'is done' for a question nobody answered");
     ok(await db.from("lead_rounds").update({ state: "running" }).eq("id", ids.round));
     ok(
       await db
