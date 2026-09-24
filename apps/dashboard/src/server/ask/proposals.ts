@@ -22,10 +22,8 @@ import {
   type DealStage,
   AskSettingsChangeSchema,
   EVERYONE_LABEL,
-  PEOPLE_LISTS,
-  savedListIds,
+  BUILTIN_LISTS,
   PERSON_MODES,
-  audienceMembers,
   broadcastName,
   cleanParam,
   clockWhen,
@@ -36,7 +34,6 @@ import {
   parseParamSpec,
   renderTemplate,
   shiftKey,
-  type AudienceKind,
   type ParamSpec,
   POLICY_CLASSES,
   POLICY_MODES,
@@ -68,10 +65,10 @@ import {
   triggerOf,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { listPolicies, savedListFor } from "@chanlytics/db";
+import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
 import { planFacts } from "../leads";
-import { audiencePoolOnce } from "../audience";
+import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
 import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
 import { replyChannelOf } from "../verbs";
@@ -213,7 +210,7 @@ export const ACT_TOOLS: ToolDef[] = [
   {
     name: "propose_broadcast",
     description:
-      "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+      "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, or any list list_audiences names (its kind and audience_id: a People list, or one of the workspace's own) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
     input_schema: obj(
       {
         template_id: { type: "string" },
@@ -770,8 +767,8 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (!UUID.test(templateId)) return refuse("template_id must be an id list_audiences returned");
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
     return refuse("audience_kind must be everyone, list or saved");
-  if (kind === "list" && !PEOPLE_LISTS.some((l) => l.id === audienceId))
-    return refuse("audience_id must be a People list id: needs_you, waiting_on_you, new_week, quiet or phoned_only");
+  if (kind === "list" && !BUILTIN_LISTS.some((l) => l.id === audienceId))
+    return refuse("audience_id must be a People list id, as list_audiences names them");
   if (kind === "saved" && !(audienceId && UUID.test(audienceId)))
     return refuse("audience_id must be a saved list id from list_audiences");
   const specs: ParamSpec[] = [];
@@ -802,27 +799,31 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
 
   // The audience, counted the way the route will count it.
   // The pool and the list the route will read, so the count here is the count it enrols.
-  const { rows, calendar } = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
-  let savedIds: Set<string> | null = null;
+  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
+  // one that can't be counted here refused with why.
+  let members: Set<string> | null = null;
   let label = EVERYONE_LABEL;
-  if (kind === "saved") {
-    const seg = await savedListFor(t.ctx.supabase, t.tenantId, audienceId!);
-    if (!seg) return refuse("no such list; list_audiences names them");
-    // A smart list's people by its rule, the way the send finds them (savedListIds).
-    savedIds = savedListIds(seg, rows, t.now.getTime(), calendar.state === "ok");
-    label = seg.name;
-  } else if (kind === "list") {
-    label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
+  if (kind !== "everyone") {
+    const found = await poolList(t.ctx, t.tenantId, pool, {
+      kind: kind === "list" ? "builtin" : "saved",
+      id: audienceId!,
+    });
+    if (!found) return refuse("no such list; list_audiences names them");
+    if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
+    members = new Set(found.memberIds);
+    label = found.label;
   }
+  const rows = members ? pool.rows.filter((r) => members!.has(r.id)) : pool.rows;
   // The same purpose the route will derive, from the same column of the same
   // template row this function already read. An assistant that proposes a
   // broadcast the route then refuses has wasted the operator's approval.
   const purpose = purposeOfTemplate(tpl.category);
-  const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose).length;
+  const count = eligibleFor(rows, "everyone", null, null, purpose).length;
   // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
   if (count === 0)
     return refuse(
-      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds))} Say so, and name what to do about it`,
+      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows)} Say so, and name what to do about it`,
     );
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and

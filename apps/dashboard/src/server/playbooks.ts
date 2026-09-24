@@ -8,9 +8,13 @@ import {
   playbookRunStop,
   purposeOfTemplate,
   PLAYBOOK_TRIGGERS,
+  consultFirstOf,
+  poolListContext,
+  poolRowsOf,
+  withVisitsOf,
   savedListIds,
+  savedListLookup,
   playbookRunReach,
-  toPersonRowVM,
   triggerOffered,
   dealsAreOn,
   type DealPaceVM,
@@ -278,8 +282,11 @@ export async function triggerPools(
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
-  const vms = rows.map((r) =>
-    toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now),
+  // The pool's one reading (contracts audience-pool.ts), as a run reads it: no one looking, and no deal where deals
+  // are off. The visits are marked as consultations by the same rule the edge's runner reads them by.
+  const vms = poolRowsOf(
+    withVisitsOf(rows, pv?.visits ?? new Map(), pv?.calendar ?? { state: "none", timezone: tz, source: "calendar" }),
+    { tz, now, viewer: null, dealsOn: deals.on },
   );
   // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
@@ -342,8 +349,15 @@ export async function triggerPools(
   try {
     const kept = await savedListsFor(ctx.supabase, tenantId);
     lists = kept.map((l) => ({ id: l.id, name: l.name, smart: l.rule != null }));
-    for (const l of kept)
-      pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, now.getTime(), calendar === "ok"));
+    // A playbook has no one looking: a list about "me" is not one it can run on (lists.ts ListContext).
+    const listCtx = poolListContext({
+      calendar,
+      dealsOn: deals.on,
+      consultFirst: consultFirstOf(pv?.rules),
+      viewer: null,
+    });
+    const lookup = savedListLookup(kept);
+    for (const l of kept) pools[`list:${l.id}`] = count("saved_list", savedListIds(l, vms, listCtx, lookup));
   } catch (e) {
     console.error(
       "playbook_pools_lists_failed",

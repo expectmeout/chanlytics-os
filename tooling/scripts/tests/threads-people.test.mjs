@@ -264,10 +264,10 @@ test("People says 'Held for you' for a person the receptionist was told to stay 
 
 test("Needs you follows the Inbox's rule: a thread someone took over, or snoozed, is not waiting on a person", () => {
   const nowMs = NOW.getTime();
-  assert.equal(personStateFor(row({ open_escalation_reason: "human_token" }), nowMs), "needs_you");
-  assert.equal(personStateFor(row({ needs_human: true }), nowMs), "needs_you");
+  assert.equal(personStateFor(row({ open_escalation_reason: "human_token" }), nowMs, ZONE), "needs_you");
+  assert.equal(personStateFor(row({ needs_human: true }), nowMs, ZONE), "needs_you");
   assert.equal(
-    personStateFor(row({ needs_human: true, latest_assignee_user_id: "u1" }), nowMs),
+    personStateFor(row({ needs_human: true, latest_assignee_user_id: "u1" }), nowMs, ZONE),
     "waiting_on_you",
     "REGRESSION: a taken-over thread still counted under Needs you",
   );

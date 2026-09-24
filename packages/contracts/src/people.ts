@@ -1,5 +1,5 @@
 import { agoWords } from "./time";
-import { clockDate, clockDateYear, clockDayLabel, clockShort, clockTime } from "./clock";
+import { clockDate, clockDateYear, clockDayLabel, clockShort, clockTime, inLocalWeek, localDaysBetween } from "./clock";
 import { linkHost } from "./link";
 import { replyWaitsOnYou, standingOf, type StandingVerdict } from "./standing";
 /**
@@ -17,11 +17,18 @@ import { replyWaitsOnYou, standingOf, type StandingVerdict } from "./standing";
  */
 import { formatPhoneDisplay } from "./phone";
 import { personName } from "./person-name";
-import { mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
+import {
+  PERSON_CAME_FROM_WORDS,
+  PERSON_CHANNEL_WORDS,
+  REPLY_VIA,
+  type PersonCameFrom,
+  type PersonChannel,
+} from "./person-words";
+import { isOptedOutContact, mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
 import { replyWindow, waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import type { FollowUpStand } from "./playbooks";
-import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
+import { visitAnswersAsk, visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   forWords,
   nextStepOf,
@@ -53,6 +60,7 @@ import {
   DEAL_STAGE_WORDS,
   amountWords,
   dealOf,
+  dealStageOf,
   dealPaceOf,
   isDealLostReason,
   proposalLinkOf,
@@ -60,8 +68,10 @@ import {
   type DealDto,
   type DealPaceDto,
   type DealPaceVM,
+  type DealStandingStage,
   type DealVM,
 } from "./deals";
+import { PEOPLE_LISTS } from "./lists";
 import type { RecipientState } from "./broadcasts";
 
 /* --------------------------------- DTOs ---------------------------------- */
@@ -288,7 +298,7 @@ export function asPersonMode(s: string | null | undefined): PersonMode | null {
 
 /* -------------------------------- states --------------------------------- */
 
-export type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active";
+export type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active" | "unheard";
 
 export const PERSON_STATE_LABELS: Record<PersonState, string> = {
   needs_you: "Needs you",
@@ -297,6 +307,7 @@ export const PERSON_STATE_LABELS: Record<PersonState, string> = {
   new: "New",
   quiet: "Quiet",
   active: "Active",
+  unheard: "Not heard from",
 };
 
 /** The list's tabs: the states, in the order the rule evaluates them. */
@@ -312,10 +323,10 @@ export const PEOPLE_TABS: readonly { id: "all" | PersonState; label: string }[] 
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 const MONTH_MS = 30 * DAY_MS;
-/** First contact this recent, with no imported history, is "new". */
-export const NEW_WINDOW_MS = 7 * DAY_MS;
-/** Nothing heard for this long is "quiet". */
-export const QUIET_AFTER_MS = 30 * DAY_MS;
+/** First contact this many of the workspace's days ago or fewer, on a real date, is "new" (New this week's rule). */
+export const NEW_WINDOW_DAYS = 7;
+/** Heard from, then nothing from them for more than this many days, is "quiet" (Quiet 30+ days' rule). */
+export const QUIET_AFTER_DAYS = 30;
 
 /**
  * The escalation reasons in the words an owner uses across a table row.
@@ -368,13 +379,6 @@ export function ago(ms: number, tz: string, nowMs: number): string {
   return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => clockDate(at, tz, nowMs) });
 }
 
-/** When they were last in contact, by message or by call, whichever is later. */
-function lastContactTs(r: PersonRowDto): number | null {
-  const m = ts(r.last_message_at);
-  const k = ts(r.last_call_at);
-  return m === null ? k : k === null ? m : Math.max(m, k);
-}
-
 function mmss(ms: number | null | undefined): string | undefined {
   if (ms == null || ms <= 0) return undefined;
   const s = Math.round(ms / 1000);
@@ -386,8 +390,8 @@ const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) :
 // What to call a person is person-name.ts's one rule; People reads it from there
 // like every other surface, and the index exports it from there.
 export { personName };
-
-export type PersonChannel = "whatsapp" | "sms" | "voice" | "email";
+// A person's wires and where they came from, in words: the leaf the list rules read too (person-words.ts).
+export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel };
 
 /**
  * Channels are what actually happened, not only what identities record.
@@ -762,19 +766,6 @@ export function repliesWords(
 }
 
 /** How a reply goes, in the words the page uses for the wire. */
-const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email",
-};
-
-/** A channel in the owner's words. */
-export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email",
-};
 
 /**
  * The newest message that carried the proposal's address and went out -- a
@@ -809,27 +800,6 @@ function proposalSending(conversations: ReadonlyArray<ConversationDto>, url: str
   );
 }
 
-/**
- * Where a person first came from, as people_list decides it once (00138): the
- * door that added them (calendar, lead, manual), an imported history (import),
- * else their first call (call) or the wire of their first message (whatsapp,
- * sms, email). People's "Came from" column says it in these words; a stored
- * value is never shown.
- */
-export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
-
-/** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
-export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported history",
-  lead: "A lead you found",
-};
-
 /** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
 export function cameFromOf(r: { came_from?: string | null }): { key: PersonCameFrom; label: string } | null {
   const k = r.came_from;
@@ -857,8 +827,11 @@ type StandingRow = Pick<
   "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason"
 >;
 
-/** The latest thread's standing, from the one rule every surface reads (standing.ts). */
-export function personStanding(r: StandingRow, nowMs: number): StandingVerdict {
+/**
+ * The latest thread's standing, from the one rule every surface reads (standing.ts), for `viewerId` when someone is
+ * looking: a teammate's claim is theirs. With no one looking a claim reads as mine, as standing.ts reads an unknown.
+ */
+export function personStanding(r: StandingRow, nowMs: number, viewerId: string | null = null): StandingVerdict {
   return standingOf(
     {
       state:
@@ -869,10 +842,39 @@ export function personStanding(r: StandingRow, nowMs: number): StandingVerdict {
             : (r.latest_state ?? "open"),
       paused_until: r.latest_paused_until,
       assignee_user_id: r.latest_assignee_user_id,
+      assignee_is_me: viewerId && r.latest_assignee_user_id ? r.latest_assignee_user_id === viewerId : undefined,
       open_escalation: !!r.open_escalation_reason,
     },
     nowMs,
   );
+}
+
+/**
+ * Whose attention a person's latest thread asks for, judged for `viewerId` (decision 0009): it needs you -- flagged
+ * and nobody has it, or a reply counting down to send (standing.ts replyWaitsOnYou, as the Inbox counts it) -- or it
+ * waits on you: you have it, or nobody is named on it and someone's reply paused the receptionist, and it is flagged
+ * or they wrote last. A teammate's thread waits on them. People's Needs you and Waiting on you lists, and the row's
+ * pill, are this.
+ */
+export function attentionOf(
+  r: PersonRowDto,
+  nowMs: number,
+  viewerId: string | null = null,
+): "needs_you" | "waiting_on_you" | null {
+  const v = personStanding(r, nowMs, viewerId);
+  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
+  const assignee = r.latest_assignee_user_id;
+  // With no one looking, an assignee reads as you (standing.ts): a row that cannot say whose claim it is does not
+  // accuse a teammate.
+  const owned = assignee ? !viewerId || assignee === viewerId : v.takenOver;
+  if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
+  return null;
+}
+
+/** When they last wrote or called: their message, or a call they placed. A call the owner made is not them asking. */
+function heardAt(r: PersonRowDto): number | null {
+  const at = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
+  return at.length ? Math.max(...at) : null;
 }
 
 /** A person has the thread: they claimed it, or their own reply paused the receptionist. */
@@ -882,20 +884,25 @@ export function isOwned(r: StandingRow, nowMs: number): boolean {
 
 /* ------------------------------ the rule --------------------------------- */
 
-export function personStateFor(r: PersonRowDto, nowMs: number): PersonState {
-  const v = personStanding(r, nowMs);
-  const owned = !!r.latest_assignee_user_id || v.takenOver;
-  // One rule for the Inbox, People and Today (standing.ts): a thread someone
-  // has taken over is theirs, a snoozed one is for later, and the
-  // receptionist's own pause on a handoff is nobody's — it still needs you.
-  // A reply counting down to send waits on you too, as the Inbox counts it (standing.ts replyWaitsOnYou).
-  if (v.standing === "needs_you" || replyWaitsOnYou({ queued: !!r.queued_reply_at }, nowMs)) return "needs_you";
-  if (owned && (v.flagged || r.last_message_direction === "inbound")) return "waiting_on_you";
-  if (r.consent === "opted_out" || r.dnc) return "opted_out";
-  const first = ts(r.first_contact_at);
-  if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
-  const last = lastContactTs(r);
-  if (last === null || nowMs - last > QUIET_AFTER_MS) return "quiet";
+/**
+ * The row's pill: the first of these that holds. It says the lists' own facts (decision 0009), so a row's pill never
+ * disagrees with the list it is on: whose attention it asks (attentionOf), a stop, new by New this week's rule, never
+ * heard from, quiet by Quiet 30+ days' rule, else active. Days are the workspace's own dates (`tz`).
+ */
+export function personStateFor(
+  r: PersonRowDto,
+  nowMs: number,
+  tz: string,
+  viewerId: string | null = null,
+): PersonState {
+  const attention = attentionOf(r, nowMs, viewerId);
+  if (attention) return attention;
+  if (isOptedOutContact({ consent: r.consent, dnc: r.dnc })) return "opted_out";
+  const first = firstContactOf(r, tz, nowMs);
+  if (first.evidence && first.ts !== null && localDaysBetween(first.ts, nowMs, tz) <= NEW_WINDOW_DAYS) return "new";
+  const heard = heardAt(r);
+  if (heard === null) return "unheard";
+  if (localDaysBetween(heard, nowMs, tz) > QUIET_AFTER_DAYS) return "quiet";
   return "active";
 }
 
@@ -1275,14 +1282,40 @@ export interface PersonRowVM {
   bookingLinkAction: { label: string; title: string; ready: boolean };
   /** When they last wrote or called, whichever is later. */
   askedMs: number | null;
-  /** Wrote or called in the last 30 days, and the calendar has never had them. */
+  /**
+   * Wrote or called in the last 30 days, and nothing on the calendar answers it: a visit ahead, or one since they
+   * asked (calendar-people.ts visitAnswersAsk, Reports' rule too).
+   */
   askedNotBooked: boolean;
   nextVisitMs: number | null;
   lastVisitMs: number | null;
-  /** Days until the next appointment (0 = today); null without one. */
+  /** The workspace's days until the next appointment (0 = today); null without one. */
   nextVisitDays: number | null;
-  /** Days since the last visit; null without one. */
+  /** The workspace's days since the last visit; null without one. */
   lastVisitDays: number | null;
+  /** The next visit falls in this week, Monday to Sunday, by the workspace's clock. */
+  nextVisitThisWeek: boolean;
+  /** The workspace's days since they last wrote or called (askedMs); null when they never have. */
+  heardDays: number | null;
+  /** The workspace's days since first contact; null without one. `firstContact.evidence` says it is a real date. */
+  firstDays: number | null;
+  /** Whose attention their latest thread asks for, judged for the viewer the row was built for (attentionOf). */
+  standing: "needs_you" | "waiting_on_you" | null;
+  /**
+   * Who has their latest thread: the viewer, a teammate, or nobody; "someone" when it has an assignee and the row was
+   * built for no one looking, so "me" cannot be said.
+   */
+  assigned: "me" | "teammate" | "nobody" | "someone";
+  /** Where they stand on the way to a deal, as the Pipeline groups them (deals.ts dealStageOf); null for none. */
+  dealStage: DealStandingStage | null;
+  /** Said the yes each purpose needs, a number to send to or not (saidYesTo). */
+  saidYes: { offers: boolean; messages: boolean };
+  /** May be sent each: the yes and a number (mayReceive). */
+  canReceive: { offers: boolean; messages: boolean };
+  /** Asked to stop, or on the do-not-contact list (consent.ts isOptedOutContact). */
+  stopped: boolean;
+  /** Their next step's day has come (steps.ts stepIsDue). */
+  stepDue: boolean;
   /** "2026-09-08": the day of the next / last visit by the calendar's own clock — what a day-keyed playbook reads. */
   nextVisitDate: string | null;
   lastVisitDate: string | null;
@@ -1333,10 +1366,19 @@ export function visitTitleFor(title: string, name: string): string {
   return title;
 }
 
-export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
+/**
+ * A People row, as it reads at `now` for `viewerId` (the member looking; null for a playbook's run, which has no one):
+ * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
+ */
+export function toPersonRowVM(
+  r: PersonRowDto,
+  tz: string,
+  now = new Date(),
+  viewerId: string | null = null,
+): PersonRowVM {
   const nowMs = now.getTime();
   const name = personName(r);
-  const state = personStateFor(r, nowMs);
+  const state = personStateFor(r, nowMs, tz, viewerId);
   const last = lastContactOf(r, tz, nowMs);
   const first = firstContactOf(r, tz, nowMs);
   const consent = consentOf(r, tz, nowMs);
@@ -1346,14 +1388,19 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
   const v = r.visits ?? null;
   const calendar = v ? v.state : "none";
   // Their message, or the call they placed. A call the owner made is not them asking.
-  const askedCandidates = [ts(r.last_inbound_at), ts(r.last_inbound_call_at ?? null)].filter(
-    (x): x is number => x !== null,
-  );
-  const askedMs = askedCandidates.length ? Math.max(...askedCandidates) : null;
+  const askedMs = heardAt(r);
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !v?.next && !v?.last;
+  const askedNotBooked =
+    calendar === "ok" &&
+    askedMs !== null &&
+    nowMs - askedMs <= MONTH_MS &&
+    !visitAnswersAsk(
+      nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
+      lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
+      askedMs,
+    );
   const stateDetail =
     state === "needs_you"
       ? r.open_escalation_reason
@@ -1368,11 +1415,13 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
           : state === "new"
             ? `first contact ${first.label}`
             : state === "quiet"
-              ? last.ts === null
-                ? "no contact recorded"
-                : `last contact ${ago(last.ts, tz, nowMs)}`
-              : "";
-  return {
+              ? `last heard from ${ago(askedMs as number, tz, nowMs)}`
+              : state === "unheard"
+                ? last.ts === null
+                  ? "no contact recorded"
+                  : "they have not written or called"
+                : "";
+  const vm: PersonRowVM = {
     id: r.id,
     real: true,
     name,
@@ -1426,8 +1475,25 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     askedNotBooked,
     nextVisitMs,
     lastVisitMs,
-    nextVisitDays: nextVisitMs !== null ? Math.max(0, Math.ceil((nextVisitMs - nowMs) / DAY_MS)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, Math.floor((nowMs - lastVisitMs) / DAY_MS)) : null,
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, localDaysBetween(nowMs, nextVisitMs, tz)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, localDaysBetween(lastVisitMs, nowMs, tz)) : null,
+    nextVisitThisWeek: nextVisitMs !== null && Number.isFinite(nextVisitMs) && inLocalWeek(nextVisitMs, tz, nowMs),
+    heardDays: askedMs !== null ? Math.max(0, localDaysBetween(askedMs, nowMs, tz)) : null,
+    firstDays: first.ts !== null ? Math.max(0, localDaysBetween(first.ts, nowMs, tz)) : null,
+    standing: state === "needs_you" || state === "waiting_on_you" ? state : null,
+    assigned: !r.latest_assignee_user_id
+      ? "nobody"
+      : !viewerId
+        ? "someone"
+        : r.latest_assignee_user_id === viewerId
+          ? "me"
+          : "teammate",
+    saidYes: { offers: saidYesTo({ consent }, "marketing"), messages: saidYesTo({ consent }, "conversational") },
+    canReceive: {
+      offers: mayReceive({ consent, phone: r.phone_e164 }, "marketing"),
+      messages: mayReceive({ consent, phone: r.phone_e164 }, "conversational"),
+    },
+    stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
     calendarTz: v?.timezone ?? null,
@@ -1440,155 +1506,18 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
         ? { startMs: nextVisitMs, allDay: !!v.next.all_day }
         : null,
     nextStep: nextStepOf(r, tz, nowMs),
+    stepDue: stepIsDue(nextStepOf(r, tz, nowMs)),
+    dealStage: null,
     followUp: null,
   };
+  // The Pipeline's group for them, from the deal and the consultations just read: one rule for both pages.
+  vm.dealStage = dealStageOf(vm, nowMs);
+  return vm;
 }
 
 /* ---------------------------- lists and totals --------------------------- */
 
-export type PeopleListGroup = "attention" | "journey" | "reach";
-
-/** The rail's three quiet labels: what needs a person, where each person is on the way to a booking, who can be reached. */
-export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }[] = [
-  { id: "attention", label: "Attention" },
-  { id: "journey", label: "Journey" },
-  { id: "reach", label: "Reach" },
-];
-
-/**
- * The rail's smart lists: computed filters over facts, not saved segments,
- * in three groups. The journey lists that read the calendar exist only when
- * one is connected; the booking is the conversion, and a visit is the fact
- * a salon cares about — a regular who never texts is not quiet.
- */
-export const PEOPLE_LISTS: readonly {
-  id: string;
-  label: string;
-  group: PeopleListGroup;
-  needsCalendar?: boolean;
-  /** Only where the profile lists a consult-first service. */
-  needsConsultFirst?: boolean;
-  /** Only where deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). */
-  needsDeals?: boolean;
-  /**
-   * False for a list a person's page already says in its own words -- Right now says who needs you, the consent rows
-   * say the two answers, the Deal section says the stage -- so their Lists section names only the lists it alone can.
-   */
-  onProfile?: false;
-  test: (vm: PersonRowVM) => boolean;
-}[] = [
-  { id: "needs_you", label: "Needs you", group: "attention", onProfile: false, test: (v) => v.state === "needs_you" },
-  {
-    id: "waiting_on_you",
-    label: "Waiting on you",
-    group: "attention",
-    onProfile: false,
-    test: (v) => v.state === "waiting_on_you",
-  },
-  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
-  {
-    id: "steps_due",
-    label: "Steps due",
-    group: "attention",
-    onProfile: false,
-    test: (v) => stepIsDue(v.nextStep),
-  },
-  { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
-  {
-    id: "booked_week",
-    label: "Booked this week",
-    group: "journey",
-    needsCalendar: true,
-    test: (v) => v.nextVisitDays !== null && v.nextVisitDays <= 7,
-  },
-  { id: "booked", label: "Booked", group: "journey", needsCalendar: true, test: (v) => v.booked },
-  {
-    id: "asked_never_booked",
-    label: "Asked, never booked",
-    group: "journey",
-    needsCalendar: true,
-    test: (v) => v.askedNotBooked,
-  },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    group: "journey",
-    needsCalendar: true,
-    test: (v) => !v.booked && v.lastVisitDays !== null && v.lastVisitDays >= 45,
-  },
-  // The journey past the booking (0004). Each exists only where deals are on here (0008).
-  {
-    id: "consultation_booked",
-    label: "Consultation booked",
-    group: "journey",
-    needsCalendar: true,
-    needsConsultFirst: true,
-    needsDeals: true,
-    onProfile: false,
-    test: (v) => v.consultationVisit && !v.deal,
-  },
-  {
-    id: "proposal_out",
-    label: "Proposal out",
-    group: "journey",
-    needsDeals: true,
-    onProfile: false,
-    test: (v) => v.deal?.stage === "proposed",
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    group: "journey",
-    needsDeals: true,
-    onProfile: false,
-    test: (v) => v.deal?.stage === "won",
-  },
-  {
-    id: "deal_ended",
-    label: "Ended",
-    group: "journey",
-    needsDeals: true,
-    onProfile: false,
-    test: (v) => v.deal?.stage === "ended",
-  },
-  { id: "quiet", label: "Quiet 30+ days", group: "reach", test: (v) => v.state === "quiet" },
-  { id: "phoned_only", label: "Phoned only", group: "reach", test: (v) => !v.hasChat && v.calls > 0 },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  //
-  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one was labelled "Can receive
-  // offers" and tested the CONVERSATIONAL column, which after 00095 is the one
-  // answer that says nothing about offers -- so the list a person opened to find
-  // their promotional audience showed everybody who had ever texted START. The id
-  // is unchanged on purpose: a saved broadcast's audience refers to it by id, and
-  // renaming it would repoint filings that have already gone out.
-  {
-    id: "opted_in",
-    label: "Said yes to messages",
-    group: "reach",
-    onProfile: false,
-    test: (v) => v.consent.state === "opted_in",
-  },
-  // The promotional audience, on its own column. The only people a MARKETING
-  // broadcast may reach.
-  // CAN receive, so it is the broadcast's own rule -- a yes to offers AND a number --
-  // not the bare answer, which was the difference between this list and what the
-  // route would actually enrol.
-  {
-    id: "offers_ok",
-    label: "Can receive offers",
-    group: "reach",
-    onProfile: false,
-    test: (v) => mayReceive(v, "marketing"),
-  },
-  {
-    id: "opted_out",
-    label: "Opted out",
-    group: "reach",
-    onProfile: false,
-    test: (v) => v.consent.state === "opted_out",
-  },
-];
+// The built-in lists and their groups are lists.ts's (decision 0009): each a rule in the owner's own language.
 
 export interface PeopleListAction {
   /** The sentence under the list: what the step reaches, or why it cannot yet. */
@@ -2212,7 +2141,13 @@ function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): PersonVM {
+export function toPersonVM(
+  d: PersonDetailDto,
+  tz: string,
+  now = new Date(),
+  /** The member looking (toPersonRowVM's viewer). */
+  viewerId: string | null = null,
+): PersonVM {
   const nowMs = now.getTime();
   // The profile fetched this person's rows in full, so the arrays are the
   // ground truth here and the list row is the summary. Where they disagree
@@ -2237,7 +2172,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     escalation_count: d.escalations.length || d.row.escalation_count,
     visits: d.visits ?? d.row.visits ?? null,
   };
-  const base = toPersonRowVM(row, tz, now);
+  const base = toPersonRowVM(row, tz, now, viewerId);
   // Whether deals are on here (dealsAreOn, 0008): where they are off, nothing on the page says a deal -- no fact, no
   // timeline line, no proposal -- whatever the database holds.
   const dealsOn = !!d.deals_on;

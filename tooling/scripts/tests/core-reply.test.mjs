@@ -628,3 +628,54 @@ test("when the address on their page is not the one they wrote from, the operato
     "to the page's address, never the header's",
   );
 });
+
+test("a business with no booking link (one that quotes each job) replies with any template that does not send one; one that does is refused in words, before anything is touched", async () => {
+  const closed = conv({ last_wa_inbound_at: iso(NOW - 30 * HOUR) });
+  const quotes = { templateFacts: { business_name: "Harbor Moving", booking_link: null } };
+  const linked = fakes(quotes);
+  await refused(
+    replyToConversation(
+      linked.ports,
+      cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } }),
+    ),
+    "validation",
+    /takes the booking link, and none is on file/,
+  );
+  assert.deepEqual(linked.ops(), [], "refused before the thread is claimed or anything queued");
+  const named = fakes({
+    ...quotes,
+    template: {
+      ...approved,
+      body_preview: "Thanks for asking {{1}}! We will be in touch with your quote.",
+      variables: [{ label: "Business name", position: 1 }],
+    },
+  });
+  const r = await replyToConversation(
+    named.ports,
+    cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } }),
+  );
+  assert.equal(r.status, "queued");
+  assert.deepEqual(named.call("schedule")[3].template.params, ["Harbor Moving"]);
+});
+
+test("the facts port answers with the business name alone: no link is null, and no name is no facts", async () => {
+  const { replyPorts } = await import("../../../apps/dashboard/src/server/core-ports.ts");
+  const { fakeDb } = await import("./_fake-db.mjs");
+  const at = (config) =>
+    replyPorts({ supabase: fakeDb({ tenant_config: [{ tenant_id: "t1", config }] }), userId: "u1" }).templateFacts(
+      "t1",
+    );
+  assert.deepEqual(await at({ brain: { business_name: "Harbor Moving" } }), {
+    business_name: "Harbor Moving",
+    booking_link: null,
+  });
+  assert.deepEqual(
+    await at({ brain: { business_name: "Harbor Moving", booking_link: "https://book.example/harbor" } }),
+    {
+      business_name: "Harbor Moving",
+      booking_link: "https://book.example/harbor",
+    },
+  );
+  assert.equal(await at({ brain: { booking_link: "https://book.example/harbor" } }), null, "no name, no facts");
+  assert.equal(await at({}), null, "and no receptionist, none");
+});

@@ -11,6 +11,7 @@ import { resolveFacts, type KnownFacts } from "./facts";
 import { normalizeEmail } from "./email-address";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "./enums";
+import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "./no-booking-link";
 
 /* ---------------------------------------------------------------- E1 roles */
 
@@ -544,7 +545,12 @@ export const BrainConfigSchema = z
      * shopfront — and the pane says so in those words.
      */
     phone_display: z.string().min(3).max(40).optional(),
-    booking_link: z.string().url().max(500),
+    /**
+     * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
+     * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
+     * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+     */
+    booking_link: z.string().url().max(500).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
     system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),
@@ -846,6 +852,13 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 }
 
 /**
+ * What a save with no booking link is refused in: here, and in the Business tab's own check before it
+ * (business-tab-save.jsx btCheckBookingLink, which business-tab-create.test holds to these words). Said as what the
+ * link is for, because a receptionist with none is read and answered since decision 2 -- it is the save that asks.
+ */
+export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+
+/**
  * The same config, with the rules that only apply on the way IN.
  *
  * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
@@ -853,6 +866,10 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
  * stricter.
  */
 export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+  // Read without one since decision 2; saved with one until the first run's Check asks how customers buy (3c).
+  if (cfg.brain && !cfg.brain.booking_link) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
+  }
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -1244,8 +1261,22 @@ export const PROMPT_OPENINGS = {
   ownWordsOnACall: "Some of it was written for text conversations",
 } as const;
 
+/**
+ * What a receptionist with no booking link does when someone wants to book, change a booking or get a quote, per
+ * channel: it takes the details for the team (NO_LINK_DETAILS). In chat, escalating is what tells the team; on a call,
+ * the call's analysis does (callback_needed). The shell every workspace shares still carries send_booking_link, so a
+ * call names it to be left alone -- retell-fn answers the same if it is used anyway. Said by a composed prompt (the
+ * call's booking line, the chat's medium line) and after a stored one (resolveSystemPrompt), in the same words.
+ */
+function noLinkBooking(channel: "whatsapp" | "voice"): string {
+  return channel === "voice"
+    ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.`
+    : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+}
+
 export function composeSystemPrompt(
-  base: { business_name: string; phone_display?: string | null; booking_link: string },
+  /** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
+  base: { business_name: string; phone_display?: string | null; booking_link: string | null },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
@@ -1265,7 +1296,7 @@ export function composeSystemPrompt(
 }
 
 function composeSystemPromptWith(
-  base: { business_name: string; phone_display?: string | null; booking_link: string },
+  base: { business_name: string; phone_display?: string | null; booking_link: string | null },
   profile: BusinessProfile,
   channel: "whatsapp" | "voice",
   tz: string | null | undefined,
@@ -1273,6 +1304,10 @@ function composeSystemPromptWith(
   policy: Record<string, { mode: string }> | null | undefined,
 ): string {
   const s: string[] = [];
+  // A business that quotes each job has no booking link (the first run's decision 2). Each place below that offers
+  // the link says instead what the receptionist takes for the team (NO_LINK_DETAILS). With a link, every word is as
+  // it was.
+  const link = offersBookingLink(base) ? base.booking_link : null;
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -1290,7 +1325,7 @@ function composeSystemPromptWith(
   // not improved by being told to say "undefined"; it answers, offers the
   // booking link, and does not invent a way to be phoned.
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  s.push(`Booking link: ${base.booking_link}`);
+  if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
 
   const hrs = hoursLines(profile.hours);
@@ -1406,10 +1441,12 @@ function composeSystemPromptWith(
     // WhatsApp message -- or nothing, on a number with no WhatsApp.
     s.push(
       `\n${PROMPT_OPENINGS.callTools} before offering a time — it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.\n` +
-        "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
-        "so do not ask them for a number unless they want it sent somewhere else. " +
-        "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
-        "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" +
+        (link
+          ? "Booking: when the caller wants to book, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, " +
+            "so do not ask them for a number unless they want it sent somewhere else. " +
+            "Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " +
+            "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n"
+          : `${noLinkBooking("voice")}\n`) +
         "Ending: once the caller has said goodbye, use end_call.",
     );
   }
@@ -1450,17 +1487,24 @@ function composeSystemPromptWith(
   }
 
   // Medium, not facts. A phone caller cannot re-read a paragraph.
+  const callMedium = link
+    ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead."
+    : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
     channel === "voice"
-      ? `\n${PROMPT_OPENINGS.callMedium} Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead.`
-      : `\n${PROMPT_OPENINGS.chatMedium} Send the booking link rather than describing how to book.`,
+      ? `\n${PROMPT_OPENINGS.callMedium} ${callMedium}`
+      : `\n${PROMPT_OPENINGS.chatMedium} ${chatMedium}`,
   );
 
   // Open times, when the workspace has a calendar feed, arrive AFTER these
   // instructions (with the clock: they change by the minute and must not
   // evict the cached profile). The receptionist names them; it never books.
   s.push(
-    `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link.`,
+    `\n${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` +
+      (link
+        ? "then send the booking link — the calendar decides, never you. If none are listed, do not guess at open times; send the link."
+        : `then take ${NO_LINK_DETAILS} so the team can confirm one — the calendar decides, never you. If none are listed, do not guess at open times.`),
   );
 
   // LAST, and never optional.
@@ -1468,11 +1512,13 @@ function composeSystemPromptWith(
   const rules: string[] = [];
   if (g.never_quote_prices) {
     rules.push(
-      "Never quote or confirm a price. Say it is quoted in person or at a consult, and offer the booking link.",
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`,
     );
   }
   if (g.never_confirm_booking) {
-    rules.push("Never promise or confirm an appointment yourself. Booking happens on the booking link or with staff.");
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`,
+    );
   }
   if (g.disclose_ai) {
     rules.push(
@@ -1484,7 +1530,7 @@ function composeSystemPromptWith(
   );
   if (g.no_health_advice) {
     rules.push(
-      "Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment and offer the booking link.",
+      `Never give medical or health advice — for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`,
     );
   }
   // The Autonomy pane's Booking and FAQ rows, as rules — the same words on
@@ -1530,7 +1576,9 @@ export function resolveSystemPrompt(
   known?: KnownFacts | null,
 ): string {
   if (!hasProfile(brain.profile)) {
-    const rules = policyRules(policy, channel);
+    // A stored prompt says nothing of a link it does not have: a receptionist with none is told what to do instead,
+    // first among the rules that follow it.
+    const rules = [...(offersBookingLink(brain) ? [] : [noLinkBooking(channel)]), ...policyRules(policy, channel)];
     return rules.length
       ? `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`
       : brain.system_prompt;
@@ -1540,7 +1588,7 @@ export function resolveSystemPrompt(
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
     phone_display: facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link,
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
   };
   // NOTHING a workspace already had may be lost by filling in a form.
   //
@@ -1694,7 +1742,7 @@ export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null):
   const facts = resolveFacts(brain, known);
   const values: Record<FallbackDetail, string | null> = {
     business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value,
   };
   const say = (kind: keyof BrainConfig["fallbacks"]) =>

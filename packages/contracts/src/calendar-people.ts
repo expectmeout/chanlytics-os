@@ -425,14 +425,20 @@ export function visitLine(
  * The receptionist's lines about a caller's appointments — facts from the
  * calendar, with the rule that nothing is changed from here. A match by
  * name alone says so, so the receptionist confirms it is them before it
- * reads details back.
+ * reads details back. With no booking link to send (the first run's
+ * decision 2), a change goes to the team.
  */
-export function describeVisits(visits: Visits, tz: string, nowMs: number): string | null {
+export function describeVisits(
+  visits: Visits,
+  tz: string,
+  nowMs: number,
+  opts: { hasBookingLink: boolean },
+): string | null {
   const out: string[] = [];
   if (visits.next) {
     const n = visits.next;
     out.push(
-      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.`,
+      `Their next appointment on the calendar: ${visitLine(n, tz, nowMs)} (${n.title}).${n.via === "name" ? " Matched by name only — make sure it is them before confirming details." : ""} If they ask, confirm it; to change or cancel it, ${opts.hasBookingLink ? "send the booking link" : "say the team will follow up"} — nothing is changed from here.`,
     );
   }
   if (visits.last) {
@@ -676,8 +682,17 @@ export interface BookingReportVM {
  */
 export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: number): boolean {
   if (!visits) return false;
-  if (visits.next) return true;
-  return !!visits.last && visits.last.start >= askedMs - 86_400_000;
+  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+}
+
+/**
+ * The same rule over the moments a person's row keeps (people.ts): a visit ahead, or a last visit that began no more
+ * than a day before they asked. Reports' booking line and People's "Asked, never booked" both read it, so Today's line
+ * that prints the two numbers side by side counts one rule twice, never two rules once (decision 0009).
+ */
+export function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
+  if (nextStartMs !== null) return true;
+  return lastStartMs !== null && lastStartMs >= askedMs - 86_400_000;
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {

@@ -120,7 +120,15 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     abandoned: "warn",
     callback: "warn",
   },
-  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  person: {
+    needs_you: "warn",
+    waiting_on_you: "warn",
+    new: "info",
+    active: "ok",
+    quiet: "plain",
+    opted_out: "plain",
+    unheard: "plain",
+  },
   consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
   broadcast: {

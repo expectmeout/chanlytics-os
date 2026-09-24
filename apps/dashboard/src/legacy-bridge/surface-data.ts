@@ -141,7 +141,16 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     }
     // The sidebar renders whoever this says — replacing the mockup's
     // hardcoded operator, who was a fabricated person shown as "you".
-    if (data.user) w.__ME = data.user;
+    if (data.user) {
+      const was = w.__ME?.id ?? null;
+      w.__ME = data.user;
+      // People read before who is looking was known is read again for them (decision 0009): a teammate's thread is
+      // theirs, and a list about "me" can be counted.
+      if (peopleLoaded && was !== (data.user.id ?? null)) {
+        publishPeople();
+        window.dispatchEvent(new CustomEvent("surface:clients"));
+      }
+    }
   },
 };
 
@@ -192,7 +201,6 @@ import {
   type EscalationDto,
   type CallDto,
   type TodayVM,
-  toPersonRowVM,
   dealPaceOf,
   followUpStandOf,
   type FollowUpFactsDto,
@@ -200,8 +208,16 @@ import {
   peopleAggregates,
   PEOPLE_LISTS,
   asListRule,
+  listMembers,
   listRuleParts,
+  listUnknownWords,
+  parseListToken,
   savedListIds,
+  savedListLookup,
+  poolListContext,
+  poolRowOf,
+  poolRowsOf,
+  type ListContext,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
   savedListAction,
@@ -772,6 +788,12 @@ export interface PeopleSurface {
     ids: string[];
     members: string[];
     action: { text: string; cta: string; to: string; enabled: boolean };
+    /** Kept by hand: people are put on it and taken off. A rule, read or not, says who is on it. */
+    byHand: boolean;
+    /** A smart list's rule as the chips its page shows; null for a list kept by hand, or a rule that can't be read. */
+    rule: string[] | null;
+    /** Why it can't be counted (lists.ts listUnknownWords); null when it was. Its count is then no one's, never 0. */
+    unknown: string | null;
   }[];
   /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
@@ -785,6 +807,8 @@ export interface PeopleSurface {
   bookingLink: string | null;
   /** Deals are on here (dealsAreOn, 0008): the Journey's deal lists, the thread's menu item, the column. */
   dealsOn: boolean;
+  /** The profile lists a consult-first service (0004): a list that reads consultations can be counted only then. */
+  consultFirst: boolean;
   /** The workspace's pace (dealPaceOf, 0008 amended): when a proposal out is waiting, on Today and the Pipeline. */
   dealPace: DealPaceVM | null;
   /** The page the rows came from: how many there are in all, and whether more follow (00112). */
@@ -815,13 +839,17 @@ let peopleLoaded: {
 } | null = null;
 
 /**
- * A People row as the page reads it. Where deals are off (dealsAreOn, 0008) it carries no deal, whatever the database
- * holds: not the lists, the column, the row's second line, the thread's chip and send, or Today's proposals waiting,
- * which all read it from here.
+ * A People row as the page reads it, for the member looking (__ME): a teammate's thread is theirs, not waiting on you.
+ * Where deals are off (dealsAreOn, 0008) it carries no deal, whatever the database holds: not the lists, the column,
+ * the row's second line, the thread's chip and send, or Today's proposals waiting, which all read it from here.
  */
 function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
-  const vm = toPersonRowVM(r, tz, now);
-  return dealsOn ? vm : { ...vm, deal: null };
+  return poolRowOf(r, { tz, now, viewer: viewerId(), dealsOn });
+}
+
+/** The member looking, as the workspace surface named them at boot; null before it lands. */
+function viewerId(): string | null {
+  return (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
 }
 
 /** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
@@ -838,6 +866,22 @@ function publishPeople(): void {
     return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace) } : vm;
   });
   const calendar = peopleLoaded.calendar;
+  // What this workspace and this reader can give a list (lists.ts): a rule that needs more says why it can't be counted.
+  const listCtx: ListContext = poolListContext({
+    calendar: calendar.state,
+    dealsOn,
+    consultFirst,
+    viewer: viewerId(),
+  });
+  const savedLists = peopleLoaded.saved ?? [];
+  const lookup = savedListLookup(savedLists);
+  const listName = (token: string): string | null => {
+    const ref = parseListToken(token);
+    if (!ref) return null;
+    return ref.kind === "builtin"
+      ? (PEOPLE_LISTS.find((l) => l.id === ref.id)?.label ?? null)
+      : (savedLists.find((l) => l.id === ref.id)?.name ?? null);
+  };
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
     // The outcome lists only when there is a calendar to read them from; the deal lists only where deals are on.
@@ -861,14 +905,15 @@ function publishPeople(): void {
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     dealsOn,
+    consultFirst,
     dealPace: dealsOn ? peopleLoaded.dealPace : null,
-    saved: (peopleLoaded.saved ?? []).map((l) => {
-      // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (savedListIds), over the rows
-      // on the page, so an erased person never counts.
-      const idSet = savedListIds(l, rows, now.getTime(), calendar.state === "ok");
-      const members = rows.filter((r) => idSet.has(r.id));
+    saved: savedLists.map((l) => {
+      // Who is on it: the ids kept on it, or everyone a smart list's rule holds for today (lists.ts listMembers), over
+      // the rows on the page, so an erased person never counts. A rule that can't be counted here says why.
+      const m = listMembers(l, rows, listCtx, lookup);
+      const members = m.state === "ok" ? rows.filter((r) => m.ids.has(r.id)) : [];
       const ids = members.map((r) => r.id);
-      const rule = asListRule(l.rule);
+      const rule = l.rule == null ? null : asListRule(l.rule);
       // The list's own step, the way a built-in list carries its: a broadcast to those on it who said yes.
       return {
         id: l.id,
@@ -877,8 +922,9 @@ function publishPeople(): void {
         ids,
         members: l.ids,
         action: savedListAction(l.id, members),
-        // A smart list's rule, as the chips its page shows; null for a list kept by hand.
-        rule: rule ? listRuleParts(rule) : null,
+        byHand: l.rule == null,
+        rule: rule ? listRuleParts(rule, listName) : null,
+        unknown: m.state === "unknown" ? listUnknownWords(m.reason, calendar.state) : null,
       };
     }),
     savedRead: peopleLoaded.saved !== null,
@@ -1182,7 +1228,8 @@ export const broadcastsOverride: SurfaceOverride = {
     // Every page of people, not the first: the send enrols everyone, so an
     // audience counted over one page promised fewer people than the send reaches.
     const { people: everyone } = await everyPerson(people);
-    const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
+    // The pool's one reading (contracts audience-pool.ts), as the send reads it.
+    const rows = poolRowsOf(everyone, { tz, now, viewer: viewerId(), dealsOn: !!people.deals_on });
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     // Who a run reached within the week, for the note on how many of an audience heard from one.
@@ -1235,8 +1282,27 @@ export const broadcastsOverride: SurfaceOverride = {
             kind: "saved" as const,
             id: s.id,
             label: s.name,
-            ...optionFor("saved", null, savedListIds(s, rows, now.getTime(), people.calendar?.state === "ok")),
-            hint: "A list kept by hand — of those whose yes covers this message",
+            // Counted as the send will count it (lists.ts): a rule that can't be counted here reaches nobody, and
+            // the send refuses it in words.
+            ...optionFor(
+              "saved",
+              null,
+              savedListIds(
+                s,
+                rows,
+                poolListContext({
+                  calendar: people.calendar?.state ?? "none",
+                  dealsOn: !!people.deals_on,
+                  consultFirst: !!people.consult_first,
+                  viewer: viewerId(),
+                }),
+                savedListLookup(saved.lists),
+              ),
+            ),
+            hint:
+              s.rule == null
+                ? "A list kept by hand — of those whose yes covers this message"
+                : "A list that keeps itself current — of those whose yes covers this message",
           }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);

@@ -305,7 +305,7 @@ test("an address is read after the number and before the name, so a customer boo
   );
 
   assert.ok(
-    !describeVisits(v, TZ, NOW).includes("Matched by name only"),
+    !describeVisits(v, TZ, NOW, { hasBookingLink: true }).includes("Matched by name only"),
     "an address is exact: it needs no are-you-sure, no more than a number does",
   );
 });
@@ -392,16 +392,25 @@ test("their visits: the next one that has not ended, the latest one that has; th
 
 test("the receptionist's lines: the next appointment, the last visit, the rule that nothing changes here, and a name-only match flagged", () => {
   const f = feed();
-  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW);
+  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(
     words,
     "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.",
   );
-  const byName = describeVisits(visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN), TZ, NOW);
+  const byName = describeVisits(
+    visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN),
+    TZ,
+    NOW,
+    { hasBookingLink: true },
+  );
   assert.ok(byName.includes("Matched by name only — make sure it is them before confirming details."));
-  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW);
+  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW, { hasBookingLink: true });
   assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
-  assert.equal(describeVisits({ next: null, last: null }, TZ, NOW), null, "nothing to say is null, never a sentence");
+  assert.equal(
+    describeVisits({ next: null, last: null }, TZ, NOW, { hasBookingLink: true }),
+    null,
+    "nothing to say is null, never a sentence",
+  );
 });
 
 test("the calendar's name from its address, and a description as plain text", () => {
@@ -558,7 +567,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
     /export async function visitsFor\(\s*rt: TenantRuntime,\s*who: \{ phone: string \| null; name: string \| null \}/.test(
       edge,
     ) &&
-      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),?\s*\);/.test(
+      /return describeVisits\(\s*visitsOf\(feed\.items, \{ id: "caller", name: who\.name \?\? "", phone: who\.phone, email: null \}, now\.getTime\(\), own\),\s*rt\.timezone,\s*now\.getTime\(\),[^;]*\);/.test(
         edge,
       ),
   );
@@ -838,9 +847,20 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const gap = toPersonRowVM({ ...asked, visits: cal({}) }, TZ, now);
   assert.equal(gap.askedNotBooked, true, "wrote this month, the calendar never had them");
   assert.equal(gap.askedMs, Date.parse("2026-09-04T12:00:00.000Z"));
+  // Reports' rule (calendar-people.ts visitAnswersAsk, decision 0009): a visit before they asked does not answer it.
   const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, TZ, now);
-  assert.equal(visited.askedNotBooked, false, "they have been on the calendar before");
+  assert.equal(visited.askedNotBooked, true, "a visit before they asked does not answer it");
   assert.equal(visited.lastVisit, "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour");
+  const answered = toPersonRowVM(
+    {
+      ...asked,
+      id: "w",
+      visits: cal({ last: { ...last, start: "2026-09-05T14:00:00.000Z", end: "2026-09-05T16:00:00.000Z" } }),
+    },
+    TZ,
+    now,
+  );
+  assert.equal(answered.askedNotBooked, false, "a visit since they asked answers it");
   const stale = toPersonRowVM(
     { ...asked, id: "s", last_inbound_at: "2026-07-01T12:00:00.000Z", visits: cal({}) },
     TZ,
@@ -854,15 +874,15 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const askedList = PEOPLE_LISTS.find((l) => l.id === "asked_never_booked");
   assert.ok(bookedList.needsCalendar && askedList.needsCalendar, "shown only when the calendar is connected");
   assert.ok(bookedList.test(booked) && !bookedList.test(gap));
-  assert.ok(askedList.test(gap) && !askedList.test(booked) && !askedList.test(visited));
+  assert.ok(askedList.test(gap) && askedList.test(visited) && !askedList.test(booked) && !askedList.test(answered));
   assert.deepEqual(
     [...PEOPLE_LISTS].map((l) => l.id).slice(0, 8),
     ["needs_you", "waiting_on_you", "steps_due", "new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
     "attention, then the journey",
   );
-  const agg = peopleAggregates([booked, gap, visited, stale, noCal], NOW);
+  const agg = peopleAggregates([booked, gap, visited, answered, stale, noCal], NOW);
   assert.equal(agg.booked, 1);
-  assert.equal(agg.askedNotBooked, 1);
+  assert.equal(agg.askedNotBooked, 2);
 });
 
 test("asked, then booked: the report's one conversion line, in words that say what was counted", async () => {
@@ -942,7 +962,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       svc.includes("export async function peopleVisits(") &&
-      svc.includes("const index = indexFeed(feed.parsed.items, own);"),
+      svc.includes(
+        "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
+      ),
     "one parse, indexed once, for everyone",
   );
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
@@ -964,7 +986,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(
     tools.includes('list: { type: "string" }') &&
-      tools.includes("if (list && !list.test(vmOf.get(r.id)!)) return false;") &&
+      tools.includes("if (onList && !onList.has(r.id)) return false;") &&
       tools.includes("next_visit: r.visits?.next"),
     "the assistant answers who booked and who never did",
   );
@@ -1106,7 +1128,16 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.equal(week.nextVisitDays, 3);
   assert.equal(lapsed.lastVisitDays, 60);
   const L = (id) => PEOPLE_LISTS.find((l) => l.id === id);
-  assert.ok(L("booked_week").test(week) && !L("booked_week").test(later), "seven days");
+  // This week is Monday to Sunday by the workspace's clock (decision 0009): NOW is a Sunday, so the week is today, and
+  // a visit on Wednesday is next week's.
+  const later_today = {
+    ...soon,
+    start: new Date(NOW + 3 * 3_600_000).toISOString(),
+    end: new Date(NOW + 4 * 3_600_000).toISOString(),
+  };
+  const today = toPersonRowVM({ ...ROW, id: "t", visits: cal({ next: later_today }) }, TZ, now);
+  assert.ok(L("booked_week").test(today), "a visit later today is this week's");
+  assert.ok(!L("booked_week").test(week) && !L("booked_week").test(later), "Monday to Sunday, not the next seven days");
   assert.ok(L("booked").test(week) && L("booked").test(later));
   assert.ok(
     L("lapsed").test(lapsed) && !L("lapsed").test(regular) && !L("lapsed").test(back),
@@ -1129,6 +1160,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
       "consultation_booked",
       "proposal_out",
       "clients",
+      "deal_passed",
       "deal_ended",
     ],
   );
@@ -1736,4 +1768,37 @@ test("a visit's title drops the person's own name at its end, and nothing else: 
   );
   assert.equal(visitTitleFor("Maria Lopez - Balayage", "Maria Lopez"), "Balayage", "or at its start");
   assert.equal(visitTitleFor("Maria Lopezz - Balayage", "Maria Lopez"), "Maria Lopezz - Balayage", "not a longer word");
+});
+
+test("a caller's appointment, told to a receptionist with no booking link, is changed through the team; with a link, or with no config to know by, by the link", async () => {
+  const { visitsFor, forgetFeeds } = await import("../../../apps/edge/lib/calendar/availability.ts");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  const quotes = {
+    business_name: "Luna Studio",
+    system_prompt: "Answer as the front desk of Luna Studio, warmly and briefly, and never a price.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const rt = (brain) => ({
+    tenantId: "t-visits-no-link",
+    calendar: { ical_url: "https://calendar.example.com/luna.ics" },
+    timezone: TZ,
+    notifications: null,
+    brain,
+  });
+  const maria = { phone: PEOPLE[0].phone, name: null };
+  try {
+    const noLink = await visitsFor(rt(quotes), maria, new Date(NOW));
+    assert.ok(
+      noLink.includes("to change or cancel it, say the team will follow up — nothing is changed from here."),
+      noLink,
+    );
+    const linked = await visitsFor(rt({ ...quotes, booking_link: "https://book.example/luna" }), maria, new Date(NOW));
+    assert.ok(linked.includes("to change or cancel it, send the booking link"), linked);
+    const unknown = await visitsFor(rt(null), maria, new Date(NOW));
+    assert.ok(unknown.includes("send the booking link"), "nothing known: the link, as the call itself is told");
+  } finally {
+    globalThis.fetch = realFetch;
+    forgetFeeds();
+  }
 });

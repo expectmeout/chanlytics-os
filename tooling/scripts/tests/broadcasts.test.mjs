@@ -169,8 +169,9 @@ test("a yes about appointments is not a yes about offers, which is what error 30
 test("an audience is a People list, a list kept by hand, or everyone — each crossed with the predicate", () => {
   const rows = [
     person({ id: "a" }),
-    person({ id: "b", state: "quiet" }),
-    person({ id: "c", state: "quiet", consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
+    // Quiet is heard from, then nothing for more than 30 of the workspace's days (lists.ts): the row's heardDays.
+    person({ id: "b", state: "quiet", heardDays: 45 }),
+    person({ id: "c", state: "quiet", heardDays: 45, consent: { state: "unknown", dnc: false, marketing: "unknown" } }),
     person({ id: "d", hasChat: false, calls: 2 }),
   ];
   assert.deepEqual(

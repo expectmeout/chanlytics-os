@@ -85,7 +85,7 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(s.includes('read("GET segments")'));
   assert.ok(
-    s.includes("const members = rows.filter((r) => idSet.has(r.id));") &&
+    s.includes('const members = m.state === "ok" ? rows.filter((r) => m.ids.has(r.id)) : [];') &&
       s.includes("action: savedListAction(l.id, members)"),
     "an erased person never counts, and the list carries its one step",
   );

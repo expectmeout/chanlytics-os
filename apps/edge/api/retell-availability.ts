@@ -19,7 +19,9 @@ import { openingsData } from "../lib/calendar/availability.js";
 import {
   describeOpenings,
   filterOpenings,
+  NO_LINK_DETAILS,
   normalizePhone,
+  offersBookingLink,
   offerFor,
   offerLead,
   policyAskClass,
@@ -34,6 +36,12 @@ const CANNOT_SEE =
   "I can't see the calendar right now. Offer to send the booking link to the caller's WhatsApp — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
   "There is no calendar to check. Offer to send the booking link to the caller's WhatsApp — it shows the open times.";
+/**
+ * The same two for a business with no booking link (the first run's decision 2): with nothing to send, a caller who
+ * cannot be offered times is offered a call back, or has their details taken for the team.
+ */
+const CANNOT_SEE_NO_LINK = "I can't see the calendar right now. Offer to have someone call back.";
+const NO_CALENDAR_NO_LINK = `There is no calendar to check. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
 /**
  * The workspace confirms its own bookings (Autonomy -> Booking -> Ask me first).
  *
@@ -57,18 +65,22 @@ type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
 /**
  * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
  * a consultation first -- sized by the consultation, never by the service's own length (C5b). A client is offered the
- * service itself (0004).
+ * service itself (0004). What follows the times is the link, or the details for a business with none.
  */
 export function availabilityAnswer(
   data: Openings,
   profile: { services?: readonly ServiceLike[]; booking_rules?: ConsultRules | null } | undefined,
   args: { day?: unknown; service?: unknown },
-  opts: { client?: boolean } = {},
+  opts: { client?: boolean; hasBookingLink: boolean },
 ): { result: string; offer: ServiceOffer | null; day: string | null; days: number } {
   const offer = offerFor(profile?.services, profile?.booking_rules, args.service, opts);
   const day = typeof args.day === "string" ? args.day : null;
   const picked = filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null });
-  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
+  const text = describeOpenings(picked, data.tz, {
+    maxDays: 3,
+    daysAhead: data.daysAhead,
+    hasBookingLink: opts.hasBookingLink,
+  });
   return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
@@ -105,9 +117,10 @@ export async function POST(request: Request): Promise<Response> {
     L.info("retell_availability_booking_held", { tenant: routed.tenantId });
     return json(200, { result: BOOKING_HELD });
   }
+  const hasBookingLink = offersBookingLink(rt.brain);
   if (!rt.calendar?.ical_url) {
     L.info("retell_availability_no_calendar", { tenant: routed.tenantId });
-    return json(200, { result: NO_CALENDAR });
+    return json(200, { result: hasBookingLink ? NO_CALENDAR : NO_CALENDAR_NO_LINK });
   }
   // The caller, by the number the booking-link door reads from the same body shape (retell-fn): a client is offered the
   // service itself, not a consultation (0004). Never fatal: no deal is the stranger's answer. Read beside the feed, not
@@ -119,9 +132,9 @@ export async function POST(request: Request): Promise<Response> {
   ]);
   if (!data) {
     L.info("retell_availability_unavailable", { tenant: routed.tenantId });
-    return json(200, { result: CANNOT_SEE });
+    return json(200, { result: hasBookingLink ? CANNOT_SEE : CANNOT_SEE_NO_LINK });
   }
-  const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won" });
+  const answer = availabilityAnswer(data, rt.brain?.profile, args, { client: deal?.stage === "won", hasBookingLink });
   L.info("retell_availability", {
     tenant: routed.tenantId,
     day: answer.day,

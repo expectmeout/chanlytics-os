@@ -67,6 +67,8 @@ const person = (id, over = {}) => ({
   },
   lastContact: { ts: NOW - 40 * DAY, label: "" },
   ...over,
+  // They wrote last when they were last in touch: Quiet 30+ days reads the days since (lists.ts).
+  heardDays: over.heardDays ?? Math.round((NOW - (over.lastContact?.ts ?? NOW - 40 * DAY)) / DAY),
 });
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
 const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map() };
@@ -161,7 +163,7 @@ test("who a run may reach: the list crossed with who said yes, minus the gap, mi
     person("a", { state: "quiet", lastContact: { ts: NOW - 45 * DAY, label: "" } }),
     person("b", { state: "quiet", lastContact: { ts: NOW - 90 * DAY, label: "" } }),
     person("c", { state: "quiet", consent: { state: "unknown", dnc: false } }),
-    person("d", { state: "active" }),
+    person("d", { state: "active", heardDays: 5 }),
     person("e", { state: "quiet", lastContact: { ts: NOW - 60 * DAY, label: "" } }),
   ];
   assert.deepEqual(

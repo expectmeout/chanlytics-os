@@ -944,7 +944,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
   const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
   const on = saved.filter((s) => s.ids.includes(personId));
   // A smart list's rule says who is on it: it is shown when it holds for them, and never offered to put them on.
-  const off = saved.filter((s) => !s.rule && !s.ids.includes(personId));
+  const off = saved.filter((s) => s.byHand && !s.ids.includes(personId));
   const who = first === "them" ? "This person" : first;
   const change = async (fn, msg) => {
     if (!window.__lists || busy) return;
@@ -985,7 +985,7 @@ const PersonLists = ({ personId, canEdit, first, flash, smart = [] }) => {
         {on.map((s) => (
           <span key={s.id} className="chip chip-wrap" data-testid="person-list-chip">
             <button type="button" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
-            {canEdit && !s.rule && (
+            {canEdit && s.byHand && (
               <button
                 type="button"
                 className="chip-x"
