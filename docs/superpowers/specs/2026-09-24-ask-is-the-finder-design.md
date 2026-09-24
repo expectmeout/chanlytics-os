@@ -1,6 +1,6 @@
 # Ask is the finder: design spec
 
-**Date:** 24 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 24 Sep ("approved as you suggest continue"), phase 1 only · **Plan:** `docs/superpowers/plans/2026-09-24-ask-is-the-finder.md` (one plan, one PR)
+**Date:** 24 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 24 Sep ("approved as you suggest continue"), phase 1 only; built 24 Sep as PR #991 (the plan's "As built" section lists what differed) · **Plan:** `docs/superpowers/plans/2026-09-24-ask-is-the-finder.md` (one plan, one PR)
 **Base:** written against `origin/main` at `966edb3b` (#986). The Stage (`2026-09-23-ask-the-stage-design.md`, S12 revised by #961) and the Line's protocol stand underneath: the turn, the proposal card, the commit door and the lead finder engine (`docs/decisions/`, release B) are unchanged. Where this spec and the code disagree, the code wins.
 
 ## 1. Goal
