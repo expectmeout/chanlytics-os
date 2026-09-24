@@ -635,6 +635,19 @@ test("slotChoices: what keeps a known slot true, anything for a guessed one; tem
   ]);
   assert.equal(templateSlots(starterRow("visit_reminder"), { visits: false, bookingLink: true }), null);
   assert.equal(templateSlots(starterRow("visit_reminder"), { visits: true, bookingLink: true }).length, 4);
+  // The follow-up (0006): its link is each proposal's, on its own moment alone, and a message with no slot for it is
+  // not one the follow-up can send.
+  const follow = { visits: false, bookingLink: true, proposal: true };
+  assert.deepEqual(slotChoices("proposal_link", { ...o, proposal: true }), ["proposal_link"]);
+  assert.deepEqual(slotChoices("proposal_link", { ...o, proposal: false }), []);
+  assert.equal(templateSlots(starterRow("proposal_follow_up"), follow).length, 3);
+  assert.equal(templateSlots(starterRow("proposal_follow_up"), { ...follow, proposal: false }), null);
+  assert.equal(templateSlots(starterRow("winback_offer"), follow), null, "a win-back's words carry no proposal");
+  assert.equal(
+    templateSlots({ name: "our_own", variables: [{ position: 1 }] }, follow).length,
+    1,
+    "a message written elsewhere may have its slot filled with the link",
+  );
   assert.equal(playbookName({ id: "quiet_30", label: "Win-back" }, { name: "winback_offer" }), "Win-back");
   assert.equal(
     playbookName({ id: "quiet_30", label: "Win-back" }, { name: "autumn_offer", title: "Autumn offer" }),

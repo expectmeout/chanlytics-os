@@ -515,7 +515,13 @@ var POLICY_CLASS_WORDS = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema = z3.object({
   max_replies_day: z3.number().int().min(1).max(200).optional(),
@@ -1152,6 +1158,14 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
@@ -1548,6 +1562,25 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS7 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -1558,6 +1591,12 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -1643,22 +1682,6 @@ var ListDraftAnswerSchema = z7.object({
   cannot: z7.string().trim().max(200),
   all: z7.array(ListConditionSchema).max(8)
 });
-var DAY_MS8 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short
-};
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
@@ -7184,7 +7207,13 @@ var POLICY_CLASS_WORDS2 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema2 = z32.object({
   max_replies_day: z32.number().int().min(1).max(200).optional(),
@@ -7809,6 +7838,14 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS2 = {
   ...PERSON_MODE_LABELS2,
@@ -8192,6 +8229,25 @@ var WHATSAPP_LANGUAGES2 = [
   L2("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS72 = 864e5;
+var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS2 = {
+  min: PLAYBOOK_HOURS2.min,
+  max: PLAYBOOK_HOURS2.max,
+  first: `${PLAYBOOK_HOURS2.min}:00`,
+  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
+  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
+};
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS72;
+var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS72;
+var PLAYBOOK_CLASS_LABEL2 = {
+  reengage: POLICY_CLASS_WORDS2.reengage.short,
+  campaign: POLICY_CLASS_WORDS2.campaign.short,
+  booking: POLICY_CLASS_WORDS2.booking.short,
+  follow_up: POLICY_CLASS_WORDS2.follow_up.short
+};
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -8202,6 +8258,12 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var PROPOSAL2 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -8287,22 +8349,6 @@ var ListDraftAnswerSchema2 = z72.object({
   cannot: z72.string().trim().max(200),
   all: z72.array(ListConditionSchema2).max(8)
 });
-var DAY_MS82 = 864e5;
-var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS2 = {
-  min: PLAYBOOK_HOURS2.min,
-  max: PLAYBOOK_HOURS2.max,
-  first: `${PLAYBOOK_HOURS2.min}:00`,
-  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
-  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
-};
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS82;
-var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL2 = {
-  reengage: POLICY_CLASS_WORDS2.reengage.short,
-  campaign: POLICY_CLASS_WORDS2.campaign.short,
-  booking: POLICY_CLASS_WORDS2.booking.short
-};
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
@@ -9919,7 +9965,13 @@ var POLICY_CLASS_WORDS3 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema3 = z33.object({
   max_replies_day: z33.number().int().min(1).max(200).optional(),
@@ -10544,6 +10596,14 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS3 = {
   ...PERSON_MODE_LABELS3,
@@ -10927,6 +10987,25 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS73 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS73;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS73;
+var PLAYBOOK_CLASS_LABEL3 = {
+  reengage: POLICY_CLASS_WORDS3.reengage.short,
+  campaign: POLICY_CLASS_WORDS3.campaign.short,
+  booking: POLICY_CLASS_WORDS3.booking.short,
+  follow_up: POLICY_CLASS_WORDS3.follow_up.short
+};
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -10937,6 +11016,12 @@ var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var PROPOSAL3 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -11022,22 +11107,6 @@ var ListDraftAnswerSchema3 = z73.object({
   cannot: z73.string().trim().max(200),
   all: z73.array(ListConditionSchema3).max(8)
 });
-var DAY_MS83 = 864e5;
-var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS3 = {
-  min: PLAYBOOK_HOURS3.min,
-  max: PLAYBOOK_HOURS3.max,
-  first: `${PLAYBOOK_HOURS3.min}:00`,
-  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
-  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
-};
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS83;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL3 = {
-  reengage: POLICY_CLASS_WORDS3.reengage.short,
-  campaign: POLICY_CLASS_WORDS3.campaign.short,
-  booking: POLICY_CLASS_WORDS3.booking.short
-};
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
@@ -11683,7 +11752,13 @@ var POLICY_CLASS_WORDS22 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema22 = z322.object({
   max_replies_day: z322.number().int().min(1).max(200).optional(),
@@ -12308,6 +12383,14 @@ var LeadSuggestAnswerSchema22 = z522.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION22 = "How customers buy";
+var SELLS_BY_WORDS22 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS22 = {
   ...PERSON_MODE_LABELS22,
@@ -12693,14 +12776,14 @@ var WHATSAPP_LANGUAGES22 = [
 var BY_ID22 = new Map(WHATSAPP_LANGUAGES22.map((l2) => [l2.id.toLowerCase(), l2]));
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
     if (m) return { kind: m[1] };
     return { kind: "text", value: raw };
   }
   if (raw && typeof raw === "object") {
     const o2 = raw;
     if (o2.kind === "text") return typeof o2.value === "string" ? { kind: "text", value: o2.value } : null;
-    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service")
+    if (o2.kind === "first_name" || o2.kind === "business_name" || o2.kind === "booking_link" || o2.kind === "visit_when" || o2.kind === "visit_service" || o2.kind === "proposal_link")
       return { kind: o2.kind };
   }
   return null;
@@ -12729,9 +12812,30 @@ function resolveParams(specs, f) {
         return f.visitWhen ?? "";
       case "visit_service":
         return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
     }
   });
 }
+var DAY_MS722 = 864e5;
+var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS22 = {
+  min: PLAYBOOK_HOURS22.min,
+  max: PLAYBOOK_HOURS22.max,
+  first: `${PLAYBOOK_HOURS22.min}:00`,
+  range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
+  between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
+};
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS722;
+var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS722;
+var PLAYBOOK_CLASS_LABEL22 = {
+  reengage: POLICY_CLASS_WORDS22.reengage.short,
+  campaign: POLICY_CLASS_WORDS22.campaign.short,
+  booking: POLICY_CLASS_WORDS22.booking.short,
+  follow_up: POLICY_CLASS_WORDS22.follow_up.short
+};
 var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -12742,6 +12846,12 @@ var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM"
 var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
+var PROPOSAL22 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
 function renderTemplate(body, params) {
@@ -12836,22 +12946,6 @@ var ListDraftAnswerSchema22 = z722.object({
   cannot: z722.string().trim().max(200),
   all: z722.array(ListConditionSchema22).max(8)
 });
-var DAY_MS822 = 864e5;
-var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS22 = {
-  min: PLAYBOOK_HOURS22.min,
-  max: PLAYBOOK_HOURS22.max,
-  first: `${PLAYBOOK_HOURS22.min}:00`,
-  range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
-  between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
-};
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS822;
-var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL22 = {
-  reengage: POLICY_CLASS_WORDS22.reengage.short,
-  campaign: POLICY_CLASS_WORDS22.campaign.short,
-  booking: POLICY_CLASS_WORDS22.booking.short
-};
 var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
@@ -13264,8 +13358,8 @@ var DECISION_VERBS32 = [
   "end_call",
   "record_deal"
 ];
-var DAY_MS32 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS32;
+var DAY_MS8 = 864e5;
+var WEEK_MS52 = 7 * DAY_MS8;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -13418,7 +13512,13 @@ var POLICY_CLASS_WORDS32 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema32 = z332.object({
   max_replies_day: z332.number().int().min(1).max(200).optional(),
@@ -14043,6 +14143,14 @@ var LeadSuggestAnswerSchema32 = z532.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION32 = "How customers buy";
+var SELLS_BY_WORDS32 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS32 = {
   ...PERSON_MODE_LABELS32,
@@ -14426,6 +14534,25 @@ var WHATSAPP_LANGUAGES32 = [
   L32("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS732 = 864e5;
+var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS32 = {
+  min: PLAYBOOK_HOURS32.min,
+  max: PLAYBOOK_HOURS32.max,
+  first: `${PLAYBOOK_HOURS32.min}:00`,
+  range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
+  between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
+};
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS732;
+var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS732;
+var PLAYBOOK_CLASS_LABEL32 = {
+  reengage: POLICY_CLASS_WORDS32.reengage.short,
+  campaign: POLICY_CLASS_WORDS32.campaign.short,
+  booking: POLICY_CLASS_WORDS32.booking.short,
+  follow_up: POLICY_CLASS_WORDS32.follow_up.short
+};
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -14436,6 +14563,12 @@ var WHEN42 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM"
 var SERVICE32 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES32 = { ...WHEN42, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES32 = { ...SERVICE32, label: "Servicio", example: "una consulta" };
+var PROPOSAL32 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES32 = { ...PROPOSAL32, label: "Enlace de la propuesta" };
 var LIMIT_TIERS32 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -14521,22 +14654,6 @@ var ListDraftAnswerSchema32 = z732.object({
   cannot: z732.string().trim().max(200),
   all: z732.array(ListConditionSchema32).max(8)
 });
-var DAY_MS832 = 864e5;
-var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS32 = {
-  min: PLAYBOOK_HOURS32.min,
-  max: PLAYBOOK_HOURS32.max,
-  first: `${PLAYBOOK_HOURS32.min}:00`,
-  range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
-  between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
-};
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS832;
-var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL32 = {
-  reengage: POLICY_CLASS_WORDS32.reengage.short,
-  campaign: POLICY_CLASS_WORDS32.campaign.short,
-  booking: POLICY_CLASS_WORDS32.booking.short
-};
 var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
@@ -15207,7 +15324,9 @@ async function sendBroadcastBatch(ports, cmd) {
       businessName,
       bookingLink,
       visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
-      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
+      visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
+      // A follow-up's link, frozen when the run was made (0006).
+      proposalLink: typeof facts.proposal_link === "string" ? facts.proposal_link : null
     });
     if (params.some((v) => !v)) {
       await skip(r2.contact_id, "missing_value");
@@ -15519,8 +15638,8 @@ var DECISION_VERBS4 = [
   "end_call",
   "record_deal"
 ];
-var DAY_MS7 = 864e5;
-var WEEK_MS6 = 7 * DAY_MS7;
+var DAY_MS9 = 864e5;
+var WEEK_MS6 = 7 * DAY_MS9;
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",
@@ -15673,7 +15792,13 @@ var POLICY_CLASS_WORDS4 = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema4 = z34.object({
   max_replies_day: z34.number().int().min(1).max(200).optional(),
@@ -16298,6 +16423,14 @@ var LeadSuggestAnswerSchema4 = z54.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
+var SELLS_BY_QUESTION4 = "How customers buy";
+var SELLS_BY_WORDS4 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
 var PERSON_MODE_WORDS4 = {
   ...PERSON_MODE_LABELS4,
@@ -16681,6 +16814,25 @@ var WHATSAPP_LANGUAGES4 = [
   L4("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
+var DAY_MS74 = 864e5;
+var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS4 = {
+  min: PLAYBOOK_HOURS4.min,
+  max: PLAYBOOK_HOURS4.max,
+  first: `${PLAYBOOK_HOURS4.min}:00`,
+  range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
+  between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
+};
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS74;
+var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS74;
+var PLAYBOOK_CLASS_LABEL4 = {
+  reengage: POLICY_CLASS_WORDS4.reengage.short,
+  campaign: POLICY_CLASS_WORDS4.campaign.short,
+  booking: POLICY_CLASS_WORDS4.booking.short,
+  follow_up: POLICY_CLASS_WORDS4.follow_up.short
+};
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -16691,6 +16843,12 @@ var WHEN5 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE4 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES4 = { ...WHEN5, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES4 = { ...SERVICE4, label: "Servicio", example: "una consulta" };
+var PROPOSAL4 = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES4 = { ...PROPOSAL4, label: "Enlace de la propuesta" };
 var LIMIT_TIERS4 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -16776,22 +16934,6 @@ var ListDraftAnswerSchema4 = z74.object({
   cannot: z74.string().trim().max(200),
   all: z74.array(ListConditionSchema4).max(8)
 });
-var DAY_MS84 = 864e5;
-var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS4 = {
-  min: PLAYBOOK_HOURS4.min,
-  max: PLAYBOOK_HOURS4.max,
-  first: `${PLAYBOOK_HOURS4.min}:00`,
-  range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
-  between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
-};
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS84;
-var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL4 = {
-  reengage: POLICY_CLASS_WORDS4.reengage.short,
-  campaign: POLICY_CLASS_WORDS4.campaign.short,
-  booking: POLICY_CLASS_WORDS4.booking.short
-};
 var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;

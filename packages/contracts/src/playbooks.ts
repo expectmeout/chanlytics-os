@@ -17,6 +17,7 @@ import { PARAM_SOURCE_LABELS, type ParamSpec } from "./templates";
 import type { BroadcastDto, BroadcastRecipientDto } from "./broadcasts";
 import { visitStartTime, type VisitDto } from "./calendar-people";
 import { shiftKey, zoneMidnight } from "./calendar";
+import { SELLS_BY_QUESTION, SELLS_BY_WORDS, waitingOnProposal, type DealPaceVM } from "./deals";
 
 const DAY_MS = 86_400_000;
 
@@ -90,6 +91,16 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "saved",
     hint: "Everyone on a list you keep",
   },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back",
+  },
 ] as const;
 export type PlaybookTrigger = (typeof PLAYBOOK_TRIGGERS)[number]["id"];
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
@@ -118,6 +129,41 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 
+/**
+ * Whether a moment is offered in a workspace (0006): every one, and a proposal's only where deals are on
+ * (dealsAreOn, 0008). The Playbooks page, its counts, Ask and the check that makes a playbook all read it.
+ */
+export function triggerOffered(t: { kind: string }, dealsOn: boolean): boolean {
+  return t.kind !== "deal" || dealsOn;
+}
+
+/**
+ * Whether an Autonomy class is offered in a workspace: a class no moment runs under, or one a moment offered here
+ * runs under. So the follow-ups' row is only where deals are on (0006), and every other row is everywhere.
+ */
+export function policyClassOffered(cls: string, dealsOn: boolean): boolean {
+  const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
+  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
+}
+
+/** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
+export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Business, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
+
+/** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
+export const FOLLOW_UP_NEEDS_LINK =
+  "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
+
+/** Why a second proposal follow-up is refused (00167): two would each owe every proposal its nudge. */
+export const FOLLOW_UP_ONE =
+  "This workspace already has a proposal follow-up. Change that one rather than starting another.";
+
+/**
+ * How far back a touch can still hold somebody back: the longest gap a playbook may set (365 days, core
+ * check-playbook), plus the week's breath. The sweep reads its touches this far back, and a proposal is followed up
+ * only while its follow-up would still be among them (0006): past it, a second nudge could not be told from a first.
+ */
+export const PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
+
 export interface PlaybookDto {
   id: string;
   name: string;
@@ -139,10 +185,15 @@ export interface PlaybookDto {
   created_at: string;
 }
 
-/** When a person last heard from this playbook, and from any playbook. contact id → ms. */
+/**
+ * When a person last heard from this playbook and from any playbook, and when they last had a proposal follow-up
+ * from any playbook, one since deleted too (packages/db touchIndex): a follow-up is owed once per proposal (0006).
+ * contact id → ms.
+ */
 export interface Touches {
   byThis: Map<string, number>;
   byAny: Map<string, number>;
+  followUps: Map<string, number>;
 }
 
 /**
@@ -166,9 +217,10 @@ export function eligibleForPlaybook(
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
+  pace: Pick<DealPaceVM, "waitDays"> | null,
   listIds: ReadonlySet<string> | null = null,
 ): PersonRowVM[] {
-  return playbookRunReach(rows, p, touches, nowMs, listIds).eligible;
+  return playbookRunReach(rows, p, touches, nowMs, pace, listIds).eligible;
 }
 
 /**
@@ -215,6 +267,11 @@ export function playbookRunReach(
   p: Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days">,
   touches: Touches,
   nowMs: number,
+  /**
+   * The workspace's pace (deals.ts dealPaceOf): when a proposal waits, for the follow-up (0006); null without one. A
+   * required argument, as the one waiting rule's is: no caller may leave the pace out.
+   */
+  pace: Pick<DealPaceVM, "waitDays"> | null,
   /** Who is on the list a saved_list playbook runs on (list-rules.ts savedListIds); none when it names no list. */
   listIds: ReadonlySet<string> | null = null,
 ): { eligible: PersonRowVM[]; reach: RunReach; saidYes: number } {
@@ -248,7 +305,17 @@ export function playbookRunReach(
         })
       : t.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
-        : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
+        : t.kind === "deal"
+          ? // Waiting on a proposal, by Today's own rule and the workspace's pace, with a link to carry -- without one
+            // the nudge would be a bare "just checking in", which is a person's to write -- and out no longer than the
+            // touches are read, so its follow-up, whenever it went, is still seen (0006).
+            rows.filter(
+              (r) =>
+                waitingOnProposal(r, nowMs, pace) &&
+                !!r.deal?.proposal?.url &&
+                nowMs - (r.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS,
+            )
+          : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesTo(r, purpose)).length;
   const allowed: PersonRowVM[] = [];
@@ -277,9 +344,13 @@ export function playbookRunReach(
     return { eligible: allowed, reach, saidYes };
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
+  // One follow-up per proposal (0006): a follow-up since the proposal went, from whichever playbook, one since deleted
+  // too, is the one it owed. Every other moment keeps to its own gap.
+  const heardThis = (r: PersonRowVM, mine: number): boolean =>
+    t.kind === "deal" ? mine >= (r.deal?.sinceMs ?? Number.POSITIVE_INFINITY) : nowMs - mine < gapMs;
   const picked = allowed.filter((r) => {
-    const mine = touches.byThis.get(r.id);
-    if (mine !== undefined && nowMs - mine < gapMs) {
+    const mine = t.kind === "deal" ? touches.followUps.get(r.id) : touches.byThis.get(r.id);
+    if (mine !== undefined && heardThis(r, mine)) {
       reach.heardThis += 1;
       return false;
     }
@@ -384,6 +455,8 @@ export function scheduleLine(
   if (triggerOf(p.trigger)?.kind === "visit")
     return `Daily ${at} · ${p.trigger === "visit_tomorrow" ? "everyone with a visit tomorrow" : "everyone who visited yesterday"} · up to ${p.cap_per_run}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at} · up to ${p.cap_per_run} a day`;
+  // One follow-up per proposal (0006): no gap to wait out.
+  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at} · up to ${p.cap_per_run} · once per proposal`;
   return `Daily ${at} · up to ${p.cap_per_run} · once per person, again after ${p.gap_days} days`;
 }
 
@@ -500,7 +573,21 @@ export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short,
 };
+
+/**
+ * The words a follow-up's slot takes for one person: the link of the proposal their deal waits on (0006), from the
+ * row the run read. Kept on the recipient row, as a visit's words are, so the send carries the link it was run for.
+ */
+export function proposalFactsFor(
+  trigger: string,
+  row: { deal: { proposal: { url: string } | null } | null } | null,
+): { proposal_link: string } | null {
+  const t = triggerOf(trigger);
+  const url = row?.deal?.proposal?.url ?? null;
+  return t && t.kind === "deal" && url ? { proposal_link: url } : null;
+}
 
 /**
  * The words a visit playbook's slots take for one person — when, and what
@@ -599,6 +686,7 @@ export function poolWords(trigger: string): string {
   const t = triggerOf(trigger);
   if (!t) return "";
   if (t.kind === "visit") return trigger === "visit_tomorrow" ? "with a visit tomorrow" : "who visited yesterday";
+  if (t.kind === "deal") return "with a proposal waiting";
   return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
 
@@ -617,6 +705,8 @@ export function reachLines(
   const t = p ? triggerOf(p.trigger) : null;
   const offers = t ? purposeOfPlaybook(t.cls) === "marketing" : true;
   const gap = p ? (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) : null;
+  // A follow-up is owed once per proposal (0006): one already had is done, never waited out.
+  const once = t?.kind === "deal";
   const one = (n: number, singular: string, plural: string) => (n === 1 ? singular : plural);
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
     {
@@ -628,8 +718,12 @@ export function reachLines(
     { n: reach.heardAny, words: "heard from a playbook this week", tone: "warn", door: null },
     {
       n: reach.heardThis,
-      words: gap ? `heard from this playbook in the last ${gap} days` : "heard from this playbook lately",
-      tone: "warn",
+      words: once
+        ? "had this proposal's follow-up already"
+        : gap
+          ? `heard from this playbook in the last ${gap} days`
+          : "heard from this playbook lately",
+      tone: once ? "plain" : "warn",
       door: null,
     },
     { n: reach.stopped, words: "asked you to stop", tone: "plain", door: null },
@@ -661,7 +755,7 @@ export function reachLines(
     .filter((r) => r.n > 0)
     .sort((a, b) => b.n - a.n || a.rank - b.rank)
     .map(({ n, words, tone, door }) => ({ n, words: `${n} ${words}`, tone, door }));
-  return { pool: reach.pool, held: reach.heardAny + reach.heardThis + reach.overLimit, lines };
+  return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
 }
 
 /**
@@ -702,6 +796,15 @@ export function toApprovalVM(
           ? "each has a visit tomorrow on the calendar"
           : "each visited yesterday and has nothing booked next",
       );
+    } else if (t.kind === "deal") {
+      // One follow-up per proposal, with its link (0006).
+      rules.push(
+        "each has a proposal waiting with nothing back, and its link",
+        "none followed up on that proposal before",
+        "none heard from any playbook this week",
+      );
+      if (will >= opts.playbook.cap_per_run)
+        rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
       rules.push(`none heard from this playbook in ${gap} days`, "none heard from any playbook this week");

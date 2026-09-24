@@ -103,8 +103,9 @@ test("names Meta accepts, slots in order, one example each: what is refused is r
 test("what fills a slot: typed text once, or the person's first name, the business's name, the booking link — per recipient, with the same words the page previews", () => {
   assert.deepEqual(
     [...PARAM_SOURCES],
-    ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service"],
+    ["text", "first_name", "business_name", "booking_link", "visit_when", "visit_service", "proposal_link"],
   );
+  assert.deepEqual(parseParamSpec("@proposal_link"), { kind: "proposal_link" }, "the follow-up's link (0006)");
   assert.deepEqual(parseParamSpec("20%"), { kind: "text", value: "20%" });
   assert.deepEqual(parseParamSpec("@first_name"), { kind: "first_name" });
   assert.deepEqual(parseParamSpec({ kind: "booking_link" }), { kind: "booking_link" });
@@ -131,6 +132,22 @@ test("what fills a slot: typed text once, or the person's first name, the busine
     "no name reads 'there'; no link is empty, which the route refuses and the job holds",
   );
   assert.deepEqual(exampleParams(specs, "Marisa's"), ["Dani", "Balayage", "Marisa's", "your booking link"]);
+  const link = [{ kind: "proposal_link" }];
+  assert.deepEqual(
+    resolveParams(link, {
+      firstName: null,
+      businessName: "x",
+      bookingLink: null,
+      proposalLink: "https://docs.example.com/p",
+    }),
+    ["https://docs.example.com/p"],
+    "the link frozen on the recipient when the run was made",
+  );
+  assert.deepEqual(
+    resolveParams(link, { firstName: null, businessName: "x", bookingLink: null }),
+    [""],
+    "no link is empty, which the send skips as a missing value",
+  );
   assert.equal(paramLabel({ kind: "first_name" }), "their first name");
   assert.equal(paramLabel({ kind: "text", value: "20%" }), "20%");
 });

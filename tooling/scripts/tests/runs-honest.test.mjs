@@ -1093,3 +1093,80 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
   ).replace(/\s+/g, " ");
   assert.ok(held.includes("0 people on the list said yes, and 2 people more heard from you this week and wait"), held);
 });
+
+test("a proposal follow-up's card (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
+  const { installPlaybooks } = await import("../../../apps/dashboard/src/legacy-bridge/playbooks.ts");
+  const { playbooksOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { FOLLOW_UP_NEEDS_DEALS } = await import("@chanlytics/contracts");
+  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
+  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
+  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
+  const follow = {
+    ...route,
+    id: "pb-follow",
+    name: "Proposal follow-up",
+    trigger: "proposal_waiting",
+    policy_class: "follow_up",
+    params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
+  };
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const kept = globalThis.window.fetch;
+  // The route's answer (server/playbooks.ts triggerPools): the moment counted where deals are on, and not where they
+  // are off, when it runs nothing.
+  const read = async (dealsOn) => {
+    const pools = {
+      ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
+      proposal_waiting: dealsOn ? { ...empty, pool: 3, candidates: 2, noYes: 1, saidYes: 2 } : null,
+    };
+    globalThis.window.fetch = async (url) => {
+      const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+      if (path === "/api/v1/playbooks")
+        return answer({ playbooks: [follow], pools, timezone: ZONE, calendar: "none", deals_on: dealsOn });
+      if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
+      if (path === "/api/v1/channels") return answer({ channels: [] });
+      return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
+    };
+    await playbooksOverride.apply();
+    return globalThis.window.__PLAYBOOKS;
+  };
+  const installed = [
+    "__playbooks",
+    "__refreshPlaybooks",
+    "__playbookReach",
+    "__playbookReachWords",
+    "__playbookReachDoor",
+    "__playbookNoNumberWords",
+    "__reachLines",
+    "__poolWords",
+    "__playbookName",
+  ];
+  installPlaybooks();
+  try {
+    const sentence = (tree) =>
+      textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+    const on = await read(true);
+    assert.ok(
+      on.triggers.some((t) => t.id === "proposal_waiting"),
+      "offered where deals are on",
+    );
+    const drawnOn = sentence(card(on.rows[0]));
+    assert.ok(drawnOn.includes("— 2 people with a proposal waiting said yes."), drawnOn);
+    assert.ok(drawnOn.includes("once per proposal") && /Next run /.test(drawnOn), drawnOn);
+    const off = await read(false);
+    assert.deepEqual(
+      [off.triggers.some((t) => t.id === "proposal_waiting"), off.countsRead],
+      [false, true],
+      "not offered, and no moment said to be uncounted",
+    );
+    assert.equal(off.rows[0].off, FOLLOW_UP_NEEDS_DEALS);
+    const drawnOff = sentence(card(off.rows[0]));
+    assert.ok(
+      drawnOff.includes(FOLLOW_UP_NEEDS_DEALS) && !/Next run|nobody to send to/.test(drawnOff),
+      `why it runs nothing, never a zero it did not count: ${drawnOff}`,
+    );
+  } finally {
+    for (const k of installed) delete globalThis.window[k];
+    globalThis.window.fetch = kept;
+  }
+});

@@ -1,4 +1,10 @@
-import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyClass, type PolicyMode } from "@chanlytics/contracts";
+import {
+  POLICY_CLASS_WORDS,
+  POLICY_MODE_WORDS,
+  policyClassOffered,
+  type PolicyClass,
+  type PolicyMode,
+} from "@chanlytics/contracts";
 /**
  * The workspace policy matrix, on the mockup's own store interface.
  *
@@ -17,8 +23,9 @@ import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyClass, type PolicyMod
  *
  * Honesty rule for the rows: every class here has an enforcer — the
  * receptionist for replies, questions and bookings (the prompt's rules and
- * layer two), the playbooks for re-engage and offers, the review sweep for
- * reviews, and a database trigger for money, which is locked. A class
+ * layer two), the playbooks for re-engage, offers and proposal follow-ups
+ * (a row only where deals are on, 0006), the review sweep for reviews, and
+ * a database trigger for money, which is locked. A class
  * without one is not offered as a switch, and each offers only the modes
  * its enforcer honours (`modes`).
  */
@@ -83,6 +90,8 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     },
   },
   { id: "reengage", cls: "reengage", ...W("reengage") },
+  // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, where deals are on.
+  { id: "follow_up", cls: "follow_up", ...W("follow_up"), modes: ["Auto", "Ask", "Never"] },
   { id: "campaign", cls: "campaign", ...W("campaign") },
   {
     id: "reviews",
@@ -108,6 +117,8 @@ export interface PolicyRecordLike {
 export interface PoliciesSurface {
   rows: PolicyRecordLike[];
   role: string | null;
+  /** Deals are on here (dealsAreOn, 0008): the follow-ups' row is drawn only then (policyClassOffered). */
+  dealsOn: boolean;
 }
 
 export interface UiRow extends UiRowMeta {
@@ -118,7 +129,7 @@ export interface UiRow extends UiRowMeta {
 }
 
 const LABELS: Record<string, UiMode> = { auto: "Auto", veto: "Veto", ask: "Ask", never: "Never" };
-const EMPTY: PoliciesSurface = { rows: [], role: null };
+const EMPTY: PoliciesSurface = { rows: [], role: null, dealsOn: false };
 
 export function modeLabel(dbMode: string | null | undefined): UiMode | null {
   return dbMode ? (LABELS[dbMode] ?? null) : null;
@@ -131,7 +142,7 @@ export function dbMode(label: string | null | undefined): string | null {
 }
 
 export function uiRows(p: PoliciesSurface): UiRow[] {
-  return UI_ROWS.map((r) => {
+  return UI_ROWS.filter((r) => policyClassOffered(r.cls, p.dealsOn)).map((r) => {
     const rec = p.rows.find((x) => x.class === r.cls);
     return {
       ...r,

@@ -19,9 +19,10 @@ import {
   type TemplateLanguage,
 } from "./template-languages";
 import { PARAM_SOURCES, type ParamSourceKind, type ParamSpec } from "./templates";
-import type { PlaybookTrigger } from "./playbooks";
+import { triggerOf, triggerOffered, type PlaybookTrigger } from "./playbooks";
 
-export type StarterSlotKind = "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "text";
+export type StarterSlotKind =
+  "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "proposal_link" | "text";
 
 export interface StarterSlot {
   kind: StarterSlotKind;
@@ -65,6 +66,12 @@ const WHEN = { kind: "visit_when" as const, label: "When", example: "tomorrow at
 const SERVICE = { kind: "visit_service" as const, label: "Service", example: "a consultation" };
 const WHEN_ES = { ...WHEN, label: "Cuándo", example: "mañana a las 2:00 PM" };
 const SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+const PROPOSAL = {
+  kind: "proposal_link" as const,
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal",
+};
+const PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 const STOP_EN = "Reply STOP to opt out";
 const STOP_ES = "Responde STOP para darte de baja";
 
@@ -243,6 +250,28 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
     // workspace's database, marked approved, with no meta_id: an approval Meta
     // had never given, so every send of it failed, and it failed for every
     // other workspace by not existing at all.
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST, BUSINESS, PROPOSAL],
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te llegó la propuesta de {{2}}: {{3}}. Responde aquí con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES],
+      },
+    },
+  },
+  {
     key: "booking_link",
     name: "booking_link",
     title: "Booking link",
@@ -281,6 +310,17 @@ export function starterByKey(key: string): StarterTemplate | null {
  * own lists has no starter of its own -- what it sends is the owner's choice.
  */
 const STARTER_OF: Partial<Record<string, PlaybookTrigger>> = { lapsed: "quiet_30" };
+
+/**
+ * The starter set a workspace is offered (0006): each starter whose moment is offered here (triggerOffered), so a
+ * workspace where deals are off is never offered the proposal follow-up, nor has it filed with WhatsApp for it.
+ */
+export function startersOffered(dealsOn: boolean): StarterTemplate[] {
+  return STARTER_TEMPLATES.filter((s) => {
+    const t = s.trigger ? triggerOf(s.trigger) : null;
+    return !t || triggerOffered(t, dealsOn);
+  });
+}
 
 export function starterForTrigger(trigger: string | null | undefined): StarterTemplate | null {
   if (!trigger) return null;
@@ -660,6 +700,7 @@ export function inboxTemplates<T extends InboxTemplateLike>(
 export function guessSlotKind(label: string | null | undefined, example?: string | null): StarterSlotKind {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
+  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name"; // trade-word: a label naming the business, in whatever word a trade uses
@@ -710,10 +751,16 @@ export function defaultParamSpecs(t: { name: string; variables: unknown }): Para
  */
 export function slotChoices(
   kind: StarterSlotKind,
-  o: { known: boolean; visits: boolean; bookingLink: boolean },
+  o: { known: boolean; visits: boolean; bookingLink: boolean; proposal: boolean },
 ): ParamSourceKind[] {
   const may = (k: ParamSourceKind) =>
-    k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : true;
+    k === "booking_link"
+      ? o.bookingLink
+      : k === "visit_when" || k === "visit_service"
+        ? o.visits
+        : k === "proposal_link"
+          ? o.proposal
+          : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -725,6 +772,9 @@ export function slotChoices(
     case "visit_when":
     case "visit_service":
       return o.visits ? [kind] : [];
+    // A proposal's link is each proposal's, and there is one only on the follow-up (0006).
+    case "proposal_link":
+      return o.proposal ? [kind] : [];
     default:
       return ["text"];
   }
@@ -733,15 +783,19 @@ export function slotChoices(
 /**
  * What each slot of a template may take on a moment (slotChoices), or null
  * when one of them can take nothing there: the visit reminder, whose time and
- * service no list has, is not a message a win-back can send.
+ * service no list has, is not a message a win-back can send. Nor is a message
+ * with no slot for the proposal's link one the follow-up can send (0006).
  */
 export function templateSlots(
   t: { name: string; variables: unknown },
-  o: { visits: boolean; bookingLink: boolean },
+  o: { visits: boolean; bookingLink: boolean; proposal: boolean },
 ): ParamSourceKind[][] | null {
   const known = starterByName(t.name) !== null;
-  const each = defaultSlotKinds(t).map((k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink }));
-  return each.every((c) => c.length > 0) ? each : null;
+  const each = defaultSlotKinds(t).map((k) =>
+    slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal }),
+  );
+  if (!each.every((c) => c.length > 0)) return null;
+  return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
 }
 
 /**
@@ -1035,7 +1089,9 @@ export function inboxSlots(t: { name: string; variables?: unknown }): ParamSpec[
  * The reply route refuses such a template in these words, and the composer does not offer it (I6).
  */
 export function slotToWrite(t: { name: string; language?: string | null; variables?: unknown }): string | null {
-  const at = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  const at = inboxSlots(t).findIndex(
+    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link",
+  );
   if (at < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at] ?? `Value ${at + 1}`;
 }

@@ -5340,7 +5340,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * dedupe; everything else is plain row work.
  */
 
-type Db$9 = SupabaseClient<Database>;
+type Db$a = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp" | "sms" | "email";
@@ -5380,11 +5380,11 @@ interface IngestResult {
     consent?: string | null;
     dnc?: boolean | null;
 }
-declare function ingestInbound(db: Db$9, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$a, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$9, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$9, p: {
+declare function markProcessed(db: Db$a, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$a, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -5435,7 +5435,7 @@ interface OutboundTarget extends PurposeBearing {
  * `create: false` means "only an existing contact will do" — the guard for a
  * number somebody supplied rather than one that called us.
  */
-declare function resolveOutboundTarget(db: Db$9, p: {
+declare function resolveOutboundTarget(db: Db$a, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
@@ -5449,18 +5449,18 @@ declare function resolveOutboundTarget(db: Db$9, p: {
  * no cap at all — a caller who phoned repeatedly, or an agent that called its
  * own tool twice, produced one billable template per attempt.
  */
-declare function countSentToday(db: Db$9, p: {
+declare function countSentToday(db: Db$a, p: {
     tenantId: string;
     conversationId: string;
     source: string;
 }): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$9, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$a, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or the
  *  receptionist answers over the person who just replied. */
-declare function recordEchoAndPause(db: Db$9, p: {
+declare function recordEchoAndPause(db: Db$a, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -5484,12 +5484,12 @@ declare function recordEchoAndPause(db: Db$9, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$9, tenantId: string, conversationId: string, pausedUntilIso: string, 
+declare function pauseConversation(db: Db$a, tenantId: string, conversationId: string, pausedUntilIso: string, 
 /** The holding message this same handoff queued, which the pause must not withdraw. */
 opts?: {
     keepMessageId?: string | null;
 }): Promise<boolean>;
-declare function emitEvent(db: Db$9, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$a, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /**
  * Email's rows: a workspace's mailbox, taking a received email in, the email a
@@ -5512,11 +5512,11 @@ declare function emitEvent(db: Db$9, tenantId: string, kind: EventKind, category
  *           empty one is filled: what an owner typed is never overwritten.
  */
 
-type Db$8 = SupabaseClient<Database>;
+type Db$9 = SupabaseClient<Database>;
 type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
-declare function mailboxById(db: Db$8, id: string): Promise<MailboxRow | null>;
+declare function mailboxById(db: Db$9, id: string): Promise<MailboxRow | null>;
 /** The mailbox a published address or a reply route names. A rotated-out token still routes until it is revoked (00126). */
-declare function mailboxFor(db: Db$8, to: {
+declare function mailboxFor(db: Db$9, to: {
     kind: "mailbox";
     localPart: string;
 } | {
@@ -5533,12 +5533,12 @@ interface IngestEmailParams {
     channelTs: string | null;
     meta: Json;
 }
-declare function ingestInboundEmail(db: Db$8, p: IngestEmailParams): Promise<IngestResult>;
+declare function ingestInboundEmail(db: Db$9, p: IngestEmailParams): Promise<IngestResult>;
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
-declare function sentEmailWithMessageId(db: Db$8, tenantId: string, rfcMessageId: string): Promise<boolean>;
-declare function stampMailboxReceived(db: Db$8, mailboxId: string, at: string): Promise<void>;
+declare function sentEmailWithMessageId(db: Db$9, tenantId: string, rfcMessageId: string): Promise<boolean>;
+declare function stampMailboxReceived(db: Db$9, mailboxId: string, at: string): Promise<void>;
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
-declare function mailboxOfTenant(db: Db$8, tenantId: string): Promise<MailboxRow | null>;
+declare function mailboxOfTenant(db: Db$9, tenantId: string): Promise<MailboxRow | null>;
 /** The email a reply answers: what the thread stores of the person's latest one. */
 interface InboundEmailFacts {
     messageId: string;
@@ -5552,14 +5552,14 @@ interface InboundEmailFacts {
  * conversation and nowhere else: a reply cannot be threaded under another
  * workspace's or another person's message, because no such row can be returned.
  */
-declare function lastInboundEmail(db: Db$8, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
+declare function lastInboundEmail(db: Db$9, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
 /**
  * A sent email learns the provider's id and the Message-ID it left with
  * (00128, one statement, so it cannot overwrite a status stamp written beside
  * it), and says where the row stands and which thread it is on. Null when this
  * workspace has no such outbound email: a receipt for a row that is not there.
  */
-declare function stampEmailSent(db: Db$8, p: {
+declare function stampEmailSent(db: Db$9, p: {
     tenantId: string;
     messageId: string;
     providerId: string;
@@ -5573,7 +5573,7 @@ declare function stampEmailSent(db: Db$8, p: {
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.
  */
-declare function recordEmailStatus(db: Db$8, p: {
+declare function recordEmailStatus(db: Db$9, p: {
     tenantId: string;
     messageId: string;
     status: "delivered" | "failed";
@@ -5585,7 +5585,7 @@ declare function recordEmailStatus(db: Db$8, p: {
  * went to: a corrected address is a different address (00126). The person's id
  * when their row changed; null when it was already stopped, or no longer theirs.
  */
-declare function suppressEmailOf(db: Db$8, p: {
+declare function suppressEmailOf(db: Db$9, p: {
     tenantId: string;
     messageId: string;
     addresses: string[];
@@ -5629,7 +5629,7 @@ declare function resolveChannel(db: SupabaseClient<Database>, kind: string, exte
  * converge on one row.
  */
 
-type Db$7 = SupabaseClient<Database>;
+type Db$8 = SupabaseClient<Database>;
 interface NormalizedCallInput {
     retellCallId: string;
     agentId: string | null;
@@ -5670,7 +5670,7 @@ interface IngestCallResult {
     contact_id: string | null;
     conversation_id: string | null;
 }
-declare function ingestCall(db: Db$7, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
+declare function ingestCall(db: Db$8, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
 /**
  * Attach the thread note (call_summary message) back to its call row.
  *
@@ -5679,7 +5679,7 @@ declare function ingestCall(db: Db$7, tenantId: string, n: NormalizedCallInput, 
  * nothing, so "the write failed" and "the write did not happen" have to be
  * told apart by counting rows rather than by trusting the absence of an error.
  */
-declare function linkCallMessage(db: Db$7, tenantId: string, callId: string, messageId: string): Promise<void>;
+declare function linkCallMessage(db: Db$8, tenantId: string, callId: string, messageId: string): Promise<void>;
 /**
  * Post-storage-copy state for the recording (private bucket path).
  *
@@ -5690,9 +5690,9 @@ declare function linkCallMessage(db: Db$7, tenantId: string, callId: string, mes
  * left behind is invisible to the purge, which only looks at rows that say
  * `stored`. A row that did not change is now said out loud.
  */
-declare function setCallRecording(db: Db$7, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
+declare function setCallRecording(db: Db$8, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
 /** The customer's thread gets the call as a message, so history stays in one place. */
-declare function recordCallNote(db: Db$7, p: {
+declare function recordCallNote(db: Db$8, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -5705,7 +5705,7 @@ declare function recordCallNote(db: Db$7, p: {
  * note). True for the first caller; false once claimed. Throws on a database
  * error so the webhook answers non-2xx and the provider retries.
  */
-declare function claimCallNotification(db: Db$7, tenantId: string, callId: string): Promise<boolean>;
+declare function claimCallNotification(db: Db$8, tenantId: string, callId: string): Promise<boolean>;
 
 /**
  * The receptionist's working memory, read from Postgres — the only place it
@@ -5726,7 +5726,7 @@ declare function claimCallNotification(db: Db$7, tenantId: string, callId: strin
  * miss.
  */
 
-type Db$6 = SupabaseClient<Database>;
+type Db$7 = SupabaseClient<Database>;
 interface ThreadTurn {
     role: "user" | "assistant";
     content: string;
@@ -5776,7 +5776,7 @@ type HistoryRow = {
 declare function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[];
 /** The columns assembleHistory needs. One string, so no caller can under-select. */
 declare const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
-declare function readThreadState(db: Db$6, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
+declare function readThreadState(db: Db$7, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
 interface LeadContext {
     contactId: string | null;
     conversationId: string | null;
@@ -5825,14 +5825,14 @@ interface LeadContext {
  * would otherwise leave a lead behind in the workspace. The real ingest paths
  * create rows; this one only reports what is already true.
  */
-declare function readLeadContext(db: Db$6, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
+declare function readLeadContext(db: Db$7, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
  * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
  * None where deals are off (dealsAreOn, 0008): the workspace's answer rides on the contact read, and a database that
  * cannot say it has deals off. Every deal of theirs is read, because the current one may be the oldest (see
  * readLeadContext).
  */
-declare function readDealForPhone(db: Db$6, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
+declare function readDealForPhone(db: Db$7, tenantId: string, phoneE164: string): Promise<DealFacts | null>;
 /**
  * The team's notes as the receptionist hears them (0007): newest first, each dated, as many as fit the budget -- the
  * newest always, however long. Where the notes could not be read, the field they moved from (00054), as it was said.
@@ -5854,7 +5854,7 @@ declare function describeLead(lead: LeadContext, now?: Date, tz?: string): strin
  * to answer.
  */
 
-type Db$5 = SupabaseClient<Database>;
+type Db$6 = SupabaseClient<Database>;
 /** A person mid-conversation, or a call in progress. */
 type ControlHolder = {
     kind: "person";
@@ -5879,7 +5879,7 @@ type ControlOutcome = "claimed" | "renewed" | "held" | "gone";
  * a read that could not be made, which is not the same as a free thread, so it
  * is left to the caller to fail loudly rather than swallowed here.
  */
-declare function claimControl(db: Db$5, p: {
+declare function claimControl(db: Db$6, p: {
     tenantId: string;
     conversationId: string;
     holder: ControlHolder;
@@ -5890,7 +5890,7 @@ declare function claimControl(db: Db$5, p: {
  * the honest answer to a release that arrives after a person took the thread
  * over, which must not clear their hold.
  */
-declare function releaseControl(db: Db$5, p: {
+declare function releaseControl(db: Db$6, p: {
     tenantId: string;
     conversationId: string;
     holder: ControlHolder;
@@ -5906,7 +5906,7 @@ declare function releaseControl(db: Db$5, p: {
  * one by a literal again.
  */
 
-type Db$4 = SupabaseClient<Database>;
+type Db$5 = SupabaseClient<Database>;
 /** What every reader of a template needs to decide whether it may be sent and how to fill it. */
 interface TemplateRow {
     name: string;
@@ -5925,7 +5925,7 @@ interface TemplateRow {
  * telling them it when we simply could not look is how a working feature reads
  * as a missing one.
  */
-declare function templatesFor(db: Db$4, tenantId: string, channel?: string): Promise<TemplateRow[]>;
+declare function templatesFor(db: Db$5, tenantId: string, channel?: string): Promise<TemplateRow[]>;
 
 /**
  * Control-plane repository (Session A): config, policies, team.
@@ -5933,7 +5933,7 @@ declare function templatesFor(db: Db$4, tenantId: string, channel?: string): Pro
  * enforcement lives in RLS + the DB triggers + requireRole at the routes.
  */
 
-type Db$3 = SupabaseClient<Database>;
+type Db$4 = SupabaseClient<Database>;
 interface TenantConfigRow {
     tenant_id: string;
     config: unknown;
@@ -5942,7 +5942,7 @@ interface TenantConfigRow {
     /** Who last wrote it; null for rows written before 00085 kept track, and for the platform's own writes. */
     updated_by?: string | null;
 }
-declare function getTenantConfig(db: Db$3, tenantId: string): Promise<TenantConfigRow | null>;
+declare function getTenantConfig(db: Db$4, tenantId: string): Promise<TenantConfigRow | null>;
 type PutTenantConfigResult = {
     ok: true;
     row: TenantConfigRow;
@@ -5968,7 +5968,7 @@ type PutTenantConfigResult = {
  * false in every particular — nobody saved anything, no colleague exists, and
  * reloading changes nothing.
  */
-declare function putTenantConfig(db: Db$3, tenantId: string, config: unknown, expectedVersion: number, 
+declare function putTenantConfig(db: Db$4, tenantId: string, config: unknown, expectedVersion: number, 
 /** Who wrote it. This config IS what customers hear, so the row records its author (00085). */
 updatedBy?: string | null): Promise<PutTenantConfigResult>;
 interface PolicyRecord {
@@ -5982,8 +5982,8 @@ interface PolicyRecord {
 }
 /** Workspace-level rows only (subject IS NULL) — guardrail rows arrive with
  *  the People slice and get their own accessor then. */
-declare function listPolicies(db: Db$3, tenantId: string): Promise<PolicyRecord[]>;
-declare function setPolicyMode(db: Db$3, tenantId: string, policyClass: string, mode: string, 
+declare function listPolicies(db: Db$4, tenantId: string): Promise<PolicyRecord[]>;
+declare function setPolicyMode(db: Db$4, tenantId: string, policyClass: string, mode: string, 
 /**
  * Merged into the existing limits, never replacing them.
  *
@@ -6000,14 +6000,14 @@ limits?: Record<string, unknown>): Promise<PolicyRecord | null>;
  * key, never cached. The whole point of "Never" for a difficult customer is
  * that it applies to their NEXT message, not to one sixty seconds later.
  */
-declare function personReplyMode(db: Db$3, tenantId: string, contactId: string): Promise<string | null>;
+declare function personReplyMode(db: Db$4, tenantId: string, contactId: string): Promise<string | null>;
 /**
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only
  * under RLS (00029); a forbidden insert raises, and the route decides the
  * role before getting here.
  */
-declare function setPersonReplyMode(db: Db$3, tenantId: string, contactId: string, mode: string | null): Promise<void>;
+declare function setPersonReplyMode(db: Db$4, tenantId: string, contactId: string, mode: string | null): Promise<void>;
 
 /**
  * Everyone in People, as `people_list` (00112) computes them under the caller's row security.
@@ -6016,7 +6016,7 @@ declare function setPersonReplyMode(db: Db$3, tenantId: string, contactId: strin
  * the same function, with its own page size and its own rule for when to name the page arguments.
  */
 
-type Db$2 = SupabaseClient<Database>;
+type Db$3 = SupabaseClient<Database>;
 /** Rows per page: what people_list answers at most (the database clamps p_limit to it). */
 declare const PEOPLE_PAGE = 1000;
 /**
@@ -6024,7 +6024,7 @@ declare const PEOPLE_PAGE = 1000;
  * been given 00112 answers the first page as it always has. A read that fails THROWS: a page the database could not
  * answer is never an empty workspace.
  */
-declare function peoplePage(db: Db$2, tenantId: string, page?: {
+declare function peoplePage(db: Db$3, tenantId: string, page?: {
     q?: string | null;
     offset?: number;
     limit?: number;
@@ -6033,7 +6033,7 @@ declare function peoplePage(db: Db$2, tenantId: string, page?: {
  * Everyone, every page of them: whatever counts people counts everyone. One call is at most a thousand rows, and a
  * caller that does not loop gets a thousand with no error, no flag and no way to tell them from "that is everyone".
  */
-declare function everyoneIn(db: Db$2, tenantId: string): Promise<PersonRowDto[]>;
+declare function everyoneIn(db: Db$3, tenantId: string): Promise<PersonRowDto[]>;
 
 /**
  * Saved lists: a name and the people on it (00044's segments and segment_members), read and written here and
@@ -6045,7 +6045,7 @@ declare function everyoneIn(db: Db$2, tenantId: string): Promise<PersonRowDto[]>
  * route that called it can say the refusal in its own words.
  */
 
-type Db$1 = SupabaseClient<Database>;
+type Db$2 = SupabaseClient<Database>;
 /**
  * A list with every id on it, and its rule when it is a smart list (00155): who is on a smart list is judged on every
  * read (contracts savedListIds), and `ids` is empty for one.
@@ -6069,18 +6069,18 @@ interface WriteError {
     message: string;
 }
 /** Every saved list of one workspace with every id on it, by name. Scoped by tenant, not by row security alone. */
-declare function savedListsFor(db: Db$1, tenantId: string): Promise<SavedListRow[]>;
+declare function savedListsFor(db: Db$2, tenantId: string): Promise<SavedListRow[]>;
 /** Every id on one list. */
-declare function listMemberIds(db: Db$1, listId: string): Promise<string[]>;
+declare function listMemberIds(db: Db$2, listId: string): Promise<string[]>;
 /** One saved list of this workspace with every id on it, or null when it has no such list: what a send to it enrols. */
-declare function savedListFor(db: Db$1, tenantId: string, id: string): Promise<SavedListRow | null>;
+declare function savedListFor(db: Db$2, tenantId: string, id: string): Promise<SavedListRow | null>;
 /** The list a verb acts on, read under row security alone: one the caller cannot see is no list. */
-declare function listRow(db: Db$1, id: string): Promise<ListRow | null>;
+declare function listRow(db: Db$2, id: string): Promise<ListRow | null>;
 /**
  * A new list in the maker's name: empty and kept by hand, or smart with its rule. A name the workspace already has is
  * the database's 23505.
  */
-declare function createList(db: Db$1, tenantId: string, name: string, userId: string, rule?: Json | null): Promise<{
+declare function createList(db: Db$2, tenantId: string, name: string, userId: string, rule?: Json | null): Promise<{
     list: {
         id: string;
         name: string;
@@ -6088,26 +6088,26 @@ declare function createList(db: Db$1, tenantId: string, name: string, userId: st
     error: WriteError | null;
 }>;
 /** A list's new name: one of the two columns a member may change (00155's column grant). */
-declare function renameList(db: Db$1, id: string, name: string): Promise<{
+declare function renameList(db: Db$2, id: string, name: string): Promise<{
     error: WriteError | null;
 }>;
 /** A smart list's new rule: the other column a member may change. */
-declare function setListRule(db: Db$1, id: string, rule: Json): Promise<{
+declare function setListRule(db: Db$2, id: string, rule: Json): Promise<{
     error: WriteError | null;
 }>;
 /**
  * People onto a list, in the adder's name. Someone already on it is not an error; a person of another workspace or
  * one who was erased is row security's with-check refusal (42501).
  */
-declare function addToList(db: Db$1, list: Pick<ListRow, "id" | "tenant_id">, contactIds: readonly string[], userId: string): Promise<{
+declare function addToList(db: Db$2, list: Pick<ListRow, "id" | "tenant_id">, contactIds: readonly string[], userId: string): Promise<{
     error: WriteError | null;
 }>;
 /** People off a list. The people stay; only the membership goes. */
-declare function dropFromList(db: Db$1, listId: string, contactIds: readonly string[]): Promise<{
+declare function dropFromList(db: Db$2, listId: string, contactIds: readonly string[]): Promise<{
     error: WriteError | null;
 }>;
 /** A list and its member rows. `count` says whether anything was removed: a delete that removed nothing is no delete. */
-declare function deleteList(db: Db$1, id: string): Promise<{
+declare function deleteList(db: Db$2, id: string): Promise<{
     error: WriteError | null;
     count: number | null;
 }>;
@@ -6116,33 +6116,61 @@ declare function deleteList(db: Db$1, id: string): Promise<{
  * Who a run of any kind reached, or is about to: the touches a playbook's gap and the week's breath hold people back
  * by (contracts eligibleForPlaybook), read by the edge's hourly sweep and the dashboard's Playbooks page alike.
  *
- * Each read them itself, the same rule twice: a run canceled or failed touched nobody; a person sent to, or queued
- * for a run on its way, was touched from the moment it went or is due; a broadcast sent by hand counts for the breath
- * and for no playbook's gap. The two agreed until one of them changed, which is the day the page's "waits for the
- * breath" would stop being the sweep's.
+ * Each read them itself, the same rule twice, until one of them changed, which is the day the page's "waits for the
+ * breath" would stop being the sweep's. The rule, once: a person sent to, or queued for a run on its way, was touched
+ * from the moment it went or is due. A run canceled or failed touched only the people it had already sent to: stopped
+ * halfway, it had reached them, and read as reaching nobody it messaged them again. A run waiting for a person whose
+ * day has passed touched nobody: it can never be approved (core approveRun), and the approval sheet says the next run
+ * starts over. A broadcast sent by hand counts for the breath and for no playbook's gap. A run that carries a
+ * proposal's link is a proposal follow-up (0006), owed once per proposal whichever playbook sent it, one since deleted
+ * too.
  */
 
-type Db = SupabaseClient<Database>;
-/** One person touched by one run: the run's playbook, if it was a playbook's, and when (sent, or due). */
+type Db$1 = SupabaseClient<Database>;
+/** One person touched by one run: the run's playbook, if it was a playbook's, when (sent, or due), and whether the run was a proposal follow-up. */
 interface Touch {
     contact_id: string;
     playbook_id: string | null;
     at: string;
+    follow_up: boolean;
 }
-/** The touches by person: the latest by any run (the breath), and the latest by each playbook (its gap). Epoch ms. */
+/**
+ * The touches by person: the latest by any run (the breath), the latest by each playbook (its gap), and the latest
+ * proposal follow-up by any playbook (the follow-up's once per proposal). Epoch ms.
+ */
 interface TouchIndex {
     byThis: Map<string, Map<string, number>>;
     byAny: Map<string, number>;
+    followUps: Map<string, number>;
 }
 /**
- * Every touch since `since`. Runs are read by when they were made, from `since` on; a touch is dated by when it went,
- * or when its run is due, and one before `since` holds nobody back. Paged throughout: past a thousand touches, the
- * breath and each gap silently stopped holding and the people a read could no longer see were messaged again. A read
- * that fails THROWS -- "nobody was touched" is the reading that messages people twice.
+ * Every touch since `since`, as of `now`. Runs are read by when they were made, from `since` on; a touch is dated by
+ * when it went, or when its run is due, and one before `since` holds nobody back. Paged throughout: past a thousand
+ * touches, the breath and each gap silently stopped holding and the people a read could no longer see were messaged
+ * again. A read that fails THROWS -- "nobody was touched" is the reading that messages people twice. The workspace's
+ * zone, read beside the runs, says which day is today for a run waiting for a person; unreadable, every waiting run
+ * still holds its people, which never messages anyone twice either.
  */
-declare function touchesSince(db: Db, tenantId: string, since: Date): Promise<Touch[]>;
-/** The touches by person, the way a run draws with them: the latest by any run, and the latest by each playbook. */
+declare function touchesSince(db: Db$1, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
+/** The touches by person, the way a run draws with them: the latest by any run, by each playbook, and follow-up. */
 declare function touchIndex(touches: readonly Touch[]): TouchIndex;
+
+/**
+ * The deals a workspace's pace is read from (0008, amended): its yeses decided since a moment -- a deal standing won,
+ * or ended since -- with their two days, for contracts dealPaceFrom. The edge's playbook sweep (the proposal
+ * follow-up, 0006) and the dashboard's People reads read them alike, so the two never judge "waiting" by two paces.
+ * Paged, so a busy year is read whole. A read that fails THROWS: each caller says what no pace costs it.
+ */
+
+type Db = SupabaseClient<Database>;
+/** A yes as its wait is measured: its stage and its two days. */
+interface YesRow {
+    stage: string;
+    proposed_at: string;
+    decided_at: string | null;
+}
+/** Every yes decided since `since`, under whatever row security the client carries. */
+declare function yesesSince(db: Db, tenantId: string, since: Date): Promise<YesRow[]>;
 
 /**
  * The single Realtime subscription wrapper (Blueprint §5): every surface
@@ -6216,4 +6244,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type NormalizedCallInput, type OutboundTarget, PEOPLE_PAGE, type Page, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type SavedListRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type YesRow, addToList, assembleHistory, claimCallNotification, claimControl, countSentToday, createList, createServiceClient, deleteList, describeLead, dropFromList, emitEvent, everyoneIn, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, notesForReceptionist, pauseConversation, peoplePage, personReplyMode, putTenantConfig, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, renameList, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, savedListFor, savedListsFor, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor, touchIndex, touchesSince, yesesSince };

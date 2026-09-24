@@ -74,6 +74,11 @@ test("creating a tenant provisions it — no application code involved", { skip 
   assert.equal(byClass.booking.mode, "auto");
   assert.equal(byClass.reengage.mode, "ask");
   assert.equal(byClass.campaign.mode, "ask");
+  assert.equal(
+    byClass.follow_up.mode,
+    "ask",
+    "a proposal follow-up's run waits for a person until the owner says otherwise (0006)",
+  );
   assert.equal(byClass.money.mode, "never", "the charter lock must be the seeded state");
   assert.equal(byClass.reply.limits.max_replies_day, 20, "the shipped rate cap travels with the policy");
   assert.equal(byClass.reply.limits.pause_hours, 24);

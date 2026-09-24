@@ -425,7 +425,13 @@ var POLICY_CLASS_WORDS = {
     short: "Reviews",
     note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
   },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  }
 };
 var PolicyLimitsSchema = z3.object({
   max_replies_day: z3.number().int().min(1).max(200).optional(),
@@ -1051,6 +1057,14 @@ var LeadSuggestAnswerSchema = z5.object({
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 function dealsAreOn(sellsBy) {
   return sellsBy === "proposal";
 }
@@ -1476,6 +1490,62 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
+      return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+var DAY_MS7 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS7;
+var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS7;
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+var PLAYBOOK_CLASS_LABEL = {
+  reengage: POLICY_CLASS_WORDS.reengage.short,
+  campaign: POLICY_CLASS_WORDS.campaign.short,
+  booking: POLICY_CLASS_WORDS.booking.short,
+  follow_up: POLICY_CLASS_WORDS.follow_up.short
+};
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -1486,6 +1556,12 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -1571,22 +1647,6 @@ var ListDraftAnswerSchema = z7.object({
   cannot: z7.string().trim().max(200),
   all: z7.array(ListConditionSchema).max(8)
 });
-var DAY_MS8 = 864e5;
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
-var SENDING_HOURS_WORDS = {
-  min: PLAYBOOK_HOURS.min,
-  max: PLAYBOOK_HOURS.max,
-  first: `${PLAYBOOK_HOURS.min}:00`,
-  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
-  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
-};
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS8;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
-var PLAYBOOK_CLASS_LABEL = {
-  reengage: POLICY_CLASS_WORDS.reengage.short,
-  campaign: POLICY_CLASS_WORDS.campaign.short,
-  booking: POLICY_CLASS_WORDS.booking.short
-};
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
@@ -1645,6 +1705,7 @@ var PendingWorkspaceSchema = z8.object({
   // never fails over a zone a stranger's device reported.
   timezone: z8.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
+var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
   try {
@@ -2321,18 +2382,18 @@ var NOTES_READ = 12;
 var NOTES_BUDGET = 1200;
 function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (Array.isArray(lead.noteList)) {
-    const parts = [];
+    const parts2 = [];
     let used = 0;
     for (const n of lead.noteList) {
       const body = n.body.replace(/\s+/g, " ").trim();
       if (!body) continue;
       const t = Date.parse(n.at);
       const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
-      if (parts.length && used + part.length > NOTES_BUDGET) break;
-      parts.push(part);
+      if (parts2.length && used + part.length > NOTES_BUDGET) break;
+      parts2.push(part);
       used += part.length + 2;
     }
-    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
+    return parts2.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts2.join("; ")}` : null;
   }
   const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
   return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
@@ -2575,26 +2636,41 @@ async function deleteList(db, id) {
 
 // src/repositories/touches.ts
 var RUN_IDS_PER_QUERY = 200;
-async function touchesSince(db, tenantId, since) {
-  const runs = (await readAllRows(
-    "broadcasts",
-    (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
-  )).filter((b) => b.state !== "canceled" && b.state !== "failed");
+var STOPPED = /* @__PURE__ */ new Set(["canceled", "failed"]);
+async function touchesSince(db, tenantId, since, now) {
+  const [all, zone] = await Promise.all([
+    readAllRows(
+      "broadcasts",
+      (from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString()).order("id").range(from, to)
+    ),
+    db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
+      (r) => r.error ? null : r.data?.timezone || DEFAULT_TIMEZONE,
+      () => null
+    )
+  ]);
+  const today = zone ? localDate(zone, now) : null;
+  const runs = all.filter(
+    (b) => !(b.state === "pending_approval" && today !== null && b.run_for !== null && b.run_for < today)
+  );
   const ofRun = new Map(runs.map((b) => [b.id, b]));
+  const followUp = new Set(
+    runs.filter((b) => parseParamSpecs(b.params).some((s) => s.kind === "proposal_link")).map((b) => b.id)
+  );
   const ids = runs.map((b) => b.id);
   const out = [];
   const sinceMs = since.getTime();
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows(
       "broadcast_recipients",
-      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+      (from, to) => db.from("broadcast_recipients").select("broadcast_id, contact_id, sent_at, state").eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
       if (!run) continue;
+      if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
-      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at });
+      out.push({ contact_id: r.contact_id, playbook_id: run.playbook_id, at, follow_up: followUp.has(run.id) });
     }
   }
   return out;
@@ -2602,6 +2678,7 @@ async function touchesSince(db, tenantId, since) {
 function touchIndex(touches) {
   const byThis = /* @__PURE__ */ new Map();
   const byAny = /* @__PURE__ */ new Map();
+  const followUps = /* @__PURE__ */ new Map();
   for (const t of touches) {
     const at = Date.parse(t.at);
     if (t.playbook_id) {
@@ -2610,8 +2687,18 @@ function touchIndex(touches) {
       byThis.set(t.playbook_id, m);
     }
     byAny.set(t.contact_id, Math.max(byAny.get(t.contact_id) ?? 0, at));
+    if (t.follow_up) followUps.set(t.contact_id, Math.max(followUps.get(t.contact_id) ?? 0, at));
   }
-  return { byThis, byAny };
+  return { byThis, byAny, followUps };
+}
+
+// src/repositories/deals.ts
+async function yesesSince(db, tenantId, since) {
+  const rows = await readAllRows(
+    "deals",
+    (from, to) => db.from("deals").select("id, stage, proposed_at, decided_at").eq("tenant_id", tenantId).in("stage", ["won", "ended"]).gte("decided_at", since.toISOString()).order("id").range(from, to)
+  );
+  return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
 }
 
 // src/realtime.ts
@@ -2752,5 +2839,6 @@ export {
   suppressEmailOf,
   templatesFor,
   touchIndex,
-  touchesSince
+  touchesSince,
+  yesesSince
 };

@@ -6,18 +6,26 @@ import {
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
   POLICY_CLASS_MODES,
+  dealsAreOn,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db";
+import { sellsByOf } from "@/server/deals";
 
-/** GET /api/v1/policies — the workspace autonomy matrix (E3). */
+/**
+ * GET /api/v1/policies — the workspace autonomy matrix (E3), and whether deals are on here (0008): the pane draws the
+ * follow-ups' row only where they are (0006, contracts policyClassOffered).
+ */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({
-    policies: await listPolicies(ctx.supabase, member.tenantId),
-    role: member.role,
-  }),
+  handle: async ({ ctx, member }) => {
+    const [policies, sellsBy] = await Promise.all([
+      listPolicies(ctx.supabase, member.tenantId),
+      sellsByOf(ctx, member.tenantId),
+    ]);
+    return { policies, role: member.role, deals_on: dealsAreOn(sellsBy) };
+  },
 });
 
 /**

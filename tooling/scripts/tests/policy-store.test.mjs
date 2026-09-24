@@ -20,6 +20,8 @@ const { uiRows, modeLabel, dbMode, installPolicyStore, UI_ROWS, UI_MODES } = awa
 
 const REAL = {
   role: "owner",
+  // A workspace whose customers book: the follow-ups' row is not drawn (0006).
+  dealsOn: false,
   rows: [
     { class: "reply", mode: "veto", limits: { reply_delay_ms: 30000, max_replies_day: 20 } },
     { class: "booking", mode: "auto", limits: {} },
@@ -41,8 +43,13 @@ test("every class offered is one the runtime consults, and each offers only the 
   // that hung on it are gone: the list itself is the claim.
   assert.deepEqual(
     UI_ROWS.map((r) => r.id).sort(),
-    ["book", "campaign", "faq", "money", "reengage", "reply", "reviews"],
-    "reply by the handlers; booking and faq in both prompts and after generation; reengage and campaign by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database",
+    ["book", "campaign", "faq", "follow_up", "money", "reengage", "reply", "reviews"],
+    "reply by the handlers; booking and faq in both prompts and after generation; reengage, campaign and follow_up by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database",
+  );
+  assert.deepEqual(
+    UI_ROWS.find((r) => r.id === "follow_up").modes,
+    ["Auto", "Ask", "Never"],
+    "the follow-up sends, waits on Today, or does not run: no countdown to hold (0006)",
   );
   assert.ok(
     UI_ROWS.every((r) => !("enforced" in r)),
@@ -71,6 +78,18 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
   assert.equal(by.book.mode, "Auto");
   assert.equal(by.faq.mode, null, "no row, no mode — the pane shows nothing rather than a default");
   assert.equal(by.money.mode, "Never");
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["reply", "faq", "book", "reengage", "campaign", "reviews", "money"],
+    "a salon's pane: seven rows",
+  );
+  const deals = uiRows({ ...REAL, dealsOn: true, rows: [...REAL.rows, { class: "follow_up", mode: "ask" }] });
+  assert.deepEqual(
+    deals.map((r) => r.id),
+    ["reply", "faq", "book", "reengage", "follow_up", "campaign", "reviews", "money"],
+    "where deals are on, eight: the follow-ups' beside Win-back",
+  );
+  assert.equal(deals.find((r) => r.id === "follow_up").mode, "Ask");
   assert.equal(
     uiRows({ role: null, rows: [{ class: "money", mode: "auto" }] }).find((r) => r.id === "money").mode,
     "Never",
@@ -100,7 +119,7 @@ test("the installed store answers from real rows, and writes only through the co
   assert.equal(S.modeOf("book"), "Auto");
   assert.equal(S.modeOf("faq"), null);
   assert.equal(S.row("money").locked, true);
-  assert.equal(S.ROWS.length, UI_ROWS.length);
+  assert.equal(S.ROWS.length, UI_ROWS.length - 1, "a salon's pane: the follow-ups' row only where deals are on");
 
   S.set("reply", "Ask");
   S.set("money", "Auto"); // locked: no write

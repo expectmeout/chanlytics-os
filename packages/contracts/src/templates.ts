@@ -193,6 +193,7 @@ export const PARAM_SOURCES = [
   "booking_link",
   "visit_when",
   "visit_service",
+  "proposal_link",
 ] as const;
 export type ParamSourceKind = (typeof PARAM_SOURCES)[number];
 
@@ -203,7 +204,9 @@ export type ParamSpec =
   | { kind: "booking_link" }
   /** A visit playbook's own words: "tomorrow at 2:00 PM", and the service. */
   | { kind: "visit_when" }
-  | { kind: "visit_service" };
+  | { kind: "visit_service" }
+  /** A follow-up's own words: the link of the proposal the person's deal waits on (0006). */
+  | { kind: "proposal_link" };
 
 export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   text: "Type it",
@@ -212,6 +215,7 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
   booking_link: "The booking link",
   visit_when: "Their visit's time",
   visit_service: "Their visit's service",
+  proposal_link: "Their proposal's link",
 };
 
 /**
@@ -225,6 +229,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
   booking_link: "From Settings › Business",
   visit_when: "Each visit's own, from the calendar",
   visit_service: "Each visit's own, from the calendar",
+  proposal_link: "Each proposal's own, from its deal",
 };
 
 /**
@@ -234,7 +239,7 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
     if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
     return { kind: "text", value: raw };
   }
@@ -246,7 +251,8 @@ export function parseParamSpec(raw: unknown): ParamSpec | null {
       o.kind === "business_name" ||
       o.kind === "booking_link" ||
       o.kind === "visit_when" ||
-      o.kind === "visit_service"
+      o.kind === "visit_service" ||
+      o.kind === "proposal_link"
     )
       return { kind: o.kind };
   }
@@ -286,6 +292,8 @@ export interface ParamFacts {
   /** A visit playbook's words for this person, resolved when the run was made; absent elsewhere. */
   visitWhen?: string | null;
   visitService?: string | null;
+  /** A follow-up's link for this person, frozen when the run was made (0006); absent elsewhere. */
+  proposalLink?: string | null;
 }
 
 /** The first name a message may use, or null when all that is on file is a number. */
@@ -319,6 +327,8 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
         return f.visitWhen ?? "";
       case "visit_service":
         return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
     }
   });
 }
@@ -331,6 +341,7 @@ export function exampleParams(specs: readonly ParamSpec[], businessName: string)
     bookingLink: "your booking link",
     visitWhen: "tomorrow at 2:00 PM",
     visitService: "a consultation",
+    proposalLink: "their proposal's link",
   });
 }
 

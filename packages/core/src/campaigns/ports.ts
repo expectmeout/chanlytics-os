@@ -12,6 +12,7 @@ import type {
   NumberHealth,
   ParamSpec,
   PersonRowVM,
+  DealPaceVM,
   PersonVisitsDto,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
@@ -89,14 +90,18 @@ export interface RunContext {
   people: PersonRowVM[];
   modes: Map<string, string>;
   health: NumberHealth;
-  /** When each person last heard from each playbook, and from any; contact id → ms. */
-  touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number> };
+  /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
+  touches: { byThis: Map<string, Map<string, number>>; byAny: Map<string, number>; followUps: Map<string, number> };
   /** The workspace's calendar: a visit playbook runs only when it is "ok". */
   calendar: "ok" | "unavailable" | "none";
   /** Each person's next and last visit from that calendar, for the words a visit run keeps. */
   visits: Map<string, PersonVisitsDto>;
   /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
   lists: Map<string, ReadonlySet<string>>;
+  /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
+  dealsOn: boolean;
+  /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
+  pace: DealPaceVM | null;
 }
 
 /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
@@ -118,7 +123,14 @@ export type RunOutcome =
   | {
       outcome: "off";
       mode: string;
-      skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list";
+      skipped:
+        | "never"
+        | "template_not_approved"
+        | "number_flagged"
+        | "already_ran_today"
+        | "no_calendar"
+        | "no_list"
+        | "deals_off";
     }
   | { outcome: "failed"; error: string };
 

@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import {
   BROADCAST_MAX_RECIPIENTS,
   EVERYONE_LABEL,
+  FOLLOW_UP_NEEDS_DEALS,
+  FOLLOW_UP_NEEDS_LINK,
   broadcastName,
   emptyAudienceRefusal,
   noNumberWords,
@@ -93,6 +95,7 @@ function fakes(over = {}) {
     hold: undefined,
     withdraw: 1,
     cancel: true,
+    dealsOn: false,
     ...over,
   };
   const ports = {};
@@ -761,7 +764,7 @@ test("the playbook's check: the trigger first, then the template through the one
     checkPlaybook(fakes().ports, {}),
     "validation",
     400,
-    "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists.",
+    "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting.",
   );
   await refused(
     checkPlaybook(fakes().ports, { trigger: "quiet_30", template_id: "nope" }),
@@ -811,6 +814,47 @@ test("the playbook's check: the trigger first, then the template through the one
       `${trigger} fills a visit's words`,
     );
   }
+  // 0006: a proposal follow-up is made only where deals are on, and only it fills in a proposal's link.
+  const threeSlots = template({ name: "proposal_follow_up", category: "utility", variables: ["1", "2", "3"] });
+  const followUp = {
+    trigger: "proposal_waiting",
+    template_id: T1,
+    params: ["@first_name", "@business_name", "@proposal_link"],
+  };
+  await refused(
+    checkPlaybook(fakes({ template: threeSlots }).ports, followUp),
+    "validation",
+    400,
+    FOLLOW_UP_NEEDS_DEALS,
+  );
+  const made = await checkPlaybook(fakes({ template: threeSlots, dealsOn: true }).ports, followUp);
+  assert.deepEqual(
+    [made.name, made.policy_class, made.params],
+    ["Proposal follow-up", "follow_up", [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }]],
+    "its own starter: the moment's name, its own class, and the link each person's proposal carries",
+  );
+  // A follow-up with no slot filled by the link would be a bare "just checking in": refused.
+  await refused(
+    checkPlaybook(fakes({ template: template({ variables: ["1"] }), dealsOn: true }).ports, {
+      trigger: "proposal_waiting",
+      template_id: T1,
+      params: ["@first_name"],
+    }),
+    "validation",
+    400,
+    FOLLOW_UP_NEEDS_LINK,
+  );
+  // A win-back never asks whether deals are on (the port throws if it is asked), and cannot carry a proposal's link.
+  await refused(
+    checkPlaybook(fakes({ template: template({ variables: ["1"] }), dealsOn: new Error("asked") }).ports, {
+      trigger: "quiet_30",
+      template_id: T1,
+      params: ["@proposal_link"],
+    }),
+    "validation",
+    400,
+    "Only the proposal follow-up can fill in a proposal's link.",
+  );
   const starter = starterForTrigger("quiet_30").name;
   const own = await checkPlaybook(fakes({ template: template({ name: starter }) }).ports, {
     trigger: "quiet_30",

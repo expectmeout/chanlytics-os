@@ -53,7 +53,7 @@ const tplLangLabel = (id) => (window.__starters && window.__starters.langLabel ?
 const tplOneLine = (s) => String(s || "").replace(/\s+/g, " ").trim();
 // A slot by name inside a one-line quote -- "{first name}", "{business}", "{link}" --
 // by what fills it where the library knows, else by the label it was given.
-const TPL_SLOT_WORDS = { first_name: "first name", business_name: "business", booking_link: "link", visit_when: "time", visit_service: "service" };
+const TPL_SLOT_WORDS = { first_name: "first name", business_name: "business", booking_link: "link", visit_when: "time", visit_service: "service", proposal_link: "proposal link" };
 const tplSlotWord = (kind, label, n) => TPL_SLOT_WORDS[kind] || String(label || `value ${n}`).toLowerCase().replace(/^(the|la|el|los|las) /, "");
 
 const useMessages = () => {

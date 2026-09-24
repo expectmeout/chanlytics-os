@@ -143,6 +143,16 @@ test("what a message IS comes from what was already recorded, and NULL means mar
   assert.equal(purposeOfPlaybook("booking"), "conversational");
   assert.equal(purposeOfPlaybook("reengage"), "marketing");
   assert.equal(purposeOfPlaybook("campaign"), "marketing");
+  assert.equal(
+    purposeOfPlaybook("follow_up"),
+    "conversational",
+    "a nudge on the proposal they asked for is about their own request, as a reminder of their visit is (0006)",
+  );
+  assert.equal(
+    purposeOfTemplate("MARKETING"),
+    "marketing",
+    "and the wire keeps the last word: a follow-up Meta files as marketing needs the offers yes",
+  );
   assert.equal(purposeOfPlaybook(null), "marketing");
 });
 

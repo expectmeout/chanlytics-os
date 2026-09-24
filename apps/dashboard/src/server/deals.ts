@@ -1,5 +1,6 @@
 import "server-only";
 import type { RouteContext } from "@/server/with-route";
+import { yesesSince } from "@chanlytics/db";
 import {
   DEAL_LOST_REASONS,
   PERSON_CAME_FROM_WORDS,
@@ -44,18 +45,17 @@ export async function dealPaceRead(
   tenantId: string,
   now = new Date(),
 ): Promise<DealPaceDto | null> {
-  const since = new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS).toISOString();
-  const { data, error } = await ctx.supabase
-    .from("deals")
-    .select("stage, proposed_at, decided_at")
-    .eq("tenant_id", tenantId)
-    .in("stage", ["won", "ended"])
-    .gte("decided_at", since);
-  if (error || !data) {
-    console.error("deal_pace_read_failed", JSON.stringify({ tenant: tenantId, error: error?.message ?? null }));
+  // The one typed read of them, which the edge's playbook sweep reads too (packages/db yesesSince).
+  try {
+    const rows = await yesesSince(ctx.supabase, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS));
+    return dealPaceFrom(rows, now.getTime());
+  } catch (e) {
+    console.error(
+      "deal_pace_read_failed",
+      JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
+    );
     return null;
   }
-  return dealPaceFrom(data, now.getTime());
 }
 
 /** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */

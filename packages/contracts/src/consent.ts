@@ -191,11 +191,13 @@ export function purposeOfTemplate(category: string | null | undefined): SendPurp
 /**
  * What kind of message a playbook sends, from the class it already declares.
  *
- * `booking` is a reminder about an appointment the customer made. `reengage` and
+ * `booking` is a reminder about an appointment the customer made, and `follow_up` a
+ * nudge on the proposal they asked for (0006): each answers the person's own request.
+ * `reengage` and
  * `campaign` are promotional by definition -- reaching somebody who has gone
  * quiet, or running an offer. Unknown classes are marketing, for the same
  * fail-closed reason as templates.
  */
 export function purposeOfPlaybook(policyClass: string | null | undefined): SendPurpose {
-  return policyClass === "booking" ? "conversational" : "marketing";
+  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }

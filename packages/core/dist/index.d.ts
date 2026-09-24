@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
 /**
@@ -873,10 +873,11 @@ interface RunContext {
     people: PersonRowVM[];
     modes: Map<string, string>;
     health: NumberHealth;
-    /** When each person last heard from each playbook, and from any; contact id → ms. */
+    /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
     touches: {
         byThis: Map<string, Map<string, number>>;
         byAny: Map<string, number>;
+        followUps: Map<string, number>;
     };
     /** The workspace's calendar: a visit playbook runs only when it is "ok". */
     calendar: "ok" | "unavailable" | "none";
@@ -884,6 +885,10 @@ interface RunContext {
     visits: Map<string, PersonVisitsDto>;
     /** Who is on each of the workspace's lists, by list id (contracts savedListIds): what a saved_list playbook runs on. */
     lists: Map<string, ReadonlySet<string>>;
+    /** Deals are on here (dealsAreOn, 0008): the proposal follow-up runs only then (0006). */
+    dealsOn: boolean;
+    /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
+    pace: DealPaceVM | null;
 }
 /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */
 type RunBy = {
@@ -915,7 +920,7 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list";
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "deals_off";
 } | {
     outcome: "failed";
     error: string;
@@ -1047,10 +1052,13 @@ declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): 
  * fills per person; a booking-link slot needs a link on file. Every refusal
  * is a sentence for the person composing.
  */
-declare function templateValues(ports: TemplateValuesPorts, cmd: {
+declare function templateValues(ports: TemplateValuesPorts, 
+/** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
+cmd: {
     templateId: string;
     params: unknown;
     visits: boolean;
+    proposal: boolean;
 }): Promise<{
     template: TemplateRow;
     specs: ParamSpec[];
@@ -1140,6 +1148,8 @@ interface PlaybookInput {
 /** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
 interface CheckPlaybookPorts extends TemplateValuesPorts {
     listName(id: string): Promise<string | null>;
+    /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
+    dealsOn(): Promise<boolean>;
 }
 declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 

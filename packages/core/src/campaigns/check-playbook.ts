@@ -1,10 +1,13 @@
 import {
   AppError,
+  FOLLOW_UP_NEEDS_DEALS,
+  FOLLOW_UP_NEEDS_LINK,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
   playbookName,
   triggerOf,
+  triggerOffered,
   type ParamSpec,
   type PlaybookPolicyClass,
   type PlaybookTrigger,
@@ -48,6 +51,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
 export interface CheckPlaybookPorts extends TemplateValuesPorts {
   listName(id: string): Promise<string | null>;
+  /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
+  dealsOn(): Promise<boolean>;
 }
 
 export async function checkPlaybook(
@@ -59,8 +64,12 @@ export async function checkPlaybook(
   if (!trig)
     throw new AppError(
       "validation",
-      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, or one of your lists.",
+      "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, a visit yesterday, lapsed, one of your lists, or a proposal waiting.",
     );
+  // A proposal follow-up where deals are off has no proposal to follow (0006): refused in the words a run says. Only
+  // a moment that needs deals asks whether they are on.
+  if (trig.kind === "deal" && !triggerOffered(trig, await ports.dealsOn()))
+    throw new AppError("validation", FOLLOW_UP_NEEDS_DEALS);
   // A playbook on one of the workspace's lists names it, and the list must be this workspace's.
   let listName: string | null = null;
   const listId = trig.kind === "saved" && typeof body?.list_id === "string" ? body.list_id : null;
@@ -74,7 +83,12 @@ export async function checkPlaybook(
     templateId,
     params: body?.params,
     visits: trig.kind === "visit",
+    proposal: trig.kind === "deal",
   });
+  // A follow-up carries the proposal it follows (0006): with no slot filled by its link it is a bare "just checking
+  // in", which is a person's to write.
+  if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
+    throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title; a
     // list's own name for a playbook on a list.

@@ -4,7 +4,9 @@ import {
   parseParamSpecs,
   planRun,
   playbookRunReach,
+  proposalFactsFor,
   triggerOf,
+  triggerOffered,
   visitFactsFor,
   type PersonRowVM,
   type PlaybookTrigger,
@@ -82,6 +84,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A playbook on one of the workspace's lists: who is on it now. A list deleted under it runs nobody, and says so.
   const listIds = trig?.kind === "saved" ? (p.list_id ? (ctx.lists.get(p.list_id) ?? null) : null) : null;
   if (trig?.kind === "saved" && !listIds) return off("no_list");
+  // A proposal follow-up where deals are off has no proposals to follow: off, and the run says so (0006).
+  if (trig && !triggerOffered(trig, ctx.dealsOn)) return off("deals_off");
 
   // Who the run reaches, with the number's daily limit as a ceiling -- and who
   // it leaves out, and why, counted as it goes (playbookRunReach): the run
@@ -95,8 +99,13 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       gap_days: p.gap_days,
       cadence_days: p.cadence_days,
     },
-    { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
+    {
+      byThis: ctx.touches.byThis.get(p.id) ?? new Map(),
+      byAny: ctx.touches.byAny,
+      followUps: ctx.touches.followUps,
+    },
     now.getTime(),
+    ctx.pace,
     listIds,
   );
   let eligible = drawn.eligible;
@@ -123,6 +132,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // Relative to the moment the send goes: a run asked for at night goes at
   // nine, and "tomorrow" said at eleven is "today" by then.
   const factsOf = (r: PersonRowVM) => {
+    // A follow-up keeps the link of the proposal the person's deal waits on (0006).
+    if (trig?.kind === "deal") return proposalFactsFor(p.trigger, r);
     const v = ctx.visits.get(r.id);
     return visitFactsFor(
       p.trigger,

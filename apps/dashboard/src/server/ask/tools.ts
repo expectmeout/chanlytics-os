@@ -30,6 +30,7 @@ import {
   toReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
+  policyClassOffered,
   dayInZone,
   isDayKey,
   shiftKey,
@@ -873,12 +874,15 @@ async function getReport(t: ToolContext, input: Record<string, unknown>): Promis
 
 async function getSettings(t: ToolContext): Promise<unknown> {
   const sb = t.ctx.supabase;
-  const [{ name, timezone }, cfgRow, policies, channels] = await Promise.all([
+  const [{ name, timezone }, cfgRow, all, channels, sellsBy] = await Promise.all([
     tenantFacts(sb, t.tenantId),
     sb.from("tenant_config").select("config, version").eq("tenant_id", t.tenantId).maybeSingle(),
     listPolicies(sb, t.tenantId).catch(() => []),
     sb.from("tenant_channels").select("kind, status, number_e164").eq("tenant_id", t.tenantId),
+    sellsByOf(t.ctx, t.tenantId),
   ]);
+  // The Autonomy rows offered here, as the pane draws them: the follow-ups' only where deals are on (0006).
+  const policies = all.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
   const cfg = parseTenantConfig(cfgRow.data?.config ?? null);
   const facts = workspaceFacts(name, timezone, cfgRow.data?.config ?? null, policies);
   return {
@@ -1075,7 +1079,11 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
   const vm = pool.rows;
-  const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
+  const untouched = {
+    byThis: new Map<string, number>(),
+    byAny: new Map<string, number>(),
+    followUps: new Map<string, number>(),
+  };
   // Who each moment names that said the yes its template needs, and who of them
   // a run reaches, by the runner's own draw before anyone has heard from a
   // playbook. `said_yes_now` was the reach, so a moment whose yes had no number
@@ -1091,13 +1099,21 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       },
       untouched,
       t.now.getTime(),
+      // No proposal's moment is listed here (below), so none waits on a pace.
+      null,
     );
     return { said_yes_now: drawn.saidYes, can_be_sent_now: drawn.reach.will };
   };
   return {
     route: "outbound",
     timezone: facts.timezone,
-    modes: { reengage: modeOf("reengage"), campaign: modeOf("campaign"), booking: modeOf("booking") },
+    modes: {
+      reengage: modeOf("reengage"),
+      campaign: modeOf("campaign"),
+      booking: modeOf("booking"),
+      // The follow-ups' class only where deals are on (0006).
+      ...(policyClassOffered("follow_up", pool.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
+    },
     mode_words: MODE_WORDS,
     playbooks: rows.map((p) => ({
       playbook_id: p.id,
@@ -1117,7 +1133,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
     })),
-    triggers: PLAYBOOK_TRIGGERS.map((x) => ({
+    // Every moment but a proposal's, which the Playbooks page sets up and counts by the workspace's pace (0006).
+    triggers: PLAYBOOK_TRIGGERS.filter((x) => x.kind !== "deal").map((x) => ({
       trigger: x.id,
       label: x.label,
       when: x.hint,

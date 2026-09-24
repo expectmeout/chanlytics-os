@@ -277,6 +277,19 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
         playbook_id: null,
         run_for: null,
       }),
+      // Noon in New York is eight in the morning of the 12th there: yesterday's run is the 11th's.
+      row("waited", {
+        created_at: "2026-09-11T14:00:00Z",
+        scheduled_for: "2026-09-11T14:00:00Z",
+        state: "pending_approval",
+        run_for: "2026-09-11",
+      }),
+      row("waiting", {
+        created_at: "2026-09-12T11:00:00Z",
+        scheduled_for: "2026-09-12T11:00:00Z",
+        state: "pending_approval",
+        run_for: "2026-09-12",
+      }),
     ],
     broadcast_recipients: [
       { tenant_id: T, broadcast_id: "run", contact_id: "a", state: "sent", sent_at: "2026-09-10T14:00:05Z" },
@@ -285,11 +298,78 @@ test("the week's touches: who any broadcast reached, or is about to, within the 
       { tenant_id: T, broadcast_id: "soon", contact_id: "c", state: "queued", sent_at: null },
       { tenant_id: T, broadcast_id: "old", contact_id: "d", state: "sent", sent_at: "2026-09-01T14:00:05Z" },
       { tenant_id: T, broadcast_id: "gone", contact_id: "e", state: "queued", sent_at: null },
+      // Stopped after it sent to f: f was reached, and read as nobody f was messaged again.
+      { tenant_id: T, broadcast_id: "gone", contact_id: "f", state: "sent", sent_at: "2026-09-11T14:00:07Z" },
+      // Waiting for a person: yesterday's can never be approved and holds nobody; today's may go, and holds.
+      { tenant_id: T, broadcast_id: "waited", contact_id: "g", state: "queued", sent_at: null },
+      { tenant_id: T, broadcast_id: "waiting", contact_id: "h", state: "queued", sent_at: null },
     ],
+    tenants: [{ id: T, timezone: NY }],
   };
   assert.deepEqual(await P.recentTouches(ctx(tables), T, now), {
     a: "2026-09-11T14:00:05Z", // the later of the two, the one by hand
     c: "2026-09-13T14:00:00Z", // on its way counts from when it is due
+    f: "2026-09-11T14:00:07Z", // sent before its run was stopped
+    h: "2026-09-12T11:00:00Z", // waiting for a person today: it may still go
   });
   assert.deepEqual(await P.recentTouches(ctx({ broadcasts: [], broadcast_recipients: [] }), T, now), {});
+});
+
+test("a proposal's follow-up is a touch of its own (0006): from any playbook's run, one since deleted too, and never a run that only carried other words", async () => {
+  const { touchesSince, touchIndex } = await import(at("packages/db/src/repositories/touches.ts"));
+  const now = new Date("2026-09-12T16:00:00Z");
+  const link = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }];
+  const tables = {
+    tenants: [{ id: T, timezone: NY }],
+    broadcasts: [
+      // A follow-up whose playbook was deleted since (its run's playbook_id set null), and a win-back of the same week.
+      row("orphan", {
+        created_at: "2026-09-05T13:00:00Z",
+        scheduled_for: "2026-09-05T14:00:00Z",
+        playbook_id: null,
+        run_for: "2026-09-05",
+        params: link,
+      }),
+      row("winback", {
+        created_at: "2026-09-06T13:00:00Z",
+        scheduled_for: "2026-09-06T14:00:00Z",
+        params: [{ kind: "first_name" }],
+      }),
+    ],
+    broadcast_recipients: [
+      { tenant_id: T, broadcast_id: "orphan", contact_id: "a", state: "sent", sent_at: "2026-09-05T14:00:03Z" },
+      { tenant_id: T, broadcast_id: "winback", contact_id: "b", state: "sent", sent_at: "2026-09-06T14:00:03Z" },
+    ],
+  };
+  const touches = await touchesSince(fakeDb(tables), T, new Date("2026-09-01T00:00:00Z"), now);
+  const idx = touchIndex(touches);
+  assert.deepEqual([...idx.followUps.keys()], ["a"], "the follow-up, whoever sent it; the win-back is none");
+  assert.equal(idx.followUps.get("a"), Date.parse("2026-09-05T14:00:03Z"));
+  assert.deepEqual([...idx.byAny.keys()].sort(), ["a", "b"], "and both count for the breath");
+  assert.equal(idx.byThis.get("p1")?.get("b"), Date.parse("2026-09-06T14:00:03Z"), "the win-back for its own gap");
+  // The workspace's zone cannot be read: every waiting run still holds its people, the reading that messages nobody twice.
+  const waiting = {
+    ...tables,
+    broadcasts: [
+      row("held", {
+        created_at: "2026-09-10T14:00:00Z",
+        scheduled_for: "2026-09-10T14:00:00Z",
+        state: "pending_approval",
+        run_for: "2026-09-10",
+      }),
+    ],
+    broadcast_recipients: [{ tenant_id: T, broadcast_id: "held", contact_id: "c", state: "queued", sent_at: null }],
+  };
+  const blind = await touchesSince(
+    fakeDb(waiting, { "tenants.select": { message: "statement timeout" } }),
+    T,
+    new Date("2026-09-01T00:00:00Z"),
+    now,
+  );
+  assert.deepEqual(
+    blind.map((t) => t.contact_id),
+    ["c"],
+  );
+  const seen = await touchesSince(fakeDb(waiting), T, new Date("2026-09-01T00:00:00Z"), now);
+  assert.deepEqual(seen, [], "read, the 10th's run can never be approved on the 12th: it holds nobody");
 });
