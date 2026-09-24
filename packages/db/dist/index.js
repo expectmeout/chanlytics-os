@@ -2747,11 +2747,13 @@ var EMPTY_LEAD = {
   optedOut: false
 };
 async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const withAnswer = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  const withAnswer = await db.from("contacts").select(
+    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)"
+  ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
   let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
   let cErr = withAnswer.error;
   if (cErr && noSellsBy(cErr.message)) {
-    const older = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    const older = await db.from("contacts").select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
     contact = older.data ? { ...older.data, sellsBy: null } : null;
     cErr = older.error;
   }
@@ -2781,6 +2783,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     lastSeenAt: contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    hasEmail: !!contact.email,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
@@ -2824,6 +2827,8 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (!lead.contactId) return "New contact \u2014 no prior history on record.";
   const bits = [];
   bits.push(lead.name ? `Name on record: ${lead.name}.` : "No name on record.");
+  if (lead.hasEmail === true) bits.push("Their email address is on file.");
+  else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {
     const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 864e5) : null;
     const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;

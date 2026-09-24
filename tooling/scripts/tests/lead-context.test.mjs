@@ -159,6 +159,21 @@ test("an opted-out contact is flagged to both agents", () => {
   assert.match(d, /asked not to receive messages/);
 });
 
+test("the description says whether an email address is on file, so the receptionist never asks for one it has", () => {
+  const base = {
+    contactId: "k1",
+    conversationId: "c1",
+    name: "Ana",
+    returning: false,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+  };
+  assert.match(describeLead({ ...base, hasEmail: true }), /Their email address is on file\./);
+  assert.match(describeLead({ ...base, hasEmail: false }), /No email address on file\./);
+  assert.doesNotMatch(describeLead(base), /email address/, "a reader that never learned it says nothing");
+});
+
 /* ------------------------------ the wiring -------------------------------- */
 
 const voice = read("apps/edge/lib/voice/call-start.ts");
@@ -225,12 +240,14 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
   const src = readCode("packages/db/src/repositories/thread.ts");
-  // Changed on purpose (0008): the workspace's answer rides on the same read, one round trip on the live path.
+  // Changed on purpose (0008, then 0009 for email): the workspace's answer and whether an address is on file ride on
+  // the same read, one round trip on the live path. Checked as the string literal alone, not the surrounding
+  // .select(...) call, since a line this long is Prettier's to wrap however it likes.
   assert.ok(
     src.includes(
-      '.select("id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, tenants(sells_by)")',
+      '"id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, tenants(sells_by)"',
     ),
-    "read with the rest of who they are, and how their workspace's customers buy",
+    "read with the rest of who they are, how their workspace's customers buy, and whether an email is on file",
   );
 });
 
@@ -311,6 +328,7 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   // a cap on the read would hide it behind them. The rows are read whole and the door's rule picks the current one.
   const T = "aaaaaaaa-0000-4000-8000-000000000001";
   const PHONE = "+13055550123";
+  const PHONE_NO_EMAIL = "+13055550199";
   // The workspace says some customers get a proposal first (0008): the deal is said. The embed rides on the contact read.
   const c = {
     id: "contact-1",
@@ -318,7 +336,17 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
     phone_e164: PHONE,
     display_name: "Maria",
     wa_profile_name: null,
+    email: "maria@example.com",
     tenants: { sells_by: "proposal" },
+  };
+  // No email on file, and deals off so this second read does not disturb the deals assertions below.
+  const cNoEmail = {
+    id: "contact-1b",
+    tenant_id: T,
+    phone_e164: PHONE_NO_EMAIL,
+    display_name: "Lee",
+    wa_profile_name: null,
+    tenants: { sells_by: "booking" },
   };
   const dealRow = (over) => ({
     tenant_id: T,
@@ -347,7 +375,7 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
     decided_at: "2026-09-15T12:00:00Z",
     created_at: "2026-09-10T12:00:00Z",
   });
-  const db = fakeDb({ contacts: [c], conversations: [], messages: [], deals: [wonRow, newerLostRow] });
+  const db = fakeDb({ contacts: [c, cNoEmail], conversations: [], messages: [], deals: [wonRow, newerLostRow] });
   const ctx = await readLeadContext(db, T, PHONE);
   assert.equal(ctx.contactId, c.id);
   assert.equal(ctx.deal?.stage, "won", "the current one, not the newest");
@@ -361,6 +389,15 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
     describeLead(ctx, new Date("2026-09-23T16:00:00Z"), "America/New_York"),
     /They are a client \(Ad management\), since Sep 5\./,
   );
+  // The booking rule (ask_email) asks for an email only where none is on file: the contact read must name the
+  // column, and the assembled context must carry the answer both ways.
+  assert.ok(
+    db.seen.some((s) => s.table === "contacts" && String(s.columns ?? "").includes("email")),
+    "the contact read names email, so the receptionist can say whether one is on file",
+  );
+  assert.equal(ctx.hasEmail, true, "a contact row with an email");
+  const ctxNoEmail = await readLeadContext(db, T, PHONE_NO_EMAIL);
+  assert.equal(ctxNoEmail.hasEmail, false, "a contact row without an email");
 });
 
 test("the receptionist reads the team's kept notes (0007): never one for the team only, never its own suggestion, newest first", async () => {

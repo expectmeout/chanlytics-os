@@ -211,6 +211,7 @@ function world({ config = { brain: BRAIN }, channel = "active" } = {}) {
         consent: "opted_in",
         dnc: false,
         notes: null,
+        email: null,
         erased_at: null,
       },
     ],
@@ -367,7 +368,7 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
     assert.deepEqual(
       v.caller_context.split("\n"),
       [
-        "Name on record: Rosa. Returning contact. Last in touch today.",
+        "Name on record: Rosa. No email address on file. Returning contact. Last in touch today.",
         "Recent interactions on this number (calls and messages):",
         "Customer: Are you open Saturday?",
         "Business: Yes, 9 to 5.",
