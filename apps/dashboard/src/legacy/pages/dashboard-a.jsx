@@ -3,8 +3,9 @@
 // what is left over. Analysis never outranks a person who has been waiting eleven days.
 //
 //   a line that is down (dashboard-a-brief.jsx TodayAlert, only then)
-//   what is left to set up (dashboard-a-brief.jsx TodaySetup, only while something is)
-//   the queue (8 of 12)          | the day (4 of 12)
+//   what is left to set up,      | the day (4 of 12)
+//   then the queue (8 of 12)     |
+//   (TodaySetup, only while something is left, in the queue's column: canvas R10)
 //   the day's card (12)
 //   worth a look (7)             | while you were away (5)
 //
@@ -14,9 +15,11 @@
 const DashboardA = () => (
   <div className="dash-a-v2">
     <HeroBrief />
-    <TodaySetup />
     <div className="dash-a-v2-core">
-      <AgentCommand />
+      <div className="dash-a-v2-work">
+        <TodaySetup />
+        <AgentCommand />
+      </div>
       <TodayDay />
     </div>
     <TodayCard />

@@ -49,11 +49,12 @@ const RunsDone = ({ nav }) => {
   });
 };
 
-// What is left to set up, as one card above the queue (the first run's Today card, canvas R10 and P9): while the
-// receptionist is not answering, the one row that opens the first run; after, Setup's own optional rows in the order
-// they help most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing
-// is left. Every word is contracts' (first-run.ts setupCardOf, through window.__firstRun); the rows are Setup's own
-// (setup.jsx SetupRows). On a phone only the next row shows, with its one button (mobile.css).
+// What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
+// while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
+// most, each with its act and a Skip this person keeps on every device (their saved view). Gone once nothing is left.
+// Every word is contracts' (first-run.ts setupCardOf, through window.__firstRun); the rows are Setup's own, drawn as the
+// card's compact rows (setup.jsx SetupRows look="card", SetupCardRow). On a phone only the next row shows, with its
+// one button (mobile.css).
 const TodaySetup = () => {
   useTcTick("surface:setup");
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
@@ -75,29 +76,26 @@ const TodaySetup = () => {
   };
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      <div className="tq-head">
-        <span className="tq-title">{card.title}</span>
-        <span className="tq-sub">{card.left}</span>
+      <div className="setup-card-head">
+        <span className="setup-card-title">{card.title}<span className="setup-card-left" data-testid="today-setup-left">{card.left}</span></span>
         {card.hide ? (
-          <button className="btn btn-ghost btn-sm today-setup-hide" onClick={hide} data-testid="today-setup-hide">{card.hide.put}</button>
+          <button type="button" className="setup-card-skip today-setup-hide" onClick={hide} data-testid="today-setup-hide">{card.hide.put}</button>
         ) : null}
       </div>
       {card.start ? (
         <div className="tq-list">
-          <window.AttnRow
-            glyph="flag"
+          <window.SetupCardRow
+            tone="warn"
+            stateWords={card.start.status}
             name={card.start.name}
             sentence={card.start.sentence}
-            status={[card.start.status]}
-            tone="warn"
             cta={{ label: card.start.cta, kind: "primary", onClick: () => nav(card.start.to) }}
-            onOpen={() => nav(card.start.to)}
             testid="today-setup-start"
             ctaTestid="today-setup-go"
           />
         </div>
       ) : (
-        <window.SetupRows S={S} rows={card.rows} primary={card.rows[0].id} later={card.skip} flash={flash} testid="today-setup-rows" />
+        <window.SetupRows S={S} rows={card.rows} look="card" primary={card.rows[0].id} later={card.skip} flash={flash} testid="today-setup-rows" />
       )}
       {toastNode}
     </section>

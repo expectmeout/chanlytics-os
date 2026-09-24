@@ -468,7 +468,9 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     );
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
     assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
-    assert.ok(textOf(setup).includes("Next: your business"), "and the step it opens on");
+    const dot = find(setup, (n) => n.props?.className === "setup-card-dot");
+    assert.equal(dot.props["aria-label"], "Next: your business", "and the step it opens on, as its dot's name");
+    assert.equal(dot.props["data-tone"], "warn");
     assert.equal(
       [hero, recap, queue, setup].reduce((n, t) => n + buttonsSaying(t, "Open Setup").length, 0),
       0,
@@ -511,6 +513,15 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
     const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
     assert.equal(rows[0].props["data-testid"], "setup-row-whatsapp", "WhatsApp leads: it sends the booking link");
     assert.ok(rows.length > 1, "and what else is left follows it");
+    // The card's compact rows (canvas R10): the next one's act coral, the others outlined, each with its Skip.
+    const verbs = rows.map((r) => find(r, (n) => n.props?.["data-testid"] === "setup-verb"));
+    assert.equal(verbs[0].props.className, "setup-card-btn primary");
+    assert.ok(verbs.slice(1).every((v) => v.props.className === "setup-card-btn"));
+    assert.ok(
+      rows.every((r) => find(r, (n) => n.props?.className === "setup-card-skip")),
+      "each row can be skipped",
+    );
+    assert.equal(textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")), `${rows.length} left`);
     const hide = find(card, (n) => n.props?.["data-testid"] === "today-setup-hide");
     await hide.props.onClick();
     assert.equal(put.at(-1)[1], true);
