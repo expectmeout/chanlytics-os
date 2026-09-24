@@ -1,6 +1,6 @@
 # Ask, the Stage: design spec
 
-**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 23 Sep (F · The Stage for the desktop; the takeover on a phone) · **Plan:** `docs/superpowers/plans/2026-09-23-ask-the-stage.md` (one plan, one PR)
+**Date:** 23 Sep 2026 · **Owner:** Ruben · **Status:** approved by Ruben, 23 Sep (F · The Stage for the desktop; the takeover on a phone); built 23–24 Sep as PR #957 (the plan's "As built" section lists what differed) · **Plan:** `docs/superpowers/plans/2026-09-23-ask-the-stage.md` (one plan, one PR)
 **Direction:** picked on the review page https://claude.ai/artifact/UPrgqXnortmV5HFoTPyMr9 (rows F and F · phone). D · The Composer and E · The Sheet were set aside.
 **Base:** written against `origin/main` at `000d4906` (#940). The Line's spec (`2026-09-23-ask-the-line-design.md`, rev 3) stands underneath this one: the protocol, the answer's shape (Say · Show · Do, `AskAnswer` v2, one door, sources and receipts), the turn on the server, the model gate and its call are unchanged. This document changes only what a person sees and touches. Where this spec and the code disagree, the code wins.
 
