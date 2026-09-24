@@ -23,7 +23,13 @@ import {
   planWho,
   planWords,
 } from "../../../packages/contracts/src/lead-search.ts";
-import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
+import {
+  LEAD_QUESTION_WAIT_LINE,
+  leadEndingLine,
+  leadPlanAsk,
+  leadPlanFacts,
+  leadPlanLikely,
+} from "../../../packages/contracts/src/leads.ts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];
@@ -77,6 +83,7 @@ Object.assign(globalThis.window, {
     leadPlanLikely,
     leadPlanFacts,
     leadPlanAsk,
+    LEAD_QUESTION_WAIT_LINE,
   },
 });
 await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
@@ -720,7 +727,11 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   );
 });
 
-test("the question strip is the accent with role alert, and its three answers hand back what they say", () => {
+// "What if the answer is no, and I want the search to change?" A fourth answer, Change what I asked, opens the finder
+// under the question (the page's; this hands back its id). Include is drawn only when the plan still holds that
+// exclusion: the question's key once reached the page empty, and a generic "Include what I left out" that lifts
+// nothing was the button the owner pressed.
+test("the question strip is the accent with role alert, and its four answers hand back what they say", () => {
   const acted = [];
   const q = withRound({
     state: "waiting_on_owner",
@@ -738,32 +749,40 @@ test("the question strip is the accent with role alert, and its three answers ha
     textOf(byTestId(tree, "strip-title")),
     "Half of the first 25 are chain gyms, which I'm leaving out. Keep going this way?",
   );
-  assert.equal(textOf(byTestId(tree, "strip-parts")), "Nothing is spent while this waits. Answer and it carries on.");
+  assert.equal(textOf(byTestId(tree, "strip-parts")), LEAD_QUESTION_WAIT_LINE);
   assert.deepEqual(
     all(tree, (n) => n.type === "button").map((n) => textOf(n)),
-    ["Yes, keep going", "Include chain gyms", "Stop here"],
+    ["Yes, keep going", "Include chain gyms", "Change what I asked", "Stop here"],
   );
   click(byTestId(tree, "strip-keep"));
   click(byTestId(tree, "strip-include"));
+  click(byTestId(tree, "strip-change"));
   click(byTestId(tree, "strip-stop_here"));
   assert.deepEqual(
     acted,
     [
       ["keep", undefined],
       ["include", "chain"],
+      ["change", undefined],
       ["stop_here", undefined],
     ],
-    "Include carries the criterion the owner is taking back",
+    "Include carries the exclusion the owner is taking back",
   );
   const unknown = leadStrip(
     withRound({ state: "waiting_on_owner", question: { sentence: "Keep going?", criterion_key: "gone" } }),
     NOW,
   );
-  assert.equal(
-    unknown.actions[1].label,
-    "Include what I left out",
-    "a key the plan no longer holds never puts a stored word on the screen",
+  assert.deepEqual(ids(unknown), ["keep", "change", "stop_here"], "a key the plan no longer holds has nothing to lift");
+  const empty = leadStrip(
+    withRound({ state: "waiting_on_owner", question: { sentence: "Keep going?", criterion_key: "" } }),
+    NOW,
   );
+  assert.deepEqual(ids(empty), ["keep", "change", "stop_here"], "nor has no key at all");
+  const criterion = leadStrip(
+    withRound({ state: "waiting_on_owner", question: { sentence: "Keep going?", criterion_key: "website" } }),
+    NOW,
+  );
+  assert.deepEqual(ids(criterion), ["keep", "change", "stop_here"], "Include lifts an exclusion, never a requirement");
 });
 
 test("after Stop the strip says the emails of the found are still being checked, then that the found are the owner's", () => {

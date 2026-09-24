@@ -544,16 +544,22 @@ const ldStripOf = (s, now, nearby) => {
   // just paid for.
 
   if (r.state === "waiting_on_owner" && r.question) {
-    const out = ldLeftOut(plan, r.question.criterion_key);
+    // Include lifts one of the plan's own exclusions. A key the plan does not hold as one -- gone, empty, or a
+    // requirement -- has nothing to lift, and a button that cannot work is not drawn: "Include what I left out" once
+    // stood here, lifted nothing, and the door refused the unchanged plan. The no that changes the search is
+    // Change what I asked, which the page opens under the question.
+    const key = r.question.criterion_key;
+    const lifted = key && (plan.exclusions || []).some((x) => x.key === key) ? ldLeftOut(plan, key) : null;
     return {
       state: "question",
       alert: true,
       title: r.question.sentence,
-      parts: ["Nothing is spent while this waits. Answer and it carries on."],
+      parts: C.LEAD_QUESTION_WAIT_LINE ? [C.LEAD_QUESTION_WAIT_LINE] : [],
       progress,
       actions: [
         { id: "keep", label: "Yes, keep going", primary: true },
-        { id: "include", label: out ? `Include ${out}` : "Include what I left out", arg: r.question.criterion_key },
+        ...(lifted ? [{ id: "include", label: `Include ${lifted}`, arg: key }] : []),
+        { id: "change", label: "Change what I asked" },
         { id: "stop_here", label: "Stop here" },
       ],
     };
