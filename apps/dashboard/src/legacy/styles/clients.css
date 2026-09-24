@@ -2403,9 +2403,12 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .clients:not(.leads-scope) .cl-section { padding: 0 16px 10px; }
   .clients:not(.leads-scope) .cl-list-action { margin: 0; }
 }
-/* The line's one tap keeps a thumb's 44px without making the line 44px tall. */
+/* The line's one tap keeps a thumb's 44px without making the line 44px tall, and its ground stays on its words: the
+   button keeps a 24px look and the thumb's 10px above and below is an invisible margin, as a chip's is (legacy.css).
+   A 44px box pulled in by -10px margins painted its "on" ground over the wrapped line above and below it (24 Sep). */
 @media (max-width: 900px) and (pointer: coarse) {
-  html.legacy-on .pl-standing-needs { margin-top: -10px; margin-bottom: -10px; }
+  html.legacy-on .pl-standing-needs { position: relative; min-height: 24px; }
+  html.legacy-on .pl-standing-needs::after { content: ""; position: absolute; inset: -10px 0; }
 }
 
 /* People's own sheets on a phone (PhoneSheet): Add a person, and the open list's rename, delete and "Save these". From
