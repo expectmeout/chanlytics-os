@@ -3,7 +3,8 @@
 // page with the three standing in it beside the field, and while Ask reads, one line under the field saying what it
 // reads (docs/superpowers/specs/2026-09-23-ask-the-stage-design.md, 4.1, 4.2); under the band the rows (home, typing,
 // Earlier), the question while Ask reads, or the answer, Say · Show · Do (ask-turn.jsx); a conversation folds above it.
-// Reopening resumes the conversation until Clear. On a phone the Line is the whole screen (the Stage's spec, section 5):
+// Reopening resumes the conversation and the words typed until Clear; the tab keeps both across a reload (S9).
+// On a phone the Line is the whole screen (the Stage's spec, section 5):
 // a head, the three large in a hero that a held press talks to, the rows or the answer under them, the field at the
 // foot; ×, Esc, a pull down and Back close it.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
@@ -206,10 +207,49 @@ const AskReal = ({ open, onClose }) => {
     };
   }, [open]);
 
-  // Closed: nothing typed survives and nothing keeps reading; an open conversation comes back until Clear (D14).
+  // Closed: nothing keeps reading and the rows are home again; the words typed and an open conversation come back
+  // until Clear (D14, S9).
   useArEffect(() => {
-    if (!open) { setQuery(""); setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
+    if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
   }, [open]);
+
+  // The draft and the conversation's id, kept in the tab (legacy-bridge/tab-memory.ts) so a reload keeps them too (S9):
+  // the words a beat after the last key, forgotten the moment they go (sent, cleared), so a close right after a send
+  // never keeps words already asked; the id whenever a thread is opened or made, forgotten when the conversation ends
+  // (Clear, or deleted), never by the Line being made.
+  const mem = () => (typeof window !== "undefined" && window.__tabMemory) || null;
+  const wordsWere = useArRef("");
+  const threadWas = useArRef(null);
+  // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
+  // opening a thread empties the field; a request the shell sent as it opened (asked) wins over a kept conversation.
+  useArEffect(() => {
+    const m = mem();
+    if (!open || !A || !m) return;
+    const kept = m.draft("ask");
+    const words = typeof kept === "string" && kept && !query ? kept : null;
+    const th = m.draft("ask-thread");
+    if (typeof th === "string" && th && !active && !asked.current)
+      openThread({ id: th }).then((o) => { if (!o) m.dropDraft("ask-thread"); if (words) setQuery(words); });
+    else if (words) setQuery(words);
+  }, [open]);
+  useArEffect(() => {
+    const m = mem();
+    const had = wordsWere.current;
+    wordsWere.current = query;
+    if (!open || !m) return;
+    if (!query.trim()) { if (had.trim()) m.dropDraft("ask"); return; }
+    const id = setTimeout(() => m.keepDraft("ask", query), 300);
+    return () => clearTimeout(id);
+  }, [query, open]);
+  useArEffect(() => {
+    const m = mem();
+    const id = active ? active.id : null;
+    const had = threadWas.current;
+    threadWas.current = id;
+    if (!m) return;
+    if (id) m.keepDraft("ask-thread", id);
+    else if (!active && had) m.dropDraft("ask-thread");
+  }, [active && active.id]);
 
   // The field takes focus on a desktop; a phone's takeover opens with focus on the dialog, so no keyboard rises until a
   // tap on the field asks for it (S10).

@@ -1286,6 +1286,68 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
   }
 });
 
+/* ------------------------------ what the tab keeps ------------------------------ */
+
+test("what was typed comes back on the next open; the open conversation's id is kept and opened again (spec S9)", async () => {
+  const drafts = new Map();
+  globalThis.window.__tabMemory = {
+    draft: (k) => (drafts.has(k) ? drafts.get(k) : null),
+    keepDraft: (k, v) => drafts.set(k, v),
+    dropDraft: (k) => drafts.delete(k),
+    place: () => null,
+    keepPlace() {},
+  };
+  try {
+    const calls = ask([TH(1), TH(2)]);
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(1).id, title: input.text });
+      on({ t: "final", message: said("m-1", "Answer 1.") });
+    };
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "how did the");
+    tree = await later(Palette, OPEN);
+    await new Promise((r) => setTimeout(r, 350));
+    assert.equal(drafts.get("ask"), "how did the", "kept as typed");
+    await closes();
+    tree = await opens();
+    assert.equal(inputOf(tree).props.value, "how did the", "back on the next open");
+    keyed(tree, "Enter");
+    for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+    assert.deepEqual(calls.sent, ["how did the"]);
+    assert.equal(drafts.has("ask"), false, "gone once sent, not a beat later");
+    assert.equal(drafts.get("ask-thread"), TH(1).id, "the conversation's id is kept");
+    press(byTestId(tree, "ask-clear"));
+    tree = await later(Palette, OPEN);
+    assert.equal(drafts.has("ask-thread"), false, "and forgotten at Clear");
+    // A reload: the Line is made again, closed, over a tab that kept a conversation's id and words half-typed in it.
+    // Being made forgets neither; the first open reads the conversation and puts the words back in the field. (Closed
+    // first, so the window's listeners go with the old Line, as they do with a page.)
+    await closes();
+    drafts.set("ask-thread", TH(1).id);
+    drafts.set("ask", "and the week before");
+    render(Palette, CLOSED);
+    assert.equal(drafts.get("ask-thread"), TH(1).id, "a Line made closed forgets nothing");
+    tree = await opens();
+    assert.deepEqual(calls.opened, [TH(1).id], "opened again after a reload");
+    assert.equal(inputOf(tree).props.value, "and the week before", "with the words typed in it");
+    assert.equal(drafts.get("ask"), "and the week before", "which stay kept");
+    await closes();
+    // A reload whose first open is a request (Today's band handing its conversation over): the request wins, and the
+    // kept conversation is not read as well.
+    drafts.set("ask-thread", TH(1).id);
+    render(Palette, CLOSED);
+    sent("ask:seed", { thread: TH(2).id });
+    tree = await opens();
+    assert.deepEqual(calls.opened, [TH(1).id, TH(2).id], "only the conversation asked for is read");
+    assert.equal(drafts.get("ask-thread"), TH(2).id, "and it is the one kept");
+    await closes();
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+});
+
 /* ------------------------------ N5 ------------------------------ */
 
 test("REGRESSION (N5): a conversation is deleted only when asked twice, from its × or the Delete key -- a hover × deleted it at once and no key reached it", async () => {
