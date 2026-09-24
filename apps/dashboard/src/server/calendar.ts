@@ -44,6 +44,8 @@ import {
   visitsIn,
   needsConsultation,
   ownAddressesOf,
+  peopleVisitsOf,
+  personLikeOf,
   type OwnAddresses,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
@@ -190,21 +192,8 @@ export function spanFor(from: string | null, days: number, tz: string, now: Date
 }
 
 /** People as the matcher wants them: a human-given name (never a phone made words), the E.164, the address (00125), and the thread a link is texted into when they have one. */
-export function personLike(
-  p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> &
-    Partial<Pick<PersonRowDto, "email" | "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>,
-): PersonLike {
-  return {
-    id: p.id,
-    name: p.display_name || p.wa_profile_name || "",
-    phone: p.phone_e164,
-    // Optional on the Pick the way personName takes it: a row read before
-    // 00125 carries no address, and no address is no match, never a crash.
-    email: p.email ?? null,
-    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
-    waInboundAt: p.latest_wa_inbound_at ?? null,
-  };
-}
+/** A People row as the calendar matches it: contracts' one rule (audience-pool.ts personLikeOf). */
+export const personLike = personLikeOf;
 
 /**
  * The feed's items by day, as the board draws them: who each is for, what it carried, and whether it is a consultation
@@ -627,13 +616,10 @@ export async function peopleVisits(
   }
   if (!feed.parsed)
     return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
-  const index = indexFeed(feed.parsed.items, own);
-  const nowMs = now.getTime();
-  for (const r of rows) {
-    const v = visitsIn(index, personLike(r), nowMs);
-    visits.set(r.id, { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
-  }
-  return { calendar: { state: "ok", source, timezone }, visits, bookingLink, services, rules };
+  // Everyone's visits, each marked a consultation or not, by the pool's one rule (contracts peopleVisitsOf): what the
+  // edge's playbook runner reads too.
+  const marked = peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime());
+  return { calendar: { state: "ok", source, timezone }, visits: marked, bookingLink, services, rules };
 }
 
 /** The rows with their appointments attached, the way the People list and the assistant read them. */
@@ -663,11 +649,8 @@ export async function withVisits(
       booking_link: null,
       consult_first: false,
     };
-  // Each visit says whether it is a consultation (0004): its title says so, or names a consult-first service.
-  const mark = (v: VisitDto | null): VisitDto | null =>
-    v ? { ...v, consultation: isConsultationTitle(v.title, pv.services, pv.rules) } : null;
-  const marked = (x: PersonVisitsDto | undefined): PersonVisitsDto | null =>
-    x ? { ...x, next: mark(x.next), last: mark(x.last) } : null;
+  // Each visit already says whether it is a consultation (0004): peopleVisits marked it (contracts peopleVisitsOf).
+  const marked = (x: PersonVisitsDto | undefined): PersonVisitsDto | null => x ?? null;
   return {
     people: rows.map((r) => ({
       ...r,

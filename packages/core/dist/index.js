@@ -10219,8 +10219,9 @@ async function createBroadcast(ports, cmd) {
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
-  if (kind === "list" && (!audienceId || !PEOPLE_LISTS2.some((l) => l.id === audienceId)))
+  if (kind === "list" && (!audienceId || !BUILTIN_LISTS2.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
+  const ref = kind === "list" ? { kind: "builtin", id: audienceId } : kind === "saved" ? { kind: "saved", id: audienceId } : null;
   const { template: tpl, specs } = await templateValues(ports, {
     templateId,
     params: body?.params,
@@ -10239,22 +10240,23 @@ async function createBroadcast(ports, cmd) {
   if (!health) throw new AppError("conflict", "Connect a WhatsApp number first \u2014 a broadcast goes out on one.", 409);
   if (!health.canSend) throw new AppError("conflict", health.refusal, 409);
   const rows = await ports.people(now);
-  let savedIds = null;
+  let members = null;
   let label = EVERYONE_LABEL;
-  if (kind === "saved") {
-    const seg = await ports.savedList(audienceId);
-    if (!seg) throw new AppError("not_found", "List not found.", 404);
-    savedIds = new Set(seg.memberIds);
-    label = seg.name;
-  } else if (kind === "list") {
-    label = PEOPLE_LISTS2.find((l) => l.id === audienceId).label;
+  if (ref) {
+    const found = await ports.list(ref, now);
+    if (!found) throw new AppError("not_found", "List not found.", 404);
+    if ("unknown" in found)
+      throw new AppError("conflict", `${found.label} can't be counted right now. ${found.unknown}`, 409);
+    members = new Set(found.memberIds);
+    label = found.label;
   }
+  const pool = members ? rows.filter((r4) => members.has(r4.id)) : rows;
   const purpose = purposeOfTemplate(tpl.category);
-  const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
+  const eligible = eligibleFor(pool, "everyone", null, null, purpose);
   if (eligible.length === 0)
     throw new AppError(
       "conflict",
-      emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind, audienceId, savedIds)),
+      emptyAudienceRefusal(purpose, label, pool),
       409
     );
   if (eligible.length > BROADCAST_MAX_RECIPIENTS)

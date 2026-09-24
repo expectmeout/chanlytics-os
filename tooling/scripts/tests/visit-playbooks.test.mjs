@@ -293,8 +293,9 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const runner = readCode("apps/edge/lib/playbooks.ts");
   for (const s of [
     /feedItemsFor\(tenantId, url, tz, now, daysAhead\)/,
-    /visits\.set\(r\.id, \{\s*timezone: tz,\s*source: "calendar",\s*state: "ok",\s*next: toVisitDto\(v\.next\),\s*last: toVisitDto\(v\.last\),?\s*\}\)/,
-    /toPersonRowVM\(\{ \.\.\.r, visits: visits\.get\(r\.id\) \?\? null \}, tz, now\)/,
+    // The pool's one reading (contracts audience-pool.ts): the visits, marked, and the rows over them.
+    /visits = peopleVisitsOf\(\s*items,\s*rows,/,
+    /poolRowsOf\(\s*rows\.map\(\(r\) => \(\{ \.\.\.r, visits: visits\.get\(r\.id\)/,
   ])
     assert.ok(s.test(runner), String(s));
   const handler = readCode("packages/jobs/src/handlers.ts");

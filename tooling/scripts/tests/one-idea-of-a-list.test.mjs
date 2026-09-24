@@ -413,3 +413,47 @@ test("a version 1 rule means what it meant: its fields read the same, and offers
   for (const v of ROWS) assert.equal(listRuleMatches(v2, v), v.saidYes.offers && v.calls >= 1, `${v.id}`);
   assert.deepEqual(asListRule(v2), v2, "a version 2 rule reads as itself");
 });
+
+/* ------------------------------------------------------------------ one pool (phase 2) */
+
+test("one pool: the edge and the dashboard read everyone the same way -- visits marked as consultations, a viewer, no deal where deals are off", () => {
+  const { peopleVisitsOf, poolRowsOf, poolListContext, ownAddressesOf } = contracts;
+  const at = (days) => NOW + days * D;
+  const item = (title, startMs, phone) => ({
+    start: startMs,
+    end: startMs + H,
+    title,
+    allDay: false,
+    uid: `${title}-${startMs}`,
+    description: `Phone ${phone}`,
+    location: null,
+    attendees: [],
+    organizer: null,
+  });
+  const people = [
+    { ...DTOS[0], id: "c1", phone_e164: "+13055550101", display_name: null, email: null },
+    { ...DTOS[1], id: "c2", phone_e164: "+13055550102", display_name: null, email: null },
+  ];
+  const items = [item("Consultation", at(2), "+13055550101"), item("Cut", at(-10), "+13055550102")];
+  const cal = { timezone: TZ, source: "calendar", own: ownAddressesOf(null), services: [], rules: null };
+  const visits = peopleVisitsOf(items, people, cal, NOW);
+  assert.equal(visits.get("c1").next.consultation, true, "a consultation says so, on the edge as on the page");
+  assert.equal(visits.get("c2").last.consultation, false);
+  assert.equal(visits.get("c2").next, null);
+  // The rows: for a viewer, and without deals where they are off.
+  const withVisits = people.map((p) => ({ ...p, deal_stage: "lost", deal_id: "d", visits: visits.get(p.id) }));
+  const [off] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: null, dealsOn: false });
+  assert.deepEqual([off.deal, off.dealStage], [null, null]);
+  const [on] = poolRowsOf(withVisits, { tz: TZ, now: new Date(NOW), viewer: ME, dealsOn: true });
+  assert.equal(
+    on.dealStage,
+    "consultation",
+    "a consultation ahead of someone who passed begins something new, the Pipeline's rule",
+  );
+  assert.deepEqual(poolListContext({ calendar: "ok", dealsOn: true, rules: { consult_first: ["X"] }, viewer: null }), {
+    calendar: "ok",
+    dealsOn: true,
+    consultFirst: true,
+    viewer: false,
+  });
+});

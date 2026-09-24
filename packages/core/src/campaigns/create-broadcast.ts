@@ -5,9 +5,8 @@ import {
   BROADCAST_MAX_RECIPIENTS,
   BROADCAST_NAME_MAX,
   BROADCAST_SCHEDULE_MAX_DAYS,
+  BUILTIN_LISTS,
   EVERYONE_LABEL,
-  PEOPLE_LISTS,
-  audienceMembers,
   broadcastName,
   eligibleFor,
   emptyAudienceRefusal,
@@ -16,6 +15,7 @@ import {
   purposeOfTemplate,
   type Audience,
   type AudienceKind,
+  type ListRef,
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
@@ -69,9 +69,13 @@ export async function createBroadcast(
     throw new AppError("validation", "Pick who this goes to.");
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
+  // A list is a reference (contracts lists.ts): a built-in by its id, a saved list by its. The wire keeps its
+  // kind and id, which is the same reference by another spelling.
   if (kind === "saved" && (!audienceId || !UUID.test(audienceId))) throw new AppError("validation", "Pick a list.");
-  if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId)))
+  if (kind === "list" && (!audienceId || !BUILTIN_LISTS.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
+  const ref: ListRef | null =
+    kind === "list" ? { kind: "builtin", id: audienceId! } : kind === "saved" ? { kind: "saved", id: audienceId! } : null;
 
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
   const { template: tpl, specs } = await templateValues(ports, {
@@ -104,27 +108,31 @@ export async function createBroadcast(
   // calendar list (Lapsed, Asked never booked) enrols exactly the people the
   // page counted.
   const rows = await ports.people(now);
-  let savedIds: Set<string> | null = null;
+  // Who is on the list, counted the one way; a list that can't be counted here is refused in its own words, never sent
+  // to nobody.
+  let members: Set<string> | null = null;
   let label = EVERYONE_LABEL;
-  if (kind === "saved") {
-    const seg = await ports.savedList(audienceId!);
-    if (!seg) throw new AppError("not_found", "List not found.", 404);
-    savedIds = new Set(seg.memberIds);
-    label = seg.name;
-  } else if (kind === "list") {
-    label = PEOPLE_LISTS.find((l) => l.id === audienceId)!.label;
+  if (ref) {
+    const found = await ports.list(ref, now);
+    if (!found) throw new AppError("not_found", "List not found.", 404);
+    if ("unknown" in found)
+      throw new AppError("conflict", `${found.label} can't be counted right now. ${found.unknown}`, 409);
+    members = new Set(found.memberIds);
+    label = found.label;
   }
+  // Everyone, or the list's people: one path for a built-in and a saved list alike.
+  const pool = members ? rows.filter((r) => members!.has(r.id)) : rows;
   // WHICH yes this send needs, from the template's category: the send job
   // derives the same purpose from the same column, so the audience enrolled
   // here is the audience the wire will accept.
   const purpose = purposeOfTemplate(tpl.category);
-  const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);
+  const eligible = eligibleFor(pool, "everyone", null, null, purpose);
   // Nobody to send to says which of its two causes it is: nobody on it said this yes, or the ones who did have no
   // number. So the refusal is handed everyone on the audience, before anyone is left out.
   if (eligible.length === 0)
     throw new AppError(
       "conflict",
-      emptyAudienceRefusal(purpose, label, audienceMembers(rows, kind as AudienceKind, audienceId, savedIds)),
+      emptyAudienceRefusal(purpose, label, pool),
       409,
     );
   if (eligible.length > BROADCAST_MAX_RECIPIENTS)

@@ -8352,9 +8352,9 @@ function listUnknownWords(reason, calendar) {
     case "calendar":
       return calendar === "none" ? "This list reads your calendar. Connect it under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list reads consultations, and your profile lists no service that starts with one.";
+      return "This list exists only where the profile lists a consult-first service under Settings \u203A Business.";
     case "deals":
-      return "This list reads deals, which are off here.";
+      return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
@@ -17554,6 +17554,51 @@ function stepSheetMerge(draft, opened, fresh) {
   };
 }
 
+// src/audience-pool.ts
+function personLikeOf(p) {
+  return {
+    id: p.id,
+    name: p.display_name || p.wa_profile_name || "",
+    phone: p.phone_e164,
+    // Optional on the Pick the way personName takes it: a row read before 00125 carries no address, and no address is
+    // no match, never a crash.
+    email: p.email ?? null,
+    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
+    waInboundAt: p.latest_wa_inbound_at ?? null
+  };
+}
+function peopleVisitsOf(items, people, cal, nowMs) {
+  const index = indexFeed([...items], cal.own);
+  const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
+  const out = /* @__PURE__ */ new Map();
+  for (const p of people) {
+    const v = visitsIn(index, personLikeOf(p), nowMs);
+    out.set(p.id, {
+      timezone: cal.timezone,
+      source: cal.source,
+      state: "ok",
+      next: mark(toVisitDto(v.next)),
+      last: mark(toVisitDto(v.last))
+    });
+  }
+  return out;
+}
+function poolRowOf(person, o) {
+  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer);
+  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+}
+function poolRowsOf(people, o) {
+  return people.map((p) => poolRowOf(p, o));
+}
+function poolListContext(o) {
+  return {
+    calendar: o.calendar,
+    dealsOn: o.dealsOn,
+    consultFirst: (o.rules?.consult_first ?? []).length > 0,
+    viewer: o.viewer !== null
+  };
+}
+
 // src/refusal.ts
 var NEEDS_TITLE = {
   owner: "Owner only",
@@ -21675,9 +21720,11 @@ export {
   peopleAggregates,
   peopleFromItems,
   peopleListAction,
+  peopleVisitsOf,
   personActs,
   personInText,
   personInitials,
+  personLikeOf,
   personName,
   personNotesVM,
   personStanding,
@@ -21733,6 +21780,9 @@ export {
   policyClassOffered,
   policyLinks,
   policyRules,
+  poolListContext,
+  poolRowOf,
+  poolRowsOf,
   poolWords,
   previewHorizon,
   priceNextStep,

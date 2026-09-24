@@ -36,15 +36,14 @@ import {
   dealPaceOf,
   dealsAreOn,
   isSellsBy,
-  indexFeed,
   ownAddressesOf,
   numberHealth,
   parseTenantConfig,
+  peopleVisitsOf,
+  poolListContext,
+  poolRowsOf,
   savedListIds,
   savedListLookup,
-  toPersonRowVM,
-  toVisitDto,
-  visitsIn,
   type PersonRowDto,
   type PersonVisitsDto,
 } from "./packages/contracts.js";
@@ -161,35 +160,39 @@ export async function loadTenantRunContext(
   // months out had its visit playbooks reading a fortnight of calendar.
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
   let calendar: TenantRunContext["calendar"] = "none";
-  const visits = new Map<string, PersonVisitsDto>();
+  let visits = new Map<string, PersonVisitsDto>();
+  const profile = cfgParsed?.brain?.profile;
   if (url) {
     const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
     if (items) {
       calendar = "ok";
-      // The business's own addresses are never a customer's (contracts
-      // ownAddressesOf). Without them a visit playbook could thank the owner,
-      // as a customer, for a meeting on their own calendar.
-      const index = indexFeed(items, ownAddressesOf(cfgParsed));
-      for (const r of rows) {
-        const v = visitsIn(
-          index,
-          { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null },
-          now.getTime(),
-        );
-        visits.set(r.id, {
+      // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses
+      // are never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer,
+      // for a meeting on their own calendar -- and each visit says whether it is a consultation (0004).
+      visits = peopleVisitsOf(
+        items,
+        rows,
+        {
           timezone: tz,
           source: "calendar",
-          state: "ok",
-          next: toVisitDto(v.next),
-          last: toVisitDto(v.last),
-        });
-      }
+          own: ownAddressesOf(cfgParsed),
+          services: profile?.services ?? [],
+          rules: profile?.booking_rules ?? null,
+        },
+        now.getTime(),
+      );
     } else {
       calendar = "unavailable";
     }
   }
-  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now));
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
+  // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and a calendar
+  // that could not be read said on every row, as the page says it.
+  const unread: PersonVisitsDto = { timezone: tz, source: "calendar", state: "unavailable", next: null, last: null };
+  const vms = poolRowsOf(
+    rows.map((r) => ({ ...r, visits: visits.get(r.id) ?? (calendar === "unavailable" ? unread : null) })),
+    { tz, now, viewer: null, dealsOn },
+  );
   return {
     db,
     tenantId,
@@ -206,12 +209,7 @@ export async function loadTenantRunContext(
         savedListIds(
           l,
           vms,
-          {
-            calendar,
-            dealsOn,
-            consultFirst: (cfgParsed?.brain?.profile?.booking_rules?.consult_first ?? []).length > 0,
-            viewer: false,
-          },
+          poolListContext({ calendar, dealsOn, rules: profile?.booking_rules, viewer: null }),
           savedListLookup(kept.data ?? []),
         ),
       ]),

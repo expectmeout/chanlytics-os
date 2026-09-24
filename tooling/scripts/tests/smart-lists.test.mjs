@@ -635,9 +635,15 @@ test("a send to a smart list enrols who its rule holds for, over the same pool i
     {},
     { people_list: () => [person("1", ["sms"]), person("2", ["whatsapp"]), person("3", ["sms", "voice"])] },
   );
-  const seg = await createBroadcastPorts({ supabase: db, userId: USER }, A).savedList(S2);
-  assert.equal(seg.name, "Texters");
+  const ports = createBroadcastPorts({ supabase: db, userId: USER }, A);
+  const seg = await ports.list({ kind: "saved", id: S2 }, new Date("2026-09-20T15:00:00Z"));
+  assert.equal(seg.label, "Texters");
   assert.deepEqual(seg.memberIds.sort(), ["1", "3"]);
+  // A People list the same way, by its reference: one path for both kinds (decision 0009).
+  const phoned = await ports.list({ kind: "builtin", id: "phoned_only" }, new Date("2026-09-20T15:00:00Z"));
+  assert.equal(phoned.label, "Phoned only");
+  assert.deepEqual(phoned.memberIds, []);
+  assert.equal(await ports.list({ kind: "builtin", id: "no_such_list" }, new Date()), null);
 });
 
 /* ------------------------------------------- the edge ------------------------------------------- */

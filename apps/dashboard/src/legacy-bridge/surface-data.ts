@@ -201,7 +201,6 @@ import {
   type EscalationDto,
   type CallDto,
   type TodayVM,
-  toPersonRowVM,
   dealPaceOf,
   followUpStandOf,
   type FollowUpFactsDto,
@@ -215,6 +214,8 @@ import {
   parseListToken,
   savedListIds,
   savedListLookup,
+  poolRowOf,
+  poolRowsOf,
   type ListContext,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
@@ -842,8 +843,7 @@ let peopleLoaded: {
  * the row's second line, the thread's chip and send, or Today's proposals waiting, which all read it from here.
  */
 function personRowOf(r: PersonRowDto, tz: string, now: Date, dealsOn: boolean): PersonRowVM {
-  const vm = toPersonRowVM(r, tz, now, viewerId());
-  return dealsOn ? vm : { ...vm, deal: null, dealStage: null };
+  return poolRowOf(r, { tz, now, viewer: viewerId(), dealsOn });
 }
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
@@ -1222,7 +1222,8 @@ export const broadcastsOverride: SurfaceOverride = {
     // Every page of people, not the first: the send enrols everyone, so an
     // audience counted over one page promised fewer people than the send reaches.
     const { people: everyone } = await everyPerson(people);
-    const rows = everyone.map((r) => toPersonRowVM(r, tz, now, viewerId()));
+    // The pool's one reading (contracts audience-pool.ts), as the send reads it.
+    const rows = poolRowsOf(everyone, { tz, now, viewer: viewerId(), dealsOn: !!people.deals_on });
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     // Who a run reached within the week, for the note on how many of an audience heard from one.
