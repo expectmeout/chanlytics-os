@@ -259,7 +259,7 @@ const AskReal = ({ open, onClose }) => {
     if (inputRef.current) inputRef.current.focus();
   }, [talk.listening]);
 
-  // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (Today's band). The
+  // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useArEffect(() => {
     const onSeed = (e) => { asked.current = (e && e.detail) || {}; setTick((n) => n + 1); };
@@ -636,9 +636,9 @@ const AskReal = ({ open, onClose }) => {
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
 
-  // A phone's hero (spec 5.2-5.5): the three at Today's size, what they hear while held, the question and what Ask reads
-  // until the first words; once an answer is written they shrink to the top with its question under them, said once
-  // (ask.css hides the turn's own copy on a phone).
+  // A phone's hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the
+  // question and what Ask reads until the first words; once an answer is written they shrink to the top with its
+  // question under them, said once (ask.css hides the turn's own copy on a phone).
   const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
   const heroQ = !heroSmall ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
   const restful = talk.listening || (showRows && view === "rows" && !query);

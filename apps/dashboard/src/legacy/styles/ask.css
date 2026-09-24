@@ -180,8 +180,6 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-do { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ask-do-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ask-do-row .btn.sel { background: var(--bg-hover); border-color: var(--line-strong); }
-/* A compact answer sets its tiles two to a row. */
-.ask-answer.compact .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ---- Cards: a proposal the person approves (no coloured edge: coral is only for Ask at work) ---- */
 .ask-card { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }

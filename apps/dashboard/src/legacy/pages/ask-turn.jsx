@@ -4,7 +4,7 @@
 // tile with its receipt inside; the rows it names as their own doors; the next step once; and the cards, which
 // approve, edit, wait or undo through the verbs' own routes. What an answer shows is decided by the contract
 // (window.__ask.answer: the answer and one door per place); this file only draws. Published as window.AskAnswerKit,
-// and AskTurn, AskAnswer and AskCard on window.
+// and AskTurn and AskCard on window.
 
 const useAtState = React.useState;
 
@@ -194,7 +194,7 @@ const AskBreakdown = ({ b, t, onNav }) => {
 // names), Do (the cards, then one row: Try again, Open as the kit's button, the next questions as chips). `walk`: this
 // is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
 // they stand on; a folded answer has none.
-const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome, compact = false }) => {
+const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, t, onNav, onFollow, onOutcome }) => {
   const [receipt, setReceipt] = useAtState(-1);
   const a = answer;
   const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
@@ -223,7 +223,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const moveProps = (me, cls) =>
     walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
   return (
-    <div className={`ask-answer${compact ? " compact" : ""}`} data-testid="ask-answer">
+    <div className="ask-answer" data-testid="ask-answer">
       <div className="ask-part say" data-testid="ask-say">
         <span className="ask-mark m1" aria-hidden="true" data-testid="ask-mark" />
         <div className="ask-say">
@@ -293,7 +293,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
 // the detail, as the answer draws them) or a v1 turn's words, with a cursor after the last; Show and Do wait for the
 // final message (spec 7.4), and the Line says the answer once it is whole, not every piece (spec 6.10). A failed turn
 // says why and, on the latest only, offers Try again (N20). A quick answer (no model) is drawn the same way, from `quick`.
-const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome, compact = false }) => {
+const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = false, sel = -1, t, lang, onFollow, onNav, onRetry, onOutcome }) => {
   const A = window.__ask;
   if (streaming) {
     const cursor = <span className="ask-cursor" />;
@@ -335,7 +335,6 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
         onNav={onNav}
         onFollow={onFollow}
         onOutcome={onOutcome}
-        compact={compact}
       />
       {m && m.ungrounded ? <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div> : null}
     </div>
@@ -343,4 +342,4 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
 };
 
 window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, answerMoves };
-Object.assign(window, { AskTurn, AskAnswer, AskCard });
+Object.assign(window, { AskTurn, AskCard });

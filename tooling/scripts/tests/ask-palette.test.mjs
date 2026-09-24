@@ -1333,8 +1333,8 @@ test("what was typed comes back on the next open; the open conversation's id is 
     assert.equal(inputOf(tree).props.value, "and the week before", "with the words typed in it");
     assert.equal(drafts.get("ask"), "and the week before", "which stay kept");
     await closes();
-    // A reload whose first open is a request (Today's band handing its conversation over): the request wins, and the
-    // kept conversation is not read as well.
+    // A reload whose first open is a request (a caller handing a conversation over with askAbout({ thread })): the
+    // request wins, and the kept conversation is not read as well.
     drafts.set("ask-thread", TH(1).id);
     render(Palette, CLOSED);
     sent("ask:seed", { thread: TH(2).id });

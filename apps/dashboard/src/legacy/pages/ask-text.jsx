@@ -1,6 +1,6 @@
 /* global React */
-// Ask's words, in the person's language. One table, read by every part of the
-// Line and by Today's band through window.askText(lang). Nothing else in them
+// Ask's words, in the person's language. One table, read by every part of Ask
+// through window.askText(lang). Nothing else in them
 // carries a user-facing string, but the answers' own sentences, which are
 // contracts' (ask-answer.ts). No key symbol is drawn (the Line, D17).
 
