@@ -576,7 +576,6 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         row={{
           value: languages.length ? languages.join(", ") : null,
           empty: "Not set",
-          hint: languages.length ? "It answers in whichever of these a customer uses." : null,
           name: languages.length ? "Change the languages it speaks" : "Add one: a language it speaks",
         }}
         body={(f) => <BtaLanguages {...f} />}
@@ -606,12 +605,9 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
         hint="When it hands a conversation to you, on WhatsApp and on a call."
         gate={gate("how it hands you a customer")}
         row={{
-          value: handoff ? (
-            <span className="bt-handoff" data-testid="rec-handoff-lines">
-              <span className="bt-handoff-line" data-testid="rec-handoff-chat"><span className="bt-channel">WhatsApp</span> <span className="bt-handoff-words">{handoff.chat}</span></span>
-              <span className="bt-handoff-line" data-testid="rec-handoff-phone"><span className="bt-channel">Phone</span> <span className="bt-handoff-words">{handoff.phone}</span></span>
-            </span>
-          ) : null,
+          // One line, contracts' (handoffWords.line): the reasons counted and what a call does. The reasons themselves
+          // are the fold's.
+          value: handoff ? <span className="bt-handoff" data-testid="rec-handoff-line">{handoff.line}</span> : null,
           empty: "Not set",
           name: "Change how it hands you a customer",
         }}

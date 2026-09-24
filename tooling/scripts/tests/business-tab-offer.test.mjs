@@ -7,7 +7,6 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   standingLine,
-  servicesWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
   roleGate,
@@ -108,21 +107,18 @@ const typeHeard = (tree, name, text) => heardBox(tree, name).props.onChange({ ta
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
-test("the services row counts them and says how they are priced", () => {
+test("the services row counts them and names the first three, and says nothing of how they are priced", () => {
   const row = byTestId(drawTab({ profile: many }), "rec-row-services");
-  assert.match(textOf(row), /33 on record/);
-  assert.equal(all(row, (n) => classes(n).includes("rec-chip")).length, 5, "four services and a +29 more");
-  assert.match(textOf(row), /quoted at consult/i);
-  // Every word of it is contracts'.
-  const vm = servicesWords(many.services);
-  assert.equal(textOf(byTestId(row, "rec-services-priced")), vm.priced);
-  assert.equal(vm.priced, "Every one quoted at consult — none names a price.", "the canvas's sentence");
+  assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-value"))), "33", "the count alone");
+  assert.equal(all(row, (n) => classes(n).includes("rec-chip")).length, 4, "three services and a +30");
+  // "None names a price." stood under the names of nearly every record (24 Sep): a price is the sheet's to write.
+  assert.equal(byTestId(row, "rec-services-priced"), null);
+  assert.doesNotMatch(textOf(row), /names a price|quoted at consult|on record/i);
   assert.deepEqual(all(row, (n) => classes(n).includes("rec-chip")).map(textOf), [
     "Service 130 min",
     "Service 231 min",
     "Service 332 min",
-    "Service 433 min",
-    "+29 more",
+    "+30",
   ]);
 });
 
@@ -231,24 +227,7 @@ test("What you offer draws four rows under its title, and the booking rules in o
   assert.equal(textOf(byTestId(bare, "rec-row-act-booking_rules")).trim(), "Change");
 });
 
-test("how the services are priced is one sentence, whatever the list holds", () => {
-  const priced = (services) => textOf(byTestId(drawTab({ profile: { ...melany, services } }), "rec-services-priced"));
-  assert.equal(priced(many.services), "Every one quoted at consult — none names a price.");
-  assert.equal(
-    priced([
-      { name: "Balayage", duration_min: 180, price_note: "from $120" },
-      { name: "Cut", price_note: "quoted at consult" },
-    ]),
-    "1 names a price.",
-  );
-  assert.equal(
-    priced([
-      { name: "Balayage", duration_min: 180 },
-      { name: "Cut", price_note: "varies" },
-    ]),
-    "None names a price.",
-  );
-  // A chip names a service alone where it has no duration.
+test("a chip names a service alone where it has no duration", () => {
   const chips = all(
     byTestId(drawTab({ profile: { ...melany, services: [{ name: "Cut" }] } }), "rec-row-services"),
     (n) => classes(n).includes("rec-chip"),
@@ -312,7 +291,7 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
       [],
       "no row offers a change",
     );
-    assert.match(textOf(card), /33 on record/);
+    assert.equal(textOf(find(byTestId(card, "rec-row-services"), (n) => classes(n).includes("rec-row-value"))), "33");
     assert.match(textOf(card), /Color correction, Extensions/, "and everything is there to read");
     assert.match(textOf(card), /Some get a proposal first/, "how customers buy too");
     // The page says why once, and this card does not say it again.
@@ -484,8 +463,9 @@ test("an answer saved goes through the workspace's courier as { sells_by } alone
     assert.deepEqual(told(flashes.at(-1)), ["ok", sellsBySaved("booking", "proposal")]);
     assert.equal(told(flashes.at(-1))[1], "Saved — deals are on.");
     assert.equal(stated(buysRow(tree)), "Some get a proposal first", "the row states what the courier kept");
-    // Deals are on now: consult-first says what a consultation for those services starts.
-    assert.equal(consultHint(tree), CONSULT_FIRST_DEAL_HINT);
+    // Deals are on now, and the row holds a list: it states the list and stops. What a consultation starts is an
+    // empty row's sentence (below).
+    assert.equal(consultHint(tree), null);
 
     // And back again: deals off, and the toast says those on file are kept.
     openFold(tree, "sells_by");
@@ -588,18 +568,26 @@ test("only an owner is offered the answer's act: an operator reads it, and nothi
   }
 });
 
-test("Needs a consult first says a consultation for those services starts a deal, only where deals are on", () => {
-  assert.equal(consultHint(drawTab({ sellsBy: "proposal" })), "A consultation for these is the first step of a deal.");
-  assert.equal(consultHint(drawTab({ sellsBy: "proposal" })), sellsByVM("proposal").consultHint);
+test("Needs a consult first says a consultation starts a deal while it is empty, and only where deals are on", () => {
+  // A row that holds a list states the list and stops (24 Sep): "A consultation for these is the first step of a deal."
+  // stood under every filled list where deals are on.
+  assert.equal(consultHint(drawTab({ sellsBy: "proposal" })), null, "filled: the list, and nothing under it");
+  assert.match(
+    textOf(byTestId(drawTab({ sellsBy: "proposal" }), "rec-row-consult_first")),
+    /Color correction, Extensions/,
+  );
   assert.equal(consultHint(drawTab({ sellsBy: "booking" })), null);
   assert.equal(consultHint(drawTab()), null, "never asked: deals are off");
-  // With nothing that needs one, the row still says what one would start: the hint is the answer's, not the list's.
-  const none = drawTab({
-    sellsBy: "proposal",
+  // With nothing that needs one, the row says what one would start: the hint is the answer's, and an empty row's.
+  const bare = (sellsBy) => ({
+    sellsBy,
     profile: { ...melany, booking_rules: without(melany.booking_rules, "consult_first") },
   });
+  const none = drawTab(bare("proposal"));
   assert.match(textOf(byTestId(none, "rec-row-consult_first")), /None/);
   assert.equal(consultHint(none), CONSULT_FIRST_DEAL_HINT);
+  assert.equal(consultHint(none), sellsByVM("proposal").consultHint);
+  assert.equal(consultHint(drawTab(bare("booking"))), null, "empty, deals off: a booking rule says nothing of a deal");
 });
 
 /* ------------------------------------ the sheet ------------------------------------ */

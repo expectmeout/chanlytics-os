@@ -106,8 +106,9 @@ const BtwSellsBy = ({ vm, answer, canEdit, gate, flash }) => {
 /* ------------------------------------ the services ------------------------------------ */
 
 /**
- * The row at rest (the canvas's Record board): how many are on record, the first four by name with how long each
- * takes, and one sentence about how they are priced, all contracts' (servicesWords). Its act opens the sheet, by asking
+ * The row at rest (the canvas's Record board): how many are on record and the first three by name, contracts'
+ * (servicesWords). It said how they were priced too, on a line of its own under the names, which was "None names a
+ * price." on nearly every record (24 Sep): the sheet is where a price is written. Its act opens the sheet, by asking
  * the registry for its id: the one door, as the standing line's is, so a fold open elsewhere with changes is asked
  * about first. A role that may not change the business is offered no act, and nor is anyone while the sheet could not
  * open (BtSheet.opens: nothing read to save onto, or a list whose draft cannot be worked out), as a fold offers none then.
@@ -131,7 +132,6 @@ const BtwServicesRow = ({ brain, canEdit, gate, saver }) => {
       } : null}
     >
       {has ? <window.RecordChips chips={vm.chips.map((c) => ({ label: c.name, meta: c.takes }))} more={vm.more} testid="rec-services-chips" /> : null}
-      {has && vm.priced ? <span className="bt-services-priced" data-testid="rec-services-priced">{vm.priced}</span> : null}
     </window.RecordRow>
   );
 };
@@ -261,10 +261,19 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
         footNote="Saves these five rules and the notes, and nothing else on the page."
         gate={gate("the booking rules")}
         row={{
-          value: said.line,
-          // With none of the five set, what the openings are worked out with, which is not "no rule".
+          // The notes follow the sentence on its line, in the dim ink (24 Sep): under it they were a second line on a
+          // row that states one fact.
+          value: said.line ? (
+            <>
+              {said.line}
+              {said.notes ? " · " : null}
+              {said.notes ? <span className="bt-rules-notes" data-testid="rec-rules-notes">{said.notes}</span> : null}
+            </>
+          ) : null,
+          // With none of the five set, what the openings are worked out with, which is not "no rule"; the notes, if
+          // any, stand under it.
           empty: said.none,
-          children: said.notes ? <span className="bt-rules-notes" data-testid="rec-rules-notes">{said.notes}</span> : null,
+          children: !said.line && said.notes ? <span className="bt-rules-notes" data-testid="rec-rules-notes">{said.notes}</span> : null,
           act: "Change",
           name: "Change the booking rules",
         }}

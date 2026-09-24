@@ -314,7 +314,7 @@ const BtRow = ({
           label={label}
           value={value}
           empty={empty}
-          hint={hint}
+          hint={value ? null : hint}
           source={source}
           disputed={other}
           wrong={wrong}
@@ -689,7 +689,10 @@ const useBtEditor = ({ id, canEdit = true, gate = null, flash = () => {}, saver 
  * rows(), never through `update`: rows() is where the cap, the Undo and the index live, and a body that added or
  * removed a row with `update` had none of the three.
  *
- * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `act` and `name` replace the
+ * `row` is what the row at rest draws: { value, empty, hint, wrong, children, act, name }. `hint` is drawn while the
+ * row is empty, where it says what empty means; a row that has its fact states it and stops, at every width (24 Sep:
+ * the phone's rule, record.css, for the whole tab -- a desktop read "It answers in whichever of these a customer
+ * uses." under every list of languages). A BtRow's hint is the same. `act` and `name` replace the
  * act's words and its name where "Change" or "Add one" and the label say nothing together. `rest({ request, can })`
  * draws something else at rest in the row's place, for a fold with no fact to state yet (the create card's empty
  * state): hookless, and its act carries the fold's id as `data-rec-act`, where the fold gives focus back as it closes.
@@ -734,7 +737,7 @@ const BtFold = ({
       label={label}
       value={row.value}
       empty={row.empty}
-      hint={row.hint}
+      hint={has ? null : row.hint}
       wrong={row.wrong}
       settled={e.settled}
       act={canEdit && e.stored ? { label: row.act || (has ? "Change" : "Add one"), name: row.name || undefined, onClick: () => e.request(), gate } : null}
