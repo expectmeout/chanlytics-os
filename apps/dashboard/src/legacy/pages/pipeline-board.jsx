@@ -53,6 +53,13 @@ const PipelineCard = ({ r, group, cursor, canDrag, dragging, moves = [], onOpen,
         </div>
       ) : null}
       {r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}
+      {/* Their next step (0007, amended): one quiet line, its day in the warn ink once it has come. */}
+      {r.next ? (
+        <div className="pipe-card-next" data-due={r.next.due} data-testid="pipe-next">
+          <span className="pipe-next-words">{r.next.words}</span>
+          <span className="pipe-next-when">{r.next.when}</span>
+        </div>
+      ) : null}
     </article>
       {canDrag && moves.length && window.MoreMenu ? (
         <span className="pipe-card-menu">

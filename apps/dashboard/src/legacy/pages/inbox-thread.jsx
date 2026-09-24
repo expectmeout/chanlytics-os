@@ -430,6 +430,45 @@ const IxWho = ({ to = null, go = null, who, avatar, priority = null, children })
   );
 };
 
+// A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
+// them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
+// rows were published (contracts dueStepDay, through __personNotes). One ahead is not said -- the head says who they
+// are, and a step waits for its day. Done is an owner's or an operator's (the door's rule; the gate says so to anyone
+// else) and answers in the header's toast, with Set the next one, as the deal card's does: the line goes with the
+// step once People is read again, and the toast must outlive it. A second press while the first is on its way waits.
+const IX_STEP_PRESSED = new Set();
+const IxThreadStep = ({ personId, step, flash }) => {
+  const [gone, setGone] = React.useState(null);
+  const N = window.__personNotes && window.__personNotes.dueDay ? window.__personNotes : null;
+  const tz = window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
+  const at = window.__PEOPLE && window.__PEOPLE.fetchedAt ? window.__PEOPLE.fetchedAt : Date.now();
+  const day = N ? N.dueDay(step, tz, at) : null;
+  if (!day || gone === step.id) return null;
+  const done = async () => {
+    if (IX_STEP_PRESSED.has(step.id)) return;
+    IX_STEP_PRESSED.add(step.id);
+    let r;
+    try { r = await N.done(personId, step.id, true); } finally { IX_STEP_PRESSED.delete(step.id); }
+    if (r && r.ok) {
+      setGone(step.id);
+      const next = window.openStepSheet ? () => window.openStepSheet({ personId, dealId: step.dealId || null }) : null;
+      flash({ msg: <>{N.words.stepDone}</>, ...(next ? { action: { label: N.words.setTheNext, onClick: next } } : {}) });
+    } else if (r) {
+      flash({ tone: "danger", msg: <>{r.message}</> });
+    }
+    window.dispatchEvent(new CustomEvent("note:saved", { detail: { personId } }));
+  };
+  return (
+    <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
+      <span className="ix-th-step-label">{N.words.next}</span>
+      <span className="ix-th-step-words" data-testid="ix-th-step-words">{step.words}</span>
+      <span className="ix-th-step-when" data-testid="ix-th-step-when">{day.words}</span>
+      {step.forWho ? <span className="ix-th-step-for" data-testid="ix-th-step-for">{step.forWho}</span> : null}
+      <button type="button" className="ix-th-step-done" onClick={done} aria-label={N.words.markDone(step.words)} data-testid="ix-th-step-done" {...window.gate("approve", "mark a step done")}>{N.words.done}</button>
+    </div>
+  );
+};
+
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
@@ -437,6 +476,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   // People lands last on a cold boot (its rows are the heaviest read): a thread opened before it draws the chip below
   // once it does, rather than at the next message.
   const [, peopleTick] = React.useReducer((n) => n + 1, 0);
+  // The header's toast: what its step's Done says, which outlives the line as People is read again.
+  const [toastNode, flash] = window.usePPToast();
   React.useEffect(() => {
     if (!window.addEventListener) return undefined;
     window.addEventListener("surface:clients", peopleTick);
@@ -605,6 +646,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           window.__DEMO_MODE ? [{ label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }] : [],
         ])} />
       </div>
+      {person && person.nextStep && !window.__DEMO_MODE ? <IxThreadStep key={person.nextStep.id} personId={person.id} step={person.nextStep} flash={flash} /> : null}
+      {toastNode}
     </header>
   );
 };

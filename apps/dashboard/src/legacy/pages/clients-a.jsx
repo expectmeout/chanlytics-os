@@ -1556,7 +1556,9 @@ const PL_COLUMNS = [
 // one function, so the two scopes' lists are one list to the eye, part for part. `face` is initials or a glyph, and a
 // picture over them (a lead's listing photo) that, failing to load, leaves the initials showing. The face is also the
 // row's checkbox (clients.css): a tap there selects, and a tap on the rest opens.
-const plRowCard = ({ face, name, numeric = false, pill, lead = null, leadTestid = "row-words", facts }) => (
+// `tail`: a line of its own under the facts, where a page has one more thing to say of the row (the Pipeline's next
+// step); People and Leads have none.
+const plRowCard = ({ face, name, numeric = false, pill, lead = null, leadTestid = "row-words", facts, tail = null }) => (
   <td key="card" className="pl-card-cell">
     <div className="pl-card">
       <div className={`ix-thread-avatar pl-card-face${face.glyph ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
@@ -1571,6 +1573,7 @@ const plRowCard = ({ face, name, numeric = false, pill, lead = null, leadTestid 
       {pill}
       {lead ? <div className="pl-card-lead" data-testid={leadTestid}>{lead}</div> : null}
       <div className="pl-card-facts">{facts}</div>
+      {tail ? <div className="pl-card-tail">{tail}</div> : null}
     </div>
   </td>
 );
@@ -2238,9 +2241,9 @@ const usePlControls = ({ scope, cols, phoneCols, colCtx, people, sortFirst, rail
   const onSort = (key) => {
     viewTouched.current = true;
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order (Leads' stage column is a
-    // rank of its own, most first); any other number, most first.
-    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (key === "stage" && scope === "pipeline") ? "asc" : "desc"); }
+    // A name starts at A, the soonest visit first, and the Pipeline's Stage in its own order and its next step the
+    // soonest first (Leads' stage column is a rank of its own, most first); any other number, most first.
+    else { setSortBy(key); setSortDir(key === "name" || key === "visits" || (scope === "pipeline" && (key === "stage" || key === "next")) ? "asc" : "desc"); }
   };
   // A sort the member picked from a menu rather than a heading (a phone's more-menu): theirs, like a heading's.
   const pickSort = (by, dir) => { viewTouched.current = true; setSortBy(by); setSortDir(dir); };

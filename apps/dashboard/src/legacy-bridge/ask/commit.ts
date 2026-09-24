@@ -22,6 +22,7 @@
 import {
   ASK_THREAD_VERBS,
   DEAL_STAGE_WORDS,
+  NOTE_WORDS,
   PERSON_MODE_WORDS,
   applySettingsChange,
   type AskProposal,
@@ -148,7 +149,9 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
     }
     case "deal": {
       // The card's body is the route's body: `who` is the card's own word and the id is the route's param, so both
-      // stay out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page.
+      // stay out of a request the route reads strictly. Its next step is beside the payload (AskProposal `step`), a
+      // note of its own (0007, amended). No undo: a mis-recorded stage is moved again on the person's page, and a
+      // step is changed or done there.
       const { who: _who, contact_id: _id, ...body } = pl;
       const r = await viaAsk(client, "POST contacts/[id]/deal", {
         params: { id: s(pl.contact_id) },
@@ -156,11 +159,20 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       });
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
-      return {
-        ok: true,
-        receipt: `${s(pl.who)} · ${DEAL_STAGE_WORDS[s(pl.stage) as keyof typeof DEAL_STAGE_WORDS] ?? s(pl.stage)}`,
-        undo: null,
-      };
+      const receipt = `${s(pl.who)} · ${DEAL_STAGE_WORDS[s(pl.stage) as keyof typeof DEAL_STAGE_WORDS] ?? s(pl.stage)}`;
+      const step = p.step;
+      if (!step) return { ok: true, receipt, undo: null };
+      // The step after the deal, naming the row the door wrote (a new proposal's card has no id to name): the team's,
+      // with its day. It answers as the door takes it, People read again behind it. The deal stands either way, so a
+      // step the door refused is said on the receipt, to set again on their page.
+      const n = await viaAsk(client, "POST contacts/[id]/notes", {
+        params: { id: s(pl.contact_id) },
+        body: { body: step.body, due_on: step.due_on, team_only: true, deal_id: r.data.deal.id },
+        refresh: "behind",
+      });
+      if (!n.ok) return { ok: true, receipt: `${receipt} · the next step was not saved: ${n.message}`, undo: null };
+      win.dispatchEvent(new CustomEvent("note:saved", { detail: { personId: s(pl.contact_id) } }));
+      return { ok: true, receipt: `${receipt} · ${NOTE_WORDS.stepAdded}`, undo: null };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: pl.class };

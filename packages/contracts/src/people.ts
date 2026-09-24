@@ -25,6 +25,7 @@ import {
   forWords,
   nextStepOf,
   stepDayOf,
+  stepIsDue,
   type PersonNextStepVM,
   type StepColumns,
   type StepDayVM,
@@ -647,7 +648,8 @@ export const NOTE_WORDS = {
   stepDone: "Step done",
   stepReopened: "Step open again",
   setTheNext: "Set the next one",
-  andMore: (n: number) => `and ${n} more`,
+  /** Done's name for a screen reader, where a header holds more than the step. */
+  markDone: (words: string) => `Mark “${words}” done`,
 } as const;
 
 /** A door's refusal, in the owner's words (00157's error keys). */
@@ -1477,7 +1479,7 @@ export const PEOPLE_LISTS: readonly {
     label: "Steps due",
     group: "attention",
     onProfile: false,
-    test: (v) => !!v.nextStep && v.nextStep.due !== "ahead",
+    test: (v) => stepIsDue(v.nextStep),
   },
   { id: "new_week", label: "New this week", group: "journey", test: (v) => v.state === "new" },
   {

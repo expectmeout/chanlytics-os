@@ -471,6 +471,20 @@
   flex-shrink: 0;
 }
 .ix-th-head-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* A step due under the head (0007, amended): one quiet line across it, the day in the warn ink, Done as a word. */
+.ix-th-step { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-width: 0; margin-top: -6px; font-size: 12px; color: var(--ink-muted); }
+.ix-th-step-label { flex: none; font-size: 11px; font-weight: 500; color: var(--ink-dim); }
+.ix-th-step-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ix-th-step-when { flex: none; color: var(--warn-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ix-th-step-for { flex: none; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+.ix-th-step-done { flex: none; margin-left: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
+.ix-th-step-done:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.ix-th-step-done:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+/* Under a thumb the 44px floor would make the line a row of its own height: Done keeps the line's, and reaches past
+   it for the thumb, without moving a word. */
+@media (pointer: coarse) {
+  html.legacy-on .ix-th-step-done { min-height: 0; padding: 10px 12px 18px; margin: -10px -12px -18px -8px; }
+}
 .ix-th-avatar {
   width: 36px; height: 36px;
   border-radius: 50%;

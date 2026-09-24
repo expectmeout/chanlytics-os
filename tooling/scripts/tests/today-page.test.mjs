@@ -18,6 +18,8 @@ import {
   clockTime,
   feedProblemWords,
   toPersonRowVM,
+  nextStepOf,
+  todaySteps,
   PEOPLE_LISTS,
   peopleListAction,
   stateOf,
@@ -945,6 +947,97 @@ test("a calendar it HAS and could not read says so where the day goes: the feed'
   // one is the Calendar page's card to make — not a red word on a page about today's work.
   c.vm.feed = { ...c.vm.feed, present: false, state: "none", problem: null };
   assert.equal(draw(W.TodayDay).rendered, null, "no feed stays silent");
+});
+
+test("the steps due at the head of the day: three at most, the oldest first, each opening its person, the rest a line to People's Steps due; with no calendar the panel is the steps alone", () => {
+  clear();
+  const nowMs = Date.now();
+  const day = (d) => zoneDayKey(nowMs + d * 86_400_000, ZONE);
+  const row = (id, name, d, forName = null) => ({
+    id,
+    name,
+    nextStep:
+      d === null
+        ? null
+        : nextStepOf(
+            {
+              step_id: `s-${id}`,
+              step_body: `Call ${name}`,
+              step_due_on: day(d),
+              step_for_user_id: forName ? `u-${forName}` : null,
+              step_for_name: forName,
+            },
+            ZONE,
+            nowMs,
+          ),
+  });
+  const rows = [
+    row("a", "Ana", -3),
+    row("b", "Ben", 0),
+    row("c", "Cy", -1),
+    row("d", "Di", -5, "Maria"),
+    row("e", "Eli", 2),
+    row("f", "Flo", null),
+  ];
+  const clock = W.__clock;
+  W.__clock = { ...clock, zone: () => ZONE };
+  try {
+    set({ TODAY_DATA: busy(), __PLAYBOOKS: { rows: [] }, __PEOPLE: { rows, fetchedAt: nowMs } });
+    const want = todaySteps(rows, nowMs, ZONE);
+    const alone = byTestId(draw(W.TodayDay), "today-day-steps");
+    assert.ok(alone, "no calendar: the panel is the steps alone");
+    assert.equal(textOf(find(alone, (n) => classes(n).includes("td-frame-label"))), want.title);
+    const items = all(alone, (n) => n.props?.["data-testid"] === "today-step");
+    assert.deepEqual(
+      items.map((i) =>
+        ["td-step-who", "td-step-words", "td-step-when"].map((c) => textOf(find(i, (n) => classes(n).includes(c)))),
+      ),
+      want.items.map((s) => [s.name, s.words, s.when]),
+    );
+    assert.deepEqual(
+      want.items.map((s) => s.name),
+      ["Di", "Ana", "Cy"],
+      "the oldest day first, three at most",
+    );
+    assert.equal(textOf(find(items[0], (n) => classes(n).includes("td-step-for"))), "For Maria", "whose it is");
+    press(items[0]);
+    assert.equal(went.at(-1), "clients/d", "a step opens its person");
+    const more = byTestId(alone, "today-steps-more");
+    assert.equal(textOf(more).trim(), want.more.words);
+    press(more);
+    assert.equal(went.at(-1), "clients/seg:steps_due", "the rest: People's Steps due");
+    // With a calendar, at the head of the day: before its first frame.
+    set({ __CALENDAR: calendar([block("b9", 9, "Slot 9")]) });
+    const dayCard = byTestId(draw(W.TodayDay), "today-day");
+    assert.deepEqual(
+      all(dayCard, (n) => ["today-steps", "today-day-frame"].includes(n.props?.["data-testid"]))
+        .map((n) => n.props["data-testid"])
+        .slice(0, 2),
+      ["today-steps", "today-day-frame"],
+    );
+    // A calendar read that failed says so under the steps, which are People's and still true.
+    set({ __CALENDAR: undefined });
+    failed.add("calendar");
+    const broke = byTestId(draw(W.TodayDay), "today-day-failed");
+    assert.ok(byTestId(broke, "today-steps") && byTestId(broke, "today-day-failed-read"));
+    failed.clear();
+    // A feed it has and could not read: the steps, then what went wrong. None connected: the steps alone.
+    const cal = calendar([]);
+    cal.vm.feed = { ...cal.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
+    set({ __CALENDAR: cal });
+    assert.ok(byTestId(byTestId(draw(W.TodayDay), "today-day-unreadable"), "today-steps"));
+    cal.vm.feed = { ...cal.vm.feed, present: false, state: "none", problem: null };
+    assert.ok(byTestId(draw(W.TodayDay), "today-day-steps"), "no feed: the steps alone, never nothing");
+    set({ __CALENDAR: undefined });
+    // Judged when People's rows were published, as every page judges a step: six days ago, none was due yet.
+    set({ __PEOPLE: { rows, fetchedAt: nowMs - 6 * 86_400_000 } });
+    assert.equal(draw(W.TodayDay).rendered, null, "one clock: People's");
+    // None due: nothing, and without a calendar nothing at all.
+    set({ __PEOPLE: { rows: [row("e", "Eli", 2), row("f", "Flo", null)] } });
+    assert.equal(draw(W.TodayDay).rendered, null);
+  } finally {
+    W.__clock = clock;
+  }
 });
 
 /* ------------------------------------ worth a look ------------------------------------ */

@@ -229,6 +229,12 @@ export interface AskProposal {
   payload: Record<string, unknown>;
   /** What undo looks like, when the verb has one. */
   undo: string | null;
+  /**
+   * What a deal's card writes after the deal (0007, amended): its next step, a note of the team's with its day.
+   * Beside the payload, never in it: a tab from before the step hands its payload to the deal route whole, and the
+   * route refuses a key it does not know, so such a tab records the deal and leaves the step.
+   */
+  step?: { body: string; due_on: string } | null;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
 }

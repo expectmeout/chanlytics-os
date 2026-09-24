@@ -204,7 +204,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
   const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
   assert.ok(
-    /export const TODAY_HELPERS = \{\s*day: todayDay,\s*periodLine: todayPeriodLine,\s*runs: todayRunWords,\s*runsSub: todayRunsSub,\s*runApproved: todayRunApproved,\s*leaks: todayLeaks,\s*awayGrouped: todayAwayGrouped,?\s*\};/.test(
+    /export const TODAY_HELPERS = \{\s*day: todayDay,\s*periodLine: todayPeriodLine,\s*runs: todayRunWords,\s*runsSub: todayRunsSub,\s*runApproved: todayRunApproved,\s*leaks: todayLeaks,\s*awayGrouped: todayAwayGrouped,\s*(?:\/\/[^\n]*\s*)?steps: todaySteps,?\s*\};/.test(
       bridge,
     ),
     "the helpers, in order",
@@ -216,7 +216,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   for (const s of [
     'data-testid="today-day"',
     'if (C.vm.feed.state === "unavailable") {',
-    'if (C.vm.feed.state !== "ok") return null;',
+    'if (C.vm.feed.state !== "ok") return stepsOnly;',
     "window.__today.day(C.vm, P ? P.rows : null, people || null)",
     'data-testid="today-day-frame"',
     'testid="today-day-item"',

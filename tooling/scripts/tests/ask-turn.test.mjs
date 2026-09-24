@@ -819,13 +819,19 @@ test("REGRESSION: the assistant's people search says when someone was last in to
     has_backfill: false,
     has_chat: true,
     queued_reply_at: null,
+    // Her next step (0007, amended), as people_list v5 carries it: said on her line as the pages say it.
+    step_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee51",
+    step_body: "Send the price list",
+    step_due_on: "2026-09-11",
+    step_for_user_id: null,
+    step_deal_id: null,
   };
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => [rosa] }), A, "operator", TZ, NOW);
   const r = await runTool(tc, { name: "search_people", input: { query: "rosa" } });
   assert.equal(r.isError, false, r.result);
   assert.deepEqual(
-    JSON.parse(r.result).people.map((p) => [p.name, p.last_contact]),
-    [["Rosa", "2h ago"]],
+    JSON.parse(r.result).people.map((p) => [p.name, p.last_contact, p.next_step]),
+    [["Rosa", "2h ago", "Send the price list · Overdue since Fri"]],
   );
 });
 
@@ -2251,4 +2257,66 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     (await p("propose_deal", { contact_id: "c1", stage: "won" })).result,
     /contact_id must be an id a read returned/,
   );
+});
+
+test("propose_deal carries a next step with its day: the card says it, the body takes the words whole, and a step without its day, a day without a step, or a day not real or gone is refused in words", async () => {
+  const MARIA = "cccccccc-cccc-4ccc-8ccc-cccccccccc31";
+  const t = tables({
+    contacts: [
+      {
+        id: MARIA,
+        tenant_id: A,
+        display_name: "Maria",
+        wa_profile_name: null,
+        phone_e164: "+15555550131",
+        email: null,
+        erased_at: null,
+      },
+    ],
+    deals: [
+      {
+        id: "d1",
+        tenant_id: A,
+        contact_id: MARIA,
+        stage: "proposed",
+        service: "SEO",
+        version: 3,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const p = (input) => buildProposal(tc, "propose_deal", { contact_id: MARIA, stage: "won", ...input });
+  // Monday 14 September in New York: Friday is the 18th.
+  const words = "Send the onboarding form and book the kickoff call";
+  const won = await p({ next_step: `  ${words} `, next_step_due: "2026-09-18" });
+  assert.equal(won.isError, false, won.result);
+  assert.deepEqual([won.proposal.step, won.proposal.payload.deal_id], [{ body: words, due_on: "2026-09-18" }, "d1"]);
+  // Beside the payload, never in it: a tab from before the step hands the payload to the strict deal route whole.
+  assert.deepEqual(
+    Object.keys(won.proposal.payload).filter((k) => k.includes("step")),
+    [],
+    "REGRESSION: an old tab's deal was refused for the step's keys",
+  );
+  assert.equal(won.proposal.summary, `Client · SEO · Next step: ${words}, due Fri`);
+  assert.equal(
+    (await p({ next_step: "Call", next_step_due: "2026-09-14" })).proposal.summary,
+    "Client · SEO · Next step: Call, due today",
+  );
+  const long = "Call ".repeat(40).trim();
+  const clipped = (await p({ next_step: long, next_step_due: "2026-09-18" })).proposal;
+  assert.equal(clipped.step.body, long, "the note keeps the words whole");
+  assert.ok(clipped.summary.length < 140, "the card clips them at a word");
+  assert.equal((await p({})).proposal.step, undefined, "no step: nothing beside the body");
+  for (const [input, why] of [
+    [{ next_step: "Call" }, /next_step needs next_step_due, the day it is due/],
+    [{ next_step_due: "2026-09-18" }, /next_step_due goes only with next_step/],
+    [{ next_step: "Call", next_step_due: "2026-09-31" }, /next_step_due must be a day, like 2026-09-30/],
+    [{ next_step: "Call", next_step_due: "2026-09-13" }, /next_step_due must be today or later/],
+    [{ next_step: "x".repeat(601), next_step_due: "2026-09-18" }, /next_step is at most 600 characters/],
+  ]) {
+    const r = await p(input);
+    assert.equal(r.isError, true, JSON.stringify(input));
+    assert.match(r.result, why);
+  }
 });

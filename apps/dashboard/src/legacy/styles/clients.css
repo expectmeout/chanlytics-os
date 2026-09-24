@@ -2491,6 +2491,8 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
   .pl-card-facts { grid-column: 2 / 4; min-width: 0; display: flex; align-items: center; gap: var(--row-gap); font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
   .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* A line of its own under the facts (plRowCard `tail`): the Pipeline's next step. */
+  .pl-card-tail { grid-column: 2 / 4; min-width: 0; display: flex; font-size: var(--row-facts); line-height: var(--row-facts-line); white-space: nowrap; overflow: hidden; }
   /* A lead's face is its mark or its listing's photo over its initials, round as a person's is; a photo that will not
      load leaves the initials (plRowCard). */
   .pl-card-face { position: relative; overflow: hidden; }
@@ -2676,6 +2678,14 @@ html.legacy-on .pp-bar-field input, html.legacy-on .pp-bar-clear { min-height: 0
 .pipe-step[data-at="current"][data-tone="ok"] { background: var(--ok); }
 .cl-table td.pipe-came { max-width: 18ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-table td.pipe-valid.is-lapsed { color: var(--warn-ink); }
+/* Their next step (0007, amended): what, then when in the dim small type the table keeps for dates, the day in the
+   warn ink once it has come. The list's cell, the phone card's fact and the board card's line say it alike. */
+.pipe-next-in { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; max-width: 30ch; vertical-align: baseline; }
+.pipe-next-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.pipe-next-when { flex: none; font-size: 11.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pipe-card-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; }
+.pipe-row-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+:is(.pipe-next, .pipe-card-next, .pipe-row-next)[data-due]:not([data-due="ahead"]) .pipe-next-when { color: var(--warn-ink); font-weight: 500; }
 .pipe-card .pipe-track { margin-top: 2px; }
 .pl-card-facts .pipe-track { align-self: center; }
 @media (min-width: 901px) {
