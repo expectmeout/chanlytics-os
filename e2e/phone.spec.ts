@@ -454,4 +454,70 @@ test.describe("Phone shell on a real workspace", () => {
       expect(shape.past, `nothing on ${label} is past its right edge`).toBeLessThanOrEqual(1);
     }
   });
+
+  /**
+   * A switch holds still (23 Sep). With History's tabs parked under the top bar, Consent put them 328px further down a
+   * phone and Visits 439px: a shorter list made the page shorter and the browser pulled the scroll back to fit
+   * (data-bits holdStill now holds it). And the head starts at the page's edge: the way back is the top bar's crumb.
+   */
+  test("a person's head starts at the page's edge with the way back in the top bar, and History's tabs hold still under the thumb", async ({
+    page,
+  }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const ids = await page.evaluate(() =>
+      ((window as unknown as { __PEOPLE?: { rows: { id: string }[] } }).__PEOPLE?.rows ?? [])
+        .slice(0, 8)
+        .map((r) => r.id),
+    );
+    test.skip(ids.length === 0, "nobody on this workspace");
+    let tabs = 0;
+    for (const id of ids) {
+      await page.goto(`/#/clients/${id}`);
+      await expect(page.getByTestId("person-now")).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      tabs = await page.locator(".cl-tl-filters .cl-tab").count();
+      if (tabs > 2) break;
+    }
+    await expect(page.locator(".cl-prof-back")).toBeHidden();
+    await expect(page.locator(".crumbs .crumb-link").first()).toHaveText("People");
+    const face = (await page.locator(".cl-prof-avatar").first().boundingBox())!;
+    expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
+    test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
+    const strip = page.locator(".cl-tl-filters");
+    await page.locator(".cl-profile").evaluate((box) => {
+      const s = box.querySelector(".cl-tl-filters");
+      if (s) box.scrollTop += s.getBoundingClientRect().top - 120;
+    });
+    const top = async () => Math.round((await strip.boundingBox())!.y);
+    const start = await top();
+    for (const tab of await strip.locator(".cl-tab").all()) {
+      const word = (await tab.textContent())?.trim();
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-pressed", "true");
+      expect(Math.abs((await top()) - start), `${word} moved the tabs from under the thumb`).toBeLessThanOrEqual(1);
+    }
+    await page.locator(".crumbs .crumb-link").first().click();
+    await expect.poll(() => new URL(page.url()).hash).toBe("#/clients");
+  });
+
+  /** A door is a link (23 Sep): who a thread is with opened their page only from the Actions menu. */
+  test("a thread's header names who it is with as a link to their page, a thumb tall", async ({ page }) => {
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(".ix-thread").first();
+    test.skip((await row.count()) === 0, "no thread on this workspace");
+    await row.click();
+    await expect(page.locator(".ix-th-head").first()).toBeVisible();
+    const who = page.getByTestId("ix-th-person").first();
+    test.skip((await who.count()) === 0, "the first thread is with no one in People");
+    await expect(who).toHaveAttribute("href", /^#\/clients\/[\w-]+$/);
+    expect(
+      (await who.boundingBox())!.height,
+      "the face, the name and the line under it, a thumb tall",
+    ).toBeGreaterThanOrEqual(40);
+    await who.click();
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/[\w-]+$/);
+    await expect(page.locator(".cl-profile")).toBeVisible();
+  });
 });

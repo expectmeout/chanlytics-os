@@ -440,6 +440,9 @@
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
   .inbox.phone-thread .ix-list { display: none; }
   .inbox.phone-thread .ix-thread-pane { display: flex; }
+  /* The drafts-about-to-send pill floats at the top of the screen, which on a phone is the open thread's header: it
+     covered Back, the name and Actions. The thread's own bar says its countdown; the pill is the list's. */
+  .inbox.phone-thread .ix-sending-strip { display: none; }
   /* Opening a thread: it comes in from the right, over where the list stood, as a page opens on a phone. The list's
      hard cut to a pane fading up in place read as a jolt. Transform and opacity only; Back is the list at once. */
   .inbox.phone-thread .ix-thread-pane, .conversations.phone-detail .ix-thread-pane { animation: thread-in 260ms var(--ease-out); }
