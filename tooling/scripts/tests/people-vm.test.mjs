@@ -17,6 +17,7 @@ import {
   recencyCells,
   PEOPLE_LISTS,
   PEOPLE_TABS,
+  PERSON_STATE_LABELS,
 } from "@chanlytics/contracts";
 // A namespace too: a word this change adds is missing from the module until the dist is rebuilt, and a named import
 // of it would fail the whole file instead of the one test that reads it.
@@ -79,14 +80,14 @@ const list = (id) => PEOPLE_LISTS.find((l) => l.id === id);
 
 test("an open escalation is needs_you, even for someone who opted out", () => {
   assert.equal(
-    personStateFor(row({ open_escalation_reason: "human_token", open_escalation_since: iso(H) }), nowMs),
+    personStateFor(row({ open_escalation_reason: "human_token", open_escalation_since: iso(H) }), nowMs, ZONE),
     "needs_you",
   );
   assert.equal(
-    personStateFor(row({ open_escalation_reason: "human_token", consent: "opted_out" }), nowMs),
+    personStateFor(row({ open_escalation_reason: "human_token", consent: "opted_out" }), nowMs, ZONE),
     "needs_you",
   );
-  assert.equal(personStateFor(row({ needs_human: true }), nowMs), "needs_you");
+  assert.equal(personStateFor(row({ needs_human: true }), nowMs, ZONE), "needs_you");
   assert.equal(
     personStateFor(
       row({
@@ -103,9 +104,9 @@ test("an open escalation is needs_you, even for someone who opted out", () => {
 });
 
 test("waiting_on_you means a human owns the thread AND the last word was theirs", () => {
-  assert.equal(personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs), "waiting_on_you");
+  assert.equal(personStateFor(row({ latest_assignee_user_id: "u1" }), nowMs, ZONE), "waiting_on_you");
   assert.equal(
-    personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs),
+    personStateFor(row({ latest_paused_until: iso(-3 * H) }), nowMs, ZONE),
     "waiting_on_you",
     "paused into the future = owned",
   );
@@ -118,35 +119,59 @@ test("waiting_on_you means a human owns the thread AND the last word was theirs"
     "you replied — nobody is waiting",
   );
   assert.equal(
-    personStateFor(row({ latest_paused_until: iso(3 * H) }), nowMs),
+    personStateFor(row({ latest_paused_until: iso(3 * H) }), nowMs, ZONE),
     "active",
     "a pause that expired is not ownership",
   );
 });
 
 test("opted_out outranks new: a fresh STOP is not a new customer to chase", () => {
-  assert.equal(personStateFor(row({ consent: "opted_out", first_contact_at: iso(D) }), nowMs), "opted_out");
-  assert.equal(personStateFor(row({ dnc: true, first_contact_at: iso(D) }), nowMs), "opted_out");
+  assert.equal(personStateFor(row({ consent: "opted_out", first_contact_at: iso(D) }), nowMs, ZONE), "opted_out");
+  assert.equal(personStateFor(row({ dnc: true, first_contact_at: iso(D) }), nowMs, ZONE), "opted_out");
 });
 
 test("new needs evidence: first contact within 7 days and NO imported history", () => {
-  assert.equal(personStateFor(row({ first_contact_at: iso(3 * D) }), nowMs), "new");
-  assert.equal(personStateFor(row({ first_contact_at: iso(8 * D) }), nowMs), "active");
+  assert.equal(personStateFor(row({ first_contact_at: iso(3 * D) }), nowMs, ZONE), "new");
+  assert.equal(personStateFor(row({ first_contact_at: iso(8 * D) }), nowMs, ZONE), "active");
   // A backfilled person whose first REAL timestamp is recent is still not new:
   // the import proves they existed before we started keeping time.
-  assert.equal(personStateFor(row({ first_contact_at: iso(3 * D), has_backfill: true }), nowMs), "active");
+  assert.equal(personStateFor(row({ first_contact_at: iso(3 * D), has_backfill: true }), nowMs, ZONE), "active");
 });
 
-test("quiet is 30 days without a message or a call; a call counts as contact", () => {
+test("quiet is more than 30 of the workspace's days since THEY wrote or called; our own sends are not their word", () => {
   const old = { last_message_at: iso(31 * D), last_inbound_at: iso(31 * D), latest_wa_inbound_at: iso(31 * D) };
-  assert.equal(personStateFor(row(old), nowMs), "quiet");
-  assert.equal(personStateFor(row({ ...old, last_message_at: iso(29 * D) }), nowMs), "active");
-  assert.equal(personStateFor(row({ ...old, last_call_at: iso(2 * D) }), nowMs), "active", "a recent call rescues");
+  assert.equal(personStateFor(row(old), nowMs, ZONE), "quiet");
+  // Decision 0009: the row's pill says Quiet 30+ days' own rule.
   assert.equal(
-    personStateFor(row({ last_message_at: null, last_message_direction: null, last_call_at: null }), nowMs),
+    personStateFor(row({ ...old, last_message_at: iso(29 * D), last_message_direction: "outbound" }), nowMs, ZONE),
     "quiet",
-    "no timestamp at all is not 'active'",
+    "a broadcast of ours does not make them recent",
   );
+  assert.equal(
+    personStateFor(row({ ...old, last_inbound_at: iso(29 * D) }), nowMs, ZONE),
+    "active",
+    "their own message does",
+  );
+  assert.equal(
+    personStateFor(row({ ...old, last_call_at: iso(2 * D), last_inbound_call_at: iso(2 * D) }), nowMs, ZONE),
+    "active",
+    "a call they placed rescues",
+  );
+  assert.equal(
+    personStateFor(row({ ...old, last_call_at: iso(2 * D), last_inbound_call_at: null }), nowMs, ZONE),
+    "quiet",
+    "a call we placed does not",
+  );
+  assert.equal(
+    personStateFor(
+      row({ last_message_at: null, last_message_direction: null, last_call_at: null, last_inbound_at: null }),
+      nowMs,
+      ZONE,
+    ),
+    "unheard",
+    "never heard from is its own word: not quiet, not active",
+  );
+  assert.equal(PERSON_STATE_LABELS.unheard, "Not heard from");
 });
 
 test("the tabs are the states, in the order they are evaluated", () => {

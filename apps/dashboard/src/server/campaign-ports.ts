@@ -5,8 +5,15 @@
  * these. The session role writes here: it may insert a broadcast and its
  * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
-import { savedListFor, type Json } from "@chanlytics/db";
-import { numberHealth, parseTenantConfig, savedListIds } from "@chanlytics/contracts";
+import { savedListFor, savedListsFor, type Json } from "@chanlytics/db";
+import {
+  asListRule,
+  numberHealth,
+  parseTenantConfig,
+  ruleLists,
+  savedListIds,
+  savedListLookup,
+} from "@chanlytics/contracts";
 import type {
   ApproveRunPorts,
   AssemblePorts,
@@ -109,7 +116,10 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
       if (seg.rule == null) return { name: seg.name, memberIds: seg.ids };
       const now = new Date();
       const p = await poolAt(now);
-      return { name: seg.name, memberIds: [...savedListIds(seg, p.rows, now.getTime(), p.calendar.state === "ok")] };
+      // A rule that reads other lists reads them all (lists.ts listMembers, one level deep).
+      const rule = asListRule(seg.rule);
+      const others = rule && ruleLists(rule).length ? await savedListsFor(ctx.supabase, tenantId) : [];
+      return { name: seg.name, memberIds: [...savedListIds(seg, p.rows, p.listCtx, savedListLookup(others))] };
     },
     number: async () => {
       const { data: ch, error: chErr } = await ctx.supabase

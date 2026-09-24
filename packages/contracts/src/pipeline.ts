@@ -27,6 +27,7 @@ import {
   consultationsWithoutProposal,
   consultsHeldWords,
   dealIsOpen,
+  dealStageOf,
   heardSinceProposal,
   proposalsWaiting,
   waitingOnProposal,
@@ -451,14 +452,17 @@ export function pipelineOf<T extends PipelineSource>(
   const proposals: { r: T; d: DealVM }[] = [];
   const clients: { r: T; d: DealVM }[] = [];
   const closed: { r: T; d: DealVM }[] = [];
+  // Each row in the group its deal stage names (deals.ts dealStageOf), the one rule People's deal lists read too. A
+  // consultation ahead is someone with nothing open: something new begins, whatever they passed on or ended before.
   for (const r of rows) {
     if (heldSet.has(r)) continue;
+    const stage = dealStageOf(r, nowMs);
     const d = r.deal;
-    if (d && d.stage === "proposed") proposals.push({ r, d });
-    else if (d && d.stage === "won") clients.push({ r, d });
-    // A consultation ahead of someone with nothing open: something new begins, whatever they passed on or ended before.
-    else if (r.consultAhead) ahead.push({ r, c: r.consultAhead });
-    else if (d) closed.push({ r, d });
+    if (stage === "consultation" && r.consultAhead) ahead.push({ r, c: r.consultAhead });
+    else if (!d || !stage || stage === "consultation") continue;
+    else if (stage === "proposed") proposals.push({ r, d });
+    else if (stage === "won") clients.push({ r, d });
+    else closed.push({ r, d });
   }
   const lapsed = proposals.filter((x) => !!x.d.validUntil?.lapsed);
   const waiting = proposalsWaiting(

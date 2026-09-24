@@ -9,7 +9,7 @@
  * the server's refusal. A smart list is made the same way with its rule,
  * drafted first from the owner's own words (draft, which changes nothing).
  */
-import { listRuleParts, savedListIds, type ListRule, type PersonRowVM } from "@chanlytics/contracts";
+import { listMembers, listRuleParts, type ListRule, type PersonRowVM } from "@chanlytics/contracts";
 import { api } from "./api";
 
 export const lists = {
@@ -19,10 +19,30 @@ export const lists = {
   draft: (words: string) => api()("POST segments/draft", { body: { words } }),
   /** A smart list's rule in the chips its page shows. */
   parts: listRuleParts,
-  /** How many of the people People has read a rule holds for today (savedListIds); null before People is read. */
+  /**
+   * How many of the people People has read a rule holds for today (lists.ts listMembers); null before People is read,
+   * and when the rule can't be counted here (a calendar rule with no calendar read), which is not nobody.
+   */
   count: (rule: ListRule): number | null => {
-    const P = (window as unknown as { __PEOPLE?: { rows: PersonRowVM[]; calendar?: { state: string } } }).__PEOPLE;
-    return P ? savedListIds({ ids: [], rule }, P.rows, Date.now(), P.calendar?.state === "ok").size : null;
+    const P = (
+      window as unknown as {
+        __PEOPLE?: {
+          rows: PersonRowVM[];
+          calendar?: { state: "ok" | "unavailable" | "none" };
+          dealsOn?: boolean;
+          consultFirst?: boolean;
+        };
+        __ME?: { id?: string | null };
+      }
+    ).__PEOPLE;
+    if (!P) return null;
+    const m = listMembers({ ids: [], rule }, P.rows, {
+      calendar: P.calendar?.state ?? "none",
+      dealsOn: !!P.dealsOn,
+      consultFirst: !!P.consultFirst,
+      viewer: !!(window as unknown as { __ME?: { id?: string | null } }).__ME?.id,
+    });
+    return m.state === "ok" ? m.ids.size : null;
   },
   rename: (id: string, name: string) => api()("PUT segments/[id]", { params: { id }, body: { name } }),
   remove: (id: string) => api()("DELETE segments/[id]", { params: { id } }),

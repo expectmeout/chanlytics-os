@@ -838,9 +838,20 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const gap = toPersonRowVM({ ...asked, visits: cal({}) }, TZ, now);
   assert.equal(gap.askedNotBooked, true, "wrote this month, the calendar never had them");
   assert.equal(gap.askedMs, Date.parse("2026-09-04T12:00:00.000Z"));
+  // Reports' rule (calendar-people.ts visitAnswersAsk, decision 0009): a visit before they asked does not answer it.
   const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, TZ, now);
-  assert.equal(visited.askedNotBooked, false, "they have been on the calendar before");
+  assert.equal(visited.askedNotBooked, true, "a visit before they asked does not answer it");
   assert.equal(visited.lastVisit, "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour");
+  const answered = toPersonRowVM(
+    {
+      ...asked,
+      id: "w",
+      visits: cal({ last: { ...last, start: "2026-09-05T14:00:00.000Z", end: "2026-09-05T16:00:00.000Z" } }),
+    },
+    TZ,
+    now,
+  );
+  assert.equal(answered.askedNotBooked, false, "a visit since they asked answers it");
   const stale = toPersonRowVM(
     { ...asked, id: "s", last_inbound_at: "2026-07-01T12:00:00.000Z", visits: cal({}) },
     TZ,
@@ -854,15 +865,15 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const askedList = PEOPLE_LISTS.find((l) => l.id === "asked_never_booked");
   assert.ok(bookedList.needsCalendar && askedList.needsCalendar, "shown only when the calendar is connected");
   assert.ok(bookedList.test(booked) && !bookedList.test(gap));
-  assert.ok(askedList.test(gap) && !askedList.test(booked) && !askedList.test(visited));
+  assert.ok(askedList.test(gap) && askedList.test(visited) && !askedList.test(booked) && !askedList.test(answered));
   assert.deepEqual(
     [...PEOPLE_LISTS].map((l) => l.id).slice(0, 8),
     ["needs_you", "waiting_on_you", "steps_due", "new_week", "booked_week", "booked", "asked_never_booked", "lapsed"],
     "attention, then the journey",
   );
-  const agg = peopleAggregates([booked, gap, visited, stale, noCal], NOW);
+  const agg = peopleAggregates([booked, gap, visited, answered, stale, noCal], NOW);
   assert.equal(agg.booked, 1);
-  assert.equal(agg.askedNotBooked, 1);
+  assert.equal(agg.askedNotBooked, 2);
 });
 
 test("asked, then booked: the report's one conversion line, in words that say what was counted", async () => {
@@ -1106,7 +1117,16 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.equal(week.nextVisitDays, 3);
   assert.equal(lapsed.lastVisitDays, 60);
   const L = (id) => PEOPLE_LISTS.find((l) => l.id === id);
-  assert.ok(L("booked_week").test(week) && !L("booked_week").test(later), "seven days");
+  // This week is Monday to Sunday by the workspace's clock (decision 0009): NOW is a Sunday, so the week is today, and
+  // a visit on Wednesday is next week's.
+  const later_today = {
+    ...soon,
+    start: new Date(NOW + 3 * 3_600_000).toISOString(),
+    end: new Date(NOW + 4 * 3_600_000).toISOString(),
+  };
+  const today = toPersonRowVM({ ...ROW, id: "t", visits: cal({ next: later_today }) }, TZ, now);
+  assert.ok(L("booked_week").test(today), "a visit later today is this week's");
+  assert.ok(!L("booked_week").test(week) && !L("booked_week").test(later), "Monday to Sunday, not the next seven days");
   assert.ok(L("booked").test(week) && L("booked").test(later));
   assert.ok(
     L("lapsed").test(lapsed) && !L("lapsed").test(regular) && !L("lapsed").test(back),
@@ -1129,6 +1149,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
       "consultation_booked",
       "proposal_out",
       "clients",
+      "deal_passed",
       "deal_ended",
     ],
   );

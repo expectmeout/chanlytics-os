@@ -1,9 +1,13 @@
 import "server-only";
 import {
   AppError,
+  BUILTIN_LISTS,
   LIST_DRAFT_JSON_SCHEMA,
   ListDraftAnswerSchema,
   asListRule,
+  listDraftFieldLines,
+  parseListToken,
+  ruleLists,
   type ListRule,
 } from "@chanlytics/contracts";
 import { askForJson } from "./model-json";
@@ -36,12 +40,44 @@ export function cleanListName(raw: unknown): string {
 
 /**
  * A smart list's rule as a person sent it, or null when none was sent: anything the vocabulary cannot read is refused
- * in words, never stored (contracts ListRuleSchema).
+ * in words, never stored (contracts ListRuleSchema). A list it reads must be one there is: a built-in by its id, or one
+ * of this workspace's own lists (`saved`, as packages/db reads them) whose rule reads no list itself -- one level deep
+ * (decision 0009) -- and never the list being changed (`self`).
  */
-export function cleanListRule(raw: unknown): ListRule | null {
+export function cleanListRule(
+  raw: unknown,
+  saved: readonly { id: string; rule?: unknown }[] = [],
+  self: string | null = null,
+): ListRule | null {
   if (raw === undefined || raw === null) return null;
   const rule = asListRule(raw);
   if (!rule) throw new AppError("validation", "That rule can't be read. Describe who is on the list again.");
+  for (const token of ruleLists(rule)) {
+    const ref = parseListToken(token);
+    const known =
+      ref?.kind === "builtin"
+        ? BUILTIN_LISTS.some((l) => l.id === ref.id)
+        : ref?.kind === "saved"
+          ? saved.find((l) => l.id.toLowerCase() === ref.id)
+          : null;
+    if (!known) throw new AppError("validation", "That rule reads a list there isn't. Pick one of your lists.");
+    if (ref?.kind === "saved" && ref.id === self?.toLowerCase())
+      throw new AppError("validation", "A list can't read itself.");
+    if (typeof known === "object") {
+      const other = known.rule == null ? null : asListRule(known.rule);
+      if (other && ruleLists(other).length)
+        throw new AppError("validation", "That list reads another list itself. A list reads lists one level deep.");
+    }
+  }
+  // Read by another list, it reads none itself: one level deep either way.
+  if (self && ruleLists(rule).length) {
+    const token = `list:${self.toLowerCase()}`;
+    const readBy = saved.some((l) => {
+      const r = l.rule == null ? null : asListRule(l.rule);
+      return !!r && ruleLists(r).some((t) => t.toLowerCase() === token);
+    });
+    if (readBy) throw new AppError("validation", "Another list reads this one, so it can't read lists itself.");
+  }
   return rule;
 }
 
@@ -57,19 +93,13 @@ export function cleanIdList(raw: unknown, what: string): string[] {
 }
 
 /** What a smart list's plain-English description is written into: the vocabulary, and nothing else. */
+// The fields and their ops come from the vocabulary itself (contracts listDraftFieldLines), so the prompt cannot name a
+// field the schema refuses or miss one it reads.
 const LIST_DRAFT_SYSTEM = [
   "You turn a business owner's description of a group of their customers into a list rule.",
-  "Every condition must hold for a person to be on the list. Use only these fields:",
-  "- last_visit: days since their last appointment on the calendar. op more_than (it was more than N days ago) or within (in the last N days); days.",
-  "- next_visit: days until their next appointment. op within (in the next N days) or more_than; days.",
-  "- booked: whether an appointment is booked ahead. op is; yes true or false.",
-  "- asked_not_booked: asked about booking and never booked. op is; yes.",
-  "- last_heard: days since they last wrote or called. op more_than or within; days.",
-  "- first_contact: days since they first wrote or called. op more_than or within; days.",
-  "- channel: a way they reach the business: whatsapp, sms, voice (phone calls) or email. op is or is_not; channel.",
-  "- came_from: how they first came: whatsapp, sms, email, call, calendar, manual, import or lead. op is or is_not; from.",
-  "- calls, conversations: how many. op at_least or at_most; n.",
-  "- offers_yes: whether they said yes to offers. op is; yes.",
+  'Every condition in all must hold for a person to be on the list. A condition is one fact, or { any: [facts] } when one of two to six facts is enough ("on WhatsApp or text"). Use only these fields:',
+  ...listDraftFieldLines(),
+  "more_than N is more than N days ago (or away); within N is in the last (or next) N days; never is no such moment at all, ever is any.",
   "A month is 30 days, a week 7. 'Regulars' or 'loyal' have no field: say so in cannot rather than invent one.",
   "Whatever the description asks that these fields cannot say -- a staff member, a service, a tag, a spend, what was said -- goes, in a few words, in cannot; empty when nothing was left out.",
   "name: a short name for the list, in the owner's words, at most 40 characters.",

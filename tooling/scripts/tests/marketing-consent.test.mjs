@@ -52,6 +52,7 @@ import {
 import { readCode, readRaw } from "./_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../../apps/edge/lib/lines/a2p.ts";
+import { personRow } from "./_person-row.mjs";
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -524,13 +525,15 @@ test('every read of "said yes to offers" points at the offers column', () => {
   // Run, not read. Both lists answer with the broadcast's OWN rule, `mayReceive`:
   // the yes to offers AND a number. They spelled it by hand without the number, so
   // a list could promise people the route then left out.
-  const reachable = {
-    id: "a",
-    phone: "+13055550100",
-    consent: { state: "opted_in", dnc: false, marketing: "opted_in" },
-  };
-  const noNumber = { id: "b", phone: null, consent: { state: "opted_in", dnc: false, marketing: "opted_in" } };
-  const talkOnly = { id: "c", phone: "+13055550101", consent: { state: "opted_in", dnc: false, marketing: "unknown" } };
+  // Rows as People reads them (_person-row.mjs): the list's rule reads the yes its builder works out (mayReceive).
+  const reachable = personRow({ id: "a", consent: "opted_in", marketing_consent: "opted_in" });
+  const noNumber = personRow({ id: "b", phone_e164: null, consent: "opted_in", marketing_consent: "opted_in" });
+  const talkOnly = personRow({
+    id: "c",
+    phone_e164: "+13055550101",
+    consent: "opted_in",
+    marketing_consent: "unknown",
+  });
   const offersList = PEOPLE_LISTS.find((l) => l.id === "offers_ok");
   assert.deepEqual(
     [reachable, noNumber, talkOnly].filter(offersList.test).map((p) => p.id),

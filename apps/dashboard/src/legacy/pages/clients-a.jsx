@@ -656,24 +656,25 @@ const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Wait
 
 const PL_LIST_TIP = {
   needs_you: "An open escalation, or a thread waiting for a person",
-  waiting_on_you: "You took over and they wrote last",
+  waiting_on_you: "You have the thread, or nobody does, and they wrote last — a teammate's waits on them",
   // A note with a day (0007, amended): every workspace's.
   steps_due: "Their next step's day has come, or gone by — a note with a day, for the team",
   new_week: "First contact in the last 7 days, by evidence — imported history never counts",
-  quiet: "No message or call in 30 days",
+  quiet: "They haven't written or called in 30 days — your own messages don't count, and someone never heard from isn't quiet",
   phoned_only: "Only ever phoned — no WhatsApp thread",
   opted_in: "Said yes to hearing from you — replies and messages about their own visit",
   // The list is who can RECEIVE an offer (contracts mayReceive): a yes with no number to send to is not on it.
   offers_ok: "Said yes to OFFERS, separately, with a number to send to — the only people a promotional broadcast may reach",
   opted_out: "Asked to stop; the receptionist stays silent, offers included",
   booked: "An appointment ahead on your calendar — the booking is the conversion",
-  booked_week: "An appointment in the next seven days",
-  asked_never_booked: "Wrote or called in the last 30 days, and your calendar has never had them — the people you can still win",
+  booked_week: "An appointment this week, Monday to Sunday",
+  asked_never_booked: "Wrote or called in the last 30 days, and nothing on your calendar since answers it — the people you can still win",
   lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
   // The journey past the booking (0004): drawn only where deals are a thing here.
-  consultation_booked: "A consultation ahead or behind them, and no proposal yet",
+  consultation_booked: "A consultation coming up, or one this past week with no proposal since — the Pipeline's Consultations",
   proposal_out: "A proposal went out and is waiting on their answer",
   clients: "Said yes, or paid — the engagement is running",
+  deal_passed: "They passed on a proposal",
   deal_ended: "An engagement that ended — the win-back list for clients",
 };
 
@@ -939,7 +940,7 @@ const NewListRow = ({ onCreate, openSignal = 0 }) => {
       </div>
     );
   }
-  // Who a drafted rule holds for today, over the people the page has read (contracts savedListIds, via the courier).
+  // Who a drafted rule holds for today, over the people the page has read (contracts listMembers, via the courier).
   const holds = draft && window.__lists && window.__lists.count ? window.__lists.count(draft.rule) : null;
   return (
     <div className="cl-rail-foot">
@@ -1053,10 +1054,12 @@ const ListTitle = ({ list, canEdit, onRenamed }) => {
   if (!editing) {
     return (
       <span className="cl-section-title" data-testid="saved-filter">
-        <Icon name={list.rule ? "sparkle" : "filter"} size={12} />
+        <Icon name={list.byHand ? "filter" : "sparkle"} size={12} />
         {list.name}
-        {/* A smart list says its rule once, quietly, beside its name: who is on it and why. */}
+        {/* A smart list says its rule once, quietly, beside its name: who is on it and why. One it can't count says
+            why instead (lists.ts listUnknownWords), never a 0. */}
         {list.rule && <span className="cl-list-rule" data-testid="list-rule">{list.rule.join(" · ")}</span>}
+        {list.unknown && <span className="cl-list-rule" data-testid="list-unknown">{list.unknown}</span>}
         {canEdit && (
           <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
             <Icon name="edit" size={11} />
@@ -1256,7 +1259,8 @@ const PeopleRail = ({ scope = "people", onScope = () => {}, scopeTabs = true, de
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
       {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
       {saved.map((s) => (
-        <RailRow key={s.id} smart={!!s.rule} label={s.name} count={s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.rule ? `Keeps itself current: ${s.rule.join(" · ")}` : "A list kept by hand — add people from their profile"} testid={s.rule ? "saved-smart" : undefined} />
+        // A list that can't be counted here draws a dash and says why on hover: can't tell is not nobody.
+        <RailRow key={s.id} smart={!s.byHand} label={s.name} count={s.unknown ? "—" : s.count} active={activeSaved === s.id} onPick={() => onPickSaved(s.id)} tip={s.unknown || (s.byHand ? "A list kept by hand — add people from their profile" : `Keeps itself current: ${(s.rule || []).join(" · ")}`)} testid={s.byHand ? undefined : "saved-smart"} />
       ))}
       {savedRead && saved.length === 0 && !compact && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers — or describe who, and it keeps itself current.</div>
@@ -1794,7 +1798,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
             {canEdit && isOwner && window.__setPersonReceptionistMany ? <PhoneSheetRow icon="agents" label="Receptionist" next disabled={busy} onClick={() => onSheet("receptionist")} testid="bulk-receptionist" /> : null}
             {canEdit && window.__appendPersonNotesMany ? <PhoneSheetRow icon="edit" label="Add a note" next disabled={busy} onClick={() => { setNote(""); onSheet("note"); }} testid="bulk-note" /> : null}
             {canExport ? <PhoneSheetRow icon="external" label="Export" meta="CSV" disabled={busy} onClick={() => { onSheet(null); exportCsv(); }} testid="bulk-export" /> : null}
-            {canEdit && window.__lists && activeSaved && !activeSaved.rule ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
+            {canEdit && window.__lists && activeSaved && activeSaved.byHand ? <PhoneSheetRow icon="x" label={`Take off ${activeSaved.name}`} disabled={busy} onClick={() => { onSheet(null); dropFromList(); }} testid="bulk-drop-list" /> : null}
             {!canEdit ? <p className="pp-sheet-hint pp-sheet-rows-note">Only an owner or operator can add to lists or record a yes.</p> : null}
           </div>
         ),
@@ -1870,7 +1874,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
               gated={busy ? "One moment — the last change is still saving" : null}
               items={savedRead ? [
                 { header: "Add to" },
-                ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+                ...saved.filter((s) => s.byHand).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
                 { label: "New list…", icon: "plus", onClick: newList },
               ] : [
                 // Lists that could not be read are not offered; a new one can still be made.
@@ -1902,7 +1906,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           gated={busy ? "One moment — the last change is still saving" : null}
           items={savedRead ? [
             { header: "Add to" },
-            ...saved.filter((s) => !s.rule).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+            ...saved.filter((s) => s.byHand).map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
             { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
           ] : [
             // Lists that could not be read are not offered; a new one can still be made.
@@ -1919,7 +1923,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
       )}
       {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them.
           A smart list's rule says who is on it: nobody is taken off one by hand. */}
-      {canEdit && window.__lists && activeSaved && !activeSaved.rule && !naming && (
+      {canEdit && window.__lists && activeSaved && activeSaved.byHand && !naming && (
         <button className="btn btn-sm" disabled={busy} onClick={dropFromList} data-testid="bulk-drop-list">
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
@@ -2689,7 +2693,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
         onOpen: (id) => cellOpenRef.current(id),
         // Read a person before their row is pressed: a pointer arriving, a finger coming down, the cursor landing.
         onWarm: (id) => { if (window.__warmPerson) window.__warmPerson(id); },
-        drop: activeSaved && !activeSaved.rule && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
+        drop: activeSaved && activeSaved.byHand && canEditLists && window.__lists ? { list: activeSaved, onDrop: (person) => cellDropRef.current(person) } : null,
         listsOf,
         shows: Object.fromEntries(columns.filter((c) => !c.off).map((c) => [c.key, true])),
       },
@@ -2930,7 +2934,7 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
             scrolled={scrolledX}
             onScrolled={setScrolledX}
             busy={searching}
-            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
+            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? (activeSaved.unknown ? { title: `${activeSaved.name} can't be counted right now`, body: activeSaved.unknown, action: { label: "Show everyone", onClick: () => setSavedId(null) } } : activeSaved.byHand ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : { title: `Nobody on ${activeSaved.name} right now`, body: "It keeps itself current: its people appear here when its rule holds for them.", action: { label: "Show everyone", onClick: () => setSavedId(null) } }) : null}
           />
           {hasMore && (
             <div className="cl-section-sub pl-more" data-testid="people-more">
