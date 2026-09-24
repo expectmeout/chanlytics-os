@@ -169,6 +169,7 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/record-row.jsx");
 // data-bits installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 globalThis.window.__tip = { show: (el) => tipped.push(el) };
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];

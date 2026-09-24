@@ -816,6 +816,7 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     removeEventListener: () => {},
   };
   globalThis.Icon = "Icon";
+  await import("../../../apps/dashboard/src/legacy/components/record-row.jsx");
   await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
   const Card = globalThis.window.WorkspaceData;
   assert.equal(typeof Card, "function", "published, or nothing below tests anything");

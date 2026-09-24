@@ -687,15 +687,22 @@ const WorkspaceData = () => {
   // Offered to every role and gated for the ones that may not take it (the one gate). The link was absent for them,
   // under a sentence of the card's own.
   const href = window.__href ? window.__href("GET export") : null;
+  // The record kit's card and rows (components/record-row.jsx), as every card of the Business tab above it: it stood
+  // apart in the person page's attribute list, the one card on the tab in another shape (23 Sep).
+  const Row = window.RecordRow;
   return (
-    <section className="fl-card set-card" data-testid="set-data">
-      <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep." />
-      <div className="cl-prof-attr-list">
-        <div className="cl-prof-attr">
-          <span className="cl-prof-attr-key">Download everything</span>
-          <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <section className="rec-card set-data" data-testid="set-data" aria-labelledby="set-data-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="set-data-title">Your data</h2>
+        <span className="rec-card-sub">Everything this workspace holds, in one file you keep.</span>
+      </div>
+      <Row
+        id="data-export"
+        label="Download everything"
+        value={(
+          <span className="set-data-val">
             {href && (
-              <a className="btn btn-ghost btn-sm" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}><Icon name="external" size={12} /> Download (JSON)</a>
+              <a className="bt-link" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}>Download (JSON)</a>
             )}
             <button
               type="button"
@@ -705,12 +712,13 @@ const WorkspaceData = () => {
               onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
             ><Icon name="info" size={12} /></button>
           </span>
-        </div>
-        <div className="cl-prof-attr">
-          <span className="cl-prof-attr-key">Delete this workspace</span>
-          <span className="cl-prof-attr-val set-team-mail">Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the owner's address. Its data is removed within 30 days, as the <a href="/privacy" target="_blank" rel="noreferrer">privacy policy</a> says.</span>
-        </div>
-      </div>
+        )}
+      />
+      <Row
+        id="data-delete"
+        label="Delete this workspace"
+        value={<span className="set-team-mail">Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the owner's address. Its data is removed within 30 days, as the <a href="/privacy" target="_blank" rel="noreferrer">privacy policy</a> says.</span>}
+      />
     </section>
   );
 };

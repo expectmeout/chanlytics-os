@@ -191,7 +191,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         {...shared}
         id="website"
         label="Website"
-        value={website.value}
+        value={website.value ? <span className="bt-one-line">{website.value}</span> : null}
         empty="Not set"
         // What empty means, and only what is exact: the prompt names a website only when one is typed here. Not that it
         // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
@@ -211,7 +211,7 @@ const BtWho = ({ brain, base = null, canEdit, flash, saver }) => {
         {...shared}
         id="booking_link"
         label="Booking link"
-        value={brain.booking_link || null}
+        value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
         empty="Not set"
         // Said once, plainly, rather than discovered by a customer.
         hint="Sent instead of confirming an appointment itself."
