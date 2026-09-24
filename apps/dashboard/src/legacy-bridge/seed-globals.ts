@@ -24,6 +24,10 @@ import {
   BROKEN_CONFIG_WORDS,
   hardLimitsWords,
   csvCell,
+  parseCsv,
+  matchColumns,
+  importRowsOf,
+  importCounts,
   LEAD_WORDS,
 } from "@chanlytics/contracts";
 import { pipelineHelpers, type PipelineHelpers } from "./pipeline-helpers";
@@ -80,6 +84,12 @@ declare global {
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
     __hardLimits: typeof hardLimitsWords;
     __csvCell: typeof csvCell;
+    __csvImport: {
+      parseCsv: typeof parseCsv;
+      matchColumns: typeof matchColumns;
+      importRowsOf: typeof importRowsOf;
+      importCounts: typeof importCounts;
+    };
     __LEAD_WORDS: typeof LEAD_WORDS;
     __leadWays: typeof leadsFirstDayWays;
     __LEAD_VM: {
@@ -168,6 +178,9 @@ if (typeof window !== "undefined") {
   // One CSV cell, as the route's export spells it: the page's export of a selection quoted and nothing more, so a
   // WhatsApp name of "=HYPERLINK(...)" ran in whoever opened that file while the whole-workspace export was safe.
   window.__csvCell = csvCell;
+  // The People import sheet reads a spreadsheet in the browser with these: parsed into rows, matched to a name, a
+  // number and an address column, and normalised into what the import door (window.__importPeople) takes.
+  window.__csvImport = { parseCsv, matchColumns, importRowsOf, importCounts };
   // Every word the Leads scope says, from contracts. The legacy pages are
   // classic scripts and cannot import; without this each page would spell the
   // stage, the email state and the questions again, and a word spelled twice is

@@ -302,6 +302,26 @@ export async function addPerson(body: {
 }
 
 /**
+ * One part of an imported client list: `window.__importPeople({ import_id, rows })`, fifty rows at most, through the
+ * owner's door (POST /contacts/import). The People surface re-reads after each part (refresh-map).
+ */
+export async function importPeople(body: {
+  import_id: string;
+  rows: { name?: string; phone?: string; email?: string }[];
+}): Promise<
+  ApiResult<{
+    added: number;
+    existed: number;
+    emails_set: number;
+    skipped: { line: number; reason: string }[];
+    failed: { line: number; message: string }[];
+    stopped: boolean;
+  }>
+> {
+  return api()("POST contacts/import", { body });
+}
+
+/**
  * A page remembering its view in this workspace: `window.__saveView("people",
  * { sortBy, sortDir, columns })`. Each save replaces the page's whole view
  * (member_view_set, 00113), so a page sends every key it owns. The member's own row, per workspace,
@@ -545,6 +565,7 @@ declare global {
       phone: string;
       name?: string;
     }) => Promise<ApiResult<{ contact_id: string; existed: boolean }>>;
+    __importPeople?: typeof importPeople;
     __saveView?: (
       page: string,
       view: Record<string, unknown>,
@@ -636,5 +657,6 @@ export function installPeopleCourier(): void {
   window.__setPersonReceptionistMany = setPersonReceptionistMany;
   window.__appendPersonNotesMany = appendPersonNotesMany;
   window.__addPerson = addPerson;
+  window.__importPeople = importPeople;
   window.__saveView = saveView;
 }
