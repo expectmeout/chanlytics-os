@@ -519,7 +519,7 @@ test("Esc while Ask reads stops waiting: the turn says so, and what the stream s
   tree = await later(Palette, props);
   keyed(tree, "Enter");
   tree = await later(Palette, props);
-  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the inbox…"), "reading, in the tools' words");
+  assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the inbox…"), "reading, in the tools' words");
   assert.ok(byTestId(tree, "ask-stop"), "the line offers Stop while Ask reads");
   keyed(tree, "Escape");
   tree = await later(Palette, props);
@@ -851,7 +851,7 @@ test("the Line takes back a Say the server set aside and shows the reads again; 
   keyed(tree, "Enter");
   tree = await later(Palette, OPEN);
   assert.equal(byClass(tree, "ask-headline").length, 0, "the Say taken back is not drawn");
-  assert.ok(textOf(byTestId(tree, "ask-trace")).includes("Reading the calendar…"), "the read is shown again");
+  assert.ok(textOf(byTestId(tree, "ask-reading")).includes("Reading the calendar…"), "the read is shown again");
   land();
   tree = await later(Palette, OPEN);
   assert.deepEqual(
@@ -942,6 +942,51 @@ test("the Line draws Ask's face in the line, and says Ask's mood as a turn runs"
     MASCOT.mood.set("idle");
     delete globalThis.window.__mascot;
   }
+});
+
+test("the band: one reading line says what Ask reads, Send fills with words, Stop while a turn runs", async () => {
+  const calls = ask([]);
+  const tick = () => new Promise((r) => setImmediate(r));
+  let release;
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.sent.push(input.text);
+    on({ t: "thread", id: TH(1).id, title: input.text });
+    on({ t: "trace", text: "Reading the inbox…" });
+    on({ t: "trace", text: "Reading this week's calls…" });
+    await new Promise((r) => {
+      release = r;
+    });
+    on({
+      t: "final",
+      message: {
+        id: "m-b",
+        role: "assistant",
+        text: "Done.",
+        atMs: Date.now(),
+        failed: false,
+        citations: [],
+        followups: [],
+        proposals: [],
+      },
+    });
+  };
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-send").props.disabled, true, "nothing to send yet");
+  assert.equal(byTestId(tree, "ask-reading"), null, "no reading line at rest");
+  typed(tree, "how did the week go?");
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-send").props.disabled, false);
+  keyed(tree, "Enter");
+  await tick();
+  tree = await later(Palette, OPEN);
+  assert.equal(textOf(byTestId(tree, "ask-reading")), "Reading this week's calls…", "the latest trace, one line");
+  assert.ok(byTestId(tree, "ask-stop"), "Stop while it reads");
+  assert.equal(byTestId(tree, "ask-send"), null);
+  release();
+  for (let i = 0; i < 3; i++) tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-reading"), null, "the line goes with the answer");
+  await closes();
 });
 
 test("a quick answer nods, and a failed turn shakes: the palette says how a turn ended", async () => {

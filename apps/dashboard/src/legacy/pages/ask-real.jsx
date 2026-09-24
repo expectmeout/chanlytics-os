@@ -1,7 +1,9 @@
 /* global React, Icon, Confirm */
-// AskReal: Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6). One line over the
-// page with the three standing in it; under it the rows (home, typing, Earlier), the trace while Ask reads, or the
-// answer, Say · Show · Do (ask-turn.jsx); a conversation folds above it. Reopening resumes the conversation until Clear.
+// AskReal: Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6). One band over the
+// page with the three standing in it beside the field, and while Ask reads, one line under the field saying what it
+// reads (docs/superpowers/specs/2026-09-23-ask-the-stage-design.md, 4.1, 4.2); under the band the rows (home, typing,
+// Earlier), the question while Ask reads, or the answer, Say · Show · Do (ask-turn.jsx); a conversation folds above it.
+// Reopening resumes the conversation until Clear.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
 // words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
 // No key symbol is drawn (D17): the Keyboard shortcuts sheet in the user menu lists the keys (contracts SHORTCUTS).
@@ -233,6 +235,7 @@ const AskReal = ({ open, onClose }) => {
   }, [sel, move]);
 
   if (!open || !A) return null;
+  const phone = arPhone();
 
   // Going somewhere closes the Line; ⌘K brings the conversation back.
   const nav = (to) => { onClose(); window.CHANLY.nav(to); };
@@ -460,6 +463,12 @@ const AskReal = ({ open, onClose }) => {
     </button>
   );
   const reading = speech.speakingId === "line";
+  // Send: an ink circle that fills once there are words, and gives way to Stop while a turn runs (spec 4.2, S12).
+  const sendButton = (
+    <button type="button" className="ask-send" onClick={() => submit()} disabled={!query.trim()} aria-label={t.askSend} title={t.askSend} data-testid="ask-send">
+      <Icon name="arrow-up" size={15} />
+    </button>
+  );
   const right = live ? (
     <button type="button" className="ask-line-btn" onClick={stop} aria-label={t.stopAnswer} title={t.stopAnswer} data-testid="ask-stop">
       <Icon name="stop" size={14} />
@@ -485,8 +494,14 @@ const AskReal = ({ open, onClose }) => {
       <button type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
         <Icon name="x" size={14} />
       </button>
+      {sendButton}
     </>
-  ) : talkButton;
+  ) : (
+    <>
+      {talkButton}
+      {sendButton}
+    </>
+  );
 
   let body = null;
   if (showRows)
@@ -504,16 +519,10 @@ const AskReal = ({ open, onClose }) => {
   else if (live && (live.say || live.text))
     body = <AskTurn m={{ id: "live", role: "assistant", text: live.text, citations: [], followups: [], proposals: [] }} say={live.say} q={live.q} streaming t={t} lang={lang} onNav={nav} onFollow={submit} />;
   else if (live || (quick && quick.pending)) {
-    const lines = live && live.traces.length ? live.traces : [t.thinking];
+    // While Ask reads, only the question is under the band; what it reads is the band's one line (ask-reading).
     body = (
-      <div className="ask-trace" data-testid="ask-trace" aria-live="polite">
+      <div className="ask-trace" data-testid="ask-trace">
         <p className="ask-turn-q">{live ? live.q : quick.q}</p>
-        {lines.map((line, k) => (
-          <div key={k} className={`ask-trace-row${k < lines.length - 1 ? " done" : ""}`}>
-            {k < lines.length - 1 ? <Icon name="check" size={12} className="ask-trace-check" /> : <span className="ask-trace-dot" />}
-            <span>{line}</span>
-          </div>
-        ))}
       </div>
     );
   } else if (quick && quick.answer) body = <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} t={t} lang={lang} onNav={nav} onFollow={submit} />;
@@ -583,35 +592,51 @@ const AskReal = ({ open, onClose }) => {
             })}
           </div>
         ) : null}
-        <div className={`ask-line-bar${talk.listening ? " listening" : ""}`} data-testid="ask-line">
-          <span className="ask-line-face" ref={faceRef}>
-            {AskFace ? <AskFace className="ask-line-face-canvas" testId="ask-line-face" /> : null}
-          </span>
-          {scope ? (
-            <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
-              <Icon name={arScopeIcon(scope)} size={10} />
-              <span>{scope.label}</span>
-              <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
-            </span>
+        {/* The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
+            while Ask reads, one line in coral ink saying what it reads. A phone's face and line are Task 6's. */}
+        <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} data-testid="ask-line">
+          <div className="ask-stage-row">
+            {!phone ? (
+              <span className="ask-stage-face" ref={faceRef}>
+                {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
+              </span>
+            ) : null}
+            {scope ? (
+              <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
+                <Icon name={arScopeIcon(scope)} size={10} />
+                <span>{scope.label}</span>
+                <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+              </span>
+            ) : null}
+            <input
+              ref={inputRef}
+              className="ask-line-input"
+              placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKey}
+              onKeyUp={(e) => hold.onKeyUp(e)}
+              role="combobox"
+              aria-expanded={showRows && rows.length > 0}
+              aria-controls={showRows ? "ask-rows" : undefined}
+              aria-activedescendant={activeId}
+              aria-autocomplete="list"
+              aria-label="Ask Chanlytics"
+              data-testid="ask-input"
+              maxLength={1000}
+              enterKeyHint="send"
+              autoCapitalize="sentences"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <span className="ask-line-right">{right}</span>
+          </div>
+          {live && !phone ? (
+            <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
+              <span className="ask-reading-dot" aria-hidden="true" />
+              {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
+            </p>
           ) : null}
-          <input
-            ref={inputRef}
-            className="ask-line-input"
-            placeholder={talk.listening ? t.listening : active ? t.follow : t.placeholder}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKey}
-            onKeyUp={(e) => hold.onKeyUp(e)}
-            role="combobox"
-            aria-expanded={showRows && rows.length > 0}
-            aria-controls={showRows ? "ask-rows" : undefined}
-            aria-activedescendant={activeId}
-            aria-autocomplete="list"
-            aria-label="Ask Chanlytics"
-            data-testid="ask-input"
-            maxLength={1000}
-          />
-          <span className="ask-line-right">{right}</span>
         </div>
         {doomed ? (
           <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />

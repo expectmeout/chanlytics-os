@@ -4,15 +4,16 @@
    components.css); what the Line changes is here, with the answer's parts, the cards, the mic and the phone's ✦, which
    Today's band shares. Imported last, so its phone rules win over mobile.css. No key symbol is drawn (D17). */
 
-/* ---- The scrim and the panel: 720 wide, 96 from the top, the page visible under it, no blur ---- */
+/* ---- The scrim and the panel: 720 wide, 80 from the top (the band is taller than the old bar), the page visible
+   under it, no blur (the Stage's spec, 4.1) ---- */
 .ask-overlay.ask-line-scrim {
   background: color-mix(in oklab, var(--bg-sunken) 64%, transparent);
   /* blur(0), not none: the build drops a `none` written beside its -webkit- twin (mobile.css does the same). */
   backdrop-filter: blur(0);
-  padding: 96px 24px 48px; align-items: flex-start;
+  padding: 80px 24px 48px; align-items: flex-start;
 }
 .ask-modal.ask-line {
-  max-width: var(--measure-prose); max-height: calc(100vh - 144px);
+  max-width: var(--measure-prose); max-height: calc(100vh - 128px);
   display: flex; flex-direction: column; overflow: hidden;
   border-color: var(--line-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
 }
@@ -22,18 +23,29 @@
 /* One character: while the Line is open the three stand in it, not also on the top bar's button. */
 body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 
-/* ---- The line: the three, the scope, the words, and one slot that changes with the state ---- */
-.ask-line-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 12px 0 10px; }
-.ask-line-face { flex: none; display: block; width: 44px; height: 36px; }
-.ask-line-face-canvas { display: block; width: 44px; height: 36px; }
-.ask-line-input { flex: 1; min-width: 0; height: 40px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 18px; letter-spacing: -0.01em; color: var(--ink); }
+/* ---- The band: the three at 84px beside the field; under it, while Ask reads, one line in coral ink (spec 4.2) ---- */
+.ask-stage { flex: none; display: grid; grid-template-rows: auto 0fr; background: var(--bg-sunken); border-bottom: 1px solid var(--line); padding: 12px 16px 12px 14px; transition: grid-template-rows 160ms var(--ease-out); }
+.ask-stage.live { grid-template-rows: auto 1fr; }
+.ask-stage-row { display: flex; align-items: center; gap: 12px; min-height: 68px; }
+.ask-stage-face { flex: none; display: block; width: 84px; height: 68px; }
+.ask-stage-canvas { display: block; width: 84px; height: 68px; }
+.ask-line-input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; letter-spacing: -0.012em; color: var(--ink); }
 .ask-line-input::placeholder { color: var(--ink-dim); }
-.ask-line-bar.listening .ask-line-input::placeholder { color: var(--accent); }
-.ask-line-right { flex: none; display: flex; align-items: center; gap: 2px; }
+.ask-stage.listening .ask-line-input::placeholder { color: var(--accent); }
+.ask-line-right { flex: none; display: flex; align-items: center; gap: 4px; }
 .ask-line-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--line); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .ask-line-btn:hover, .ask-line-btn:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; }
 .ask-line-btn.quiet { width: 32px; height: 32px; border-color: transparent; color: var(--ink-dim); }
 .ask-line-btn.on { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+/* Send: faint with no words, ink with words; Stop takes its place while a turn runs (S12). */
+.ask-send { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
+.ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
+.ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
+/* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */
+.ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: 12.5px; color: var(--accent-ink); }
+.ask-stage.live .ask-reading { padding-top: 6px; }
+.ask-reading-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ask-pulse 1.2s ease-in-out infinite; }
+@keyframes ask-pulse { 0%, 100% { transform: scale(.7); opacity: .4; } 50% { transform: scale(1); opacity: 1; } }
 .ask-scope { flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 180px; height: 26px; padding: 0 4px 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: 12px; color: var(--ink-muted); }
 .ask-scope > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ask-scope button { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
@@ -45,9 +57,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-said { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Hold to talk: the Line's, and Today's band's (today-face.jsx). */
-.ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--line); background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.ask-talk { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
 .ask-talk:hover { color: var(--ink); background: var(--bg-hover); }
-.ask-talk.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.ask-talk.on { background: var(--accent-soft); color: var(--accent); }
 .ask-talk.off { opacity: .5; }
 .ask-talk:disabled { opacity: .4; cursor: default; }
 /* A quiet tool beside an answer: Today's band reads aloud with it. */
@@ -58,8 +70,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
 .ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }
 
-/* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the trace while Ask reads ---- */
-.ask-line-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the question while Ask
+   reads. No hairline on top: the band's own is it. ---- */
+.ask-line-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .ask-rows { display: flex; flex-direction: column; gap: 14px; padding: 10px 10px 14px; }
 /* A section: its label, its rows, its chips (ask-home.jsx). The gap above is between sections, never between rows. */
 .ask-rows-sec { display: flex; flex-direction: column; }
@@ -92,15 +105,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-rows-empty { padding: 18px 20px; font-size: 13px; color: var(--ink-dim); }
 .ask-trace { display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 20px 22px; font-size: 13.5px; color: var(--ink); }
 .ask-trace .ask-turn-q { margin-bottom: 2px; }
-.ask-trace-row { display: flex; align-items: center; gap: 10px; margin-left: 24px; }
-.ask-trace-row.done { color: var(--ink-muted); }
-.ask-trace-dot { flex: none; width: 7px; height: 7px; margin: 0 3px 0 2px; border-radius: 50%; background: var(--accent); animation: ask-pulse 1.2s ease-in-out infinite; }
-.ask-trace-check { flex: none; color: var(--ink-dim); }
-@keyframes ask-pulse { 0%, 100% { transform: scale(.7); opacity: .4; } 50% { transform: scale(1); opacity: 1; } }
 
 /* ---- A conversation, folded above the line: a row per answer, one opened at a time ---- */
 .ask-folds { flex: 0 1 auto; max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--line); }
-.ask-fold-row { display: grid; grid-template-columns: 8px minmax(0, max-content) minmax(0, 1fr) 12px; align-items: center; column-gap: 12px; width: 100%; height: 40px; padding: 0 16px 0 22px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink-dim); text-align: left; cursor: pointer; }
+.ask-fold-row { display: grid; grid-template-columns: 12px minmax(0, max-content) minmax(0, 1fr) 12px; align-items: center; column-gap: 14px; width: 100%; height: 40px; padding: 0 16px 0 20px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink-dim); text-align: left; cursor: pointer; }
 .ask-fold-row:hover { background: var(--bg-hover); }
 .ask-fold-q { max-width: 40ch; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ask-fold-a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -191,8 +199,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-card-undo { margin-left: auto; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ask-cursor, .ask-trace-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
-  .ask-fold-chev { transition: none; }
+  .ask-cursor, .ask-reading-dot, .ask-part.show, .ask-part.do, .ask-modal.ask-line { animation: none; }
+  .ask-fold-chev, .ask-stage, .ask-send { transition: none; }
 }
 
 /* ---- A phone: the ✦, and the Line docked at the thumb with what it answers rising above it ---- */
@@ -232,10 +240,13 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line .ask-folds { order: 1; }
   .ask-line .ask-line-body { order: 2; border-top: 0; }
   .ask-line .ask-confirm { order: 3; margin: 8px 12px 0; }
-  .ask-line .ask-line-bar { order: 4; height: 56px; margin: 8px 12px 12px; padding: 0 6px 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--bg); }
+  /* The band stays the old field at the foot here, one flex row with no face and no reading line, until the phone's
+     own takeover replaces this block. */
+  .ask-line .ask-stage { order: 4; display: flex; align-items: center; height: 56px; margin: 8px 12px 12px; padding: 0 6px 0 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--bg); }
+  .ask-line .ask-stage-row { flex: 1; min-width: 0; min-height: 0; }
   .ask-line-input { font-size: 16px; }
   .ask-talk { width: 40px; height: 40px; }
-  .ask-line-bar .ask-line-btn { width: 44px; height: 44px; }
+  .ask-stage .ask-line-btn { width: 44px; height: 44px; }
   .ask-row { min-height: 48px; }
   .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ask-turn { padding: 12px 16px 16px; }
