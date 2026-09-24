@@ -6,7 +6,7 @@
  * it names can import this client without a cycle.
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
-import { clearReadCaches } from "./read-cache";
+import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { clearSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
 
@@ -66,9 +66,10 @@ export function apiFor(win: Window): Api {
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;
     // this is the one rule for everything read on demand, so a new cached
-    // read never has to remember to invalidate itself.
+    // read never has to remember to invalidate itself. A memory cache lets go;
+    // the person, kept in the tab like a surface, is painted and read again.
     refresh: (key) => {
-      clearReadCaches();
+      staleReadCaches();
       return import("./refresh-map").then((m) => m.refreshAfter(key));
     },
   });
@@ -92,9 +93,10 @@ export function api(): Api {
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;
     // this is the one rule for everything read on demand, so a new cached
-    // read never has to remember to invalidate itself.
+    // read never has to remember to invalidate itself. A memory cache lets go;
+    // the person, kept in the tab like a surface, is painted and read again.
     refresh: (key) => {
-      clearReadCaches();
+      staleReadCaches();
       return import("./refresh-map").then((m) => m.refreshAfter(key));
     },
   });

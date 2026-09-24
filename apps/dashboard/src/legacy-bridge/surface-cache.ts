@@ -17,6 +17,7 @@
  * persists across reloads) and die with the tab.
  */
 
+import { clearReadCaches } from "./read-cache";
 import { clearTabMemory } from "./tab-memory";
 
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
@@ -142,4 +143,7 @@ export function clearSurfaceCache(): void {
   } catch {
     /* nothing to clear */
   }
+  // And every read the pages kept, the people this tab opened among them, in memory and in the tab (read-cache.ts):
+  // outside the try, so storage refusing its own slot still lets go of what is in memory.
+  clearReadCaches();
 }

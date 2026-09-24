@@ -1193,7 +1193,14 @@ const PersonProfileFrame = ({ onBack, children }) => (
 const PERSON_NO_FOLD = { open: false, request: () => {}, close: () => {} };
 
 const ClientProfileReal = ({ id, onBack = () => {} }) => {
-  const [st, setSt] = useStateP({ loading: true, vm: null, missing: false, error: null });
+  // The person this tab already holds is the FIRST draw, not the second: seeded in the effect below, a reload painted
+  // one frame of the head alone before the page it already had (people-detail.ts keeps them in the tab).
+  const [st, setSt] = useStateP(() => ({
+    loading: true,
+    vm: window.__peekPerson ? window.__peekPerson(id) : null,
+    missing: false,
+    error: null,
+  }));
   const [toastNode, ppFlash] = window.usePPToast();
   // "Delete this person" is a typed-name confirmation, not a click: it erases
   // messages, media and recordings and cannot be undone. The one Confirm
@@ -1249,7 +1256,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 <div className="cl-prof-id">
                   <div className="cl-prof-avatar" aria-hidden="true">{known.initials}</div>
                   <div className="cl-prof-titles">
-                    <div className="cl-prof-name-line"><h1 className="cl-prof-name">{known.name}</h1></div>
+                    {/* The page's own name, rename and all: a bare h1 stood 9px higher on a phone than the name that
+                        replaced it, whose rename takes a thumb's 44px. */}
+                    <div className="cl-prof-name-line"><PersonName p={known} canEdit={!!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"))} flash={ppFlash} /></div>
                     <div className="cl-prof-meta cl-prof-idline">
                       <div className="cl-prof-idline-run">{[known.channelWords, known.phone].filter(Boolean).map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
                     </div>
@@ -1695,7 +1704,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 };
 
 // A real workspace fetches the person; the seeded profile keeps the demo.
-const ClientProfile = (props) => (window.__PEOPLE ? <ClientProfileReal {...props} /> : <ClientProfileSeed {...props} />);
+// `real`: the shell knows this is a real workspace before People's rows land. A person's page no longer waits for the
+// list (surface-registry.ts routeSurfaceFor), so asked by __PEOPLE alone it drew the mockup's seeded profile until then.
+const ClientProfile = ({ real = false, ...props }) => (window.__PEOPLE || real ? <ClientProfileReal {...props} /> : <ClientProfileSeed {...props} />);
 
 window.ClientProfile = ClientProfile;
 // Published for the same reason `PlatformLine` is: "does this control write the

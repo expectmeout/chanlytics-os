@@ -2182,6 +2182,61 @@ test("a person not read yet opens on their People row, with Reading… after the
   await settle();
 });
 
+test("a person this tab holds is the first draw, not the second, and is read again behind it", async () => {
+  // The tab keeps the people it opened (people-detail.ts), so a reload has them before the first frame. Seeded in the
+  // load effect, the page drew one frame of the head alone before the page it already had.
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const wasPeek = globalThis.window.__peekPerson;
+  let asked = 0;
+  globalThis.window.__peekPerson = (id) => (id === vm.id ? vm : null);
+  globalThis.window.__personDetail = async () => {
+    asked += 1;
+    return vm;
+  };
+  try {
+    cells = [];
+    frames.begin();
+    const first = globalThis.window.ClientProfile({ id: vm.id, onBack: () => {} });
+    assert.ok(byTestId(first, "person-now"), "REGRESSION: the first frame was the head alone");
+    assert.equal(byTestId(first, "person-known"), null, "and never the head over Reading…");
+    await settle();
+    assert.equal(asked, 1, "what the tab held is read again behind the paint");
+  } finally {
+    globalThis.window.__peekPerson = wasPeek;
+  }
+});
+
+test("on a real workspace a person's page is the real one before People's rows land: never the seeded profile", async () => {
+  // A person's page no longer waits for the list (surface-registry.ts routeSurfaceFor): the shell says the workspace
+  // is real, and the page reads its own person.
+  const keep = globalThis.window.__PEOPLE;
+  const wasPeek = globalThis.window.__peekPerson;
+  delete globalThis.window.__PEOPLE;
+  globalThis.window.__peekPerson = () => null;
+  let resolve = null;
+  globalThis.window.__personDetail = () =>
+    new Promise((r) => {
+      resolve = r;
+    });
+  try {
+    cells = [];
+    frames.begin();
+    const tree = globalThis.window.ClientProfile({ id: "p1", onBack: () => {}, real: true });
+    const frame = find(tree, (n) => String(n.props?.className || "").includes("cl-profile--solo"));
+    assert.ok(frame, "the real page's own frame, while their read is out");
+    assert.ok(
+      find(frame, (n) => String(n.props?.className || "").includes("route-reading")),
+      "saying Reading…",
+    );
+    assert.equal(resolve === null, false, "and it asked for the person");
+    resolve(null);
+    await settle();
+  } finally {
+    globalThis.window.__PEOPLE = keep;
+    globalThis.window.__peekPerson = wasPeek;
+  }
+});
+
 /* ----------------------------------- notes (0007) ----------------------------------- */
 
 const noteDto = (id, body, hoursAgo, over = {}) => ({

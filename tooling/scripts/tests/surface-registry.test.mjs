@@ -292,11 +292,12 @@ test("the Leads SCOPE of People waits for its own surface, not for People's", ()
   assert.equal(registry.surfaceRetiredTo("leads"), "clients/leads");
 });
 
-test("People resolves to its override for the list AND for a profile deep link", () => {
-  // The profile route is clients/<contact id>; the pane is fed by the same
-  // fetch as the list, so the gate waits on the same surface for both.
+test("People resolves to its override for the list; a profile deep link waits only for who is looking", () => {
+  // The profile route is clients/<contact id>. The pane is NOT fed by the list's fetch: it reads its own person
+  // (people-detail.ts), so waiting for the list only put People's whole read in front of it (0.87 s on a new tab,
+  // measured on production 23 Sep 2026). It waits for the workspace, which carries the role its acts depend on.
   assert.equal(registry.routeSurfaceFor("clients"), "people");
-  assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "people");
+  assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "workspace");
 });
 
 test("the flipped pages still resolve exactly as before", () => {

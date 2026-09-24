@@ -1397,6 +1397,34 @@ test("the old route on a cold load: the People surface is still on its way, so t
   }
 });
 
+test("a person's page on a cold load draws the real profile before People lands, named from the copy the tab holds", () => {
+  // Measured on production (23 Sep 2026): a new tab held Reading… until People's whole list was in (0.87 s) and only
+  // then asked for the person. The page reads its own person now; the shell must still draw the REAL page (the seeded
+  // one is what a workspace with no People rows used to get) and name them where it can.
+  const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
+  win.__surfaceState = () => "real";
+  win.__peekPerson = (id) => (id === ID ? { name: "Zoe Martin" } : null);
+  try {
+    const held = mount(`#/clients/${ID}`);
+    const page = find(held.tree, (n) => n.type === "ClientProfile");
+    assert.ok(page, "REGRESSION: a real person with no People rows yet was 'not found'");
+    assert.equal(page.props.id, ID);
+    assert.equal(page.props.real, true, "the real page, never the seeded profile");
+    assert.match(held.title, /Zoe Martin/, "named from the copy the tab kept of them");
+
+    win.__peekPerson = () => null;
+    const cold = mount(`#/clients/${ID}`);
+    assert.ok(
+      find(cold.tree, (n) => n.type === "ClientProfile"),
+      "a person nobody has read yet: still their page",
+    );
+    assert.match(cold.title, /Profile/, "and a plain crumb until someone can name them");
+  } finally {
+    delete win.__surfaceState;
+    delete win.__peekPerson;
+  }
+});
+
 test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigation -- with no role, the Esc that closed it cleared People's selection", () => {
   // Drawn again with the state the last draw left, as React draws after a press.
   const redraw = () => {

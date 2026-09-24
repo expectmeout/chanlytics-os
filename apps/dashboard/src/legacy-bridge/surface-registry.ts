@@ -122,6 +122,19 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/platform": "settings",
 };
 
+/** A person's page, as ROUTE_DRAWS names it. */
+export const PERSON_ROUTE = "clients/person";
+
+/**
+ * The person a route opens (`clients/<id>`), or null. A real person's id is a uuid (the route refuses anything else,
+ * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
+ */
+export function personRouteId(page: string, param?: string | null): string | null {
+  return page === "clients" && param && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param)
+    ? param
+    : null;
+}
+
 /**
  * What a page draws from surfaces other than its own, in the order the page
  * draws them, so a boot on that page reads them right after its own surface
@@ -144,7 +157,15 @@ export const ROUTE_SURFACE: Record<string, string> = {
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   today: ["calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "setup", "google", "people"],
   calendar: ["people"],
+  // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
+  // head while that read is out, so People is read next.
+  [PERSON_ROUTE]: ["people"],
 };
+
+/** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
+export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
+  return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
+}
 
 /**
  * Published for the mockup shell (a classic script that cannot import).
@@ -202,6 +223,11 @@ export function routeSurfaceFor(page: string, param?: string | null): string | u
   // "clients" it would wait for People's rows and paint the Leads scope with
   // no searches, no rows and no counts for as long as its own read took.
   if (page === "clients" && pane && /^leads(:|$)/.test(pane)) return ROUTE_SURFACE.leads;
+  // A person's page reads its own person and says Reading… itself, so it never waits for the whole list: measured on
+  // production (23 Sep 2026), a new tab held "Reading…" until People's 29 rows landed at 0.87 s and only then asked
+  // for the person, whose page drew at 1.5 s. It waits for who is looking (the workspace surface, which carries __ME):
+  // a role decides what the page offers, and a first draw that said it wrong would be corrected a moment later.
+  if (personRouteId(page, pane)) return "workspace";
   if (pane) {
     const specific = ROUTE_SURFACE[`${page}/${pane}`];
     if (specific) return specific;

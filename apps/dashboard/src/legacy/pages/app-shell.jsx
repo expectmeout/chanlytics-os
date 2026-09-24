@@ -330,6 +330,14 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     names.forEach((n) => window.addEventListener(n, go));
     return () => names.forEach((n) => window.removeEventListener(n, go));
   }, [route.page, route.param]);
+  // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come
+  // from their row: drawn again when the rows do, once.
+  useShellEffect(() => {
+    if (route.page !== "clients" || !route.param || window.__PEOPLE) return;
+    const again = () => setReadyTick((n) => n + 1);
+    window.addEventListener("surface:clients", again, { once: true });
+    return () => window.removeEventListener("surface:clients", again);
+  }, [route.page, route.param]);
 
   useShellEffect(() => {
     const handler = (e) => {
@@ -453,15 +461,18 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     pane = true;
     content = <ClientsA key="people" scope="people" initialSegment={segId} initialSaved={savedId} initialState={stateId} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
-    // A real workspace resolves the person from the People surface; the
-    // profile fetches in full and says so itself when the id is not here.
+    // A real workspace reads the person itself (people-detail.ts) and never waits for People's rows: the profile
+    // fetches in full and says so itself when the id is not here. The crumb names them from their row, else from the
+    // copy this tab holds, and is drawn again when People lands (the effect below).
     const people = window.__PEOPLE;
     const client = people ? people.rows.find(c => c.id === param) : (window.CLIENTS || []).find(c => c.id === param);
+    const held = !client && window.__peekPerson ? window.__peekPerson(param) : null;
+    const real = realWorkspace();
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, client ? client.name : "Profile"];
+    crumbs = [{ label: "People", to: "clients" }, client ? client.name : held ? held.name : "Profile"];
     pane = true;
-    content = client || people
-      ? <ClientProfile id={param} onBack={backToPeople} />
+    content = client || people || real
+      ? <ClientProfile id={param} onBack={backToPeople} real={real} />
       : <ClientNotFound onNavigate={navigate} />;
   } else if (page === "clients") {
     activeNav = "clients";
