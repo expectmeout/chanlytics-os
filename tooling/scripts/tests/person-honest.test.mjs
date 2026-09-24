@@ -2174,10 +2174,17 @@ test("History names who added a person, by the door that did: the calendar, the 
   assert.deepEqual(entry(added("manual")), ["You", "Added by hand"], "REGRESSION: Calendar · Added by hand");
   // Any other source POST contacts was given is a hand, as people_list's came_from reads it (00138).
   assert.deepEqual(entry(added("walk_in")), ["You", "Added by hand"]);
+  // A client list the owner brought in is theirs, from a file: People's column says Imported, and so does this.
+  assert.deepEqual(
+    entry(added("import")),
+    ["You", "Added from a spreadsheet"],
+    "REGRESSION: Imported on People, Added by hand here",
+  );
   // About says the same door in the same words.
   for (const [source, how] of [
     ["calendar", "from your calendar"],
     ["lead", "from a lead you found"],
+    ["import", "from a spreadsheet"],
     ["manual", "by hand"],
   ])
     assert.ok(

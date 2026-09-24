@@ -1,17 +1,22 @@
--- 00169 · People may be imported.
+-- 00170 · People may be imported.
 --
 -- A business's own client list arrives as a spreadsheet: a name, a number and an
 -- address per line (Part 0 of docs/superpowers/specs/2026-09-24-campaigns-on-every-channel-design.md).
 -- One door takes one line. It finds the person by number, then by address, fills
 -- only what is empty (a name, an address, a number), never overwrites, makes nobody
--- who asked to be forgotten (the digests of 00124 and 00125, computed by the route
--- with the deployment's key), and records no yes: an address on file is not consent.
+-- who asked to be forgotten, and records no yes: an address on file is not consent.
 -- Two numbers are two people, because the number is the stronger identity (00140):
 -- an address finds its holder only when the line or the holder has no number, and a
 -- line whose new number comes with another person's address is made without it (taken).
--- Re-runnable: create or replace, add-if-not-exists, drop-then-add for the CHECKs.
--- The CHECK takes ACCESS EXCLUSIVE on decisions, which every act writes to, so the
--- same lock guard as 00166 and 00167.
+-- The forgotten are known by the digests 00124 and 00125 keep: sha256 of
+-- "<tenant id>:<value>", in hex, the same bytes lead_suppression_hash() (00140) and
+-- contracts' erasure.ts compute, handed in by the route. A line that names one is
+-- refused with PE001, a code of its own: 42501 is also Postgres's "permission
+-- denied", and a caller that skips a forgotten person's line must not skip every
+-- line the day a grant is lost.
+-- Re-runnable: create or replace for the door, the CHECK widened only when it lacks
+-- the verb, people_list dropped and made again. The CHECK takes ACCESS EXCLUSIVE on
+-- decisions, which every act writes to, so the same lock guard as 00166 and 00167.
 set local lock_timeout = '3s';
 do $$
 begin
@@ -40,8 +45,8 @@ declare
   v_name      text := left(nullif(btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g')), ''), 80);
   v_phone     text := nullif(btrim(coalesce(p_phone_e164, '')), '');
   v_email     text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_new_email text;
   v_id        uuid;
-  v_existed   boolean := false;
   v_email_out text := null;   -- 'set' | 'kept' | 'taken' | null
 begin
   if v_user is null then
@@ -66,106 +71,134 @@ begin
         select 1 from contacts c where c.tenant_id = p_tenant_id and c.erased_phone_hash = p_phone_digest))
      or (p_email_digest is not null and exists (
         select 1 from contacts c where c.tenant_id = p_tenant_id and c.erased_email_hash = p_email_digest)) then
-    raise exception 'That person asked to be forgotten.' using errcode = '42501';
+    raise exception 'That person asked to be forgotten.' using errcode = 'PE001';
   end if;
 
-  if v_phone is not null then
-    select c.id into v_id from contacts c
-     where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
-       and c.erased_at is null and c.merged_into_contact_id is null
-     limit 1;
-  end if;
-  if v_id is null and v_email is not null then
-    select c.id into v_id from contacts c
-     where c.tenant_id = p_tenant_id and c.email = v_email
-       and c.erased_at is null and c.merged_into_contact_id is null
-       and (v_phone is null or c.phone_e164 is null)  -- two numbers are two people
-     limit 1;
-  end if;
-
-  if v_id is not null then
-    v_existed := true;
-    -- A name, a number or an address we did not have is worth keeping; one we have is never overwritten.
-    if v_name is not null then
-      update contacts set display_name = v_name, updated_at = now() where id = v_id and display_name is null;
-    end if;
+  -- Find, else make, in two attempts at most: a line that loses a race to make
+  -- the same person (their number or their address written by another line
+  -- between the look and the insert) looks again and fills the person who won,
+  -- rather than dropping its name and its address.
+  for v_try in 1..2 loop
+    v_id := null;
     if v_phone is not null then
-      begin
-        update contacts set phone_e164 = v_phone, updated_at = now() where id = v_id and phone_e164 is null;
-      exception when unique_violation then
-        null; -- another person here holds the number: theirs stays theirs
-      end;
+      select c.id into v_id from contacts c
+       where c.tenant_id = p_tenant_id and c.phone_e164 = v_phone
+         and c.erased_at is null and c.merged_into_contact_id is null
+       limit 1;
     end if;
-    if v_email is not null then
-      if exists (select 1 from contacts c where c.id = v_id and c.email is not null) then
-        v_email_out := 'kept';
-      elsif exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email) then
-        v_email_out := 'taken';
-      else
-        perform public.set_person_email(v_id, v_email);
-        v_email_out := 'set';
-      end if;
+    if v_id is null and v_email is not null then
+      select c.id into v_id from contacts c
+       where c.tenant_id = p_tenant_id and c.email = v_email
+         and c.erased_at is null and c.merged_into_contact_id is null
+         and (v_phone is null or c.phone_e164 is null)  -- two numbers are two people
+       limit 1;
     end if;
-  else
+    exit when v_id is not null;
+
+    -- Nobody: they are made, with the address only when nobody here holds it.
+    v_new_email := case
+      when v_email is not null
+       and not exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email)
+      then v_email
+    end;
+    -- Never a person with neither. The early checks make this impossible for
+    -- the line as written; it reads what the insert would write, because the
+    -- address may be one another person holds and so be left out.
+    if v_phone is null and v_new_email is null then
+      raise exception 'A number or an address is needed.' using errcode = '22023';
+    end if;
     begin
       insert into contacts (tenant_id, phone_e164, email, display_name)
-      values (p_tenant_id, v_phone, v_email, v_name)
+      values (p_tenant_id, v_phone, v_new_email, v_name)
       returning id into v_id;
+    exception when unique_violation then
+      if v_try = 2 then
+        raise;
+      end if;
+    end;
+    if v_id is not null then
       insert into events (tenant_id, kind, category, subject_type, subject_id, data)
       values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
               jsonb_build_object('source', 'import', 'title', null, 'by', v_user));
-      v_email_out := case when v_email is not null then 'set' else null end;
+      return jsonb_build_object(
+        'contact_id', v_id,
+        'existed', false,
+        'email', case when v_email is null then null when v_new_email is null then 'taken' else 'set' end);
+    end if;
+  end loop;
+
+  -- Found. A name, a number or an address we did not have is worth keeping; one
+  -- we have is never overwritten.
+  if v_name is not null then
+    update contacts set display_name = v_name, updated_at = now() where id = v_id and display_name is null;
+  end if;
+  if v_phone is not null then
+    begin
+      update contacts set phone_e164 = v_phone, updated_at = now() where id = v_id and phone_e164 is null;
     exception when unique_violation then
-      -- The number won a race, or the address is another person's here.
-      select c.id into v_id from contacts c
-       where c.tenant_id = p_tenant_id and c.erased_at is null
-         and ((v_phone is not null and c.phone_e164 = v_phone) or (v_phone is null and c.email = v_email))
-       limit 1;
-      if v_id is null then
-        -- A new number whose address belongs to someone else: the person is made without the address.
-        insert into contacts (tenant_id, phone_e164, display_name)
-        values (p_tenant_id, v_phone, v_name)
-        returning id into v_id;
-        insert into events (tenant_id, kind, category, subject_type, subject_id, data)
-        values (p_tenant_id, 'contact.added', 'contact', 'contact', v_id,
-                jsonb_build_object('source', 'import', 'title', null, 'by', v_user));
-        v_email_out := 'taken';
-      else
-        v_existed := true;
-      end if;
+      null; -- another person here holds the number: theirs stays theirs
     end;
   end if;
+  if v_email is not null then
+    if exists (select 1 from contacts c where c.id = v_id and c.email is not null) then
+      v_email_out := 'kept';
+    elsif exists (select 1 from contacts c where c.tenant_id = p_tenant_id and c.email = v_email) then
+      v_email_out := 'taken';
+    else
+      begin
+        perform public.set_person_email(v_id, v_email);
+        v_email_out := 'set';
+      exception when unique_violation then
+        v_email_out := 'taken'; -- another line wrote it between the look and the write
+      end;
+    end if;
+  end if;
 
-  return jsonb_build_object('contact_id', v_id, 'existed', v_existed, 'email', v_email_out);
+  return jsonb_build_object('contact_id', v_id, 'existed', true, 'email', v_email_out);
 end $$;
 
 revoke execute on function public.import_person(uuid, text, text, text, text, text) from public, anon;
 grant execute on function public.import_person(uuid, text, text, text, text, text) to authenticated;
 comment on function public.import_person(uuid, text, text, text, text, text) is
-  'One line of an imported client list: find by number, then address; fill what is empty; never a yes; the erased stay erased.';
+  'One line of an imported client list: find by number, then address (two numbers are two people); fill what is empty; never a yes; the erased stay erased (PE001).';
 
 /* ------------------------------------------------------------- 2. the ledger's word -- */
 
 -- The ledger takes an import: one row per part of fifty, subject the workspace.
-alter table public.decisions drop constraint if exists decisions_verb_check;
-alter table public.decisions add constraint decisions_verb_check
-  check (verb in (
-    'approve', 'edit', 'decline', 'snooze', 'wake', 'take_over', 'hand_back',
-    'resolve', 'archive', 'reply', 'cancel_send', 'pause_agent', 'resume_agent',
-    'invite', 'revoke_invite', 'change_role', 'remove_member', 'erase', 'whisper',
-    'connect_channel', 'consent_change', 'send_broadcast', 'cancel_broadcast',
-    'start_playbook', 'pause_playbook', 'reply_review', 'export', 'end_call',
-    'record_deal', 'import'
-  ));
+-- The verb is appended to the CHECK as it stands, never restated as a list: two
+-- programs widen this CHECK in the same week (the Lists program's verbs and this
+-- one), and a literal list from either would erase the other's verbs in whichever
+-- database it reached second. Postgres keeps `in (...)` as `= ANY (ARRAY[...])`,
+-- the form schema-sets.generated.ts is read from, and 'import' goes last in it.
+do $$
+declare
+  v_def text;
+begin
+  select pg_get_constraintdef(c.oid) into v_def
+    from pg_constraint c
+   where c.conname = 'decisions_verb_check' and c.conrelid = 'public.decisions'::regclass;
+  if v_def is null then
+    raise exception '00170: decisions_verb_check is missing, so there is no list of verbs to add import to';
+  end if;
+  if position('''import''::text' in v_def) > 0 then
+    return;
+  end if;
+  if v_def !~ '::text\]\)\)\)$' then
+    raise exception '00170: decisions_verb_check is not the verb = ANY (ARRAY[...]) it appends to: %', v_def;
+  end if;
+  v_def := regexp_replace(v_def, '::text\]\)\)\)$', '::text, ''import''::text])))');
+  execute 'alter table public.decisions drop constraint decisions_verb_check';
+  execute 'alter table public.decisions add constraint decisions_verb_check ' || v_def;
+end $$;
 
 /* --------------------------------------------- 3. the people read says an import -- */
 
--- Recreated whole, as 00138 and 00166 did: a returned column's CASE cannot be
--- changed in place, so 00166's people_list is copied as it stands and one arm
--- is added to came_from, before 'manual': a person the import door added came
--- from an import. The signature is the same, so every caller keeps calling it,
--- and the grants and the comment are restated, the comment naming import among
--- the doors.
+-- 00166's people_list, copied as it stands, with one arm added to came_from
+-- before 'manual' (a person the import door added came from an import) and its
+-- comment naming import among the doors. Only the body changes, not the
+-- signature or the columns, so `create or replace` alone would take it; the copy
+-- keeps 00166's drop and create so it reads line for line beside its source, and
+-- restates the grants and the comment the drop takes away.
 drop function if exists public.people_list(uuid, uuid, text, integer, integer);
 
 create function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0)

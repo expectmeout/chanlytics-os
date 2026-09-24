@@ -1519,7 +1519,7 @@ type PersonChannel = "whatsapp" | "sms" | "voice" | "email";
 declare const PERSON_CHANNEL_WORDS: Record<PersonChannel, string>;
 /**
  * Where a person first came from, as people_list decides it once (00138): the
- * door that added them (calendar, lead, a client list's import since 00169,
+ * door that added them (calendar, lead, a client list's import since 00170,
  * manual), an imported history (import), else their first call (call) or the
  * wire of their first message (whatsapp, sms, email). People's "Came from"
  * column says it in these words; a stored value is never shown.

@@ -451,4 +451,9 @@ test("an import says what its part of the list did, in counts", () => {
     "Imported 0 rows from a spreadsheet: 0 new, 0 already here, 0 skipped",
     "a count the payload does not carry is none",
   );
+  assert.equal(
+    activityWords("import", { rows: 50, added: 10, existed: 0, skipped: 0, failed: 1 }),
+    "Imported 50 rows from a spreadsheet: 10 new, 0 already here, 0 skipped, then stopped at a fault",
+    "a part that stopped at a fault does not read as a clean import",
+  );
 });

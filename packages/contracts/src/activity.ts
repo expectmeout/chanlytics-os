@@ -210,10 +210,12 @@ export function activityWords(kind: string, payload: unknown): string {
       break;
     }
     case "import": {
-      // One row per part of fifty, and the counts are the news: the sentence is them, not the verb's words.
+      // One row per part of fifty, and the counts are the news: the sentence is them, not the verb's words. A part
+      // that stopped at a fault says so, or it would read as a clean import.
       const n = (k: string) => num(p, k) ?? 0;
       const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
-      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}`;
+      const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
+      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
     }
     case "pause_agent":
     case "resume_agent": {

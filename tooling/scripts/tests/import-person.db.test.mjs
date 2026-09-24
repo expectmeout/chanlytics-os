@@ -1,7 +1,7 @@
 /**
  * A spreadsheet's line becomes a person, or fills one, on a real database.
  *
- * 00169 is a definer door whose body plpgsql does not parse until it runs, a widened decisions CHECK, and a recreated
+ * 00170 is a definer door whose body plpgsql does not parse until it runs, a widened decisions CHECK, and a recreated
  * people_list: what reading source cannot prove. Runs against Postgres in the database workflow; skipped without a
  * local database. The door needs a signed-in member, so a user is made and signs in, as person-email.db.test.mjs does.
  */
@@ -48,6 +48,8 @@ before(async () => {
 
 after(async () => {
   if (skip || !tenantId) return;
+  // events has no foreign key to tenants (it is partitioned), so the tenant's rows go first or they outlive it.
+  await db.from("events").delete().eq("tenant_id", tenantId);
   await db.from("tenants").delete().eq("id", tenantId);
   if (userId) await db.auth.admin.deleteUser(userId);
 });
@@ -133,7 +135,85 @@ test("a person who asked to be forgotten is not brought back by a spreadsheet", 
     .single();
   assert.equal(gone.error, null, gone.error?.message);
   const r = await door({ p_name: "Gone", p_phone_e164: phone, p_phone_digest: await erasedPhoneHash(tenantId, phone) });
-  assert.equal(r.error?.code, "42501");
+  // A code of its own: 42501 is Postgres's "permission denied" too, and a lost grant must not read as a forgotten line.
+  assert.equal(r.error?.code, "PE001");
+  assert.match(r.error?.message ?? "", /forgotten/);
+});
+
+test(
+  "a person found without an address is given the line's: set, as it is stored, and the event names none",
+  { skip },
+  async () => {
+    const hal = await door({ p_name: "Hal", p_phone_e164: "+16465550108" });
+    assert.equal(hal.data.email, null, "a line with no address says nothing of one");
+    const r = await door({ p_phone_e164: "+16465550108", p_email: " Hal@Example.com " });
+    assert.equal(r.error, null, r.error?.message);
+    assert.equal(r.data.contact_id, hal.data.contact_id);
+    assert.equal(r.data.existed, true);
+    assert.equal(r.data.email, "set");
+    const { data: row } = await db.from("contacts").select("email").eq("id", hal.data.contact_id).single();
+    assert.equal(row.email, "hal@example.com", "trimmed and lower-cased, as every address is stored");
+    const { data: events } = await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", hal.data.contact_id)
+      .eq("kind", "contact.email_set");
+    assert.equal(events.length, 1, "set through set_person_email, which records that it changed");
+    assert.equal(events[0].data.set, true);
+    assert.equal(
+      JSON.stringify(events[0].data).includes("@"),
+      false,
+      "an event outlives an erasure, so it names no address",
+    );
+  },
+);
+
+test(
+  "a person found without an address, given one another person here holds, keeps none: taken",
+  { skip },
+  async () => {
+    // Dee holds the address, whether or not the test above already made her.
+    await door({ p_name: "Dee", p_phone_e164: "+16465550104", p_email: "dee@example.com" });
+    const jo = await door({ p_name: "Jo", p_phone_e164: "+16465550109" });
+    const r = await door({ p_phone_e164: "+16465550109", p_email: "dee@example.com" });
+    assert.equal(r.error, null, r.error?.message);
+    assert.equal(r.data.contact_id, jo.data.contact_id);
+    assert.equal(r.data.existed, true);
+    assert.equal(r.data.email, "taken");
+    const { data: rows } = await db
+      .from("contacts")
+      .select("display_name, email")
+      .eq("tenant_id", tenantId)
+      .in("display_name", ["Dee", "Jo"])
+      .order("display_name");
+    assert.deepEqual(
+      rows,
+      [
+        { display_name: "Dee", email: "dee@example.com" },
+        { display_name: "Jo", email: null },
+      ],
+      "the address stays Dee's",
+    );
+  },
+);
+
+test("a nameless person found by number gets the line's name, and a named one keeps theirs", { skip }, async () => {
+  const nameless = await door({ p_phone_e164: "+16465550110" });
+  const named = await door({ p_phone_e164: "+16465550110", p_name: "  Kim 	 Lee  " });
+  assert.equal(named.data.contact_id, nameless.data.contact_id);
+  const lou = await door({ p_name: "Lou", p_phone_e164: "+16465550111" });
+  const again = await door({ p_name: "Louis", p_phone_e164: "+16465550111" });
+  assert.equal(again.data.contact_id, lou.data.contact_id);
+  const { data: rows } = await db
+    .from("contacts")
+    .select("phone_e164, display_name")
+    .in("id", [nameless.data.contact_id, lou.data.contact_id])
+    .order("phone_e164");
+  assert.deepEqual(rows, [
+    { phone_e164: "+16465550110", display_name: "Kim Lee" },
+    { phone_e164: "+16465550111", display_name: "Lou" },
+  ]);
 });
 
 test(

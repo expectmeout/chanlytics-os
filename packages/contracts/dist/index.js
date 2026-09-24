@@ -8636,6 +8636,7 @@ function cameFromOf(r2) {
   return { key: k, label: PERSON_CAME_FROM_WORDS[k] };
 }
 function addedBy(added) {
+  if (added.source === "import") return { who: "You", how: "from a spreadsheet" };
   if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
@@ -19340,7 +19341,8 @@ function activityWords(kind, payload) {
     case "import": {
       const n = (k) => num2(p, k) ?? 0;
       const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
-      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}`;
+      const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
+      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
     }
     case "pause_agent":
     case "resume_agent": {

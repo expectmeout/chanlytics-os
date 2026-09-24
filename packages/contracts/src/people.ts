@@ -810,10 +810,12 @@ export function cameFromOf(r: { came_from?: string | null }): { key: PersonCameF
 /**
  * Who added a person and how, from their first contact.added event (PersonDetailDto.added), read as
  * people_list reads it for came_from (00138): 'calendar' is the calendar sweep, 'lead' the lead finder
- * (00140, 00142), and any other source -- 'manual', or whatever POST contacts was given -- a hand. In
- * came_from's words, once: History's row says who and "Added" how, About's Added row the day and how.
+ * (00140, 00142), 'import' a client list the owner brought in (00170), and any other source -- 'manual',
+ * or whatever POST contacts was given -- a hand. In came_from's words, once: History's row says who and
+ * "Added" how, About's Added row the day and how.
  */
 function addedBy(added: Pick<NonNullable<PersonDetailDto["added"]>, "source" | "title">): { who: string; how: string } {
+  if (added.source === "import") return { who: "You", how: "from a spreadsheet" };
   if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
