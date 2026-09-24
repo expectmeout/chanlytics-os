@@ -164,7 +164,10 @@ const BtCanCard = ({ brain, config, canEdit }) => {
           voiceLive: live("voice"),
           whatsappLive: live("whatsapp"),
           hasCalendarFeed: !!(config && config.calendar && config.calendar.ical_url),
-          hasBookingLink: !!brain.booking_link,
+          // By the resolver's own test (contracts offersBookingLink), as every reader of the link asks.
+          hasBookingLink: tab.offersBookingLink(brain),
+          // Whether the workspace is asked for one at all, by how its customers buy (contracts bookingLinkOptional).
+          linkOptional: tab.bookingLinkOptional(window.__businessTabSave.answer()),
           // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
           // The list is known to be one by now: a failed read is said above, not read as "no approved message".
           hasBookingTemplate: !!tab.bookingTemplate(templates),
@@ -185,7 +188,9 @@ const BtCanCard = ({ brain, config, canEdit }) => {
       : null;
   // Texting reads `ready`, not `live`: `live` needs a tested that texting never records (capabilities.ts), so it can
   // never be true, and the row would say texting is not sold on a line where it is on.
-  const limits = dto ? tab.cannotRows({ smsLive: tab.capabilityStatus("sms", dto).ready }) : [];
+  const limits = dto
+    ? tab.cannotRows({ smsLive: tab.capabilityStatus("sms", dto).ready, hasBookingLink: tab.offersBookingLink(brain) })
+    : [];
   const words = tab.ABILITY_CHANNEL_WORDS;
   const door = canEdit ? btcOpenRow : null;
   // What could not be read, named: the card says which surface rather than "something". The

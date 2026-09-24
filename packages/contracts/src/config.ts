@@ -546,9 +546,9 @@ export const BrainConfigSchema = z
      */
     phone_display: z.string().min(3).max(40).optional(),
     /**
-     * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-     * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-     * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+     * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+     * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+     * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
      */
     booking_link: z.string().url().max(500).optional(),
     /** The complete system prompt the model receives — the "AI memory" pane's
@@ -852,13 +852,6 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
 }
 
 /**
- * What a save with no booking link is refused in: here, and in the Business tab's own check before it
- * (business-tab-save.jsx btCheckBookingLink, which business-tab-create.test holds to these words). Said as what the
- * link is for, because a receptionist with none is read and answered since decision 2 -- it is the save that asks.
- */
-export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-
-/**
  * The same config, with the rules that only apply on the way IN.
  *
  * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
@@ -866,10 +859,6 @@ export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to sen
  * stricter.
  */
 export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  // Read without one since decision 2; saved with one until the first run's Check asks how customers buy (3c).
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
-  }
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -1692,15 +1681,44 @@ export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
  * The product's own wording for the three messages, naming the details rather
  * than copying them, so they follow the business's details from the first day
  * and a customer is never sent "call us at ." before a line exists.
+ *
+ * Each sentence stands without the one naming the link, which a business that
+ * quotes does not have (the first run's decision 2): fillDetails leaves out a
+ * sentence naming a detail the workspace lacks, and what is left must still be
+ * a whole message.
  */
 export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
+  greeting:
+    "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error:
+    "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
+  non_text:
+    "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+};
+
+/**
+ * The product's wording before 24 Sep 2026, still the product's. Two of its
+ * sentences leaned on the one naming the link ("Or reply here", "— or a member
+ * of our team will reply"), so with no link they read as half a message.
+ * Workspaces set up with it keep it, since a stored message is theirs to change:
+ * it is never said to be their own words, or offered the default wording back.
+ */
+export const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = /* @__PURE__ */ (() => ({
   greeting:
     "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
   error:
     "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
-  non_text:
-    "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
-};
+  non_text: FALLBACK_DEFAULTS.non_text,
+}))();
+
+/**
+ * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
+ * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
+ */
+export function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
+}
 
 const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
 const namesADetail = (text: string) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
@@ -1745,8 +1763,17 @@ export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null):
     "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value,
   };
+  // The earlier wording leaned on the sentence naming the link, so with none it went out as half a message ("Or reply
+  // here with any question."): a workspace still holding it is sent today's wording in its place, which says the same
+  // in whole sentences. Its own words are never touched.
+  const own = (kind: keyof BrainConfig["fallbacks"]) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind]
+      ? FALLBACK_DEFAULTS[kind]
+      : stored;
+  };
   const say = (kind: keyof BrainConfig["fallbacks"]) =>
-    fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+    fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 

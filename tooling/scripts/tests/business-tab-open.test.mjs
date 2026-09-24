@@ -516,7 +516,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
 
 test("the standing line's hours door opens the fold, and the fold asks before its changes go like any other", () => {
   let tree = drawTab({ profile: without(marisa, "hours") });
-  const gap = standingLine(W.__SETTINGS.config.brain, true).missing;
+  const gap = standingLine(W.__SETTINGS.config.brain, true, null).missing;
   assert.equal(gap.row, "hours");
   const door = byTestId(byTestId(tree, "rec-standing"), "rec-standing-door");
   const heard = door.props["aria-labelledby"]

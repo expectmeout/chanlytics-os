@@ -70,6 +70,24 @@ export function dealsAreOn(sellsBy: string | null | undefined): boolean {
   return sellsBy === "proposal";
 }
 
+/**
+ * Whether a receptionist may have no booking link: a business that says some customers get a proposal first quotes
+ * before anyone books, and its receptionist takes their details instead (the first run's decision 2). One that books,
+ * or has not said, is asked for one. The pages ask by this; the save does not, since the config cannot see the answer
+ * and a receptionist with no link is read and answered either way (no-booking-link.ts).
+ */
+export function bookingLinkOptional(sellsBy: string | null | undefined): boolean {
+  // The one answer that turns deals on: a business that quotes.
+  return dealsAreOn(sellsBy);
+}
+
+/**
+ * What a page says when a business that is asked for a booking link leaves it empty: the Business tab's own check
+ * (business-tab-save.jsx btCheckBookingLink, which reads it through the bridge). Said as what the link is for, since a
+ * receptionist with none is still read and answered.
+ */
+export const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+
 /** The answer a new workspace's create card has chosen before anyone presses (0008): most businesses book one. */
 export const SELLS_BY_FIRST: SellsBy = "booking";
 

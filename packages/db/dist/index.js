@@ -590,9 +590,9 @@ var BrainConfigSchema = z3.object({
    */
   phone_display: z3.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -708,11 +708,7 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
-  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -878,6 +874,57 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function isDealStage(s) {
+  return typeof s === "string" && DEAL_STAGES.includes(s);
+}
+function pickCurrentDeal(rows) {
+  const sorted = [...rows].sort(
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
+}
+function dealSinceMs(d) {
+  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at2 ? Date.parse(at2) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -1101,57 +1148,6 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function isDealStage(s) {
-  return typeof s === "string" && DEAL_STAGES.includes(s);
-}
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function dealSinceMs(d) {
-  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at2 ? Date.parse(at2) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {

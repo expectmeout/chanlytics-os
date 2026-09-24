@@ -12,7 +12,7 @@
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (handoffWords,
 // handoffChatWords, handoffCallWords, notesWords, instructionsWords, fallbacksWords, TONE_PRESETS and
-// RULES_WITHOUT_FIELDS_WORDS, through window.__businessTab); what each fold opens with, refuses and writes is
+// rulesWithoutFieldsWords, through window.__businessTab); what each fold opens with, refuses and writes is
 // business-tab-folds.jsx's; the gesture is BtFold, read from window as each row draws.
 //
 // Loaded after business-tab-offer.jsx and before business-tab-services.jsx (both load lists), and read by the page as
@@ -476,7 +476,7 @@ const BtaFallbacks = ({ draft, update, press, problems, readOnly, brain }) => {
                 {written === "link" ? <>Your booking link is written out here — {"{booking link}"} keeps it current.</> : <>A number is written out here — {"{phone}"} gives the one you publish.</>}
               </span>
             ) : null}
-            {defaults[key] !== undefined && text !== defaults[key] ? (
+            {defaults[key] !== undefined && !window.__businessTab.isProductFallback(key, text) ? (
               <button
                 type="button" className="btn btn-ghost btn-sm bt-fallback-default"
                 aria-describedby={`bt-fallback-${key}-label`}
@@ -595,7 +595,7 @@ const BtAnswersCard = ({ brain, base = null, config = null, canEdit, flash, save
           ) : null,
           name: "Change the rules it always keeps",
         }}
-        body={(f) => <BtaRules {...f} unread={composes ? null : tab.RULES_WITHOUT_FIELDS_WORDS || null} />}
+        body={(f) => <BtaRules {...f} unread={composes ? null : tab.rulesWithoutFieldsWords(on)} />}
       />
 
       <Fold

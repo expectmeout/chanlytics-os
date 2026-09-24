@@ -9,8 +9,8 @@
  * it, it asks for the same things. Where the link was one offer among others -- a call back, a professional's advice,
  * a change to an appointment already booked -- the others stand alone.
  *
- * Read, not yet written: a receptionist with no link parses, and the save still refuses one
- * (TenantConfigWriteSchema) until the first run's Check asks how customers buy.
+ * A receptionist with no link is read and saved. Who is asked for one is the pages' question, by how customers buy
+ * (deals.ts bookingLinkOptional), since the config cannot see the answer.
  */
 export const NO_LINK_DETAILS = "their name, what they need, and where and when";
 

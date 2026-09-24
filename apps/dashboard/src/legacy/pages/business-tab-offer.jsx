@@ -230,6 +230,9 @@ const BtwConsult = ({ draft, update, problems, readOnly }) => (
  * which BtFold asks for itself. How customers buy is the workspace list's, which its door keeps current.
  */
 const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
+  // Whether it sends a link at all, by the resolver's own test; without the bridge, the words that have one.
+  const btwTab = window.__businessTab || {};
+  const btwOffers = !btwTab.offersBookingLink || btwTab.offersBookingLink(brain);
   const tab = window.__businessTab || {};
   const Fold = window.BtFold;
   const profile = brain.profile || {};
@@ -257,7 +260,7 @@ const BtOfferCard = ({ brain, canEdit, flash, saver }) => {
         {...shared}
         id="booking_rules"
         label="Booking rules"
-        hint="It never books. It says which times are open and sends the link."
+        hint={btwOffers ? "It never books. It says which times are open and sends the link." : "It never books. It says which times are open and takes their details."}
         footNote="Saves these five rules and the notes, and nothing else on the page."
         gate={gate("the booking rules")}
         row={{

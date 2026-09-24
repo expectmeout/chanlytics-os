@@ -680,9 +680,9 @@ var BrainConfigSchema = z3.object({
    */
   phone_display: z3.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -798,11 +798,7 @@ function checkClosure(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
-  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -980,6 +976,14 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE = "start";
 var FIND_PARAM = "find";
 var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
@@ -1203,14 +1207,6 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -7755,9 +7751,9 @@ var BrainConfigSchema2 = z32.object({
    */
   phone_display: z32.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z32.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -7873,11 +7869,7 @@ function checkClosure2(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED2 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED2 });
-  }
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z32.ZodIssueCode.custom,
@@ -8043,6 +8035,14 @@ var LeadSearchPlanSchema2 = z42.object({
 var US_NAMES2 = Object.fromEntries(
   Object.entries(US_STATES2).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE2 = "start";
 var FIND_PARAM2 = "find";
 var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
@@ -8266,14 +8266,6 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION2 = "How customers buy";
-var SELLS_BY_WORDS2 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS2 = [
   {
@@ -10896,9 +10888,9 @@ var BrainConfigSchema3 = z33.object({
    */
   phone_display: z33.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z33.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -11014,11 +11006,7 @@ function checkClosure3(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED3 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED3 });
-  }
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z33.ZodIssueCode.custom,
@@ -11184,6 +11172,14 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE3 = "start";
 var FIND_PARAM3 = "find";
 var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
@@ -11407,14 +11403,6 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION3 = "How customers buy";
-var SELLS_BY_WORDS3 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS3 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS3 = [
   {
@@ -13066,9 +13054,9 @@ var BrainConfigSchema22 = z322.object({
    */
   phone_display: z322.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z322.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -13184,11 +13172,7 @@ function checkClosure22(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED22 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z322.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED22 });
-  }
   if (cfg.calendar && !feedUrlOk22(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z322.ZodIssueCode.custom,
@@ -13354,6 +13338,14 @@ var LeadSearchPlanSchema22 = z422.object({
 var US_NAMES22 = Object.fromEntries(
   Object.entries(US_STATES22).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION22 = "How customers buy";
+var SELLS_BY_WORDS22 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE22 = "start";
 var FIND_PARAM22 = "find";
 var FIRST_RUN_FIND_ROUTE22 = `${FIRST_RUN_ROUTE22}/${FIND_PARAM22}`;
@@ -13577,14 +13569,6 @@ var LeadSuggestAnswerSchema22 = z522.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION22 = "How customers buy";
-var SELLS_BY_WORDS22 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS22 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS22 = [
   {
@@ -15209,9 +15193,9 @@ var BrainConfigSchema32 = z332.object({
    */
   phone_display: z332.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z332.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -15327,11 +15311,7 @@ function checkClosure32(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED32 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z332.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED32 });
-  }
   if (cfg.calendar && !feedUrlOk32(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z332.ZodIssueCode.custom,
@@ -15497,6 +15477,14 @@ var LeadSearchPlanSchema32 = z432.object({
 var US_NAMES32 = Object.fromEntries(
   Object.entries(US_STATES32).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION32 = "How customers buy";
+var SELLS_BY_WORDS32 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE32 = "start";
 var FIND_PARAM32 = "find";
 var FIRST_RUN_FIND_ROUTE32 = `${FIRST_RUN_ROUTE32}/${FIND_PARAM32}`;
@@ -15720,14 +15708,6 @@ var LeadSuggestAnswerSchema32 = z532.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION32 = "How customers buy";
-var SELLS_BY_WORDS32 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS32 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS32 = [
   {
@@ -17872,9 +17852,9 @@ var BrainConfigSchema4 = z34.object({
    */
   phone_display: z34.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z34.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -17990,11 +17970,7 @@ function checkClosure4(c2, n2, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED4 = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z34.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED4 });
-  }
   if (cfg.calendar && !feedUrlOk4(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z34.ZodIssueCode.custom,
@@ -18160,6 +18136,14 @@ var LeadSearchPlanSchema4 = z44.object({
 var US_NAMES4 = Object.fromEntries(
   Object.entries(US_STATES4).map(([name2, code2]) => [code2, name2])
 );
+var SELLS_BY_QUESTION4 = "How customers buy";
+var SELLS_BY_WORDS4 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
 var FIRST_RUN_ROUTE4 = "start";
 var FIND_PARAM4 = "find";
 var FIRST_RUN_FIND_ROUTE4 = `${FIRST_RUN_ROUTE4}/${FIND_PARAM4}`;
@@ -18383,14 +18367,6 @@ var LeadSuggestAnswerSchema4 = z54.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
-var SELLS_BY_QUESTION4 = "How customers buy";
-var SELLS_BY_WORDS4 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
 var LIST_NEEDS4 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS4 = [
   {

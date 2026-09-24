@@ -616,7 +616,7 @@ const CalendarReal = ({ initialDay = null }) => {
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">
           <Icon name="shield" size={14} />
-          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link. The open times here are for a consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.</span>
+          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and {vm.bookingLink ? "sends the booking link" : "takes their details"}. The open times here are for a consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.</span>
         </div>
       )}
       {vm.feed.state !== "ok" && (
@@ -625,10 +625,10 @@ const CalendarReal = ({ initialDay = null }) => {
           {vm.feed.state === "none" ? (
             <span>
               <b>No calendar connected.</b> Paste the private iCal address of the calendar your appointments land in — Google, Apple or Outlook; Booksy, Calendly and the rest sync into one — under Settings › Business.
-              Until then the receptionist sends the booking link but never names an open time, and this board shows only your hours and closures.
+              Until then the receptionist {vm.bookingLink ? "sends the booking link but " : ""}never names an open time, and this board shows only your hours and closures.
             </span>
           ) : (
-            <span><b>Your calendar could not be read.</b> {vm.feed.problem || CR_FEED_WORDS.unavailable}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
+            <span><b>Your calendar could not be read.</b> {vm.feed.problem || CR_FEED_WORDS.unavailable}{vm.feed.problem ? ` Until it reads, the receptionist ${vm.bookingLink ? "sends the booking link but " : ""}never names an open time.` : ""}</span>
           )}
           {/* A calendar that can't be read: its only way back was Settings (C2). */}
           {vm.feed.state === "unavailable" && (
@@ -734,7 +734,7 @@ const CalendarReal = ({ initialDay = null }) => {
                 </div>
               </dl>
               <div className="cal-rules-links">
-                <span className="cal-about-note">Customers book through your booking link.</span>
+                <span className="cal-about-note">{vm.bookingLink ? "Customers book through your booking link." : "Customers book with your team."}</span>
                 <span className="cal-rules-doors">
                   {vm.bookingLink && <button type="button" className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link"><Icon name="copy" size={11} />Copy booking link</button>}
                   <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings › Business <Icon name="arrow-right" size={10} /></button>

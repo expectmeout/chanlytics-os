@@ -35,6 +35,9 @@
 const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buys }) => {
   const d = draft || {};
   const number = window.btPublishedBox({ line, handoff, kept, testid: "rec-create-number" });
+  // The link box's hint follows the answer chosen below, as the Who you are row's does the workspace's.
+  const tab = window.__businessTab || {};
+  const linkWords = tab.bookingLinkRowWords ? tab.bookingLinkRowWords(window.__businessTabSave.answerOf(d)) : {};
   return (
     <>
       <window.RecordField
@@ -68,7 +71,7 @@ const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buy
         value={d.link}
         onChange={(v) => update((was) => ({ ...was, link: v }), ["link"])}
         problem={problems.link || null}
-        hint="Sent instead of confirming an appointment itself."
+        hint={linkWords.hint}
         placeholder="https://your-booking-page.com"
         inputMode="url"
         autoComplete="url"
@@ -128,7 +131,7 @@ const BtCreateCard = ({ flash = () => {} }) => {
       <Fold
         id="receptionist"
         label="Set up your receptionist"
-        hint="The three things it cannot answer anyone without."
+        hint="Its name, the number it gives out, and the booking link where customers book one."
         // No preview is composed for a workspace with no receptionist, so nothing is said it will be told.
         channel={null}
         said={<>Saved — the receptionist picks these up within a minute</>}

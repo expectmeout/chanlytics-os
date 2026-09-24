@@ -2833,9 +2833,9 @@ var BrainConfigSchema = z3.object({
    */
   phone_display: z3.string().min(3).max(40).optional(),
   /**
-   * Where a customer books. Optional to READ since the first run's decision 2 (24 Sep 2026): a business that quotes
-   * each job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Required to
-   * SAVE until the first run's Check asks how customers buy (TenantConfigWriteSchema).
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
   booking_link: z3.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -2975,11 +2975,7 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.brain && !cfg.brain.booking_link) {
-    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["brain", "booking_link"], message: BOOKING_LINK_NEEDED });
-  }
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -3361,10 +3357,19 @@ function isBaselineInOwnersField(text) {
 }
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
   non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
 };
+var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: FALLBACK_DEFAULTS.non_text
+}))();
+function isProductFallback(key, text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
+}
 var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
 var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
@@ -3382,7 +3387,11 @@ function fallbackMessages(brain, known) {
     "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
     phone: facts.phone_display.value
   };
-  const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  const own = (kind) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
+  };
+  const say = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
 }
 function unknownDetails(text) {
@@ -5061,6 +5070,426 @@ function greetingFor(name) {
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 
+// src/deals.ts
+var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
+var DEAL_PERS = ["once", "month", "year"];
+var DEAL_SOURCES = ["person", "payment"];
+var DEAL_LOST_REASONS = ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
+var DEAL_LOST_REASON_WORDS = {
+  price: "Price",
+  timing: "Timing",
+  elsewhere: "Went elsewhere",
+  no_reply: "No reply",
+  not_a_fit: "Not a fit",
+  other: "Other"
+};
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+var DEAL_STAGE_WORDS = {
+  proposed: "Proposal out",
+  won: "Client",
+  lost: "Passed",
+  ended: "Ended"
+};
+var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
+var DEAL_LINE_NONE = "No proposal yet";
+var WAITING_AFTER_DAYS = 7;
+var PACE_AFTER_YESES = 5;
+var PACE_WINDOW_DAYS = 365;
+var CONSULT_FOLLOW_DAYS = 7;
+var DAY_MS3 = 864e5;
+function isDealStage(s) {
+  return typeof s === "string" && DEAL_STAGES.includes(s);
+}
+function isDealLostReason(s) {
+  return typeof s === "string" && DEAL_LOST_REASONS.includes(s);
+}
+function isDealPer(s) {
+  return typeof s === "string" && DEAL_PERS.includes(s);
+}
+var DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"];
+function dealFactsOf(r2) {
+  if (!r2 || !isDealStage(r2.deal_stage)) return null;
+  return {
+    stage: r2.deal_stage,
+    service: r2.deal_service ?? null,
+    proposed_at: r2.deal_proposed_at ?? null,
+    decided_at: r2.deal_decided_at ?? null,
+    ended_at: r2.deal_ended_at ?? null,
+    amount_cents: r2.deal_amount_cents ?? null,
+    per: r2.deal_per ?? null,
+    proposal_url: r2.deal_proposal_url ?? null,
+    valid_until: r2.deal_valid_until ?? null,
+    lost_reason: r2.deal_lost_reason ?? null
+  };
+}
+function pickCurrentDeal(rows) {
+  const sorted = [...rows].sort(
+    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
+  );
+  return sorted[0] ?? null;
+}
+function dealIsOpen(d) {
+  return !!d && (d.stage === "proposed" || d.stage === "won");
+}
+function proposalLinkOf(current, personLink) {
+  if (!current) return personLink?.trim() || null;
+  if (current.stage !== "proposed") return null;
+  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
+}
+function amountWords(cents, per, currency = "USD") {
+  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
+  const whole = cents % 100 === 0;
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2
+  }).format(cents / 100);
+  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
+  return p && per !== "once" ? `${money} ${p}` : money;
+}
+function parseAmount(words4) {
+  const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
+  const n = digits2 ? Number(digits2) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+function amountTotalsWords(items) {
+  const order = ["once", "month", "year"];
+  const sums = /* @__PURE__ */ new Map();
+  for (const i of items) {
+    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
+    const per = i.per === "month" || i.per === "year" ? i.per : "once";
+    const currency = (i.currency || "USD").toUpperCase();
+    const key = `${per}|${currency}`;
+    const s = sums.get(key) ?? { cents: 0, per, currency };
+    s.cents += i.amount_cents;
+    sums.set(key, s);
+  }
+  if (!sums.size) return null;
+  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
+}
+function wholeDaysSince(atMs, nowMs) {
+  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS3));
+}
+function dealSinceMs(d) {
+  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
+  const ms2 = at2 ? Date.parse(at2) : NaN;
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function validUntilOf(day, tz, nowMs) {
+  if (!day || !isRealDate(day)) return null;
+  const at2 = wallClockAt(tz, day, 12, 0);
+  if (!Number.isFinite(at2)) return null;
+  const lapsed = zoneDayKey(nowMs, tz) > day;
+  const date = clockDate(at2, tz, nowMs);
+  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
+}
+function toDealVM(d, tz, nowMs) {
+  if (!isDealStage(d.stage)) return null;
+  const sinceMs = dealSinceMs(d);
+  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
+  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
+  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
+  const url = d.proposal_url?.trim() || null;
+  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
+  const word = DEAL_STAGE_WORDS[d.stage];
+  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
+  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
+  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
+  return {
+    id: d.id ?? null,
+    version: d.version ?? null,
+    stage: d.stage,
+    word,
+    service: d.service,
+    sinceMs,
+    since,
+    said,
+    line,
+    facts,
+    brief,
+    waitingDays,
+    amount,
+    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
+    per: isDealPer(d.per) ? d.per : null,
+    currency: d.currency || "USD",
+    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
+    proposal: url ? { url, host: linkHost(url) } : null,
+    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
+    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
+  };
+}
+function dealOf(r2, tz, nowMs) {
+  const f = dealFactsOf(r2);
+  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
+}
+var DEAL_ACT_WORDS = {
+  propose: "Start a proposal",
+  again: "Propose again",
+  edit: "Edit proposal",
+  won: "Mark as client",
+  lost: "Mark as passed",
+  ended: "End the engagement",
+  send: "Send proposal",
+  "follow-up": "Follow up"
+};
+function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
+  if (!d || !isDealStage(d.stage)) return null;
+  const svc = d.service ? ` (${d.service})` : "";
+  const sinceMs = dealSinceMs(d);
+  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
+  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
+  switch (d.stage) {
+    case "won":
+      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
+    case "proposed":
+      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
+    case "lost":
+      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
+    case "ended":
+      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
+  }
+}
+function consultServiceOf(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return null;
+  let best = null;
+  for (const s of services ?? []) {
+    const name = String(s.name ?? "").trim();
+    const folded = foldName(name);
+    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
+    if (!best || folded.length > best.folded.length) best = { name, folded };
+  }
+  return best ? best.name : null;
+}
+function isConsultationTitle(title, services, rules) {
+  const t = foldName(String(title ?? "").trim());
+  if (!t) return false;
+  if (t.includes("consult")) return true;
+  return consultServiceOf(title, services, rules) !== null;
+}
+function heardSinceProposal(r2) {
+  const d = r2.deal;
+  return !!d && d.stage === "proposed" && d.sinceMs !== null && r2.askedMs !== null && r2.askedMs >= d.sinceMs;
+}
+function isYes(d) {
+  return d.stage === "won" || d.stage === "ended";
+}
+function waitAfterDays(pace) {
+  if (!pace) return WAITING_AFTER_DAYS;
+  return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
+}
+function yesWaitWords(days) {
+  return days === 0 ? "under a day" : `${days} ${days === 1 ? "day" : "days"}`;
+}
+function dealPaceWords(medianDays) {
+  return `Usually ${yesWaitWords(medianDays)} to a yes`;
+}
+function dealPaceOf(dto) {
+  if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
+  if (!(dto.yeses >= PACE_AFTER_YESES)) return null;
+  const medianDays = Math.max(0, Math.round(dto.median_days));
+  const waitDays = waitAfterDays({ medianDays });
+  return {
+    medianDays,
+    yeses: dto.yeses,
+    waitDays,
+    longerThanUsual: waitDays > medianDays,
+    words: dealPaceWords(medianDays)
+  };
+}
+function waitingOnProposal(r2, nowMs, pace) {
+  const d = r2.deal;
+  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
+  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
+  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
+  return !heardSinceProposal(r2);
+}
+function proposalsWaiting(rows, nowMs, pace) {
+  return rows.filter((r2) => waitingOnProposal(r2, nowMs, pace));
+}
+function noProposalSince(deal, endedMs) {
+  if (!deal) return true;
+  if (dealIsOpen(deal)) return false;
+  return deal.sinceMs !== null && deal.sinceMs < endedMs;
+}
+function consultationHeld(r2, nowMs) {
+  const at2 = r2.consultedMs;
+  if (typeof at2 !== "number" || !Number.isFinite(at2)) return false;
+  if (at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
+  return noProposalSince(r2.deal, at2);
+}
+function dealStageOf(r2, nowMs) {
+  if (consultationHeld(r2, nowMs)) return "consultation";
+  const d = r2.deal;
+  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
+  if (r2.consultAhead) return "consultation";
+  return d ? d.stage : null;
+}
+function consultationsWithoutProposal(rows, nowMs) {
+  const endOf = (r2) => r2.consultedMs;
+  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
+    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
+  );
+}
+function consultsHeldWords(n) {
+  return `${n} held in the last week, no proposal yet`;
+}
+var DEAL_REFUSALS = {
+  not_found: "Person not found.",
+  bad_stage: "That is not a stage a deal can be in.",
+  bad_per: "An amount is once, a month or a year.",
+  bad_amount: "An amount cannot be negative.",
+  note_too_long: "A note is at most 200 characters.",
+  service_too_long: "A service name is at most 80 characters.",
+  bad_move: "A new deal starts with a proposal.",
+  already_open: "They already have a proposal out or an engagement running for this service.",
+  moved: "Someone changed this deal since you opened it. Reload and try again.",
+  ended: "An ended engagement is not reopened: record a new proposal.",
+  bad_link: "That is not a web address.",
+  bad_reason: "A reason for passing is price, timing, went elsewhere, no reply, not a fit or other.",
+  bad_clear: "Only the link, the valid-until day, the amount or the note can be emptied."
+};
+var DEAL_OUTCOMES_TITLE = "What became of the proposals";
+var DEAL_OUTCOME_WORDS = {
+  won: "Became clients",
+  waiting: "Still waiting",
+  lost: "Passed"
+};
+function cameFromSaid(key, n) {
+  switch (key) {
+    case "whatsapp":
+      return "came from WhatsApp";
+    case "sms":
+      return "came by text";
+    case "email":
+      return "came by email";
+    case "call":
+      return "came by phone";
+    case "calendar":
+      return "came from your calendar";
+    case "manual":
+      return n === 1 ? "was added by hand" : "were added by hand";
+    case "import":
+      return "came from your imported history";
+    case "lead":
+      return "came from Leads";
+    default:
+      return null;
+  }
+}
+var DEAL_LOST_REASON_SAID = {
+  price: "price",
+  timing: "timing",
+  elsewhere: "going elsewhere",
+  no_reply: "no reply",
+  not_a_fit: "not being a fit",
+  other: "something else"
+};
+var plural = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
+var upper = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+function medianLine(days, clients) {
+  if (days === null || !clients) return null;
+  const wait = yesWaitWords(days);
+  return clients === 1 ? `${upper(wait)} to a yes.` : `Median ${wait} to a yes.`;
+}
+function sourcesLine(sources, clients) {
+  if (!clients) return null;
+  const top = sources.filter((s) => s.count > 0 && cameFromSaid(s.came_from, s.count) !== null).sort((a, b) => b.count - a.count)[0];
+  if (!top) return null;
+  const said = cameFromSaid(top.came_from, top.count);
+  return clients === 1 ? `Your new client ${said}.` : `${top.count} of ${clients} new clients ${said}.`;
+}
+function reasonsLine(reasons, passed) {
+  const given = reasons.filter((r2) => r2.count > 0 && isDealLostReason(r2.reason)).sort((a, b) => b.count - a.count);
+  const said = given.reduce((s, r2) => s + r2.count, 0);
+  if (!said || !passed) return null;
+  const top = given[0].count;
+  const tied = given.filter((r2) => r2.count === top);
+  const names2 = upper(leadAnd(tied.map((r2) => DEAL_LOST_REASON_SAID[r2.reason])));
+  const none = Math.max(0, passed - said);
+  if (given.length === 1) {
+    if (passed === 1) return `${names2} was the reason given for passing.`;
+    return `${names2} was the ${none ? "only reason" : "reason"} given for passing, ${top} of ${passed}.`;
+  }
+  const runnerUp = given.find((r2) => r2.count < top)?.count ?? 0;
+  const end = none > 0 && (tied.length > 1 || runnerUp + none >= top) ? `; ${none} gave no reason.` : ".";
+  return tied.length > 1 ? `${names2} were the most common reasons for passing, ${top} each of ${passed}${end}` : `${names2} was the most common reason for passing, ${top} of ${passed}${end}`;
+}
+function openLine(open) {
+  if (!open.count) return null;
+  const worth2 = amountTotalsWords(open.amounts);
+  if (!worth2) return `${plural(open.count, "proposal", "proposals")} still open.`;
+  return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
+}
+function toDealReportVM(dto, rangeLabel) {
+  if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
+  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
+  const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
+  const stock = dto.clients === 0 ? "No clients right now." : `${plural(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
+  const outcomes = dto.sent === 0 ? null : {
+    title: DEAL_OUTCOMES_TITLE,
+    max: dto.sent,
+    rows: ["won", "waiting", "lost"].map((id) => ({
+      id,
+      label: DEAL_OUTCOME_WORDS[id],
+      value: dto[id],
+      display: `${dto[id]}  ${Math.round(dto[id] / dto.sent * 100)}%`
+    }))
+  };
+  const said = [
+    ["median", medianLine(dto.median_days_to_yes, dto.won)],
+    ["sources", sourcesLine(dto.sources, dto.won)],
+    ["reasons", reasonsLine(dto.reasons, dto.lost)],
+    ["open", openLine(dto.open)]
+  ];
+  const lines = said.flatMap(([id, text]) => text ? [{ id, text }] : []);
+  return { present: true, headline, stock, outcomes, lines };
+}
+
 // src/business-tab.ts
 var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
 var ABILITY_CHANNEL_WORDS = {
@@ -5161,18 +5590,30 @@ function rulesKept(i) {
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
+function bookingLinkRowWords(sellsBy) {
+  return bookingLinkOptional(sellsBy) ? {
+    empty: "None \u2014 it takes their details instead",
+    hint: "Optional for a business that quotes: without one, it takes their details instead."
+  } : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
+}
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-var WONT_PRICE = "It offers a consult or the booking link instead of a price.";
-var WONT_PRICE_ON_A_CALL = "It offers a consult or the booking link instead of a price \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented.";
-function standingLine(i, calls) {
+var wontPrice = (link, calls) => `It offers ${link ? "a consult or the booking link" : "a consult, or takes their details,"} instead of a price${calls ? " \u2014 in chat before the reply is sent, on a call caught afterwards rather than prevented" : ""}.`;
+function standingLine(i, calls, sellsBy) {
   if (typeof calls !== "boolean") {
     throw new TypeError("standingLine needs to know whether the workspace answers calls: the two channels differ.");
   }
+  if (sellsBy !== null && typeof sellsBy !== "string") {
+    throw new TypeError(
+      "standingLine needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
+    );
+  }
   const p = i.profile ?? {};
+  const link = offersBookingLink(i);
   const gaps = [];
   if (!has2(i.business_name)) gaps.push({ sentence: "It has no name to introduce itself with.", row: "name" });
-  if (!has2(i.booking_link)) gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
+  if (!link && !bookingLinkOptional(sellsBy))
+    gaps.push({ sentence: "It has no booking link to send anyone.", row: "booking_link" });
   if (!has2(p.hours)) gaps.push({ sentence: "It cannot say when you are open.", row: "hours" });
   if (!has2(p.services)) gaps.push({ sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" });
   if (!has2(p.address)) gaps.push({ sentence: "It cannot say where you are.", row: "address" });
@@ -5185,9 +5626,10 @@ function standingLine(i, calls) {
   if (has2(p.address)) answers.push("where you are");
   if (has2(p.hours)) answers.push("when you're open");
   if (has2(p.services)) answers.push("what you offer");
-  if (has2(i.booking_link)) answers.push("how to book");
+  if (link) answers.push("how to book");
+  else if (bookingLinkOptional(sellsBy)) answers.push("how to get a quote");
   const can = answers.length ? `It can say ${answers.length === 1 ? answers[0] : `${answers.slice(0, -1).join(", ")} and ${answers.at(-1)}`}.` : "It cannot answer anyone yet.";
-  const wont = has2(p.services) ? calls ? WONT_PRICE_ON_A_CALL : WONT_PRICE : null;
+  const wont = has2(p.services) ? wontPrice(link, calls) : null;
   return { can, wont, missing: gaps[0] ?? null };
 }
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
@@ -5294,7 +5736,7 @@ function servicesSaveWords(n) {
   return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
 }
 var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
-var plural = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+var plural2 = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
 function bookingRulesWords(rules) {
   const r2 = rules ?? {};
   const parts2 = [];
@@ -5305,10 +5747,10 @@ function bookingRulesWords(rules) {
   if (isNumber(r2.slot_min)) parts2.push(`${count(r2.slot_min)}-minute slots`);
   if (isNumber(r2.buffer_min))
     parts2.push(
-      r2.buffer_min === 0 ? "no gap between appointments" : `${plural(r2.buffer_min, "minute", "minutes")} between appointments`
+      r2.buffer_min === 0 ? "no gap between appointments" : `${plural2(r2.buffer_min, "minute", "minutes")} between appointments`
     );
-  if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${plural(r2.max_days_ahead, "day", "days")} ahead`);
-  if (isNumber(r2.party_max)) parts2.push(`up to ${plural(r2.party_max, "person", "people")}`);
+  if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${plural2(r2.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r2.party_max)) parts2.push(`up to ${plural2(r2.party_max, "person", "people")}`);
   const joined = parts2.join(" \xB7 ");
   const notes = (Array.isArray(r2.notes) ? r2.notes : []).filter((x) => typeof x === "string" && x.trim() !== "").map((x) => {
     const t = x.trim();
@@ -5318,16 +5760,16 @@ function bookingRulesWords(rules) {
   return {
     line: joined ? `${joined[0].toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own \u2014 at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
+    none: `The calendar's own \u2014 at least ${plural2(d.lead_hours, "hour's", "hours'")} notice, up to ${plural2(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`
   };
 }
 function bookingRuleRefusal(key) {
   const shape = BookingRulesSchema.shape;
   const words4 = {
-    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
-    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
-    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+    lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural2(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+    slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${plural2(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+    buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural2(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+    max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural2(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
   const say = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
@@ -5340,7 +5782,7 @@ function bookingRuleRefusal(key) {
   return say(bound.minValue, bound.maxValue);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  lead_hours: `Empty uses ${plural2(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
   slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
   buffer_min: null,
   max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
@@ -5390,7 +5832,7 @@ function handoffWords(reasons, transfer) {
   const number = typeof transfer === "string" ? transfer.trim() : "";
   const phone = number ? `transfers to ${number}` : "takes a message";
   return {
-    line: `${n ? `For ${plural(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
+    line: `${n ? `For ${plural2(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
     phone
   };
 }
@@ -5418,16 +5860,22 @@ function fallbacksWords(fallbacks) {
   const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
   const differ = keys.filter((k) => {
     const t = typeof f[k] === "string" ? f[k].trim() : "";
-    return t !== "" && t !== FALLBACK_DEFAULTS[k];
+    return t !== "" && !isProductFallback(k, t);
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by any rules your Autonomy tab adds.`)();
+var rulesWithoutFields = (noLink) => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
+var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
+function rulesWithoutFieldsWords(brain) {
+  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+}
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
+  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -5465,7 +5913,7 @@ function abilityRows(i) {
   const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const rows = [
     {
       id: "answer",
@@ -5501,7 +5949,7 @@ function abilityRows(i) {
       channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
-      missing: !i.hasBookingLink
+      missing: !i.hasBookingLink && !i.linkOptional
     },
     {
       id: "transfer",
@@ -5568,11 +6016,22 @@ var CANNOT_ROWS = [
     soon: true
   }
 ];
+var CANNOT_NO_LINK = {
+  book: "Not a setting you could switch on. There is no appointments table in this product \u2014 nothing in it can create, move or cancel one. Your team does that, from the details it takes.",
+  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
+};
 function cannotRows(i) {
   if (typeof i?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive));
+  if (typeof i?.hasBookingLink !== "boolean") {
+    throw new TypeError(
+      "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books."
+    );
+  }
+  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
+    (r2) => !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
+  );
 }
 var PROFILE_LIMITS = /* @__PURE__ */ (() => {
   const cap2 = (schema) => {
@@ -5626,14 +6085,14 @@ var PROFILE_LIMITS = /* @__PURE__ */ (() => {
 function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const lines = (max, one, many) => `At most ${plural(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${plural2(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const words4 = {
     tone: () => chars(L2.tone),
-    services: () => `At most ${plural(L2.services, "service", "services")}.`,
+    services: () => `At most ${plural2(L2.services, "service", "services")}.`,
     serviceName: () => chars(L2.serviceName),
     serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
     servicePrice: () => chars(L2.servicePrice),
-    languages: () => `At most ${plural(L2.languages, "language", "languages")}.`,
+    languages: () => `At most ${plural2(L2.languages, "language", "languages")}.`,
     language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
     reasons: () => lines(L2.reasons, "reason", "reasons"),
     reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
@@ -5641,12 +6100,12 @@ function profileRefusal(key, seen, of) {
     consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
     ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
     ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
-    notes: () => `At most ${plural(L2.notes, "note", "notes")}.`,
+    notes: () => `At most ${plural2(L2.notes, "note", "notes")}.`,
     noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
     noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    closures: () => `At most ${plural(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closures: () => `At most ${plural2(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
     closureNote: () => chars(L2.closureNote),
-    shifts: () => `At most ${plural(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    shifts: () => `At most ${plural2(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
@@ -6177,7 +6636,7 @@ function leadNoCardLine(what) {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
 }
 var LEAD_PAUSED_TITLE = "Lead searches are paused for now";
-var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+var plural3 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function leadNearWhere(labels) {
   const isNear = (l) => l.toLowerCase().startsWith("near ");
   return labels.length && labels.every(isNear) ? `near ${leadAnd(labels.map((l) => l.slice(5).trim()))}` : `in ${leadAnd(labels)}`;
@@ -6203,7 +6662,7 @@ function leadEndingLine(ending, f) {
       if (f.counted === 0) {
         return {
           mark,
-          title: `There are ${plural2(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          title: `There are ${plural3(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
           parts: ["Nothing was counted."],
           step: f.nearby.length ? { id: "nearby", label: `Look ${leadNearWhere(f.nearby)}` } : null
         };
@@ -6227,7 +6686,7 @@ function leadEndingLine(ending, f) {
       return {
         mark,
         // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
-        title: `Found all ${plural2(f.seen, one, f.name)} in ${f.area}`,
+        title: `Found all ${plural3(f.seen, one, f.name)} in ${f.area}`,
         parts: [yours, ...f.nearby.length ? [`Look further out, ${leadNearWhere(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
@@ -7238,422 +7697,6 @@ function leadPlanAsk(plan, facts) {
   const who = planWho(plan);
   const covers = facts.bound === "budget" ? `Emails for ${who} are hard to find, so this month covers about ${count2} more. Find ${count2} now?` : `You have ${count2} lead${count2 === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
   return { count: count2, label, covers };
-}
-
-// src/deals.ts
-var DEAL_STAGES = ["proposed", "won", "lost", "ended"];
-var DEAL_PERS = ["once", "month", "year"];
-var DEAL_SOURCES = ["person", "payment"];
-var DEAL_LOST_REASONS = ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
-var DEAL_LOST_REASON_WORDS = {
-  price: "Price",
-  timing: "Timing",
-  elsewhere: "Went elsewhere",
-  no_reply: "No reply",
-  not_a_fit: "Not a fit",
-  other: "Other"
-};
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
-}
-var DEAL_STAGE_WORDS = {
-  proposed: "Proposal out",
-  won: "Client",
-  lost: "Passed",
-  ended: "Ended"
-};
-var DEAL_PER_WORDS = { once: "once", month: "a month", year: "a year" };
-var DEAL_LINE_NONE = "No proposal yet";
-var WAITING_AFTER_DAYS = 7;
-var PACE_AFTER_YESES = 5;
-var PACE_WINDOW_DAYS = 365;
-var CONSULT_FOLLOW_DAYS = 7;
-var DAY_MS3 = 864e5;
-function isDealStage(s) {
-  return typeof s === "string" && DEAL_STAGES.includes(s);
-}
-function isDealLostReason(s) {
-  return typeof s === "string" && DEAL_LOST_REASONS.includes(s);
-}
-function isDealPer(s) {
-  return typeof s === "string" && DEAL_PERS.includes(s);
-}
-var DEAL_CLEARABLE = ["proposal_url", "valid_until", "amount", "note"];
-function dealFactsOf(r2) {
-  if (!r2 || !isDealStage(r2.deal_stage)) return null;
-  return {
-    stage: r2.deal_stage,
-    service: r2.deal_service ?? null,
-    proposed_at: r2.deal_proposed_at ?? null,
-    decided_at: r2.deal_decided_at ?? null,
-    ended_at: r2.deal_ended_at ?? null,
-    amount_cents: r2.deal_amount_cents ?? null,
-    per: r2.deal_per ?? null,
-    proposal_url: r2.deal_proposal_url ?? null,
-    valid_until: r2.deal_valid_until ?? null,
-    lost_reason: r2.deal_lost_reason ?? null
-  };
-}
-function pickCurrentDeal(rows) {
-  const sorted = [...rows].sort(
-    (a, b) => Number(dealIsOpen(b)) - Number(dealIsOpen(a)) || Date.parse(b.created_at) - Date.parse(a.created_at)
-  );
-  return sorted[0] ?? null;
-}
-function dealIsOpen(d) {
-  return !!d && (d.stage === "proposed" || d.stage === "won");
-}
-function proposalLinkOf(current, personLink) {
-  if (!current) return personLink?.trim() || null;
-  if (current.stage !== "proposed") return null;
-  return (current.proposal_url ?? current.proposal?.url)?.trim() || null;
-}
-function amountWords(cents, per, currency = "USD") {
-  if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
-  const money = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
-  }).format(cents / 100);
-  const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money} ${p}` : money;
-}
-function parseAmount(words4) {
-  const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
-  const n = digits2 ? Number(digits2) : NaN;
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-}
-function amountTotalsWords(items) {
-  const order = ["once", "month", "year"];
-  const sums = /* @__PURE__ */ new Map();
-  for (const i of items) {
-    if (i.amount_cents === null || i.amount_cents === void 0 || !Number.isFinite(i.amount_cents)) continue;
-    const per = i.per === "month" || i.per === "year" ? i.per : "once";
-    const currency = (i.currency || "USD").toUpperCase();
-    const key = `${per}|${currency}`;
-    const s = sums.get(key) ?? { cents: 0, per, currency };
-    s.cents += i.amount_cents;
-    sums.set(key, s);
-  }
-  if (!sums.size) return null;
-  return [...sums.values()].sort((a, b) => order.indexOf(a.per) - order.indexOf(b.per) || a.currency.localeCompare(b.currency)).map((s) => amountWords(s.cents, s.per, s.currency)).join(" + ");
-}
-function wholeDaysSince(atMs, nowMs) {
-  return atMs === null ? null : Math.max(0, Math.floor((nowMs - atMs) / DAY_MS3));
-}
-function dealSinceMs(d) {
-  const at2 = d.stage === "proposed" ? d.proposed_at : d.stage === "ended" ? d.ended_at : d.decided_at ?? d.proposed_at;
-  const ms2 = at2 ? Date.parse(at2) : NaN;
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function validUntilOf(day, tz, nowMs) {
-  if (!day || !isRealDate(day)) return null;
-  const at2 = wallClockAt(tz, day, 12, 0);
-  if (!Number.isFinite(at2)) return null;
-  const lapsed = zoneDayKey(nowMs, tz) > day;
-  const date = clockDate(at2, tz, nowMs);
-  return { day, date, words: `${lapsed ? "Lapsed" : "Valid until"} ${date}`, lapsed };
-}
-function toDealVM(d, tz, nowMs) {
-  if (!isDealStage(d.stage)) return null;
-  const sinceMs = dealSinceMs(d);
-  const since = sinceMs === null ? "" : `since ${clockDate(sinceMs, tz, nowMs)}`;
-  const waitingDays = d.stage === "proposed" ? wholeDaysSince(sinceMs, nowMs) : null;
-  const amount = amountWords(d.amount_cents, d.per, d.currency ?? "USD");
-  const url = d.proposal_url?.trim() || null;
-  const proposedMs = d.proposed_at ? Date.parse(d.proposed_at) : NaN;
-  const word = DEAL_STAGE_WORDS[d.stage];
-  const said = [word, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const line = [d.service, said].filter((x) => !!x).join(" \xB7 ");
-  const facts = [d.service, since, amount].filter((x) => !!x).join(" \xB7 ");
-  const brief = d.stage === "proposed" ? `${word} \xB7 ${waitingDays ?? 0} d` : d.stage === "won" ? [word, d.service].filter((x) => !!x).join(" \xB7 ") : null;
-  return {
-    id: d.id ?? null,
-    version: d.version ?? null,
-    stage: d.stage,
-    word,
-    service: d.service,
-    sinceMs,
-    since,
-    said,
-    line,
-    facts,
-    brief,
-    waitingDays,
-    amount,
-    amountCents: d.amount_cents === null || d.amount_cents === void 0 || !Number.isFinite(d.amount_cents) ? null : d.amount_cents,
-    per: isDealPer(d.per) ? d.per : null,
-    currency: d.currency || "USD",
-    proposedMs: Number.isFinite(proposedMs) ? proposedMs : null,
-    proposal: url ? { url, host: linkHost(url) } : null,
-    validUntil: d.stage === "proposed" ? validUntilOf(d.valid_until, tz, nowMs) : null,
-    reason: d.stage === "lost" && isDealLostReason(d.lost_reason) ? { code: d.lost_reason, words: DEAL_LOST_REASON_WORDS[d.lost_reason] } : null
-  };
-}
-function dealOf(r2, tz, nowMs) {
-  const f = dealFactsOf(r2);
-  return f ? toDealVM({ ...f, id: r2?.deal_id ?? null }, tz, nowMs) : null;
-}
-var DEAL_ACT_WORDS = {
-  propose: "Start a proposal",
-  again: "Propose again",
-  edit: "Edit proposal",
-  won: "Mark as client",
-  lost: "Mark as passed",
-  ended: "End the engagement",
-  send: "Send proposal",
-  "follow-up": "Follow up"
-};
-function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
-  if (!d || !isDealStage(d.stage)) return null;
-  const svc = d.service ? ` (${d.service})` : "";
-  const sinceMs = dealSinceMs(d);
-  const on = sinceMs === null ? "" : ` on ${clockDate(sinceMs, tz, nowMs)}`;
-  const since = sinceMs === null ? "" : `, since ${clockDate(sinceMs, tz, nowMs)}`;
-  switch (d.stage) {
-    case "won":
-      return `They are a client${svc}${since}. Offer them the service itself, not a consultation. Anything about their engagement or what it costs goes to a person: say someone will follow up, and hand over.`;
-    case "proposed":
-      return opts.hasLink ? `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, send them the proposal link and state none of its figures, then hand over.` : `A proposal${svc} went out to them${on} and is waiting on their answer. If they ask about it, say the person who sent it will follow up, and hand over. Never discuss its price.`;
-    case "lost":
-      return `They passed on a proposal${svc}${on}. Do not bring it up; if they ask again, hand over to a person.`;
-    case "ended":
-      return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
-  }
-}
-function consultServiceOf(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
-  let best = null;
-  for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
-    const folded = foldName(name);
-    if (!folded || !t.includes(folded) || !needsConsultation(name, rules)) continue;
-    if (!best || folded.length > best.folded.length) best = { name, folded };
-  }
-  return best ? best.name : null;
-}
-function isConsultationTitle(title, services, rules) {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return false;
-  if (t.includes("consult")) return true;
-  return consultServiceOf(title, services, rules) !== null;
-}
-function heardSinceProposal(r2) {
-  const d = r2.deal;
-  return !!d && d.stage === "proposed" && d.sinceMs !== null && r2.askedMs !== null && r2.askedMs >= d.sinceMs;
-}
-function isYes(d) {
-  return d.stage === "won" || d.stage === "ended";
-}
-function waitAfterDays(pace) {
-  if (!pace) return WAITING_AFTER_DAYS;
-  return Math.min(30, Math.max(3, Math.round(pace.medianDays * 1.2)));
-}
-function yesWaitWords(days) {
-  return days === 0 ? "under a day" : `${days} ${days === 1 ? "day" : "days"}`;
-}
-function dealPaceWords(medianDays) {
-  return `Usually ${yesWaitWords(medianDays)} to a yes`;
-}
-function dealPaceOf(dto) {
-  if (!dto || typeof dto.median_days !== "number" || !Number.isFinite(dto.median_days)) return null;
-  if (!(dto.yeses >= PACE_AFTER_YESES)) return null;
-  const medianDays = Math.max(0, Math.round(dto.median_days));
-  const waitDays = waitAfterDays({ medianDays });
-  return {
-    medianDays,
-    yeses: dto.yeses,
-    waitDays,
-    longerThanUsual: waitDays > medianDays,
-    words: dealPaceWords(medianDays)
-  };
-}
-function waitingOnProposal(r2, nowMs, pace) {
-  const d = r2.deal;
-  if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
-  const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
-  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
-  return !heardSinceProposal(r2);
-}
-function proposalsWaiting(rows, nowMs, pace) {
-  return rows.filter((r2) => waitingOnProposal(r2, nowMs, pace));
-}
-function noProposalSince(deal, endedMs) {
-  if (!deal) return true;
-  if (dealIsOpen(deal)) return false;
-  return deal.sinceMs !== null && deal.sinceMs < endedMs;
-}
-function consultationHeld(r2, nowMs) {
-  const at2 = r2.consultedMs;
-  if (typeof at2 !== "number" || !Number.isFinite(at2)) return false;
-  if (at2 > nowMs || nowMs - at2 > CONSULT_FOLLOW_DAYS * DAY_MS3) return false;
-  return noProposalSince(r2.deal, at2);
-}
-function dealStageOf(r2, nowMs) {
-  if (consultationHeld(r2, nowMs)) return "consultation";
-  const d = r2.deal;
-  if (d && (d.stage === "proposed" || d.stage === "won")) return d.stage;
-  if (r2.consultAhead) return "consultation";
-  return d ? d.stage : null;
-}
-function consultationsWithoutProposal(rows, nowMs) {
-  const endOf = (r2) => r2.consultedMs;
-  return rows.filter((r2) => consultationHeld(r2, nowMs)).sort(
-    (a, b) => endOf(a) - endOf(b) || String(a.name ?? "").localeCompare(String(b.name ?? "")) || String(a.id ?? "").localeCompare(String(b.id ?? ""))
-  );
-}
-function consultsHeldWords(n) {
-  return `${n} held in the last week, no proposal yet`;
-}
-var DEAL_REFUSALS = {
-  not_found: "Person not found.",
-  bad_stage: "That is not a stage a deal can be in.",
-  bad_per: "An amount is once, a month or a year.",
-  bad_amount: "An amount cannot be negative.",
-  note_too_long: "A note is at most 200 characters.",
-  service_too_long: "A service name is at most 80 characters.",
-  bad_move: "A new deal starts with a proposal.",
-  already_open: "They already have a proposal out or an engagement running for this service.",
-  moved: "Someone changed this deal since you opened it. Reload and try again.",
-  ended: "An ended engagement is not reopened: record a new proposal.",
-  bad_link: "That is not a web address.",
-  bad_reason: "A reason for passing is price, timing, went elsewhere, no reply, not a fit or other.",
-  bad_clear: "Only the link, the valid-until day, the amount or the note can be emptied."
-};
-var DEAL_OUTCOMES_TITLE = "What became of the proposals";
-var DEAL_OUTCOME_WORDS = {
-  won: "Became clients",
-  waiting: "Still waiting",
-  lost: "Passed"
-};
-function cameFromSaid(key, n) {
-  switch (key) {
-    case "whatsapp":
-      return "came from WhatsApp";
-    case "sms":
-      return "came by text";
-    case "email":
-      return "came by email";
-    case "call":
-      return "came by phone";
-    case "calendar":
-      return "came from your calendar";
-    case "manual":
-      return n === 1 ? "was added by hand" : "were added by hand";
-    case "import":
-      return "came from your imported history";
-    case "lead":
-      return "came from Leads";
-    default:
-      return null;
-  }
-}
-var DEAL_LOST_REASON_SAID = {
-  price: "price",
-  timing: "timing",
-  elsewhere: "going elsewhere",
-  no_reply: "no reply",
-  not_a_fit: "not being a fit",
-  other: "something else"
-};
-var plural3 = (count2, one, many) => `${count2} ${count2 === 1 ? one : many}`;
-var upper = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-function medianLine(days, clients) {
-  if (days === null || !clients) return null;
-  const wait = yesWaitWords(days);
-  return clients === 1 ? `${upper(wait)} to a yes.` : `Median ${wait} to a yes.`;
-}
-function sourcesLine(sources, clients) {
-  if (!clients) return null;
-  const top = sources.filter((s) => s.count > 0 && cameFromSaid(s.came_from, s.count) !== null).sort((a, b) => b.count - a.count)[0];
-  if (!top) return null;
-  const said = cameFromSaid(top.came_from, top.count);
-  return clients === 1 ? `Your new client ${said}.` : `${top.count} of ${clients} new clients ${said}.`;
-}
-function reasonsLine(reasons, passed) {
-  const given = reasons.filter((r2) => r2.count > 0 && isDealLostReason(r2.reason)).sort((a, b) => b.count - a.count);
-  const said = given.reduce((s, r2) => s + r2.count, 0);
-  if (!said || !passed) return null;
-  const top = given[0].count;
-  const tied = given.filter((r2) => r2.count === top);
-  const names2 = upper(leadAnd(tied.map((r2) => DEAL_LOST_REASON_SAID[r2.reason])));
-  const none = Math.max(0, passed - said);
-  if (given.length === 1) {
-    if (passed === 1) return `${names2} was the reason given for passing.`;
-    return `${names2} was the ${none ? "only reason" : "reason"} given for passing, ${top} of ${passed}.`;
-  }
-  const runnerUp = given.find((r2) => r2.count < top)?.count ?? 0;
-  const end = none > 0 && (tied.length > 1 || runnerUp + none >= top) ? `; ${none} gave no reason.` : ".";
-  return tied.length > 1 ? `${names2} were the most common reasons for passing, ${top} each of ${passed}${end}` : `${names2} was the most common reason for passing, ${top} of ${passed}${end}`;
-}
-function openLine(open) {
-  if (!open.count) return null;
-  const worth2 = amountTotalsWords(open.amounts);
-  if (!worth2) return `${plural3(open.count, "proposal", "proposals")} still open.`;
-  return open.count === 1 ? `${worth2} still open in 1 proposal.` : `${worth2} still open across ${open.count} proposals.`;
-}
-function toDealReportVM(dto, rangeLabel) {
-  if (!dto || !dto.any) return { present: false, headline: "", stock: "", outcomes: null, lines: [] };
-  const headline = dto.sent === 0 ? `No proposals went out in the last ${rangeLabel}.` : `${plural3(dto.sent, "proposal", "proposals")} went out in the last ${rangeLabel}.`;
-  const monthly = dto.monthly_cents > 0 ? amountWords(dto.monthly_cents, "month") : null;
-  const stock = dto.clients === 0 ? "No clients right now." : `${plural3(dto.clients, "client", "clients")} now${monthly ? ` \xB7 ${monthly}` : ""}.`;
-  const outcomes = dto.sent === 0 ? null : {
-    title: DEAL_OUTCOMES_TITLE,
-    max: dto.sent,
-    rows: ["won", "waiting", "lost"].map((id) => ({
-      id,
-      label: DEAL_OUTCOME_WORDS[id],
-      value: dto[id],
-      display: `${dto[id]}  ${Math.round(dto[id] / dto.sent * 100)}%`
-    }))
-  };
-  const said = [
-    ["median", medianLine(dto.median_days_to_yes, dto.won)],
-    ["sources", sourcesLine(dto.sources, dto.won)],
-    ["reasons", reasonsLine(dto.reasons, dto.lost)],
-    ["open", openLine(dto.open)]
-  ];
-  const lines = said.flatMap(([id, text]) => text ? [{ id, text }] : []);
-  return { present: true, headline, stock, outcomes, lines };
 }
 
 // src/list-rules.ts
@@ -20956,6 +20999,7 @@ export {
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   E164,
+  EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   EMPTY_READ_STATE,
@@ -21381,6 +21425,8 @@ export {
   bookedAfterAsk,
   bookingHeld,
   bookingLinkAction,
+  bookingLinkOptional,
+  bookingLinkRowWords,
   bookingRuleRefusal,
   bookingRulesWords,
   bookingTemplate,
@@ -21631,6 +21677,7 @@ export {
   isOptedOutContact,
   isOwned,
   isPipelineView,
+  isProductFallback,
   isPushKind,
   isRealDate,
   isReplyTo,
@@ -21934,6 +21981,7 @@ export {
   ruleStrength,
   rulesKept,
   rulesLine,
+  rulesWithoutFieldsWords,
   runDueNow,
   runningTotal,
   runsWords,

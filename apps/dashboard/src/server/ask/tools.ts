@@ -1219,7 +1219,7 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
       })),
       open: d.windows.map((w) => w.label),
     })),
-    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller. Nothing is booked from here — the booking link does that.",
+    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller. Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
   };
 }
 
