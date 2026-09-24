@@ -31,6 +31,8 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SEARCH = "55555555-5555-4555-8555-555555555551";
 const SEARCH2 = "55555555-5555-4555-8555-555555555552";
 const SEARCH3 = "55555555-5555-4555-8555-555555555553";
+const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SEARCH_ELSEWHERE = "55555555-5555-4555-8555-555555555554";
 const ROUND = "66666666-6666-4666-8666-666666666661";
 const NOW = new Date("2026-09-19T15:00:00Z");
 
@@ -125,6 +127,18 @@ const world = () => ({
       counted: 20,
       qualified: 20,
       review: 0,
+    }),
+    // Another workspace's search, waiting too: the tools never see it, and an amends that names it is refused.
+    viewRow({
+      id: SEARCH_ELSEWHERE,
+      tenant_id: B,
+      name: "Dentists in Denver",
+      created_at: "2026-09-19T12:00:00Z",
+      state: "waiting_on_owner",
+      ending: null,
+      plan_version: 1,
+      question: { sentence: "Many of the first 25 are orthodontists. Include them?", criterionKey: "ortho" },
+      waiting_since: "2026-09-19T13:00:00Z",
     }),
   ],
   tenants: [{ id: A, name: "Zilker Strength", timezone: "America/Chicago", slug: "harbor" }],
@@ -337,7 +351,7 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
   assert.equal(s.searches[1].question, null);
   assert.equal(s.searches[2].question, "Most of the first 25 are chain gyms. Include them?");
   assert.match(s.note, /propose_lead_search with amends set to its id/);
-  assert.match(s.note, /Keep going or Stop on Leads/);
+  assert.match(s.note, /Yes, keep going or Stop here on Leads/);
 });
 
 test("propose_lead_search with amends answers a waiting search: the plan at the round's next version and count, the question on the card, no undo", async () => {
@@ -351,7 +365,8 @@ test("propose_lead_search with amends answers a waiting search: the plan at the 
   assert.equal(out.isError, false, out.result);
   const p = out.proposal;
   assert.equal(p.payload.plan.version, 2, "the round's version + 1, set by the server");
-  assert.equal(p.payload.plan.count, PLAN.count, "the round's reservation, not the 50 the model wrote");
+  assert.equal(p.payload.plan.count, PLAN.count, "the count the search's plan reserved, not the 50 the model wrote");
+  assert.equal(p.title, "Find 200 personal trainers", "the title is the plan's: the round's count, not the model's 50");
   assert.deepEqual(p.payload.plan.exclusions, [], "the answer applied: the chains are no longer left out");
   assert.deepEqual(p.payload.amends, {
     search_id: SEARCH3,
@@ -378,6 +393,10 @@ test("propose_lead_search with amends answers a waiting search: the plan at the 
   });
   assert.equal(unknown.isError, true);
   assert.match(JSON.parse(unknown.result).error, /not in this workspace/);
+  // Another workspace's waiting search is, to this one, not there at all.
+  const elsewhere = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH_ELSEWHERE });
+  assert.equal(elsewhere.isError, true);
+  assert.match(JSON.parse(elsewhere.result).error, /not in this workspace/);
 });
 
 test("the card commits to POST lead-searches marked as Ask's, and its undo stops the search", async () => {

@@ -16,8 +16,8 @@ const Body = z.object({
  * 25. Keep goes on; Include amends the plan and re-judges what that criterion
  * left out; Stop ends the round. The door (lead_round_answer) takes the
  * search's latest round and refuses when it is not waiting. Include amends
- * the plan: the route sets its version (the round's + 1) and count (the
- * round's reservation), so a client never computes them.
+ * the plan: the route sets its version (the round's + 1) and count (the count
+ * the search's plan reserved), so a client never computes them.
  */
 export const POST = write({
   scope: workspace,

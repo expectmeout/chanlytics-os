@@ -70,7 +70,7 @@ import {
 } from "../dto";
 import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
-import { listSearches } from "../leads";
+import { listSearches, waitingQuestionOf } from "../leads";
 import { metricsSummaryFor } from "../metrics";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
 import { calendarWeek } from "../calendar";
@@ -1246,25 +1246,22 @@ async function listLeadSearches(t: ToolContext): Promise<unknown> {
   const cut = (v: string | null | undefined) => (typeof v === "string" ? v.slice(0, 120) : "");
   return {
     route: "clients/leads",
-    searches: rows.map((r) => ({
-      id: r.id,
-      name: cut(r.name),
-      asked: cut(r.asked),
-      asked_on: r.created_at.slice(0, 10),
-      state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
-      ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
-      qualified: r.qualified,
-      review: r.review,
-      counted: r.counted,
-      question:
-        r.state === "waiting_on_owner" &&
-        r.question &&
-        typeof r.question === "object" &&
-        typeof (r.question as { sentence?: unknown }).sentence === "string"
-          ? cut((r.question as { sentence: string }).sentence)
-          : null,
-    })),
-    note: "Counted is what came off this month's leads. A search with a question is waiting for the owner's answer: to answer it with a change, propose_lead_search with amends set to its id, carrying the same plan with the answer applied and everything else as it was; to carry on unchanged or stop it, the owner presses Keep going or Stop on Leads. Nothing here has started or changed because you read it; a new search is propose_lead_search without amends, which becomes a card the owner approves.",
+    searches: rows.map((r) => {
+      const q = waitingQuestionOf(r);
+      return {
+        id: r.id,
+        name: cut(r.name),
+        asked: cut(r.asked),
+        asked_on: r.created_at.slice(0, 10),
+        state: r.state ? (ROUND_WORDS[r.state] ?? r.state) : "not started",
+        ending: r.ending ? (LEAD_ENDING_WORDS[r.ending as LeadRoundEnding] ?? null) : null,
+        qualified: r.qualified,
+        review: r.review,
+        counted: r.counted,
+        question: q ? cut(q) : null,
+      };
+    }),
+    note: "Counted is what came off this month's leads. A search with a question is waiting for the owner's answer: to answer it with a change, propose_lead_search with amends set to its id, carrying the same plan with the answer applied and everything else as it was; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here has started or changed because you read it; a new search is propose_lead_search without amends, which becomes a card the owner approves.",
   };
 }
 

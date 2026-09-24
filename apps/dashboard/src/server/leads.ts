@@ -300,8 +300,8 @@ export async function searchRow(
 
 /**
  * The plan an answer carries, as the door takes it (lead_round_answer, 00140): the version after the round's, at the
- * count the round reserved. A client may send any version and count; this is the one place that sets them, for the
- * route and for a proposal that amends (server/ask/proposals.ts).
+ * count the search's plan reserved. A client may send any version and count; this is the one place that sets them,
+ * for the route and for a proposal that amends (server/ask/proposals.ts).
  */
 export function answerPlanOf(
   search: Pick<SearchViewRow, "plan" | "plan_version">,
@@ -405,6 +405,19 @@ export async function listCounts(ctx: Pick<RouteContext, "supabase">, tenantId: 
  */
 const questionKeyOf = (q: { criterionKey?: unknown; criterion_key?: unknown }): string =>
   typeof q.criterionKey === "string" ? q.criterionKey : typeof q.criterion_key === "string" ? q.criterion_key : "";
+
+/**
+ * The question a search is waiting on, or null: the round's sentence while its state is waiting_on_owner. The one
+ * reader for Ask (list_lead_searches says it; a proposal that amends answers it); the DTO reads the question in
+ * every state, for the page.
+ */
+export const waitingQuestionOf = (r: Pick<SearchViewRow, "state" | "question">): string | null =>
+  r.state === "waiting_on_owner" &&
+  r.question &&
+  typeof r.question === "object" &&
+  typeof (r.question as { sentence?: unknown }).sentence === "string"
+    ? (r.question as { sentence: string }).sentence
+    : null;
 
 /** `asked_on` is the view's own created_at: the day the owner asked, said once. */
 function toSearchDto(r: SearchViewRow): LeadSearchDto {

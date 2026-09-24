@@ -51,6 +51,8 @@ import {
   violatesNoPrices,
   replyWindow,
   type AskProposal,
+  AppError,
+  type LeadSearchPlan,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_TRIGGERS,
   ProposeLeadSearchSchema,
@@ -69,7 +71,7 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
-import { answerPlanOf, planFacts, searchRow, type SearchViewRow } from "../leads";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads";
 import { requireUuid } from "../request-guards";
 import { archivedListWords, audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead, sellsByOf } from "../deals";
@@ -1083,31 +1085,32 @@ async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>)
     return refuse(
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
     );
-  const r = planLeadSearch(shaped.data);
+  const amends = str(input.amends, 40);
+  let row: SearchViewRow | null = null;
+  let question: string | null = null;
+  if (amends) {
+    // The search it answers is read, never trusted from the words: one not waiting (or not this workspace's) is a
+    // refusal in words, so the model says so instead of a card that would start a second search. A database
+    // error is not a missing search: it is thrown on, for buildProposal to log and say it could not be checked.
+    try {
+      row = await searchRow(t.ctx, t.tenantId, requireUuid(amends, "search"));
+    } catch (e) {
+      if (!(e instanceof AppError)) throw e;
+    }
+    if (!row) return refuse("that search is not in this workspace; propose a new search instead");
+    question = waitingQuestionOf(row);
+    if (!question) return refuse("that search is not waiting for an answer; propose a new search instead");
+  }
+  // An answer is planned at the count the search's plan reserved, so the title and the view say the same number
+  // as the plan the card carries; the model's count is only its own for a new search.
+  const storedCount = row ? (row.plan as LeadSearchPlan | null)?.count : undefined;
+  const r = planLeadSearch(typeof storedCount === "number" ? { ...shaped.data, count: storedCount } : shaped.data);
   // Outside the US, people rather than businesses, an ask no card fits: words
   // for the model to say, never a card with a problem in it.
   if (!r.ok) return refuse(r.refusal.text);
-  const amends = str(input.amends, 40);
-  let answer: { search_id: string; name: string; question: string } | null = null;
-  let plan = r.plan;
-  if (amends) {
-    // The search it answers is read, never trusted from the words: one not waiting (or not this workspace's) is a
-    // refusal in words, so the model says so instead of a card that would start a second search.
-    let row: SearchViewRow | null = null;
-    try {
-      row = await searchRow(t.ctx, t.tenantId, requireUuid(amends, "search"));
-    } catch {
-      row = null;
-    }
-    if (!row) return refuse("that search is not in this workspace; propose a new search instead");
-    const q =
-      row.question && typeof row.question === "object" ? (row.question as { sentence?: unknown }).sentence : null;
-    if (row.state !== "waiting_on_owner" || typeof q !== "string")
-      return refuse("that search is not waiting for an answer; propose a new search instead");
-    // The version and the count are the server's (answerPlanOf), the same as the answer route sets them.
-    plan = answerPlanOf(row, r.plan);
-    answer = { search_id: row.id, name: row.name, question: q };
-  }
+  // The version and the count are the server's (answerPlanOf), the same as the answer route sets them.
+  const plan = row ? answerPlanOf(row, r.plan) : r.plan;
+  const answer = row && question ? { search_id: row.id, name: row.name, question } : null;
   // The facts under the sentence -- the month's leads left, the duplicates
   // already theirs, what past searches for this kind of business found -- are
   // one read, `planFacts` in server/leads.ts. It lives there and not here
