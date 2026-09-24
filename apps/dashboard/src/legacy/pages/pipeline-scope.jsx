@@ -416,7 +416,8 @@ const PipelineScope = ({ onOpenProfile = () => {}, onNavigate = null, pipelineRo
       )}
       <div className={`cl-main${compact ? " has-peek" : ""}`}>
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
-          {/* A phone's one bar: the switch, the view shown (its rows in a sheet), search, and New proposal's +. */}
+          {/* A phone's top: the scopes as the Inbox's tab strip, then the bar -- the view shown (its rows in a sheet),
+              search, and New proposal's +. */}
           {phone && (
             <Bar
               scope="pipeline"

@@ -931,8 +931,8 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 
 /* ---------------------------------------------------------------- the phone */
 
-// The phone's one bar (<=900px, the band People's own rows begin at), Leads' way: People's bar (PeoplePhoneBar,
-// clients-a.jsx) with Find as its last control. The switch, the list and search are the same bar on both scopes, and
+// The phone's top (<=900px, the band People's own rows begin at), Leads' way: People's (PeoplePhoneBar, clients-a.jsx),
+// the scopes as the Inbox's tab strip over the bar, with Find as its last control. The same top on every scope, and
 // nothing else sits above the rows -- no title, no sub-headline, no stat cards and no second control row
 // (legacy/CLAUDE.md, the phone shows the work first).
 const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind, canFind }) => {

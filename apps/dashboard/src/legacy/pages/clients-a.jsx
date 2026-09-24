@@ -1302,67 +1302,76 @@ const PeopleStanding = ({ scope = "people", leads = null, agg = null, needsShown
   )
 );
 
-// The phone's one bar (900px and under, the band the rows and the Lists sheet use), the same for both scopes of
-// People: the People | Leads switch, the list being shown, search behind a button, and the scope's own last control
-// -- People's more-menu, Leads' Find. Nothing sits above the rows but the one line under it: the phone shows the work
-// first. Searching, the bar is the field, full width and 16px, so a phone never zooms into it, and Cancel gives the
-// bar back; words in the box keep it open (a view of Leads comes back with its own) without taking focus. The search
-// was a box of its own: 64px wide on Leads ("Sear"), and on People a 57px row above three text buttons. Hookless: its
-// state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
+// The phone's top (900px and under, the band the rows and the Lists sheet use), the same for every scope of People:
+// the scopes as the Inbox draws its views -- the shell's own tab strip (.stabs), a row of its own with the one picked
+// underlined -- and under it the bar: the list being shown, search behind a button, and the scope's own last control
+// (People's more-menu, Leads' Find, the Pipeline's +). The switch was a boxed control squeezed into the bar beside
+// the list button, which shortened the list's name ("All deals 6" at 375px) and looked like no other page's views.
+// Nothing else sits above the rows but the one line under the bar. Searching, the bar is the field, full width and
+// 16px, so a phone never zooms into it, and Cancel gives the bar back; the scopes stay above it, as the Inbox's views
+// stay over its search. Words in the box keep it open (a view of Leads comes back with its own) without taking focus.
+// Hookless: its state is the page's (`searchOpen`), so the page's one keyboard listener opens it on /.
 // `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. As one
 // string, "All leads · 96" was drawn "All leads · …" on a 375px phone. `dealsOn` puts the Pipeline in the switch; with
 // no `onLists` there is no list to pick and the bar draws no list button.
 const PeoplePhoneBar = ({ scope, onScope, dealsOn = false, listLabel = null, listCount = null, onLists = null, listsOpen = false, q, onQ, searchRef, searchOpen = false, onSearchOpen, searchLabel, trailing = null, testid }) => {
   const id = (part) => `${testid}-phone-${part}`;
-  if (searchOpen || q) {
-    return (
-      <div className="pp-bar is-searching" data-testid={id("bar")}>
-        <label className="pp-bar-field">
-          <Icon name="search" size={16} />
-          <input
-            ref={searchRef}
-            type="search"
-            inputMode="search"
-            enterKeyHint="search"
-            autoComplete="off"
-            autoFocus={searchOpen}
-            value={q}
-            placeholder={searchLabel}
-            aria-label={searchLabel}
-            onChange={(e) => onQ(e.target.value)}
-            data-testid={id("search")}
-          />
-          {q ? (
-            <button type="button" className="pp-bar-clear" aria-label="Clear the search" onClick={() => { onQ(""); if (searchRef && searchRef.current) searchRef.current.focus(); }} data-testid={id("search-clear")}>
-              <Icon name="x" size={12} />
-            </button>
-          ) : null}
-        </label>
-        <button type="button" className="pp-bar-cancel" onClick={() => { onQ(""); onSearchOpen(false); }} data-testid={id("search-cancel")}>Cancel</button>
-      </div>
-    );
-  }
+  // The two rows are one top: `-phone-bar` names both, so what reads the bar (the scopes, the list, search) finds them.
   return (
-    <div className="pp-bar" data-testid={id("bar")}>
-      <div className="pt-scope" role="tablist" aria-label="Which people">
+    <div className="pp-top" data-testid={id("bar")}>
+      <div className="stabs stabs-people" role="tablist" aria-label="Which people" data-testid={id("scopes")}>
         {plScopes(dealsOn).map((s) => (
-          <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={scope === s.id ? "on" : ""} onClick={() => onScope(s.id)}>{s.label}</button>
+          <button key={s.id} type="button" role="tab" aria-selected={scope === s.id} className={`stabs-tab${scope === s.id ? " active" : ""}`} onClick={() => onScope(s.id)}>{s.label}</button>
         ))}
       </div>
-      {onLists ? (
-        <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
-          <span className="pp-bar-pick-words">{listLabel}</span>
-          {listCount != null ? <span className="pp-bar-pick-count" data-testid={id("lists-count")}>{Number(listCount).toLocaleString()}</span> : null}
-          <Icon name="chevron-down" size={11} />
-        </button>
-      ) : null}
-      <button type="button" className="pp-bar-icon pp-bar-push" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
-        <Icon name="search" size={18} />
-      </button>
-      {trailing}
+      {searchOpen || q ? (
+        <PeoplePhoneSearch id={id} q={q} onQ={onQ} searchRef={searchRef} searchOpen={searchOpen} onSearchOpen={onSearchOpen} searchLabel={searchLabel} />
+      ) : (
+        <div className="pp-bar">
+          {onLists ? (
+            <button type="button" className="pp-bar-pick" aria-haspopup="dialog" aria-expanded={!!listsOpen} onClick={onLists} data-testid={id("lists")}>
+              <span className="pp-bar-pick-words">{listLabel}</span>
+              {listCount != null ? <span className="pp-bar-pick-count" data-testid={id("lists-count")}>{Number(listCount).toLocaleString()}</span> : null}
+              <Icon name="chevron-down" size={11} />
+            </button>
+          ) : null}
+          <button type="button" className="pp-bar-icon pp-bar-push" aria-label={searchLabel} onClick={() => onSearchOpen(true)} data-testid={id("search-open")}>
+            <Icon name="search" size={18} />
+          </button>
+          {trailing}
+        </div>
+      )}
     </div>
   );
 };
+
+// The bar, searching: the field, full width, and Cancel to give the bar back.
+const PeoplePhoneSearch = ({ id, q, onQ, searchRef, searchOpen, onSearchOpen, searchLabel }) => (
+  <div className="pp-bar is-searching">
+    <label className="pp-bar-field">
+      <Icon name="search" size={16} />
+      <input
+        ref={searchRef}
+        type="search"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
+        autoFocus={searchOpen}
+        value={q}
+        placeholder={searchLabel}
+        aria-label={searchLabel}
+        onChange={(e) => onQ(e.target.value)}
+        data-testid={id("search")}
+      />
+      {q ? (
+        <button type="button" className="pp-bar-clear" aria-label="Clear the search" onClick={() => { onQ(""); if (searchRef && searchRef.current) searchRef.current.focus(); }} data-testid={id("search-clear")}>
+          <Icon name="x" size={12} />
+        </button>
+      ) : null}
+    </label>
+    <button type="button" className="pp-bar-cancel" onClick={() => { onQ(""); onSearchOpen(false); }} data-testid={id("search-cancel")}>Cancel</button>
+  </div>
+);
 
 // The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
 // chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
